@@ -5,12 +5,12 @@ use cosmwasm_std::{to_binary, Addr, CosmosMsg, StdResult, WasmMsg};
 
 use crate::msg::ExecuteMsg;
 
-/// CwTemplateContract is a wrapper around Addr that provides a lot of helpers
+/// ConnectionRegistry is a wrapper around Addr that provides a lot of helpers
 /// for working with this.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct CwTemplateContract(pub Addr);
+pub struct ConnectionRegistry(pub Addr);
 
-impl CwTemplateContract {
+impl ConnectionRegistry {
     pub fn addr(&self) -> Addr {
         self.0.clone()
     }
