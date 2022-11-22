@@ -8,7 +8,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ActiveWorker};
 
 /*
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:connection-registry";
+const CONTRACT_NAME: &str = "crates.io:service-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 */
 
@@ -30,31 +30,31 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RegisterConnection{
-            connection_name,
+        ExecuteMsg::RegisterService{
+            service_name,
             chain_id,
-            connection_controller,
+            service_controller,
             num_workers,
             min_worker_bond,
             unbonding_period,
             description
-        } => execute::register_connection(),
-        ExecuteMsg::AddRewards { connection_name, rewards } => execute::add_rewards(),
+        } => execute::register_service(),
+        ExecuteMsg::AddRewards { service_name, rewards } => execute::add_rewards(),
         ExecuteMsg::RegisterWorker {
-            connection_name,
+            service_name,
             worker_address,
             bond_amount,
             commission_rate
         } => execute::register_worker(),
-        ExecuteMsg::DeregisterWorker { connection_name, worker_address } => execute::deregister_worker(),
-        ExecuteMsg::Delegate { connection_name, worker_address, amount } => execute::delegate(),
+        ExecuteMsg::DeregisterWorker { service_name, worker_address } => execute::deregister_worker(),
+        ExecuteMsg::Delegate { service_name, worker_address, amount } => execute::delegate(),
     }
 }
 
 pub mod execute {
     use super::*;
 
-    pub fn register_connection() -> Result<Response, ContractError> {
+    pub fn register_service() -> Result<Response, ContractError> {
 
         Ok(Response::new())
     }

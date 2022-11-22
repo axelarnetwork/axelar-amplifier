@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use connection_registry::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use service_registry::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {

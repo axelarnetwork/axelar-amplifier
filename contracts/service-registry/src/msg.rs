@@ -6,19 +6,19 @@ pub struct InstantiateMsg {}
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RegisterConnection {
-        connection_name: String,
+    RegisterService {
+        service_name: String,
         chain_id: String,
-        connection_controller: Addr,
+        service_controller: Addr,
         num_workers: u128,
         min_worker_bond: u128,
         unbonding_period: u128,
         description: String,
     },
-    AddRewards { connection_name: String, rewards: u128 },
-    RegisterWorker { connection_name: String, worker_address: Addr, bond_amount: u128, commission_rate: u128 },
-    DeregisterWorker { connection_name: String, worker_address: Addr },
-    Delegate { connection_name: String, worker_address: Addr, amount: u128 },
+    AddRewards { service_name: String, rewards: u128 },
+    RegisterWorker { service_name: String, worker_address: Addr, bond_amount: u128, commission_rate: u128 },
+    DeregisterWorker { service_name: String, worker_address: Addr },
+    Delegate { service_name: String, worker_address: Addr, amount: u128 },
 }
 
 #[cw_serde]

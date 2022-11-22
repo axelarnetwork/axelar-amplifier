@@ -1,6 +1,6 @@
 [workspace]
 members = [
-  "contracts/connection-registry",
+  "contracts/service-registry",
 ]
 
 [profile.release]
