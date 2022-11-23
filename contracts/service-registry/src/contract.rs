@@ -1,10 +1,10 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary};
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, entry_point, to_binary};
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ActiveWorker};
+use crate::state::{SERVICES, Service};
 
 /*
 // version info for migration info
@@ -24,7 +24,7 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     msg: ExecuteMsg,
@@ -33,12 +33,12 @@ pub fn execute(
         ExecuteMsg::RegisterService{
             service_name,
             chain_id,
-            service_controller,
+            service_worker,
             num_workers,
             min_worker_bond,
             unbonding_period,
             description
-        } => execute::register_service(),
+        } => execute::register_service(deps, service_name, chain_id, service_worker, num_workers, min_worker_bond, unbonding_period, description),
         ExecuteMsg::AddRewards { service_name, rewards } => execute::add_rewards(),
         ExecuteMsg::RegisterWorker {
             service_name,
@@ -54,8 +54,38 @@ pub fn execute(
 pub mod execute {
     use super::*;
 
-    pub fn register_service() -> Result<Response, ContractError> {
+    pub fn register_service(
+        deps: DepsMut,
+        service_name: String,
+        chain_id: String,
+        service_worker: Addr,
+        num_workers: u128,
+        min_worker_bond: u128,
+        unbonding_period: u128,
+        description: String,
+    ) -> Result<Response, ContractError> {
+        let key = &service_name.clone();
 
+        SERVICES.update(
+            deps.storage,
+            key,
+            |s| -> Result<Service, ContractError> {
+                match s {
+                    Some(_one) => Err(ContractError::ServiceAlreadyExists {  }),
+                    None => Ok(Service {
+                        name: service_name,
+                        chain_id,
+                        service_worker,
+                        num_workers,
+                        min_worker_bond,
+                        unbonding_period,
+                        description,
+                    })
+                }
+            }
+        )?;
+
+        // Response with attributes? event?
         Ok(Response::new())
     }
 

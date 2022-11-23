@@ -9,7 +9,7 @@ pub enum ExecuteMsg {
     RegisterService {
         service_name: String,
         chain_id: String,
-        service_controller: Addr,
+        service_worker: Addr,
         num_workers: u128,
         min_worker_bond: u128,
         unbonding_period: u128,
