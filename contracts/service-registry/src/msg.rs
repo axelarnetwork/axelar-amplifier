@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint128};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -10,15 +10,15 @@ pub enum ExecuteMsg {
         service_name: String,
         chain_id: String,
         service_worker: Addr,
-        num_workers: u128,
-        min_worker_bond: u128,
-        unbonding_period: u128,
+        num_workers: Uint128,
+        min_worker_bond: Uint128,
+        unbonding_period: Uint128,
         description: String,
     },
-    AddRewards { service_name: String, rewards: u128 },
-    RegisterWorker { service_name: String, worker_address: Addr, bond_amount: u128, commission_rate: u128 },
-    DeregisterWorker { service_name: String, worker_address: Addr },
-    Delegate { service_name: String, worker_address: Addr, amount: u128 },
+    RegisterWorker { service_name: String, commission_rate: Uint128 },
+    DeregisterWorker { service_name: String },
+    UnbondWorker { service_name: String, worker_address: Addr },
+    Delegate { service_name: String, worker_address: Addr, amount: Uint128 },
 }
 
 #[cw_serde]
@@ -31,5 +31,5 @@ pub enum QueryMsg {
 #[cw_serde]
 pub struct ActiveWorker {
     address: Addr,
-    stake: u128,
+    stake: Uint128,
 }
