@@ -129,9 +129,18 @@ pub mod execute {
             deps.storage,
             (&service_name, &info.sender),
             |sw| -> Result<Worker, ContractError> {
-                match sw {
-                    Some(_) => Err(ContractError::ServiceWorkerAlreadyRegistered {  }),
-                    None => Ok(Worker {
+                if let Some(found) = sw {
+                    if found.state == WorkerState::Inactive {
+                        Ok(Worker {
+                            bonded_coins: info.funds,
+                            commission_rate,
+                            state: WorkerState::Active
+                        })
+                    } else {
+                        Err(ContractError::ServiceWorkerAlreadyRegistered {  })
+                    }
+                } else {
+                    Ok(Worker {
                         bonded_coins: info.funds,
                         commission_rate,
                         state: WorkerState::Active
