@@ -1,5 +1,5 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, entry_point, to_binary};
+use cosmwasm_std::{Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, entry_point, to_binary};
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
@@ -52,8 +52,6 @@ pub fn execute(
 }
 
 pub mod execute {
-    use cosmwasm_std::{BankMsg, Coin};
-
     use super::*;
 
     pub fn register_service(
@@ -62,10 +60,12 @@ pub mod execute {
         chain_id: String,
         service_worker: Addr,
         num_workers: Uint128,
-        min_worker_bond: Uint128,
+        min_worker_bond: Vec<Coin>,
         unbonding_period: Uint128,
         description: String,
     ) -> Result<Response, ContractError> {
+        min_worker_bond.iter().find(|coin| coin.denom == AXL_DENOMINATION).ok_or_else(|| ContractError::AxlAssetMissing { })?;
+
         let key = &service_name.clone();
 
         SERVICES.update(
@@ -102,14 +102,27 @@ pub mod execute {
             Err(_) => Err(ContractError::ServiceNotExists {  }),
         }?;
 
-        let bond = info
-            .funds
-            .iter()
-            .find(|coin| coin.denom == AXL_DENOMINATION)
-            .ok_or_else(|| ContractError::NotEnoughFunds { })?;
+        let mut funds_iter = info
+                    .funds
+                    .iter();
 
-        if bond.amount < service.min_worker_bond {
-            return Err(ContractError::NotEnoughFunds { });
+        let is_required_bond = |fund: &&Coin, min_bond: &&Coin| -> bool {
+             fund.denom == min_bond.denom && fund.amount >= min_bond.amount
+        };
+
+        let unfunded_coins: Vec<Coin> = service.min_worker_bond
+            .clone()
+            .iter()
+            .cloned()
+            .filter(|min_bond| funds_iter.find(|fund| is_required_bond(fund, &min_bond)).is_none())
+            .collect();
+
+        if !unfunded_coins.is_empty() {
+            return Err(ContractError::NotEnoughFunds { assets: unfunded_coins })
+        }
+
+        if info.funds.len() != service.min_worker_bond.len() {
+            return Err(ContractError::UnsupportedAssetBond { })
         }
 
         SERVICE_WORKERS.update(
@@ -119,7 +132,7 @@ pub mod execute {
                 match sw {
                     Some(_) => Err(ContractError::ServiceWorkerAlreadyRegistered {  }),
                     None => Ok(Worker {
-                        bond_amount: bond.amount,
+                        bonded_coins: info.funds,
                         commission_rate,
                         state: WorkerState::Active
                     })
@@ -143,7 +156,7 @@ pub mod execute {
                     Some(found) => {
                         if found.state == WorkerState::Active {
                             Ok(Worker {
-                                bond_amount: found.bond_amount,
+                                bonded_coins: found.bonded_coins,
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Deregistering,
                             })
@@ -179,7 +192,7 @@ pub mod execute {
                     Some(found) => {
                         if found.state == WorkerState::Deregistering {
                             Ok(Worker {
-                                bond_amount: found.bond_amount,
+                                bonded_coins: found.bonded_coins,
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Inactive,
                             })
@@ -192,14 +205,10 @@ pub mod execute {
             }
         )?;
 
-        let bonded_funds = Coin {
-            denom: AXL_DENOMINATION.into(),
-            amount: service_worker.bond_amount,
-        };
         let res = Response::new()
             .add_message(BankMsg::Send {
                 to_address: service.service_worker.into(),
-                amount: vec![bonded_funds]
+                amount: service_worker.bonded_coins
             });
 
         Ok(res)

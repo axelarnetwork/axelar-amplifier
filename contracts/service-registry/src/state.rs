@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Uint128, Coin};
 use cw_storage_plus::Map;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -10,14 +10,14 @@ pub struct Service {
     pub chain_id: String,
     pub service_worker: Addr,
     pub num_workers: Uint128,
-    pub min_worker_bond: Uint128,
+    pub min_worker_bond: Vec<Coin>,
     pub unbonding_period: Uint128,
     pub description: String
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Worker {
-    pub bond_amount: Uint128,
+    pub bonded_coins: Vec<Coin>,
     pub commission_rate: Uint128,
     pub state: WorkerState
 }
