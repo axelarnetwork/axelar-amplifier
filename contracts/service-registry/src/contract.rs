@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint64, Uint128, entry_point, to_binary};
+use cosmwasm_std::{Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint64, Uint128, QueryRequest, WasmQuery, entry_point, to_binary};
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ActiveWorker};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ActiveWorker, UnbondAllowedResponse, ServiceContractQueryMsg};
 use crate::state::{SERVICES, SERVICE_WORKERS, Service, Worker, WorkerState};
 
 /*
@@ -46,7 +46,7 @@ pub fn execute(
             commission_rate
         } => execute::register_worker(deps, info, service_name, commission_rate),
         ExecuteMsg::DeregisterWorker { service_name } => execute::deregister_worker(deps, info, service_name),
-        ExecuteMsg::UnbondWorker { service_name, worker_address } => execute::unbond_worker(deps, info, service_name, worker_address),
+        ExecuteMsg::UnbondWorker { service_name, worker_address } => execute::unbond_worker(deps, service_name, worker_address),
         ExecuteMsg::Delegate { service_name, worker_address, amount } => execute::delegate(),
     }
 }
@@ -191,13 +191,23 @@ pub mod execute {
 
     pub fn unbond_worker(
         deps: DepsMut,
-        info: MessageInfo,
         service_name: String,
         worker_address: Addr
     ) -> Result<Response, ContractError> {
         let service = SERVICES.load(deps.storage, &service_name)?;
 
-        // TODO: query service_contract if allowed to unbond
+        let query_msg: ServiceContractQueryMsg =
+            ServiceContractQueryMsg::UnbondAllowed {
+                worker_address: worker_address.clone(),
+        };
+        let query_response: UnbondAllowedResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: service.service_contract.to_string(),
+            msg: to_binary(&query_msg)?,
+        }))?;
+
+        if let Some(error) = query_response.error {
+            return Err(ContractError::ServiceContractError{ msg:error });
+        }
 
         let service_worker = SERVICE_WORKERS.update(
             deps.storage,

@@ -24,4 +24,6 @@ pub enum ContractError {
     UnregisteredWorker {},
     #[error("Invalid worker state for this operation")]
     InvalidWorkerState {},
+    #[error("{msg}")]
+    ServiceContractError { msg: String }
 }
