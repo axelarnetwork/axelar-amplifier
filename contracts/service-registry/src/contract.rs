@@ -1,5 +1,5 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, entry_point, to_binary};
+use cosmwasm_std::{Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint64, Uint128, entry_point, to_binary};
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
@@ -34,13 +34,13 @@ pub fn execute(
     match msg {
         ExecuteMsg::RegisterService{
             service_name,
-            chain_id,
-            service_worker,
-            num_workers,
+            service_contract,
+            min_num_workers,
+            max_num_workers,
             min_worker_bond,
             unbonding_period,
             description
-        } => execute::register_service(deps, service_name, chain_id, service_worker, num_workers, min_worker_bond, unbonding_period, description),
+        } => execute::register_service(deps, service_name, service_contract, min_num_workers, max_num_workers, min_worker_bond, unbonding_period, description),
         ExecuteMsg::RegisterWorker {
             service_name,
             commission_rate
@@ -57,11 +57,11 @@ pub mod execute {
     pub fn register_service(
         deps: DepsMut,
         service_name: String,
-        chain_id: String,
-        service_worker: Addr,
-        num_workers: Uint128,
+        service_contract: Addr,
+        min_num_workers: Uint64,
+        max_num_workers: Option<Uint64>,
         min_worker_bond: Vec<Coin>,
-        unbonding_period: Uint128,
+        unbonding_period: Uint128, // TODO: pending definition if we want this. Use Duration data type
         description: String,
     ) -> Result<Response, ContractError> {
         min_worker_bond.iter().find(|coin| coin.denom == AXL_DENOMINATION).ok_or_else(|| ContractError::AxlAssetMissing { })?;
@@ -76,9 +76,9 @@ pub mod execute {
                     Some(_one) => Err(ContractError::ServiceAlreadyExists {  }),
                     None => Ok(Service {
                         name: service_name,
-                        chain_id,
-                        service_worker,
-                        num_workers,
+                        service_contract,
+                        min_num_workers,
+                        max_num_workers,
                         min_worker_bond,
                         unbonding_period,
                         description,
@@ -101,6 +101,8 @@ pub mod execute {
             Ok(service) => Ok(service),
             Err(_) => Err(ContractError::ServiceNotExists {  }),
         }?;
+
+        // TODO: check max num of workers
 
         let mut funds_iter = info
                     .funds
@@ -125,22 +127,27 @@ pub mod execute {
             return Err(ContractError::UnsupportedAssetBond { })
         }
 
+        let worker_address = info.sender.clone();
+
         SERVICE_WORKERS.update(
             deps.storage,
             (&service_name, &info.sender),
             |sw| -> Result<Worker, ContractError> {
-                if let Some(found) = sw {
-                    if found.state == WorkerState::Inactive {
-                        Ok(Worker {
-                            bonded_coins: info.funds,
-                            commission_rate,
-                            state: WorkerState::Active
-                        })
-                    } else {
-                        Err(ContractError::ServiceWorkerAlreadyRegistered {  })
-                    }
-                } else {
-                    Ok(Worker {
+                match sw {
+                    Some(found) => {
+                        if found.state == WorkerState::Inactive {
+                            Ok(Worker {
+                                worker_address,
+                                bonded_coins: info.funds,
+                                commission_rate,
+                                state: WorkerState::Active
+                            })
+                        } else {
+                            Err(ContractError::ServiceWorkerAlreadyRegistered {  })
+                        }
+                    },
+                    None => Ok(Worker {
+                        worker_address,
                         bonded_coins: info.funds,
                         commission_rate,
                         state: WorkerState::Active
@@ -165,6 +172,7 @@ pub mod execute {
                     Some(found) => {
                         if found.state == WorkerState::Active {
                             Ok(Worker {
+                                worker_address: found.worker_address,
                                 bonded_coins: found.bonded_coins,
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Deregistering,
@@ -189,9 +197,7 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let service = SERVICES.load(deps.storage, &service_name)?;
 
-        if service.service_worker != info.sender {
-            return Err(ContractError::Unauthorized {  })
-        }
+        // TODO: query service_contract if allowed to unbond
 
         let service_worker = SERVICE_WORKERS.update(
             deps.storage,
@@ -201,6 +207,7 @@ pub mod execute {
                     Some(found) => {
                         if found.state == WorkerState::Deregistering {
                             Ok(Worker {
+                                worker_address: found.worker_address,
                                 bonded_coins: found.bonded_coins,
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Inactive,
@@ -216,8 +223,8 @@ pub mod execute {
 
         let res = Response::new()
             .add_message(BankMsg::Send {
-                to_address: service.service_worker.into(),
-                amount: service_worker.bonded_coins
+                to_address: service.service_contract.into(),
+                amount: service_worker.bonded_coins // TODO: isolate coins
             });
 
         Ok(res)

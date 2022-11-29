@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128, Coin};
+use cosmwasm_std::{Addr, Uint64, Uint128, Coin};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -8,9 +8,9 @@ pub struct InstantiateMsg {}
 pub enum ExecuteMsg {
     RegisterService {
         service_name: String,
-        chain_id: String,
-        service_worker: Addr,
-        num_workers: Uint128,
+        service_contract: Addr,
+        min_num_workers: Uint64,
+        max_num_workers: Option<Uint64>,
         min_worker_bond: Vec<Coin>,
         unbonding_period: Uint128,
         description: String,
