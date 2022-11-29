@@ -1,4 +1,4 @@
-use cosmwasm_std::{StdError, Coin};
+use cosmwasm_std::{Coin, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,7 +17,7 @@ pub enum ContractError {
     #[error("Service worker already registered")]
     ServiceWorkerAlreadyRegistered {},
     #[error("Funds don't meet minimum requirement for bonding: {assets:?}")]
-    NotEnoughFunds {assets: Vec<Coin>},
+    NotEnoughFunds { assets: Vec<Coin> },
     #[error("Trying to bond unsupported asset")]
     UnsupportedAssetBond {},
     #[error("Worker not registered for this service")]
@@ -25,5 +25,5 @@ pub enum ContractError {
     #[error("Invalid worker state for this operation")]
     InvalidWorkerState {},
     #[error("{msg}")]
-    ServiceContractError { msg: String }
+    ServiceContractError { msg: String },
 }

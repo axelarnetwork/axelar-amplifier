@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint64, Uint128, Coin};
+use cosmwasm_std::{Addr, Coin, Uint128, Uint64};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -15,17 +15,29 @@ pub enum ExecuteMsg {
         unbonding_period: Uint128,
         description: String,
     },
-    RegisterWorker { service_name: String, commission_rate: Uint128 },
-    DeregisterWorker { service_name: String },
-    UnbondWorker { service_name: String, worker_address: Addr },
-    Delegate { service_name: String, worker_address: Addr, amount: Uint128 },
+    RegisterWorker {
+        service_name: String,
+        commission_rate: Uint128,
+    },
+    DeregisterWorker {
+        service_name: String,
+    },
+    UnbondWorker {
+        service_name: String,
+        worker_address: Addr,
+    },
+    Delegate {
+        service_name: String,
+        worker_address: Addr,
+        amount: Uint128,
+    },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Vec<ActiveWorker>)]
-    GetActiveWorkers{}
+    GetActiveWorkers {},
 }
 
 #[cw_serde]
@@ -36,10 +48,10 @@ pub struct ActiveWorker {
 
 #[cw_serde]
 pub enum ServiceContractQueryMsg {
-    UnbondAllowed { worker_address: Addr }
+    UnbondAllowed { worker_address: Addr },
 }
 
 #[cw_serde]
 pub struct UnbondAllowedResponse {
-    pub error: Option<String>
+    pub error: Option<String>,
 }
