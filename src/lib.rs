@@ -1,4 +1,4 @@
-use error_stack::{Report, Result};
+use error_stack::Result;
 
 use crate::report::Error;
 

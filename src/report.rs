@@ -1,14 +1,14 @@
 use std::backtrace::Backtrace;
 use std::collections::VecDeque;
-use std::fmt::{Display, Formatter};
 use std::iter::FromIterator;
 use std::panic::Location;
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
-use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use valuable::Valuable;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Error)]
+#[error("{0}")]
 pub struct Error(String);
 
 impl Error {
@@ -17,15 +17,7 @@ impl Error {
     }
 }
 
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0.as_str())
-    }
-}
-
-impl Context for Error {}
-
-#[derive(Valuable, PartialEq, Debug, Clone)]
+#[derive(Valuable, PartialEq, Debug)]
 pub struct LoggableError {
     pub msg: String,
     pub attachments: Vec<String>,
@@ -34,7 +26,7 @@ pub struct LoggableError {
     pub backtrace: Option<LoggableBacktrace>,
 }
 
-#[derive(Valuable, PartialEq, Eq, Debug, Clone)]
+#[derive(Valuable, PartialEq, Eq, Debug)]
 pub struct LoggableBacktrace(Vec<String>);
 
 impl<T> From<&Report<T>> for LoggableError {
@@ -105,6 +97,7 @@ impl From<&Backtrace> for LoggableBacktrace {
 fn chain_causes(errors: Vec<LoggableError>) -> Option<LoggableError> {
     errors
         .into_iter()
+        // the outermost error appears first in the vector, so the iterator for the causal dependency needs to be reversed
         .rev()
         .fold(None, |acc: Option<LoggableError>, mut e: LoggableError| {
             e.cause = acc.map(Box::new);
@@ -146,8 +139,9 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::report::{Error, LoggableError};
     use error_stack::Report;
+
+    use crate::report::{Error, LoggableError};
 
     #[test]
     fn correct_error_log() {
@@ -188,10 +182,6 @@ mod tests {
             backtrace: None,
         };
 
-        // assert_eq!(err.msg, "error3");
-        // assert!(err.backtrace.is_none());
-        // assert_eq!(err.location, "src/report.rs:159:14");
-        // assert_eq!(err.attachments.len(), 1);
         assert_eq!(err, expected_err);
     }
 }
