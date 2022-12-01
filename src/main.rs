@@ -63,10 +63,7 @@ fn init_config(args: &Args) -> Config {
         Ok(cfg) => cfg,
         Err(report) => {
             let err = LoggableError::from(&report);
-            error!(
-                err = err.as_value(),
-                "failed to load config, falling back to default"
-            );
+            error!(err = err.as_value(), "failed to load config, falling back to default");
             Config::default()
         }
     }

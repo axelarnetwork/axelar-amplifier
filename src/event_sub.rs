@@ -62,7 +62,11 @@ pub struct EventSubClient<T: TmClient + Sync> {
 
 impl<T: TmClient + Sync> EventSubClient<T> {
     pub fn new(client: T, capacity: usize) -> Self {
-        EventSubClient { client, capacity, tx: None }
+        EventSubClient {
+            client,
+            capacity,
+            tx: None,
+        }
     }
 
     pub fn sub(&mut self) -> BroadcastStream<Event> {
@@ -125,7 +129,6 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 }
 
-
 #[derive(Error, Debug)]
 pub enum EventSubError {
     #[error("no subscriber")]
@@ -162,7 +165,10 @@ mod tests {
     async fn no_subscriber() {
         let client = EventSubClient::new(MockWebsocketClient::new(), 10);
         let res = client.run().await;
-        assert!(matches!(res.unwrap_err().current_context(), EventSubError::NoSubscriber));
+        assert!(matches!(
+            res.unwrap_err().current_context(),
+            EventSubError::NoSubscriber
+        ));
     }
 
     #[test]
@@ -174,7 +180,10 @@ mod tests {
         let mut client = EventSubClient::new(mock_client, 10);
         let _ = client.sub();
         let res = client.run().await;
-        assert!(matches!(res.unwrap_err().current_context(), EventSubError::SubscriptionFailed));
+        assert!(matches!(
+            res.unwrap_err().current_context(),
+            EventSubError::SubscriptionFailed
+        ));
     }
 
     mock! {
