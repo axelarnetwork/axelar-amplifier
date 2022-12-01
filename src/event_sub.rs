@@ -1,40 +1,67 @@
-use futures::stream::StreamExt;
 use std::collections::HashMap;
+
+use async_trait::async_trait;
+use error_stack::{FutureExt, Report, Result};
+use error_stack::{IntoReport, ResultExt};
+use futures::stream::StreamExt;
+use futures::TryFutureExt;
 use tendermint::abci::Event as AbciEvent;
+use tendermint::block::Height;
+use tendermint::Block;
+use tendermint_rpc::endpoint::block_results::Response;
 use tendermint_rpc::event::EventData;
-use tendermint_rpc::query::EventType;
-use tendermint_rpc::Error;
-use tendermint_rpc::{Client, SubscriptionClient, WebSocketClient};
+use tendermint_rpc::query::{EventType, Query};
+use tendermint_rpc::{Client, Error as RpcError, Subscription, SubscriptionClient, WebSocketClient};
+use thiserror::Error;
 use tokio::sync::broadcast::{channel, Sender};
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::Stream;
+
+use crate::event_sub::EventSubError::*;
 
 #[derive(Clone, Debug)]
 pub struct Event {
-    pub ty: String,
+    pub event_type: String,
     pub attributes: HashMap<String, String>,
 }
 
 impl From<AbciEvent> for Event {
     fn from(event: AbciEvent) -> Self {
         Self {
-            ty: event.kind,
-            attributes: event
-                .attributes
-                .iter()
-                .map(|tag| (tag.key.to_string(), tag.value.to_string()))
-                .collect(),
+            event_type: event.kind,
+            attributes: event.attributes.into_iter().map(|tag| (tag.key, tag.value)).collect(),
         }
     }
 }
 
-pub struct EventSubClient {
-    client: WebSocketClient,
+#[async_trait]
+pub trait TmClient {
+    type Item: Stream<Item = core::result::Result<tendermint_rpc::event::Event, RpcError>> + Unpin;
+    async fn subscribe(&self, query: Query) -> Result<Self::Item, RpcError>;
+    async fn block_results(&self, block_height: Height) -> Result<Response, RpcError>;
+}
+
+#[async_trait]
+impl TmClient for WebSocketClient {
+    type Item = Subscription;
+
+    async fn subscribe(&self, query: Query) -> Result<Self::Item, RpcError> {
+        SubscriptionClient::subscribe(self, query).map_err(Report::new).await
+    }
+
+    async fn block_results(&self, block_height: Height) -> Result<Response, RpcError> {
+        Client::block_results(self, block_height).map_err(Report::new).await
+    }
+}
+
+pub struct EventSubClient<T: TmClient + Sync> {
+    client: T,
     capacity: usize,
     tx: Option<Sender<Event>>,
 }
 
-impl EventSubClient {
-    pub fn new(client: WebSocketClient, capacity: usize) -> Self {
+impl<T: TmClient + Sync> EventSubClient<T> {
+    pub fn new(client: T, capacity: usize) -> Self {
         EventSubClient {
             client,
             capacity,
@@ -47,7 +74,6 @@ impl EventSubClient {
             None => {
                 let (tx, rx) = channel::<Event>(self.capacity);
                 self.tx = Some(tx);
-
                 rx
             }
             Some(tx) => tx.subscribe(),
@@ -56,46 +82,126 @@ impl EventSubClient {
         BroadcastStream::new(rx)
     }
 
-    pub async fn run(&mut self) -> Result<(), Error> {
-        if self.tx.is_none() {
-            return Err(Error::client_internal("no subscriber".into()));
-        }
+    pub async fn run(&self) -> Result<(), EventSubError> {
+        match &self.tx {
+            None => Err(Report::new(NoSubscriber)),
+            Some(tx) => {
+                let mut sub = self
+                    .client
+                    .subscribe(EventType::NewBlock.into())
+                    .change_context(SubscriptionFailed)
+                    .await?;
 
-        let mut sub = self.client.subscribe(EventType::NewBlock.into()).await?;
-        while let Some(res) = sub.next().await {
-            let event = res?;
-
-            if let EventData::NewBlock {
-                block: Some(block),
-                result_begin_block: _,
-                result_end_block: _,
-            } = event.data
-            {
-                let block_results = self.client.block_results(block.header().height).await?;
-
-                let begin_block_events = block_results.begin_block_events.unwrap_or_default();
-                let end_block_events = block_results.end_block_events.unwrap_or_default();
-                let tx_events: Vec<AbciEvent> = block_results
-                    .txs_results
-                    .unwrap_or_default()
-                    .iter()
-                    .flat_map(|tx| tx.events.clone())
-                    .collect();
-
-                for event in begin_block_events
-                    .iter()
-                    .chain(tx_events.iter())
-                    .chain(end_block_events.iter())
-                {
-                    self.tx
-                        .as_mut()
-                        .unwrap()
-                        .send(event.to_owned().into())
-                        .map_err(|err| Error::client_internal(err.to_string()))?;
+                while let Some(res) = sub.next().await {
+                    let event = res.into_report().change_context(StreamFailed)?;
+                    if let EventData::NewBlock { block: Some(block), .. } = event.data {
+                        let height = block.header().height;
+                        self.process_block(tx, block)
+                            .attach_printable(format!("{{ block_height = {height} }}"))
+                            .await?;
+                    }
                 }
+                Ok(())
             }
+        }
+    }
+
+    // this is extracted into a function so the block height attachment can be added no matter which call fails
+    async fn process_block(&self, tx: &Sender<Event>, block: Block) -> Result<(), EventSubError> {
+        for event in self.query_events(block.header().height).await? {
+            tx.send(event.into()).into_report().change_context(PublishFailed)?;
         }
 
         Ok(())
+    }
+
+    async fn query_events(&self, block_height: Height) -> Result<Vec<AbciEvent>, EventSubError> {
+        let block_results = self
+            .client
+            .block_results(block_height)
+            .change_context(EventQueryFailed { block: block_height })
+            .await?;
+
+        let begin_block_events = block_results.begin_block_events.into_iter().flatten();
+        let tx_events = block_results.txs_results.into_iter().flatten().flat_map(|tx| tx.events);
+        let end_block_events = block_results.end_block_events.into_iter().flatten();
+        Ok(begin_block_events.chain(tx_events).chain(end_block_events).collect())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum EventSubError {
+    #[error("no subscriber")]
+    NoSubscriber,
+    #[error("subscription failed")]
+    SubscriptionFailed,
+    #[error("stream failed")]
+    StreamFailed,
+    #[error("querying events for block {block} failed")]
+    EventQueryFailed { block: Height },
+    #[error("failed to send events to subscribers")]
+    PublishFailed,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    use async_trait::async_trait;
+    use error_stack::{IntoReport, Result};
+    use futures::Stream;
+    use mockall::mock;
+    use tendermint::block::Height;
+    use tendermint_rpc::endpoint::block_results::Response;
+    use tendermint_rpc::query::Query;
+    use tendermint_rpc::Error as RpcError;
+    use tokio::test;
+
+    use crate::event_sub::EventSubError;
+    use crate::event_sub::{EventSubClient, TmClient};
+
+    #[test]
+    async fn no_subscriber() {
+        let client = EventSubClient::new(MockWebsocketClient::new(), 10);
+        let res = client.run().await;
+        assert!(matches!(
+            res.unwrap_err().current_context(),
+            EventSubError::NoSubscriber
+        ));
+    }
+
+    #[test]
+    async fn subscription_failed() {
+        let mut mock_client = MockWebsocketClient::new();
+        mock_client
+            .expect_subscribe()
+            .returning(|_| Err(RpcError::client_internal("internal failure".into())).into_report());
+        let mut client = EventSubClient::new(mock_client, 10);
+        let _ = client.sub();
+        let res = client.run().await;
+        assert!(matches!(
+            res.unwrap_err().current_context(),
+            EventSubError::SubscriptionFailed
+        ));
+    }
+
+    mock! {
+            Subscription{}
+
+            impl Stream for Subscription {
+                type Item=core::result::Result<tendermint_rpc::event::Event, RpcError>;
+                fn poll_next<'a>(self: Pin<&mut Self>, cx: &mut Context<'a>) -> Poll<Option<<Self as Stream>::Item>>;
+            }
+    }
+    mock! {
+        WebsocketClient{}
+
+        #[async_trait]
+        impl TmClient for WebsocketClient{
+            type Item=MockSubscription;
+            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Item, RpcError>;
+            async fn block_results(&self, block_height: Height) -> Result<Response, RpcError>;
+        }
     }
 }
