@@ -125,12 +125,6 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 }
 
-fn process_events(tx: &Sender<Event>, events: Vec<AbciEvent>) -> Result<(), EventSubError> {
-    for event in events {
-        tx.send(event.into()).into_report().change_context(PublishFailed)?;
-    }
-    Ok(())
-}
 
 #[derive(Error, Debug)]
 pub enum EventSubError {
