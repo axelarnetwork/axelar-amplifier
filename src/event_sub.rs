@@ -104,8 +104,11 @@ impl<T: TmClient + Sync> EventSubClient<T> {
 
     // this is extracted into a function so the block height attachment can be added no matter which call fails
     async fn process_block(&self, tx: &Sender<Event>, block: Block) -> Result<(), EventSubError> {
-        let events = self.query_events(block.header().height).await?;
-        process_events(tx, events)
+        for event in self.query_events(block.header().height).await? {
+            tx.send(event.into()).into_report().change_context(PublishFailed)?;
+        }
+
+        Ok(())
     }
 
     async fn query_events(&self, block_height: Height) -> Result<Vec<AbciEvent>, EventSubError> {
