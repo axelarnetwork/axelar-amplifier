@@ -122,8 +122,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
 
     async fn process_block(&self, tx: &Sender<Event>, block: Block) -> Result<(), EventSubError> {
         let events = self.query_events(block.header().height).await?;
-        process_events(tx, events)?;
-        Ok(())
+        process_events(tx, events)
     }
 
     async fn query_events(&self, block_height: Height) -> Result<Vec<AbciEvent>, EventSubError> {
