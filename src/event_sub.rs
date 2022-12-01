@@ -11,9 +11,7 @@ use tendermint::Block;
 use tendermint_rpc::endpoint::block_results::Response;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::{EventType, Query};
-use tendermint_rpc::{
-    Client, Error as RpcError, Subscription, SubscriptionClient, WebSocketClient,
-};
+use tendermint_rpc::{Client, Error as RpcError, Subscription, SubscriptionClient, WebSocketClient};
 use thiserror::Error;
 use tokio::sync::broadcast::{channel, Sender};
 use tokio_stream::wrappers::BroadcastStream;
@@ -31,11 +29,7 @@ impl From<AbciEvent> for Event {
     fn from(event: AbciEvent) -> Self {
         Self {
             event_type: event.kind,
-            attributes: event
-                .attributes
-                .into_iter()
-                .map(|tag| (tag.key, tag.value))
-                .collect(),
+            attributes: event.attributes.into_iter().map(|tag| (tag.key, tag.value)).collect(),
         }
     }
 }
@@ -52,15 +46,11 @@ impl TmClient for WebSocketClient {
     type Item = Subscription;
 
     async fn subscribe(&self, query: Query) -> Result<Self::Item, RpcError> {
-        SubscriptionClient::subscribe(self, query)
-            .map_err(Report::new)
-            .await
+        SubscriptionClient::subscribe(self, query).map_err(Report::new).await
     }
 
     async fn block_results(&self, block_height: Height) -> Result<Response, RpcError> {
-        Client::block_results(self, block_height)
-            .map_err(Report::new)
-            .await
+        Client::block_results(self, block_height).map_err(Report::new).await
     }
 }
 
@@ -72,11 +62,7 @@ pub struct EventSubClient<T: TmClient + Sync> {
 
 impl<T: TmClient + Sync> EventSubClient<T> {
     pub fn new(client: T, capacity: usize) -> Self {
-        EventSubClient {
-            client,
-            capacity,
-            tx: None,
-        }
+        EventSubClient { client, capacity, tx: None }
     }
 
     pub fn sub(&mut self) -> BroadcastStream<Event> {
@@ -84,7 +70,6 @@ impl<T: TmClient + Sync> EventSubClient<T> {
             None => {
                 let (tx, rx) = channel::<Event>(self.capacity);
                 self.tx = Some(tx);
-
                 rx
             }
             Some(tx) => tx.subscribe(),
@@ -105,10 +90,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
 
                 while let Some(res) = sub.next().await {
                     let event = res.into_report().change_context(StreamFailed)?;
-                    if let EventData::NewBlock {
-                        block: Some(block), ..
-                    } = event.data
-                    {
+                    if let EventData::NewBlock { block: Some(block), .. } = event.data {
                         let height = block.header().height;
                         self.process_block(tx, block)
                             .attach_printable(format!("{{ block_height = {height} }}"))
@@ -130,30 +112,19 @@ impl<T: TmClient + Sync> EventSubClient<T> {
         let block_results = self
             .client
             .block_results(block_height)
-            .change_context(EventQueryFailed {
-                block: block_height,
-            })
+            .change_context(EventQueryFailed { block: block_height })
             .await?;
 
         let begin_block_events = block_results.begin_block_events.into_iter().flatten();
-        let tx_events = block_results
-            .txs_results
-            .into_iter()
-            .flatten()
-            .flat_map(|tx| tx.events);
+        let tx_events = block_results.txs_results.into_iter().flatten().flat_map(|tx| tx.events);
         let end_block_events = block_results.end_block_events.into_iter().flatten();
-        Ok(begin_block_events
-            .chain(tx_events)
-            .chain(end_block_events)
-            .collect())
+        Ok(begin_block_events.chain(tx_events).chain(end_block_events).collect())
     }
 }
 
 fn process_events(tx: &Sender<Event>, events: Vec<AbciEvent>) -> Result<(), EventSubError> {
     for event in events {
-        tx.send(event.into())
-            .into_report()
-            .change_context(PublishFailed)?;
+        tx.send(event.into()).into_report().change_context(PublishFailed)?;
     }
     Ok(())
 }
@@ -196,29 +167,21 @@ mod tests {
         };
         let client = EventSubClient::new(mock_client, 10);
         let res = client.run().await;
-        assert!(matches!(
-            res.unwrap_err().current_context(),
-            EventSubError::NoSubscriber
-        ));
+        assert!(matches!(res.unwrap_err().current_context(), EventSubError::NoSubscriber));
     }
 
     #[test]
     async fn subscription_failed() {
         let mock_client = MockClient {
-            subscribe_mock: |_| {
-                Err(RpcError::client_internal("internal failure".into())).into_report()
-            },
+            subscribe_mock: |_| Err(RpcError::client_internal("internal failure".into())).into_report(),
         };
         let mut client = EventSubClient::new(mock_client, 10);
         let _ = client.sub();
         let res = client.run().await;
-        assert!(matches!(
-            res.unwrap_err().current_context(),
-            EventSubError::SubscriptionFailed
-        ));
+        assert!(matches!(res.unwrap_err().current_context(), EventSubError::SubscriptionFailed));
     }
 
-    struct MockStream {}
+    struct MockStream;
 
     impl Stream for MockStream {
         type Item = core::result::Result<tendermint_rpc::event::Event, RpcError>;
