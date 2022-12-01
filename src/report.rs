@@ -27,7 +27,9 @@ pub struct LoggableError {
 }
 
 #[derive(Valuable, PartialEq, Eq, Debug)]
-pub struct LoggableBacktrace(Vec<String>);
+pub struct LoggableBacktrace {
+    pub lines: Vec<String>,
+}
 
 impl<T> From<&Report<T>> for LoggableError {
     fn from(report: &Report<T>) -> Self {
@@ -78,13 +80,9 @@ impl<T> From<&Report<T>> for LoggableError {
 
 impl From<&Backtrace> for LoggableBacktrace {
     fn from(backtrace: &Backtrace) -> Self {
-        LoggableBacktrace(
-            backtrace
-                .to_string()
-                .split('\n')
-                .map(|s| s.to_string())
-                .collect(),
-        )
+        LoggableBacktrace {
+            lines: backtrace.to_string().split('\n').map(|s| s.to_string()).collect(),
+        }
     }
 }
 
@@ -128,54 +126,5 @@ impl<'a> From<&'a Frame> for FrameType<'a> {
             Attachment(Printable(p)) => FrameType::Printable(p.to_string()),
             Attachment(_) => unreachable!(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use error_stack::Report;
-
-    use crate::report::{Error, LoggableError};
-
-    #[test]
-    fn correct_error_log() {
-        let report = Report::new(Error::new("error1".to_string()))
-            .attach_printable("foo1")
-            .change_context(Error::new("error2".to_string()))
-            .attach_printable("test1")
-            .attach_printable("test2")
-            .change_context(Error::new("error3".to_string()))
-            .attach(5);
-
-        let mut err = LoggableError::from(&report);
-
-        let root_err = err.cause.as_mut().unwrap().cause.as_mut().unwrap();
-
-        assert!(root_err.backtrace.is_some());
-        assert!(!root_err.backtrace.as_ref().unwrap().0.is_empty());
-
-        root_err.backtrace = None;
-
-        let expected_err = LoggableError {
-            msg: "error3".to_string(),
-            attachments: vec!["opaque attachment".to_string()],
-            location: "src/report.rs:147:14".to_string(),
-            cause: Some(Box::new(LoggableError {
-                msg: "error2".to_string(),
-                attachments: vec!["test1".to_string(), "test2".to_string()],
-                location: "src/report.rs:144:14".to_string(),
-                cause: Some(Box::new(LoggableError {
-                    msg: "error1".to_string(),
-                    attachments: vec!["foo1".to_string()],
-                    location: "src/report.rs:142:22".to_string(),
-                    cause: None,
-                    backtrace: None,
-                })),
-                backtrace: None,
-            })),
-            backtrace: None,
-        };
-
-        assert_eq!(err, expected_err);
     }
 }
