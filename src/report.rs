@@ -17,7 +17,7 @@ impl Error {
     }
 }
 
-#[derive(Valuable, PartialEq, Debug)]
+#[derive(Valuable, PartialEq, Debug, Default)]
 pub struct LoggableError {
     pub msg: String,
     pub attachments: Vec<String>,
@@ -35,13 +35,7 @@ impl<T> From<&Report<T>> for LoggableError {
 
         let mut frames = VecDeque::from_iter(report.frames());
         while !frames.is_empty() {
-            let mut error = LoggableError {
-                msg: String::new(),
-                attachments: Vec::new(),
-                location: String::new(),
-                cause: None,
-                backtrace: None,
-            };
+            let mut error = LoggableError::default();
             let mut attachments = Vec::new();
 
             while let Some(f) = frames.pop_front() {
@@ -165,15 +159,15 @@ mod tests {
         let expected_err = LoggableError {
             msg: "error3".to_string(),
             attachments: vec!["opaque attachment".to_string()],
-            location: "src/report.rs:159:14".to_string(),
+            location: "src/report.rs:147:14".to_string(),
             cause: Some(Box::new(LoggableError {
                 msg: "error2".to_string(),
                 attachments: vec!["test1".to_string(), "test2".to_string()],
-                location: "src/report.rs:156:14".to_string(),
+                location: "src/report.rs:144:14".to_string(),
                 cause: Some(Box::new(LoggableError {
                     msg: "error1".to_string(),
                     attachments: vec!["foo1".to_string()],
-                    location: "src/report.rs:154:22".to_string(),
+                    location: "src/report.rs:142:22".to_string(),
                     cause: None,
                     backtrace: None,
                 })),
