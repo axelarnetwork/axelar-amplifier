@@ -151,6 +151,7 @@ mod tests {
     use async_trait::async_trait;
     use error_stack::{IntoReport, Result};
     use futures::Stream;
+    use mockall::mock;
     use tendermint::block::Height;
     use tendermint_rpc::endpoint::block_results::Response;
     use tendermint_rpc::query::Query;
@@ -162,49 +163,40 @@ mod tests {
 
     #[test]
     async fn no_subscriber() {
-        let mock_client = MockClient {
-            subscribe_mock: |_| Ok(MockStream {}),
-        };
-        let client = EventSubClient::new(mock_client, 10);
+        let client = EventSubClient::new(MockCl::new(), 10);
         let res = client.run().await;
         assert!(matches!(res.unwrap_err().current_context(), EventSubError::NoSubscriber));
     }
 
     #[test]
     async fn subscription_failed() {
-        let mock_client = MockClient {
-            subscribe_mock: |_| Err(RpcError::client_internal("internal failure".into())).into_report(),
-        };
+        let mut mock_client = MockCl::new();
+        mock_client
+            .expect_subscribe()
+            .returning(|_| Err(RpcError::client_internal("internal failure".into())).into_report());
         let mut client = EventSubClient::new(mock_client, 10);
         let _ = client.sub();
         let res = client.run().await;
         assert!(matches!(res.unwrap_err().current_context(), EventSubError::SubscriptionFailed));
     }
 
-    struct MockStream;
+    mock! {
+            Subscription{}
 
-    impl Stream for MockStream {
-        type Item = core::result::Result<tendermint_rpc::event::Event, RpcError>;
-
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            todo!()
-        }
+            impl Stream for Subscription {
+                type Item=core::result::Result<tendermint_rpc::event::Event, RpcError>;
+                fn poll_next<'a>(self: Pin<&mut Self>, cx: &mut Context<'a>) -> Poll<Option<<Self as Stream>::Item>>;
+            }
     }
 
-    struct MockClient {
-        subscribe_mock: fn(Query) -> Result<MockStream, RpcError>,
-    }
+    mock! {
+        Cl{}
 
-    #[async_trait]
-    impl TmClient for MockClient {
-        type Item = MockStream;
-
-        async fn subscribe(&self, query: Query) -> Result<Self::Item, RpcError> {
-            (self.subscribe_mock)(query)
-        }
-
-        async fn block_results(&self, block_height: Height) -> Result<Response, RpcError> {
-            todo!()
+        #[async_trait]
+        impl TmClient for Cl{
+            type Item=MockSubscription;
+            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Item, RpcError>;
+            async fn block_results(&self, block_height: Height) -> Result<Response, RpcError>;
         }
     }
 }
