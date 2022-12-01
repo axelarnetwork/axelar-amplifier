@@ -163,14 +163,14 @@ mod tests {
 
     #[test]
     async fn no_subscriber() {
-        let client = EventSubClient::new(MockCl::new(), 10);
+        let client = EventSubClient::new(MockWebsocketClient::new(), 10);
         let res = client.run().await;
         assert!(matches!(res.unwrap_err().current_context(), EventSubError::NoSubscriber));
     }
 
     #[test]
     async fn subscription_failed() {
-        let mut mock_client = MockCl::new();
+        let mut mock_client = MockWebsocketClient::new();
         mock_client
             .expect_subscribe()
             .returning(|_| Err(RpcError::client_internal("internal failure".into())).into_report());
@@ -188,12 +188,11 @@ mod tests {
                 fn poll_next<'a>(self: Pin<&mut Self>, cx: &mut Context<'a>) -> Poll<Option<<Self as Stream>::Item>>;
             }
     }
-
     mock! {
-        Cl{}
+        WebsocketClient{}
 
         #[async_trait]
-        impl TmClient for Cl{
+        impl TmClient for WebsocketClient{
             type Item=MockSubscription;
             async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Item, RpcError>;
             async fn block_results(&self, block_height: Height) -> Result<Response, RpcError>;
