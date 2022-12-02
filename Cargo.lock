@@ -646,6 +646,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "service-interface"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "service-registry"
 version = "0.1.0"
 dependencies = [
@@ -657,6 +672,7 @@ dependencies = [
  "cw2",
  "schemars",
  "serde",
+ "service-interface",
  "thiserror",
 ]
 

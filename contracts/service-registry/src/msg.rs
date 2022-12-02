@@ -45,13 +45,3 @@ pub struct ActiveWorker {
     pub address: Addr,
     pub stake: Uint128,
 }
-
-#[cw_serde]
-pub enum ServiceContractQueryMsg {
-    UnbondAllowed { worker_address: Addr },
-}
-
-#[cw_serde]
-pub struct UnbondAllowedResponse {
-    pub error: Option<String>,
-}

@@ -6,11 +6,9 @@ use cosmwasm_std::{
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{
-    ActiveWorker, ExecuteMsg, InstantiateMsg, QueryMsg, ServiceContractQueryMsg,
-    UnbondAllowedResponse,
-};
+use crate::msg::{ActiveWorker, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Service, Worker, WorkerState, SERVICES, SERVICE_WORKERS};
+use service_interface::msg::{QueryMsg as ServiceQueryMsg, UnbondAllowedResponse};
 
 /*
 // version info for migration info
@@ -220,7 +218,7 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let service = SERVICES.load(deps.storage, &service_name)?;
 
-        let query_msg: ServiceContractQueryMsg = ServiceContractQueryMsg::UnbondAllowed {
+        let query_msg: ServiceQueryMsg = ServiceQueryMsg::UnbondAllowed {
             worker_address: worker_address.clone(),
         };
         let query_response: UnbondAllowedResponse =
