@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{ActiveWorker, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Service, Worker, WorkerState, SERVICES, SERVICE_WORKERS};
-use service_interface::msg::{QueryMsg as ServiceQueryMsg, UnbondAllowedResponse};
+use service_interface::msg::QueryMsg as ServiceQueryMsg;
 
 /*
 // version info for migration info
@@ -218,16 +218,16 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let service = SERVICES.load(deps.storage, &service_name)?;
 
-        let query_msg: ServiceQueryMsg = ServiceQueryMsg::UnbondAllowed {
+        let query_msg: ServiceQueryMsg = ServiceQueryMsg::GetUnbondAllowed {
             worker_address: worker_address.clone(),
         };
-        let query_response: UnbondAllowedResponse =
+        let query_response: Option<String> =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: service.service_contract.to_string(),
                 msg: to_binary(&query_msg)?,
             }))?;
 
-        if let Some(error) = query_response.error {
+        if let Some(error) = query_response {
             return Err(ContractError::ServiceContractError { msg: error });
         }
 
