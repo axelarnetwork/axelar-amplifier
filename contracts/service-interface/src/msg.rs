@@ -6,8 +6,8 @@ pub struct InstantiateMsg {}
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RequestWorkerAction { message: String },
-    PostWorkerReply { reply: String, nonce: Uint128 },
+    RequestWorkerAction { message: ActionMessage },
+    PostWorkerReply { reply: bool, id: [u8; 32] },
 }
 
 #[cw_serde]
@@ -30,4 +30,12 @@ pub enum WorkerState {
     Active,
     Deregistering,
     Inactive,
+}
+
+#[cw_serde]
+pub struct ActionMessage {
+    pub chain_id: Uint128,
+    pub command_id: [u8; 32],
+    pub command: String,
+    pub params: Vec<u8>,
 }

@@ -1,12 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
+    StdResult, Uint128,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::InstantiateMsg;
+use crate::state::{ActionRequest, ACTION_REQUESTS};
+use service_interface::msg::ActionMessage;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
@@ -38,7 +40,9 @@ pub fn execute(
         ServiceExecuteMsg::RequestWorkerAction { message } => {
             execute::request_worker_action(deps, message)
         }
-        ServiceExecuteMsg::PostWorkerReply { reply, nonce } => todo!(),
+        ServiceExecuteMsg::PostWorkerReply { reply, id } => {
+            execute::post_worker_reply(deps, reply, id)
+        }
     }
 }
 
@@ -47,17 +51,47 @@ pub mod execute {
 
     pub fn request_worker_action(
         deps: DepsMut,
-        message: String,
+        message: ActionMessage,
     ) -> Result<Response, ContractError> {
-        todo!();
+        // TODO: validate sender = worker
+
+        let request = ACTION_REQUESTS.update(
+            deps.storage,
+            &message.command_id.to_owned(),
+            |r| -> Result<ActionRequest, ContractError> {
+                match r {
+                    Some(_one) => Err(ContractError::ActionAlreadyRequested {}),
+                    None => Ok(ActionRequest::new(message)),
+                }
+            },
+        )?;
+
+        let event = Event::new("request_worker_action")
+            .add_attribute("message", serde_json::to_string(&request.message).unwrap());
+
+        Ok(Response::new().add_event(event))
     }
 
     pub fn post_worker_reply(
         deps: DepsMut,
-        reply: String,
-        nonce: Uint128,
+        reply: bool,
+        id: [u8; 32],
     ) -> Result<Response, ContractError> {
-        todo!();
+        let request = ACTION_REQUESTS.update(
+            deps.storage,
+            &id,
+            |r| -> Result<ActionRequest, ContractError> {
+                match r {
+                    Some(found) => {
+                        // TODO error if already voted, otherwise increase vote count for reply
+                        todo!();
+                    }
+                    None => Err(ContractError::InvalidRequestId {}),
+                }
+            },
+        )?;
+
+        Ok(Response::new())
     }
 }
 
