@@ -75,6 +75,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "service-interface",
  "thiserror",
 ]
 
@@ -365,6 +366,23 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "evm-batch-service"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
 ]
 
 [[package]]

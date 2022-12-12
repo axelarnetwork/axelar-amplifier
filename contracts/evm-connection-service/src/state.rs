@@ -17,6 +17,8 @@ pub struct ActionRequest {
     pub votes: HashMap<bool, Uint64>,
     pub voters: HashMap<Addr, bool>,
     pub consensus_reached: bool,
+    // Add timeout in block number
+    // add block
 }
 
 impl ActionRequest {

@@ -97,6 +97,7 @@ pub mod execute {
                 match r {
                     Some(mut request) => {
                         if request.consensus_reached {
+                            // TODO: no throw error, votes needed for reward
                             return Err(ContractError::VotingAlreadyClosed {});
                         }
 

@@ -1,9 +1,13 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    entry_point, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
+};
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::ROUTES;
+use service_interface::msg::ActionMessage;
 
 /*
 // version info for migration info
@@ -23,16 +27,43 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: ExecuteMsg,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    todo!();
+    match msg {
+        ExecuteMsg::RouteMessage { message } => execute::route_message(deps, message),
+        ExecuteMsg::UpdateRoute {
+            chain_id,
+            destination_contract,
+        } => execute::update_route(deps, chain_id, destination_contract),
+    }
 }
 
 pub mod execute {
     use super::*;
+
+    pub fn route_message(deps: DepsMut, message: ActionMessage) -> Result<Response, ContractError> {
+        let destination_contract = ROUTES.load(deps.storage, message.chain_id.u128())?;
+
+        // TODO: add message to destination_contract
+        let response = Response::new();
+
+        Ok(response)
+    }
+
+    pub fn update_route(
+        deps: DepsMut,
+        chain_id: Uint128,
+        destination_contract: Addr,
+    ) -> Result<Response, ContractError> {
+        // TODO: Auth validation
+
+        ROUTES.save(deps.storage, chain_id.u128(), &destination_contract)?;
+
+        Ok(Response::new())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

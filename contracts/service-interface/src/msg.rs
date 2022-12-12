@@ -38,4 +38,4 @@ pub struct ActionMessage {
     pub command_id: [u8; 32],
     pub command: String,
     pub params: Vec<u8>,
-}
+} // TODO : make more generic, with payload byte array.

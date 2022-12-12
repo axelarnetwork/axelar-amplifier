@@ -1,8 +1,8 @@
 [package]
-name = "connection-router"
+name = "evm-batch-service"
 version = "0.1.0"
 edition = "2021"
-description = "Connection router contract"
+description = "Service for batching EVM commands"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
