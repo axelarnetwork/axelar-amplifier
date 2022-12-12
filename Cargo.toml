@@ -3,7 +3,7 @@ members = [
   "contracts/service-registry",
   "contracts/service-interface",
   "contracts/evm-connection-service",
-
+  "contracts/connection-router",
 ]
 
 [profile.release]
