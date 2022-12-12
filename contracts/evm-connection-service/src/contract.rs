@@ -1,13 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
-    StdResult, Uint128,
+    StdResult, Uint64,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::InstantiateMsg;
-use crate::state::{ActionRequest, ACTION_REQUESTS};
+use crate::state::{ActionRequest, ServiceInfo, ACTION_REQUESTS, SERVICE_INFO};
 use service_interface::msg::ActionMessage;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
@@ -21,12 +21,19 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    unimplemented!()
+    let service = ServiceInfo {
+        name: msg.service_name,
+        threshold: msg.threshold,
+    };
+    SERVICE_INFO.save(deps.storage, &service)?;
+
+    // TODO: register service during instantiation
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -41,7 +48,7 @@ pub fn execute(
             execute::request_worker_action(deps, message)
         }
         ServiceExecuteMsg::PostWorkerReply { reply, id } => {
-            execute::post_worker_reply(deps, reply, id)
+            execute::post_worker_reply(deps, info, reply, id)
         }
     }
 }
@@ -74,24 +81,57 @@ pub mod execute {
 
     pub fn post_worker_reply(
         deps: DepsMut,
+        info: MessageInfo,
         reply: bool,
         id: [u8; 32],
     ) -> Result<Response, ContractError> {
-        let request = ACTION_REQUESTS.update(
+        // TODO: validate service has enough workers to be operational minWorkers =< workers =< maxWorkers
+
+        let service = SERVICE_INFO.load(deps.storage)?;
+        let response = Response::new();
+
+        ACTION_REQUESTS.update(
             deps.storage,
             &id,
             |r| -> Result<ActionRequest, ContractError> {
                 match r {
-                    Some(found) => {
-                        // TODO error if already voted, otherwise increase vote count for reply
-                        todo!();
+                    Some(mut request) => {
+                        if request.consensus_reached {
+                            return Err(ContractError::VotingAlreadyClosed {});
+                        }
+
+                        request
+                            .voters
+                            .entry(info.sender)
+                            .and_modify(|v| {
+                                // reduce old vote by one
+                                request
+                                    .votes
+                                    .entry(*v)
+                                    .and_modify(|oldVote| *oldVote -= Uint64::one());
+
+                                *v = reply;
+                            }) // throw an error instead?
+                            .or_insert(reply);
+
+                        // increase vote counter by one
+                        *request.votes.entry(reply).or_default() += Uint64::one();
+
+                        if request.voters.len() >= service.threshold.u64().try_into().unwrap() {
+                            request.consensus_reached = true;
+                            if request.votes.get(&true) > request.votes.get(&false) {
+                                // TODO: add message to router in response
+                            }
+                        }
+
+                        Ok(request)
                     }
                     None => Err(ContractError::InvalidRequestId {}),
                 }
             },
         )?;
 
-        Ok(Response::new())
+        Ok(response)
     }
 }
 

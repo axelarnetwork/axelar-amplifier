@@ -12,4 +12,6 @@ pub enum ContractError {
     ActionAlreadyRequested {},
     #[error("Invalid request id")]
     InvalidRequestId {},
+    #[error("Voting already closed")]
+    VotingAlreadyClosed {},
 }
