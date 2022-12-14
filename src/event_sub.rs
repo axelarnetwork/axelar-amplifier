@@ -42,7 +42,7 @@ impl From<AbciEvent> for Event {
 #[async_trait]
 pub trait TmClient {
     type Sub: Stream<Item = core::result::Result<tendermint_rpc::event::Event, RpcError>> + Unpin;
-    type Tx: Into<Vec<u8>> + Send;
+    type Tx: Into<Vec<u8>>;
 
     async fn subscribe(&self, query: Query) -> Result<Self::Sub, RpcError>;
     async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError>;
