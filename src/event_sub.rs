@@ -201,8 +201,8 @@ mod tests {
     use mockall::mock;
     use mockall::predicate;
     use tendermint::block::Height;
-    use tendermint_rpc::endpoint::broadcast::tx_sync::{Response as TxResponse};
-    use tendermint_rpc::endpoint::block_results::{Response as BlockResponse};
+    use tendermint_rpc::endpoint::block_results::Response as BlockResponse;
+    use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
     use tendermint_rpc::query::Query;
     use tendermint_rpc::Error as RpcError;
     use tokio::sync::oneshot;
