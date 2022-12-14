@@ -1,18 +1,11 @@
 use std::collections::HashMap;
 
-use async_trait::async_trait;
 use error_stack::{FutureExt, Report, Result};
 use error_stack::{IntoReport, ResultExt};
 use futures::stream::StreamExt;
-use futures::TryFutureExt;
 use tendermint::abci::Event as AbciEvent;
 use tendermint::block::Height;
 use tendermint::Block;
-use tendermint_rpc::endpoint::block_results::Response as BlockResponse;
-use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
-use tendermint_rpc::event::EventData;
-use tendermint_rpc::query::{EventType, Query};
-use tendermint_rpc::{Client, Error as RpcError, Subscription, SubscriptionClient, WebSocketClient};
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::{
@@ -20,9 +13,9 @@ use tokio::sync::{
     oneshot,
 };
 use tokio_stream::wrappers::BroadcastStream;
-use tokio_stream::Stream;
 
 use crate::event_sub::EventSubError::*;
+use crate::tm_client::{EventData, EventType, TmClient};
 
 #[derive(Clone, Debug)]
 pub struct Event {
@@ -36,37 +29,6 @@ impl From<AbciEvent> for Event {
             event_type: event.kind,
             attributes: event.attributes.into_iter().map(|tag| (tag.key, tag.value)).collect(),
         }
-    }
-}
-
-#[async_trait]
-pub trait TmClient {
-    type Sub: Stream<Item = core::result::Result<tendermint_rpc::event::Event, RpcError>> + Unpin;
-    type Tx: Into<Vec<u8>>;
-
-    async fn subscribe(&self, query: Query) -> Result<Self::Sub, RpcError>;
-    async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError>;
-    async fn broadcast(&self, tx_raw: Self::Tx) -> Result<TxResponse, RpcError>;
-    fn close(self) -> Result<(), RpcError>;
-}
-
-#[async_trait]
-impl TmClient for WebSocketClient {
-    type Sub = Subscription;
-    type Tx = Vec<u8>;
-
-    async fn subscribe(&self, query: Query) -> Result<Self::Sub, RpcError> {
-        SubscriptionClient::subscribe(self, query).map_err(Report::new).await
-    }
-
-    async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError> {
-        Client::block_results(self, block_height).map_err(Report::new).await
-    }
-    async fn broadcast(&self, tx_raw: Self::Tx) -> Result<TxResponse, RpcError> {
-        Client::broadcast_tx_sync(self, tx_raw).map_err(Report::new).await
-    }
-    fn close(self) -> Result<(), RpcError> {
-        SubscriptionClient::close(self).map_err(Report::new)
     }
 }
 
@@ -201,15 +163,11 @@ mod tests {
     use mockall::mock;
     use mockall::predicate;
     use tendermint::block::Height;
-    use tendermint_rpc::endpoint::block_results::Response as BlockResponse;
-    use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
-    use tendermint_rpc::query::Query;
-    use tendermint_rpc::Error as RpcError;
     use tokio::sync::oneshot;
     use tokio::test;
 
-    use crate::event_sub::EventSubError;
-    use crate::event_sub::{EventSubClient, TmClient};
+    use crate::event_sub::{EventSubClient, EventSubError};
+    use crate::tm_client::*;
 
     #[test]
     async fn no_subscriber() {
@@ -226,7 +184,7 @@ mod tests {
         let mut mock_client = MockWebsocketClient::new();
         mock_client
             .expect_subscribe()
-            .returning(|_| Err(RpcError::client_internal("internal failure".into())).into_report());
+            .returning(|_| Err(Error::client_internal("internal failure".into())).into_report());
         let (mut client, _) = EventSubClient::new(mock_client, 10);
         let _ = client.sub();
         let res = client.run().await;
@@ -241,7 +199,7 @@ mod tests {
         let mut mock_client = MockWebsocketClient::new();
         let block: tendermint::Block = serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
         let block_height = block.header().height;
-        let block_results: tendermint_rpc::endpoint::block_results::Response =
+        let block_results: BlockResponse =
             serde_json::from_str(include_str!("../tests/fixtures/block_results.json")).unwrap();
 
         let begin_block_events = block_results.begin_block_events.clone().into_iter().flatten();
@@ -263,9 +221,9 @@ mod tests {
                 poll_count += 1;
 
                 match poll_count {
-                    1 => core::task::Poll::Ready(Some(Ok(tendermint_rpc::event::Event {
+                    1 => core::task::Poll::Ready(Some(Ok(Event {
                         query: "".into(),
-                        data: tendermint_rpc::event::EventData::NewBlock {
+                        data: EventData::NewBlock {
                             block: Some(block.clone()),
                             result_begin_block: None,
                             result_end_block: None,
@@ -317,7 +275,7 @@ mod tests {
             Subscription{}
 
             impl Stream for Subscription {
-                type Item = core::result::Result<tendermint_rpc::event::Event, RpcError>;
+                type Item = core::result::Result<Event, Error>;
 
                 fn poll_next<'a>(self: Pin<&mut Self>, cx: &mut Context<'a>) -> Poll<Option<<Self as Stream>::Item>>;
             }
@@ -331,10 +289,10 @@ mod tests {
             type Sub = MockSubscription;
             type Tx = Vec<u8>;
 
-            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Sub, RpcError>;
-            async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError>;
-            async fn broadcast(&self, tx_raw: <Self as TmClient>::Tx) -> Result<TxResponse, RpcError>;
-            fn close(self) -> Result<(), RpcError>;
+            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Sub, Error>;
+            async fn block_results(&self, block_height: Height) -> Result<BlockResponse, Error>;
+            async fn broadcast(&self, tx_raw: <Self as TmClient>::Tx) -> Result<TxResponse, Error>;
+            fn close(self) -> Result<(), Error>;
         }
     }
 }
