@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "contracts/connection-registry",
+  "contracts/batching",
 ]
 
 [profile.release]
