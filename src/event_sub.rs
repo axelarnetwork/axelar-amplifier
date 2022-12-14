@@ -8,7 +8,8 @@ use futures::TryFutureExt;
 use tendermint::abci::Event as AbciEvent;
 use tendermint::block::Height;
 use tendermint::Block;
-use tendermint_rpc::endpoint::block_results::Response;
+use tendermint_rpc::endpoint::block_results::Response as BlockResponse;
+use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::{EventType, Query};
 use tendermint_rpc::{Client, Error as RpcError, Subscription, SubscriptionClient, WebSocketClient};
@@ -41,24 +42,29 @@ impl From<AbciEvent> for Event {
 #[async_trait]
 pub trait TmClient {
     type Sub: Stream<Item = core::result::Result<tendermint_rpc::event::Event, RpcError>> + Unpin;
+    type Tx: Into<Vec<u8>>;
 
     async fn subscribe(&self, query: Query) -> Result<Self::Sub, RpcError>;
-    async fn block_results(&self, block_height: Height) -> Result<Response, RpcError>;
+    async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError>;
+    async fn broadcast(&self, tx_raw: Self::Tx) -> Result<TxResponse, RpcError>;
     fn close(self) -> Result<(), RpcError>;
 }
 
 #[async_trait]
 impl TmClient for WebSocketClient {
     type Sub = Subscription;
+    type Tx = Vec<u8>;
 
     async fn subscribe(&self, query: Query) -> Result<Self::Sub, RpcError> {
         SubscriptionClient::subscribe(self, query).map_err(Report::new).await
     }
 
-    async fn block_results(&self, block_height: Height) -> Result<Response, RpcError> {
+    async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError> {
         Client::block_results(self, block_height).map_err(Report::new).await
     }
-
+    async fn broadcast(&self, tx_raw: Self::Tx) -> Result<TxResponse, RpcError> {
+        Client::broadcast_tx_sync(self, tx_raw).map_err(Report::new).await
+    }
     fn close(self) -> Result<(), RpcError> {
         SubscriptionClient::close(self).map_err(Report::new)
     }
@@ -195,7 +201,8 @@ mod tests {
     use mockall::mock;
     use mockall::predicate;
     use tendermint::block::Height;
-    use tendermint_rpc::endpoint::block_results::Response;
+    use tendermint_rpc::endpoint::block_results::Response as BlockResponse;
+    use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
     use tendermint_rpc::query::Query;
     use tendermint_rpc::Error as RpcError;
     use tokio::sync::oneshot;
@@ -322,9 +329,11 @@ mod tests {
         #[async_trait]
         impl TmClient for WebsocketClient{
             type Sub = MockSubscription;
+            type Tx = Vec<u8>;
 
             async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Sub, RpcError>;
-            async fn block_results(&self, block_height: Height) -> Result<Response, RpcError>;
+            async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError>;
+            async fn broadcast(&self, tx_raw: <Self as TmClient>::Tx) -> Result<TxResponse, RpcError>;
             fn close(self) -> Result<(), RpcError>;
         }
     }
