@@ -184,7 +184,7 @@ mod tests {
         let mut mock_client = MockWebsocketClient::new();
         mock_client
             .expect_subscribe()
-            .returning(|_| Err(RpcError::client_internal("internal failure".into())).into_report());
+            .returning(|_| Err(Error::client_internal("internal failure".into())).into_report());
         let (mut client, _) = EventSubClient::new(mock_client, 10);
         let _ = client.sub();
         let res = client.run().await;
@@ -275,7 +275,7 @@ mod tests {
             Subscription{}
 
             impl Stream for Subscription {
-                type Item = core::result::Result<Event, RpcError>;
+                type Item = core::result::Result<Event, Error>;
 
                 fn poll_next<'a>(self: Pin<&mut Self>, cx: &mut Context<'a>) -> Poll<Option<<Self as Stream>::Item>>;
             }
@@ -289,10 +289,10 @@ mod tests {
             type Sub = MockSubscription;
             type Tx = Vec<u8>;
 
-            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Sub, RpcError>;
-            async fn block_results(&self, block_height: Height) -> Result<BlockResponse, RpcError>;
-            async fn broadcast(&self, tx_raw: <Self as TmClient>::Tx) -> Result<TxResponse, RpcError>;
-            fn close(self) -> Result<(), RpcError>;
+            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Sub, Error>;
+            async fn block_results(&self, block_height: Height) -> Result<BlockResponse, Error>;
+            async fn broadcast(&self, tx_raw: <Self as TmClient>::Tx) -> Result<TxResponse, Error>;
+            fn close(self) -> Result<(), Error>;
         }
     }
 }
