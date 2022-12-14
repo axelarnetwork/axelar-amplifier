@@ -15,7 +15,7 @@ use tokio::sync::{
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::event_sub::EventSubError::*;
-use crate::tm_client::{TmClient, EventData, EventType};
+use crate::tm_client::{EventData, EventType, TmClient};
 
 #[derive(Clone, Debug)]
 pub struct Event {
@@ -166,7 +166,7 @@ mod tests {
     use tokio::sync::oneshot;
     use tokio::test;
 
-    use crate::event_sub::{EventSubError, EventSubClient};
+    use crate::event_sub::{EventSubClient, EventSubError};
     use crate::tm_client::*;
 
     #[test]
