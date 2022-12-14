@@ -9,10 +9,10 @@ use tendermint::abci::Event as AbciEvent;
 use tendermint::block::Height;
 use tendermint::Block;
 use tendermint_rpc::endpoint::block_results::Response as BlockResponse;
+use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::{EventType, Query};
 use tendermint_rpc::{Client, Error as RpcError, Subscription, SubscriptionClient, WebSocketClient};
-use tendermint_rpc::endpoint::broadcast::tx_sync::Response as TxResponse;
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::{
