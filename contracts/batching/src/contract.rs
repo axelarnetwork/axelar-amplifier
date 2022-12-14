@@ -1,39 +1,47 @@
-use crate::error::ContractError;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::DepsMut;
-use cosmwasm_std::{entry_point, Env, MessageInfo, Reply, Response, StdResult, SubMsg};
+use cosmwasm_std::{
+    entry_point, CosmosMsg, Env, Event, MessageInfo, Reply, Response, StdResult, SubMsg,
+};
 
-use crate::msg::{BatchMsg, InstantiateMsg};
+use crate::error::ContractError;
+use crate::msg::{BatchMsg, ExecuteMsg, InstantiateMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: InstantiateMsg,
+    _: DepsMut,
+    _: Env,
+    _: MessageInfo,
+    _: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    todo!()
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut,
+    _: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: BatchMsg,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    let response = Response::new()
+    match msg {
+        ExecuteMsg::Batch(msg) => Ok(dispatch(msg)),
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(_: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
+    Ok(Response::default()
+        .add_event(Event::new("failed_msg").add_attribute("msg_id", msg.id.to_string())))
+}
+
+fn dispatch(msg: BatchMsg) -> Response {
+    Response::new()
         .add_messages(msg.must_succeed_msgs)
         .add_submessages(
             msg.can_fail_msgs
                 .into_iter()
                 .enumerate()
                 .map(|(i, msg)| SubMsg::reply_always(msg, i as u64)),
-        );
-    Ok(response)
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
-    todo!()
+        )
 }
