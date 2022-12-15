@@ -40,6 +40,6 @@ fn dispatch(msg: BatchMsg) -> Response {
             msg.can_fail_msgs
                 .into_iter()
                 .enumerate()
-                .map(|(i, msg)| SubMsg::reply_always(msg, i as u64)),
+                .map(|(i, msg)| SubMsg::reply_on_error(msg, i as u64)),
         )
 }
