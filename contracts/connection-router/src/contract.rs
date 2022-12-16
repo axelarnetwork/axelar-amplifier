@@ -7,7 +7,6 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::ROUTES;
-use service_interface::msg::ActionMessage;
 
 /*
 // version info for migration info
@@ -26,11 +25,11 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
+pub fn execute<T>(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: ExecuteMsg,
+    msg: ExecuteMsg<T>,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::RouteMessage { message } => execute::route_message(deps, message),
@@ -44,13 +43,8 @@ pub fn execute(
 pub mod execute {
     use super::*;
 
-    pub fn route_message(deps: DepsMut, message: ActionMessage) -> Result<Response, ContractError> {
-        let destination_contract = ROUTES.load(deps.storage, message.chain_id.u128())?;
-
-        // TODO: add message to destination_contract
-        let response = Response::new();
-
-        Ok(response)
+    pub fn route_message<T>(deps: DepsMut, message: T) -> Result<Response, ContractError> {
+        todo!()
     }
 
     pub fn update_route(

@@ -1,14 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
-    StdResult, Uint64,
+    StdResult, Uint256, Uint64,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::InstantiateMsg;
-use crate::state::{ActionRequest, ServiceInfo, ACTION_REQUESTS, SERVICE_INFO};
-use service_interface::msg::ActionMessage;
+use crate::msg::{ActionMessage, InstantiateMsg};
+use crate::state::{PollMetadata, ServiceInfo, POLLS, POLL_COUNTER, SERVICE_INFO};
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
@@ -28,9 +27,14 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let service = ServiceInfo {
         name: msg.service_name,
-        threshold: msg.threshold,
+        voting_threshold: msg.voting_threshold,
+        min_voter_count: msg.min_voter_count,
+        reward_pool: msg.reward_pool,
+        voting_period: msg.voting_period,
+        voting_grace_period: msg.voting_grace_period,
     };
     SERVICE_INFO.save(deps.storage, &service)?;
+    POLL_COUNTER.save(deps.storage, &0);
 
     // TODO: register service during instantiation
     Ok(Response::new())
@@ -39,13 +43,13 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
-    msg: ServiceExecuteMsg,
+    msg: ServiceExecuteMsg<ActionMessage>,
 ) -> Result<Response, ContractError> {
     match msg {
         ServiceExecuteMsg::RequestWorkerAction { message } => {
-            execute::request_worker_action(deps, message)
+            execute::request_worker_action(deps, env, message)
         }
         ServiceExecuteMsg::PostWorkerReply { reply, id } => {
             execute::post_worker_reply(deps, info, reply, id)
@@ -54,29 +58,76 @@ pub fn execute(
 }
 
 pub mod execute {
+    use crate::state::POLL_COUNTER;
+
     use super::*;
 
     pub fn request_worker_action(
         deps: DepsMut,
+        env: Env,
         message: ActionMessage,
     ) -> Result<Response, ContractError> {
-        // TODO: validate sender = worker
+        match message {
+            ActionMessage::ConfirmGatewayTxs {
+                source_chain_name,
+                from_nonce,
+                to_nonce,
+                destination_chain_name,
+            } => request_confirm_gateway_txs(deps, env, message),
+        }
+    }
 
-        let request = ACTION_REQUESTS.update(
-            deps.storage,
-            &message.command_id.to_owned(),
-            |r| -> Result<ActionRequest, ContractError> {
-                match r {
-                    Some(_one) => Err(ContractError::ActionAlreadyRequested {}),
-                    None => Ok(ActionRequest::new(message)),
-                }
-            },
-        )?;
+    fn initialize_poll(
+        deps: DepsMut,
+        env: Env,
+        message: ActionMessage,
+    ) -> Result<PollMetadata, ContractError> {
+        let id =
+            POLL_COUNTER.update(deps.storage, |mut counter| -> Result<u64, ContractError> {
+                counter += 1;
+                Ok(counter)
+            })?;
 
-        let event = Event::new("request_worker_action")
-            .add_attribute("message", serde_json::to_string(&request.message).unwrap());
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+        let expires_at = env.block.height + service_info.voting_period.u64();
 
-        Ok(Response::new().add_event(event))
+        let poll = PollMetadata::new(Uint64::from(id), Uint64::from(expires_at), message);
+
+        POLLS.save(deps.storage, id, &poll)?;
+
+        Ok(poll)
+    }
+
+    pub fn request_confirm_gateway_txs(
+        deps: DepsMut,
+        env: Env,
+        message: ActionMessage,
+    ) -> Result<Response, ContractError> {
+        // TODO: validate sender = worker ??
+
+        if let ActionMessage::ConfirmGatewayTxs {
+            source_chain_name,
+            from_nonce,
+            to_nonce,
+            destination_chain_name,
+        } = message
+        {
+            let poll = initialize_poll(deps, env, message)?;
+
+            let event = Event::new("ConfirmGatewayTxStarted")
+                .add_attribute("poll_id", poll.id)
+                .add_attribute("source_chain", source_chain_name)
+                .add_attribute("from_nonce", from_nonce)
+                .add_attribute("to_nonce", to_nonce)
+                .add_attribute("destination_chain_name", destination_chain_name);
+            // TODO: add gateway ??
+            // TODO: add poll participants
+            // TODO: add confirmation height??
+
+            Ok(Response::new().add_event(event))
+        } else {
+            Err(ContractError::InvalidAction {})
+        }
     }
 
     pub fn post_worker_reply(
@@ -93,7 +144,7 @@ pub mod execute {
         ACTION_REQUESTS.update(
             deps.storage,
             &id,
-            |r| -> Result<ActionRequest, ContractError> {
+            |r| -> Result<PollMetadata, ContractError> {
                 match r {
                     Some(mut request) => {
                         if request.consensus_reached {
@@ -118,7 +169,9 @@ pub mod execute {
                         // increase vote counter by one
                         *request.votes.entry(reply).or_default() += Uint64::one();
 
-                        if request.voters.len() >= service.threshold.u64().try_into().unwrap() {
+                        if request.voters.len()
+                            >= service.voting_threshold.u64().try_into().unwrap()
+                        {
                             request.consensus_reached = true;
                             if request.votes.get(&true) > request.votes.get(&false) {
                                 // TODO: add message to router in response

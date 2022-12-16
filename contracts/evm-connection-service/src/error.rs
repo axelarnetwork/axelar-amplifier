@@ -8,8 +8,8 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
-    #[error("Action already requested")]
-    ActionAlreadyRequested {},
+    #[error("InvalidAction")]
+    InvalidAction {},
     #[error("Invalid request id")]
     InvalidRequestId {},
     #[error("Voting already closed")]

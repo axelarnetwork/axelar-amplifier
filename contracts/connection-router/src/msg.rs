@@ -1,14 +1,13 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
-use service_interface::msg::ActionMessage;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
 
 #[cw_serde]
-pub enum ExecuteMsg {
+pub enum ExecuteMsg<T> {
     RouteMessage {
-        message: ActionMessage,
+        message: T,
     },
     UpdateRoute {
         chain_id: Uint128,

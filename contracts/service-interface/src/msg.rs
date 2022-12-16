@@ -5,8 +5,8 @@ use cosmwasm_std::{Addr, Uint128};
 pub struct InstantiateMsg {}
 
 #[cw_serde]
-pub enum ExecuteMsg {
-    RequestWorkerAction { message: ActionMessage },
+pub enum ExecuteMsg<T> {
+    RequestWorkerAction { message: T },
     PostWorkerReply { reply: bool, id: [u8; 32] },
 }
 
@@ -31,11 +31,3 @@ pub enum WorkerState {
     Deregistering,
     Inactive,
 }
-
-#[cw_serde]
-pub struct ActionMessage {
-    pub chain_id: Uint128,
-    pub command_id: [u8; 32],
-    pub command: String,
-    pub params: Vec<u8>,
-} // TODO : make more generic, with payload byte array.
