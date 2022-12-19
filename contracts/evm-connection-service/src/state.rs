@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint64};
+use cosmwasm_std::{Addr, Uint256, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use crate::msg::{ActionMessage, ActionResponse};
@@ -46,6 +46,25 @@ impl PollMetadata {
     }
 }
 
+#[cw_serde]
+pub struct TalliedVote {
+    pub tally: Uint256,
+    pub data: ActionResponse,
+    pub poll_id: Uint64,
+    // TODO: is_voter_late
+}
+
+impl TalliedVote {
+    pub fn new(poll_id: Uint64, data: ActionResponse) -> Self {
+        Self {
+            tally: Uint256::zero(),
+            data,
+            poll_id,
+        }
+    }
+}
+
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
+pub const TALLIED_VOTES: Map<(u64, &ActionResponse), TalliedVote> = Map::new("tallied_votes");

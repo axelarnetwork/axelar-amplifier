@@ -1,13 +1,13 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Addr;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
 
 #[cw_serde]
-pub enum ExecuteMsg<T> {
+pub enum ExecuteMsg<T, S> {
     RequestWorkerAction { message: T },
-    PostWorkerReply { reply: bool, id: [u8; 32] },
+    PostWorkerReply { reply: S },
 }
 
 #[cw_serde]

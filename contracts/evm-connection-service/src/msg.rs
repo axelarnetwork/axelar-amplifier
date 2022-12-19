@@ -24,11 +24,13 @@ pub enum ActionMessage {
         source_chain_name: String,
         from_nonce: Uint256,
         to_nonce: Uint256,
-        destination_chain_name: String,
     },
 }
 
 #[cw_serde]
 pub enum ActionResponse {
-    ConfirmGatewayTxs {},
+    ConfirmGatewayTxs {
+        poll_id: Uint64,
+        calls_hash: [u8; 32],
+    },
 }

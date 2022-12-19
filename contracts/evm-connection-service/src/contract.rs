@@ -1,13 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
-    StdResult, Uint256, Uint64,
+    StdResult, Uint64,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ActionMessage, InstantiateMsg};
-use crate::state::{PollMetadata, ServiceInfo, POLLS, POLL_COUNTER, SERVICE_INFO};
+use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
+use crate::state::{
+    PollMetadata, ServiceInfo, TalliedVote, POLLS, POLL_COUNTER, SERVICE_INFO, TALLIED_VOTES,
+};
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
@@ -45,21 +47,19 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ServiceExecuteMsg<ActionMessage>,
+    msg: ServiceExecuteMsg<ActionMessage, ActionResponse>,
 ) -> Result<Response, ContractError> {
     match msg {
         ServiceExecuteMsg::RequestWorkerAction { message } => {
             execute::request_worker_action(deps, env, message)
         }
-        ServiceExecuteMsg::PostWorkerReply { reply, id } => {
-            execute::post_worker_reply(deps, info, reply, id)
+        ServiceExecuteMsg::PostWorkerReply { reply } => {
+            execute::post_worker_reply(deps, env, info, reply)
         }
     }
 }
 
 pub mod execute {
-    use crate::state::POLL_COUNTER;
-
     use super::*;
 
     pub fn request_worker_action(
@@ -72,7 +72,6 @@ pub mod execute {
                 source_chain_name,
                 from_nonce,
                 to_nonce,
-                destination_chain_name,
             } => request_confirm_gateway_txs(deps, env, message),
         }
     }
@@ -109,7 +108,6 @@ pub mod execute {
             source_chain_name,
             from_nonce,
             to_nonce,
-            destination_chain_name,
         } = message
         {
             let poll = initialize_poll(deps, env, message)?;
@@ -118,9 +116,8 @@ pub mod execute {
                 .add_attribute("poll_id", poll.id)
                 .add_attribute("source_chain", source_chain_name)
                 .add_attribute("from_nonce", from_nonce)
-                .add_attribute("to_nonce", to_nonce)
-                .add_attribute("destination_chain_name", destination_chain_name);
-            // TODO: add gateway ??
+                .add_attribute("to_nonce", to_nonce);
+            // TODO: add gateway ?? on-chain mapping
             // TODO: add poll participants
             // TODO: add confirmation height??
 
@@ -132,60 +129,46 @@ pub mod execute {
 
     pub fn post_worker_reply(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
-        reply: bool,
-        id: [u8; 32],
+        reply: ActionResponse,
     ) -> Result<Response, ContractError> {
-        // TODO: validate service has enough workers to be operational minWorkers =< workers =< maxWorkers
+        match reply {
+            ActionResponse::ConfirmGatewayTxs {
+                poll_id,
+                calls_hash,
+            } => vote_confirm_gateway_txs(deps, env, info, reply),
+        }
+    }
 
-        let service = SERVICE_INFO.load(deps.storage)?;
-        let response = Response::new();
+    pub fn vote_confirm_gateway_txs(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        reply: ActionResponse,
+    ) -> Result<Response, ContractError> {
+        // TODO: vote validations
 
-        ACTION_REQUESTS.update(
-            deps.storage,
-            &id,
-            |r| -> Result<PollMetadata, ContractError> {
-                match r {
-                    Some(mut request) => {
-                        if request.consensus_reached {
-                            // TODO: no throw error, votes needed for reward
-                            return Err(ContractError::VotingAlreadyClosed {});
-                        }
-
-                        request
-                            .voters
-                            .entry(info.sender)
-                            .and_modify(|v| {
-                                // reduce old vote by one
-                                request
-                                    .votes
-                                    .entry(*v)
-                                    .and_modify(|oldVote| *oldVote -= Uint64::one());
-
-                                *v = reply;
-                            }) // throw an error instead?
-                            .or_insert(reply);
-
-                        // increase vote counter by one
-                        *request.votes.entry(reply).or_default() += Uint64::one();
-
-                        if request.voters.len()
-                            >= service.voting_threshold.u64().try_into().unwrap()
-                        {
-                            request.consensus_reached = true;
-                            if request.votes.get(&true) > request.votes.get(&false) {
-                                // TODO: add message to router in response
-                            }
-                        }
-
-                        Ok(request)
+        if let ActionResponse::ConfirmGatewayTxs {
+            poll_id,
+            calls_hash,
+        } = reply
+        {
+            TALLIED_VOTES.update(
+                deps.storage,
+                (poll_id.u64(), &reply),
+                |v| -> Result<TalliedVote, ContractError> {
+                    match v {
+                        Some(tallied_vote) => todo!(),
+                        None => todo!(),
                     }
-                    None => Err(ContractError::InvalidRequestId {}),
-                }
-            },
-        )?;
+                },
+            );
 
-        Ok(response)
+            Ok(Response::new())
+        } else {
+            Err(ContractError::InvalidAction {})
+        }
     }
 }
 
