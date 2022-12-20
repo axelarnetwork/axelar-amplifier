@@ -1,15 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
-    StdResult, Uint64,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order, Response,
+    StdResult, Uint256, Uint64,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
 use crate::state::{
-    PollMetadata, ServiceInfo, TalliedVote, POLLS, POLL_COUNTER, SERVICE_INFO, TALLIED_VOTES,
+    tallied_votes, PollMetadata, ServiceInfo, TalliedVote, POLLS, POLL_COUNTER, SERVICE_INFO,
 };
+use crate::utils::hash;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
@@ -36,7 +37,7 @@ pub fn instantiate(
         voting_grace_period: msg.voting_grace_period,
     };
     SERVICE_INFO.save(deps.storage, &service)?;
-    POLL_COUNTER.save(deps.storage, &0);
+    POLL_COUNTER.save(deps.storage, &0)?;
 
     // TODO: register service during instantiation
     Ok(Response::new())
@@ -69,9 +70,9 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         match message {
             ActionMessage::ConfirmGatewayTxs {
-                source_chain_name,
-                from_nonce,
-                to_nonce,
+                source_chain_name: _,
+                from_nonce: _,
+                to_nonce: _,
             } => request_confirm_gateway_txs(deps, env, message),
         }
     }
@@ -104,27 +105,24 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         // TODO: validate sender = worker ??
 
-        if let ActionMessage::ConfirmGatewayTxs {
+        let poll = initialize_poll(deps, env, message)?;
+
+        let ActionMessage::ConfirmGatewayTxs {
             source_chain_name,
             from_nonce,
             to_nonce,
-        } = message
-        {
-            let poll = initialize_poll(deps, env, message)?;
+        } = poll.message;
 
-            let event = Event::new("ConfirmGatewayTxStarted")
-                .add_attribute("poll_id", poll.id)
-                .add_attribute("source_chain", source_chain_name)
-                .add_attribute("from_nonce", from_nonce)
-                .add_attribute("to_nonce", to_nonce);
-            // TODO: add gateway ?? on-chain mapping
-            // TODO: add poll participants
-            // TODO: add confirmation height??
+        let event = Event::new("ConfirmGatewayTxStarted")
+            .add_attribute("poll_id", poll.id)
+            .add_attribute("source_chain", source_chain_name)
+            .add_attribute("from_nonce", from_nonce)
+            .add_attribute("to_nonce", to_nonce);
+        // TODO: add gateway ?? on-chain mapping
+        // TODO: add poll participants
+        // TODO: add confirmation height??
 
-            Ok(Response::new().add_event(event))
-        } else {
-            Err(ContractError::InvalidAction {})
-        }
+        Ok(Response::new().add_event(event))
     }
 
     pub fn post_worker_reply(
@@ -135,40 +133,57 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         match reply {
             ActionResponse::ConfirmGatewayTxs {
-                poll_id,
-                calls_hash,
+                poll_id: _,
+                calls_hash: _,
             } => vote_confirm_gateway_txs(deps, env, info, reply),
         }
     }
 
     pub fn vote_confirm_gateway_txs(
         deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
+        _env: Env,
+        _info: MessageInfo,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
         // TODO: vote validations
+        // TODO: late voting
 
-        if let ActionResponse::ConfirmGatewayTxs {
+        let hash = hash(&reply);
+
+        let ActionResponse::ConfirmGatewayTxs {
             poll_id,
-            calls_hash,
-        } = reply
-        {
-            TALLIED_VOTES.update(
-                deps.storage,
-                (poll_id.u64(), &reply),
-                |v| -> Result<TalliedVote, ContractError> {
-                    match v {
-                        Some(tallied_vote) => todo!(),
-                        None => todo!(),
-                    }
-                },
-            );
+            calls_hash: _,
+        } = reply;
 
-            Ok(Response::new())
-        } else {
-            Err(ContractError::InvalidAction {})
-        }
+        let voting_power = Uint256::from(1u32); // TODO: Get actual voting power
+
+        tallied_votes().update(
+            deps.storage,
+            (poll_id.u64(), hash),
+            |v| -> Result<TalliedVote, ContractError> {
+                match v {
+                    Some(mut tallied_vote) => {
+                        tallied_vote.tally += voting_power;
+                        Ok(tallied_vote)
+                    }
+                    None => Ok(TalliedVote {
+                        tally: voting_power,
+                        data: reply,
+                        poll_id,
+                    }),
+                }
+            },
+        )?;
+
+        let votes: Vec<((u64, u64), TalliedVote)> = tallied_votes()
+            .idx
+            .poll_id
+            .prefix(poll_id.u64())
+            .range(deps.storage, None, None, Order::Ascending)
+            .collect::<StdResult<Vec<((u64, u64), TalliedVote)>>>()
+            .unwrap();
+
+        Ok(Response::new())
     }
 }
 
@@ -202,11 +217,11 @@ pub mod query {
         todo!();
     }
 
-    pub fn get_unbond_allowed(worker_address: Addr) -> StdResult<Option<String>> {
+    pub fn get_unbond_allowed(_worker_address: Addr) -> StdResult<Option<String>> {
         todo!();
     }
 
-    pub fn get_worker_status(worker_address: Addr) -> StdResult<WorkerState> {
+    pub fn get_worker_status(_worker_address: Addr) -> StdResult<WorkerState> {
         todo!();
     }
 }

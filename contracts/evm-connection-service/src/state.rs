@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 use crate::msg::{ActionMessage, ActionResponse};
 
@@ -54,17 +54,28 @@ pub struct TalliedVote {
     // TODO: is_voter_late
 }
 
-impl TalliedVote {
-    pub fn new(poll_id: Uint64, data: ActionResponse) -> Self {
-        Self {
-            tally: Uint256::zero(),
-            data,
-            poll_id,
-        }
+pub struct TalliedVoteIndexes<'a> {
+    pub poll_id: MultiIndex<'a, u64, TalliedVote, (u64, u64)>,
+}
+
+impl<'a> IndexList<TalliedVote> for TalliedVoteIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<TalliedVote>> + '_> {
+        let v: Vec<&dyn Index<TalliedVote>> = vec![&self.poll_id];
+        Box::new(v.into_iter())
     }
+}
+
+pub fn tallied_votes<'a>() -> IndexedMap<'a, (u64, u64), TalliedVote, TalliedVoteIndexes<'a>> {
+    let indexes = TalliedVoteIndexes {
+        poll_id: MultiIndex::new(
+            |_pk, d| d.poll_id.u64(),
+            "tallied_votes",
+            "tallied_votes__poll_id",
+        ),
+    };
+    IndexedMap::new("tallied_votes", indexes)
 }
 
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
-pub const TALLIED_VOTES: Map<(u64, &ActionResponse), TalliedVote> = Map::new("tallied_votes");
