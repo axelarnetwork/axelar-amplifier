@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
@@ -51,7 +53,18 @@ pub struct TalliedVote {
     pub tally: Uint256,
     pub data: ActionResponse,
     pub poll_id: Uint64,
-    // TODO: is_voter_late
+    pub is_voter_late: HashMap<Addr, bool>,
+}
+
+impl TalliedVote {
+    pub fn new(tally: Uint256, data: ActionResponse, poll_id: Uint64) -> Self {
+        Self {
+            tally,
+            data,
+            poll_id,
+            is_voter_late: HashMap::new(),
+        }
+    }
 }
 
 pub struct TalliedVoteIndexes<'a> {

@@ -142,7 +142,7 @@ pub mod execute {
     pub fn vote_confirm_gateway_txs(
         deps: DepsMut,
         _env: Env,
-        _info: MessageInfo,
+        info: MessageInfo,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
         // TODO: vote validations
@@ -164,24 +164,29 @@ pub mod execute {
                 match v {
                     Some(mut tallied_vote) => {
                         tallied_vote.tally += voting_power;
+                        tallied_vote.is_voter_late.insert(info.sender, false); // TODO: implement voting late logic
                         Ok(tallied_vote)
                     }
-                    None => Ok(TalliedVote {
-                        tally: voting_power,
-                        data: reply,
-                        poll_id,
-                    }),
+                    None => Ok(TalliedVote::new(voting_power, reply, poll_id)),
                 }
             },
         )?;
 
-        let votes: Vec<((u64, u64), TalliedVote)> = tallied_votes()
+        let (_, tallied_vote) = tallied_votes()
             .idx
             .poll_id
             .prefix(poll_id.u64())
             .range(deps.storage, None, None, Order::Ascending)
-            .collect::<StdResult<Vec<((u64, u64), TalliedVote)>>>()
-            .unwrap();
+            .reduce(|accum, item| {
+                let (_, max_tallied_vote) = accum.as_ref().unwrap();
+                let (_, tallied_vote) = item.as_ref().unwrap();
+                if max_tallied_vote.tally > tallied_vote.tally {
+                    accum
+                } else {
+                    item
+                }
+            })
+            .unwrap()?;
 
         Ok(Response::new())
     }
