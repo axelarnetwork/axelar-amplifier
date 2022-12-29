@@ -269,14 +269,16 @@ pub mod execute {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetActiveWorkers {} => to_binary(&query::get_active_workers()?),
+        QueryMsg::GetActiveWorkers { service_name } => {
+            to_binary(&query::get_active_workers(service_name)?)
+        }
     }
 }
 
 pub mod query {
     use super::*;
 
-    pub fn get_active_workers() -> StdResult<Vec<ActiveWorker>> {
+    pub fn get_active_workers(_service_name: String) -> StdResult<Vec<ActiveWorker>> {
         todo!();
     }
 }

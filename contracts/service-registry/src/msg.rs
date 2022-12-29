@@ -37,11 +37,11 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Vec<ActiveWorker>)]
-    GetActiveWorkers {},
+    GetActiveWorkers { service_name: String },
 }
 
 #[cw_serde]
 pub struct ActiveWorker {
     pub address: Addr,
-    pub stake: Uint128,
+    pub stake: Uint128, // TODO: correct size?
 }

@@ -1,19 +1,22 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order, Response,
-    StdResult, Uint256, Uint64,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order,
+    QueryRequest, Response, StdResult, Uint256, Uint64, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
 use crate::state::{
-    tallied_votes, PollMetadata, ServiceInfo, TalliedVote, POLLS, POLL_COUNTER, SERVICE_INFO,
+    tallied_votes, Participant, PollMetadata, ServiceInfo, Snapshot, TalliedVote, POLLS,
+    POLL_COUNTER, SERVICE_INFO,
 };
 use crate::utils::hash;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
+use service_registry::msg::ActiveWorker;
+use service_registry::msg::QueryMsg as RegistryQueryMsg;
 
 /*
 // version info for migration info
@@ -29,6 +32,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let service = ServiceInfo {
+        service_registry: msg.service_registry,
         name: msg.service_name,
         voting_threshold: msg.voting_threshold,
         min_voter_count: msg.min_voter_count,
@@ -61,6 +65,7 @@ pub fn execute(
 }
 
 pub mod execute {
+
     use super::*;
 
     pub fn request_worker_action(
@@ -77,6 +82,40 @@ pub mod execute {
         }
     }
 
+    fn create_snapshot(
+        deps: &DepsMut,
+        service_info: &ServiceInfo,
+    ) -> Result<Snapshot, ContractError> {
+        let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
+            service_name: service_info.name.to_owned(),
+        };
+
+        let active_workers: Vec<ActiveWorker> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: service_info.service_registry.to_string(),
+                msg: to_binary(&query_msg)?,
+            }))?;
+
+        let mut participants: Vec<Participant> = Vec::new();
+        let mut bondedWeight: Uint256 = Uint256::zero();
+
+        for worker in active_workers {
+            //TODO: filter jailed/tombstoned ??
+
+            let weight = Uint256::from(worker.stake); // TODO: apply quadratic weigth function / apply power reduction?
+            bondedWeight += weight;
+
+            let participant = Participant {
+                address: worker.address,
+                weight,
+            };
+            participants.push(participant);
+        }
+
+        // TODO: create snapshot
+        todo!()
+    }
+
     fn initialize_poll(
         deps: DepsMut,
         env: Env,
@@ -91,7 +130,14 @@ pub mod execute {
         let service_info = SERVICE_INFO.load(deps.storage)?;
         let expires_at = env.block.height + service_info.voting_period.u64();
 
-        let poll = PollMetadata::new(Uint64::from(id), Uint64::from(expires_at), message);
+        let snapshot = create_snapshot(&deps, &service_info)?;
+
+        let poll = PollMetadata::new(
+            Uint64::from(id),
+            Uint64::from(expires_at),
+            snapshot,
+            message,
+        );
 
         POLLS.save(deps.storage, id, &poll)?;
 
@@ -187,6 +233,8 @@ pub mod execute {
                 }
             })
             .unwrap()?;
+
+        // TODO: check majority, etc.
 
         Ok(Response::new())
     }

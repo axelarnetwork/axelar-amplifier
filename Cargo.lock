@@ -399,6 +399,7 @@ dependencies = [
  "serde",
  "serde_json",
  "service-interface",
+ "service-registry",
  "thiserror",
 ]
 

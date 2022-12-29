@@ -3,6 +3,7 @@ use cosmwasm_std::{Addr, Uint256, Uint64};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    pub service_registry: Addr,
     pub service_name: String,
     pub voting_threshold: Uint64,
     pub min_voter_count: Uint64,
