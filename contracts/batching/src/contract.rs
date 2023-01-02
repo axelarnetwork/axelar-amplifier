@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::DepsMut;
-use cosmwasm_std::{entry_point, Env, Event, MessageInfo, Reply, Response, StdResult, SubMsg};
+use cosmwasm_std::{
+    entry_point, Env, Event, MessageInfo, Reply, Response, StdResult, SubMsg, SubMsgResult,
+};
 
 use crate::error::ContractError;
 use crate::msg::{BatchMsg, ExecuteMsg, InstantiateMsg};
@@ -29,8 +31,13 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(_: DepsMut, _: Env, msg: Reply) -> StdResult<Response> {
-    Ok(Response::default()
-        .add_event(Event::new("failed_msg").add_attribute("msg_id", msg.id.to_string())))
+    let response = match msg.result {
+        SubMsgResult::Ok(res) => Response::default().add_events(res.events),
+        SubMsgResult::Err(err) => Response::default()
+            .add_event(Event::new("failed_msg").add_attribute(msg.id.to_string(), err)),
+    };
+
+    Ok(response)
 }
 
 fn dispatch(msg: BatchMsg) -> Response {
@@ -40,6 +47,6 @@ fn dispatch(msg: BatchMsg) -> Response {
             msg.can_fail_msgs
                 .into_iter()
                 .enumerate()
-                .map(|(i, msg)| SubMsg::reply_on_error(msg, i as u64)),
+                .map(|(i, msg)| SubMsg::reply_always(msg, i as u64)),
         )
 }
