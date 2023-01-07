@@ -1,15 +1,18 @@
+use std::collections::HashMap;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Order,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, Isqrt, MessageInfo, Order,
     QueryRequest, Response, StdResult, Uint256, Uint64, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
+use crate::snapshot::Snapshot;
 use crate::state::{
-    tallied_votes, Participant, PollMetadata, ServiceInfo, Snapshot, TalliedVote, POLLS,
-    POLL_COUNTER, SERVICE_INFO,
+    tallied_votes, Participant, PollMetadata, ServiceInfo, TalliedVote, POLLS, POLL_COUNTER,
+    SERVICE_INFO,
 };
 use crate::utils::hash;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
@@ -65,7 +68,6 @@ pub fn execute(
 }
 
 pub mod execute {
-
     use super::*;
 
     pub fn request_worker_action(
@@ -82,8 +84,13 @@ pub mod execute {
         }
     }
 
+    fn quadratic_weight(stake: Uint256) -> Uint256 {
+        stake.isqrt()
+    }
+
     fn create_snapshot(
         deps: &DepsMut,
+        env: Env,
         service_info: &ServiceInfo,
     ) -> Result<Snapshot, ContractError> {
         let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
@@ -96,24 +103,30 @@ pub mod execute {
                 msg: to_binary(&query_msg)?,
             }))?;
 
-        let mut participants: Vec<Participant> = Vec::new();
-        let mut bondedWeight: Uint256 = Uint256::zero();
+        let mut participants: HashMap<Addr, Participant> = HashMap::new();
+        let mut bonded_weight: Uint256 = Uint256::zero();
 
         for worker in active_workers {
             //TODO: filter jailed/tombstoned ??
 
-            let weight = Uint256::from(worker.stake); // TODO: apply quadratic weigth function / apply power reduction?
-            bondedWeight += weight;
+            let weight = quadratic_weight(Uint256::from(worker.stake)); // TODO: apply power reduction?
+            bonded_weight += weight;
 
             let participant = Participant {
                 address: worker.address,
                 weight,
             };
-            participants.push(participant);
+            participants.insert(participant.address.to_owned(), participant);
         }
 
-        // TODO: create snapshot
-        todo!()
+        let snapshot = Snapshot::new(
+            env.block.time,
+            Uint64::from(env.block.height),
+            participants,
+            bonded_weight,
+        );
+
+        Ok(snapshot)
     }
 
     fn initialize_poll(
@@ -130,7 +143,7 @@ pub mod execute {
         let service_info = SERVICE_INFO.load(deps.storage)?;
         let expires_at = env.block.height + service_info.voting_period.u64();
 
-        let snapshot = create_snapshot(&deps, &service_info)?;
+        let snapshot = create_snapshot(&deps, env, &service_info)?;
 
         let poll = PollMetadata::new(
             Uint64::from(id),
@@ -185,6 +198,23 @@ pub mod execute {
         }
     }
 
+    pub fn vote(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        reply: ActionResponse,
+    ) -> Result<Response, ContractError> {
+        // TODO: validate voter
+
+        // TODO: call poll.Vote
+
+        // TODO: emit Voted event
+        // TODO: React to poll state
+
+        todo!()
+    }
+
+    // TODO: move to `vote`
     pub fn vote_confirm_gateway_txs(
         deps: DepsMut,
         _env: Env,

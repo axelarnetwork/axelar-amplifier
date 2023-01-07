@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Timestamp, Uint256, Uint64};
+use cosmwasm_std::{Addr, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
-use crate::msg::{ActionMessage, ActionResponse};
+use crate::{
+    msg::{ActionMessage, ActionResponse},
+    snapshot::Snapshot,
+};
 
 #[cw_serde]
 pub struct ServiceInfo {
@@ -29,30 +32,6 @@ pub enum PollState {
 pub struct Participant {
     pub address: Addr,
     pub weight: Uint256,
-}
-
-#[cw_serde]
-pub struct Snapshot {
-    pub timestamp: Timestamp,
-    pub height: Uint64,
-    pub participants: HashMap<Addr, Participant>,
-    pub bonded_weight: Uint256,
-}
-
-impl Snapshot {
-    pub fn new(
-        timestamp: Timestamp,
-        height: Uint64,
-        participants: HashMap<Addr, Participant>,
-        bonded_weight: Uint256,
-    ) -> Self {
-        Self {
-            timestamp,
-            height,
-            participants,
-            bonded_weight,
-        }
-    }
 }
 
 #[cw_serde]
