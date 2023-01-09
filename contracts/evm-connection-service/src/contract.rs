@@ -10,11 +10,9 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
 use crate::snapshot::Snapshot;
-use crate::state::{
-    tallied_votes, Participant, PollMetadata, ServiceInfo, TalliedVote, POLLS, POLL_COUNTER,
-    SERVICE_INFO,
-};
-use crate::utils::hash;
+use crate::state::{Participant, PollMetadata, ServiceInfo, POLLS, POLL_COUNTER, SERVICE_INFO};
+
+use crate::poll::Poll;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
@@ -145,16 +143,16 @@ pub mod execute {
 
         let snapshot = create_snapshot(&deps, env, &service_info)?;
 
-        let poll = PollMetadata::new(
+        let poll_metadata = PollMetadata::new(
             Uint64::from(id),
             Uint64::from(expires_at),
             snapshot,
             message,
         );
 
-        POLLS.save(deps.storage, id, &poll)?;
+        POLLS.save(deps.storage, id, &poll_metadata)?;
 
-        Ok(poll)
+        Ok(poll_metadata)
     }
 
     pub fn request_confirm_gateway_txs(
@@ -192,9 +190,9 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         match reply {
             ActionResponse::ConfirmGatewayTxs {
-                poll_id: _,
+                poll_id,
                 calls_hash: _,
-            } => vote_confirm_gateway_txs(deps, env, info, reply),
+            } => vote(deps, env, info, poll_id, reply),
         }
     }
 
@@ -202,71 +200,22 @@ pub mod execute {
         deps: DepsMut,
         env: Env,
         info: MessageInfo,
+        poll_id: Uint64,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
         // TODO: validate voter
 
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+
+        let metadata = POLLS.load(deps.storage, poll_id.u64())?;
+        let mut poll = Poll::new(metadata, deps.storage, service_info);
+        let vote_result = poll.vote(info.sender, env.block.height, reply)?;
         // TODO: call poll.Vote
 
         // TODO: emit Voted event
         // TODO: React to poll state
 
         todo!()
-    }
-
-    // TODO: move to `vote`
-    pub fn vote_confirm_gateway_txs(
-        deps: DepsMut,
-        _env: Env,
-        info: MessageInfo,
-        reply: ActionResponse,
-    ) -> Result<Response, ContractError> {
-        // TODO: vote validations
-        // TODO: late voting
-
-        let hash = hash(&reply);
-
-        let ActionResponse::ConfirmGatewayTxs {
-            poll_id,
-            calls_hash: _,
-        } = reply;
-
-        let voting_power = Uint256::from(1u32); // TODO: Get actual voting power
-
-        tallied_votes().update(
-            deps.storage,
-            (poll_id.u64(), hash),
-            |v| -> Result<TalliedVote, ContractError> {
-                match v {
-                    Some(mut tallied_vote) => {
-                        tallied_vote.tally += voting_power;
-                        tallied_vote.is_voter_late.insert(info.sender, false); // TODO: implement voting late logic
-                        Ok(tallied_vote)
-                    }
-                    None => Ok(TalliedVote::new(voting_power, reply, poll_id)),
-                }
-            },
-        )?;
-
-        let (_, tallied_vote) = tallied_votes()
-            .idx
-            .poll_id
-            .prefix(poll_id.u64())
-            .range(deps.storage, None, None, Order::Ascending)
-            .reduce(|accum, item| {
-                let (_, max_tallied_vote) = accum.as_ref().unwrap();
-                let (_, tallied_vote) = item.as_ref().unwrap();
-                if max_tallied_vote.tally > tallied_vote.tally {
-                    accum
-                } else {
-                    item
-                }
-            })
-            .unwrap()?;
-
-        // TODO: check majority, etc.
-
-        Ok(Response::new())
     }
 }
 

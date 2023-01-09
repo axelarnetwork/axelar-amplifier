@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal256, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 pub struct ServiceInfo {
     pub service_registry: Addr,
     pub name: String,
-    pub voting_threshold: Uint64,
+    pub voting_threshold: Decimal256,
     pub min_voter_count: Uint64,
     pub reward_pool: Addr,
     pub voting_period: Uint64,

@@ -1,11 +1,11 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal256, Uint256, Uint64};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     pub service_registry: Addr,
     pub service_name: String,
-    pub voting_threshold: Uint64,
+    pub voting_threshold: Decimal256,
     pub min_voter_count: Uint64,
     pub reward_pool: Addr,
     pub voting_period: Uint64,

@@ -28,10 +28,27 @@ impl Snapshot {
         }
     }
 
-    pub fn calculate_min_passing_weight(&self, treshold: Decimal256) -> Uint256 {
+    pub fn get_participants_weight(&self) -> Uint256 {
+        self.participants
+            .iter()
+            .fold(Uint256::zero(), |accum, item| {
+                let (_, participant) = item;
+                accum + participant.weight
+            })
+    }
+
+    pub fn get_participant_weight(&self, voter: &Addr) -> Uint256 {
+        let result = self.participants.get(voter);
+        match result {
+            Some(participant) => participant.weight,
+            None => Uint256::zero(),
+        }
+    }
+
+    pub fn calculate_min_passing_weight(&self, treshold: &Decimal256) -> Uint256 {
         // TODO: check type sizes are correct, otherwise overflow may occur
 
-        let min_passing_weight = self.bonded_weight * treshold;
+        let min_passing_weight = self.bonded_weight * *treshold;
         if min_passing_weight.mul(treshold.denominator())
             >= self.bonded_weight.mul(treshold.denominator())
         {
