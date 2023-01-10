@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, Isqrt, MessageInfo, Order,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, Isqrt, MessageInfo,
     QueryRequest, Response, StdResult, Uint256, Uint64, WasmQuery,
 };
 // use cw2::set_contract_version;
@@ -210,7 +210,6 @@ pub mod execute {
         let metadata = POLLS.load(deps.storage, poll_id.u64())?;
         let mut poll = Poll::new(metadata, deps.storage, service_info);
         let vote_result = poll.vote(info.sender, env.block.height, reply)?;
-        // TODO: call poll.Vote
 
         // TODO: emit Voted event
         // TODO: React to poll state

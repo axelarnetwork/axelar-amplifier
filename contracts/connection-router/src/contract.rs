@@ -25,11 +25,11 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute<T>(
+pub fn execute(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: ExecuteMsg<T>,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::RouteMessage { message } => execute::route_message(deps, message),
@@ -43,7 +43,7 @@ pub fn execute<T>(
 pub mod execute {
     use super::*;
 
-    pub fn route_message<T>(deps: DepsMut, message: T) -> Result<Response, ContractError> {
+    pub fn route_message(_deps: DepsMut, _message: Binary) -> Result<Response, ContractError> {
         todo!()
     }
 
@@ -66,7 +66,7 @@ pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub mod query {
-    use super::*;
+    //use super::*;
 }
 
 #[cfg(test)]

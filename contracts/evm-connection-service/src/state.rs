@@ -57,6 +57,10 @@ impl PollMetadata {
             message,
         }
     }
+
+    pub fn is(&self, state: PollState) -> bool {
+        self.state == state
+    }
 }
 
 #[cw_serde]

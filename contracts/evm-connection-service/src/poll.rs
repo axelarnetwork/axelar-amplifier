@@ -38,18 +38,54 @@ impl<'a> Poll<'a> {
         }
     }
 
+    pub fn has_voted(&self, voter: &Addr) -> bool {
+        let result = self.get_tallied_votes().find(|item| {
+            let (_, tallied_vote) = item.as_ref().unwrap();
+            tallied_vote.is_voter_late.contains_key(voter)
+        });
+
+        match result {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
     pub fn vote(
         &mut self,
-        worker: Addr,
+        voter: Addr,
         block_height: u64,
         reply: ActionResponse,
     ) -> Result<VoteResult, ContractError> {
-        // TODO: vote validations
-        // TODO: late voting
+        if self.metadata.is(PollState::NonExistent) {
+            return Err(ContractError::PollNonExistent {});
+        }
 
-        self.vote_before_completion(worker, block_height, reply)?;
+        if self.has_voted(&voter) {
+            return Err(ContractError::AlreadyVoted { voter });
+        }
 
-        todo!()
+        if self
+            .metadata
+            .snapshot
+            .get_participant_weight(&voter)
+            .is_zero()
+        {
+            return Err(ContractError::NotEligibleToVote { voter });
+        }
+
+        if self.metadata.is(PollState::Failed) {
+            return Ok(VoteResult::NoVote);
+        }
+
+        // TODO is in grace period / late voting
+
+        if self.metadata.is(PollState::Completed) {
+            return Ok(VoteResult::NoVote);
+        }
+
+        self.vote_before_completion(voter, block_height, reply)?;
+
+        Ok(VoteResult::VoteInTime)
     }
 
     pub fn vote_before_completion(
@@ -69,7 +105,7 @@ impl<'a> Poll<'a> {
                 match v {
                     Some(mut tallied_vote) => {
                         tallied_vote.tally += voting_power;
-                        tallied_vote.is_voter_late.insert(voter, false); // TODO: implement voting late logic
+                        tallied_vote.is_voter_late.insert(voter, false);
                         Ok(tallied_vote)
                     }
                     None => Ok(TalliedVote::new(voting_power, reply, self.metadata.id)),
