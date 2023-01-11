@@ -203,18 +203,21 @@ pub mod execute {
         poll_id: Uint64,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
-        // TODO: validate voter
-
         let service_info = SERVICE_INFO.load(deps.storage)?;
-
         let metadata = POLLS.load(deps.storage, poll_id.u64())?;
-        let mut poll = Poll::new(metadata, deps.storage, service_info);
-        let vote_result = poll.vote(info.sender, env.block.height, reply)?;
 
-        // TODO: emit Voted event
+        let mut poll = Poll::new(metadata, deps.storage, service_info);
+        let vote_result = poll.vote(&info.sender, env.block.height, reply)?;
+
+        let event = Event::new("Voted")
+            .add_attribute("poll", poll.metadata.id)
+            .add_attribute("voter", info.sender)
+            .add_attribute("vote_result", vote_result.to_string())
+            .add_attribute("state", poll.metadata.state.to_string());
+
         // TODO: React to poll state
 
-        todo!()
+        Ok(Response::new().add_event(event))
     }
 }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal256, Uint256, Uint64};
@@ -26,6 +26,17 @@ pub enum PollState {
     Pending,
     Completed,
     Failed,
+}
+
+impl Display for PollState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PollState::NonExistent => write!(f, "NonExistent"),
+            PollState::Pending => write!(f, "Pending"),
+            PollState::Completed => write!(f, "Completed"),
+            PollState::Failed => write!(f, "Failed"),
+        }
+    }
 }
 
 #[cw_serde]
@@ -56,10 +67,6 @@ impl PollMetadata {
             snapshot,
             message,
         }
-    }
-
-    pub fn is(&self, state: PollState) -> bool {
-        self.state == state
     }
 }
 

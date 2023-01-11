@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use cosmwasm_std::{Addr, Order, Storage, Uint256, Uint64};
 
 use crate::{
@@ -7,10 +9,21 @@ use crate::{
     ContractError,
 };
 
+#[derive(PartialEq)]
 pub enum VoteResult {
     NoVote,
     VoteInTime,
     VotedLate,
+}
+
+impl Display for VoteResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VoteResult::NoVote => write!(f, "NoVote"),
+            VoteResult::VoteInTime => write!(f, "VoteInTime"),
+            VoteResult::VotedLate => write!(f, "VotedLate"),
+        }
+    }
 }
 
 pub struct Poll<'a> {
@@ -52,16 +65,18 @@ impl<'a> Poll<'a> {
 
     pub fn vote(
         &mut self,
-        voter: Addr,
+        voter: &Addr,
         block_height: u64,
-        reply: ActionResponse,
+        data: ActionResponse,
     ) -> Result<VoteResult, ContractError> {
-        if self.metadata.is(PollState::NonExistent) {
+        if self.is(PollState::NonExistent) {
             return Err(ContractError::PollNonExistent {});
         }
 
         if self.has_voted(&voter) {
-            return Err(ContractError::AlreadyVoted { voter });
+            return Err(ContractError::AlreadyVoted {
+                voter: voter.to_owned(),
+            });
         }
 
         if self
@@ -70,48 +85,43 @@ impl<'a> Poll<'a> {
             .get_participant_weight(&voter)
             .is_zero()
         {
-            return Err(ContractError::NotEligibleToVote { voter });
+            return Err(ContractError::NotEligibleToVote {
+                voter: voter.to_owned(),
+            });
         }
 
-        if self.metadata.is(PollState::Failed) {
+        if self.is(PollState::Failed) {
             return Ok(VoteResult::NoVote);
         }
 
-        // TODO is in grace period / late voting
+        if self.is(PollState::Completed) && self.is_in_grace_period(block_height) {
+            self.vote_late(voter, data)?;
 
-        if self.metadata.is(PollState::Completed) {
+            return Ok(VoteResult::VotedLate);
+        }
+
+        if self.is(PollState::Completed) {
             return Ok(VoteResult::NoVote);
         }
 
-        self.vote_before_completion(voter, block_height, reply)?;
+        self.vote_before_completion(voter, block_height, data)?;
 
         Ok(VoteResult::VoteInTime)
     }
 
+    pub fn vote_late(&mut self, voter: &Addr, data: ActionResponse) -> Result<(), ContractError> {
+        self.tally_vote(voter, data, true)?;
+
+        Ok(())
+    }
+
     pub fn vote_before_completion(
         &mut self,
-        voter: Addr,
+        voter: &Addr,
         block_height: u64,
-        reply: ActionResponse,
+        data: ActionResponse,
     ) -> Result<(), ContractError> {
-        let hash = hash(&reply);
-
-        let voting_power = self.metadata.snapshot.get_participant_weight(&voter);
-
-        tallied_votes().update(
-            self.store,
-            (self.metadata.id.u64(), hash),
-            |v| -> Result<TalliedVote, ContractError> {
-                match v {
-                    Some(mut tallied_vote) => {
-                        tallied_vote.tally += voting_power;
-                        tallied_vote.is_voter_late.insert(voter, false);
-                        Ok(tallied_vote)
-                    }
-                    None => Ok(TalliedVote::new(voting_power, reply, self.metadata.id)),
-                }
-            },
-        )?;
+        self.tally_vote(voter, data, false)?;
 
         let majority_vote = self.get_majority_vote()?;
 
@@ -126,6 +136,33 @@ impl<'a> Poll<'a> {
 
             POLLS.save(self.store, self.metadata.id.u64(), &self.metadata)?;
         }
+
+        Ok(())
+    }
+
+    pub fn tally_vote(
+        &mut self,
+        voter: &Addr,
+        data: ActionResponse,
+        is_late: bool,
+    ) -> Result<(), ContractError> {
+        let hash = hash(&data);
+        let voting_power = self.metadata.snapshot.get_participant_weight(&voter);
+
+        tallied_votes().update(
+            self.store,
+            (self.metadata.id.u64(), hash),
+            |v| -> Result<TalliedVote, ContractError> {
+                match v {
+                    Some(mut tallied_vote) => {
+                        tallied_vote.tally += voting_power;
+                        tallied_vote.is_voter_late.insert(voter.to_owned(), is_late);
+                        Ok(tallied_vote)
+                    }
+                    None => Ok(TalliedVote::new(voting_power, data, self.metadata.id)),
+                }
+            },
+        )?;
 
         Ok(())
     }
@@ -159,6 +196,12 @@ impl<'a> Poll<'a> {
             })
     }
 
+    pub fn is_in_grace_period(&self, block_height: u64) -> bool {
+        block_height
+            < self.metadata.completed_at.unwrap().u64()
+                + self.service_info.voting_grace_period.u64()
+    }
+
     pub fn get_majority_vote(&self) -> Result<TalliedVote, ContractError> {
         let (_, majority) = self
             .get_tallied_votes()
@@ -185,5 +228,9 @@ impl<'a> Poll<'a> {
             .poll_id
             .prefix(self.metadata.id.u64())
             .range(self.store, None, None, Order::Ascending)
+    }
+
+    pub fn is(&self, state: PollState) -> bool {
+        self.metadata.state == state
     }
 }
