@@ -9,7 +9,7 @@ use crate::{
     ContractError,
 };
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum VoteResult {
     NoVote,
     VoteInTime,
@@ -57,10 +57,7 @@ impl<'a> Poll<'a> {
             tallied_vote.is_voter_late.contains_key(voter)
         });
 
-        match result {
-            Some(_) => true,
-            None => false,
-        }
+        result.is_some()
     }
 
     pub fn vote(
@@ -73,7 +70,7 @@ impl<'a> Poll<'a> {
             return Err(ContractError::PollNonExistent {});
         }
 
-        if self.has_voted(&voter) {
+        if self.has_voted(voter) {
             return Err(ContractError::AlreadyVoted {
                 voter: voter.to_owned(),
             });
@@ -82,7 +79,7 @@ impl<'a> Poll<'a> {
         if self
             .metadata
             .snapshot
-            .get_participant_weight(&voter)
+            .get_participant_weight(voter)
             .is_zero()
         {
             return Err(ContractError::NotEligibleToVote {
@@ -147,7 +144,7 @@ impl<'a> Poll<'a> {
         is_late: bool,
     ) -> Result<(), ContractError> {
         let hash = hash(&data);
-        let voting_power = self.metadata.snapshot.get_participant_weight(&voter);
+        let voting_power = self.metadata.snapshot.get_participant_weight(voter);
 
         tallied_votes().update(
             self.store,
@@ -219,6 +216,7 @@ impl<'a> Poll<'a> {
         Ok(majority)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_tallied_votes(
         &self,
     ) -> Box<(dyn Iterator<Item = Result<((u64, u64), TalliedVote), cosmwasm_std::StdError>> + '_)>
