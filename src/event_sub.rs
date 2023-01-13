@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use error_stack::{FutureExt, Report, Result};
 use error_stack::{IntoReport, ResultExt};
 use futures::stream::StreamExt;
-use tendermint::abci::Event as AbciEvent;
-use tendermint::block::Height;
-use tendermint::Block;
+use tendermint::abci;
+use tendermint::block;
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::{
@@ -18,17 +17,26 @@ use crate::event_sub::EventSubError::*;
 use crate::tm_client::{EventData, EventType, TmClient};
 
 #[derive(Clone, Debug)]
-pub struct Event {
-    pub event_type: String,
-    pub attributes: HashMap<String, String>,
+pub enum Event {
+    BlockEnd(block::Height),
+    AbciEvent {
+        event_type: String,
+        attributes: HashMap<String, String>,
+    },
 }
 
-impl From<AbciEvent> for Event {
-    fn from(event: AbciEvent) -> Self {
-        Self {
+impl From<abci::Event> for Event {
+    fn from(event: abci::Event) -> Self {
+        Self::AbciEvent {
             event_type: event.kind,
             attributes: event.attributes.into_iter().map(|tag| (tag.key, tag.value)).collect(),
         }
+    }
+}
+
+impl From<block::Height> for Event {
+    fn from(height: block::Height) -> Self {
+        Self::BlockEnd(height)
     }
 }
 
@@ -96,7 +104,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
                             let event = res.unwrap().into_report().change_context(StreamFailed)?;
                             if let EventData::NewBlock { block: Some(block), .. } = event.data {
                                 let height = block.header().height;
-                                self.process_block(tx, block)
+                                self.process_block(tx, height)
                                     .attach_printable(format!("{{ block_height = {height} }}"))
                                     .await?;
                             }
@@ -112,15 +120,16 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 
     // this is extracted into a function so the block height attachment can be added no matter which call fails
-    async fn process_block(&self, tx: &Sender<Event>, block: Block) -> Result<(), EventSubError> {
-        for event in self.query_events(block.header().height).await? {
+    async fn process_block(&self, tx: &Sender<Event>, height: block::Height) -> Result<(), EventSubError> {
+        for event in self.query_events(height).await? {
             tx.send(event.into()).into_report().change_context(PublishFailed)?;
         }
+        tx.send(height.into()).into_report().change_context(PublishFailed)?;
 
         Ok(())
     }
 
-    async fn query_events(&self, block_height: Height) -> Result<Vec<AbciEvent>, EventSubError> {
+    async fn query_events(&self, block_height: block::Height) -> Result<Vec<abci::Event>, EventSubError> {
         let block_results = self
             .client
             .block_results(block_height)
@@ -144,7 +153,7 @@ pub enum EventSubError {
     #[error("stream failed")]
     StreamFailed,
     #[error("querying events for block {block} failed")]
-    EventQueryFailed { block: Height },
+    EventQueryFailed { block: block::Height },
     #[error("failed to send events to subscribers")]
     PublishFailed,
     #[error("failed closing client")]
@@ -166,8 +175,8 @@ mod tests {
     use tokio::sync::oneshot;
     use tokio::test;
 
-    use crate::event_sub::{EventSubClient, EventSubError};
-    use crate::tm_client::*;
+    use crate::event_sub::{Event, EventSubClient, EventSubError};
+    use crate::tm_client;
 
     #[test]
     async fn no_subscriber() {
@@ -184,7 +193,7 @@ mod tests {
         let mut mock_client = MockWebsocketClient::new();
         mock_client
             .expect_subscribe()
-            .returning(|_| Err(Error::client_internal("internal failure".into())).into_report());
+            .returning(|_| Err(tm_client::Error::client_internal("internal failure".into())).into_report());
         let (mut client, _) = EventSubClient::new(mock_client, 10);
         let _ = client.sub();
         let res = client.run().await;
@@ -199,7 +208,7 @@ mod tests {
         let mut mock_client = MockWebsocketClient::new();
         let block: tendermint::Block = serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
         let block_height = block.header().height;
-        let block_results: BlockResponse =
+        let block_results: tm_client::BlockResponse =
             serde_json::from_str(include_str!("../tests/fixtures/block_results.json")).unwrap();
 
         let begin_block_events = block_results.begin_block_events.clone().into_iter().flatten();
@@ -210,7 +219,7 @@ mod tests {
             .flatten()
             .flat_map(|tx| tx.events);
         let end_block_events = block_results.end_block_events.clone().into_iter().flatten();
-        let event_count = begin_block_events.count() + tx_events.count() + end_block_events.count();
+        let event_count = begin_block_events.count() + tx_events.count() + end_block_events.count() + 1;
 
         mock_client.expect_subscribe().returning(move |_| {
             let mut mock_subscription = MockSubscription::new();
@@ -221,9 +230,9 @@ mod tests {
                 poll_count += 1;
 
                 match poll_count {
-                    1 => core::task::Poll::Ready(Some(Ok(Event {
+                    1 => core::task::Poll::Ready(Some(Ok(tm_client::Event {
                         query: "".into(),
-                        data: EventData::NewBlock {
+                        data: tm_client::EventData::NewBlock {
                             block: Some(block.clone()),
                             result_begin_block: None,
                             result_end_block: None,
@@ -251,12 +260,18 @@ mod tests {
             let mut count = 0;
 
             loop {
-                if let Some(Ok(_)) = event_stream.next().await {
+                if let Some(Ok(event)) = event_stream.next().await {
                     count += 1;
-                }
 
-                if count == event_count {
-                    break;
+                    match event {
+                        Event::BlockEnd(_) => {
+                            assert!(count == event_count);
+                            break;
+                        }
+                        Event::AbciEvent { .. } => {
+                            assert!(count < event_count)
+                        }
+                    }
                 }
             }
 
@@ -275,7 +290,7 @@ mod tests {
             Subscription{}
 
             impl Stream for Subscription {
-                type Item = core::result::Result<Event, Error>;
+                type Item = core::result::Result<tm_client::Event, tm_client::Error>;
 
                 fn poll_next<'a>(self: Pin<&mut Self>, cx: &mut Context<'a>) -> Poll<Option<<Self as Stream>::Item>>;
             }
@@ -285,14 +300,14 @@ mod tests {
         WebsocketClient{}
 
         #[async_trait]
-        impl TmClient for WebsocketClient{
+        impl tm_client::TmClient for WebsocketClient{
             type Sub = MockSubscription;
             type Tx = Vec<u8>;
 
-            async fn subscribe(&self, query: Query) -> Result<<Self as TmClient>::Sub, Error>;
-            async fn block_results(&self, block_height: Height) -> Result<BlockResponse, Error>;
-            async fn broadcast(&self, tx_raw: <Self as TmClient>::Tx) -> Result<TxResponse, Error>;
-            fn close(self) -> Result<(), Error>;
+            async fn subscribe(&self, query:tm_client::Query) -> Result<<Self as tm_client::TmClient>::Sub, tm_client::Error>;
+            async fn block_results(&self, block_height: Height) -> Result<tm_client::BlockResponse, tm_client::Error>;
+            async fn broadcast(&self, tx_raw: <Self as tm_client::TmClient>::Tx) -> Result<tm_client::TxResponse,tm_client::Error>;
+            fn close(self) -> Result<(), tm_client::Error>;
         }
     }
 }
