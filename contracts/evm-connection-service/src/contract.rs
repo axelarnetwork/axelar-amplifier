@@ -45,7 +45,7 @@ pub fn instantiate(
     POLL_COUNTER.save(deps.storage, &0)?;
 
     // TODO: register service during instantiation
-    Ok(Response::new())
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -165,7 +165,7 @@ pub mod execute {
         let poll = initialize_poll(deps, env, message)?;
 
         let ActionMessage::ConfirmGatewayTxs {
-            source_chain_name,
+            source_chain_name, // TODO: should probably be validated with list of supported chain names
             from_nonce,
             to_nonce,
         } = poll.message;
@@ -261,4 +261,164 @@ pub mod query {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{Decimal, Empty};
+    use cw_multi_test::{next_block, App, Contract, ContractWrapper, Executor};
+
+    use super::*;
+
+    const OWNER: &str = "owner";
+
+    fn contract_registry() -> Box<dyn Contract<Empty>> {
+        let contract = ContractWrapper::new(
+            service_registry::contract::execute,
+            service_registry::contract::instantiate,
+            service_registry::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    fn contract_service() -> Box<dyn Contract<Empty>> {
+        let contract = ContractWrapper::new(
+            crate::contract::execute,
+            crate::contract::instantiate,
+            crate::contract::query,
+        );
+        Box::new(contract)
+    }
+
+    fn instantiate_registry(app: &mut App) -> Addr {
+        let registry_id = app.store_code(contract_registry());
+        let msg = service_registry::msg::InstantiateMsg {};
+
+        app.instantiate_contract(
+            registry_id,
+            Addr::unchecked(OWNER),
+            &msg,
+            &[],
+            "registry",
+            None,
+        )
+        .unwrap()
+    }
+
+    fn instantiate_service(
+        app: &mut App,
+        service_registry: Addr,
+        service_name: String,
+        voting_threshold: Decimal,
+        min_voter_count: Uint64,
+        reward_pool: Addr,
+        voting_period: Uint64,
+        voting_grace_period: Uint64,
+    ) -> Addr {
+        let service_id = app.store_code(contract_service());
+        let msg = InstantiateMsg {
+            service_registry,
+            service_name,
+            voting_threshold,
+            min_voter_count,
+            reward_pool,
+            voting_period,
+            voting_grace_period,
+        };
+        app.instantiate_contract(
+            service_id,
+            Addr::unchecked(OWNER),
+            &msg,
+            &[],
+            "evm-connection-service",
+            None,
+        )
+        .unwrap()
+    }
+
+    fn setup_test_case(
+        app: &mut App,
+        voting_threshold: Decimal,
+        min_voter_count: Uint64,
+        reward_pool: Addr,
+        voting_period: Uint64,
+        voting_grace_period: Uint64,
+    ) -> (Addr, Addr) {
+        let registry_addr = instantiate_registry(app);
+        app.update_block(next_block);
+
+        let service_name = "EVM Connection Service".to_string();
+        let service_address = instantiate_service(
+            app,
+            registry_addr.clone(),
+            service_name,
+            voting_threshold,
+            min_voter_count,
+            reward_pool,
+            voting_period,
+            voting_grace_period,
+        );
+        app.update_block(next_block);
+
+        (service_address, registry_addr)
+    }
+
+    fn do_instantiate(deps: DepsMut) -> Response {
+        let service_name = "EVM Connection Service".to_string();
+
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let instantiate_msg = InstantiateMsg {
+            service_registry: Addr::unchecked("service_registry"),
+            service_name,
+            voting_threshold: Decimal::from_ratio(1u8, 2u8),
+            min_voter_count: Uint64::from(5u64),
+            reward_pool: Addr::unchecked("reward_pool"),
+            voting_period: Uint64::from(5u64),
+            voting_grace_period: Uint64::from(5u64),
+        };
+
+        instantiate(deps, env, info, instantiate_msg).unwrap()
+    }
+
+    #[test]
+    fn test_instantiation() {
+        let mut deps = mock_dependencies();
+
+        let res = do_instantiate(deps.as_mut());
+
+        assert_eq!(0, res.messages.len());
+    }
+
+    #[test]
+    fn test_request_worker_action() {
+        let mut app = App::default();
+
+        let voting_threshold = Decimal::from_ratio(1u8, 2u8);
+        let min_voter_count = Uint64::from(5u64);
+        let reward_pool = Addr::unchecked("reward_pool");
+        let voting_period = Uint64::from(5u64);
+        let voting_grace_period = Uint64::from(5u64);
+
+        let (service_addr, _) = setup_test_case(
+            &mut app,
+            voting_threshold,
+            min_voter_count,
+            reward_pool,
+            voting_period,
+            voting_grace_period,
+        );
+
+        let msg: ServiceExecuteMsg<ActionMessage, ActionResponse> =
+            ServiceExecuteMsg::RequestWorkerAction {
+                message: ActionMessage::ConfirmGatewayTxs {
+                    source_chain_name: "Ethereum".to_string(),
+                    from_nonce: Uint256::from(0u8),
+                    to_nonce: Uint256::from(5u8),
+                },
+            };
+
+        let _res = app
+            .execute_contract(Addr::unchecked(OWNER), service_addr, &msg, &[])
+            .unwrap();
+    }
+}

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal256, Fraction, Timestamp, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Fraction, Timestamp, Uint256, Uint64};
 
 use crate::state::Participant;
 
@@ -45,13 +45,12 @@ impl Snapshot {
         }
     }
 
-    pub fn calculate_min_passing_weight(&self, treshold: &Decimal256) -> Uint256 {
+    pub fn calculate_min_passing_weight(&self, treshold: &Decimal) -> Uint256 {
         // TODO: check type sizes are correct, otherwise overflow may occur
+        let t = Decimal256::from(*treshold);
 
-        let min_passing_weight = self.bonded_weight * *treshold;
-        if min_passing_weight.mul(treshold.denominator())
-            >= self.bonded_weight.mul(treshold.denominator())
-        {
+        let min_passing_weight = self.bonded_weight * t;
+        if min_passing_weight.mul(t.denominator()) >= self.bonded_weight.mul(t.denominator()) {
             return min_passing_weight;
         }
 

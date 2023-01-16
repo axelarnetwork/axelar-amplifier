@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal256, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 pub struct ServiceInfo {
     pub service_registry: Addr,
     pub name: String,
-    pub voting_threshold: Decimal256,
+    pub voting_threshold: Decimal,
     pub min_voter_count: Uint64,
     pub reward_pool: Addr,
     pub voting_period: Uint64,
@@ -48,7 +48,7 @@ pub struct Participant {
 #[cw_serde]
 pub struct PollMetadata {
     pub id: Uint64,
-    pub expires_at: Uint64,
+    pub expires_at: Uint64, // TODO: how is this used?
     pub result: Option<ActionResponse>,
     pub state: PollState,
     pub completed_at: Option<Uint64>,
