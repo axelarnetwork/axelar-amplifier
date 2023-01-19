@@ -47,8 +47,9 @@ pub struct Participant {
 
 #[cw_serde]
 pub struct PollMetadata {
+    // TODO: rename to poll
     pub id: Uint64,
-    pub expires_at: Uint64, // TODO: how is this used?
+    pub expires_at: Uint64, // TODO: this is used for end blocker, how is end blocker logic being handled in cosmwasm? Split endblockr logc and decide later who will trigger logic
     pub result: Option<ActionResponse>,
     pub state: PollState,
     pub completed_at: Option<Uint64>,

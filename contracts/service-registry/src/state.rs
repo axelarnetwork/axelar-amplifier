@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Uint128, Uint64};
-use cw_storage_plus::Map;
+use cosmwasm_std::{Addr, Uint128, Uint64};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
@@ -10,17 +10,18 @@ pub struct Service {
     pub service_contract: Addr,
     pub min_num_workers: Uint64,
     pub max_num_workers: Option<Uint64>,
-    pub min_worker_bond: Vec<Coin>,
+    pub min_worker_bond: Uint128,
     pub unbonding_period: Uint128,
-    pub description: String, // TODO: worker list should be here
+    pub description: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Worker {
-    pub worker_address: Addr,
-    pub bonded_coins: Vec<Coin>,
+    pub address: Addr,
+    pub stake: Uint128, // TODO: correct size?
     pub commission_rate: Uint128,
     pub state: WorkerState,
+    pub service_name: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -30,5 +31,26 @@ pub enum WorkerState {
     Inactive,
 }
 
+pub struct WorkerIndexes<'a> {
+    pub service_name: MultiIndex<'a, String, Worker, &'a Addr>,
+}
+
+impl<'a> IndexList<Worker> for WorkerIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Worker>> + '_> {
+        let v: Vec<&dyn Index<Worker>> = vec![&self.service_name];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn service_workers<'a>() -> IndexedMap<'a, &'a Addr, Worker, WorkerIndexes<'a>> {
+    let indexes = WorkerIndexes {
+        service_name: MultiIndex::new(
+            |_pk, d| d.service_name.clone(),
+            "worker_services",
+            "worker_services__service_name",
+        ),
+    };
+    IndexedMap::new("worker_services", indexes)
+}
+
 pub const SERVICES: Map<&str, Service> = Map::new("services");
-pub const SERVICE_WORKERS: Map<(&str, &Addr), Worker> = Map::new("service_workers");

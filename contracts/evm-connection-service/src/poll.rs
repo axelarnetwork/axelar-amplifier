@@ -51,15 +51,6 @@ impl<'a> Poll<'a> {
         }
     }
 
-    pub fn has_voted(&self, voter: &Addr) -> bool {
-        let result = self.get_tallied_votes().find(|item| {
-            let (_, tallied_vote) = item.as_ref().unwrap();
-            tallied_vote.is_voter_late.contains_key(voter)
-        });
-
-        result.is_some()
-    }
-
     pub fn vote(
         &mut self,
         voter: &Addr,
@@ -106,13 +97,22 @@ impl<'a> Poll<'a> {
         Ok(VoteResult::VoteInTime)
     }
 
-    pub fn vote_late(&mut self, voter: &Addr, data: ActionResponse) -> Result<(), ContractError> {
+    fn has_voted(&self, voter: &Addr) -> bool {
+        let result = self.get_tallied_votes().find(|item| {
+            let (_, tallied_vote) = item.as_ref().unwrap();
+            tallied_vote.is_voter_late.contains_key(voter)
+        });
+
+        result.is_some()
+    }
+
+    fn vote_late(&mut self, voter: &Addr, data: ActionResponse) -> Result<(), ContractError> {
         self.tally_vote(voter, data, true)?;
 
         Ok(())
     }
 
-    pub fn vote_before_completion(
+    fn vote_before_completion(
         &mut self,
         voter: &Addr,
         block_height: u64,
@@ -137,7 +137,7 @@ impl<'a> Poll<'a> {
         Ok(())
     }
 
-    pub fn tally_vote(
+    fn tally_vote(
         &mut self,
         voter: &Addr,
         data: ActionResponse,
@@ -164,12 +164,12 @@ impl<'a> Poll<'a> {
         Ok(())
     }
 
-    pub fn has_enough_votes(&self, majority: &Uint256) -> bool {
+    fn has_enough_votes(&self, majority: &Uint256) -> bool {
         majority.ge(&self.passing_weight)
             && self.get_voter_count() >= self.service_info.min_voter_count
     }
 
-    pub fn cannot_win(&self, majority: &Uint256) -> bool {
+    fn cannot_win(&self, majority: &Uint256) -> bool {
         let already_tallied = self.get_tallied_voting_power();
         let missing_voting_power =
             self.metadata.snapshot.get_participants_weight() - already_tallied;
@@ -177,7 +177,7 @@ impl<'a> Poll<'a> {
         (*majority + missing_voting_power).lt(&self.passing_weight)
     }
 
-    pub fn get_tallied_voting_power(&self) -> Uint256 {
+    fn get_tallied_voting_power(&self) -> Uint256 {
         self.get_tallied_votes()
             .fold(Uint256::zero(), |accum, item| {
                 let (_, tallied_vote) = item.as_ref().unwrap();
@@ -185,7 +185,7 @@ impl<'a> Poll<'a> {
             })
     }
 
-    pub fn get_voter_count(&self) -> Uint64 {
+    fn get_voter_count(&self) -> Uint64 {
         self.get_tallied_votes()
             .fold(Uint64::zero(), |accum, item| {
                 let (_, tallied_vote) = item.as_ref().unwrap();
@@ -193,13 +193,13 @@ impl<'a> Poll<'a> {
             })
     }
 
-    pub fn is_in_grace_period(&self, block_height: u64) -> bool {
+    fn is_in_grace_period(&self, block_height: u64) -> bool {
         block_height
             < self.metadata.completed_at.unwrap().u64()
                 + self.service_info.voting_grace_period.u64()
     }
 
-    pub fn get_majority_vote(&self) -> Result<TalliedVote, ContractError> {
+    fn get_majority_vote(&self) -> Result<TalliedVote, ContractError> {
         let (_, majority) = self
             .get_tallied_votes()
             .reduce(|accum, item| {
@@ -217,7 +217,7 @@ impl<'a> Poll<'a> {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn get_tallied_votes(
+    fn get_tallied_votes(
         &self,
     ) -> Box<(dyn Iterator<Item = Result<((u64, u64), TalliedVote), cosmwasm_std::StdError>> + '_)>
     {
@@ -228,7 +228,7 @@ impl<'a> Poll<'a> {
             .range(self.store, None, None, Order::Ascending)
     }
 
-    pub fn is(&self, state: PollState) -> bool {
+    fn is(&self, state: PollState) -> bool {
         self.metadata.state == state
     }
 }

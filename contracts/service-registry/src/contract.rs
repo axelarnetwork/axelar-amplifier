@@ -1,13 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo,
+    entry_point, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
     QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ActiveWorker, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Service, Worker, WorkerState, SERVICES, SERVICE_WORKERS};
+use crate::msg::{ActiveWorkers, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{service_workers, Service, Worker, WorkerState, SERVICES};
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 
 /*
@@ -25,7 +25,7 @@ pub fn instantiate(
     _info: MessageInfo,
     _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    unimplemented!()
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -83,15 +83,10 @@ pub mod execute {
         service_contract: Addr,
         min_num_workers: Uint64,
         max_num_workers: Option<Uint64>,
-        min_worker_bond: Vec<Coin>,
+        min_worker_bond: Uint128,
         unbonding_period: Uint128, // TODO: pending definition if we want this. Use Duration data type
         description: String,
     ) -> Result<Response, ContractError> {
-        min_worker_bond
-            .iter()
-            .find(|coin| coin.denom == AXL_DENOMINATION)
-            .ok_or(ContractError::AxlAssetMissing {})?;
-
         let key = &service_name.clone();
 
         SERVICES.update(deps.storage, key, |s| -> Result<Service, ContractError> {
@@ -126,53 +121,41 @@ pub mod execute {
 
         // TODO: check max num of workers
 
-        let mut funds_iter = info.funds.iter();
-
-        let is_required_bond = |fund: &&Coin, min_bond: &&Coin| -> bool {
-            fund.denom == min_bond.denom && fund.amount >= min_bond.amount
-        };
-
-        let unfunded_coins: Vec<Coin> = service
-            .min_worker_bond
+        let bond = info
+            .funds
             .iter()
-            .cloned()
-            .filter(|min_bond| !funds_iter.any(|fund| is_required_bond(&fund, &min_bond)))
-            .collect();
+            .find(|coin| coin.denom == AXL_DENOMINATION && coin.amount >= service.min_worker_bond);
 
-        if !unfunded_coins.is_empty() {
-            return Err(ContractError::NotEnoughFunds {
-                assets: unfunded_coins,
-            });
-        }
-
-        if info.funds.len() != service.min_worker_bond.len() {
-            return Err(ContractError::UnsupportedAssetBond {});
+        if bond.is_none() {
+            return Err(ContractError::NotEnoughFunds {});
         }
 
         let worker_address = info.sender.clone();
 
-        SERVICE_WORKERS.update(
+        service_workers().update(
             deps.storage,
-            (&service_name, &info.sender),
+            &info.sender,
             |sw| -> Result<Worker, ContractError> {
                 match sw {
                     Some(found) => {
                         if found.state == WorkerState::Inactive {
                             Ok(Worker {
-                                worker_address,
-                                bonded_coins: info.funds,
+                                address: worker_address,
+                                stake: bond.unwrap().amount,
                                 commission_rate,
                                 state: WorkerState::Active,
+                                service_name,
                             })
                         } else {
                             Err(ContractError::ServiceWorkerAlreadyRegistered {})
                         }
                     }
                     None => Ok(Worker {
-                        worker_address,
-                        bonded_coins: info.funds,
+                        address: worker_address,
+                        stake: bond.unwrap().amount,
                         commission_rate,
                         state: WorkerState::Active,
+                        service_name,
                     }),
                 }
             },
@@ -186,18 +169,19 @@ pub mod execute {
         info: MessageInfo,
         service_name: String,
     ) -> Result<Response, ContractError> {
-        SERVICE_WORKERS.update(
+        service_workers().update(
             deps.storage,
-            (&service_name, &info.sender),
+            &info.sender,
             |sw| -> Result<Worker, ContractError> {
                 match sw {
                     Some(found) => {
                         if found.state == WorkerState::Active {
                             Ok(Worker {
-                                worker_address: found.worker_address,
-                                bonded_coins: found.bonded_coins,
+                                address: found.address,
+                                stake: found.stake,
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Deregistering,
+                                service_name,
                             })
                         } else {
                             Err(ContractError::InvalidWorkerState {})
@@ -231,18 +215,19 @@ pub mod execute {
             return Err(ContractError::ServiceContractError { msg: error });
         }
 
-        let service_worker = SERVICE_WORKERS.update(
+        let service_worker = service_workers().update(
             deps.storage,
-            (&service_name, &worker_address),
+            &worker_address,
             |sw| -> Result<Worker, ContractError> {
                 match sw {
                     Some(found) => {
                         if found.state == WorkerState::Deregistering {
                             Ok(Worker {
-                                worker_address: found.worker_address,
-                                bonded_coins: found.bonded_coins,
+                                address: found.address,
+                                stake: found.stake,
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Inactive,
+                                service_name,
                             })
                         } else {
                             Err(ContractError::InvalidWorkerState {})
@@ -255,7 +240,11 @@ pub mod execute {
 
         let res = Response::new().add_message(BankMsg::Send {
             to_address: service.service_contract.into(),
-            amount: service_worker.bonded_coins, // TODO: isolate coins
+            amount: [Coin {
+                denom: AXL_DENOMINATION.to_string(),
+                amount: service_worker.stake,
+            }]
+            .to_vec(), // TODO: isolate coins
         });
 
         Ok(res)
@@ -267,10 +256,10 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetActiveWorkers { service_name } => {
-            to_binary(&query::get_active_workers(service_name)?)
+            to_binary(&query::get_active_workers(deps, service_name)?)
         }
     }
 }
@@ -278,8 +267,23 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub mod query {
     use super::*;
 
-    pub fn get_active_workers(_service_name: String) -> StdResult<Vec<ActiveWorker>> {
-        todo!();
+    pub fn get_active_workers(deps: Deps, service_name: String) -> StdResult<ActiveWorkers> {
+        let result: Vec<Worker> = service_workers()
+            .idx
+            .service_name
+            .prefix(service_name)
+            .range(deps.storage, None, None, Order::Ascending)
+            .filter_map(|item| -> Option<Worker> {
+                let (_, worker) = item.unwrap();
+                if worker.state == WorkerState::Active {
+                    Some(worker)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(ActiveWorkers { workers: result })
     }
 }
 

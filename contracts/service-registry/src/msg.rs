@@ -1,5 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Uint128, Uint64};
+use cosmwasm_std::{Addr, Uint128, Uint64};
+
+use crate::state::Worker;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -11,7 +13,7 @@ pub enum ExecuteMsg {
         service_contract: Addr,
         min_num_workers: Uint64,
         max_num_workers: Option<Uint64>,
-        min_worker_bond: Vec<Coin>,
+        min_worker_bond: Uint128,
         unbonding_period: Uint128,
         description: String,
     },
@@ -36,12 +38,11 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<ActiveWorker>)]
+    #[returns(ActiveWorkers)]
     GetActiveWorkers { service_name: String },
 }
 
 #[cw_serde]
-pub struct ActiveWorker {
-    pub address: Addr,
-    pub stake: Uint128, // TODO: correct size?
+pub struct ActiveWorkers {
+    pub workers: Vec<Worker>,
 }

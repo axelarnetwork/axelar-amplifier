@@ -16,7 +16,7 @@ use crate::poll::Poll;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
-use service_registry::msg::ActiveWorker;
+use service_registry::msg::ActiveWorkers;
 use service_registry::msg::QueryMsg as RegistryQueryMsg;
 
 /*
@@ -95,7 +95,7 @@ pub mod execute {
             service_name: service_info.name.to_owned(),
         };
 
-        let active_workers: Vec<ActiveWorker> =
+        let active_workers: ActiveWorkers =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: service_info.service_registry.to_string(),
                 msg: to_binary(&query_msg)?,
@@ -104,9 +104,7 @@ pub mod execute {
         let mut participants: HashMap<Addr, Participant> = HashMap::new();
         let mut bonded_weight: Uint256 = Uint256::zero();
 
-        for worker in active_workers {
-            //TODO: filter jailed/tombstoned ??
-
+        for worker in active_workers.workers {
             let weight = quadratic_weight(Uint256::from(worker.stake)); // TODO: apply power reduction?
             bonded_weight += weight;
 
@@ -417,8 +415,16 @@ mod tests {
                 },
             };
 
-        let _res = app
+        let res = app
             .execute_contract(Addr::unchecked(OWNER), service_addr, &msg, &[])
             .unwrap();
+
+        let expected_event = Event::new("ConfirmGatewayTxStarted")
+            .add_attribute("poll_id", Uint64::one())
+            .add_attribute("source_chain", "Ethereum")
+            .add_attribute("from_nonce", Uint256::from(0u8))
+            .add_attribute("to_nonce", Uint256::from(5u8));
+
+        res.has_event(&expected_event);
     }
 }
