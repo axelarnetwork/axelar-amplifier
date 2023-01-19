@@ -53,6 +53,7 @@ impl EventSubClientDriver {
 pub struct EventSubClient<T: TmClient + Sync> {
     client: T,
     capacity: usize,
+    start_from: Option<block::Height>,
     tx: Option<Sender<Event>>,
     close_rx: oneshot::Receiver<()>,
 }
@@ -64,11 +65,17 @@ impl<T: TmClient + Sync> EventSubClient<T> {
         let client = EventSubClient {
             client,
             capacity,
+            start_from: None,
             tx: None,
             close_rx,
         };
 
         (client, client_driver)
+    }
+
+    pub fn start_from(mut self, height: block::Height) -> Self {
+        self.start_from = Some(height);
+        self
     }
 
     pub fn sub(&mut self) -> BroadcastStream<Event> {
@@ -88,6 +95,18 @@ impl<T: TmClient + Sync> EventSubClient<T> {
         match &self.tx {
             None => Err(Report::new(NoSubscriber)),
             Some(tx) => {
+                let mut latest_block_height = self
+                    .client
+                    .latest_block()
+                    .change_context(RPCFailed)
+                    .await?
+                    .block
+                    .header()
+                    .height;
+
+                self.process_blocks(tx, self.start_from.unwrap_or(latest_block_height), latest_block_height)
+                    .await?;
+
                 let mut sub = self
                     .client
                     .subscribe(EventType::NewBlock.into())
@@ -104,9 +123,9 @@ impl<T: TmClient + Sync> EventSubClient<T> {
                             let event = res.unwrap().into_report().change_context(StreamFailed)?;
                             if let EventData::NewBlock { block: Some(block), .. } = event.data {
                                 let height = block.header().height;
-                                self.process_block(tx, height)
-                                    .attach_printable(format!("{{ block_height = {height} }}"))
+                                self.process_blocks(tx, latest_block_height.increment(), height)
                                     .await?;
+                                latest_block_height = height;
                             }
                         },
                         _ = &mut self.close_rx => break,
@@ -120,6 +139,23 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 
     // this is extracted into a function so the block height attachment can be added no matter which call fails
+    async fn process_blocks(
+        &self,
+        tx: &Sender<Event>,
+        from: block::Height,
+        to: block::Height,
+    ) -> Result<(), EventSubError> {
+        let mut height = from;
+        while height <= to {
+            self.process_block(tx, from)
+                .attach_printable(format!("{{ block_height = {from} }}"))
+                .await?;
+            height = height.increment();
+        }
+
+        Ok(())
+    }
+
     async fn process_block(&self, tx: &Sender<Event>, height: block::Height) -> Result<(), EventSubError> {
         for event in self.query_events(height).await? {
             tx.send(event.into()).into_report().change_context(PublishFailed)?;
@@ -156,12 +192,15 @@ pub enum EventSubError {
     EventQueryFailed { block: block::Height },
     #[error("failed to send events to subscribers")]
     PublishFailed,
+    #[error("failed calling RPC method")]
+    RPCFailed,
     #[error("failed closing client")]
     CloseFailed,
 }
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
@@ -190,11 +229,22 @@ mod tests {
 
     #[test]
     async fn subscription_failed() {
+        let latest_block: tendermint::Block =
+            serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
+        let start_from = latest_block.header().height.increment();
+
         let mut mock_client = MockWebsocketClient::new();
+        mock_client.expect_latest_block().once().returning(move || {
+            Ok(tendermint_rpc::endpoint::block::Response {
+                block_id: tendermint::block::Id { ..Default::default() },
+                block: latest_block.clone(),
+            })
+        });
         mock_client
             .expect_subscribe()
             .returning(|_| Err(tm_client::Error::client_internal("internal failure".into())).into_report());
         let (mut client, _) = EventSubClient::new(mock_client, 10);
+        client = client.start_from(start_from);
         let _ = client.sub();
         let res = client.run().await;
         assert!(matches!(
@@ -207,8 +257,10 @@ mod tests {
     async fn close_works() {
         let mut mock_client = MockWebsocketClient::new();
         let block: tendermint::Block = serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
+        let mut latest_block = block.clone();
+        latest_block.header.height = (latest_block.header.height.value() - 1).try_into().unwrap();
         let block_height = block.header().height;
-        let block_results: tm_client::BlockResponse =
+        let block_results: tm_client::BlockResultsResponse =
             serde_json::from_str(include_str!("../tests/fixtures/block_results.json")).unwrap();
 
         let begin_block_events = block_results.begin_block_events.clone().into_iter().flatten();
@@ -221,6 +273,12 @@ mod tests {
         let end_block_events = block_results.end_block_events.clone().into_iter().flatten();
         let event_count = begin_block_events.count() + tx_events.count() + end_block_events.count() + 1;
 
+        mock_client.expect_latest_block().once().returning(move || {
+            Ok(tendermint_rpc::endpoint::block::Response {
+                block_id: tendermint::block::Id { ..Default::default() },
+                block: latest_block.clone(),
+            })
+        });
         mock_client.expect_subscribe().returning(move |_| {
             let mut mock_subscription = MockSubscription::new();
             let mut poll_count = 0;
@@ -255,22 +313,21 @@ mod tests {
         let (done_tx, done_rx) = oneshot::channel::<()>();
 
         let (mut client, client_driver) = EventSubClient::new(mock_client, event_count);
+        client = client.start_from(block_height);
         let mut event_stream = client.sub();
         let event_stream_handle = tokio::spawn(async move {
             let mut count = 0;
 
-            loop {
-                if let Some(Ok(event)) = event_stream.next().await {
-                    count += 1;
+            while let Some(Ok(event)) = event_stream.next().await {
+                count += 1;
 
-                    match event {
-                        Event::BlockEnd(_) => {
-                            assert!(count == event_count);
-                            break;
-                        }
-                        Event::AbciEvent { .. } => {
-                            assert!(count < event_count)
-                        }
+                match event {
+                    Event::BlockEnd(_) => {
+                        assert!(count == event_count);
+                        break;
+                    }
+                    Event::AbciEvent { .. } => {
+                        assert!(count < event_count)
                     }
                 }
             }
@@ -305,7 +362,8 @@ mod tests {
             type Tx = Vec<u8>;
 
             async fn subscribe(&self, query:tm_client::Query) -> Result<<Self as tm_client::TmClient>::Sub, tm_client::Error>;
-            async fn block_results(&self, block_height: Height) -> Result<tm_client::BlockResponse, tm_client::Error>;
+            async fn latest_block(&self) -> Result<tm_client::BlockResponse, tm_client::Error>;
+            async fn block_results(&self, block_height: Height) -> Result<tm_client::BlockResultsResponse, tm_client::Error>;
             async fn broadcast(&self, tx_raw: <Self as tm_client::TmClient>::Tx) -> Result<tm_client::TxResponse,tm_client::Error>;
             fn close(self) -> Result<(), tm_client::Error>;
         }
