@@ -4,7 +4,9 @@ use cosmwasm_std::{Addr, Order, Storage, Uint256, Uint64};
 
 use crate::{
     msg::ActionResponse,
-    state::{tallied_votes, PollMetadata, PollState, ServiceInfo, TalliedVote, POLLS},
+    state::{
+        is_voter_late_map, tallied_votes, PollMetadata, PollState, ServiceInfo, TalliedVote, POLLS,
+    },
     utils::hash,
     ContractError,
 };
@@ -70,7 +72,7 @@ impl<'a> Poll<'a> {
         if self
             .metadata
             .snapshot
-            .get_participant_weight(voter)
+            .get_participant_weight(self.store, voter)
             .is_zero()
         {
             return Err(ContractError::NotEligibleToVote {
@@ -100,7 +102,7 @@ impl<'a> Poll<'a> {
     fn has_voted(&self, voter: &Addr) -> bool {
         let result = self.get_tallied_votes().find(|item| {
             let (_, tallied_vote) = item.as_ref().unwrap();
-            tallied_vote.is_voter_late.contains_key(voter)
+            tallied_vote.is_voter_late_map().has(self.store, voter)
         });
 
         result.is_some()
@@ -144,7 +146,12 @@ impl<'a> Poll<'a> {
         is_late: bool,
     ) -> Result<(), ContractError> {
         let hash = hash(&data);
-        let voting_power = self.metadata.snapshot.get_participant_weight(voter);
+        let voting_power = self
+            .metadata
+            .snapshot
+            .get_participant_weight(self.store, voter);
+
+        let mut is_voter_late_namespace = String::new();
 
         tallied_votes().update(
             self.store,
@@ -153,13 +160,17 @@ impl<'a> Poll<'a> {
                 match v {
                     Some(mut tallied_vote) => {
                         tallied_vote.tally += voting_power;
-                        tallied_vote.is_voter_late.insert(voter.to_owned(), is_late);
+                        is_voter_late_namespace = tallied_vote.is_voter_late_namespace.clone();
                         Ok(tallied_vote)
                     }
                     None => Ok(TalliedVote::new(voting_power, data, self.metadata.id)),
                 }
             },
         )?;
+
+        is_voter_late_map(&is_voter_late_namespace)
+            .save(self.store, voter, &is_late)
+            .unwrap(); // TODO: this might need to be improved somehow
 
         Ok(())
     }
@@ -169,10 +180,10 @@ impl<'a> Poll<'a> {
             && self.get_voter_count() >= self.service_info.min_voter_count
     }
 
-    fn cannot_win(&self, majority: &Uint256) -> bool {
+    fn cannot_win(&mut self, majority: &Uint256) -> bool {
         let already_tallied = self.get_tallied_voting_power();
         let missing_voting_power =
-            self.metadata.snapshot.get_participants_weight() - already_tallied;
+            self.metadata.snapshot.get_participants_weight(self.store) - already_tallied;
 
         (*majority + missing_voting_power).lt(&self.passing_weight)
     }
@@ -189,7 +200,13 @@ impl<'a> Poll<'a> {
         self.get_tallied_votes()
             .fold(Uint64::zero(), |accum, item| {
                 let (_, tallied_vote) = item.as_ref().unwrap();
-                accum + Uint64::from(tallied_vote.is_voter_late.len() as u64)
+                accum
+                    + Uint64::from(
+                        tallied_vote
+                            .is_voter_late_map()
+                            .keys(self.store, None, None, Order::Ascending)
+                            .count() as u64,
+                    )
             })
     }
 

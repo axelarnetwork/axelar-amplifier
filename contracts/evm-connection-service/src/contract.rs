@@ -1,16 +1,14 @@
-use std::collections::HashMap;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, Isqrt, MessageInfo,
-    QueryRequest, Response, StdResult, Uint256, Uint64, WasmQuery,
+    entry_point, to_binary, Addr, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo,
+    QueryRequest, Response, StdResult, Uint64, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
 use crate::snapshot::Snapshot;
-use crate::state::{Participant, PollMetadata, ServiceInfo, POLLS, POLL_COUNTER, SERVICE_INFO};
+use crate::state::{PollMetadata, ServiceInfo, POLLS, POLL_COUNTER, SERVICE_INFO};
 
 use crate::poll::Poll;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
@@ -66,6 +64,8 @@ pub fn execute(
 }
 
 pub mod execute {
+    use cosmwasm_std::{QuerierWrapper, Storage};
+
     use super::*;
 
     pub fn request_worker_action(
@@ -82,44 +82,29 @@ pub mod execute {
         }
     }
 
-    fn quadratic_weight(stake: Uint256) -> Uint256 {
-        stake.isqrt()
-    }
-
-    fn create_snapshot(
-        deps: &DepsMut,
+    fn create_snapshot<'a, C: CustomQuery>(
+        store: &'a mut dyn Storage,
+        querier: QuerierWrapper<'a, C>,
         env: Env,
         service_info: &ServiceInfo,
+        poll_id: Uint64,
     ) -> Result<Snapshot, ContractError> {
         let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
             service_name: service_info.name.to_owned(),
         };
 
         let active_workers: ActiveWorkers =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: service_info.service_registry.to_string(),
                 msg: to_binary(&query_msg)?,
             }))?;
 
-        let mut participants: HashMap<Addr, Participant> = HashMap::new();
-        let mut bonded_weight: Uint256 = Uint256::zero();
-
-        for worker in active_workers.workers {
-            let weight = quadratic_weight(Uint256::from(worker.stake)); // TODO: apply power reduction?
-            bonded_weight += weight;
-
-            let participant = Participant {
-                address: worker.address,
-                weight,
-            };
-            participants.insert(participant.address.to_owned(), participant);
-        }
-
         let snapshot = Snapshot::new(
+            store,
+            poll_id,
             env.block.time,
             Uint64::from(env.block.height),
-            participants,
-            bonded_weight,
+            active_workers,
         );
 
         Ok(snapshot)
@@ -139,7 +124,13 @@ pub mod execute {
         let service_info = SERVICE_INFO.load(deps.storage)?;
         let expires_at = env.block.height + service_info.voting_period.u64();
 
-        let snapshot = create_snapshot(&deps, env, &service_info)?;
+        let snapshot = create_snapshot(
+            deps.storage,
+            deps.querier,
+            env,
+            &service_info,
+            Uint64::from(id),
+        )?;
 
         let poll_metadata = PollMetadata::new(
             Uint64::from(id),
@@ -261,7 +252,7 @@ pub mod query {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Decimal, Empty};
+    use cosmwasm_std::{Decimal, Empty, Uint256};
     use cw_multi_test::{next_block, App, Contract, ContractWrapper, Executor};
 
     use super::*;
