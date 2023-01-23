@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
     entry_point, to_binary, Addr, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo,
-    QueryRequest, Response, StdResult, Uint64, WasmQuery,
+    QueryRequest, Response, StdResult, Uint128, Uint64, WasmMsg, WasmQuery,
 };
 // use cw2::set_contract_version;
 
@@ -26,7 +26,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -42,8 +42,21 @@ pub fn instantiate(
     SERVICE_INFO.save(deps.storage, &service)?;
     POLL_COUNTER.save(deps.storage, &0)?;
 
-    // TODO: register service during instantiation
-    Ok(Response::default())
+    // TODO: which values are constants and which come from parameters
+    let register_msg = service_registry::msg::ExecuteMsg::RegisterService {
+        service_name: service.name,
+        service_contract: env.contract.address,
+        min_num_workers: service.min_voter_count,
+        max_num_workers: None,
+        min_worker_bond: Uint128::from(100u8),
+        unbonding_period: Uint128::from(1u8),
+        description: String::from("EVM Connection Service"),
+    };
+    Ok(Response::default().add_message(WasmMsg::Execute {
+        contract_addr: service.service_registry.into_string(),
+        msg: to_binary(&register_msg)?,
+        funds: vec![],
+    }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -252,12 +265,26 @@ pub mod query {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Decimal, Empty, Uint256};
-    use cw_multi_test::{next_block, App, Contract, ContractWrapper, Executor};
+    use cosmwasm_std::{Coin, Decimal, Empty, Uint256};
+    use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use super::*;
 
     const OWNER: &str = "owner";
+    const WORKERS: [&str; 6] = [
+        "worker0", "worker1", "worker2", "worker3", "worker4", "worker5",
+    ];
+
+    fn mock_app(init_funds: &[Coin]) -> App {
+        AppBuilder::new().build(|router, _, storage| {
+            for worker in WORKERS {
+                router
+                    .bank
+                    .init_balance(storage, &Addr::unchecked(worker), init_funds.to_vec())
+                    .unwrap();
+            }
+        })
+    }
 
     fn contract_registry() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new(
@@ -323,6 +350,26 @@ mod tests {
         .unwrap()
     }
 
+    fn register_workers(app: &mut App, service_name: &str, registry: Addr) {
+        for worker in WORKERS {
+            let msg = service_registry::msg::ExecuteMsg::RegisterWorker {
+                service_name: service_name.to_owned(),
+                commission_rate: Uint128::from(1u8),
+            };
+
+            app.execute_contract(
+                Addr::unchecked(worker),
+                registry.clone(),
+                &msg,
+                &vec![Coin {
+                    denom: "uaxl".to_string(),
+                    amount: Uint128::from(100u8),
+                }],
+            )
+            .unwrap();
+        }
+    }
+
     fn setup_test_case(
         app: &mut App,
         voting_threshold: Decimal,
@@ -334,11 +381,11 @@ mod tests {
         let registry_addr = instantiate_registry(app);
         app.update_block(next_block);
 
-        let service_name = "EVM Connection Service".to_string();
+        let service_name = "EVM Connection Service";
         let service_address = instantiate_service(
             app,
             registry_addr.clone(),
-            service_name,
+            service_name.to_string(),
             voting_threshold,
             min_voter_count,
             reward_pool,
@@ -346,8 +393,26 @@ mod tests {
             voting_grace_period,
         );
         app.update_block(next_block);
+        register_workers(app, &service_name, registry_addr.clone());
 
         (service_address, registry_addr)
+    }
+
+    fn setup_default_test_case(app: &mut App) -> (Addr, Addr) {
+        let voting_threshold = Decimal::from_ratio(1u8, 2u8);
+        let min_voter_count = Uint64::from(5u64);
+        let reward_pool = Addr::unchecked("reward_pool");
+        let voting_period = Uint64::from(5u64);
+        let voting_grace_period = Uint64::from(5u64);
+
+        setup_test_case(
+            app,
+            voting_threshold,
+            min_voter_count,
+            reward_pool,
+            voting_period,
+            voting_grace_period,
+        )
     }
 
     fn do_instantiate(deps: DepsMut) -> Response {
@@ -375,27 +440,17 @@ mod tests {
 
         let res = do_instantiate(deps.as_mut());
 
-        assert_eq!(0, res.messages.len());
+        assert_eq!(1, res.messages.len());
     }
 
     #[test]
     fn test_request_worker_action() {
-        let mut app = App::default();
+        let mut app = mock_app(&[Coin {
+            denom: "uaxl".to_string(),
+            amount: Uint128::from(100u8),
+        }]);
 
-        let voting_threshold = Decimal::from_ratio(1u8, 2u8);
-        let min_voter_count = Uint64::from(5u64);
-        let reward_pool = Addr::unchecked("reward_pool");
-        let voting_period = Uint64::from(5u64);
-        let voting_grace_period = Uint64::from(5u64);
-
-        let (service_addr, _) = setup_test_case(
-            &mut app,
-            voting_threshold,
-            min_voter_count,
-            reward_pool,
-            voting_period,
-            voting_grace_period,
-        );
+        let (service_addr, _) = setup_default_test_case(&mut app);
 
         let msg: ServiceExecuteMsg<ActionMessage, ActionResponse> =
             ServiceExecuteMsg::RequestWorkerAction {
