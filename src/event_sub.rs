@@ -16,7 +16,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::event_sub::EventSubError::*;
 use crate::tm_client::{EventData, EventType, TmClient};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     BlockEnd(block::Height),
     AbciEvent {

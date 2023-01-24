@@ -1,4 +1,5 @@
 use crate::event_sub::Event;
+use crate::handlers::chain_handler::ChainHandler;
 use async_trait::async_trait;
 use core::future::Future;
 use core::pin::Pin;
@@ -9,6 +10,23 @@ use thiserror::Error;
 use tokio::{select, sync::oneshot};
 use tokio_stream::wrappers::BroadcastStream;
 
+type Task = Box<dyn Future<Output = Result<(), EventProcessorError>> + Send>;
+
+#[async_trait]
+pub trait EventHandler: Send + Sync + 'static {
+    type Err: Context;
+
+    async fn handle(&self, event: &Event) -> Result<(), Self::Err>;
+
+    fn chain<H>(self, handler: H) -> ChainHandler<Self, H>
+    where
+        Self: Sized,
+        H: EventHandler,
+    {
+        ChainHandler::new(self, handler)
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum EventProcessorError {
     #[error("event handler failed handling event")]
@@ -17,13 +35,6 @@ pub enum EventProcessorError {
     EventStreamError,
     #[error("failed closing event processor")]
     CloseFailed,
-}
-
-#[async_trait]
-pub trait EventHandler {
-    type Err: Context;
-
-    async fn handle(&self, event: &Event) -> Result<(), Self::Err>;
 }
 
 pub struct EventProcessorDriver {
@@ -38,14 +49,9 @@ impl EventProcessorDriver {
     }
 }
 
-type Task = Box<dyn Future<Output = Result<(), EventProcessorError>> + Send>;
-
-fn consume_events<E>(
-    mut event_stream: BroadcastStream<Event>,
-    handler: Box<dyn EventHandler<Err = E> + Send + Sync>,
-) -> Task
+fn consume_events<H>(mut event_stream: BroadcastStream<Event>, handler: H) -> Task
 where
-    E: Context,
+    H: EventHandler,
 {
     let task = async move {
         while let Some(res) = event_stream.next().await {
@@ -83,13 +89,9 @@ impl EventProcessor {
         )
     }
 
-    pub fn add_handler<E>(
-        mut self,
-        handler: Box<dyn EventHandler<Err = E> + Send + Sync>,
-        event_stream: BroadcastStream<Event>,
-    ) -> Self
+    pub fn add_handler<H>(mut self, handler: H, event_stream: BroadcastStream<Event>) -> Self
     where
-        E: Context,
+        H: EventHandler,
     {
         self.tasks.push(consume_events(event_stream, handler).into());
         self
@@ -112,7 +114,7 @@ impl EventProcessor {
 
 #[cfg(test)]
 mod tests {
-    use crate::event_processor;
+    use crate::event_processor::{EventHandler, EventProcessor};
     use crate::event_sub;
     use async_trait::async_trait;
     use error_stack::{IntoReport, Result};
@@ -125,7 +127,7 @@ mod tests {
     async fn should_handle_events() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let (processor, driver) = event_processor::EventProcessor::new();
+        let (processor, driver) = EventProcessor::new();
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().returning(|_| Ok(())).times(event_count);
@@ -138,7 +140,7 @@ mod tests {
         });
 
         assert!(processor
-            .add_handler(Box::new(handler), BroadcastStream::new(rx))
+            .add_handler(handler, BroadcastStream::new(rx))
             .run()
             .await
             .is_ok());
@@ -147,7 +149,7 @@ mod tests {
     #[tokio::test]
     async fn should_return_error_if_handler_fails() {
         let (tx, rx) = broadcast::channel::<event_sub::Event>(10);
-        let (processor, _driver) = event_processor::EventProcessor::new();
+        let (processor, _driver) = EventProcessor::new();
 
         let mut handler = MockEventHandler::new();
         handler
@@ -160,7 +162,7 @@ mod tests {
         });
 
         assert!(processor
-            .add_handler(Box::new(handler), BroadcastStream::new(rx))
+            .add_handler(handler, BroadcastStream::new(rx))
             .run()
             .await
             .is_err());
@@ -170,7 +172,7 @@ mod tests {
     async fn should_support_multiple_types_of_handlers() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let (processor, driver) = event_processor::EventProcessor::new();
+        let (processor, driver) = EventProcessor::new();
         let stream = BroadcastStream::new(rx);
         let another_stream = BroadcastStream::new(tx.subscribe());
 
@@ -188,8 +190,8 @@ mod tests {
         });
 
         assert!(processor
-            .add_handler(Box::new(handler), stream)
-            .add_handler(Box::new(another_handler), another_stream)
+            .add_handler(handler, stream)
+            .add_handler(another_handler, another_stream)
             .run()
             .await
             .is_ok());
@@ -205,7 +207,7 @@ mod tests {
             EventHandler{}
 
             #[async_trait]
-            impl event_processor::EventHandler for EventHandler {
+            impl EventHandler for EventHandler {
                 type Err = EventHandlerError;
 
                 async fn handle(&self, event: &event_sub::Event) -> Result<(), EventHandlerError>;
@@ -219,7 +221,7 @@ mod tests {
             AnotherEventHandler{}
 
             #[async_trait]
-            impl event_processor::EventHandler for AnotherEventHandler {
+            impl EventHandler for AnotherEventHandler {
                 type Err = AnotherEventHandlerError;
 
                 async fn handle(&self, event: &event_sub::Event) -> Result<(), AnotherEventHandlerError>;
