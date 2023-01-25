@@ -147,8 +147,8 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     ) -> Result<(), EventSubError> {
         let mut height = from;
         while height <= to {
-            self.process_block(tx, from)
-                .attach_printable(format!("{{ block_height = {from} }}"))
+            self.process_block(tx, height)
+                .attach_printable(format!("{{ block_height = {height} }}"))
                 .await?;
             height = height.increment();
         }
