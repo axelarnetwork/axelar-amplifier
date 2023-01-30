@@ -1,0 +1,32 @@
+[package]
+name = "axelar-gateway"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+cosmwasm-schema = { workspace = true }
+cosmwasm-storage = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[package.metadata.scripts]
+optimize = """if [[ $(uname -m) == "arm64" ]]; then ARCH="-arm64" else ARCH="" fi; docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/rust-optimizer${ARCH}:0.12.11
+"""
+check = "cosmwasm-check $(pwd)/../../artifacts/axelar_gateway-*.wasm"
+
+[dev-dependencies]
+cw-multi-test = { workspace = true }
+cosmwasm-check = { workspace = true }
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
