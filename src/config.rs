@@ -1,3 +1,4 @@
+use crate::broadcaster;
 use crate::url::Url;
 use serde::Deserialize;
 
@@ -5,12 +6,14 @@ use serde::Deserialize;
 #[serde(default)]
 pub struct Config {
     tm_url: Url,
+    broadcast: broadcaster::Config,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             tm_url: "tcp://localhost:26657".parse().unwrap(),
+            broadcast: broadcaster::Config::default(),
         }
     }
 }

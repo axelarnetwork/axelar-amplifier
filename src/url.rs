@@ -1,4 +1,4 @@
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 use deref_derive::Deref;
@@ -23,6 +23,12 @@ impl FromStr for Url {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         url::Url::parse(s).map(Url)
+    }
+}
+
+impl Display for Url {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
