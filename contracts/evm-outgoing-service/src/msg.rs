@@ -10,3 +10,8 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {}
+
+#[cw_serde]
+pub enum ActionMessage {
+    RequestWorkerSignatures {},
+}

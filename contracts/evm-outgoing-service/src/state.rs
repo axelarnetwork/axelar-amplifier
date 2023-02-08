@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, VecDeque};
+use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct ServiceInfo {
@@ -26,8 +27,17 @@ pub struct CommandBatch {
 
 impl CommandBatch {
     pub fn new(block_height: u64, commands_ids: Vec<[u8; 32]>, data: Vec<u8>) -> Self {
+        let mut hasher = Keccak256::new();
+        hasher.update(block_height.to_be_bytes());
+        hasher.update(&data);
+        let id = hasher
+            .finalize()
+            .as_slice()
+            .try_into()
+            .expect("Wrong length");
+
         Self {
-            id: todo!(),
+            id,
             commands_ids,
             data,
             status: BatchedCommandsStatus::Signing,
