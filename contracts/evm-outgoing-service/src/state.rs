@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
-use cw_storage_plus::{Item, VecDeque};
+use cw_storage_plus::{Item, Map};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
@@ -56,4 +56,4 @@ impl CommandBatch {
 }
 
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
-pub const COMMANDS_BATCH_QUEUE: VecDeque<CommandBatch> = VecDeque::new("command_batchs");
+pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batchs");

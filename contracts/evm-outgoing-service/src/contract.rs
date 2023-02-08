@@ -192,13 +192,10 @@ pub mod execute {
             query_response.messages,
         )?;
 
-        COMMANDS_BATCH_QUEUE.push_front(deps.storage, &command_batch)?;
+        COMMANDS_BATCH_QUEUE.save(deps.storage, &command_batch.id, &command_batch)?;
 
         let event = Event::new("RequestSignatures")
-            .add_attribute(
-                "batch_pos",
-                COMMANDS_BATCH_QUEUE.len(deps.storage).unwrap().to_string(),
-            )
+            .add_attribute("batch_id", Uint256::from_be_bytes(command_batch.id))
             .add_attribute("commands_ids", command_batch.command_ids_hex_string());
 
         Ok(Response::new().add_event(event))
