@@ -48,7 +48,7 @@ impl CommandBatch {
         self.commands_ids
             .iter()
             .fold(String::new(), |mut accum, command_id| {
-                let hex_string = hex::encode(command_id.to_vec());
+                let hex_string = hex::encode(command_id);
                 accum.push_str(&hex_string);
                 accum
             })

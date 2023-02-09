@@ -10,7 +10,7 @@ use cosmwasm_std::{
     from_binary, to_binary, Binary, DepsMut, Env, Event, MessageInfo, QueryRequest, Response,
     Uint256, WasmQuery,
 };
-use ethabi::{ethereum_types::U256, Bytes, FixedBytes, Token};
+use ethabi::{ethereum_types::U256, Token};
 use sha3::{Digest, Keccak256};
 
 const VALIDATE_CALLS_HASH_MAX_GAS_COST: u32 = 100000;
@@ -68,7 +68,7 @@ pub mod execute {
     ) -> Vec<u8> {
         let source_chain_token = Token::String(source_chain.to_string());
         let destination_chain_token = Token::String(destination_chain.to_string());
-        let calls_hash_token = Token::FixedBytes(FixedBytes::from(calls_hash.to_vec()));
+        let calls_hash_token = Token::FixedBytes(calls_hash.to_vec());
 
         ethabi::encode(&[
             source_chain_token,
@@ -107,14 +107,14 @@ pub mod execute {
 
     fn pack_batch_arguments(
         chain_id: Uint256,
-        commands_ids: &Vec<[u8; 32]>,
+        commands_ids: &[[u8; 32]],
         commands: Vec<String>,
         commands_params: Vec<Vec<u8>>,
     ) -> Vec<u8> {
         let chain_id_token = Token::Uint(U256::from_dec_str(&chain_id.to_string()).unwrap());
         let commands_ids_tokens: Vec<Token> = commands_ids
             .iter()
-            .map(|item| Token::FixedBytes(FixedBytes::from(item.to_vec())))
+            .map(|item| Token::FixedBytes(item.to_vec()))
             .collect();
         let commands_tokens: Vec<Token> = commands
             .iter()
@@ -122,7 +122,7 @@ pub mod execute {
             .collect();
         let commands_params_tokens: Vec<Token> = commands_params
             .iter()
-            .map(|item| Token::Bytes(Bytes::from(item.clone())))
+            .map(|item| Token::Bytes(item.clone()))
             .collect();
 
         ethabi::encode(&[
