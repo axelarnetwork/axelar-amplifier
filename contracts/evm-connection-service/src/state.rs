@@ -14,6 +14,9 @@ use crate::{
 pub struct ServiceInfo {
     pub service_registry: Addr,
     pub name: String,
+    pub source_chain_name: String,
+    pub gateway_address: Addr,
+    pub confirmation_height: Uint64,
     pub voting_threshold: Decimal,
     pub min_voter_count: Uint64,
     pub reward_pool: Addr,

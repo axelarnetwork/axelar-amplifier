@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo, QueryRequest,
-    Response, StdResult, Uint128, Uint64, WasmMsg, WasmQuery,
+    Response, StdResult, Uint64, WasmMsg, WasmQuery,
 };
 // use cw2::set_contract_version;
 
@@ -34,6 +34,9 @@ pub fn instantiate(
     let service = ServiceInfo {
         service_registry: msg.service_registry,
         name: msg.service_name,
+        source_chain_name: msg.source_chain_name,
+        gateway_address: msg.gateway_address,
+        confirmation_height: msg.confirmation_height,
         voting_threshold: msg.voting_threshold,
         min_voter_count: msg.min_voter_count,
         reward_pool: msg.reward_pool,
@@ -43,15 +46,14 @@ pub fn instantiate(
     SERVICE_INFO.save(deps.storage, &service)?;
     POLL_COUNTER.save(deps.storage, &0)?;
 
-    // TODO: which values are constants and which come from parameters
     let register_msg = service_registry::msg::ExecuteMsg::RegisterService {
         service_name: service.name,
         service_contract: env.contract.address,
-        min_num_workers: service.min_voter_count,
-        max_num_workers: None,
-        min_worker_bond: Uint128::from(100u8),
-        unbonding_period: Uint128::from(1u8),
-        description: String::from("EVM Connection Service"),
+        min_num_workers: msg.min_num_workers,
+        max_num_workers: msg.max_num_workers,
+        min_worker_bond: msg.min_worker_bond,
+        unbonding_period: msg.unbonding_period,
+        description: msg.description,
     };
     Ok(Response::default().add_message(WasmMsg::Execute {
         contract_addr: service.service_registry.into_string(),
@@ -79,6 +81,9 @@ pub fn execute(
 
 pub mod execute {
     use cosmwasm_std::{QuerierWrapper, Storage};
+    use serde_json::to_string;
+
+    use crate::state::Participant;
 
     use super::*;
 
@@ -89,7 +94,6 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         match message {
             ActionMessage::ConfirmGatewayTxs {
-                source_chain_name: _,
                 from_nonce: _,
                 to_nonce: _,
             } => request_confirm_gateway_txs(deps, env, message),
@@ -124,27 +128,21 @@ pub mod execute {
         Ok(snapshot)
     }
 
-    fn initialize_poll(
-        deps: DepsMut,
+    fn initialize_poll<'a, C: CustomQuery>(
+        store: &'a mut dyn Storage,
+        querier: QuerierWrapper<'a, C>,
         env: Env,
         message: ActionMessage,
     ) -> Result<PollMetadata, ContractError> {
-        let id =
-            POLL_COUNTER.update(deps.storage, |mut counter| -> Result<u64, ContractError> {
-                counter += 1;
-                Ok(counter)
-            })?;
+        let id = POLL_COUNTER.update(store, |mut counter| -> Result<u64, ContractError> {
+            counter += 1;
+            Ok(counter)
+        })?;
 
-        let service_info = SERVICE_INFO.load(deps.storage)?;
+        let service_info = SERVICE_INFO.load(store)?;
         let expires_at = env.block.height + service_info.voting_period.u64();
 
-        let snapshot = create_snapshot(
-            deps.storage,
-            deps.querier,
-            env,
-            &service_info,
-            Uint64::from(id),
-        )?;
+        let snapshot = create_snapshot(store, querier, env, &service_info, Uint64::from(id))?;
 
         let poll_metadata = PollMetadata::new(
             Uint64::from(id),
@@ -153,7 +151,7 @@ pub mod execute {
             message,
         );
 
-        POLLS.save(deps.storage, id, &poll_metadata)?;
+        POLLS.save(store, id, &poll_metadata)?;
 
         Ok(poll_metadata)
     }
@@ -165,22 +163,32 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         // TODO: validate sender = worker ??
 
-        let poll = initialize_poll(deps, env, message)?;
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+
+        let poll = initialize_poll(deps.storage, deps.querier, env, message)?;
 
         let ActionMessage::ConfirmGatewayTxs {
-            source_chain_name, // TODO: should probably be validated with list of supported chain names
             from_nonce,
             to_nonce,
         } = poll.message;
 
+        let participants: Vec<Participant> = poll
+            .snapshot
+            .participants(deps.storage)
+            .map(|item| {
+                let (_, participant) = item.unwrap();
+                participant
+            })
+            .collect();
+
         let event = Event::new("ConfirmGatewayTxStarted")
             .add_attribute("poll_id", poll.id)
-            .add_attribute("source_chain", source_chain_name)
+            .add_attribute("source_chain", service_info.source_chain_name)
+            .add_attribute("gateway_address", service_info.gateway_address)
+            .add_attribute("confirmation_height", service_info.confirmation_height)
             .add_attribute("from_nonce", from_nonce)
-            .add_attribute("to_nonce", to_nonce);
-        // TODO: add gateway ?? on-chain mapping
-        // TODO: add poll participants
-        // TODO: add confirmation height??
+            .add_attribute("to_nonce", to_nonce)
+            .add_attribute("participants", to_string(&participants).unwrap());
 
         Ok(Response::new().add_event(event))
     }
@@ -266,12 +274,13 @@ pub mod query {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{Coin, Decimal, Empty, Uint256};
+    use cosmwasm_std::{Coin, Decimal, Empty, Uint128, Uint256};
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use super::*;
 
     const OWNER: &str = "owner";
+    const GATEWAY: &str = "gateway";
     const WORKERS: [&str; 6] = [
         "worker0", "worker1", "worker2", "worker3", "worker4", "worker5",
     ];
@@ -324,6 +333,14 @@ mod tests {
         app: &mut App,
         service_registry: Addr,
         service_name: String,
+        source_chain_name: String,
+        gateway_address: Addr,
+        confirmation_height: Uint64,
+        min_num_workers: Uint64,
+        max_num_workers: Option<Uint64>,
+        min_worker_bond: Uint128,
+        unbonding_period: Uint128,
+        description: String,
         voting_threshold: Decimal,
         min_voter_count: Uint64,
         reward_pool: Addr,
@@ -334,6 +351,14 @@ mod tests {
         let msg = InstantiateMsg {
             service_registry,
             service_name,
+            source_chain_name,
+            gateway_address,
+            confirmation_height,
+            min_num_workers,
+            max_num_workers,
+            min_worker_bond,
+            unbonding_period,
+            description,
             voting_threshold,
             min_voter_count,
             reward_pool,
@@ -382,11 +407,28 @@ mod tests {
         let registry_addr = instantiate_registry(app);
         app.update_block(next_block);
 
-        let service_name = "EVM Connection Service";
+        let service_name = "EVM Connection Service".to_string();
+        let source_chain_name = "Ethereum".to_string();
+        let gateway_address = Addr::unchecked(GATEWAY);
+        let confirmation_height = Uint64::from(10u64);
+        let min_num_workers = min_voter_count.clone();
+        let max_num_workers = None;
+        let min_worker_bond = Uint128::from(100u8);
+        let unbonding_period = Uint128::from(1u8);
+        let description = "EVM Connection Service".to_string();
+
         let service_address = instantiate_service(
             app,
             registry_addr.clone(),
-            service_name.to_string(),
+            service_name.clone(),
+            source_chain_name,
+            gateway_address,
+            confirmation_height,
+            min_num_workers,
+            max_num_workers,
+            min_worker_bond,
+            unbonding_period,
+            description,
             voting_threshold,
             min_voter_count,
             reward_pool,
@@ -417,7 +459,16 @@ mod tests {
     }
 
     fn do_instantiate(deps: DepsMut) -> Response {
+        let min_voter_count = Uint64::from(5u64);
         let service_name = "EVM Connection Service".to_string();
+        let source_chain_name = "Ethereum".to_string();
+        let gateway_address = Addr::unchecked(GATEWAY);
+        let confirmation_height = Uint64::from(10u64);
+        let min_num_workers = min_voter_count.clone();
+        let max_num_workers = None;
+        let min_worker_bond = Uint128::from(100u8);
+        let unbonding_period = Uint128::from(1u8);
+        let description = "EVM Connection Service".to_string();
 
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -425,8 +476,16 @@ mod tests {
         let instantiate_msg = InstantiateMsg {
             service_registry: Addr::unchecked("service_registry"),
             service_name,
+            source_chain_name,
+            gateway_address,
+            confirmation_height,
+            min_num_workers,
+            max_num_workers,
+            min_worker_bond,
+            unbonding_period,
+            description,
             voting_threshold: Decimal::from_ratio(1u8, 2u8),
-            min_voter_count: Uint64::from(5u64),
+            min_voter_count,
             reward_pool: Addr::unchecked("reward_pool"),
             voting_period: Uint64::from(5u64),
             voting_grace_period: Uint64::from(5u64),
@@ -456,7 +515,6 @@ mod tests {
         let msg: ServiceExecuteMsg<ActionMessage, ActionResponse> =
             ServiceExecuteMsg::RequestWorkerAction {
                 message: ActionMessage::ConfirmGatewayTxs {
-                    source_chain_name: "Ethereum".to_string(),
                     from_nonce: Uint256::from(0u8),
                     to_nonce: Uint256::from(5u8),
                 },
