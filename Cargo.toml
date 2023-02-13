@@ -5,6 +5,7 @@ members = [
   "contracts/evm-connection-service",
   "contracts/connection-router",
   "contracts/evm-batch-service",
+  "contracts/batching",
 ]
 
 [profile.release]
