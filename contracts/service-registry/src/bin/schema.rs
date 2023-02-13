@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use axelar_connection_registry::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use service_registry::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 fn main() {
     write_api! {
