@@ -1,15 +1,14 @@
 use super::error::Error;
-use super::finalizer::Finalizer;
 use crate::deserializers::{
     deserialize_evm_address, deserialize_hash, deserialize_str_to_from_str, deserialize_tm_addresses,
 };
 use crate::event_processor::EventHandler;
 use crate::event_sub;
-use crate::json_rpc::EVMClient;
+use crate::handlers::evm_handlers::finalizer::Finalizer;
+use crate::json_rpc::EthereumClient;
 use crate::types::{EVMAddress, Hash, TMAddress};
 use async_trait::async_trait;
 use error_stack::{IntoReport, Report, Result, ResultExt};
-use jsonrpsee::core::client::ClientT;
 use serde::de::value::MapDeserializer;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -53,18 +52,18 @@ impl TryFrom<Map<String, Value>> for Event {
 pub struct Handler<F, C>
 where
     F: Finalizer,
-    C: ClientT,
+    C: EthereumClient,
 {
-    rpc_client: EVMClient<C>,
+    rpc_client: C,
     finalizer: F,
 }
 
 impl<F, C> Handler<F, C>
 where
     F: Finalizer,
-    C: ClientT,
+    C: EthereumClient,
 {
-    pub fn new(finalizer: F, rpc_client: EVMClient<C>) -> Self {
+    pub fn new(finalizer: F, rpc_client: C) -> Self {
         Self { finalizer, rpc_client }
     }
 }
@@ -73,7 +72,7 @@ where
 impl<F, C> EventHandler for Handler<F, C>
 where
     F: Finalizer,
-    C: ClientT + Sync + Send + 'static,
+    C: EthereumClient,
 {
     type Err = Error;
 
