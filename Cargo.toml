@@ -13,9 +13,11 @@ cosmrs = "0.11.0"
 deref-derive = "0.1.0"
 error-stack = {version = "0.2.4", features = ["eyre"]}
 futures = "0.3.25"
+jsonrpsee = {version = "0.16.2", features = ["http-client"]}
 mockall = "0.11.3"
 serde = {version = "1.0.147", features = ["derive"]}
 serde_json = "1.0.89"
+subtle-encoding = "0.5.1"
 tendermint = "0.27.0"
 tendermint-rpc = {version = "0.27.0", features = ["http-client"]}
 thiserror = "1.0.37"
@@ -28,3 +30,4 @@ tracing-core = {version = "0.1.30", features = ["valuable"]}
 tracing-subscriber = {version = "0.3.16", features = ["json", "valuable"]}
 url = "2.3.1"
 valuable = {version = "0.1.0", features = ["derive"]}
+web3 = {version = "0.18.0", default-features = false}

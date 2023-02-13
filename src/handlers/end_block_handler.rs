@@ -23,9 +23,12 @@ impl EndBlockHandlerFactory {
         Self { tx }
     }
 
-    pub fn build(&self, label: String) -> EndBlockHandler {
+    pub fn build<T>(&self, label: T) -> EndBlockHandler
+    where
+        T: Into<String>,
+    {
         EndBlockHandler {
-            label,
+            label: label.into(),
             tx: self.tx.clone(),
         }
     }
@@ -67,7 +70,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(count);
         let factory = EndBlockHandlerFactory::new(tx);
         let label = "handler";
-        let handler = factory.build(label.into());
+        let handler = factory.build(label);
         let mut height = block::Height::default();
 
         for _ in 0..count {

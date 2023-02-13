@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
 use error_stack::{FutureExt, Report, Result};
@@ -22,7 +21,7 @@ pub enum Event {
     BlockEnd(block::Height),
     AbciEvent {
         event_type: String,
-        attributes: HashMap<String, String>,
+        attributes: serde_json::Map<String, serde_json::Value>,
     },
 }
 
@@ -30,7 +29,14 @@ impl From<abci::Event> for Event {
     fn from(event: abci::Event) -> Self {
         Self::AbciEvent {
             event_type: event.kind,
-            attributes: event.attributes.into_iter().map(|tag| (tag.key, tag.value)).collect(),
+            attributes: event
+                .attributes
+                .into_iter()
+                .map(|tag| match serde_json::from_str(&tag.value) {
+                    Ok(v) => (tag.key, v),
+                    Err(_) => (tag.key, tag.value.into()),
+                })
+                .collect(),
         }
     }
 }
