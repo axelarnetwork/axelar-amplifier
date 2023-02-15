@@ -1,22 +1,30 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo, QueryRequest,
-    Response, StdResult, Uint64, WasmMsg, WasmQuery,
+    from_binary, to_binary, Addr, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo,
+    QueryRequest, Response, StdResult, Uint256, Uint64, WasmMsg, WasmQuery,
 };
 // use cw2::set_contract_version;
 
-use crate::error::ContractError;
-use crate::msg::{ActionMessage, ActionResponse, InstantiateMsg};
-use crate::snapshot::Snapshot;
-use crate::state::{PollMetadata, ServiceInfo, POLLS, POLL_COUNTER, SERVICE_INFO};
+use crate::{
+    command::{new_validate_calls_hash_command, CommandType},
+    error::ContractError,
+    msg::{ActionMessage, ActionResponse, InstantiateMsg},
+    poll::Poll,
+    snapshot::Snapshot,
+    state::{
+        CommandBatch, PollMetadata, ServiceInfo, COMMANDS_BATCH_QUEUE, POLLS, POLL_COUNTER,
+        SERVICE_INFO,
+    },
+};
 
-use crate::poll::Poll;
 use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
 use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
 use service_registry::msg::ActiveWorkers;
 use service_registry::msg::QueryMsg as RegistryQueryMsg;
+
+use ethabi::{ethereum_types::U256, Token};
 
 /*
 // version info for migration info
@@ -42,6 +50,9 @@ pub fn instantiate(
         reward_pool: msg.reward_pool,
         voting_period: msg.voting_period,
         voting_grace_period: msg.voting_grace_period,
+        router_contract: msg.router_contract,
+        destination_chain_id: msg.destination_chain_id,
+        destination_chain_name: msg.destination_chain_name,
     };
     SERVICE_INFO.save(deps.storage, &service)?;
     POLL_COUNTER.save(deps.storage, &0)?;
@@ -94,9 +105,10 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         match message {
             ActionMessage::ConfirmGatewayTxs {
-                from_nonce: _,
-                to_nonce: _,
-            } => request_confirm_gateway_txs(deps, env, message),
+                from_nonce,
+                to_nonce,
+            } => request_confirm_gateway_txs(deps, env, message, from_nonce, to_nonce),
+            ActionMessage::RequestWorkerSignatures {} => finalize_batch(deps, env),
         }
     }
 
@@ -160,17 +172,14 @@ pub mod execute {
         deps: DepsMut,
         env: Env,
         message: ActionMessage,
+        from_nonce: Uint256,
+        to_nonce: Uint256,
     ) -> Result<Response, ContractError> {
         // TODO: validate sender = worker ??
 
         let service_info = SERVICE_INFO.load(deps.storage)?;
 
         let poll = initialize_poll(deps.storage, deps.querier, env, message)?;
-
-        let ActionMessage::ConfirmGatewayTxs {
-            from_nonce,
-            to_nonce,
-        } = poll.message;
 
         let participants: Vec<Participant> = poll
             .snapshot
@@ -189,6 +198,103 @@ pub mod execute {
             .add_attribute("from_nonce", from_nonce)
             .add_attribute("to_nonce", to_nonce)
             .add_attribute("participants", to_string(&participants).unwrap());
+
+        Ok(Response::new().add_event(event))
+    }
+
+    fn pack_batch_arguments(
+        chain_id: Uint256,
+        commands_ids: &[[u8; 32]],
+        commands: Vec<String>,
+        commands_params: Vec<Vec<u8>>,
+    ) -> Vec<u8> {
+        let chain_id_token = Token::Uint(U256::from_dec_str(&chain_id.to_string()).unwrap());
+        let commands_ids_tokens: Vec<Token> = commands_ids
+            .iter()
+            .map(|item| Token::FixedBytes(item.to_vec()))
+            .collect();
+        let commands_tokens: Vec<Token> = commands
+            .iter()
+            .map(|item| Token::String(item.clone()))
+            .collect();
+        let commands_params_tokens: Vec<Token> = commands_params
+            .iter()
+            .map(|item| Token::Bytes(item.clone()))
+            .collect();
+
+        ethabi::encode(&[
+            chain_id_token,
+            Token::Array(commands_ids_tokens),
+            Token::Array(commands_tokens),
+            Token::Array(commands_params_tokens),
+        ])
+    }
+
+    fn new_command_batch(
+        block_height: u64,
+        destination_chain_id: Uint256,
+        destination_chain_name: &str,
+        messages: Vec<Binary>,
+    ) -> Result<CommandBatch, ContractError> {
+        let mut commands_ids: Vec<[u8; 32]> = Vec::new();
+        let mut commands: Vec<String> = Vec::new();
+        let mut commands_params: Vec<Vec<u8>> = Vec::new();
+
+        for message in messages {
+            let command_type: CommandType = from_binary(&message)?;
+            let command_type_string = command_type.to_string();
+
+            let command = match command_type {
+                CommandType::ValidateCallsHash {
+                    source_chain,
+                    calls_hash,
+                } => new_validate_calls_hash_command(
+                    &source_chain,
+                    destination_chain_name,
+                    calls_hash,
+                    destination_chain_id,
+                    command_type_string,
+                ),
+            };
+
+            commands_ids.push(command.command_id);
+            commands.push(command.command_type);
+            commands_params.push(command.params);
+        }
+
+        let data = pack_batch_arguments(
+            destination_chain_id,
+            &commands_ids,
+            commands,
+            commands_params,
+        );
+
+        Ok(CommandBatch::new(block_height, commands_ids, data))
+    }
+
+    fn finalize_batch(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+
+        let query_msg = connection_router::msg::QueryMsg::GetMessages {};
+        let query_response: connection_router::msg::GetMessagesResponse =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: service_info.router_contract.to_string(),
+                msg: to_binary(&query_msg)?,
+            }))?;
+
+        let command_batch = new_command_batch(
+            env.block.height,
+            service_info.destination_chain_id,
+            &service_info.destination_chain_name,
+            query_response.messages,
+        )?;
+
+        COMMANDS_BATCH_QUEUE.save(deps.storage, &command_batch.id, &command_batch)?;
+
+        let event = Event::new("Sign")
+            .add_attribute("chain", service_info.destination_chain_name)
+            .add_attribute("batch_id", Uint256::from_be_bytes(command_batch.id))
+            .add_attribute("commands_ids", command_batch.command_ids_hex_string());
 
         Ok(Response::new().add_event(event))
     }
@@ -346,6 +452,9 @@ mod tests {
         reward_pool: Addr,
         voting_period: Uint64,
         voting_grace_period: Uint64,
+        router_contract: Addr,
+        destination_chain_id: Uint256,
+        destination_chain_name: String,
     ) -> Addr {
         let service_id = app.store_code(contract_service());
         let msg = InstantiateMsg {
@@ -364,6 +473,9 @@ mod tests {
             reward_pool,
             voting_period,
             voting_grace_period,
+            router_contract,
+            destination_chain_id,
+            destination_chain_name,
         };
         app.instantiate_contract(
             service_id,
@@ -416,6 +528,9 @@ mod tests {
         let min_worker_bond = Uint128::from(100u8);
         let unbonding_period = Uint128::from(1u8);
         let description = "EVM Connection Service".to_string();
+        let router_contract = Addr::unchecked("router");
+        let destination_chain_id = Uint256::from(43114u16);
+        let destination_chain_name = "Avalanche".to_string();
 
         let service_address = instantiate_service(
             app,
@@ -434,6 +549,9 @@ mod tests {
             reward_pool,
             voting_period,
             voting_grace_period,
+            router_contract,
+            destination_chain_id,
+            destination_chain_name,
         );
         app.update_block(next_block);
         register_workers(app, &service_name, registry_addr.clone());
@@ -469,6 +587,9 @@ mod tests {
         let min_worker_bond = Uint128::from(100u8);
         let unbonding_period = Uint128::from(1u8);
         let description = "EVM Connection Service".to_string();
+        let router_contract = Addr::unchecked("router");
+        let destination_chain_id = Uint256::from(43114u16);
+        let destination_chain_name = "Avalanche".to_string();
 
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -489,6 +610,9 @@ mod tests {
             reward_pool: Addr::unchecked("reward_pool"),
             voting_period: Uint64::from(5u64),
             voting_grace_period: Uint64::from(5u64),
+            router_contract,
+            destination_chain_id,
+            destination_chain_name,
         };
 
         instantiate(deps, env, info, instantiate_msg).unwrap()

@@ -3,6 +3,7 @@ use cosmwasm_std::{Addr, Decimal, Uint128, Uint256, Uint64};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    // TODO: rename inbound/outbound variables
     pub service_registry: Addr,
     pub service_name: String,
     pub source_chain_name: String,
@@ -18,6 +19,9 @@ pub struct InstantiateMsg {
     pub reward_pool: Addr,
     pub voting_period: Uint64,
     pub voting_grace_period: Uint64,
+    pub router_contract: Addr,
+    pub destination_chain_id: Uint256,
+    pub destination_chain_name: String,
 }
 
 #[cw_serde]
@@ -33,6 +37,7 @@ pub enum ActionMessage {
         from_nonce: Uint256,
         to_nonce: Uint256,
     },
+    RequestWorkerSignatures {},
 }
 
 #[cw_serde]

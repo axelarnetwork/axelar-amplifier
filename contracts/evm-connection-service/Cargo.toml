@@ -39,7 +39,11 @@ serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
 service-interface = { workspace = true, features = ["library"] }
 service-registry = { workspace = true }
+connection-router = { workspace = true, features = ["library"] }
 serde_json = "1.0.89"
+ethabi = { version = "18.0.0", default-features = false, features = [] }
+hex = { version = "0.4.3", default-features = false, features = [] }
+sha3 = { version = "0.10", default-features = false, features = [] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

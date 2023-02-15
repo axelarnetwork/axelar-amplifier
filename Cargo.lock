@@ -394,24 +394,6 @@ dependencies = [
 name = "evm-connection-service"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus",
- "cw2",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "service-registry",
- "thiserror",
-]
-
-[[package]]
-name = "evm-outgoing-service"
-version = "0.1.0"
-dependencies = [
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -425,6 +407,7 @@ dependencies = [
  "serde",
  "serde_json",
  "service-interface",
+ "service-registry",
  "sha3",
  "thiserror",
 ]

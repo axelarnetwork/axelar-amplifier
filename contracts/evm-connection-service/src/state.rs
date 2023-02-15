@@ -3,6 +3,7 @@ use std::fmt::Display;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use sha3::{Digest, Keccak256};
 
 use crate::{
     msg::{ActionMessage, ActionResponse},
@@ -14,14 +15,17 @@ use crate::{
 pub struct ServiceInfo {
     pub service_registry: Addr,
     pub name: String,
-    pub source_chain_name: String,
-    pub gateway_address: Addr,
+    pub source_chain_name: String, // TODO: rename to inbound?
+    pub gateway_address: Addr,     // TODO: rename to inbound?
     pub confirmation_height: Uint64,
     pub voting_threshold: Decimal,
     pub min_voter_count: Uint64,
     pub reward_pool: Addr,
     pub voting_period: Uint64,
     pub voting_grace_period: Uint64,
+    pub router_contract: Addr,
+    pub destination_chain_id: Uint256, // TODO: rename to outbound?
+    pub destination_chain_name: String,
 }
 
 #[cw_serde]
@@ -149,6 +153,66 @@ pub fn tallied_votes<'a>() -> IndexedMap<'a, (u64, u64), TalliedVote, TalliedVot
     IndexedMap::new("tallied_votes", indexes)
 }
 
+#[cw_serde]
+pub enum BatchedCommandsStatus {
+    Signing,
+    Aborted,
+    Signed,
+}
+
+#[cw_serde]
+pub struct CommandBatch {
+    pub id: [u8; 32],
+    pub commands_ids: Vec<[u8; 32]>,
+    pub data: Vec<u8>,
+    pub status: BatchedCommandsStatus,
+}
+
+impl CommandBatch {
+    pub fn new(block_height: u64, commands_ids: Vec<[u8; 32]>, data: Vec<u8>) -> Self {
+        let mut hasher = Keccak256::new();
+        hasher.update(block_height.to_be_bytes());
+        hasher.update(&data);
+        let id = hasher
+            .finalize()
+            .as_slice()
+            .try_into()
+            .expect("Wrong length");
+
+        Self {
+            id,
+            commands_ids,
+            data,
+            status: BatchedCommandsStatus::Signing,
+        }
+    }
+
+    pub fn command_ids_hex_string(&self) -> String {
+        self.commands_ids
+            .iter()
+            .fold(String::new(), |mut accum, command_id| {
+                let hex_string = hex::encode(command_id);
+                accum.push_str(&hex_string);
+                accum
+            })
+    }
+}
+
+pub enum KeyState {
+    Pending,
+    Completed,
+}
+
+pub struct Key {
+    pub id: String,
+    pub snapshot: Snapshot,
+    // TODO: pubkeys
+    pub signing_treshhold: Decimal,
+    pub state: KeyState,
+}
+
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
+pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batchs");
+pub const KEYS: Map<&String, Key> = Map::new("keys");
