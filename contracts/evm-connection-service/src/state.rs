@@ -1,7 +1,7 @@
-use std::fmt::Display;
+use std::{collections::BTreeMap, fmt::Display};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Uint256, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use sha3::{Digest, Keccak256};
 
@@ -26,6 +26,8 @@ pub struct ServiceInfo {
     pub router_contract: Addr,
     pub destination_chain_id: Uint256, // TODO: rename to outbound?
     pub destination_chain_name: String,
+    pub signing_timeout: Uint64,
+    pub signing_grace_period: Uint64,
 }
 
 #[cw_serde]
@@ -165,16 +167,41 @@ pub struct CommandBatch {
     pub id: [u8; 32],
     pub commands_ids: Vec<[u8; 32]>,
     pub data: Vec<u8>,
+    pub sig_hash: [u8; 32],
     pub status: BatchedCommandsStatus,
+    pub key_id: String,
 }
 
 impl CommandBatch {
-    pub fn new(block_height: u64, commands_ids: Vec<[u8; 32]>, data: Vec<u8>) -> Self {
-        let mut hasher = Keccak256::new();
-        hasher.update(block_height.to_be_bytes());
-        hasher.update(&data);
-        let id = hasher
+    pub fn new(
+        block_height: u64,
+        commands_ids: Vec<[u8; 32]>,
+        data: Vec<u8>,
+        key_id: String,
+    ) -> Self {
+        let mut id_hasher = Keccak256::new();
+        id_hasher.update(block_height.to_be_bytes());
+        id_hasher.update(&data);
+        let id = id_hasher
             .finalize()
+            .as_slice()
+            .try_into()
+            .expect("Wrong length");
+
+        let data_hash: [u8; 32] = Keccak256::digest(&data)
+            .as_slice()
+            .try_into()
+            .expect("Wrong length");
+
+        // TODO: need to test the whole thing is producing the expected bytes
+        let msg = [
+            "\x19Ethereum Signed Message:\n%d%s".as_bytes(),
+            &data_hash.len().to_be_bytes(),
+            &data_hash,
+        ]
+        .concat();
+
+        let sig_hash = Keccak256::digest(msg)
             .as_slice()
             .try_into()
             .expect("Wrong length");
@@ -183,11 +210,14 @@ impl CommandBatch {
             id,
             commands_ids,
             data,
+            sig_hash,
             status: BatchedCommandsStatus::Signing,
+            key_id,
         }
     }
 
     pub fn command_ids_hex_string(&self) -> String {
+        // TODO: replace with serde to_string?
         self.commands_ids
             .iter()
             .fold(String::new(), |mut accum, command_id| {
@@ -198,21 +228,79 @@ impl CommandBatch {
     }
 }
 
+#[cw_serde]
 pub enum KeyState {
+    Inactive,
+    Assigned,
+    Active,
+}
+
+// TODO: keygen logic
+#[cw_serde]
+pub struct Key {
+    pub id: String,
+    pub snapshot: Snapshot,
+    pub pub_keys: BTreeMap<String, Binary>, // TODO: move out to Map
+    pub signing_treshhold: Decimal,
+    pub state: KeyState,
+}
+
+#[cw_serde]
+pub struct MultiSig {
+    key_id: String,
+    payload_hash: [u8; 32],
+    sigs: BTreeMap<String, Binary>, // TODO: move out to Map
+}
+
+#[cw_serde]
+pub enum MultisigState {
     Pending,
     Completed,
 }
 
-pub struct Key {
-    pub id: String,
-    pub snapshot: Snapshot,
-    // TODO: pubkeys
-    pub signing_treshhold: Decimal,
-    pub state: KeyState,
+#[cw_serde]
+pub struct SigningSession {
+    pub id: Uint64,
+    pub multisig: MultiSig,
+    pub state: MultisigState,
+    pub key: Key,
+    pub chain_name: String,
+    pub command_batch_id: [u8; 32],
+    pub expires_at: Uint64,
+    pub grace_period: Uint64,
+}
+
+impl SigningSession {
+    pub fn new(
+        id: Uint64,
+        key: &Key,
+        chain_name: String,
+        command_batch_id: [u8; 32],
+        payload_hash: [u8; 32],
+        expires_at: Uint64,
+        grace_period: Uint64,
+    ) -> Self {
+        Self {
+            id,
+            multisig: MultiSig {
+                key_id: key.id.clone(),
+                payload_hash,
+                sigs: BTreeMap::new(),
+            },
+            state: MultisigState::Pending,
+            key: key.clone(),
+            chain_name,
+            command_batch_id,
+            expires_at,
+            grace_period,
+        }
+    }
 }
 
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
 pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batchs");
-pub const KEYS: Map<&String, Key> = Map::new("keys");
+pub const KEYS: Map<&str, Key> = Map::new("keys");
+pub const SIGNING_SESSION_COUNTER: Item<u64> = Item::new("signing_session_counter");
+pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");

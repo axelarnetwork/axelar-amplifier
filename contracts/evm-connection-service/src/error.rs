@@ -18,4 +18,8 @@ pub enum ContractError {
     AlreadyVoted { voter: Addr },
     #[error("Address {voter:?} is not eligible to vote in this poll")]
     NotEligibleToVote { voter: Addr },
+    #[error("Key {key:?} not found")]
+    KeyNotFound { key: String },
+    #[error("Key {key:?} is not activated yet")]
+    KeyNotActive { key: String },
 }

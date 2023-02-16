@@ -14,7 +14,7 @@ use crate::{
     snapshot::Snapshot,
     state::{
         CommandBatch, PollMetadata, ServiceInfo, COMMANDS_BATCH_QUEUE, POLLS, POLL_COUNTER,
-        SERVICE_INFO,
+        SERVICE_INFO, SIGNING_SESSION_COUNTER,
     },
 };
 
@@ -53,9 +53,12 @@ pub fn instantiate(
         router_contract: msg.router_contract,
         destination_chain_id: msg.destination_chain_id,
         destination_chain_name: msg.destination_chain_name,
+        signing_timeout: msg.signing_timeout,
+        signing_grace_period: msg.signing_grace_period,
     };
     SERVICE_INFO.save(deps.storage, &service)?;
     POLL_COUNTER.save(deps.storage, &0)?;
+    SIGNING_SESSION_COUNTER.save(deps.storage, &0)?;
 
     let register_msg = service_registry::msg::ExecuteMsg::RegisterService {
         service_name: service.name,
@@ -94,7 +97,7 @@ pub mod execute {
     use cosmwasm_std::{QuerierWrapper, Storage};
     use serde_json::to_string;
 
-    use crate::state::Participant;
+    use crate::{multisig::sign, state::Participant};
 
     use super::*;
 
@@ -205,7 +208,7 @@ pub mod execute {
     fn pack_batch_arguments(
         chain_id: Uint256,
         commands_ids: &[[u8; 32]],
-        commands: Vec<String>,
+        commands: &[String],
         commands_params: Vec<Vec<u8>>,
     ) -> Vec<u8> {
         let chain_id_token = Token::Uint(U256::from_dec_str(&chain_id.to_string()).unwrap());
@@ -241,6 +244,8 @@ pub mod execute {
         let mut commands_params: Vec<Vec<u8>> = Vec::new();
 
         for message in messages {
+            // TODO: filter per gas cost
+
             let command_type: CommandType = from_binary(&message)?;
             let command_type_string = command_type.to_string();
 
@@ -265,11 +270,18 @@ pub mod execute {
         let data = pack_batch_arguments(
             destination_chain_id,
             &commands_ids,
-            commands,
+            &commands,
             commands_params,
         );
 
-        Ok(CommandBatch::new(block_height, commands_ids, data))
+        let key_id = commands.first().unwrap();
+
+        Ok(CommandBatch::new(
+            block_height,
+            commands_ids,
+            data,
+            key_id.to_owned(),
+        ))
     }
 
     fn finalize_batch(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
@@ -282,6 +294,10 @@ pub mod execute {
                 msg: to_binary(&query_msg)?,
             }))?;
 
+        if query_response.messages.is_empty() {
+            return Ok(Response::default());
+        }
+
         let command_batch = new_command_batch(
             env.block.height,
             service_info.destination_chain_id,
@@ -291,12 +307,23 @@ pub mod execute {
 
         COMMANDS_BATCH_QUEUE.save(deps.storage, &command_batch.id, &command_batch)?;
 
+        let sig_started_event = sign(
+            deps.storage,
+            env.block.height,
+            command_batch.key_id.clone(),
+            command_batch.sig_hash,
+            service_info.destination_chain_name.clone(),
+            command_batch.id,
+        )?;
+
         let event = Event::new("Sign")
             .add_attribute("chain", service_info.destination_chain_name)
             .add_attribute("batch_id", Uint256::from_be_bytes(command_batch.id))
             .add_attribute("commands_ids", command_batch.command_ids_hex_string());
 
-        Ok(Response::new().add_event(event))
+        Ok(Response::new()
+            .add_event(event)
+            .add_event(sig_started_event))
     }
 
     pub fn post_worker_reply(
@@ -455,6 +482,8 @@ mod tests {
         router_contract: Addr,
         destination_chain_id: Uint256,
         destination_chain_name: String,
+        signing_timeout: Uint64,
+        signing_grace_period: Uint64,
     ) -> Addr {
         let service_id = app.store_code(contract_service());
         let msg = InstantiateMsg {
@@ -476,6 +505,8 @@ mod tests {
             router_contract,
             destination_chain_id,
             destination_chain_name,
+            signing_timeout,
+            signing_grace_period,
         };
         app.instantiate_contract(
             service_id,
@@ -531,6 +562,8 @@ mod tests {
         let router_contract = Addr::unchecked("router");
         let destination_chain_id = Uint256::from(43114u16);
         let destination_chain_name = "Avalanche".to_string();
+        let signing_timeout = Uint64::from(1u8);
+        let signing_grace_period = Uint64::from(1u8);
 
         let service_address = instantiate_service(
             app,
@@ -552,6 +585,8 @@ mod tests {
             router_contract,
             destination_chain_id,
             destination_chain_name,
+            signing_timeout,
+            signing_grace_period,
         );
         app.update_block(next_block);
         register_workers(app, &service_name, registry_addr.clone());
@@ -590,6 +625,8 @@ mod tests {
         let router_contract = Addr::unchecked("router");
         let destination_chain_id = Uint256::from(43114u16);
         let destination_chain_name = "Avalanche".to_string();
+        let signing_timeout = Uint64::from(20u8);
+        let signing_grace_period = Uint64::from(1u8);
 
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -613,6 +650,8 @@ mod tests {
             router_contract,
             destination_chain_id,
             destination_chain_name,
+            signing_timeout,
+            signing_grace_period,
         };
 
         instantiate(deps, env, info, instantiate_msg).unwrap()

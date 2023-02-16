@@ -22,6 +22,8 @@ pub struct InstantiateMsg {
     pub router_contract: Addr,
     pub destination_chain_id: Uint256,
     pub destination_chain_name: String,
+    pub signing_timeout: Uint64,
+    pub signing_grace_period: Uint64,
 }
 
 #[cw_serde]
