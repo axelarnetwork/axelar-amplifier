@@ -1,7 +1,8 @@
 [package]
-name = "axelar-connection-registry"
+name = "evm-connection-service"
 version = "0.1.0"
 edition = "2021"
+description = "EVM Service contract"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -36,6 +37,9 @@ cw2 = "0.15.1"
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
+service-interface = { workspace = true, features = ["library"] }
+service-registry = { workspace = true }
+serde_json = "1.0.89"
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

@@ -1,1 +1,1 @@
-# axelar-connection-registry
+# axelar-service-registry

@@ -1,6 +1,11 @@
 [workspace]
 members = [
-  "contracts/connection-registry",
+  "contracts/service-registry",
+  "contracts/service-interface",
+  "contracts/evm-connection-service",
+  "contracts/connection-router",
+  "contracts/evm-batch-service",
+  "contracts/batching",
 ]
 
 [profile.release]
@@ -13,3 +18,7 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+
+[workspace.dependencies]
+service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
+service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
