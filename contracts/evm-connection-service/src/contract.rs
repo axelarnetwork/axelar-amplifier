@@ -97,7 +97,10 @@ pub mod execute {
     use cosmwasm_std::{QuerierWrapper, Storage};
     use serde_json::to_string;
 
-    use crate::{multisig::sign, state::Participant};
+    use crate::{
+        multisig::start_signing_session,
+        state::{Participant, SIGNING_SESSIONS},
+    };
 
     use super::*;
 
@@ -307,7 +310,7 @@ pub mod execute {
 
         COMMANDS_BATCH_QUEUE.save(deps.storage, &command_batch.id, &command_batch)?;
 
-        let sig_started_event = sign(
+        let sig_started_event = start_signing_session(
             deps.storage,
             env.block.height,
             command_batch.key_id.clone(),
@@ -337,6 +340,10 @@ pub mod execute {
                 poll_id,
                 calls_hash: _,
             } => vote(deps, env, info, poll_id, reply),
+            ActionResponse::SubmitSignature {
+                signing_session_id,
+                signature,
+            } => submit_signature(deps, env, signing_session_id, signature),
         }
     }
 
@@ -362,6 +369,16 @@ pub mod execute {
         // TODO: React to poll state
 
         Ok(Response::new().add_event(event))
+    }
+
+    pub fn submit_signature(
+        deps: DepsMut,
+        env: Env,
+        signing_session_id: Uint64,
+        signature: Binary,
+    ) -> Result<Response, ContractError> {
+        let signing_session = SIGNING_SESSIONS.load(deps.storage, signing_session_id.u64());
+        todo!()
     }
 }
 

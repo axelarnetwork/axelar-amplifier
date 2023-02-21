@@ -7,6 +7,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     msg::{ActionMessage, ActionResponse},
+    multisig::SigningSession,
     snapshot::Snapshot,
     utils::hash,
 };
@@ -240,61 +241,9 @@ pub enum KeyState {
 pub struct Key {
     pub id: String,
     pub snapshot: Snapshot,
-    pub pub_keys: BTreeMap<String, Binary>, // TODO: move out to Map
+    pub pub_keys: BTreeMap<Addr, Binary>, // TODO: move out to Map
     pub signing_treshhold: Decimal,
     pub state: KeyState,
-}
-
-#[cw_serde]
-pub struct MultiSig {
-    key_id: String,
-    payload_hash: [u8; 32],
-    sigs: BTreeMap<String, Binary>, // TODO: move out to Map
-}
-
-#[cw_serde]
-pub enum MultisigState {
-    Pending,
-    Completed,
-}
-
-#[cw_serde]
-pub struct SigningSession {
-    pub id: Uint64,
-    pub multisig: MultiSig,
-    pub state: MultisigState,
-    pub key: Key,
-    pub chain_name: String,
-    pub command_batch_id: [u8; 32],
-    pub expires_at: Uint64,
-    pub grace_period: Uint64,
-}
-
-impl SigningSession {
-    pub fn new(
-        id: Uint64,
-        key: &Key,
-        chain_name: String,
-        command_batch_id: [u8; 32],
-        payload_hash: [u8; 32],
-        expires_at: Uint64,
-        grace_period: Uint64,
-    ) -> Self {
-        Self {
-            id,
-            multisig: MultiSig {
-                key_id: key.id.clone(),
-                payload_hash,
-                sigs: BTreeMap::new(),
-            },
-            state: MultisigState::Pending,
-            key: key.clone(),
-            chain_name,
-            command_batch_id,
-            expires_at,
-            grace_period,
-        }
-    }
 }
 
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");

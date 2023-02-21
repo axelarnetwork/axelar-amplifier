@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint256, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint256, Uint64};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -47,5 +47,9 @@ pub enum ActionResponse {
     ConfirmGatewayTxs {
         poll_id: Uint64,
         calls_hash: [u8; 32],
+    },
+    SubmitSignature {
+        signing_session_id: Uint64,
+        signature: Binary,
     },
 }
