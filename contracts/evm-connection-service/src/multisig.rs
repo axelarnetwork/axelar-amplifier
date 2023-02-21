@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, ops::Add};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Binary, Event, Response, Storage, Uint64};
+use cosmwasm_std::{Addr, Binary, Event, Storage, Uint64};
 use secp256k1::{verify, Message, PublicKey, Signature};
 use serde_json::to_string;
 
@@ -11,12 +11,12 @@ use crate::{
 };
 
 #[cw_serde]
-pub struct WorkerSignature(Binary);
+pub struct WorkerSignature(pub Binary);
 impl WorkerSignature {
     // TODO: test verification
     pub fn verify(&self, payload_hash: [u8; 32], public_key: &Binary) -> bool {
         let message = Message::parse(&payload_hash);
-        let pubkey = PublicKey::parse_slice(&public_key, None).unwrap();
+        let pubkey = PublicKey::parse_slice(public_key, None).unwrap();
         let signature = Signature::parse_der(&self.0).unwrap();
 
         verify(&message, &signature, &pubkey)
@@ -128,7 +128,6 @@ impl SigningSession {
         {
             self.completed_at = Some(Uint64::from(block_height));
             self.state = MultisigState::Completed;
-            SIGNING_SESSIONS.save(store, self.id.u64(), self)?;
         }
 
         Ok(())

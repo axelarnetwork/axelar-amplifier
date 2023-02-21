@@ -98,7 +98,7 @@ pub mod execute {
     use serde_json::to_string;
 
     use crate::{
-        multisig::start_signing_session,
+        multisig::{start_signing_session, WorkerSignature},
         state::{Participant, SIGNING_SESSIONS},
     };
 
@@ -343,7 +343,7 @@ pub mod execute {
             ActionResponse::SubmitSignature {
                 signing_session_id,
                 signature,
-            } => submit_signature(deps, env, signing_session_id, signature),
+            } => submit_signature(deps, env, info, signing_session_id, signature),
         }
     }
 
@@ -374,11 +374,27 @@ pub mod execute {
     pub fn submit_signature(
         deps: DepsMut,
         env: Env,
+        info: MessageInfo,
         signing_session_id: Uint64,
         signature: Binary,
     ) -> Result<Response, ContractError> {
-        let signing_session = SIGNING_SESSIONS.load(deps.storage, signing_session_id.u64());
-        todo!()
+        let mut signing_session = SIGNING_SESSIONS.load(deps.storage, signing_session_id.u64())?;
+
+        signing_session.add_signature(
+            deps.storage,
+            env.block.height,
+            info.sender.clone(),
+            WorkerSignature(signature.clone()),
+        )?;
+
+        SIGNING_SESSIONS.save(deps.storage, signing_session.id.u64(), &signing_session)?;
+
+        let event = Event::new("SignatureSubmitted")
+            .add_attribute("sig_id", signing_session.id)
+            .add_attribute("participant", info.sender)
+            .add_attribute("signature", signature.to_base64());
+
+        Ok(Response::new().add_event(event))
     }
 }
 
