@@ -1,7 +1,11 @@
+use std::{collections::HashMap, sync::Arc};
+
+use crate::url::Url;
 use async_trait::async_trait;
 use error_stack::{self, IntoReport};
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::Error;
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use mockall::automock;
 use web3::types::{BlockHeader, TransactionReceipt, H256, U64};
@@ -23,24 +27,24 @@ pub trait MoonbeamClient: EthereumClient {
     async fn finalized_block_hash(&self) -> Result<H256>;
 }
 
-pub struct EVMClient<C>
+pub struct Client<C>
 where
     C: ClientT,
 {
     client: C,
 }
 
-impl<C> EVMClient<C>
+impl<C> Client<C>
 where
     C: ClientT,
 {
     pub fn new(client: C) -> Self {
-        EVMClient { client }
+        Client { client }
     }
 }
 
 #[async_trait]
-impl<C> EthereumClient for EVMClient<C>
+impl<C> EthereumClient for Client<C>
 where
     C: ClientT + Send + Sync + 'static,
 {
@@ -70,7 +74,7 @@ where
 }
 
 #[async_trait]
-impl<C> MoonbeamClient for EVMClient<C>
+impl<C> MoonbeamClient for Client<C>
 where
     C: ClientT + Send + Sync + 'static,
 {
@@ -79,5 +83,22 @@ where
             .request("chain_getFinalizedHead", rpc_params![])
             .await
             .into_report()
+    }
+}
+
+#[derive(Default)]
+pub struct EVMClientRepo(HashMap<Url, Arc<Client<HttpClient>>>);
+
+impl EVMClientRepo {
+    pub fn client(&mut self, url: Url) -> Result<Arc<Client<HttpClient>>> {
+        let client = match self.0.get(&url) {
+            Some(client) => client,
+            None => {
+                let client = Arc::new(Client::new(HttpClientBuilder::default().build(url.as_str())?));
+                self.0.entry(url).or_insert(client)
+            }
+        };
+
+        Ok(client.clone())
     }
 }

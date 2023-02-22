@@ -5,12 +5,12 @@ use error_stack::{Result, ResultExt};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ChainHandlerError {
+pub enum Error {
     #[error("one of the chained handlers failed handling event")]
     ChainError,
 }
 
-pub struct ChainHandler<H1, H2>
+pub struct Handler<H1, H2>
 where
     H1: EventHandler,
     H2: EventHandler,
@@ -19,7 +19,7 @@ where
     handler_2: H2,
 }
 
-impl<H1, H2> ChainHandler<H1, H2>
+impl<H1, H2> Handler<H1, H2>
 where
     H1: EventHandler,
     H2: EventHandler,
@@ -30,22 +30,16 @@ where
 }
 
 #[async_trait]
-impl<H1, H2> EventHandler for ChainHandler<H1, H2>
+impl<H1, H2> EventHandler for Handler<H1, H2>
 where
     H1: EventHandler,
     H2: EventHandler,
 {
-    type Err = ChainHandlerError;
+    type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<(), ChainHandlerError> {
-        self.handler_1
-            .handle(event)
-            .await
-            .change_context(ChainHandlerError::ChainError)?;
-        self.handler_2
-            .handle(event)
-            .await
-            .change_context(ChainHandlerError::ChainError)?;
+    async fn handle(&self, event: &Event) -> Result<(), Error> {
+        self.handler_1.handle(event).await.change_context(Error::ChainError)?;
+        self.handler_2.handle(event).await.change_context(Error::ChainError)?;
 
         Ok(())
     }

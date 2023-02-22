@@ -578,6 +578,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum-display-derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f16ef37b2a9b242295d61a154ee91ae884afff6b8b933b486b12481cc58310ca"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2214,6 +2225,7 @@ dependencies = [
  "cosmos-sdk-proto",
  "cosmrs",
  "deref-derive",
+ "enum-display-derive",
  "error-stack",
  "futures",
  "jsonrpsee",

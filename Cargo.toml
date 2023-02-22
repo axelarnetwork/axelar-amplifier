@@ -11,6 +11,7 @@ config = "0.13.2"
 cosmos-sdk-proto = "0.16.0"
 cosmrs = "0.11.0"
 deref-derive = "0.1.0"
+enum-display-derive = "0.1.1"
 error-stack = {version = "0.2.4", features = ["eyre"]}
 futures = "0.3.25"
 jsonrpsee = {version = "0.16.2", features = ["http-client"]}

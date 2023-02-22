@@ -1,7 +1,7 @@
-use std::backtrace::Backtrace;
 use std::collections::VecDeque;
 use std::iter::FromIterator;
 use std::panic::Location;
+use std::{backtrace::Backtrace, fmt::Display};
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use thiserror::Error;
@@ -12,8 +12,11 @@ use valuable::Valuable;
 pub struct Error(String);
 
 impl Error {
-    pub fn new(msg: String) -> Error {
-        Error(msg)
+    pub fn new<T>(msg: T) -> Error
+    where
+        T: Display,
+    {
+        Error(msg.to_string())
     }
 }
 

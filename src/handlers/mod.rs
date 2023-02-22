@@ -1,3 +1,3 @@
-pub mod chain_handler;
-pub mod end_block_handler;
-pub mod evm_handlers;
+pub mod chain;
+pub mod end_block;
+pub mod evm_confirm_gateway_tx;

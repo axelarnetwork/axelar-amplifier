@@ -1,12 +1,11 @@
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-
 use deref_derive::Deref;
 use serde::de::{Error, Visitor};
 use serde::{Deserialize, Deserializer};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use url::ParseError;
 
-#[derive(Debug, Deref)]
+#[derive(Debug, Deref, Hash, PartialEq, Eq, Clone)]
 pub struct Url(url::Url);
 
 impl<'a> Deserialize<'a> for Url {

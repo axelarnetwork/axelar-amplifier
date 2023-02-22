@@ -1,5 +1,5 @@
 use crate::event_sub::Event;
-use crate::handlers::chain_handler::ChainHandler;
+use crate::handlers::chain;
 use async_trait::async_trait;
 use core::future::Future;
 use core::pin::Pin;
@@ -18,12 +18,12 @@ pub trait EventHandler: Send + Sync + 'static {
 
     async fn handle(&self, event: &Event) -> Result<(), Self::Err>;
 
-    fn chain<H>(self, handler: H) -> ChainHandler<Self, H>
+    fn chain<H>(self, handler: H) -> chain::Handler<Self, H>
     where
         Self: Sized,
         H: EventHandler,
     {
-        ChainHandler::new(self, handler)
+        chain::Handler::new(self, handler)
     }
 }
 
@@ -89,7 +89,7 @@ impl EventProcessor {
         )
     }
 
-    pub fn add_handler<H>(mut self, handler: H, event_stream: BroadcastStream<Event>) -> Self
+    pub fn add_handler<H>(&mut self, handler: H, event_stream: BroadcastStream<Event>) -> &mut Self
     where
         H: EventHandler,
     {
@@ -127,7 +127,7 @@ mod tests {
     async fn should_handle_events() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let (processor, driver) = EventProcessor::new();
+        let (mut processor, driver) = EventProcessor::new();
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().returning(|_| Ok(())).times(event_count);
@@ -139,17 +139,14 @@ mod tests {
             assert!(driver.close().is_ok());
         });
 
-        assert!(processor
-            .add_handler(handler, BroadcastStream::new(rx))
-            .run()
-            .await
-            .is_ok());
+        processor.add_handler(handler, BroadcastStream::new(rx));
+        assert!(processor.run().await.is_ok());
     }
 
     #[tokio::test]
     async fn should_return_error_if_handler_fails() {
         let (tx, rx) = broadcast::channel::<event_sub::Event>(10);
-        let (processor, _driver) = EventProcessor::new();
+        let (mut processor, _driver) = EventProcessor::new();
 
         let mut handler = MockEventHandler::new();
         handler
@@ -161,18 +158,15 @@ mod tests {
             assert!(tx.send(event_sub::Event::BlockEnd((10_u32).into())).is_ok());
         });
 
-        assert!(processor
-            .add_handler(handler, BroadcastStream::new(rx))
-            .run()
-            .await
-            .is_err());
+        processor.add_handler(handler, BroadcastStream::new(rx));
+        assert!(processor.run().await.is_err());
     }
 
     #[tokio::test]
     async fn should_support_multiple_types_of_handlers() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let (processor, driver) = EventProcessor::new();
+        let (mut processor, driver) = EventProcessor::new();
         let stream = BroadcastStream::new(rx);
         let another_stream = BroadcastStream::new(tx.subscribe());
 
@@ -189,12 +183,10 @@ mod tests {
             assert!(driver.close().is_ok());
         });
 
-        assert!(processor
+        processor
             .add_handler(handler, stream)
-            .add_handler(another_handler, another_stream)
-            .run()
-            .await
-            .is_ok());
+            .add_handler(another_handler, another_stream);
+        assert!(processor.run().await.is_ok());
     }
 
     #[derive(Error, Debug)]

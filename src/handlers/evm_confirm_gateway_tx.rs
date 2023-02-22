@@ -1,11 +1,12 @@
-use super::error::Error;
 use crate::deserializers::{
     deserialize_evm_address, deserialize_hash, deserialize_str_to_from_str, deserialize_tm_addresses,
 };
 use crate::event_processor::EventHandler;
 use crate::event_sub;
-use crate::handlers::evm_handlers::finalizer::Finalizer;
-use crate::json_rpc::EthereumClient;
+use crate::evm::error::Error;
+use crate::evm::finalizer::Finalizer;
+use crate::evm::json_rpc::EthereumClient;
+use crate::evm::ChainName;
 use crate::types::{EVMAddress, Hash, TMAddress};
 use async_trait::async_trait;
 use error_stack::{IntoReport, Report, Result, ResultExt};
@@ -13,6 +14,7 @@ use serde::de::value::MapDeserializer;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::convert::{TryFrom, TryInto};
+use std::sync::Arc;
 use web3::types::U64;
 
 const EVENT_TYPE: &str = "axelar.evm.v1beta1.ConfirmGatewayTxStarted";
@@ -54,7 +56,8 @@ where
     F: Finalizer,
     C: EthereumClient,
 {
-    rpc_client: C,
+    chain: ChainName,
+    rpc_client: Arc<C>,
     finalizer: F,
 }
 
@@ -63,8 +66,12 @@ where
     F: Finalizer,
     C: EthereumClient,
 {
-    pub fn new(finalizer: F, rpc_client: C) -> Self {
-        Self { finalizer, rpc_client }
+    pub fn new(chain: ChainName, finalizer: F, rpc_client: Arc<C>) -> Self {
+        Self {
+            chain,
+            finalizer,
+            rpc_client,
+        }
     }
 }
 
@@ -83,6 +90,11 @@ where
             }
             _ => return Ok(()),
         };
+
+        if !self.chain.matches(event.chain) {
+            return Ok(());
+        }
+
         let tx_receipt = self
             .rpc_client
             .transaction_receipt(event.tx_id)
@@ -97,11 +109,9 @@ where
                     .await?
                     .ge(&tx_receipt.block_number.unwrap_or(U64::MAX)) =>
             {
-                todo!("check logs in receipt and vote")
+                unimplemented!()
             }
-            _ => {
-                todo!("vote false")
-            }
+            _ => unimplemented!(),
         }
     }
 }
@@ -110,7 +120,7 @@ where
 mod tests {
     use super::EVENT_TYPE;
     use crate::event_sub;
-    use crate::handlers::evm_handlers::confirm_gateway_tx_handler;
+    use crate::handlers::evm_confirm_gateway_tx;
     use std::convert::TryInto;
     use tendermint::abci;
 
@@ -127,7 +137,7 @@ mod tests {
             ],
         );
         let event: event_sub::Event = event.into();
-        let event: Result<confirm_gateway_tx_handler::Event, _> = match event {
+        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
             event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -149,7 +159,7 @@ mod tests {
             ],
         );
         let event: event_sub::Event = event.into();
-        let event: Result<confirm_gateway_tx_handler::Event, _> = match event {
+        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
             event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -168,7 +178,7 @@ mod tests {
                 ],
             );
         let event: event_sub::Event = event.into();
-        let event: Result<confirm_gateway_tx_handler::Event, _> = match event {
+        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
             event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -187,7 +197,7 @@ mod tests {
                 ],
             );
         let event: event_sub::Event = event.into();
-        let event: Result<confirm_gateway_tx_handler::Event, _> = match event {
+        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
             event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -206,7 +216,7 @@ mod tests {
                 ],
         );
         let event: event_sub::Event = event.into();
-        let event: Result<confirm_gateway_tx_handler::Event, _> = match event {
+        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
             event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
