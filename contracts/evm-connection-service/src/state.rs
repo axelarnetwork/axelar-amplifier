@@ -1,7 +1,7 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Binary, Decimal, Uint256, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Order, Storage, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use sha3::{Digest, Keccak256};
 
@@ -241,9 +241,53 @@ pub enum KeyState {
 pub struct Key {
     pub id: String,
     pub snapshot: Snapshot,
-    pub pub_keys: BTreeMap<Addr, Binary>, // TODO: move out to Map
     pub signing_treshhold: Decimal,
     pub state: KeyState,
+}
+
+impl Key {
+    #[allow(clippy::type_complexity)]
+    pub fn pub_keys<'a>(
+        &'a self,
+        store: &'a mut dyn Storage,
+    ) -> Box<(dyn Iterator<Item = Result<((String, Addr), PubKey), cosmwasm_std::StdError>> + '_)>
+    {
+        pub_keys()
+            .idx
+            .key_id
+            .prefix(self.id.clone())
+            .range(store, None, None, Order::Ascending)
+    }
+
+    pub fn pub_key<'a>(&self, store: &'a mut dyn Storage, address: &Addr) -> Option<PubKey> {
+        pub_keys()
+            .may_load(store, (self.id.clone(), address.clone()))
+            .unwrap()
+    }
+}
+
+#[cw_serde]
+pub struct PubKey {
+    pub key_id: String,
+    pub pub_key: Binary,
+}
+
+pub struct PubKeysIndexes<'a> {
+    pub key_id: MultiIndex<'a, String, PubKey, (String, Addr)>,
+}
+
+impl<'a> IndexList<PubKey> for PubKeysIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<PubKey>> + '_> {
+        let v: Vec<&dyn Index<PubKey>> = vec![&self.key_id];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn pub_keys<'a>() -> IndexedMap<'a, (String, Addr), PubKey, PubKeysIndexes<'a>> {
+    let indexes = PubKeysIndexes {
+        key_id: MultiIndex::new(|_pk, d| d.key_id.clone(), "pub_keys", "pub_keys__key_id"),
+    };
+    IndexedMap::new("pub_keys", indexes)
 }
 
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");

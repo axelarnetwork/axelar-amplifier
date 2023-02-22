@@ -91,7 +91,8 @@ impl SigningSession {
             return Err(ContractError::ExpiredSigningSession { id: self.id });
         }
 
-        if !self.key.pub_keys.contains_key(&signer) {
+        let public_key_option = self.key.pub_key(store, &signer);
+        if public_key_option.is_none() {
             return Err(ContractError::InvalidParticipant {
                 signer,
                 id: self.id,
@@ -105,8 +106,10 @@ impl SigningSession {
             });
         }
 
-        let public_key = self.key.pub_keys.get(&signer).unwrap();
-        if !signature.verify(self.multisig.payload_hash, public_key) {
+        if !signature.verify(
+            self.multisig.payload_hash,
+            &public_key_option.unwrap().pub_key,
+        ) {
             return Err(ContractError::AlreadySigned {
                 signer,
                 id: self.id,
@@ -179,10 +182,18 @@ pub fn start_signing_session(
     );
     SIGNING_SESSIONS.save(store, sig_session_id, &signing_session)?;
 
+    let pub_keys: Vec<Binary> = key
+        .pub_keys(store)
+        .map(|item| {
+            let (_, pub_key) = item.unwrap();
+            pub_key.pub_key
+        })
+        .collect();
+
     let event = Event::new("SigningStarted")
         .add_attribute("sig_id", Uint64::from(sig_session_id))
         .add_attribute("key_id", key_id)
-        .add_attribute("pub_keys", to_string(&key.pub_keys).unwrap())
+        .add_attribute("pub_keys", to_string(&pub_keys).unwrap())
         .add_attribute("payload_hash", hex::encode(payload_hash));
 
     Ok(event)
