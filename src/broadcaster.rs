@@ -283,13 +283,13 @@ mod tests {
     use cosmrs::bank::MsgSend;
     use cosmrs::crypto::secp256k1::SigningKey;
     use cosmrs::tx::Msg;
-    use cosmrs::AccountId;
     use error_stack::IntoReport;
     use tokio::test;
     use tonic::Status;
 
     use crate::broadcaster::clients::MockBroadcastClient;
     use crate::broadcaster::{BroadcasterBuilder, BroadcasterError, Config};
+    use crate::types::TMAddress;
 
     #[test]
     async fn gas_estimation_call_failed() {
@@ -457,8 +457,8 @@ mod tests {
 
     fn dummy_msg() -> Any {
         MsgSend {
-            from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
-            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
+            from_address: TMAddress::new("", &[1, 2, 3]).unwrap(),
+            to_address: TMAddress::new("", &[4, 5, 6]).unwrap(),
             amount: vec![],
         }
         .to_any()

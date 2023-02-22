@@ -2,7 +2,6 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 use core::result::Result;
 use serde::de::{self, Deserializer};
 use serde::Deserialize;
-use std::convert::TryInto;
 use std::fmt::Display;
 use std::str::FromStr;
 use subtle_encoding::bech32;
@@ -43,12 +42,12 @@ where
     let addresses: Vec<String> = Deserialize::deserialize(deserializer)?;
 
     addresses
-        .into_iter()
+        .iter()
         .map(bech32::decode)
         .collect::<Result<Vec<_>, _>>()
         .map_err(de::Error::custom)?
-        .into_iter()
-        .map(|(_, address)| address.try_into())
+        .iter()
+        .map(|(prefix, bytes)| TMAddress::new(prefix, bytes))
         .collect::<Result<Vec<_>, _>>()
         .map_err(de::Error::custom)
 }
