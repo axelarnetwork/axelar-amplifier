@@ -20,14 +20,11 @@ pub async fn run(cfg: config::Config) -> Result<(), Error> {
     let tm_client = tendermint_rpc::HttpClient::new(cfg.tm_url.as_str()).map_err(Error::new)?;
     let (mut event_sub_client, _event_sub_driver) = event_sub::EventSubClient::new(tm_client, 100000);
     let (mut event_processor, _event_processor_driver) = event_processor::EventProcessor::new();
-    let mut evm_client_repo = evm::json_rpc::EVMClientRepo::default();
     let mut end_block_streams = StreamMap::new();
 
     for config in cfg.evm_chain_configs {
         let label = format!("{}-confirm-gateway-tx-handler", config.name);
-        let confirm_gateway_tx_handler = evm::confirm_gateway_tx_handler(&mut evm_client_repo, &config)
-            .await
-            .map_err(Error::new)?;
+        let confirm_gateway_tx_handler = evm::confirm_gateway_tx_handler(&config).await.map_err(Error::new)?;
         let (end_block_handler, rx) = handlers::end_block::Handler::new();
         end_block_streams.insert(label, ReceiverStream::new(rx));
         event_processor.add_handler(

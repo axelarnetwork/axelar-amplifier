@@ -32,8 +32,8 @@ where
 #[async_trait]
 impl<H1, H2> EventHandler for Handler<H1, H2>
 where
-    H1: EventHandler,
-    H2: EventHandler,
+    H1: EventHandler + Send + Sync,
+    H2: EventHandler + Send + Sync,
 {
     type Err = Error;
 

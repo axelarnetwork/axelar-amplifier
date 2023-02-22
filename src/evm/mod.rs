@@ -1,13 +1,16 @@
-use crate::event_processor::EventHandler;
-use crate::evm::finalizer::Finalizer;
-use crate::handlers::evm_confirm_gateway_tx;
-use crate::url::Url;
+use std::collections::HashSet;
+use std::fmt::Display;
+
 use enum_display_derive::Display;
 use error_stack::{Result, ResultExt};
 use serde::de::{self, Deserializer};
 use serde::Deserialize;
-use std::collections::HashSet;
-use std::fmt::Display;
+
+use crate::event_processor::EventHandler;
+use crate::evm::finalizer::Finalizer;
+use crate::evm::json_rpc::Client;
+use crate::handlers::evm_confirm_gateway_tx;
+use crate::url::Url;
 
 pub mod error;
 pub mod finalizer;
@@ -69,32 +72,24 @@ where
     Ok(evm_configs)
 }
 
-async fn new_finalizer(
-    evm_client_repo: &mut json_rpc::EVMClientRepo,
-    config: &EvmChainConfig,
-) -> Result<impl finalizer::Finalizer, error::Error> {
-    let rpc_client = evm_client_repo
-        .client(config.rpc_url.clone())
-        .change_context(error::Error::JSONRPCError)?;
+pub async fn confirm_gateway_tx_handler(config: &EvmChainConfig) -> Result<impl EventHandler, error::Error> {
+    Ok(evm_confirm_gateway_tx::Handler::new(
+        config.name,
+        new_finalizer(config).await?,
+        Client::new_http(&config.rpc_url).change_context(error::Error::JSONRPCError)?,
+    ))
+}
+
+async fn new_finalizer(config: &EvmChainConfig) -> Result<impl Finalizer, error::Error> {
     let finalizer = match config.name {
-        ChainName::Ethereum => finalizer::PoWFinalizer::new(rpc_client, 20),
+        ChainName::Ethereum => finalizer::PoWFinalizer::new(
+            Client::new_http(&config.rpc_url).change_context(error::Error::JSONRPCError)?,
+            20,
+        ),
     };
     let _ = finalizer.latest_finalized_block_height().await?;
 
     Ok(finalizer)
-}
-
-pub async fn confirm_gateway_tx_handler(
-    evm_client_repo: &mut json_rpc::EVMClientRepo,
-    config: &EvmChainConfig,
-) -> Result<impl EventHandler, error::Error> {
-    Ok(evm_confirm_gateway_tx::Handler::new(
-        config.name,
-        new_finalizer(evm_client_repo, config).await?,
-        evm_client_repo
-            .client(config.rpc_url.clone())
-            .change_context(error::Error::JSONRPCError)?,
-    ))
 }
 
 #[cfg(test)]

@@ -14,7 +14,6 @@ use serde::de::value::MapDeserializer;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
 use web3::types::U64;
 
 const EVENT_TYPE: &str = "axelar.evm.v1beta1.ConfirmGatewayTxStarted";
@@ -57,7 +56,7 @@ where
     C: EthereumClient,
 {
     chain: ChainName,
-    rpc_client: Arc<C>,
+    rpc_client: C,
     finalizer: F,
 }
 
@@ -66,7 +65,7 @@ where
     F: Finalizer,
     C: EthereumClient,
 {
-    pub fn new(chain: ChainName, finalizer: F, rpc_client: Arc<C>) -> Self {
+    pub fn new(chain: ChainName, finalizer: F, rpc_client: C) -> Self {
         Self {
             chain,
             finalizer,
@@ -78,8 +77,8 @@ where
 #[async_trait]
 impl<F, C> EventHandler for Handler<F, C>
 where
-    F: Finalizer,
-    C: EthereumClient,
+    F: Finalizer + Send + Sync,
+    C: EthereumClient + Send + Sync,
 {
     type Err = Error;
 

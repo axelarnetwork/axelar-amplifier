@@ -1,5 +1,3 @@
-use std::{collections::HashMap, sync::Arc};
-
 use crate::url::Url;
 use async_trait::async_trait;
 use error_stack::{self, IntoReport};
@@ -14,7 +12,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[automock]
 #[async_trait]
-pub trait EthereumClient: Send + Sync + 'static {
+pub trait EthereumClient {
     async fn block_number(&self) -> Result<U64>;
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>>;
     async fn block_header<T>(&self, number: T) -> Result<Option<BlockHeader>>
@@ -40,6 +38,13 @@ where
 {
     pub fn new(client: C) -> Self {
         Client { client }
+    }
+}
+
+impl Client<HttpClient> {
+    pub fn new_http(target: &Url) -> Result<Self> {
+        let http_client = HttpClientBuilder::default().build(target.as_str()).into_report()?;
+        Ok(Client::new(http_client))
     }
 }
 
@@ -83,22 +88,5 @@ where
             .request("chain_getFinalizedHead", rpc_params![])
             .await
             .into_report()
-    }
-}
-
-#[derive(Default)]
-pub struct EVMClientRepo(HashMap<Url, Arc<Client<HttpClient>>>);
-
-impl EVMClientRepo {
-    pub fn client(&mut self, url: Url) -> Result<Arc<Client<HttpClient>>> {
-        let client = match self.0.get(&url) {
-            Some(client) => client,
-            None => {
-                let client = Arc::new(Client::new(HttpClientBuilder::default().build(url.as_str())?));
-                self.0.entry(url).or_insert(client)
-            }
-        };
-
-        Ok(client.clone())
     }
 }

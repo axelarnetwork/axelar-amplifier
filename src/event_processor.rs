@@ -13,7 +13,7 @@ use tokio_stream::wrappers::BroadcastStream;
 type Task = Box<dyn Future<Output = Result<(), EventProcessorError>> + Send>;
 
 #[async_trait]
-pub trait EventHandler: Send + Sync + 'static {
+pub trait EventHandler {
     type Err: Context;
 
     async fn handle(&self, event: &Event) -> Result<(), Self::Err>;
@@ -51,7 +51,7 @@ impl EventProcessorDriver {
 
 fn consume_events<H>(mut event_stream: BroadcastStream<Event>, handler: H) -> Task
 where
-    H: EventHandler,
+    H: EventHandler + Send + Sync + 'static,
 {
     let task = async move {
         while let Some(res) = event_stream.next().await {
@@ -91,7 +91,7 @@ impl EventProcessor {
 
     pub fn add_handler<H>(&mut self, handler: H, event_stream: BroadcastStream<Event>) -> &mut Self
     where
-        H: EventHandler,
+        H: EventHandler + Send + Sync + 'static,
     {
         self.tasks.push(consume_events(event_stream, handler).into());
         self
