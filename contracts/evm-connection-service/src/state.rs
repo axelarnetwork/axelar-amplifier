@@ -16,15 +16,23 @@ use crate::{
 pub struct ServiceInfo {
     pub service_registry: Addr,
     pub name: String,
+    pub reward_pool: Addr,
+    pub router_contract: Addr,
+}
+
+#[cw_serde]
+pub struct InboundSettings {
     pub source_chain_name: String, // TODO: rename to inbound?
     pub gateway_address: Addr,     // TODO: rename to inbound?
     pub confirmation_height: Uint64,
     pub voting_threshold: Decimal,
     pub min_voter_count: Uint64,
-    pub reward_pool: Addr,
     pub voting_period: Uint64,
     pub voting_grace_period: Uint64,
-    pub router_contract: Addr,
+}
+
+#[cw_serde]
+pub struct OutboundSettings {
     pub destination_chain_id: Uint256, // TODO: rename to outbound?
     pub destination_chain_name: String,
     pub signing_timeout: Uint64,
@@ -291,6 +299,8 @@ pub fn pub_keys<'a>() -> IndexedMap<'a, (String, Addr), PubKey, PubKeysIndexes<'
 }
 
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
+pub const INBOUND_SETTINGS: Item<InboundSettings> = Item::new("inbound_settings");
+pub const OUTBOUND_SETTINGS: Item<OutboundSettings> = Item::new("outbound_settings");
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
 pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batchs");

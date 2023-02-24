@@ -1,29 +1,24 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint256, Uint64};
+use cosmwasm_std::{Binary, Uint128, Uint256, Uint64};
+
+use crate::state::{InboundSettings, OutboundSettings, ServiceInfo};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     // TODO: rename inbound/outbound variables
-    pub service_registry: Addr,
-    pub service_name: String,
-    pub source_chain_name: String,
-    pub gateway_address: Addr,
-    pub confirmation_height: Uint64,
+    pub service_info: ServiceInfo,
+    pub registration_parameters: RegistrationParameters,
+    pub inbound_settings: InboundSettings,
+    pub outbound_settings: OutboundSettings,
+}
+
+#[cw_serde]
+pub struct RegistrationParameters {
+    pub description: String,
     pub min_num_workers: Uint64,
     pub max_num_workers: Option<Uint64>,
     pub min_worker_bond: Uint128,
     pub unbonding_period: Uint128,
-    pub description: String,
-    pub voting_threshold: Decimal,
-    pub min_voter_count: Uint64,
-    pub reward_pool: Addr,
-    pub voting_period: Uint64,
-    pub voting_grace_period: Uint64,
-    pub router_contract: Addr,
-    pub destination_chain_id: Uint256,
-    pub destination_chain_name: String,
-    pub signing_timeout: Uint64,
-    pub signing_grace_period: Uint64,
 }
 
 #[cw_serde]

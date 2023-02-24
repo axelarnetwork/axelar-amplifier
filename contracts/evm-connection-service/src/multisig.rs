@@ -6,7 +6,7 @@ use secp256k1::{verify, Message, PublicKey, Signature};
 use serde_json::to_string;
 
 use crate::{
-    state::{Key, KeyState, KEYS, SERVICE_INFO, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    state::{Key, KeyState, KEYS, OUTBOUND_SETTINGS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
     ContractError,
 };
 
@@ -91,14 +91,6 @@ impl SigningSession {
             return Err(ContractError::ExpiredSigningSession { id: self.id });
         }
 
-        let public_key_option = self.key.pub_key(store, &signer);
-        if public_key_option.is_none() {
-            return Err(ContractError::InvalidParticipant {
-                signer,
-                id: self.id,
-            });
-        }
-
         if self.multisig.sigs.contains_key(&signer) {
             return Err(ContractError::AlreadySigned {
                 signer,
@@ -106,11 +98,15 @@ impl SigningSession {
             });
         }
 
-        if !signature.verify(
-            self.multisig.payload_hash,
-            &public_key_option.unwrap().pub_key,
-        ) {
-            return Err(ContractError::AlreadySigned {
+        if let Some(pub_key) = self.key.pub_key(store, &signer) {
+            if !signature.verify(self.multisig.payload_hash, &pub_key.pub_key) {
+                return Err(ContractError::AlreadySigned {
+                    signer,
+                    id: self.id,
+                });
+            }
+        } else {
+            return Err(ContractError::InvalidParticipant {
                 signer,
                 id: self.id,
             });
@@ -163,9 +159,11 @@ pub fn start_signing_session(
         return Err(ContractError::KeyNotActive { key: key_id });
     }
 
-    let service = SERVICE_INFO.load(store)?;
+    let outbound_settings = OUTBOUND_SETTINGS.load(store)?;
 
-    let expires_at = service.signing_timeout.add(Uint64::from(block_height));
+    let expires_at = outbound_settings
+        .signing_timeout
+        .add(Uint64::from(block_height));
     let sig_session_id =
         SIGNING_SESSION_COUNTER.update(store, |mut counter| -> Result<u64, ContractError> {
             counter += 1;
@@ -178,7 +176,7 @@ pub fn start_signing_session(
         command_batch_id,
         payload_hash,
         expires_at,
-        service.signing_grace_period,
+        outbound_settings.signing_grace_period,
     );
     SIGNING_SESSIONS.save(store, sig_session_id, &signing_session)?;
 

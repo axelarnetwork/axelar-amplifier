@@ -13,8 +13,8 @@ use crate::{
     poll::Poll,
     snapshot::Snapshot,
     state::{
-        CommandBatch, PollMetadata, ServiceInfo, COMMANDS_BATCH_QUEUE, POLLS, POLL_COUNTER,
-        SERVICE_INFO, SIGNING_SESSION_COUNTER,
+        CommandBatch, PollMetadata, ServiceInfo, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
+        OUTBOUND_SETTINGS, POLLS, POLL_COUNTER, SERVICE_INFO, SIGNING_SESSION_COUNTER,
     },
 };
 
@@ -39,38 +39,24 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let service = ServiceInfo {
-        service_registry: msg.service_registry,
-        name: msg.service_name,
-        source_chain_name: msg.source_chain_name,
-        gateway_address: msg.gateway_address,
-        confirmation_height: msg.confirmation_height,
-        voting_threshold: msg.voting_threshold,
-        min_voter_count: msg.min_voter_count,
-        reward_pool: msg.reward_pool,
-        voting_period: msg.voting_period,
-        voting_grace_period: msg.voting_grace_period,
-        router_contract: msg.router_contract,
-        destination_chain_id: msg.destination_chain_id,
-        destination_chain_name: msg.destination_chain_name,
-        signing_timeout: msg.signing_timeout,
-        signing_grace_period: msg.signing_grace_period,
-    };
-    SERVICE_INFO.save(deps.storage, &service)?;
+    SERVICE_INFO.save(deps.storage, &msg.service_info)?;
+    INBOUND_SETTINGS.save(deps.storage, &msg.inbound_settings)?;
+    OUTBOUND_SETTINGS.save(deps.storage, &msg.outbound_settings)?;
+
     POLL_COUNTER.save(deps.storage, &0)?;
     SIGNING_SESSION_COUNTER.save(deps.storage, &0)?;
 
     let register_msg = service_registry::msg::ExecuteMsg::RegisterService {
-        service_name: service.name,
+        service_name: msg.service_info.name,
         service_contract: env.contract.address,
-        min_num_workers: msg.min_num_workers,
-        max_num_workers: msg.max_num_workers,
-        min_worker_bond: msg.min_worker_bond,
-        unbonding_period: msg.unbonding_period,
-        description: msg.description,
+        min_num_workers: msg.registration_parameters.min_num_workers,
+        max_num_workers: msg.registration_parameters.max_num_workers,
+        min_worker_bond: msg.registration_parameters.min_worker_bond,
+        unbonding_period: msg.registration_parameters.unbonding_period,
+        description: msg.registration_parameters.description,
     };
     Ok(Response::default().add_message(WasmMsg::Execute {
-        contract_addr: service.service_registry.into_string(),
+        contract_addr: msg.service_info.service_registry.into_string(),
         msg: to_binary(&register_msg)?,
         funds: vec![],
     }))
@@ -158,7 +144,9 @@ pub mod execute {
         })?;
 
         let service_info = SERVICE_INFO.load(store)?;
-        let expires_at = env.block.height + service_info.voting_period.u64();
+        let inbound_settings = INBOUND_SETTINGS.load(store)?;
+
+        let expires_at = env.block.height + inbound_settings.voting_period.u64();
 
         let snapshot = create_snapshot(store, querier, env, &service_info, Uint64::from(id))?;
 
@@ -181,9 +169,9 @@ pub mod execute {
         from_nonce: Uint256,
         to_nonce: Uint256,
     ) -> Result<Response, ContractError> {
-        // TODO: validate sender = worker ??
+        // TODO: validate sender = worker
 
-        let service_info = SERVICE_INFO.load(deps.storage)?;
+        let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
 
         let poll = initialize_poll(deps.storage, deps.querier, env, message)?;
 
@@ -198,9 +186,9 @@ pub mod execute {
 
         let event = Event::new("ConfirmGatewayTxStarted")
             .add_attribute("poll_id", poll.id)
-            .add_attribute("source_chain", service_info.source_chain_name)
-            .add_attribute("gateway_address", service_info.gateway_address)
-            .add_attribute("confirmation_height", service_info.confirmation_height)
+            .add_attribute("source_chain", inbound_settings.source_chain_name)
+            .add_attribute("gateway_address", inbound_settings.gateway_address)
+            .add_attribute("confirmation_height", inbound_settings.confirmation_height)
             .add_attribute("from_nonce", from_nonce)
             .add_attribute("to_nonce", to_nonce)
             .add_attribute("participants", to_string(&participants).unwrap());
@@ -289,6 +277,7 @@ pub mod execute {
 
     fn finalize_batch(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         let service_info = SERVICE_INFO.load(deps.storage)?;
+        let outbound_settings = OUTBOUND_SETTINGS.load(deps.storage)?;
 
         let query_msg = connection_router::msg::QueryMsg::GetMessages {};
         let query_response: connection_router::msg::GetMessagesResponse =
@@ -303,8 +292,8 @@ pub mod execute {
 
         let command_batch = new_command_batch(
             env.block.height,
-            service_info.destination_chain_id,
-            &service_info.destination_chain_name,
+            outbound_settings.destination_chain_id,
+            &outbound_settings.destination_chain_name,
             query_response.messages,
         )?;
 
@@ -315,12 +304,12 @@ pub mod execute {
             env.block.height,
             command_batch.key_id.clone(),
             command_batch.sig_hash,
-            service_info.destination_chain_name.clone(),
+            outbound_settings.destination_chain_name.clone(),
             command_batch.id,
         )?;
 
         let event = Event::new("Sign")
-            .add_attribute("chain", service_info.destination_chain_name)
+            .add_attribute("chain", outbound_settings.destination_chain_name)
             .add_attribute("batch_id", Uint256::from_be_bytes(command_batch.id))
             .add_attribute("commands_ids", command_batch.command_ids_hex_string());
 
@@ -354,10 +343,10 @@ pub mod execute {
         poll_id: Uint64,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
-        let service_info = SERVICE_INFO.load(deps.storage)?;
+        let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
         let metadata = POLLS.load(deps.storage, poll_id.u64())?;
 
-        let mut poll = Poll::new(metadata, deps.storage, service_info);
+        let mut poll = Poll::new(metadata, deps.storage, inbound_settings);
         let vote_result = poll.vote(&info.sender, env.block.height, reply)?;
 
         let event = Event::new("Voted")
@@ -443,6 +432,9 @@ mod tests {
     use cosmwasm_std::{Coin, Decimal, Empty, Uint128, Uint256};
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
+    use crate::msg::RegistrationParameters;
+    use crate::state::{InboundSettings, OutboundSettings};
+
     use super::*;
 
     const OWNER: &str = "owner";
@@ -497,50 +489,29 @@ mod tests {
 
     fn instantiate_service(
         app: &mut App,
-        service_registry: Addr,
-        service_name: String,
-        source_chain_name: String,
-        gateway_address: Addr,
-        confirmation_height: Uint64,
-        min_num_workers: Uint64,
-        max_num_workers: Option<Uint64>,
-        min_worker_bond: Uint128,
-        unbonding_period: Uint128,
-        description: String,
-        voting_threshold: Decimal,
-        min_voter_count: Uint64,
-        reward_pool: Addr,
-        voting_period: Uint64,
-        voting_grace_period: Uint64,
-        router_contract: Addr,
-        destination_chain_id: Uint256,
-        destination_chain_name: String,
-        signing_timeout: Uint64,
-        signing_grace_period: Uint64,
+        service_info: ServiceInfo,
+        registration_parameters: RegistrationParameters,
+        inbound_settings: InboundSettings,
+        outbound_settings: OutboundSettings,
     ) -> Addr {
         let service_id = app.store_code(contract_service());
         let msg = InstantiateMsg {
-            service_registry,
-            service_name,
-            source_chain_name,
-            gateway_address,
-            confirmation_height,
-            min_num_workers,
-            max_num_workers,
-            min_worker_bond,
-            unbonding_period,
-            description,
-            voting_threshold,
-            min_voter_count,
-            reward_pool,
-            voting_period,
-            voting_grace_period,
-            router_contract,
-            destination_chain_id,
-            destination_chain_name,
-            signing_timeout,
-            signing_grace_period,
+            service_info,
+            registration_parameters,
+            inbound_settings,
+            outbound_settings,
         };
+        // let instance_result = app.instantiate_contract(
+        //     service_id,
+        //     Addr::unchecked(OWNER),
+        //     &msg,
+        //     &[],
+        //     "evm-connection-service",
+        //     None,
+        // );
+        // let err = instance_result.unwrap_err();
+        // println!("ERRORRRR: {}", err);
+
         app.instantiate_contract(
             service_id,
             Addr::unchecked(OWNER),
@@ -572,54 +543,67 @@ mod tests {
         }
     }
 
+    fn default_instantiation_message() -> InstantiateMsg {
+        InstantiateMsg {
+            service_info: ServiceInfo {
+                service_registry: Addr::unchecked("service_registry"),
+                name: "EVM Connection Service".to_string(),
+                reward_pool: Addr::unchecked("reward_pool"),
+                router_contract: Addr::unchecked("router"),
+            },
+            registration_parameters: RegistrationParameters {
+                description: "EVM Connection Service".to_string(),
+                min_num_workers: Uint64::from(5u64),
+                max_num_workers: None,
+                min_worker_bond: Uint128::from(100u8),
+                unbonding_period: Uint128::from(1u8),
+            },
+            inbound_settings: InboundSettings {
+                source_chain_name: "Ethereum".to_string(),
+                gateway_address: Addr::unchecked(GATEWAY),
+                confirmation_height: Uint64::from(10u64),
+                voting_threshold: Decimal::from_ratio(1u8, 2u8),
+                min_voter_count: Uint64::from(5u64),
+                voting_period: Uint64::from(5u64),
+                voting_grace_period: Uint64::from(5u64),
+            },
+            outbound_settings: OutboundSettings {
+                destination_chain_id: Uint256::from(43114u16),
+                destination_chain_name: "Avalanche".to_string(),
+                signing_timeout: Uint64::from(1u8),
+                signing_grace_period: Uint64::from(1u8),
+            },
+        }
+    }
+
     fn setup_test_case(
         app: &mut App,
-        voting_threshold: Decimal,
-        min_voter_count: Uint64,
-        reward_pool: Addr,
-        voting_period: Uint64,
-        voting_grace_period: Uint64,
+        service_info: Option<ServiceInfo>,
+        registration_parameters: Option<RegistrationParameters>,
+        inbound_settings: Option<InboundSettings>,
+        outbound_settings: Option<OutboundSettings>,
     ) -> (Addr, Addr) {
         let registry_addr = instantiate_registry(app);
         app.update_block(next_block);
 
-        let service_name = "EVM Connection Service".to_string();
-        let source_chain_name = "Ethereum".to_string();
-        let gateway_address = Addr::unchecked(GATEWAY);
-        let confirmation_height = Uint64::from(10u64);
-        let min_num_workers = min_voter_count.clone();
-        let max_num_workers = None;
-        let min_worker_bond = Uint128::from(100u8);
-        let unbonding_period = Uint128::from(1u8);
-        let description = "EVM Connection Service".to_string();
-        let router_contract = Addr::unchecked("router");
-        let destination_chain_id = Uint256::from(43114u16);
-        let destination_chain_name = "Avalanche".to_string();
-        let signing_timeout = Uint64::from(1u8);
-        let signing_grace_period = Uint64::from(1u8);
+        let default_msg = default_instantiation_message();
+
+        let mut service_info = service_info.unwrap_or(default_msg.service_info);
+        service_info.service_registry = registry_addr.clone();
+
+        let registration_parameters =
+            registration_parameters.unwrap_or(default_msg.registration_parameters);
+        let inbound_settings = inbound_settings.unwrap_or(default_msg.inbound_settings);
+        let outbound_settings = outbound_settings.unwrap_or(default_msg.outbound_settings);
+
+        let service_name = service_info.name.clone();
 
         let service_address = instantiate_service(
             app,
-            registry_addr.clone(),
-            service_name.clone(),
-            source_chain_name,
-            gateway_address,
-            confirmation_height,
-            min_num_workers,
-            max_num_workers,
-            min_worker_bond,
-            unbonding_period,
-            description,
-            voting_threshold,
-            min_voter_count,
-            reward_pool,
-            voting_period,
-            voting_grace_period,
-            router_contract,
-            destination_chain_id,
-            destination_chain_name,
-            signing_timeout,
-            signing_grace_period,
+            service_info,
+            registration_parameters,
+            inbound_settings,
+            outbound_settings,
         );
         app.update_block(next_block);
         register_workers(app, &service_name, registry_addr.clone());
@@ -627,67 +611,11 @@ mod tests {
         (service_address, registry_addr)
     }
 
-    fn setup_default_test_case(app: &mut App) -> (Addr, Addr) {
-        let voting_threshold = Decimal::from_ratio(1u8, 2u8);
-        let min_voter_count = Uint64::from(5u64);
-        let reward_pool = Addr::unchecked("reward_pool");
-        let voting_period = Uint64::from(5u64);
-        let voting_grace_period = Uint64::from(5u64);
-
-        setup_test_case(
-            app,
-            voting_threshold,
-            min_voter_count,
-            reward_pool,
-            voting_period,
-            voting_grace_period,
-        )
-    }
-
     fn do_instantiate(deps: DepsMut) -> Response {
-        let min_voter_count = Uint64::from(5u64);
-        let service_name = "EVM Connection Service".to_string();
-        let source_chain_name = "Ethereum".to_string();
-        let gateway_address = Addr::unchecked(GATEWAY);
-        let confirmation_height = Uint64::from(10u64);
-        let min_num_workers = min_voter_count.clone();
-        let max_num_workers = None;
-        let min_worker_bond = Uint128::from(100u8);
-        let unbonding_period = Uint128::from(1u8);
-        let description = "EVM Connection Service".to_string();
-        let router_contract = Addr::unchecked("router");
-        let destination_chain_id = Uint256::from(43114u16);
-        let destination_chain_name = "Avalanche".to_string();
-        let signing_timeout = Uint64::from(20u8);
-        let signing_grace_period = Uint64::from(1u8);
-
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let instantiate_msg = InstantiateMsg {
-            service_registry: Addr::unchecked("service_registry"),
-            service_name,
-            source_chain_name,
-            gateway_address,
-            confirmation_height,
-            min_num_workers,
-            max_num_workers,
-            min_worker_bond,
-            unbonding_period,
-            description,
-            voting_threshold: Decimal::from_ratio(1u8, 2u8),
-            min_voter_count,
-            reward_pool: Addr::unchecked("reward_pool"),
-            voting_period: Uint64::from(5u64),
-            voting_grace_period: Uint64::from(5u64),
-            router_contract,
-            destination_chain_id,
-            destination_chain_name,
-            signing_timeout,
-            signing_grace_period,
-        };
-
-        instantiate(deps, env, info, instantiate_msg).unwrap()
+        instantiate(deps, env, info, default_instantiation_message()).unwrap()
     }
 
     #[test]
@@ -706,7 +634,7 @@ mod tests {
             amount: Uint128::from(100u8),
         }]);
 
-        let (service_addr, _) = setup_default_test_case(&mut app);
+        let (service_addr, _) = setup_test_case(&mut app, None, None, None, None);
 
         let msg: ServiceExecuteMsg<ActionMessage, ActionResponse> =
             ServiceExecuteMsg::RequestWorkerAction {

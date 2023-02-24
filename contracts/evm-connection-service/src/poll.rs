@@ -5,7 +5,8 @@ use cosmwasm_std::{Addr, Order, Storage, Uint256, Uint64};
 use crate::{
     msg::ActionResponse,
     state::{
-        is_voter_late_map, tallied_votes, PollMetadata, PollState, ServiceInfo, TalliedVote, POLLS,
+        is_voter_late_map, tallied_votes, InboundSettings, PollMetadata, PollState, TalliedVote,
+        POLLS,
     },
     utils::hash,
     ContractError,
@@ -31,7 +32,7 @@ impl Display for VoteResult {
 pub struct Poll<'a> {
     pub metadata: PollMetadata,
     pub store: &'a mut dyn Storage,
-    pub service_info: ServiceInfo,
+    pub settings: InboundSettings, // TODO: remove from here?
     pub passing_weight: Uint256,
 }
 
@@ -39,16 +40,16 @@ impl<'a> Poll<'a> {
     pub fn new(
         metadata: PollMetadata,
         store: &'a mut dyn Storage,
-        service_info: ServiceInfo,
+        settings: InboundSettings,
     ) -> Self {
         let passing_weight = metadata
             .snapshot
-            .calculate_min_passing_weight(&service_info.voting_threshold);
+            .calculate_min_passing_weight(&settings.voting_threshold);
 
         Self {
             metadata,
             store,
-            service_info,
+            settings,
             passing_weight,
         }
     }
@@ -176,8 +177,7 @@ impl<'a> Poll<'a> {
     }
 
     fn has_enough_votes(&self, majority: &Uint256) -> bool {
-        majority.ge(&self.passing_weight)
-            && self.get_voter_count() >= self.service_info.min_voter_count
+        majority.ge(&self.passing_weight) && self.get_voter_count() >= self.settings.min_voter_count
     }
 
     fn cannot_win(&mut self, majority: &Uint256) -> bool {
@@ -212,8 +212,7 @@ impl<'a> Poll<'a> {
 
     fn is_in_grace_period(&self, block_height: u64) -> bool {
         block_height
-            < self.metadata.completed_at.unwrap().u64()
-                + self.service_info.voting_grace_period.u64()
+            < self.metadata.completed_at.unwrap().u64() + self.settings.voting_grace_period.u64()
     }
 
     fn get_majority_vote(&self) -> Result<TalliedVote, ContractError> {
