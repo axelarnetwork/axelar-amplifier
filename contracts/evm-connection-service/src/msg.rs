@@ -1,7 +1,10 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Uint128, Uint256, Uint64};
 
 use crate::state::{InboundSettings, OutboundSettings, ServiceInfo};
+
+pub use service_interface::msg::ExecuteMsg;
+pub use service_interface::msg::QueryMsg;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -20,13 +23,6 @@ pub struct RegistrationParameters {
     pub min_worker_bond: Uint128,
     pub unbonding_period: Uint128,
 }
-
-#[cw_serde]
-pub enum ExecuteMsg {}
-
-#[cw_serde]
-#[derive(QueryResponses)]
-pub enum QueryMsg {}
 
 #[cw_serde]
 pub enum ActionMessage {

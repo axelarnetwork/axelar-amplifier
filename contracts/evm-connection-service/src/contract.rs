@@ -9,7 +9,7 @@ use cosmwasm_std::{
 use crate::{
     command::{new_validate_calls_hash_command, CommandType},
     error::ContractError,
-    msg::{ActionMessage, ActionResponse, InstantiateMsg},
+    msg::{ActionMessage, ActionResponse, ExecuteMsg, InstantiateMsg, QueryMsg},
     poll::Poll,
     snapshot::Snapshot,
     state::{
@@ -18,8 +18,6 @@ use crate::{
     },
 };
 
-use service_interface::msg::ExecuteMsg as ServiceExecuteMsg;
-use service_interface::msg::QueryMsg as ServiceQueryMsg;
 use service_interface::msg::WorkerState;
 use service_registry::msg::ActiveWorkers;
 use service_registry::msg::QueryMsg as RegistryQueryMsg;
@@ -67,15 +65,13 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ServiceExecuteMsg<ActionMessage, ActionResponse>,
+    msg: ExecuteMsg<ActionMessage, ActionResponse>,
 ) -> Result<Response, ContractError> {
     match msg {
-        ServiceExecuteMsg::RequestWorkerAction { message } => {
+        ExecuteMsg::RequestWorkerAction { message } => {
             execute::request_worker_action(deps, env, message)
         }
-        ServiceExecuteMsg::PostWorkerReply { reply } => {
-            execute::post_worker_reply(deps, env, info, reply)
-        }
+        ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
     }
 }
 
@@ -388,15 +384,15 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: ServiceQueryMsg) -> StdResult<Binary> {
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        ServiceQueryMsg::GetServiceName {} => to_binary(&query::get_service_name()?),
-        ServiceQueryMsg::GetWorkerPublicKeys {} => to_binary(&query::get_worker_public_keys()?),
-        ServiceQueryMsg::GetRewardsManager {} => to_binary(&query::get_rewards_manager()?),
-        ServiceQueryMsg::GetUnbondAllowed { worker_address } => {
+        QueryMsg::GetServiceName {} => to_binary(&query::get_service_name()?),
+        QueryMsg::GetWorkerPublicKeys {} => to_binary(&query::get_worker_public_keys()?),
+        QueryMsg::GetRewardsManager {} => to_binary(&query::get_rewards_manager()?),
+        QueryMsg::GetUnbondAllowed { worker_address } => {
             to_binary(&query::get_unbond_allowed(worker_address)?)
         }
-        ServiceQueryMsg::GetWorkerStatus { worker_address } => {
+        QueryMsg::GetWorkerStatus { worker_address } => {
             to_binary(&query::get_worker_status(worker_address)?)
         }
     }
@@ -501,16 +497,6 @@ mod tests {
             inbound_settings,
             outbound_settings,
         };
-        // let instance_result = app.instantiate_contract(
-        //     service_id,
-        //     Addr::unchecked(OWNER),
-        //     &msg,
-        //     &[],
-        //     "evm-connection-service",
-        //     None,
-        // );
-        // let err = instance_result.unwrap_err();
-        // println!("ERRORRRR: {}", err);
 
         app.instantiate_contract(
             service_id,
@@ -636,13 +622,12 @@ mod tests {
 
         let (service_addr, _) = setup_test_case(&mut app, None, None, None, None);
 
-        let msg: ServiceExecuteMsg<ActionMessage, ActionResponse> =
-            ServiceExecuteMsg::RequestWorkerAction {
-                message: ActionMessage::ConfirmGatewayTxs {
-                    from_nonce: Uint256::from(0u8),
-                    to_nonce: Uint256::from(5u8),
-                },
-            };
+        let msg: ExecuteMsg<ActionMessage, ActionResponse> = ExecuteMsg::RequestWorkerAction {
+            message: ActionMessage::ConfirmGatewayTxs {
+                from_nonce: Uint256::from(0u8),
+                to_nonce: Uint256::from(5u8),
+            },
+        };
 
         let res = app
             .execute_contract(Addr::unchecked(OWNER), service_addr, &msg, &[])

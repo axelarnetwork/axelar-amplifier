@@ -1,11 +1,5 @@
 [workspace]
-members = [
-  "contracts/service-registry",
-  "contracts/service-interface",
-  "contracts/evm-connection-service",
-  "contracts/connection-router",
-  "contracts/batching",
-]
+members = ["packages/*", "contracts/*"]
 
 [profile.release]
 opt-level = 3
@@ -19,6 +13,6 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
-service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
+service-interface = { version = "0.1.0", path = "./packages/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
 connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
