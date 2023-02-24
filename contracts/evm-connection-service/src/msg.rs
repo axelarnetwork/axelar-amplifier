@@ -30,7 +30,7 @@ pub enum ActionMessage {
         from_nonce: Uint256,
         to_nonce: Uint256,
     },
-    RequestWorkerSignatures {},
+    SignCommands {},
 }
 
 #[cw_serde]

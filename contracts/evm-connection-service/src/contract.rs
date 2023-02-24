@@ -96,7 +96,7 @@ pub mod execute {
                 from_nonce,
                 to_nonce,
             } => request_confirm_gateway_txs(deps, env, message, from_nonce, to_nonce),
-            ActionMessage::RequestWorkerSignatures {} => finalize_batch(deps, env),
+            ActionMessage::SignCommands {} => finalize_batch(deps, env),
         }
     }
 
