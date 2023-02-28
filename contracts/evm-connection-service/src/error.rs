@@ -25,7 +25,7 @@ pub enum ContractError {
     #[error("Signing session {id:?} has expired")]
     ExpiredSigningSession { id: Uint64 },
     #[error("{signer:?} is not a participant of signing {id:?}")]
-    InvalidParticipant { signer: Addr, id: Uint64 },
+    NotEligibleToSign { signer: Addr, id: Uint64 },
     #[error("participant {signer:?} already submitted its signature for signing {id:?}")]
     AlreadySigned { signer: Addr, id: Uint64 },
     #[error("Invalid signature received from participant {signer:?} for signing {id:?}")]

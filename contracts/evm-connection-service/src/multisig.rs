@@ -106,7 +106,7 @@ impl SigningSession {
                 });
             }
         } else {
-            return Err(ContractError::InvalidParticipant {
+            return Err(ContractError::NotEligibleToSign {
                 signer,
                 id: self.id,
             });
