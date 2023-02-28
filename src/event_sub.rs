@@ -11,7 +11,9 @@ use tokio::sync::{
     oneshot,
 };
 use tokio::time;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::{Stream, StreamExt};
 
 use crate::event_sub::EventSubError::*;
 use crate::tm_client::TmClient;
@@ -19,7 +21,7 @@ use crate::tm_client::TmClient;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     BlockEnd(block::Height),
-    AbciEvent {
+    Abci {
         event_type: String,
         attributes: serde_json::Map<String, serde_json::Value>,
     },
@@ -27,7 +29,7 @@ pub enum Event {
 
 impl From<abci::Event> for Event {
     fn from(event: abci::Event) -> Self {
-        Self::AbciEvent {
+        Self::Abci {
             event_type: event.kind,
             attributes: event
                 .attributes
@@ -38,12 +40,6 @@ impl From<abci::Event> for Event {
                 })
                 .collect(),
         }
-    }
-}
-
-impl From<block::Height> for Event {
-    fn from(height: block::Height) -> Self {
-        Self::BlockEnd(height)
     }
 }
 
@@ -87,12 +83,13 @@ impl<T: TmClient + Sync> EventSubClient<T> {
         self
     }
 
+    #[allow(dead_code)]
     pub fn poll_interval(mut self, poll_interval: Duration) -> Self {
         self.poll_interval = poll_interval;
         self
     }
 
-    pub fn sub(&mut self) -> BroadcastStream<Event> {
+    pub fn sub(&mut self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
         let rx = match &self.tx {
             None => {
                 let (tx, rx) = broadcast::channel::<Event>(self.capacity);
@@ -102,7 +99,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
             Some(tx) => tx.subscribe(),
         };
 
-        BroadcastStream::new(rx)
+        BroadcastStream::new(rx).map(IntoReport::into_report)
     }
 
     pub async fn run(mut self) -> Result<(), EventSubError> {
@@ -157,7 +154,9 @@ impl<T: TmClient + Sync> EventSubClient<T> {
         for event in self.query_events(height).await? {
             tx.send(event.into()).into_report().change_context(PublishFailed)?;
         }
-        tx.send(height.into()).into_report().change_context(PublishFailed)?;
+        tx.send(Event::BlockEnd(height))
+            .into_report()
+            .change_context(PublishFailed)?;
 
         Ok(())
     }
@@ -177,14 +176,17 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 }
 
+pub fn skip_to_block(
+    stream: impl Stream<Item = Result<Event, BroadcastStreamRecvError>>,
+    height: block::Height,
+) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
+    stream.skip_while(move |event| !matches!(event, Ok(Event::BlockEnd(h)) if h.increment() >= height))
+}
+
 #[derive(Error, Debug)]
 pub enum EventSubError {
     #[error("no subscriber")]
     NoSubscriber,
-    #[error("subscription failed")]
-    SubscriptionFailed,
-    #[error("stream failed")]
-    StreamFailed,
     #[error("querying events for block {block} failed")]
     EventQueryFailed { block: block::Height },
     #[error("failed to send events to subscribers")]
@@ -197,12 +199,14 @@ pub enum EventSubError {
 
 #[cfg(test)]
 mod tests {
-    use crate::event_sub::{Event, EventSubClient, EventSubError};
-    use crate::tm_client;
-    use futures::stream::StreamExt;
     use std::convert::TryInto;
     use std::time::Duration;
+
+    use futures::stream::StreamExt;
     use tokio::test;
+
+    use crate::event_sub::{Event, EventSubClient, EventSubError};
+    use crate::tm_client;
 
     #[test]
     async fn no_subscriber() {
@@ -242,7 +246,7 @@ mod tests {
                 })
             });
 
-        let (client, driver) = EventSubClient::new(mock_client, 10);
+        let (client, driver) = EventSubClient::new(mock_client, 2 * block_count as usize);
         let mut client = client.start_from(from_height);
         let mut stream = client.sub();
 
@@ -346,7 +350,7 @@ mod tests {
                     assert!(matches!(event, Some(Ok(Event::BlockEnd(..)))));
                 }
                 _ => {
-                    assert!(matches!(event, Some(Ok(Event::AbciEvent { .. }))));
+                    assert!(matches!(event, Some(Ok(Event::Abci { .. }))));
                 }
             }
         }

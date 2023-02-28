@@ -12,14 +12,19 @@ use tracing::{error, info};
 use sentinel::config::Config;
 use sentinel::report::LoggableError;
 use sentinel::run;
+use sentinel::state;
 use valuable::Valuable;
 
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Args {
     /// Set the paths for config file lookup. Can be defined multiple times (configs get merged)
-    #[arg(short, long, default_values_os_t = vec ! [std::path::PathBuf::from("~/.sentinel/config.toml"), std::path::PathBuf::from("config.toml")])]
+    #[arg(short, long, default_values_os_t = vec![std::path::PathBuf::from("~/.sentinel/config.toml"), std::path::PathBuf::from("config.toml")])]
     pub config: Vec<PathBuf>,
+
+    /// Set the paths for state file lookup
+    #[arg(short, long, default_value_os_t = std::path::PathBuf::from("~/.sentinel/state.json"))]
+    pub state: PathBuf,
 
     /// Set the output style of the logs
     #[arg(short, long, value_enum, default_value_t = Output::Json)]
@@ -40,8 +45,17 @@ async fn main() -> ExitCode {
     info!("starting daemon");
 
     let cfg = init_config(&args);
+    let state = match state::State::new(args.state) {
+        Ok(state) => state,
+        Err(err) => {
+            let err = LoggableError::from(&err);
+            error!(err = err.as_value(), "failed to load state");
 
-    let code = match run(cfg).await {
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let code = match run(cfg, state).await {
         Ok(_) => ExitCode::SUCCESS,
         Err(report) => {
             let err = LoggableError::from(&report);

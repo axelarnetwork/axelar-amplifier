@@ -15,6 +15,7 @@ type Result<T> = error_stack::Result<T, Error>;
 pub trait EthereumClient {
     async fn block_number(&self) -> Result<U64>;
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>>;
+    #[allow(dead_code)]
     async fn block_header<T>(&self, number: T) -> Result<Option<BlockHeader>>
     where
         T: Into<U64> + Send + Sync + 'static;

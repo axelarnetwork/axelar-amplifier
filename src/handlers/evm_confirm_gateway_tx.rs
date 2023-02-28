@@ -84,7 +84,7 @@ where
 
     async fn handle(&self, event: &event_sub::Event) -> Result<(), Self::Err> {
         let event: Event = match event {
-            event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.clone().try_into()?
             }
             _ => return Ok(()),
@@ -137,7 +137,7 @@ mod tests {
         );
         let event: event_sub::Event = event.into();
         let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
-            event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
             _ => panic!("wrong type of event"),
@@ -159,7 +159,7 @@ mod tests {
         );
         let event: event_sub::Event = event.into();
         let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
-            event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
             _ => panic!("wrong type of event"),
@@ -178,7 +178,7 @@ mod tests {
             );
         let event: event_sub::Event = event.into();
         let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
-            event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
             _ => panic!("wrong type of event"),
@@ -197,7 +197,7 @@ mod tests {
             );
         let event: event_sub::Event = event.into();
         let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
-            event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
             _ => panic!("wrong type of event"),
@@ -216,7 +216,7 @@ mod tests {
         );
         let event: event_sub::Event = event.into();
         let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
-            event_sub::Event::AbciEvent { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
             _ => panic!("wrong type of event"),

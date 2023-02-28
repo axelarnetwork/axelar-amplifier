@@ -1,44 +1,103 @@
-use crate::event_processor::EventHandler;
-use crate::report::Error;
+use std::pin::Pin;
+
 use error_stack::Result;
-use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::{StreamExt, StreamMap};
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::Stream;
+
+use event_processor::EventProcessor;
+use event_sub::Event;
+use report::Error;
+use state::State;
+
+use crate::config::Config;
 
 mod broadcaster;
 pub mod config;
 mod deserializers;
-pub mod event_processor;
-pub mod event_sub;
-pub mod evm;
+mod event_processor;
+mod event_sub;
+mod evm;
 mod handlers;
 pub mod report;
+pub mod state;
 mod tm_client;
 mod types;
 mod url;
 
-pub async fn run(cfg: config::Config) -> Result<(), Error> {
+type HandlerStream = Pin<Box<dyn Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send>>;
+
+pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
     let tm_client = tendermint_rpc::HttpClient::new(cfg.tm_url.as_str()).map_err(Error::new)?;
-    let (mut event_sub_client, _event_sub_driver) = event_sub::EventSubClient::new(tm_client, 100000);
-    let (mut event_processor, _event_processor_driver) = event_processor::EventProcessor::new();
-    let mut end_block_streams = StreamMap::new();
+    let mut app = App::new(tm_client, state);
 
-    for config in cfg.evm_chain_configs {
-        let label = format!("{}-confirm-gateway-tx-handler", config.name);
-        let confirm_gateway_tx_handler = evm::confirm_gateway_tx_handler(&config).await.map_err(Error::new)?;
-        let (end_block_handler, rx) = handlers::end_block::Handler::new();
-        end_block_streams.insert(label, ReceiverStream::new(rx));
-        event_processor.add_handler(
-            confirm_gateway_tx_handler.chain(end_block_handler),
-            event_sub_client.sub(),
-        );
+    app = app.configure(cfg).await?;
+    app.run().await
+}
+
+pub struct App {
+    event_sub_client: event_sub::EventSubClient<tendermint_rpc::HttpClient>,
+    event_sub_driver: event_sub::EventSubClientDriver,
+    event_processor: EventProcessor,
+    event_processor_driver: event_processor::EventProcessorDriver,
+    state_updater: state::Updater,
+    state: State,
+}
+
+impl App {
+    pub fn new(tm_client: tendermint_rpc::HttpClient, state: State) -> Self {
+        let (event_sub_client, event_sub_driver) = event_sub::EventSubClient::new(tm_client, 100000);
+        let event_sub_client = match state.min() {
+            Some(min_height) => event_sub_client.start_from(min_height.increment()),
+            None => event_sub_client,
+        };
+
+        let (event_processor, event_processor_driver) = EventProcessor::new();
+
+        Self {
+            event_sub_client,
+            event_sub_driver,
+            event_processor,
+            event_processor_driver,
+            state_updater: state::Updater::default(),
+            state,
+        }
     }
 
-    tokio::spawn(async move { event_sub_client.run().await.unwrap() });
-    tokio::spawn(async move { event_processor.run().await.unwrap() });
+    pub async fn configure(mut self, cfg: Config) -> Result<Self, Error> {
+        for config in cfg.evm_chain_configs {
+            let label = format!("{}-confirm-gateway-tx-handler", config.name);
+            let handler = evm::confirm_gateway_tx_handler(&config).await.map_err(Error::new)?;
 
-    while let Some(end_block) = end_block_streams.next().await {
-        println!("end_block {:?}", end_block);
+            let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
+            self.state_updater.register_event(&label, rx);
+
+            let sub: HandlerStream = match self.state.get(&label) {
+                None => Box::pin(self.event_sub_client.sub()),
+                Some(&completed_height) => Box::pin(event_sub::skip_to_block(
+                    self.event_sub_client.sub(),
+                    completed_height.increment(),
+                )),
+            };
+            self.event_processor.add_handler(handler, sub);
+        }
+
+        Ok(self)
     }
 
-    Ok(())
+    pub async fn run(self) -> Result<(), Error> {
+        let client = self.event_sub_client;
+        let processor = self.event_processor;
+        let mut state = self.state;
+
+        tokio::spawn(async move { client.run().await });
+        tokio::spawn(async move { processor.run().await });
+        self.state_updater.run(&mut state).await;
+
+        // TODO: Make the teardown process more robust so that it is done however the program is terminated
+        self.event_sub_driver.close().map_err(Error::new)?;
+        self.event_processor_driver.close().map_err(Error::new)?;
+        state.flush().map_err(Error::new)?;
+
+        Ok(())
+    }
 }

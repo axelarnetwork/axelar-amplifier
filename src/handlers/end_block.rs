@@ -12,15 +12,22 @@ pub enum Error {
     SendError,
 }
 
-pub struct Handler {
+struct Handler {
     tx: mpsc::Sender<block::Height>,
 }
 
 impl Handler {
-    pub fn new() -> (Self, Receiver<block::Height>) {
+    fn new() -> (Self, Receiver<block::Height>) {
         let (tx, rx) = mpsc::channel(10000);
         (Self { tx }, rx)
     }
+}
+
+pub fn with_block_height_notifier(
+    handler: impl EventHandler + Send + Sync,
+) -> (impl EventHandler, Receiver<block::Height>) {
+    let (end_block_handler, rx) = Handler::new();
+    (handler.chain(end_block_handler), rx)
 }
 
 #[async_trait]

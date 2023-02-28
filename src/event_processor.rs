@@ -8,7 +8,8 @@ use futures::{future::try_join_all, StreamExt};
 use std::vec;
 use thiserror::Error;
 use tokio::{select, sync::oneshot};
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::Stream;
 
 type Task = Box<dyn Future<Output = Result<(), EventProcessorError>> + Send>;
 
@@ -49,15 +50,15 @@ impl EventProcessorDriver {
     }
 }
 
-fn consume_events<H>(mut event_stream: BroadcastStream<Event>, handler: H) -> Task
+fn consume_events<H, S>(event_stream: S, handler: H) -> Task
 where
     H: EventHandler + Send + Sync + 'static,
+    S: Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static,
 {
     let task = async move {
+        let mut event_stream = Box::pin(event_stream);
         while let Some(res) = event_stream.next().await {
-            let event = res
-                .into_report()
-                .change_context(EventProcessorError::EventStreamError)?;
+            let event = res.change_context(EventProcessorError::EventStreamError)?;
 
             handler
                 .handle(&event)
@@ -89,9 +90,10 @@ impl EventProcessor {
         )
     }
 
-    pub fn add_handler<H>(&mut self, handler: H, event_stream: BroadcastStream<Event>) -> &mut Self
+    pub fn add_handler<H, S>(&mut self, handler: H, event_stream: S) -> &mut Self
     where
         H: EventHandler + Send + Sync + 'static,
+        S: Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static,
     {
         self.tasks.push(consume_events(event_stream, handler).into());
         self
@@ -122,6 +124,7 @@ mod tests {
     use thiserror::Error;
     use tokio::{self, sync::broadcast};
     use tokio_stream::wrappers::BroadcastStream;
+    use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn should_handle_events() {
@@ -139,7 +142,7 @@ mod tests {
             assert!(driver.close().is_ok());
         });
 
-        processor.add_handler(handler, BroadcastStream::new(rx));
+        processor.add_handler(handler, BroadcastStream::new(rx).map(IntoReport::into_report));
         assert!(processor.run().await.is_ok());
     }
 
@@ -158,7 +161,7 @@ mod tests {
             assert!(tx.send(event_sub::Event::BlockEnd((10_u32).into())).is_ok());
         });
 
-        processor.add_handler(handler, BroadcastStream::new(rx));
+        processor.add_handler(handler, BroadcastStream::new(rx).map(IntoReport::into_report));
         assert!(processor.run().await.is_err());
     }
 
@@ -167,8 +170,8 @@ mod tests {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
         let (mut processor, driver) = EventProcessor::new();
-        let stream = BroadcastStream::new(rx);
-        let another_stream = BroadcastStream::new(tx.subscribe());
+        let stream = BroadcastStream::new(rx).map(IntoReport::into_report);
+        let another_stream = BroadcastStream::new(tx.subscribe()).map(IntoReport::into_report);
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().returning(|_| Ok(())).times(event_count);
