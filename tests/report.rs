@@ -1,6 +1,6 @@
 use error_stack::Report;
 
-use sentinel::report::{Error, LoggableError};
+use ampd::report::{Error, LoggableError};
 
 // Do not move this test or the location field checks break
 #[test]

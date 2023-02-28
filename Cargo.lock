@@ -23,6 +23,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "ampd"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "config",
+ "cosmos-sdk-proto",
+ "cosmrs",
+ "deref-derive",
+ "enum-display-derive",
+ "error-stack",
+ "futures",
+ "jsonrpsee",
+ "mockall",
+ "serde",
+ "serde_json",
+ "subtle-encoding",
+ "tendermint",
+ "tendermint-rpc",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "toml",
+ "tonic",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
+ "url",
+ "valuable",
+ "web3",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2214,39 +2247,6 @@ name = "semver"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58bc9567378fc7690d6b2addae4e60ac2eeea07becb2c64b9f218b53865cba2a"
-
-[[package]]
-name = "sentinel"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "clap",
- "config",
- "cosmos-sdk-proto",
- "cosmrs",
- "deref-derive",
- "enum-display-derive",
- "error-stack",
- "futures",
- "jsonrpsee",
- "mockall",
- "serde",
- "serde_json",
- "subtle-encoding",
- "tendermint",
- "tendermint-rpc",
- "thiserror",
- "tokio",
- "tokio-stream",
- "toml",
- "tonic",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
- "url",
- "valuable",
- "web3",
-]
 
 [[package]]
 name = "serde"

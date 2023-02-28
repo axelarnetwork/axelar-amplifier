@@ -9,21 +9,21 @@ use config::ConfigError;
 use error_stack::IntoReport;
 use tracing::{error, info};
 
-use sentinel::config::Config;
-use sentinel::report::LoggableError;
-use sentinel::run;
-use sentinel::state;
+use ampd::config::Config;
+use ampd::report::LoggableError;
+use ampd::run;
+use ampd::state;
 use valuable::Valuable;
 
 #[derive(Debug, Parser)]
 #[command(version)]
 struct Args {
     /// Set the paths for config file lookup. Can be defined multiple times (configs get merged)
-    #[arg(short, long, default_values_os_t = vec![std::path::PathBuf::from("~/.sentinel/config.toml"), std::path::PathBuf::from("config.toml")])]
+    #[arg(short, long, default_values_os_t = vec![std::path::PathBuf::from("~/.ampd/config.toml"), std::path::PathBuf::from("config.toml")])]
     pub config: Vec<PathBuf>,
 
     /// Set the paths for state file lookup
-    #[arg(short, long, default_value_os_t = std::path::PathBuf::from("~/.sentinel/state.json"))]
+    #[arg(short, long, default_value_os_t = std::path::PathBuf::from("~/.ampd/state.json"))]
     pub state: PathBuf,
 
     /// Set the output style of the logs
