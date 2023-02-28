@@ -1,4 +1,5 @@
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Addr;
 use cosmwasm_std::{Binary, Uint128, Uint256, Uint64};
 
 use crate::state::{InboundSettings, OutboundSettings, ServiceInfo};
@@ -43,4 +44,9 @@ pub enum ActionResponse {
         signing_session_id: Uint64,
         signature: Binary,
     },
+}
+
+#[cw_serde]
+pub enum AdminOperation {
+    WhitelistWorkers { workers: Vec<Addr> },
 }

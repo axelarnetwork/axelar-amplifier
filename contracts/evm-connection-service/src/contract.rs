@@ -9,11 +9,11 @@ use cosmwasm_std::{
 use crate::{
     command::{new_validate_calls_hash_command, CommandType},
     error::ContractError,
-    msg::{ActionMessage, ActionResponse, ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{ActionMessage, ActionResponse, AdminOperation, ExecuteMsg, InstantiateMsg, QueryMsg},
     poll::Poll,
     snapshot::Snapshot,
     state::{
-        CommandBatch, PollMetadata, ServiceInfo, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
+        CommandBatch, PollMetadata, ServiceInfo, ADMIN, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
         OUTBOUND_SETTINGS, POLLS, POLL_COUNTER, SERVICE_INFO, SIGNING_SESSION_COUNTER,
     },
 };
@@ -34,9 +34,10 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    ADMIN.save(deps.storage, &info.sender)?;
     SERVICE_INFO.save(deps.storage, &msg.service_info)?;
     INBOUND_SETTINGS.save(deps.storage, &msg.inbound_settings)?;
     OUTBOUND_SETTINGS.save(deps.storage, &msg.outbound_settings)?;
@@ -65,13 +66,14 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ExecuteMsg<ActionMessage, ActionResponse>,
+    msg: ExecuteMsg<ActionMessage, ActionResponse, AdminOperation>,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::RequestWorkerAction { message } => {
             execute::request_worker_action(deps, env, message)
         }
         ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
+        ExecuteMsg::Admin { operation } => execute::admin_operation(deps, info, operation),
     }
 }
 
@@ -81,10 +83,41 @@ pub mod execute {
 
     use crate::{
         multisig::{start_signing_session, WorkerSignature},
-        state::{Participant, SIGNING_SESSIONS},
+        state::{Participant, ADMIN, SIGNING_SESSIONS, WORKERS_WHITELIST},
     };
 
     use super::*;
+
+    pub fn admin_operation(
+        deps: DepsMut,
+        info: MessageInfo,
+        operation: AdminOperation,
+    ) -> Result<Response, ContractError> {
+        let result = ADMIN.may_load(deps.storage)?;
+
+        if let Some(admin) = result {
+            if info.sender == admin {
+                return match operation {
+                    AdminOperation::WhitelistWorkers { workers } => {
+                        whitelist_workers(deps.storage, workers)
+                    }
+                };
+            }
+        }
+
+        Err(ContractError::Unauthorized {})
+    }
+
+    fn whitelist_workers(
+        store: &mut dyn Storage,
+        workers: Vec<Addr>,
+    ) -> Result<Response, ContractError> {
+        for worker in workers {
+            WORKERS_WHITELIST.save(store, worker, &true)?;
+        }
+
+        Ok(Response::default())
+    }
 
     pub fn request_worker_action(
         deps: DepsMut,
@@ -384,7 +417,7 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetServiceName {} => to_binary(&query::get_service_name()?),
         QueryMsg::GetWorkerPublicKeys {} => to_binary(&query::get_worker_public_keys()?),
@@ -395,10 +428,15 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetWorkerStatus { worker_address } => {
             to_binary(&query::get_worker_status(worker_address)?)
         }
+        QueryMsg::IsAddressWorkerEligible { address } => {
+            to_binary(&query::is_address_worker_eligible(deps, address)?)
+        }
     }
 }
 
 pub mod query {
+    use crate::state::WORKERS_WHITELIST;
+
     use super::*;
 
     pub fn get_service_name() -> StdResult<String> {
@@ -419,6 +457,16 @@ pub mod query {
 
     pub fn get_worker_status(_worker_address: Addr) -> StdResult<WorkerState> {
         todo!();
+    }
+
+    pub fn is_address_worker_eligible(deps: Deps, address: Addr) -> StdResult<bool> {
+        let result = WORKERS_WHITELIST.may_load(deps.storage, address)?;
+
+        if let Some(whitelist) = result {
+            return Ok(whitelist);
+        }
+
+        Ok(false)
     }
 }
 
@@ -509,6 +557,20 @@ mod tests {
         .unwrap()
     }
 
+    fn whitelist_workers(app: &mut App, service: Addr) {
+        let workers: Vec<Addr> = WORKERS
+            .into_iter()
+            .map(|worker| Addr::unchecked(worker))
+            .collect();
+
+        let msg: ExecuteMsg<ActionMessage, ActionResponse, AdminOperation> = ExecuteMsg::Admin {
+            operation: AdminOperation::WhitelistWorkers { workers },
+        };
+
+        app.execute_contract(Addr::unchecked(OWNER), service, &msg, &[])
+            .unwrap();
+    }
+
     fn register_workers(app: &mut App, service_name: &str, registry: Addr) {
         for worker in WORKERS {
             let msg = service_registry::msg::ExecuteMsg::RegisterWorker {
@@ -592,6 +654,10 @@ mod tests {
             outbound_settings,
         );
         app.update_block(next_block);
+
+        whitelist_workers(app, service_address.clone());
+        app.update_block(next_block);
+
         register_workers(app, &service_name, registry_addr.clone());
 
         (service_address, registry_addr)
@@ -622,12 +688,13 @@ mod tests {
 
         let (service_addr, _) = setup_test_case(&mut app, None, None, None, None);
 
-        let msg: ExecuteMsg<ActionMessage, ActionResponse> = ExecuteMsg::RequestWorkerAction {
-            message: ActionMessage::ConfirmGatewayTxs {
-                from_nonce: Uint256::from(0u8),
-                to_nonce: Uint256::from(5u8),
-            },
-        };
+        let msg: ExecuteMsg<ActionMessage, ActionResponse, AdminOperation> =
+            ExecuteMsg::RequestWorkerAction {
+                message: ActionMessage::ConfirmGatewayTxs {
+                    from_nonce: Uint256::from(0u8),
+                    to_nonce: Uint256::from(5u8),
+                },
+            };
 
         let res = app
             .execute_contract(Addr::unchecked(OWNER), service_addr, &msg, &[])

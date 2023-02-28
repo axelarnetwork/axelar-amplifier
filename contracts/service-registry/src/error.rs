@@ -22,4 +22,6 @@ pub enum ContractError {
     InvalidWorkerState {},
     #[error("{msg}")]
     ServiceContractError { msg: String },
+    #[error("Caller not eligible for worker registration")]
+    CallerNotWorkerEligible,
 }

@@ -298,9 +298,11 @@ pub fn pub_keys<'a>() -> IndexedMap<'a, (String, Addr), PubKey, PubKeysIndexes<'
     IndexedMap::new("pub_keys", indexes)
 }
 
+pub const ADMIN: Item<Addr> = Item::new("admin");
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
 pub const INBOUND_SETTINGS: Item<InboundSettings> = Item::new("inbound_settings");
 pub const OUTBOUND_SETTINGS: Item<OutboundSettings> = Item::new("outbound_settings");
+pub const WORKERS_WHITELIST: Map<Addr, bool> = Map::new("workers_whitelist");
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
 pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batchs");

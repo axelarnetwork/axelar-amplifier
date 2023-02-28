@@ -121,6 +121,19 @@ pub mod execute {
 
         // TODO: check max num of workers
 
+        let query_msg: ServiceQueryMsg = ServiceQueryMsg::IsAddressWorkerEligible {
+            address: info.sender.clone(),
+        };
+
+        let eligible: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: service.service_contract.to_string(),
+            msg: to_binary(&query_msg)?,
+        }))?;
+
+        if !eligible {
+            return Err(ContractError::CallerNotWorkerEligible);
+        }
+
         let bond = info
             .funds
             .iter()
