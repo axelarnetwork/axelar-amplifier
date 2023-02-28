@@ -45,7 +45,7 @@ async fn main() -> ExitCode {
     info!("starting daemon");
 
     let cfg = init_config(&args);
-    let state = match state::State::new(args.state) {
+    let state = match state::State::new(&args.state) {
         Ok(state) => state,
         Err(err) => {
             let err = LoggableError::from(&err);

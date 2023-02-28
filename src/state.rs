@@ -21,13 +21,13 @@ pub enum Error {
     WriteFailure,
 }
 
-pub struct State {
+pub struct State<'a> {
     state: HashMap<String, block::Height>,
-    path: PathBuf,
+    path: &'a PathBuf,
 }
 
-impl State {
-    pub fn new(path: PathBuf) -> Result<Self, Error> {
+impl<'a> State<'a> {
+    pub fn new(path: &'a PathBuf) -> Result<Self, Error> {
         let state = fs::read_to_string(path.as_path()).into_report().unwrap_or_else(|err| {
             let err = LoggableError::from(&err);
             info!(err = err.as_value(), "state does not exist, falling back to default");
@@ -79,7 +79,7 @@ impl Updater {
             .insert(label.into(), ReceiverStream::new(height_changed));
     }
 
-    pub async fn run(mut self, state: &mut State) {
+    pub async fn run(mut self, state: &mut State<'_>) {
         while let Some((label, height)) = self.update_stream.next().await {
             state.set(label, height);
         }
@@ -93,29 +93,25 @@ mod tests {
 
     use super::State;
 
-    const PATH: &str = "./test_state.json";
-
-    fn teardown() {
-        let _ = fs::remove_file(PathBuf::from(PATH));
-    }
-
-    fn run_test<T>(test: T)
+    fn run_test<T>(state_path: &PathBuf, test: T)
     where
         T: FnOnce() + panic::UnwindSafe,
     {
         let result = panic::catch_unwind(test);
-        teardown();
+        let _ = fs::remove_file(state_path);
         assert!(result.is_ok())
     }
 
     #[test]
     fn new_state_should_read_from_the_file() {
-        run_test(|| {
-            let state = State::new(PATH.into()).unwrap();
+        let state_path = PathBuf::from("./new_state_should_read_from_the_file.json");
+
+        run_test(&state_path, || {
+            let state = State::new(&state_path).unwrap();
             assert_eq!(state.state.len(), 0);
 
-            fs::write(PathBuf::from(PATH), String::from("{\"a\": \"2\", \"b\": \"3\"}")).unwrap();
-            let state = State::new(PATH.into()).unwrap();
+            fs::write(&state_path, String::from("{\"a\": \"2\", \"b\": \"3\"}")).unwrap();
+            let state = State::new(&state_path).unwrap();
             assert_eq!(state.state.len(), 2);
             assert_eq!(state.get("a"), Some(&2_u32.into()));
             assert_eq!(state.get("b"), Some(&3_u32.into()));
@@ -125,8 +121,10 @@ mod tests {
 
     #[test]
     fn get_set_should_work() {
-        run_test(|| {
-            let mut state = State::new(PATH.into()).unwrap();
+        let state_path = PathBuf::from("./get_set_should_work.json");
+
+        run_test(&state_path, || {
+            let mut state = State::new(&state_path).unwrap();
             assert_eq!(state.state.len(), 0);
 
             state.set("a".into(), 2_u32.into());
@@ -141,15 +139,17 @@ mod tests {
 
     #[test]
     fn flush_should_work() {
-        run_test(|| {
-            let mut state = State::new(PATH.into()).unwrap();
+        let state_path = PathBuf::from("./flush_should_work.json");
+
+        run_test(&state_path, || {
+            let mut state = State::new(&state_path).unwrap();
             assert_eq!(state.state.len(), 0);
 
             state.set("a".into(), 2_u32.into());
             state.set("b".into(), 3_u32.into());
             state.flush().unwrap();
 
-            let state = State::new(PATH.into()).unwrap();
+            let state = State::new(&state_path).unwrap();
             assert_eq!(state.state.len(), 2);
             assert_eq!(state.get("a"), Some(&2_u32.into()));
             assert_eq!(state.get("b"), Some(&3_u32.into()));

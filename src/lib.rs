@@ -26,7 +26,7 @@ mod url;
 
 type HandlerStream = Pin<Box<dyn Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send>>;
 
-pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
+pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
     let tm_client = tendermint_rpc::HttpClient::new(cfg.tm_url.as_str()).map_err(Error::new)?;
     let mut app = App::new(tm_client, state);
 
@@ -34,17 +34,17 @@ pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
     app.run().await
 }
 
-pub struct App {
+pub struct App<'a> {
     event_sub_client: event_sub::EventSubClient<tendermint_rpc::HttpClient>,
     event_sub_driver: event_sub::EventSubClientDriver,
     event_processor: EventProcessor,
     event_processor_driver: event_processor::EventProcessorDriver,
     state_updater: state::Updater,
-    state: State,
+    state: State<'a>,
 }
 
-impl App {
-    pub fn new(tm_client: tendermint_rpc::HttpClient, state: State) -> Self {
+impl<'a> App<'a> {
+    pub fn new(tm_client: tendermint_rpc::HttpClient, state: State<'a>) -> Self {
         let (event_sub_client, event_sub_driver) = event_sub::EventSubClient::new(tm_client, 100000);
         let event_sub_client = match state.min() {
             Some(min_height) => event_sub_client.start_from(min_height.increment()),
@@ -63,7 +63,7 @@ impl App {
         }
     }
 
-    pub async fn configure(mut self, cfg: Config) -> Result<Self, Error> {
+    pub async fn configure(mut self, cfg: Config) -> Result<App<'a>, Error> {
         for config in cfg.evm_chain_configs {
             let label = format!("{}-confirm-gateway-tx-handler", config.name);
             let handler = evm::confirm_gateway_tx_handler(&config).await.map_err(Error::new)?;
