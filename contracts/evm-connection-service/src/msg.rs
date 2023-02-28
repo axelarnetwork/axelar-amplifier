@@ -48,5 +48,11 @@ pub enum ActionResponse {
 
 #[cw_serde]
 pub enum AdminOperation {
-    WhitelistWorkers { workers: Vec<Addr> },
+    UpdateWorkersVotingPower { workers: Vec<WorkerVotingPower> },
+}
+
+#[cw_serde]
+pub struct WorkerVotingPower {
+    pub worker: Addr,
+    pub voting_power: Uint256,
 }

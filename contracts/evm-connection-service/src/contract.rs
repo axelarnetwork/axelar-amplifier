@@ -82,8 +82,9 @@ pub mod execute {
     use serde_json::to_string;
 
     use crate::{
+        msg::WorkerVotingPower,
         multisig::{start_signing_session, WorkerSignature},
-        state::{Participant, ADMIN, SIGNING_SESSIONS, WORKERS_WHITELIST},
+        state::{Participant, ADMIN, SIGNING_SESSIONS, WORKERS_VOTING_POWER},
     };
 
     use super::*;
@@ -98,8 +99,8 @@ pub mod execute {
         if let Some(admin) = result {
             if info.sender == admin {
                 return match operation {
-                    AdminOperation::WhitelistWorkers { workers } => {
-                        whitelist_workers(deps.storage, workers)
+                    AdminOperation::UpdateWorkersVotingPower { workers } => {
+                        update_workers_voting_power(deps.storage, workers)
                     }
                 };
             }
@@ -108,12 +109,12 @@ pub mod execute {
         Err(ContractError::Unauthorized {})
     }
 
-    fn whitelist_workers(
+    fn update_workers_voting_power(
         store: &mut dyn Storage,
-        workers: Vec<Addr>,
+        workers: Vec<WorkerVotingPower>,
     ) -> Result<Response, ContractError> {
-        for worker in workers {
-            WORKERS_WHITELIST.save(store, worker, &true)?;
+        for worker_power in workers {
+            WORKERS_VOTING_POWER.save(store, worker_power.worker, &worker_power.voting_power)?;
         }
 
         Ok(Response::default())
@@ -435,8 +436,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub mod query {
-    use crate::state::WORKERS_WHITELIST;
-
     use super::*;
 
     pub fn get_service_name() -> StdResult<String> {
@@ -459,14 +458,8 @@ pub mod query {
         todo!();
     }
 
-    pub fn is_address_worker_eligible(deps: Deps, address: Addr) -> StdResult<bool> {
-        let result = WORKERS_WHITELIST.may_load(deps.storage, address)?;
-
-        if let Some(whitelist) = result {
-            return Ok(whitelist);
-        }
-
-        Ok(false)
+    pub fn is_address_worker_eligible(_deps: Deps, _address: Addr) -> StdResult<bool> {
+        Ok(true)
     }
 }
 
@@ -476,7 +469,7 @@ mod tests {
     use cosmwasm_std::{Coin, Decimal, Empty, Uint128, Uint256};
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
-    use crate::msg::RegistrationParameters;
+    use crate::msg::{RegistrationParameters, WorkerVotingPower};
     use crate::state::{InboundSettings, OutboundSettings};
 
     use super::*;
@@ -557,14 +550,17 @@ mod tests {
         .unwrap()
     }
 
-    fn whitelist_workers(app: &mut App, service: Addr) {
-        let workers: Vec<Addr> = WORKERS
+    fn update_workers_voting_power(app: &mut App, service: Addr) {
+        let workers: Vec<WorkerVotingPower> = WORKERS
             .into_iter()
-            .map(|worker| Addr::unchecked(worker))
+            .map(|worker| WorkerVotingPower {
+                worker: Addr::unchecked(worker),
+                voting_power: Uint256::one(),
+            })
             .collect();
 
         let msg: ExecuteMsg<ActionMessage, ActionResponse, AdminOperation> = ExecuteMsg::Admin {
-            operation: AdminOperation::WhitelistWorkers { workers },
+            operation: AdminOperation::UpdateWorkersVotingPower { workers },
         };
 
         app.execute_contract(Addr::unchecked(OWNER), service, &msg, &[])
@@ -655,7 +651,7 @@ mod tests {
         );
         app.update_block(next_block);
 
-        whitelist_workers(app, service_address.clone());
+        update_workers_voting_power(app, service_address.clone());
         app.update_block(next_block);
 
         register_workers(app, &service_name, registry_addr.clone());
