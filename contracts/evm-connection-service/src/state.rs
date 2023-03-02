@@ -60,31 +60,8 @@ impl Display for PollState {
 
 #[cw_serde]
 pub struct Participant {
-    pub poll_id: Uint64,
     pub address: Addr,
     pub weight: Uint256,
-}
-
-pub struct ParticipantsIndexes<'a> {
-    pub poll_id: MultiIndex<'a, u64, Participant, (u64, Addr)>,
-}
-
-impl<'a> IndexList<Participant> for ParticipantsIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Participant>> + '_> {
-        let v: Vec<&dyn Index<Participant>> = vec![&self.poll_id];
-        Box::new(v.into_iter())
-    }
-}
-
-pub fn participants<'a>() -> IndexedMap<'a, (u64, Addr), Participant, ParticipantsIndexes<'a>> {
-    let indexes = ParticipantsIndexes {
-        poll_id: MultiIndex::new(
-            |_pk, d| d.poll_id.u64(),
-            "participants",
-            "participants__poll_id",
-        ),
-    };
-    IndexedMap::new("participants", indexes)
 }
 
 #[cw_serde]

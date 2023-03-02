@@ -73,7 +73,7 @@ impl<'a> Poll<'a> {
         if self
             .metadata
             .snapshot
-            .get_participant_weight(self.store, voter)
+            .get_participant_weight(voter)
             .is_zero()
         {
             return Err(ContractError::NotEligibleToVote {
@@ -147,10 +147,7 @@ impl<'a> Poll<'a> {
         is_late: bool,
     ) -> Result<(), ContractError> {
         let hash = hash(&data);
-        let voting_power = self
-            .metadata
-            .snapshot
-            .get_participant_weight(self.store, voter);
+        let voting_power = self.metadata.snapshot.get_participant_weight(voter);
 
         let mut is_voter_late_namespace = String::new();
 
@@ -183,7 +180,7 @@ impl<'a> Poll<'a> {
     fn cannot_win(&mut self, majority: &Uint256) -> bool {
         let already_tallied = self.get_tallied_voting_power();
         let missing_voting_power =
-            self.metadata.snapshot.get_participants_weight(self.store) - already_tallied;
+            self.metadata.snapshot.get_participants_weight() - already_tallied;
 
         (*majority + missing_voting_power).lt(&self.passing_weight)
     }

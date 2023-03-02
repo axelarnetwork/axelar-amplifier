@@ -119,7 +119,7 @@ impl SigningSession {
         self.multisig.sigs.insert(signer, signature);
 
         if self.state != MultisigState::Completed
-            && self.key.snapshot.get_participants_weight(store)
+            && self.key.snapshot.get_participants_weight()
                 >= self
                     .key
                     .snapshot

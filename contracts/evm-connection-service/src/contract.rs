@@ -139,7 +139,6 @@ pub mod execute {
         querier: QuerierWrapper<'a, C>,
         env: Env,
         service_info: &ServiceInfo,
-        poll_id: Uint64,
     ) -> Result<Snapshot, ContractError> {
         let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
             service_name: service_info.name.to_owned(),
@@ -153,7 +152,6 @@ pub mod execute {
 
         let snapshot = Snapshot::new(
             store,
-            poll_id,
             env.block.time,
             Uint64::from(env.block.height),
             active_workers,
@@ -178,7 +176,7 @@ pub mod execute {
 
         let expires_at = env.block.height + inbound_settings.voting_period.u64();
 
-        let snapshot = create_snapshot(store, querier, env, &service_info, Uint64::from(id))?;
+        let snapshot = create_snapshot(store, querier, env, &service_info)?;
 
         let poll_metadata = PollMetadata::new(
             Uint64::from(id),
@@ -207,9 +205,10 @@ pub mod execute {
 
         let participants: Vec<Participant> = poll
             .snapshot
-            .participants(deps.storage)
+            .participants
+            .into_iter()
             .map(|item| {
-                let (_, participant) = item.unwrap();
+                let (_, participant) = item;
                 participant
             })
             .collect();

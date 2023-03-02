@@ -1,30 +1,29 @@
-use std::ops::Mul;
+use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{
-    Addr, Decimal, Decimal256, Fraction, Order, Storage, Timestamp, Uint256, Uint64,
-};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Fraction, Storage, Timestamp, Uint256, Uint64};
 use service_registry::msg::ActiveWorkers;
 
-use crate::state::{participants, Participant, WORKERS_VOTING_POWER};
+use crate::state::{Participant, WORKERS_VOTING_POWER};
 
 #[cw_serde]
 pub struct Snapshot {
-    pub poll_id: Uint64,
     pub timestamp: Timestamp,
     pub height: Uint64,
     pub total_weight: Uint256,
+    pub participants: HashMap<Addr, Participant>,
 }
 
 impl Snapshot {
     pub fn new(
         store: &mut dyn Storage,
-        poll_id: Uint64,
         timestamp: Timestamp,
         height: Uint64,
         active_workers: ActiveWorkers,
     ) -> Self {
         let mut total_weight: Uint256 = Uint256::zero();
+
+        let mut participants: HashMap<Addr, Participant> = HashMap::new();
 
         for worker in active_workers.workers {
             let weight = WORKERS_VOTING_POWER
@@ -38,57 +37,31 @@ impl Snapshot {
             total_weight += weight;
 
             let participant = Participant {
-                poll_id,
                 address: worker.address.clone(),
                 weight,
             };
-            participants()
-                .save(store, (poll_id.u64(), worker.address), &participant)
-                .unwrap();
+            participants.insert(worker.address, participant);
         }
 
         Self {
-            poll_id,
             timestamp,
             height,
             total_weight,
+            participants,
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn participants<'a>(
-        &'a self,
-        store: &'a mut dyn Storage,
-    ) -> Box<(dyn Iterator<Item = Result<((u64, Addr), Participant), cosmwasm_std::StdError>> + '_)>
-    {
-        participants().idx.poll_id.prefix(self.poll_id.u64()).range(
-            store,
-            None,
-            None,
-            Order::Ascending,
-        )
-    }
-
-    pub fn participant<'a>(
-        &self,
-        store: &'a mut dyn Storage,
-        participant_address: &Addr,
-    ) -> Option<Participant> {
-        participants()
-            .may_load(store, (self.poll_id.u64(), participant_address.clone()))
-            .unwrap()
-    }
-
-    pub fn get_participants_weight(&self, store: &mut dyn Storage) -> Uint256 {
-        self.participants(store)
+    pub fn get_participants_weight(&self) -> Uint256 {
+        self.participants
+            .iter()
             .fold(Uint256::zero(), |accum, item| {
-                let (_, participant) = item.unwrap();
+                let (_, participant) = item;
                 accum + participant.weight
             })
     }
 
-    pub fn get_participant_weight<'a>(&self, store: &'a mut dyn Storage, voter: &Addr) -> Uint256 {
-        let result = self.participant(store, voter);
+    pub fn get_participant_weight(&self, voter: &Addr) -> Uint256 {
+        let result = self.participants.get(voter);
         match result {
             Some(participant) => participant.weight,
             None => Uint256::zero(),
