@@ -399,7 +399,6 @@ pub mod execute {
         let mut signing_session = SIGNING_SESSIONS.load(deps.storage, signing_session_id.u64())?;
 
         signing_session.add_signature(
-            deps.storage,
             env.block.height,
             info.sender.clone(),
             WorkerSignature(signature.clone()),

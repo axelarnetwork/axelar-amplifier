@@ -82,7 +82,6 @@ impl SigningSession {
 
     pub fn add_signature(
         &mut self,
-        store: &mut dyn Storage,
         block_height: u64,
         signer: Addr,
         signature: WorkerSignature,
@@ -98,8 +97,8 @@ impl SigningSession {
             });
         }
 
-        if let Some(pub_key) = self.key.pub_key(store, &signer) {
-            if !signature.verify(self.multisig.payload_hash, &pub_key.pub_key) {
+        if let Some(pub_key) = self.key.pub_keys.get(&signer) {
+            if !signature.verify(self.multisig.payload_hash, pub_key) {
                 return Err(ContractError::AlreadySigned {
                     signer,
                     id: self.id,
@@ -181,10 +180,11 @@ pub fn start_signing_session(
     SIGNING_SESSIONS.save(store, sig_session_id, &signing_session)?;
 
     let pub_keys: Vec<Binary> = key
-        .pub_keys(store)
+        .pub_keys
+        .into_iter()
         .map(|item| {
-            let (_, pub_key) = item.unwrap();
-            pub_key.pub_key
+            let (_, pub_key) = item;
+            pub_key
         })
         .collect();
 
