@@ -18,10 +18,12 @@ pub enum ContractError {
     AlreadyVoted { voter: Addr },
     #[error("Address {voter:?} is not eligible to vote in this poll")]
     NotEligibleToVote { voter: Addr },
+    #[error("No active key")]
+    NotActiveKey {},
     #[error("Key {key:?} not found")]
-    KeyNotFound { key: String },
+    KeyNotFound { key: Uint64 },
     #[error("Key {key:?} is not activated yet")]
-    KeyNotActive { key: String },
+    KeyNotActive { key: Uint64 },
     #[error("Signing session {id:?} has expired")]
     ExpiredSigningSession { id: Uint64 },
     #[error("{signer:?} is not a participant of signing {id:?}")]

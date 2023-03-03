@@ -33,8 +33,8 @@ pub struct InboundSettings {
 
 #[cw_serde]
 pub struct OutboundSettings {
-    pub destination_chain_id: Uint256, // TODO: rename to outbound?
-    pub destination_chain_name: String,
+    pub destination_chain_id: Uint256,  // TODO: rename to outbound?
+    pub destination_chain_name: String, // TODO: this is wrong, service uses same chain for inbound and outbound, routing will give message to other service with the appropiate chain
     pub signing_timeout: Uint64,
     pub signing_grace_period: Uint64,
 }
@@ -155,7 +155,7 @@ pub struct CommandBatch {
     pub data: Vec<u8>,
     pub sig_hash: [u8; 32],
     pub status: BatchedCommandsStatus,
-    pub key_id: String,
+    pub key_id: Uint64,
 }
 
 impl CommandBatch {
@@ -163,7 +163,7 @@ impl CommandBatch {
         block_height: u64,
         commands_ids: Vec<[u8; 32]>,
         data: Vec<u8>,
-        key_id: String,
+        key_id: Uint64,
     ) -> Self {
         let mut id_hasher = Keccak256::new();
         id_hasher.update(block_height.to_be_bytes());
@@ -221,13 +221,13 @@ pub enum KeyState {
     Active,
 }
 
-// TODO: keygen logic
+// TODO: keyrotation logic
 #[cw_serde]
 pub struct Key {
-    pub id: String,
+    pub id: Uint64,
     pub snapshot: Snapshot,
     pub signing_treshhold: Decimal,
-    pub state: KeyState,
+    pub state: KeyState, // TODO: not being used right now
     pub pub_keys: HashMap<Addr, Binary>,
 }
 
@@ -239,6 +239,7 @@ pub const WORKERS_VOTING_POWER: Map<Addr, Uint256> = Map::new("workers_whitelist
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
 pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
 pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batchs");
-pub const KEYS: Map<&str, Key> = Map::new("keys");
+pub const KEYS_COUNTER: Item<u64> = Item::new("keys_counter");
+pub const KEYS: Map<u64, Key> = Map::new("keys");
 pub const SIGNING_SESSION_COUNTER: Item<u64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");

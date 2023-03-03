@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, ops::Add};
+use std::{collections::HashMap, ops::Add};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Binary, Event, Storage, Uint64};
@@ -6,7 +6,10 @@ use secp256k1::{verify, Message, PublicKey, Signature};
 use serde_json::to_string;
 
 use crate::{
-    state::{Key, KeyState, KEYS, OUTBOUND_SETTINGS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    state::{
+        Key, KeyState, KEYS, KEYS_COUNTER, OUTBOUND_SETTINGS, SIGNING_SESSIONS,
+        SIGNING_SESSION_COUNTER,
+    },
     ContractError,
 };
 
@@ -25,9 +28,9 @@ impl WorkerSignature {
 
 #[cw_serde]
 pub struct MultiSig {
-    key_id: String,
+    key_id: Uint64,
     payload_hash: [u8; 32],
-    sigs: BTreeMap<Addr, WorkerSignature>, // TODO: move out to cosmwasm Map?
+    sigs: HashMap<Addr, WorkerSignature>, // TODO: move out to cosmwasm Map?
 }
 
 #[cw_serde]
@@ -62,9 +65,9 @@ impl SigningSession {
         Self {
             id,
             multisig: MultiSig {
-                key_id: key.id.clone(),
+                key_id: key.id,
                 payload_hash,
-                sigs: BTreeMap::new(),
+                sigs: HashMap::new(),
             },
             state: MultisigState::Pending,
             key: key.clone(),
@@ -136,23 +139,29 @@ impl SigningSession {
     }
 }
 
-pub fn get_current_key_id() -> String {
-    todo!()
+pub fn get_current_key_id(store: &mut dyn Storage) -> Result<Uint64, ContractError> {
+    let counter = KEYS_COUNTER.load(store)?;
+    let key_option = KEYS.may_load(store, counter)?;
+
+    if let Some(key) = key_option {
+        return Ok(key.id);
+    } else {
+    }
+
+    Err(ContractError::NotActiveKey {})
 }
 
 pub fn start_signing_session(
     store: &mut dyn Storage,
     block_height: u64,
-    key_id: String,
+    key_id: Uint64,
     payload_hash: [u8; 32],
     chain_name: String,
     command_batch_id: [u8; 32],
 ) -> Result<Event, ContractError> {
     let key = KEYS
-        .load(store, &key_id)
-        .map_err(|_| ContractError::KeyNotFound {
-            key: key_id.clone(),
-        })?;
+        .load(store, key_id.u64())
+        .map_err(|_| ContractError::KeyNotFound { key: key_id })?;
 
     if key.state != KeyState::Active {
         return Err(ContractError::KeyNotActive { key: key_id });

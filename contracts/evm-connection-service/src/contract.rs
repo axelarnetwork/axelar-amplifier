@@ -14,7 +14,8 @@ use crate::{
     snapshot::Snapshot,
     state::{
         CommandBatch, PollMetadata, ServiceInfo, ADMIN, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
-        OUTBOUND_SETTINGS, POLLS, POLL_COUNTER, SERVICE_INFO, SIGNING_SESSION_COUNTER,
+        KEYS_COUNTER, OUTBOUND_SETTINGS, POLLS, POLL_COUNTER, SERVICE_INFO,
+        SIGNING_SESSION_COUNTER,
     },
 };
 
@@ -43,6 +44,7 @@ pub fn instantiate(
     OUTBOUND_SETTINGS.save(deps.storage, &msg.outbound_settings)?;
 
     POLL_COUNTER.save(deps.storage, &0)?;
+    KEYS_COUNTER.save(deps.storage, &0)?;
     SIGNING_SESSION_COUNTER.save(deps.storage, &0)?;
 
     let register_msg = service_registry::msg::ExecuteMsg::RegisterService {
@@ -83,7 +85,7 @@ pub mod execute {
 
     use crate::{
         msg::WorkerVotingPower,
-        multisig::{start_signing_session, WorkerSignature},
+        multisig::{get_current_key_id, start_signing_session, WorkerSignature},
         state::{Participant, ADMIN, SIGNING_SESSIONS, WORKERS_VOTING_POWER},
     };
 
@@ -254,6 +256,7 @@ pub mod execute {
     }
 
     fn new_command_batch(
+        store: &mut dyn Storage,
         block_height: u64,
         destination_chain_id: Uint256,
         destination_chain_name: &str,
@@ -274,12 +277,13 @@ pub mod execute {
                     source_chain,
                     calls_hash,
                 } => new_validate_calls_hash_command(
+                    store,
                     &source_chain,
                     destination_chain_name,
                     calls_hash,
                     destination_chain_id,
                     command_type_string,
-                ),
+                )?,
             };
 
             commands_ids.push(command.command_id);
@@ -294,14 +298,9 @@ pub mod execute {
             commands_params,
         );
 
-        let key_id = commands.first().unwrap();
+        let key_id = get_current_key_id(store)?;
 
-        Ok(CommandBatch::new(
-            block_height,
-            commands_ids,
-            data,
-            key_id.to_owned(),
-        ))
+        Ok(CommandBatch::new(block_height, commands_ids, data, key_id))
     }
 
     fn finalize_batch(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
@@ -320,6 +319,7 @@ pub mod execute {
         }
 
         let command_batch = new_command_batch(
+            deps.storage,
             env.block.height,
             outbound_settings.destination_chain_id,
             &outbound_settings.destination_chain_name,
@@ -331,7 +331,7 @@ pub mod execute {
         let sig_started_event = start_signing_session(
             deps.storage,
             env.block.height,
-            command_batch.key_id.clone(),
+            command_batch.key_id,
             command_batch.sig_hash,
             outbound_settings.destination_chain_name.clone(),
             command_batch.id,
