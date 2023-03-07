@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Decimal256, Fraction, Storage, Timestamp, Uint256, Uint64};
-use service_registry::msg::ActiveWorkers;
+use service_registry::{msg::ActiveWorkers, state::Worker};
 
 use crate::state::{Participant, WORKERS_VOTING_POWER};
 
@@ -20,6 +20,7 @@ impl Snapshot {
         timestamp: Timestamp,
         height: Uint64,
         active_workers: ActiveWorkers,
+        filter: impl Fn(&Worker) -> bool,
     ) -> Self {
         let mut total_weight: Uint256 = Uint256::zero();
 
@@ -30,7 +31,7 @@ impl Snapshot {
                 .may_load(store, worker.address.clone())
                 .unwrap();
 
-            if weight.is_none() {
+            if weight.is_none() || !filter(&worker) {
                 continue;
             }
             let weight = weight.unwrap();

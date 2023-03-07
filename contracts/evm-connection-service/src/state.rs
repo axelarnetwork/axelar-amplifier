@@ -231,6 +231,23 @@ pub struct Key {
     pub pub_keys: HashMap<Addr, Binary>,
 }
 
+impl Key {
+    pub fn new(
+        id: u64,
+        snapshot: Snapshot,
+        signing_treshhold: Decimal,
+        pub_keys: HashMap<Addr, Binary>,
+    ) -> Self {
+        Self {
+            id: Uint64::from(id),
+            snapshot,
+            signing_treshhold,
+            state: KeyState::Active,
+            pub_keys,
+        }
+    }
+}
+
 pub const ADMIN: Item<Addr> = Item::new("admin");
 pub const SERVICE_INFO: Item<ServiceInfo> = Item::new("service");
 pub const INBOUND_SETTINGS: Item<InboundSettings> = Item::new("inbound_settings");

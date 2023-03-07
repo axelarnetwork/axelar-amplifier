@@ -1,29 +1,37 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CustomQuery, Deps, DepsMut, Env, Event, MessageInfo,
-    QueryRequest, Response, StdResult, Uint256, Uint64, WasmMsg, WasmQuery,
+    from_binary, to_binary, Addr, Binary, CustomQuery, Decimal, Deps, DepsMut, Env, Event,
+    MessageInfo, QuerierWrapper, QueryRequest, Response, StdResult, Storage, Uint256, Uint64,
+    WasmMsg, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::{
     command::{new_validate_calls_hash_command, CommandType},
     error::ContractError,
-    msg::{ActionMessage, ActionResponse, AdminOperation, ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{
+        ActionMessage, ActionResponse, AdminOperation, ExecuteMsg, InstantiateMsg, QueryMsg,
+        WorkerVotingPower,
+    },
+    multisig::{get_current_key_id, start_signing_session, WorkerSignature},
     poll::Poll,
     snapshot::Snapshot,
     state::{
-        CommandBatch, PollMetadata, ServiceInfo, ADMIN, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
-        KEYS_COUNTER, OUTBOUND_SETTINGS, POLLS, POLL_COUNTER, SERVICE_INFO,
-        SIGNING_SESSION_COUNTER,
+        CommandBatch, Key, Participant, PollMetadata, ServiceInfo, ADMIN, COMMANDS_BATCH_QUEUE,
+        INBOUND_SETTINGS, KEYS, KEYS_COUNTER, OUTBOUND_SETTINGS, POLLS, POLL_COUNTER, SERVICE_INFO,
+        SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, WORKERS_VOTING_POWER,
     },
 };
 
+use serde_json::to_string;
 use service_interface::msg::WorkerState;
 use service_registry::msg::ActiveWorkers;
 use service_registry::msg::QueryMsg as RegistryQueryMsg;
+use service_registry::state::Worker;
 
 use ethabi::{ethereum_types::U256, Token};
+use std::collections::HashMap;
 
 /*
 // version info for migration info
@@ -75,24 +83,16 @@ pub fn execute(
             execute::request_worker_action(deps, env, message)
         }
         ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
-        ExecuteMsg::Admin { operation } => execute::admin_operation(deps, info, operation),
+        ExecuteMsg::Admin { operation } => execute::admin_operation(deps, env, info, operation),
     }
 }
 
 pub mod execute {
-    use cosmwasm_std::{QuerierWrapper, Storage};
-    use serde_json::to_string;
-
-    use crate::{
-        msg::WorkerVotingPower,
-        multisig::{get_current_key_id, start_signing_session, WorkerSignature},
-        state::{Participant, ADMIN, SIGNING_SESSIONS, WORKERS_VOTING_POWER},
-    };
-
     use super::*;
 
     pub fn admin_operation(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
         operation: AdminOperation,
     ) -> Result<Response, ContractError> {
@@ -104,6 +104,10 @@ pub mod execute {
                     AdminOperation::UpdateWorkersVotingPower { workers } => {
                         update_workers_voting_power(deps.storage, workers)
                     }
+                    AdminOperation::SetPubKeys {
+                        signing_treshold,
+                        pub_keys,
+                    } => set_pub_keys(deps, env, signing_treshold, pub_keys),
                 };
             }
         }
@@ -118,6 +122,30 @@ pub mod execute {
         for worker_power in workers {
             WORKERS_VOTING_POWER.save(store, worker_power.worker, &worker_power.voting_power)?;
         }
+
+        Ok(Response::default())
+    }
+
+    fn set_pub_keys(
+        deps: DepsMut,
+        env: Env,
+        signing_treshold: Decimal,
+        pub_keys: HashMap<Addr, Binary>,
+    ) -> Result<Response, ContractError> {
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+
+        let filter = |worker: &Worker| pub_keys.contains_key(&worker.address);
+        let snapshot = create_snapshot(deps.storage, deps.querier, env, &service_info, filter)?;
+
+        let id =
+            KEYS_COUNTER.update(deps.storage, |mut counter| -> Result<u64, ContractError> {
+                counter += 1;
+                Ok(counter)
+            })?;
+
+        let key = Key::new(id, snapshot, signing_treshold, pub_keys);
+
+        KEYS.save(deps.storage, id, &key)?;
 
         Ok(Response::default())
     }
@@ -141,6 +169,7 @@ pub mod execute {
         querier: QuerierWrapper<'a, C>,
         env: Env,
         service_info: &ServiceInfo,
+        filter: impl Fn(&Worker) -> bool,
     ) -> Result<Snapshot, ContractError> {
         let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
             service_name: service_info.name.to_owned(),
@@ -157,6 +186,7 @@ pub mod execute {
             env.block.time,
             Uint64::from(env.block.height),
             active_workers,
+            filter,
         );
 
         Ok(snapshot)
@@ -178,7 +208,7 @@ pub mod execute {
 
         let expires_at = env.block.height + inbound_settings.voting_period.u64();
 
-        let snapshot = create_snapshot(store, querier, env, &service_info)?;
+        let snapshot = create_snapshot(store, querier, env, &service_info, |_| true)?;
 
         let poll_metadata = PollMetadata::new(
             Uint64::from(id),
