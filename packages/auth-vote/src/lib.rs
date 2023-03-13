@@ -4,13 +4,17 @@ mod state;
 mod utils;
 pub use crate::error::AuthError;
 
-use crate::poll::{Poll, VoteResult};
+use crate::poll::VoteResult;
 use crate::state::{PollMetadata, POLLS, POLL_COUNTER};
 use auth::AuthModule;
-use cosmwasm_std::{Addr, Binary, BlockInfo, Decimal, Storage, Uint256, Uint64};
+use cosmwasm_std::{Addr, Binary, BlockInfo, Decimal, StdResult, Storage, Uint256, Uint64};
 use service_registry::msg::ActiveWorkers;
 use service_registry::state::Worker;
 use snapshotter::snapshot::Snapshot;
+
+pub struct InitAuthModuleParameters<'a> {
+    pub store: &'a mut dyn Storage,
+}
 
 pub struct AuthVoting {
     pub voting_threshold: Decimal,
@@ -19,7 +23,7 @@ pub struct AuthVoting {
     pub voting_grace_period: Uint64,
 }
 
-pub struct InitParameters<'a> {
+pub struct InitializeAuthSessionParameters<'a> {
     pub store: &'a mut dyn Storage,
     pub block: BlockInfo,
     pub active_workers: ActiveWorkers,
@@ -28,7 +32,7 @@ pub struct InitParameters<'a> {
     pub weight_fn: fn(&Worker) -> Option<Uint256>,
 }
 
-pub struct SubmitParameters<'a> {
+pub struct SubmitWorkerValidationParameters<'a> {
     pub store: &'a mut dyn Storage,
     pub poll_id: Uint64,
     pub voter: Addr,
@@ -36,21 +40,25 @@ pub struct SubmitParameters<'a> {
     pub vote: Binary,
 }
 
-pub struct FinalizeParameters {}
+pub struct FinalizePendingSessionsParameters {}
 
-impl<'a>
-    AuthModule<
-        InitParameters<'a>,
-        Result<PollMetadata, AuthError>,
-        SubmitParameters<'a>,
-        Result<(Poll<'a>, VoteResult), AuthError>,
-        FinalizeParameters,
-        Result<(), AuthError>,
-    > for AuthVoting
-{
+impl<'a> AuthModule<'a> for AuthVoting {
+    type InitAuthModuleParameters = InitAuthModuleParameters<'a>;
+    type InitAuthModuleResult = StdResult<()>;
+    type InitializeAuthSessionParameters = InitializeAuthSessionParameters<'a>;
+    type InitializeAuthSessionResult = Result<PollMetadata, AuthError>;
+    type SubmitWorkerValidationParameters = SubmitWorkerValidationParameters<'a>;
+    type SubmitWorkerValidationResult = Result<(PollMetadata, VoteResult), AuthError>;
+    type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters;
+    type FinalizePendingSessionsResult = Result<(), AuthError>;
+
+    fn init_auth_module(&self, parameters: Self::InitAuthModuleParameters) -> StdResult<()> {
+        POLL_COUNTER.save(parameters.store, &0)
+    }
+
     fn initialize_auth_session(
         &self,
-        parameters: InitParameters,
+        parameters: InitializeAuthSessionParameters,
     ) -> Result<PollMetadata, AuthError> {
         let id =
             POLL_COUNTER.update(parameters.store, |mut counter| -> Result<u64, AuthError> {
@@ -82,8 +90,8 @@ impl<'a>
 
     fn submit_worker_validation(
         &self,
-        parameters: SubmitParameters,
-    ) -> Result<(Poll<'a>, VoteResult), AuthError> {
+        parameters: SubmitWorkerValidationParameters,
+    ) -> Result<(PollMetadata, VoteResult), AuthError> {
         let metadata = POLLS.may_load(parameters.store, parameters.poll_id.u64())?;
 
         if metadata.is_none() {
@@ -92,13 +100,23 @@ impl<'a>
             });
         }
 
-        let mut poll = Poll::new(metadata.unwrap(), parameters.store, self);
-        let vote_result = poll.vote(&parameters.voter, parameters.block_height, parameters.vote)?;
+        let mut poll = metadata.unwrap();
+
+        let vote_result = poll.vote(
+            parameters.store,
+            self,
+            &parameters.voter,
+            parameters.block_height,
+            parameters.vote,
+        )?;
 
         Ok((poll, vote_result))
     }
 
-    fn finalize_pending_sessions(&self, _parameters: FinalizeParameters) -> Result<(), AuthError> {
+    fn finalize_pending_sessions(
+        &self,
+        _parameters: FinalizePendingSessionsParameters,
+    ) -> Result<(), AuthError> {
         todo!()
     }
 }

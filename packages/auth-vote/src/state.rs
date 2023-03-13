@@ -36,20 +36,6 @@ pub struct PollMetadata {
     pub message: Binary,
 }
 
-impl PollMetadata {
-    pub fn new(id: Uint64, expires_at: Uint64, snapshot: Snapshot, message: Binary) -> Self {
-        Self {
-            id,
-            expires_at,
-            result: None,
-            state: PollState::Pending,
-            completed_at: None,
-            snapshot,
-            message,
-        }
-    }
-}
-
 #[cw_serde]
 pub struct TalliedVote {
     pub tally: Uint256,

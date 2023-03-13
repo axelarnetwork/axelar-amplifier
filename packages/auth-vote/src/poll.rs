@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use cosmwasm_std::{Addr, Binary, Order, Storage, Uint256, Uint64};
+use snapshotter::snapshot::Snapshot;
 
 use crate::{
     state::{is_voter_late_map, tallied_votes, PollMetadata, PollState, TalliedVote, POLLS},
@@ -25,49 +26,34 @@ impl Display for VoteResult {
     }
 }
 
-pub struct Poll<'a> {
-    pub metadata: PollMetadata,
-    pub store: &'a mut dyn Storage,
-    pub settings: &'a AuthVoting, // TODO: remove from here?
-    pub passing_weight: Uint256,
-}
-
-impl<'a> Poll<'a> {
-    pub fn new(
-        metadata: PollMetadata,
-        store: &'a mut dyn Storage,
-        settings: &'a AuthVoting,
-    ) -> Self {
-        let passing_weight = metadata
-            .snapshot
-            .calculate_min_passing_weight(&settings.voting_threshold);
-
+impl<'a> PollMetadata {
+    pub fn new(id: Uint64, expires_at: Uint64, snapshot: Snapshot, message: Binary) -> Self {
         Self {
-            metadata,
-            store,
-            settings,
-            passing_weight,
+            id,
+            expires_at,
+            result: None,
+            state: PollState::Pending,
+            completed_at: None,
+            snapshot,
+            message,
         }
     }
 
     pub fn vote(
         &mut self,
+        store: &mut dyn Storage,
+        settings: &AuthVoting,
         voter: &Addr,
         block_height: u64,
         data: Binary,
     ) -> Result<VoteResult, AuthError> {
-        if self.has_voted(voter) {
+        if self.has_voted(store, voter) {
             return Err(AuthError::AlreadyVoted {
                 voter: voter.to_owned(),
             });
         }
 
-        if self
-            .metadata
-            .snapshot
-            .get_participant_weight(voter)
-            .is_zero()
-        {
+        if self.snapshot.get_participant_weight(voter).is_zero() {
             return Err(AuthError::NotEligibleToVote {
                 voter: voter.to_owned(),
             });
@@ -77,8 +63,8 @@ impl<'a> Poll<'a> {
             return Ok(VoteResult::NoVote);
         }
 
-        if self.is(PollState::Completed) && self.is_in_grace_period(block_height) {
-            self.vote_late(voter, data)?;
+        if self.is(PollState::Completed) && self.is_in_grace_period(settings, block_height) {
+            self.vote_late(store, voter, data)?;
 
             return Ok(VoteResult::VotedLate);
         }
@@ -87,60 +73,77 @@ impl<'a> Poll<'a> {
             return Ok(VoteResult::NoVote);
         }
 
-        self.vote_before_completion(voter, block_height, data)?;
+        self.vote_before_completion(store, settings, voter, block_height, data)?;
 
         Ok(VoteResult::VoteInTime)
     }
 
-    fn has_voted(&self, voter: &Addr) -> bool {
-        let result = self.get_tallied_votes().find(|item| {
+    fn has_voted(&self, store: &dyn Storage, voter: &Addr) -> bool {
+        let result = self.get_tallied_votes(store).find(|item| {
             let (_, tallied_vote) = item.as_ref().unwrap();
-            tallied_vote.is_voter_late_map().has(self.store, voter)
+            tallied_vote.is_voter_late_map().has(store, voter)
         });
 
         result.is_some()
     }
 
-    fn vote_late(&mut self, voter: &Addr, data: Binary) -> Result<(), AuthError> {
-        self.tally_vote(voter, data, true)?;
+    fn vote_late(
+        &mut self,
+        store: &mut dyn Storage,
+        voter: &Addr,
+        data: Binary,
+    ) -> Result<(), AuthError> {
+        self.tally_vote(store, voter, data, true)?;
 
         Ok(())
     }
 
     fn vote_before_completion(
         &mut self,
+        store: &mut dyn Storage,
+        settings: &AuthVoting,
         voter: &Addr,
         block_height: u64,
         data: Binary,
     ) -> Result<(), AuthError> {
-        self.tally_vote(voter, data, false)?;
+        self.tally_vote(store, voter, data, false)?;
 
-        let majority_vote = self.get_majority_vote()?;
+        let majority_vote = self.get_majority_vote(store)?;
 
-        if self.has_enough_votes(&majority_vote.tally) {
-            self.metadata.result = Some(majority_vote.data);
-            self.metadata.state = PollState::Completed;
-            self.metadata.completed_at = Some(Uint64::from(block_height));
+        let passing_weight = self
+            .snapshot
+            .calculate_min_passing_weight(&settings.voting_threshold);
 
-            POLLS.save(self.store, self.metadata.id.u64(), &self.metadata)?;
-        } else if self.cannot_win(&majority_vote.tally) {
-            self.metadata.state = PollState::Failed;
+        if self.has_enough_votes(store, settings, passing_weight, &majority_vote.tally) {
+            self.result = Some(majority_vote.data);
+            self.state = PollState::Completed;
+            self.completed_at = Some(Uint64::from(block_height));
 
-            POLLS.save(self.store, self.metadata.id.u64(), &self.metadata)?;
+            POLLS.save(store, self.id.u64(), &self)?;
+        } else if self.cannot_win(store, passing_weight, &majority_vote.tally) {
+            self.state = PollState::Failed;
+
+            POLLS.save(store, self.id.u64(), &self)?;
         }
 
         Ok(())
     }
 
-    fn tally_vote(&mut self, voter: &Addr, data: Binary, is_late: bool) -> Result<(), AuthError> {
+    fn tally_vote(
+        &mut self,
+        store: &mut dyn Storage,
+        voter: &Addr,
+        data: Binary,
+        is_late: bool,
+    ) -> Result<(), AuthError> {
         let hash = hash(&data);
-        let voting_power = self.metadata.snapshot.get_participant_weight(voter);
+        let voting_power = self.snapshot.get_participant_weight(voter);
 
         let mut is_voter_late_namespace = String::new();
 
         tallied_votes().update(
-            self.store,
-            (self.metadata.id.u64(), hash),
+            store,
+            (self.id.u64(), hash),
             |v| -> Result<TalliedVote, AuthError> {
                 match v {
                     Some(mut tallied_vote) => {
@@ -148,60 +151,69 @@ impl<'a> Poll<'a> {
                         is_voter_late_namespace = tallied_vote.is_voter_late_namespace.clone();
                         Ok(tallied_vote)
                     }
-                    None => Ok(TalliedVote::new(voting_power, data, self.metadata.id)),
+                    None => Ok(TalliedVote::new(voting_power, data, self.id)),
                 }
             },
         )?;
 
         is_voter_late_map(&is_voter_late_namespace)
-            .save(self.store, voter, &is_late)
+            .save(store, voter, &is_late)
             .unwrap(); // TODO: this might need to be improved somehow
 
         Ok(())
     }
 
-    fn has_enough_votes(&self, majority: &Uint256) -> bool {
-        majority.ge(&self.passing_weight) && self.get_voter_count() >= self.settings.min_voter_count
+    fn has_enough_votes(
+        &self,
+        store: &dyn Storage,
+        settings: &AuthVoting,
+        passing_weight: Uint256,
+        majority: &Uint256,
+    ) -> bool {
+        majority.ge(&passing_weight) && self.get_voter_count(store) >= settings.min_voter_count
     }
 
-    fn cannot_win(&mut self, majority: &Uint256) -> bool {
-        let already_tallied = self.get_tallied_voting_power();
-        let missing_voting_power =
-            self.metadata.snapshot.get_participants_weight() - already_tallied;
+    fn cannot_win(
+        &mut self,
+        store: &dyn Storage,
+        passing_weight: Uint256,
+        majority: &Uint256,
+    ) -> bool {
+        let already_tallied = self.get_tallied_voting_power(store);
+        let missing_voting_power = self.snapshot.get_participants_weight() - already_tallied;
 
-        (*majority + missing_voting_power).lt(&self.passing_weight)
+        (*majority + missing_voting_power).lt(&passing_weight)
     }
 
-    fn get_tallied_voting_power(&self) -> Uint256 {
-        self.get_tallied_votes()
+    fn get_tallied_voting_power(&self, store: &dyn Storage) -> Uint256 {
+        self.get_tallied_votes(store)
             .fold(Uint256::zero(), |accum, item| {
                 let (_, tallied_vote) = item.as_ref().unwrap();
                 accum + tallied_vote.tally
             })
     }
 
-    fn get_voter_count(&self) -> Uint64 {
-        self.get_tallied_votes()
+    fn get_voter_count(&self, store: &dyn Storage) -> Uint64 {
+        self.get_tallied_votes(store)
             .fold(Uint64::zero(), |accum, item| {
                 let (_, tallied_vote) = item.as_ref().unwrap();
                 accum
                     + Uint64::from(
                         tallied_vote
                             .is_voter_late_map()
-                            .keys(self.store, None, None, Order::Ascending)
+                            .keys(store, None, None, Order::Ascending)
                             .count() as u64,
                     )
             })
     }
 
-    fn is_in_grace_period(&self, block_height: u64) -> bool {
-        block_height
-            < self.metadata.completed_at.unwrap().u64() + self.settings.voting_grace_period.u64()
+    fn is_in_grace_period(&self, settings: &AuthVoting, block_height: u64) -> bool {
+        block_height < self.completed_at.unwrap().u64() + settings.voting_grace_period.u64()
     }
 
-    fn get_majority_vote(&self) -> Result<TalliedVote, AuthError> {
+    fn get_majority_vote(&self, store: &dyn Storage) -> Result<TalliedVote, AuthError> {
         let (_, majority) = self
-            .get_tallied_votes()
+            .get_tallied_votes(store)
             .reduce(|accum, item| {
                 let (_, max_tallied_vote) = accum.as_ref().unwrap();
                 let (_, tallied_vote) = item.as_ref().unwrap();
@@ -218,17 +230,18 @@ impl<'a> Poll<'a> {
 
     #[allow(clippy::type_complexity)]
     fn get_tallied_votes(
-        &self,
+        &'a self,
+        store: &'a dyn Storage,
     ) -> Box<(dyn Iterator<Item = Result<((u64, u64), TalliedVote), cosmwasm_std::StdError>> + '_)>
     {
         tallied_votes()
             .idx
             .poll_id
-            .prefix(self.metadata.id.u64())
-            .range(self.store, None, None, Order::Ascending)
+            .prefix(self.id.u64())
+            .range(store, None, None, Order::Ascending)
     }
 
     fn is(&self, state: PollState) -> bool {
-        self.metadata.state == state
+        self.state == state
     }
 }
