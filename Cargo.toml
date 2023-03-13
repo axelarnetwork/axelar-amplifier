@@ -13,6 +13,10 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
+auth = { version = "0.1.0", path = "./packages/auth" }
+auth-multisig = { version = "0.1.0", path = "./packages/auth-multisig" }
+auth-voting = { version = "0.1.0", path = "./packages/auth-voting" }
+connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
 service-interface = { version = "0.1.0", path = "./packages/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
-connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
+snapshotter = { version = "0.1.0", path = "./packages/snapshotter" }

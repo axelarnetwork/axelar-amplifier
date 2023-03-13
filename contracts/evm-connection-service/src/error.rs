@@ -12,12 +12,12 @@ pub enum ContractError {
     InvalidRequestId {},
     #[error("Voting already closed")]
     VotingAlreadyClosed {},
-    #[error("poll does not exist")]
-    PollNonExistent {},
-    #[error("Voter {voter:?} has already voted")]
-    AlreadyVoted { voter: Addr },
-    #[error("Address {voter:?} is not eligible to vote in this poll")]
-    NotEligibleToVote { voter: Addr },
+    // #[error("poll does not exist")]
+    // PollNonExistent {},
+    // #[error("Voter {voter:?} has already voted")]
+    // AlreadyVoted { voter: Addr },
+    // #[error("Address {voter:?} is not eligible to vote in this poll")]
+    // NotEligibleToVote { voter: Addr },
     #[error("No active key")]
     NotActiveKey {},
     #[error("Key {key:?} not found")]

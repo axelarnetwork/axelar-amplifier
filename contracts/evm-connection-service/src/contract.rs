@@ -192,35 +192,35 @@ pub mod execute {
         Ok(snapshot)
     }
 
-    fn initialize_poll<'a, C: CustomQuery>(
-        store: &'a mut dyn Storage,
-        querier: QuerierWrapper<'a, C>,
-        env: Env,
-        message: ActionMessage,
-    ) -> Result<PollMetadata, ContractError> {
-        let id = POLL_COUNTER.update(store, |mut counter| -> Result<u64, ContractError> {
-            counter += 1;
-            Ok(counter)
-        })?;
+    // fn initialize_poll<'a, C: CustomQuery>(
+    //     store: &'a mut dyn Storage,
+    //     querier: QuerierWrapper<'a, C>,
+    //     env: Env,
+    //     message: ActionMessage,
+    // ) -> Result<PollMetadata, ContractError> {
+    //     let id = POLL_COUNTER.update(store, |mut counter| -> Result<u64, ContractError> {
+    //         counter += 1;
+    //         Ok(counter)
+    //     })?;
 
-        let service_info = SERVICE_INFO.load(store)?;
-        let inbound_settings = INBOUND_SETTINGS.load(store)?;
+    //     let service_info = SERVICE_INFO.load(store)?;
+    //     let inbound_settings = INBOUND_SETTINGS.load(store)?;
 
-        let expires_at = env.block.height + inbound_settings.voting_period.u64();
+    //     let expires_at = env.block.height + inbound_settings.voting_period.u64();
 
-        let snapshot = create_snapshot(store, querier, env, &service_info, |_| true)?;
+    //     let snapshot = create_snapshot(store, querier, env, &service_info, |_| true)?;
 
-        let poll_metadata = PollMetadata::new(
-            Uint64::from(id),
-            Uint64::from(expires_at),
-            snapshot,
-            message,
-        );
+    //     let poll_metadata = PollMetadata::new(
+    //         Uint64::from(id),
+    //         Uint64::from(expires_at),
+    //         snapshot,
+    //         message,
+    //     );
 
-        POLLS.save(store, id, &poll_metadata)?;
+    //     POLLS.save(store, id, &poll_metadata)?;
 
-        Ok(poll_metadata)
-    }
+    //     Ok(poll_metadata)
+    // }
 
     pub fn request_confirm_gateway_txs(
         deps: DepsMut,
@@ -403,9 +403,13 @@ pub mod execute {
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
         let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
-        let metadata = POLLS.load(deps.storage, poll_id.u64())?;
+        let metadata = POLLS.may_load(deps.storage, poll_id.u64())?;
 
-        let mut poll = Poll::new(metadata, deps.storage, inbound_settings);
+        if metadata.is_none() {
+            return Err(ContractError::PollNonExistent {});
+        }
+
+        let mut poll = Poll::new(metadata.unwrap(), deps.storage, inbound_settings);
         let vote_result = poll.vote(&info.sender, env.block.height, reply)?;
 
         let event = Event::new("Voted")

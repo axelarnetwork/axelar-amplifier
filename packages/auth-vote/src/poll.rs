@@ -1,15 +1,11 @@
 use std::fmt::Display;
 
-use cosmwasm_std::{Addr, Order, Storage, Uint256, Uint64};
+use cosmwasm_std::{Addr, Binary, Order, Storage, Uint256, Uint64};
 
 use crate::{
-    msg::ActionResponse,
-    state::{
-        is_voter_late_map, tallied_votes, InboundSettings, PollMetadata, PollState, TalliedVote,
-        POLLS,
-    },
+    state::{is_voter_late_map, tallied_votes, PollMetadata, PollState, TalliedVote, POLLS},
     utils::hash,
-    ContractError,
+    AuthError, AuthVoting,
 };
 
 #[derive(PartialEq, Eq)]
@@ -32,7 +28,7 @@ impl Display for VoteResult {
 pub struct Poll<'a> {
     pub metadata: PollMetadata,
     pub store: &'a mut dyn Storage,
-    pub settings: InboundSettings, // TODO: remove from here?
+    pub settings: &'a AuthVoting, // TODO: remove from here?
     pub passing_weight: Uint256,
 }
 
@@ -40,7 +36,7 @@ impl<'a> Poll<'a> {
     pub fn new(
         metadata: PollMetadata,
         store: &'a mut dyn Storage,
-        settings: InboundSettings,
+        settings: &'a AuthVoting,
     ) -> Self {
         let passing_weight = metadata
             .snapshot
@@ -58,10 +54,10 @@ impl<'a> Poll<'a> {
         &mut self,
         voter: &Addr,
         block_height: u64,
-        data: ActionResponse,
-    ) -> Result<VoteResult, ContractError> {
+        data: Binary,
+    ) -> Result<VoteResult, AuthError> {
         if self.has_voted(voter) {
-            return Err(ContractError::AlreadyVoted {
+            return Err(AuthError::AlreadyVoted {
                 voter: voter.to_owned(),
             });
         }
@@ -72,7 +68,7 @@ impl<'a> Poll<'a> {
             .get_participant_weight(voter)
             .is_zero()
         {
-            return Err(ContractError::NotEligibleToVote {
+            return Err(AuthError::NotEligibleToVote {
                 voter: voter.to_owned(),
             });
         }
@@ -105,7 +101,7 @@ impl<'a> Poll<'a> {
         result.is_some()
     }
 
-    fn vote_late(&mut self, voter: &Addr, data: ActionResponse) -> Result<(), ContractError> {
+    fn vote_late(&mut self, voter: &Addr, data: Binary) -> Result<(), AuthError> {
         self.tally_vote(voter, data, true)?;
 
         Ok(())
@@ -115,8 +111,8 @@ impl<'a> Poll<'a> {
         &mut self,
         voter: &Addr,
         block_height: u64,
-        data: ActionResponse,
-    ) -> Result<(), ContractError> {
+        data: Binary,
+    ) -> Result<(), AuthError> {
         self.tally_vote(voter, data, false)?;
 
         let majority_vote = self.get_majority_vote()?;
@@ -136,12 +132,7 @@ impl<'a> Poll<'a> {
         Ok(())
     }
 
-    fn tally_vote(
-        &mut self,
-        voter: &Addr,
-        data: ActionResponse,
-        is_late: bool,
-    ) -> Result<(), ContractError> {
+    fn tally_vote(&mut self, voter: &Addr, data: Binary, is_late: bool) -> Result<(), AuthError> {
         let hash = hash(&data);
         let voting_power = self.metadata.snapshot.get_participant_weight(voter);
 
@@ -150,7 +141,7 @@ impl<'a> Poll<'a> {
         tallied_votes().update(
             self.store,
             (self.metadata.id.u64(), hash),
-            |v| -> Result<TalliedVote, ContractError> {
+            |v| -> Result<TalliedVote, AuthError> {
                 match v {
                     Some(mut tallied_vote) => {
                         tallied_vote.tally += voting_power;
@@ -208,7 +199,7 @@ impl<'a> Poll<'a> {
             < self.metadata.completed_at.unwrap().u64() + self.settings.voting_grace_period.u64()
     }
 
-    fn get_majority_vote(&self) -> Result<TalliedVote, ContractError> {
+    fn get_majority_vote(&self) -> Result<TalliedVote, AuthError> {
         let (_, majority) = self
             .get_tallied_votes()
             .reduce(|accum, item| {
