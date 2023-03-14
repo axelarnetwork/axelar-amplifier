@@ -1,4 +1,10 @@
-use cosmwasm_std::Addr;
-use cw_storage_plus::Map;
+use cosmwasm_std::{Addr, Uint256};
 
-pub const ROUTES: Map<u128, Addr> = Map::new("routes");
+pub struct Message {
+    id: String,
+    destination_addr: Addr,
+    destination_domain: String,
+    source_domain: String,
+    source_addr: Addr,
+    payload_hash: Uint256,
+}
