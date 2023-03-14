@@ -25,7 +25,7 @@ impl Display for PollState {
 }
 
 #[cw_serde]
-pub struct PollMetadata {
+pub struct Poll {
     // TODO: rename to poll
     pub id: Uint64,
     pub expires_at: Uint64, // TODO: this is used for end blocker, how is end blocker logic being handled in cosmwasm? Split endblockr logc and decide later who will trigger logic
@@ -89,4 +89,4 @@ pub fn tallied_votes<'a>() -> IndexedMap<'a, (u64, u64), TalliedVote, TalliedVot
 }
 
 pub const POLL_COUNTER: Item<u64> = Item::new("poll_counter");
-pub const POLLS: Map<u64, PollMetadata> = Map::new("polls");
+pub const POLLS: Map<u64, Poll> = Map::new("polls");

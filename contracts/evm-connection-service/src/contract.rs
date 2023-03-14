@@ -1,3 +1,4 @@
+use auth_vote::InitAuthModuleParameters;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -15,15 +16,15 @@ use crate::{
         WorkerVotingPower,
     },
     multisig::{get_current_key_id, start_signing_session, WorkerSignature},
-    poll::Poll,
     snapshot::Snapshot,
     state::{
-        CommandBatch, Key, ServiceInfo, ADMIN, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS, KEYS,
-        KEYS_COUNTER, OUTBOUND_SETTINGS, SERVICE_INFO, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER,
-        WORKERS_VOTING_POWER,
+        CommandBatch, Key, ServiceInfo, ADMIN, AUTH_MODULE, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
+        KEYS, KEYS_COUNTER, OUTBOUND_SETTINGS, SERVICE_INFO, SIGNING_SESSIONS,
+        SIGNING_SESSION_COUNTER, WORKERS_VOTING_POWER,
     },
 };
 
+use auth::AuthModule;
 use serde_json::to_string;
 use service_interface::msg::WorkerState;
 use service_registry::msg::ActiveWorkers;
@@ -51,7 +52,11 @@ pub fn instantiate(
     INBOUND_SETTINGS.save(deps.storage, &msg.inbound_settings)?;
     OUTBOUND_SETTINGS.save(deps.storage, &msg.outbound_settings)?;
 
-    POLL_COUNTER.save(deps.storage, &0)?;
+    AUTH_MODULE.save(deps.storage, &msg.auth_module)?;
+    msg.auth_module.init_auth_module(InitAuthModuleParameters {
+        store: deps.storage,
+    });
+
     KEYS_COUNTER.save(deps.storage, &0)?;
     SIGNING_SESSION_COUNTER.save(deps.storage, &0)?;
 
@@ -88,6 +93,8 @@ pub fn execute(
 }
 
 pub mod execute {
+    use auth_vote::{InitializeAuthSessionParameters, SubmitWorkerValidationParameters};
+
     use super::*;
 
     pub fn admin_operation(
@@ -192,36 +199,6 @@ pub mod execute {
         Ok(snapshot)
     }
 
-    // fn initialize_poll<'a, C: CustomQuery>(
-    //     store: &'a mut dyn Storage,
-    //     querier: QuerierWrapper<'a, C>,
-    //     env: Env,
-    //     message: ActionMessage,
-    // ) -> Result<PollMetadata, ContractError> {
-    //     let id = POLL_COUNTER.update(store, |mut counter| -> Result<u64, ContractError> {
-    //         counter += 1;
-    //         Ok(counter)
-    //     })?;
-
-    //     let service_info = SERVICE_INFO.load(store)?;
-    //     let inbound_settings = INBOUND_SETTINGS.load(store)?;
-
-    //     let expires_at = env.block.height + inbound_settings.voting_period.u64();
-
-    //     let snapshot = create_snapshot(store, querier, env, &service_info, |_| true)?;
-
-    //     let poll_metadata = PollMetadata::new(
-    //         Uint64::from(id),
-    //         Uint64::from(expires_at),
-    //         snapshot,
-    //         message,
-    //     );
-
-    //     POLLS.save(store, id, &poll_metadata)?;
-
-    //     Ok(poll_metadata)
-    // }
-
     pub fn request_confirm_gateway_txs(
         deps: DepsMut,
         env: Env,
@@ -231,19 +208,41 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         // TODO: validate sender = worker
 
+        let auth_module = AUTH_MODULE.load(deps.storage)?;
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+
+        let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
+            service_name: service_info.name.to_owned(),
+        };
+
+        let active_workers: ActiveWorkers =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: service_info.service_registry.to_string(),
+                msg: to_binary(&query_msg)?,
+            }))?;
+
+        let weight_fn = &|worker: &Worker| -> Option<Uint256> {
+            WORKERS_VOTING_POWER
+                .may_load(deps.storage, worker.address.clone())
+                .unwrap()
+        };
+
+        let init_auth_session_parameters = InitializeAuthSessionParameters {
+            store: deps.storage,
+            block: env.block,
+            active_workers,
+            message: to_binary(&message)?,
+            filter_fn: &|_| true,
+            weight_fn,
+        };
+
+        let poll = auth_module
+            .initialize_auth_session(init_auth_session_parameters)
+            .unwrap(); // TODO: convert AuthError to ContractError
+
         let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
 
-        let poll = initialize_poll(deps.storage, deps.querier, env, message)?;
-
-        let participants: Vec<Participant> = poll
-            .snapshot
-            .participants
-            .into_iter()
-            .map(|item| {
-                let (_, participant) = item;
-                participant
-            })
-            .collect();
+        let participants = poll.snapshot.participants;
 
         let event = Event::new("ConfirmGatewayTxStarted")
             .add_attribute("poll_id", poll.id)
@@ -402,23 +401,22 @@ pub mod execute {
         poll_id: Uint64,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
-        let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
-        let metadata = POLLS.may_load(deps.storage, poll_id.u64())?;
+        let parameters = SubmitWorkerValidationParameters {
+            store: deps.storage,
+            poll_id,
+            voter: info.sender,
+            block_height: env.block.height,
+            vote: to_binary(&reply)?,
+        };
 
-        if metadata.is_none() {
-            return Err(ContractError::PollNonExistent {});
-        }
-
-        let mut poll = Poll::new(metadata.unwrap(), deps.storage, inbound_settings);
-        let vote_result = poll.vote(&info.sender, env.block.height, reply)?;
+        let auth_module = AUTH_MODULE.load(deps.storage)?;
+        let (poll, vote_result) = auth_module.submit_worker_validation(parameters).unwrap(); // TODO: convert to AuthError to ContractError
 
         let event = Event::new("Voted")
-            .add_attribute("poll", poll.metadata.id)
+            .add_attribute("poll", poll.id)
             .add_attribute("voter", info.sender)
             .add_attribute("vote_result", vote_result.to_string())
-            .add_attribute("state", poll.metadata.state.to_string());
-
-        // TODO: React to poll state
+            .add_attribute("state", poll.state.to_string());
 
         Ok(Response::new().add_event(event))
     }

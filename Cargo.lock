@@ -468,6 +468,8 @@ dependencies = [
 name = "evm-connection-service"
 version = "0.1.0"
 dependencies = [
+ "auth",
+ "auth-vote",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",

@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, Binary, Order, Storage, Uint256, Uint64};
 use snapshotter::snapshot::Snapshot;
 
 use crate::{
-    state::{is_voter_late_map, tallied_votes, PollMetadata, PollState, TalliedVote, POLLS},
+    state::{is_voter_late_map, tallied_votes, Poll, PollState, TalliedVote, POLLS},
     utils::hash,
     AuthError, AuthVoting,
 };
@@ -26,7 +26,7 @@ impl Display for VoteResult {
     }
 }
 
-impl<'a> PollMetadata {
+impl<'a> Poll {
     pub fn new(id: Uint64, expires_at: Uint64, snapshot: Snapshot, message: Binary) -> Self {
         Self {
             id,

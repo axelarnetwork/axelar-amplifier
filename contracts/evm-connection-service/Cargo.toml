@@ -37,6 +37,8 @@ cw2 = "0.15.1"
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
+auth = { workspace = true }
+auth-vote = { workspace = true }
 service-interface = { workspace = true, features = ["library"] }
 service-registry = { workspace = true }
 connection-router = { workspace = true, features = ["library"] }

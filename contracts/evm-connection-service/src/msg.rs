@@ -6,6 +6,7 @@ use cosmwasm_std::{Binary, Uint128, Uint256, Uint64};
 
 use crate::state::{InboundSettings, OutboundSettings, ServiceInfo};
 
+use auth_vote::AuthVoting;
 pub use service_interface::msg::ExecuteMsg;
 pub use service_interface::msg::QueryMsg;
 
@@ -16,6 +17,7 @@ pub struct InstantiateMsg {
     pub registration_parameters: RegistrationParameters,
     pub inbound_settings: InboundSettings,
     pub outbound_settings: OutboundSettings,
+    pub auth_module: AuthVoting,
 }
 
 #[cw_serde]

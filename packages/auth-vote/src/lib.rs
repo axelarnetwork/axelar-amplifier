@@ -5,8 +5,9 @@ mod utils;
 pub use crate::error::AuthError;
 
 use crate::poll::VoteResult;
-use crate::state::{PollMetadata, POLLS, POLL_COUNTER};
+use crate::state::{Poll, POLLS, POLL_COUNTER};
 use auth::AuthModule;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Binary, BlockInfo, Decimal, StdResult, Storage, Uint256, Uint64};
 use service_registry::msg::ActiveWorkers;
 use service_registry::state::Worker;
@@ -16,6 +17,7 @@ pub struct InitAuthModuleParameters<'a> {
     pub store: &'a mut dyn Storage,
 }
 
+#[cw_serde]
 pub struct AuthVoting {
     pub voting_threshold: Decimal,
     pub min_voter_count: Uint64,
@@ -28,8 +30,8 @@ pub struct InitializeAuthSessionParameters<'a> {
     pub block: BlockInfo,
     pub active_workers: ActiveWorkers,
     pub message: Binary,
-    pub filter_fn: fn(&Worker) -> bool,
-    pub weight_fn: fn(&Worker) -> Option<Uint256>,
+    pub filter_fn: &'a dyn Fn(&Worker) -> bool,
+    pub weight_fn: &'a dyn Fn(&Worker) -> Option<Uint256>,
 }
 
 pub struct SubmitWorkerValidationParameters<'a> {
@@ -46,9 +48,9 @@ impl<'a> AuthModule<'a> for AuthVoting {
     type InitAuthModuleParameters = InitAuthModuleParameters<'a>;
     type InitAuthModuleResult = StdResult<()>;
     type InitializeAuthSessionParameters = InitializeAuthSessionParameters<'a>;
-    type InitializeAuthSessionResult = Result<PollMetadata, AuthError>;
+    type InitializeAuthSessionResult = Result<Poll, AuthError>;
     type SubmitWorkerValidationParameters = SubmitWorkerValidationParameters<'a>;
-    type SubmitWorkerValidationResult = Result<(PollMetadata, VoteResult), AuthError>;
+    type SubmitWorkerValidationResult = Result<(Poll, VoteResult), AuthError>;
     type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters;
     type FinalizePendingSessionsResult = Result<(), AuthError>;
 
@@ -59,7 +61,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
     fn initialize_auth_session(
         &self,
         parameters: InitializeAuthSessionParameters,
-    ) -> Result<PollMetadata, AuthError> {
+    ) -> Result<Poll, AuthError> {
         let id =
             POLL_COUNTER.update(parameters.store, |mut counter| -> Result<u64, AuthError> {
                 counter += 1;
@@ -76,7 +78,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
             parameters.weight_fn,
         );
 
-        let poll_metadata = PollMetadata::new(
+        let poll_metadata = Poll::new(
             Uint64::from(id),
             Uint64::from(expires_at),
             snapshot,
@@ -91,7 +93,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
     fn submit_worker_validation(
         &self,
         parameters: SubmitWorkerValidationParameters,
-    ) -> Result<(PollMetadata, VoteResult), AuthError> {
+    ) -> Result<(Poll, VoteResult), AuthError> {
         let metadata = POLLS.may_load(parameters.store, parameters.poll_id.u64())?;
 
         if metadata.is_none() {
@@ -117,6 +119,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
         &self,
         _parameters: FinalizePendingSessionsParameters,
     ) -> Result<(), AuthError> {
+        // TODO: React to poll state
         todo!()
     }
 }
