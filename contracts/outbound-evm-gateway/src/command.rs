@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{to_binary, Storage, Uint256, Uint64};
+use cosmwasm_std::{to_binary, Uint256};
 use ethabi::Token;
 use sha3::{Digest, Keccak256};
 
-use crate::{multisig::get_current_key_id, ContractError};
+use crate::ContractError;
 
 const VALIDATE_CALLS_HASH_MAX_GAS_COST: u32 = 100000;
 
@@ -33,12 +33,16 @@ pub struct Command {
     pub command_id: [u8; 32],
     pub command_type: String,
     pub params: Vec<u8>,
-    pub key_id: Uint64,
     pub max_gas_cost: u32, // TODO: is necessary for cosmwasm?
 }
 
+#[cw_serde]
+pub struct CommandBatchMetadata {
+    pub chain_name: String, // TODO: probably not needed since this can be retrieved from gateway settings
+    pub command_batch_id: [u8; 32],
+}
+
 pub fn new_validate_calls_hash_command(
-    store: &mut dyn Storage,
     source_chain: &str,
     destination_chain: &str,
     calls_hash: [u8; 32],
@@ -62,7 +66,6 @@ pub fn new_validate_calls_hash_command(
         command_id,
         command_type,
         params: create_validate_calls_hash_params(source_chain, destination_chain, calls_hash),
-        key_id: get_current_key_id(store)?,
         max_gas_cost: VALIDATE_CALLS_HASH_MAX_GAS_COST, // TODO: needs to be used
     };
 

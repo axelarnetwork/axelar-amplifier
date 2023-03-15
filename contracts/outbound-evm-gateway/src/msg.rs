@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal};
-use cosmwasm_std::{Binary, Uint128, Uint256, Uint64};
+use cosmwasm_std::{Binary, Uint128, Uint64};
 
-use crate::state::{InboundSettings, OutboundSettings, ServiceInfo};
+use crate::state::{OutboundSettings, ServiceInfo};
 
-use auth_vote::AuthVoting;
+use auth_multisig::AuthMultisig;
 pub use service_interface::msg::ExecuteMsg;
 pub use service_interface::msg::QueryMsg;
 
@@ -15,9 +15,8 @@ pub struct InstantiateMsg {
     // TODO: rename inbound/outbound variables
     pub service_info: ServiceInfo,
     pub registration_parameters: RegistrationParameters,
-    pub inbound_settings: InboundSettings,
     pub outbound_settings: OutboundSettings,
-    pub auth_module: AuthVoting,
+    pub auth_module: AuthMultisig,
 }
 
 #[cw_serde]
@@ -31,19 +30,11 @@ pub struct RegistrationParameters {
 
 #[cw_serde]
 pub enum ActionMessage {
-    ConfirmGatewayTxs {
-        from_nonce: Uint256,
-        to_nonce: Uint256,
-    },
     SignCommands {},
 }
 
 #[cw_serde]
 pub enum ActionResponse {
-    ConfirmGatewayTxs {
-        poll_id: Uint64,
-        calls_hash: [u8; 32],
-    },
     SubmitSignature {
         signing_session_id: Uint64,
         signature: Binary,
@@ -52,17 +43,8 @@ pub enum ActionResponse {
 
 #[cw_serde]
 pub enum AdminOperation {
-    UpdateWorkersVotingPower {
-        workers: Vec<WorkerVotingPower>,
-    },
     SetPubKeys {
         signing_treshold: Decimal,
         pub_keys: HashMap<Addr, Binary>,
     },
-}
-
-#[cw_serde]
-pub struct WorkerVotingPower {
-    pub worker: Addr,
-    pub voting_power: Uint256,
 }

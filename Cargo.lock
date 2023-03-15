@@ -33,14 +33,20 @@ dependencies = [
 name = "auth-multisig"
 version = "0.1.0"
 dependencies = [
+ "auth",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus",
  "cw2",
+ "hex",
+ "libsecp256k1",
  "schemars",
  "serde",
+ "serde_json",
+ "service-registry",
+ "snapshotter",
  "thiserror",
 ]
 
@@ -138,7 +144,6 @@ dependencies = [
  "cw2",
  "schemars",
  "serde",
- "serde_json",
  "service-interface",
  "thiserror",
 ]
@@ -465,31 +470,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "evm-connection-service"
-version = "0.1.0"
-dependencies = [
- "auth",
- "auth-vote",
- "connection-router",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus",
- "cw2",
- "ethabi",
- "hex",
- "libsecp256k1",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "service-registry",
- "sha3",
- "thiserror",
-]
-
-[[package]]
 name = "ff"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -584,6 +564,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "inbound-evm-gateway"
+version = "0.1.0"
+dependencies = [
+ "auth",
+ "auth-vote",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "service-registry",
+ "thiserror",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -643,6 +644,31 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
+
+[[package]]
+name = "outbound-evm-gateway"
+version = "0.1.0"
+dependencies = [
+ "auth",
+ "auth-multisig",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "ethabi",
+ "hex",
+ "libsecp256k1",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "service-registry",
+ "sha3",
+ "thiserror",
+]
 
 [[package]]
 name = "pkcs8"

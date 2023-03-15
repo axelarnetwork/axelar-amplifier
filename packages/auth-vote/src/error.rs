@@ -8,8 +8,8 @@ pub enum AuthError {
 
     #[error("PollNonExistent: Poll {poll_id:?} does not exist")]
     PollNonExistent { poll_id: Uint64 },
-    #[error("Voter {voter:?} has already voted")]
+    #[error("AlreadyVoted: Voter {voter:?} has already voted")]
     AlreadyVoted { voter: Addr },
-    #[error("Address {voter:?} is not eligible to vote in this poll")]
+    #[error("NotEligibleToVote: Address {voter:?} is not eligible to vote in this poll")]
     NotEligibleToVote { voter: Addr },
 }

@@ -119,11 +119,11 @@ impl<'a> Poll {
             self.state = PollState::Completed;
             self.completed_at = Some(Uint64::from(block_height));
 
-            POLLS.save(store, self.id.u64(), &self)?;
+            POLLS.save(store, self.id.u64(), self)?;
         } else if self.cannot_win(store, passing_weight, &majority_vote.tally) {
             self.state = PollState::Failed;
 
-            POLLS.save(store, self.id.u64(), &self)?;
+            POLLS.save(store, self.id.u64(), self)?;
         }
 
         Ok(())

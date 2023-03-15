@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Decimal256, Fraction, Timestamp, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Fraction, Timestamp, Uint256, Uint64};
 use service_registry::{msg::ActiveWorkers, state::Worker};
 
 #[cw_serde]
@@ -20,20 +20,21 @@ pub struct Snapshot {
 
 impl Snapshot {
     pub fn new(
+        deps: &DepsMut,
         timestamp: Timestamp,
         height: Uint64,
         active_workers: ActiveWorkers,
-        filter_fn: impl Fn(&Worker) -> bool,
-        weight_fn: impl Fn(&Worker) -> Option<Uint256>,
+        filter_fn: impl Fn(&DepsMut, &Worker) -> bool,
+        weight_fn: impl Fn(&DepsMut, &Worker) -> Option<Uint256>,
     ) -> Self {
         let mut total_weight: Uint256 = Uint256::zero();
 
         let mut participants: HashMap<Addr, Participant> = HashMap::new();
 
         for worker in active_workers.workers {
-            let weight = weight_fn(&worker);
+            let weight = weight_fn(deps, &worker);
 
-            if weight.is_none() || !filter_fn(&worker) {
+            if weight.is_none() || !filter_fn(deps, &worker) {
                 continue;
             }
             let weight = weight.unwrap();

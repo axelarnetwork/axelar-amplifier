@@ -8,14 +8,12 @@ use crate::poll::VoteResult;
 use crate::state::{Poll, POLLS, POLL_COUNTER};
 use auth::AuthModule;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Binary, BlockInfo, Decimal, StdResult, Storage, Uint256, Uint64};
+use cosmwasm_std::{
+    Addr, Binary, BlockInfo, Decimal, DepsMut, StdResult, Storage, Uint256, Uint64,
+};
 use service_registry::msg::ActiveWorkers;
 use service_registry::state::Worker;
 use snapshotter::snapshot::Snapshot;
-
-pub struct InitAuthModuleParameters<'a> {
-    pub store: &'a mut dyn Storage,
-}
 
 #[cw_serde]
 pub struct AuthVoting {
@@ -25,13 +23,17 @@ pub struct AuthVoting {
     pub voting_grace_period: Uint64,
 }
 
-pub struct InitializeAuthSessionParameters<'a> {
+pub struct InitAuthModuleParameters<'a> {
     pub store: &'a mut dyn Storage,
+}
+
+pub struct InitializeAuthSessionParameters<'a> {
+    pub deps: DepsMut<'a>,
     pub block: BlockInfo,
     pub active_workers: ActiveWorkers,
     pub message: Binary,
-    pub filter_fn: &'a dyn Fn(&Worker) -> bool,
-    pub weight_fn: &'a dyn Fn(&Worker) -> Option<Uint256>,
+    pub filter_fn: &'a dyn Fn(&DepsMut, &Worker) -> bool,
+    pub weight_fn: &'a dyn Fn(&DepsMut, &Worker) -> Option<Uint256>,
 }
 
 pub struct SubmitWorkerValidationParameters<'a> {
@@ -54,23 +56,29 @@ impl<'a> AuthModule<'a> for AuthVoting {
     type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters;
     type FinalizePendingSessionsResult = Result<(), AuthError>;
 
-    fn init_auth_module(&self, parameters: Self::InitAuthModuleParameters) -> StdResult<()> {
+    fn init_auth_module(
+        &self,
+        parameters: Self::InitAuthModuleParameters,
+    ) -> Self::InitAuthModuleResult {
         POLL_COUNTER.save(parameters.store, &0)
     }
 
     fn initialize_auth_session(
         &self,
-        parameters: InitializeAuthSessionParameters,
-    ) -> Result<Poll, AuthError> {
-        let id =
-            POLL_COUNTER.update(parameters.store, |mut counter| -> Result<u64, AuthError> {
+        parameters: Self::InitializeAuthSessionParameters,
+    ) -> Self::InitializeAuthSessionResult {
+        let id = POLL_COUNTER.update(
+            parameters.deps.storage,
+            |mut counter| -> Result<u64, AuthError> {
                 counter += 1;
                 Ok(counter)
-            })?;
+            },
+        )?;
 
         let expires_at = parameters.block.height + self.voting_period.u64();
 
         let snapshot = Snapshot::new(
+            &parameters.deps,
             parameters.block.time,
             Uint64::from(parameters.block.height),
             parameters.active_workers,
@@ -85,15 +93,15 @@ impl<'a> AuthModule<'a> for AuthVoting {
             parameters.message,
         );
 
-        POLLS.save(parameters.store, id, &poll_metadata)?;
+        POLLS.save(parameters.deps.storage, id, &poll_metadata)?;
 
         Ok(poll_metadata)
     }
 
     fn submit_worker_validation(
         &self,
-        parameters: SubmitWorkerValidationParameters,
-    ) -> Result<(Poll, VoteResult), AuthError> {
+        parameters: Self::SubmitWorkerValidationParameters,
+    ) -> Self::SubmitWorkerValidationResult {
         let metadata = POLLS.may_load(parameters.store, parameters.poll_id.u64())?;
 
         if metadata.is_none() {
@@ -117,8 +125,8 @@ impl<'a> AuthModule<'a> for AuthVoting {
 
     fn finalize_pending_sessions(
         &self,
-        _parameters: FinalizePendingSessionsParameters,
-    ) -> Result<(), AuthError> {
+        _parameters: Self::FinalizePendingSessionsParameters,
+    ) -> Self::FinalizePendingSessionsResult {
         // TODO: React to poll state
         todo!()
     }

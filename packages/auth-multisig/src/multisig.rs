@@ -1,16 +1,12 @@
-use std::{collections::HashMap, ops::Add};
+use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Binary, Event, Storage, Uint64};
+use cosmwasm_std::{Addr, Binary, Storage, Uint64};
 use secp256k1::{verify, Message, PublicKey, Signature};
-use serde_json::to_string;
 
 use crate::{
-    state::{
-        Key, KeyState, KEYS, KEYS_COUNTER, OUTBOUND_SETTINGS, SIGNING_SESSIONS,
-        SIGNING_SESSION_COUNTER,
-    },
-    ContractError,
+    state::{Key, KEYS, KEYS_COUNTER},
+    AuthError,
 };
 
 #[cw_serde]
@@ -45,22 +41,20 @@ pub struct SigningSession {
     pub multisig: MultiSig,
     pub state: MultisigState,
     pub key: Key,
-    pub chain_name: String,
-    pub command_batch_id: [u8; 32],
     pub expires_at: Uint64,
     pub completed_at: Option<Uint64>,
     pub grace_period: Uint64,
+    pub metadata: Binary,
 }
 
 impl SigningSession {
     pub fn new(
         id: Uint64,
         key: &Key,
-        chain_name: String,
-        command_batch_id: [u8; 32],
         payload_hash: [u8; 32],
         expires_at: Uint64,
         grace_period: Uint64,
+        metadata: Binary,
     ) -> Self {
         Self {
             id,
@@ -71,11 +65,10 @@ impl SigningSession {
             },
             state: MultisigState::Pending,
             key: key.clone(),
-            chain_name,
-            command_batch_id,
             expires_at,
             completed_at: None,
             grace_period,
+            metadata,
         }
     }
 
@@ -88,13 +81,13 @@ impl SigningSession {
         block_height: u64,
         signer: Addr,
         signature: WorkerSignature,
-    ) -> Result<(), ContractError> {
+    ) -> Result<(), AuthError> {
         if self.is_expired(block_height) {
-            return Err(ContractError::ExpiredSigningSession { id: self.id });
+            return Err(AuthError::ExpiredSigningSession { id: self.id });
         }
 
         if self.multisig.sigs.contains_key(&signer) {
-            return Err(ContractError::AlreadySigned {
+            return Err(AuthError::AlreadySigned {
                 signer,
                 id: self.id,
             });
@@ -102,20 +95,20 @@ impl SigningSession {
 
         if let Some(pub_key) = self.key.pub_keys.get(&signer) {
             if !signature.verify(self.multisig.payload_hash, pub_key) {
-                return Err(ContractError::AlreadySigned {
+                return Err(AuthError::AlreadySigned {
                     signer,
                     id: self.id,
                 });
             }
         } else {
-            return Err(ContractError::NotEligibleToSign {
+            return Err(AuthError::NotEligibleToSign {
                 signer,
                 id: self.id,
             });
         }
 
         if self.state == MultisigState::Completed && !self.is_within_grace_period(block_height) {
-            return Err(ContractError::SigningSessionClosed { id: self.id });
+            return Err(AuthError::SigningSessionClosed { id: self.id });
         }
 
         self.multisig.sigs.insert(signer, signature);
@@ -139,7 +132,7 @@ impl SigningSession {
     }
 }
 
-pub fn get_current_key_id(store: &mut dyn Storage) -> Result<Uint64, ContractError> {
+pub fn get_current_key_id(store: &mut dyn Storage) -> Result<Uint64, AuthError> {
     let counter = KEYS_COUNTER.load(store)?;
     let key_option = KEYS.may_load(store, counter)?;
 
@@ -148,60 +141,5 @@ pub fn get_current_key_id(store: &mut dyn Storage) -> Result<Uint64, ContractErr
     } else {
     }
 
-    Err(ContractError::NotActiveKey {})
-}
-
-pub fn start_signing_session(
-    store: &mut dyn Storage,
-    block_height: u64,
-    key_id: Uint64,
-    payload_hash: [u8; 32],
-    chain_name: String,
-    command_batch_id: [u8; 32],
-) -> Result<Event, ContractError> {
-    let key = KEYS
-        .load(store, key_id.u64())
-        .map_err(|_| ContractError::KeyNotFound { key: key_id })?;
-
-    if key.state != KeyState::Active {
-        return Err(ContractError::KeyNotActive { key: key_id });
-    }
-
-    let outbound_settings = OUTBOUND_SETTINGS.load(store)?;
-
-    let expires_at = outbound_settings
-        .signing_timeout
-        .add(Uint64::from(block_height));
-    let sig_session_id =
-        SIGNING_SESSION_COUNTER.update(store, |mut counter| -> Result<u64, ContractError> {
-            counter += 1;
-            Ok(counter)
-        })?;
-    let signing_session = SigningSession::new(
-        Uint64::from(sig_session_id),
-        &key,
-        chain_name,
-        command_batch_id,
-        payload_hash,
-        expires_at,
-        outbound_settings.signing_grace_period,
-    );
-    SIGNING_SESSIONS.save(store, sig_session_id, &signing_session)?;
-
-    let pub_keys: Vec<Binary> = key
-        .pub_keys
-        .into_iter()
-        .map(|item| {
-            let (_, pub_key) = item;
-            pub_key
-        })
-        .collect();
-
-    let event = Event::new("SigningStarted")
-        .add_attribute("sig_id", Uint64::from(sig_session_id))
-        .add_attribute("key_id", key_id)
-        .add_attribute("pub_keys", to_string(&pub_keys).unwrap())
-        .add_attribute("payload_hash", hex::encode(payload_hash));
-
-    Ok(event)
+    Err(AuthError::NotActiveKey {})
 }

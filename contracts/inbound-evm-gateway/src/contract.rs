@@ -2,37 +2,27 @@ use auth_vote::InitAuthModuleParameters;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CustomQuery, Decimal, Deps, DepsMut, Env, Event,
-    MessageInfo, QuerierWrapper, QueryRequest, Response, StdResult, Storage, Uint256, Uint64,
-    WasmMsg, WasmQuery,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, QueryRequest, Response,
+    StdResult, Storage, Uint256, Uint64, WasmMsg, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::{
-    command::{new_validate_calls_hash_command, CommandType},
     error::ContractError,
     msg::{
         ActionMessage, ActionResponse, AdminOperation, ExecuteMsg, InstantiateMsg, QueryMsg,
         WorkerVotingPower,
     },
-    multisig::{get_current_key_id, start_signing_session, WorkerSignature},
-    snapshot::Snapshot,
-    state::{
-        CommandBatch, Key, ServiceInfo, ADMIN, AUTH_MODULE, COMMANDS_BATCH_QUEUE, INBOUND_SETTINGS,
-        KEYS, KEYS_COUNTER, OUTBOUND_SETTINGS, SERVICE_INFO, SIGNING_SESSIONS,
-        SIGNING_SESSION_COUNTER, WORKERS_VOTING_POWER,
-    },
+    state::{ADMIN, AUTH_MODULE, INBOUND_SETTINGS, SERVICE_INFO, WORKERS_VOTING_POWER},
 };
 
 use auth::AuthModule;
+use auth_vote::{InitializeAuthSessionParameters, SubmitWorkerValidationParameters};
 use serde_json::to_string;
 use service_interface::msg::WorkerState;
 use service_registry::msg::ActiveWorkers;
 use service_registry::msg::QueryMsg as RegistryQueryMsg;
 use service_registry::state::Worker;
-
-use ethabi::{ethereum_types::U256, Token};
-use std::collections::HashMap;
 
 /*
 // version info for migration info
@@ -50,15 +40,11 @@ pub fn instantiate(
     ADMIN.save(deps.storage, &info.sender)?;
     SERVICE_INFO.save(deps.storage, &msg.service_info)?;
     INBOUND_SETTINGS.save(deps.storage, &msg.inbound_settings)?;
-    OUTBOUND_SETTINGS.save(deps.storage, &msg.outbound_settings)?;
 
     AUTH_MODULE.save(deps.storage, &msg.auth_module)?;
     msg.auth_module.init_auth_module(InitAuthModuleParameters {
         store: deps.storage,
-    });
-
-    KEYS_COUNTER.save(deps.storage, &0)?;
-    SIGNING_SESSION_COUNTER.save(deps.storage, &0)?;
+    })?;
 
     let register_msg = service_registry::msg::ExecuteMsg::RegisterService {
         service_name: msg.service_info.name,
@@ -88,18 +74,15 @@ pub fn execute(
             execute::request_worker_action(deps, env, message)
         }
         ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
-        ExecuteMsg::Admin { operation } => execute::admin_operation(deps, env, info, operation),
+        ExecuteMsg::Admin { operation } => execute::admin_operation(deps, info, operation),
     }
 }
 
 pub mod execute {
-    use auth_vote::{InitializeAuthSessionParameters, SubmitWorkerValidationParameters};
-
     use super::*;
 
     pub fn admin_operation(
         deps: DepsMut,
-        env: Env,
         info: MessageInfo,
         operation: AdminOperation,
     ) -> Result<Response, ContractError> {
@@ -111,10 +94,6 @@ pub mod execute {
                     AdminOperation::UpdateWorkersVotingPower { workers } => {
                         update_workers_voting_power(deps.storage, workers)
                     }
-                    AdminOperation::SetPubKeys {
-                        signing_treshold,
-                        pub_keys,
-                    } => set_pub_keys(deps, env, signing_treshold, pub_keys),
                 };
             }
         }
@@ -133,30 +112,6 @@ pub mod execute {
         Ok(Response::default())
     }
 
-    fn set_pub_keys(
-        deps: DepsMut,
-        env: Env,
-        signing_treshold: Decimal,
-        pub_keys: HashMap<Addr, Binary>,
-    ) -> Result<Response, ContractError> {
-        let service_info = SERVICE_INFO.load(deps.storage)?;
-
-        let filter = |worker: &Worker| pub_keys.contains_key(&worker.address);
-        let snapshot = create_snapshot(deps.storage, deps.querier, env, &service_info, filter)?;
-
-        let id =
-            KEYS_COUNTER.update(deps.storage, |mut counter| -> Result<u64, ContractError> {
-                counter += 1;
-                Ok(counter)
-            })?;
-
-        let key = Key::new(id, snapshot, signing_treshold, pub_keys);
-
-        KEYS.save(deps.storage, id, &key)?;
-
-        Ok(Response::default())
-    }
-
     pub fn request_worker_action(
         deps: DepsMut,
         env: Env,
@@ -167,36 +122,7 @@ pub mod execute {
                 from_nonce,
                 to_nonce,
             } => request_confirm_gateway_txs(deps, env, message, from_nonce, to_nonce),
-            ActionMessage::SignCommands {} => finalize_batch(deps, env),
         }
-    }
-
-    fn create_snapshot<'a, C: CustomQuery>(
-        store: &'a mut dyn Storage,
-        querier: QuerierWrapper<'a, C>,
-        env: Env,
-        service_info: &ServiceInfo,
-        filter: impl Fn(&Worker) -> bool,
-    ) -> Result<Snapshot, ContractError> {
-        let query_msg: RegistryQueryMsg = RegistryQueryMsg::GetActiveWorkers {
-            service_name: service_info.name.to_owned(),
-        };
-
-        let active_workers: ActiveWorkers =
-            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: service_info.service_registry.to_string(),
-                msg: to_binary(&query_msg)?,
-            }))?;
-
-        let snapshot = Snapshot::new(
-            store,
-            env.block.time,
-            Uint64::from(env.block.height),
-            active_workers,
-            filter,
-        );
-
-        Ok(snapshot)
     }
 
     pub fn request_confirm_gateway_txs(
@@ -207,6 +133,8 @@ pub mod execute {
         to_nonce: Uint256,
     ) -> Result<Response, ContractError> {
         // TODO: validate sender = worker
+
+        let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
 
         let auth_module = AUTH_MODULE.load(deps.storage)?;
         let service_info = SERVICE_INFO.load(deps.storage)?;
@@ -221,26 +149,24 @@ pub mod execute {
                 msg: to_binary(&query_msg)?,
             }))?;
 
-        let weight_fn = &|worker: &Worker| -> Option<Uint256> {
+        let weight_fn = &|deps: &DepsMut, worker: &Worker| -> Option<Uint256> {
             WORKERS_VOTING_POWER
                 .may_load(deps.storage, worker.address.clone())
                 .unwrap()
         };
 
         let init_auth_session_parameters = InitializeAuthSessionParameters {
-            store: deps.storage,
+            deps,
             block: env.block,
             active_workers,
             message: to_binary(&message)?,
-            filter_fn: &|_| true,
+            filter_fn: &|_, _| true,
             weight_fn,
         };
 
         let poll = auth_module
             .initialize_auth_session(init_auth_session_parameters)
             .unwrap(); // TODO: convert AuthError to ContractError
-
-        let inbound_settings = INBOUND_SETTINGS.load(deps.storage)?;
 
         let participants = poll.snapshot.participants;
 
@@ -256,126 +182,6 @@ pub mod execute {
         Ok(Response::new().add_event(event))
     }
 
-    fn pack_batch_arguments(
-        chain_id: Uint256,
-        commands_ids: &[[u8; 32]],
-        commands: &[String],
-        commands_params: Vec<Vec<u8>>,
-    ) -> Vec<u8> {
-        let chain_id_token = Token::Uint(U256::from_dec_str(&chain_id.to_string()).unwrap());
-        let commands_ids_tokens: Vec<Token> = commands_ids
-            .iter()
-            .map(|item| Token::FixedBytes(item.to_vec()))
-            .collect();
-        let commands_tokens: Vec<Token> = commands
-            .iter()
-            .map(|item| Token::String(item.clone()))
-            .collect();
-        let commands_params_tokens: Vec<Token> = commands_params
-            .iter()
-            .map(|item| Token::Bytes(item.clone()))
-            .collect();
-
-        ethabi::encode(&[
-            chain_id_token,
-            Token::Array(commands_ids_tokens),
-            Token::Array(commands_tokens),
-            Token::Array(commands_params_tokens),
-        ])
-    }
-
-    fn new_command_batch(
-        store: &mut dyn Storage,
-        block_height: u64,
-        destination_chain_id: Uint256,
-        destination_chain_name: &str,
-        messages: Vec<Binary>,
-    ) -> Result<CommandBatch, ContractError> {
-        let mut commands_ids: Vec<[u8; 32]> = Vec::new();
-        let mut commands: Vec<String> = Vec::new();
-        let mut commands_params: Vec<Vec<u8>> = Vec::new();
-
-        for message in messages {
-            // TODO: filter per gas cost
-
-            let command_type: CommandType = from_binary(&message)?;
-            let command_type_string = command_type.to_string();
-
-            let command = match command_type {
-                CommandType::ValidateCallsHash {
-                    source_chain,
-                    calls_hash,
-                } => new_validate_calls_hash_command(
-                    store,
-                    &source_chain,
-                    destination_chain_name,
-                    calls_hash,
-                    destination_chain_id,
-                    command_type_string,
-                )?,
-            };
-
-            commands_ids.push(command.command_id);
-            commands.push(command.command_type);
-            commands_params.push(command.params);
-        }
-
-        let data = pack_batch_arguments(
-            destination_chain_id,
-            &commands_ids,
-            &commands,
-            commands_params,
-        );
-
-        let key_id = get_current_key_id(store)?;
-
-        Ok(CommandBatch::new(block_height, commands_ids, data, key_id))
-    }
-
-    fn finalize_batch(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-        let service_info = SERVICE_INFO.load(deps.storage)?;
-        let outbound_settings = OUTBOUND_SETTINGS.load(deps.storage)?;
-
-        let query_msg = connection_router::msg::QueryMsg::GetMessages {};
-        let query_response: connection_router::msg::GetMessagesResponse =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: service_info.router_contract.to_string(),
-                msg: to_binary(&query_msg)?,
-            }))?;
-
-        if query_response.messages.is_empty() {
-            return Ok(Response::default());
-        }
-
-        let command_batch = new_command_batch(
-            deps.storage,
-            env.block.height,
-            outbound_settings.destination_chain_id,
-            &outbound_settings.destination_chain_name,
-            query_response.messages,
-        )?;
-
-        COMMANDS_BATCH_QUEUE.save(deps.storage, &command_batch.id, &command_batch)?;
-
-        let sig_started_event = start_signing_session(
-            deps.storage,
-            env.block.height,
-            command_batch.key_id,
-            command_batch.sig_hash,
-            outbound_settings.destination_chain_name.clone(),
-            command_batch.id,
-        )?;
-
-        let event = Event::new("Sign")
-            .add_attribute("chain", outbound_settings.destination_chain_name)
-            .add_attribute("batch_id", Uint256::from_be_bytes(command_batch.id))
-            .add_attribute("commands_ids", command_batch.command_ids_hex_string());
-
-        Ok(Response::new()
-            .add_event(event)
-            .add_event(sig_started_event))
-    }
-
     pub fn post_worker_reply(
         deps: DepsMut,
         env: Env,
@@ -387,10 +193,6 @@ pub mod execute {
                 poll_id,
                 calls_hash: _,
             } => vote(deps, env, info, poll_id, reply),
-            ActionResponse::SubmitSignature {
-                signing_session_id,
-                signature,
-            } => submit_signature(deps, env, info, signing_session_id, signature),
         }
     }
 
@@ -401,15 +203,16 @@ pub mod execute {
         poll_id: Uint64,
         reply: ActionResponse,
     ) -> Result<Response, ContractError> {
+        let auth_module = AUTH_MODULE.load(deps.storage)?;
+
         let parameters = SubmitWorkerValidationParameters {
             store: deps.storage,
             poll_id,
-            voter: info.sender,
+            voter: info.sender.clone(),
             block_height: env.block.height,
             vote: to_binary(&reply)?,
         };
 
-        let auth_module = AUTH_MODULE.load(deps.storage)?;
         let (poll, vote_result) = auth_module.submit_worker_validation(parameters).unwrap(); // TODO: convert to AuthError to ContractError
 
         let event = Event::new("Voted")
@@ -417,31 +220,6 @@ pub mod execute {
             .add_attribute("voter", info.sender)
             .add_attribute("vote_result", vote_result.to_string())
             .add_attribute("state", poll.state.to_string());
-
-        Ok(Response::new().add_event(event))
-    }
-
-    pub fn submit_signature(
-        deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        signing_session_id: Uint64,
-        signature: Binary,
-    ) -> Result<Response, ContractError> {
-        let mut signing_session = SIGNING_SESSIONS.load(deps.storage, signing_session_id.u64())?;
-
-        signing_session.add_signature(
-            env.block.height,
-            info.sender.clone(),
-            WorkerSignature(signature.clone()),
-        )?;
-
-        SIGNING_SESSIONS.save(deps.storage, signing_session.id.u64(), &signing_session)?;
-
-        let event = Event::new("SignatureSubmitted")
-            .add_attribute("sig_id", signing_session.id)
-            .add_attribute("participant", info.sender)
-            .add_attribute("signature", signature.to_base64());
 
         Ok(Response::new().add_event(event))
     }
@@ -495,12 +273,13 @@ pub mod query {
 
 #[cfg(test)]
 mod tests {
+    use auth_vote::AuthVoting;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Coin, Decimal, Empty, Uint128, Uint256};
     use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
     use crate::msg::{RegistrationParameters, WorkerVotingPower};
-    use crate::state::{InboundSettings, OutboundSettings};
+    use crate::state::{InboundSettings, ServiceInfo};
 
     use super::*;
 
@@ -559,14 +338,14 @@ mod tests {
         service_info: ServiceInfo,
         registration_parameters: RegistrationParameters,
         inbound_settings: InboundSettings,
-        outbound_settings: OutboundSettings,
+        auth_module: AuthVoting,
     ) -> Addr {
         let service_id = app.store_code(contract_service());
         let msg = InstantiateMsg {
             service_info,
             registration_parameters,
             inbound_settings,
-            outbound_settings,
+            auth_module,
         };
 
         app.instantiate_contract(
@@ -574,7 +353,7 @@ mod tests {
             Addr::unchecked(OWNER),
             &msg,
             &[],
-            "evm-connection-service",
+            "inbound-evm-gateway",
             None,
         )
         .unwrap()
@@ -636,16 +415,12 @@ mod tests {
                 source_chain_name: "Ethereum".to_string(),
                 gateway_address: Addr::unchecked(GATEWAY),
                 confirmation_height: Uint64::from(10u64),
+            },
+            auth_module: AuthVoting {
                 voting_threshold: Decimal::from_ratio(1u8, 2u8),
                 min_voter_count: Uint64::from(5u64),
                 voting_period: Uint64::from(5u64),
                 voting_grace_period: Uint64::from(5u64),
-            },
-            outbound_settings: OutboundSettings {
-                destination_chain_id: Uint256::from(43114u16),
-                destination_chain_name: "Avalanche".to_string(),
-                signing_timeout: Uint64::from(1u8),
-                signing_grace_period: Uint64::from(1u8),
             },
         }
     }
@@ -655,7 +430,7 @@ mod tests {
         service_info: Option<ServiceInfo>,
         registration_parameters: Option<RegistrationParameters>,
         inbound_settings: Option<InboundSettings>,
-        outbound_settings: Option<OutboundSettings>,
+        auth_module: Option<AuthVoting>,
     ) -> (Addr, Addr) {
         let registry_addr = instantiate_registry(app);
         app.update_block(next_block);
@@ -668,7 +443,7 @@ mod tests {
         let registration_parameters =
             registration_parameters.unwrap_or(default_msg.registration_parameters);
         let inbound_settings = inbound_settings.unwrap_or(default_msg.inbound_settings);
-        let outbound_settings = outbound_settings.unwrap_or(default_msg.outbound_settings);
+        let auth_module = auth_module.unwrap_or(default_msg.auth_module);
 
         let service_name = service_info.name.clone();
 
@@ -677,7 +452,7 @@ mod tests {
             service_info,
             registration_parameters,
             inbound_settings,
-            outbound_settings,
+            auth_module,
         );
         app.update_block(next_block);
 
