@@ -9,6 +9,7 @@ use cosmwasm_std::{
 
 use crate::{
     error::ContractError,
+    handlers::{completed_poll_handler, failed_poll_handler, pending_poll_handler},
     msg::{
         ActionMessage, ActionResponse, AdminOperation, ExecuteMsg, InstantiateMsg, QueryMsg,
         WorkerVotingPower,
@@ -17,7 +18,10 @@ use crate::{
 };
 
 use auth::AuthModule;
-use auth_vote::{InitializeAuthSessionParameters, SubmitWorkerValidationParameters};
+use auth_vote::{
+    FinalizePendingSessionsParameters, InitializeAuthSessionParameters, Poll,
+    SubmitWorkerValidationParameters,
+};
 use serde_json::to_string;
 use service_interface::msg::WorkerState;
 use service_registry::msg::ActiveWorkers;
@@ -74,6 +78,7 @@ pub fn execute(
             execute::request_worker_action(deps, env, message)
         }
         ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
+        ExecuteMsg::FinalizeActions {} => execute::finalize_actions(deps, env),
         ExecuteMsg::Admin { operation } => execute::admin_operation(deps, info, operation),
     }
 }
@@ -213,7 +218,7 @@ pub mod execute {
             vote: to_binary(&reply)?,
         };
 
-        let (poll, vote_result) = auth_module.submit_worker_validation(parameters).unwrap(); // TODO: convert to AuthError to ContractError
+        let (poll, vote_result) = auth_module.submit_worker_validation(parameters).unwrap(); // TODO: convert AuthError to ContractError
 
         let event = Event::new("Voted")
             .add_attribute("poll", poll.id)
@@ -222,6 +227,38 @@ pub mod execute {
             .add_attribute("state", poll.state.to_string());
 
         Ok(Response::new().add_event(event))
+    }
+
+    pub fn finalize_actions(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+        let auth_module = AUTH_MODULE.load(deps.storage)?;
+        let settings = INBOUND_SETTINGS.load(deps.storage).unwrap();
+
+        let mut expired_polls_events: Vec<Event> = Vec::new();
+        let mut failed_polls_events: Vec<Event> = Vec::new();
+        let mut completed_polls_events: Vec<Event> = Vec::new();
+
+        let parameters = FinalizePendingSessionsParameters {
+            store: deps.storage,
+            limit: 10u32, // TODO: shouldn't be hardcoded, move to instantiation settings or execute message?
+            block_height: env.block.height,
+            pending_poll_handler: &mut |poll: &Poll| {
+                expired_polls_events.push(pending_poll_handler(poll, &settings.source_chain_name));
+            },
+            failed_poll_handler: &mut |poll: &Poll| {
+                failed_polls_events.push(failed_poll_handler(poll, &settings.source_chain_name));
+            },
+            completed_poll_handler: &mut |poll: &Poll| {
+                completed_polls_events
+                    .push(completed_poll_handler(poll, &settings.source_chain_name));
+            },
+        };
+
+        auth_module.finalize_open_sessions(parameters).unwrap(); // TODO: convert AuthError to ContractError
+
+        Ok(Response::new()
+            .add_events(expired_polls_events)
+            .add_events(failed_polls_events)
+            .add_events(completed_polls_events))
     }
 }
 

@@ -8,6 +8,7 @@ pub struct InstantiateMsg {}
 pub enum ExecuteMsg<T, S, U> {
     RequestWorkerAction { message: T },
     PostWorkerReply { reply: S },
+    FinalizeActions {},
     Admin { operation: U },
 }
 

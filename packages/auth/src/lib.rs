@@ -23,7 +23,7 @@ pub trait AuthModule<'a> {
         parameters: Self::SubmitWorkerValidationParameters,
     ) -> Self::SubmitWorkerValidationResult;
 
-    fn finalize_pending_sessions(
+    fn finalize_open_sessions(
         &self,
         parameters: Self::FinalizePendingSessionsParameters,
     ) -> Self::FinalizePendingSessionsResult;

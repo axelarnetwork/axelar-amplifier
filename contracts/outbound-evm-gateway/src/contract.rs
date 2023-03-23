@@ -74,6 +74,7 @@ pub fn execute(
         }
         ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
         ExecuteMsg::Admin { operation } => execute::admin_operation(deps, env, info, operation),
+        ExecuteMsg::FinalizeActions {} => todo!(),
     }
 }
 

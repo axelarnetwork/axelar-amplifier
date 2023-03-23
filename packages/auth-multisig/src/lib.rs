@@ -111,7 +111,7 @@ impl<'a> AuthModule<'a> for AuthMultisig {
         Ok(())
     }
 
-    fn finalize_pending_sessions(
+    fn finalize_open_sessions(
         &self,
         _parameters: Self::FinalizePendingSessionsParameters,
     ) -> Self::FinalizePendingSessionsResult {

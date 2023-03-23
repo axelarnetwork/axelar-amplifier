@@ -1,19 +1,23 @@
 mod error;
 mod poll;
-mod state;
+pub mod state;
 mod utils;
+use std::ops::ControlFlow;
+
 pub use crate::error::AuthError;
+pub use crate::state::Poll;
 
 use crate::poll::VoteResult;
-use crate::state::{Poll, POLLS, POLL_COUNTER};
+use crate::state::{POLLS, POLL_COUNTER};
 use auth::AuthModule;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, Binary, BlockInfo, Decimal, DepsMut, StdResult, Storage, Uint256, Uint64,
+    Addr, Binary, BlockInfo, Decimal, DepsMut, Order, StdResult, Storage, Uint256, Uint64,
 };
 use service_registry::msg::ActiveWorkers;
 use service_registry::state::Worker;
 use snapshotter::snapshot::Snapshot;
+use state::PollState;
 
 #[cw_serde]
 pub struct AuthVoting {
@@ -44,7 +48,14 @@ pub struct SubmitWorkerValidationParameters<'a> {
     pub vote: Binary,
 }
 
-pub struct FinalizePendingSessionsParameters {}
+pub struct FinalizePendingSessionsParameters<'a> {
+    pub store: &'a mut dyn Storage,
+    pub limit: u32,
+    pub block_height: u64,
+    pub pending_poll_handler: &'a mut dyn FnMut(&Poll),
+    pub failed_poll_handler: &'a mut dyn FnMut(&Poll),
+    pub completed_poll_handler: &'a mut dyn FnMut(&Poll),
+}
 
 impl<'a> AuthModule<'a> for AuthVoting {
     type InitAuthModuleParameters = InitAuthModuleParameters<'a>;
@@ -53,8 +64,8 @@ impl<'a> AuthModule<'a> for AuthVoting {
     type InitializeAuthSessionResult = Result<Poll, AuthError>;
     type SubmitWorkerValidationParameters = SubmitWorkerValidationParameters<'a>;
     type SubmitWorkerValidationResult = Result<(Poll, VoteResult), AuthError>;
-    type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters;
-    type FinalizePendingSessionsResult = Result<(), AuthError>;
+    type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters<'a>;
+    type FinalizePendingSessionsResult = Result<Vec<Poll>, AuthError>;
 
     fn init_auth_module(
         &self,
@@ -123,11 +134,40 @@ impl<'a> AuthModule<'a> for AuthVoting {
         Ok((poll, vote_result))
     }
 
-    fn finalize_pending_sessions(
+    fn finalize_open_sessions(
         &self,
-        _parameters: Self::FinalizePendingSessionsParameters,
+        parameters: Self::FinalizePendingSessionsParameters,
     ) -> Self::FinalizePendingSessionsResult {
-        // TODO: React to poll state
-        todo!()
+        let mut expired_polls: Vec<Poll> = Vec::new();
+
+        // TODO: consider using pagination instead of removing? https://github.com/CosmWasm/cw-storage-plus#prefix.
+        // Can't remove polls in the same iteration because borrow checker complains.
+        POLLS
+            .range(parameters.store, None, None, Order::Ascending)
+            .try_for_each(|item| {
+                let (_, poll) = item.unwrap();
+
+                if expired_polls.len() >= parameters.limit.try_into().unwrap() {
+                    return ControlFlow::Break(());
+                }
+
+                if poll.expires_at.u64() <= parameters.block_height {
+                    expired_polls.push(poll);
+                }
+
+                ControlFlow::Continue(())
+            });
+
+        for poll in &expired_polls {
+            match poll.state {
+                PollState::Pending => (parameters.pending_poll_handler)(poll),
+                PollState::Failed => (parameters.failed_poll_handler)(poll),
+                PollState::Completed => (parameters.completed_poll_handler)(poll),
+            }
+
+            POLLS.remove(parameters.store, poll.id.u64());
+        }
+
+        Ok(expired_polls)
     }
 }
