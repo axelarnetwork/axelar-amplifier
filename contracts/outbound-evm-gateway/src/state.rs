@@ -16,6 +16,7 @@ pub struct ServiceInfo {
 pub struct OutboundSettings {
     pub destination_chain_id: Uint256, // TODO: rename to outbound?
     pub destination_chain_name: String,
+    pub finalize_actions_limit: u32,
 }
 
 #[cw_serde]

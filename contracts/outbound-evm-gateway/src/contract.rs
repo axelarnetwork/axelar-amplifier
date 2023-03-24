@@ -23,6 +23,8 @@ use service_registry::msg::QueryMsg as RegistryQueryMsg;
 use ethabi::{ethereum_types::U256, Token};
 use std::collections::HashMap;
 
+use self::execute::finalize_actions;
+
 /*
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:service-registry";
@@ -74,16 +76,22 @@ pub fn execute(
         }
         ExecuteMsg::PostWorkerReply { reply } => execute::post_worker_reply(deps, env, info, reply),
         ExecuteMsg::Admin { operation } => execute::admin_operation(deps, env, info, operation),
-        ExecuteMsg::FinalizeActions {} => todo!(),
+        ExecuteMsg::FinalizeActions {} => finalize_actions(deps, env),
     }
 }
 
 pub mod execute {
-    use auth_multisig::{InitializeAuthSessionParameters, SubmitWorkerValidationParameters};
+    use auth_multisig::{
+        multisig::SigningSession, FinalizePendingSessionsParameters,
+        InitializeAuthSessionParameters, SubmitWorkerValidationParameters,
+    };
     use serde_json::to_string;
     use service_registry::msg::ActiveWorkers;
 
-    use crate::command::CommandBatchMetadata;
+    use crate::{
+        command::CommandBatchMetadata,
+        handlers::{completed_signing_handler, expired_signing_handler},
+    };
 
     use super::*;
 
@@ -325,6 +333,32 @@ pub mod execute {
 
         Ok(Response::new().add_event(event))
     }
+
+    pub fn finalize_actions(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+        let auth_module = AUTH_MODULE.load(deps.storage)?;
+        let settings = OUTBOUND_SETTINGS.load(deps.storage)?;
+
+        let mut expired_signings_events: Vec<Event> = Vec::new();
+        let mut completed_signings_events: Vec<Event> = Vec::new();
+
+        let parameters = FinalizePendingSessionsParameters {
+            store: deps.storage,
+            limit: settings.finalize_actions_limit,
+            block_height: env.block.height,
+            pending_signing_handler: &mut |signing_session: &SigningSession| {
+                expired_signings_events.push(expired_signing_handler(signing_session.id));
+            },
+            completed_signing_handler: &mut |signing_session: &SigningSession| {
+                completed_signings_events.push(completed_signing_handler(signing_session.id));
+            },
+        };
+
+        auth_module.finalize_open_sessions(parameters).unwrap(); // TODO: convert AuthError to ContractError
+
+        Ok(Response::new()
+            .add_events(expired_signings_events)
+            .add_events(completed_signings_events))
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -498,6 +532,7 @@ mod tests {
             outbound_settings: OutboundSettings {
                 destination_chain_id: Uint256::from(43114u16),
                 destination_chain_name: "Avalanche".to_string(),
+                finalize_actions_limit: 10u32,
             },
             auth_module: AuthMultisig {
                 signing_timeout: Uint64::from(1u8),

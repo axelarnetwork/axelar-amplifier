@@ -1,16 +1,16 @@
 mod error;
-mod multisig;
+pub mod multisig;
 mod state;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::ControlFlow};
 
 pub use crate::error::AuthError;
 
 use auth::AuthModule;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, Binary, BlockInfo, Decimal, DepsMut, StdResult, Storage, Uint256, Uint64,
+    Addr, Binary, BlockInfo, Decimal, DepsMut, Order, StdResult, Storage, Uint256, Uint64,
 };
-use multisig::{get_current_key_id, SigningSession, WorkerSignature};
+use multisig::{get_current_key_id, MultisigState, SigningSession, WorkerSignature};
 use service_registry::{msg::ActiveWorkers, state::Worker};
 use snapshotter::snapshot::Snapshot;
 use state::{Key, KeyState, KEYS, KEYS_COUNTER, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER};
@@ -40,6 +40,14 @@ pub struct SubmitWorkerValidationParameters<'a> {
     pub signature: Binary,
 }
 
+pub struct FinalizePendingSessionsParameters<'a> {
+    pub store: &'a mut dyn Storage,
+    pub limit: u32,
+    pub block_height: u64,
+    pub pending_signing_handler: &'a mut dyn FnMut(&SigningSession),
+    pub completed_signing_handler: &'a mut dyn FnMut(&SigningSession),
+}
+
 impl<'a> AuthModule<'a> for AuthMultisig {
     type InitAuthModuleParameters = InitAuthModuleParameters<'a>;
     type InitAuthModuleResult = StdResult<()>;
@@ -47,8 +55,8 @@ impl<'a> AuthModule<'a> for AuthMultisig {
     type InitializeAuthSessionResult = Result<SigningSession, AuthError>;
     type SubmitWorkerValidationParameters = SubmitWorkerValidationParameters<'a>;
     type SubmitWorkerValidationResult = Result<(), AuthError>;
-    type FinalizePendingSessionsParameters = ();
-    type FinalizePendingSessionsResult = ();
+    type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters<'a>;
+    type FinalizePendingSessionsResult = Result<Vec<SigningSession>, AuthError>;
 
     fn init_auth_module(
         &self,
@@ -113,9 +121,38 @@ impl<'a> AuthModule<'a> for AuthMultisig {
 
     fn finalize_open_sessions(
         &self,
-        _parameters: Self::FinalizePendingSessionsParameters,
+        parameters: Self::FinalizePendingSessionsParameters,
     ) -> Self::FinalizePendingSessionsResult {
-        todo!()
+        let mut expired_signing_sessions: Vec<SigningSession> = Vec::new();
+
+        // TODO: consider using pagination instead of removing? https://github.com/CosmWasm/cw-storage-plus#prefix.
+        // Can't remove polls in the same iteration because borrow checker complains.
+        SIGNING_SESSIONS
+            .range(parameters.store, None, None, Order::Ascending)
+            .try_for_each(|item| {
+                let (_, sig_session) = item.unwrap();
+
+                if expired_signing_sessions.len() >= parameters.limit.try_into().unwrap() {
+                    return ControlFlow::Break(());
+                }
+
+                if sig_session.expires_at.u64() <= parameters.block_height {
+                    expired_signing_sessions.push(sig_session);
+                }
+
+                ControlFlow::Continue(())
+            });
+
+        for sig_session in &expired_signing_sessions {
+            match sig_session.state {
+                MultisigState::Pending => (parameters.pending_signing_handler)(sig_session),
+                MultisigState::Completed => (parameters.completed_signing_handler)(sig_session),
+            }
+
+            SIGNING_SESSIONS.remove(parameters.store, sig_session.id.u64());
+        }
+
+        Ok(expired_signing_sessions)
     }
 }
 

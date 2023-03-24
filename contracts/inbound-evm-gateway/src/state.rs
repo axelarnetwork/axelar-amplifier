@@ -16,6 +16,7 @@ pub struct InboundSettings {
     pub source_chain_name: String, // TODO: rename to inbound?
     pub gateway_address: Addr,     // TODO: rename to inbound?
     pub confirmation_height: Uint64,
+    pub finalize_actions_limit: u32,
 }
 
 pub const ADMIN: Item<Addr> = Item::new("admin");

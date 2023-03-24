@@ -1,6 +1,7 @@
 mod command;
 pub mod contract;
 mod error;
+mod handlers;
 pub mod msg;
 pub mod state;
 

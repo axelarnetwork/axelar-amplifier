@@ -244,7 +244,7 @@ pub mod execute {
 
         let parameters = FinalizePendingSessionsParameters {
             store: deps.storage,
-            limit: 10u32, // TODO: shouldn't be hardcoded, move to instantiation settings or execute message?
+            limit: settings.finalize_actions_limit,
             block_height: env.block.height,
             pending_poll_handler: &mut |poll: &Poll| {
                 expired_polls_events.push(pending_poll_handler(poll, &settings.source_chain_name));
@@ -461,6 +461,7 @@ mod tests {
                 source_chain_name: "Ethereum".to_string(),
                 gateway_address: Addr::unchecked(GATEWAY),
                 confirmation_height: Uint64::from(10u64),
+                finalize_actions_limit: 10u32,
             },
             auth_module: AuthVoting {
                 voting_threshold: Decimal::from_ratio(1u8, 2u8),
