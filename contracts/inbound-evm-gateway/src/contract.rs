@@ -231,11 +231,16 @@ pub mod execute {
 
     pub fn finalize_actions(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
         let auth_module = AUTH_MODULE.load(deps.storage)?;
-        let settings = INBOUND_SETTINGS.load(deps.storage).unwrap();
+        let settings = INBOUND_SETTINGS.load(deps.storage)?;
+        let service_info = SERVICE_INFO.load(deps.storage)?;
+
+        let router_address = service_info.router_contract.into_string();
 
         let mut expired_polls_events: Vec<Event> = Vec::new();
         let mut failed_polls_events: Vec<Event> = Vec::new();
         let mut completed_polls_events: Vec<Event> = Vec::new();
+
+        let mut router_messages: Vec<WasmMsg> = Vec::new();
 
         let parameters = FinalizePendingSessionsParameters {
             store: deps.storage,
@@ -248,8 +253,11 @@ pub mod execute {
                 failed_polls_events.push(failed_poll_handler(poll, &settings.source_chain_name));
             },
             completed_poll_handler: &mut |poll: &Poll| {
-                completed_polls_events
-                    .push(completed_poll_handler(poll, &settings.source_chain_name));
+                let (msg, event) =
+                    completed_poll_handler(poll, &settings.source_chain_name, &router_address);
+
+                router_messages.push(msg);
+                completed_polls_events.push(event);
             },
         };
 
@@ -258,7 +266,8 @@ pub mod execute {
         Ok(Response::new()
             .add_events(expired_polls_events)
             .add_events(failed_polls_events)
-            .add_events(completed_polls_events))
+            .add_events(completed_polls_events)
+            .add_messages(router_messages))
     }
 }
 

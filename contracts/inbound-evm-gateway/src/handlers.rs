@@ -1,5 +1,5 @@
 use auth_vote::Poll;
-use cosmwasm_std::{from_binary, Event};
+use cosmwasm_std::{from_binary, to_binary, Event, WasmMsg};
 
 use crate::msg::ActionMessage;
 
@@ -12,11 +12,26 @@ pub fn failed_poll_handler(poll: &Poll, source_chain_name: &str) -> Event {
     build_event("PollFailed", poll, source_chain_name)
 }
 
-pub fn completed_poll_handler(poll: &Poll, source_chain_name: &str) -> Event {
+pub fn completed_poll_handler(
+    poll: &Poll,
+    source_chain_name: &str,
+    router_address: &str,
+) -> (WasmMsg, Event) {
     // TODO: rewards
 
-    // TODO: message for router
-    build_event("PollCompleted", poll, source_chain_name)
+    let router_message = connection_router::msg::ExecuteMsg::RouteMessage {
+        message: poll.message.clone(),
+    };
+
+    let msg = WasmMsg::Execute {
+        contract_addr: router_address.to_owned(),
+        msg: to_binary(&router_message).unwrap(),
+        funds: vec![],
+    };
+
+    let event = build_event("PollCompleted", poll, source_chain_name);
+
+    (msg, event)
 }
 
 fn build_event(event_type: &str, poll: &Poll, source_chain_name: &str) -> Event {
