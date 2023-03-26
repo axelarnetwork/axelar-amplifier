@@ -53,7 +53,11 @@ impl<'a> Poll {
             });
         }
 
-        if self.snapshot.get_participant_weight(voter).is_zero() {
+        if self
+            .snapshot
+            .get_participant_weight(&voter.clone().into_string())
+            .is_zero()
+        {
             return Err(AuthError::NotEligibleToVote {
                 voter: voter.to_owned(),
             });
@@ -137,7 +141,9 @@ impl<'a> Poll {
         is_late: bool,
     ) -> Result<(), AuthError> {
         let hash = hash(&data);
-        let voting_power = self.snapshot.get_participant_weight(voter);
+        let voting_power = self
+            .snapshot
+            .get_participant_weight(&voter.clone().into_string());
 
         let mut is_voter_late_namespace = String::new();
 

@@ -15,7 +15,7 @@ pub struct Snapshot {
     pub timestamp: Timestamp,
     pub height: Uint64,
     pub total_weight: Uint256,
-    pub participants: HashMap<Addr, Participant>,
+    pub participants: HashMap<String, Participant>,
 }
 
 impl Snapshot {
@@ -29,7 +29,7 @@ impl Snapshot {
     ) -> Self {
         let mut total_weight: Uint256 = Uint256::zero();
 
-        let mut participants: HashMap<Addr, Participant> = HashMap::new();
+        let mut participants: HashMap<String, Participant> = HashMap::new();
 
         for worker in active_workers.workers {
             let weight = weight_fn(deps, &worker);
@@ -44,7 +44,7 @@ impl Snapshot {
                 address: worker.address.clone(),
                 weight,
             };
-            participants.insert(worker.address, participant);
+            participants.insert(worker.address.into_string(), participant);
         }
 
         Self {
@@ -64,7 +64,7 @@ impl Snapshot {
             })
     }
 
-    pub fn get_participant_weight(&self, voter: &Addr) -> Uint256 {
+    pub fn get_participant_weight(&self, voter: &String) -> Uint256 {
         let result = self.participants.get(voter);
         match result {
             Some(participant) => participant.weight,

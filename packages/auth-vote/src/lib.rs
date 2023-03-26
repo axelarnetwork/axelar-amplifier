@@ -5,9 +5,9 @@ mod utils;
 use std::ops::ControlFlow;
 
 pub use crate::error::AuthError;
+pub use crate::poll::VoteResult;
 pub use crate::state::Poll;
 
-use crate::poll::VoteResult;
 use crate::state::{POLLS, POLL_COUNTER};
 use auth::AuthModule;
 use cosmwasm_schema::cw_serde;
