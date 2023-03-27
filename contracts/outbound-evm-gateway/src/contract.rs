@@ -2,25 +2,21 @@ use auth_multisig::InitAuthModuleParameters;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
-    QueryRequest, Response, StdResult, Uint256, Uint64, WasmMsg, WasmQuery,
+    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Event, MessageInfo, QueryRequest,
+    Response, StdResult, Uint256, Uint64, WasmMsg, WasmQuery,
 };
 // use cw2::set_contract_version;
 
 use crate::{
-    command::{new_validate_calls_hash_command, CommandType},
     error::ContractError,
     msg::{ActionMessage, ActionResponse, AdminOperation, ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{
-        CommandBatch, ADMIN, AUTH_MODULE, COMMANDS_BATCH_QUEUE, OUTBOUND_SETTINGS, SERVICE_INFO,
-    },
+    state::{ADMIN, AUTH_MODULE, COMMANDS_BATCH_QUEUE, OUTBOUND_SETTINGS, SERVICE_INFO},
 };
 
 use auth::AuthModule;
 use service_interface::msg::WorkerState;
 use service_registry::msg::QueryMsg as RegistryQueryMsg;
 
-use ethabi::{ethereum_types::U256, Token};
 use std::collections::HashMap;
 
 use self::execute::finalize_actions;
@@ -89,7 +85,7 @@ pub mod execute {
     use service_registry::msg::ActiveWorkers;
 
     use crate::{
-        command::CommandBatchMetadata,
+        command::{new_command_batch, CommandBatchMetadata},
         handlers::{completed_signing_handler, expired_signing_handler},
     };
 
@@ -121,7 +117,7 @@ pub mod execute {
         deps: DepsMut,
         env: Env,
         signing_treshold: Decimal,
-        pub_keys: HashMap<Addr, Binary>,
+        pub_keys: HashMap<String, Binary>,
     ) -> Result<Response, ContractError> {
         let service_info = SERVICE_INFO.load(deps.storage)?;
         let auth_module = AUTH_MODULE.load(deps.storage)?;
@@ -151,78 +147,6 @@ pub mod execute {
         match message {
             ActionMessage::SignCommands {} => finalize_batch(deps, env),
         }
-    }
-
-    fn pack_batch_arguments(
-        chain_id: Uint256,
-        commands_ids: &[[u8; 32]],
-        commands: &[String],
-        commands_params: Vec<Vec<u8>>,
-    ) -> Vec<u8> {
-        let chain_id_token = Token::Uint(U256::from_dec_str(&chain_id.to_string()).unwrap());
-        let commands_ids_tokens: Vec<Token> = commands_ids
-            .iter()
-            .map(|item| Token::FixedBytes(item.to_vec()))
-            .collect();
-        let commands_tokens: Vec<Token> = commands
-            .iter()
-            .map(|item| Token::String(item.clone()))
-            .collect();
-        let commands_params_tokens: Vec<Token> = commands_params
-            .iter()
-            .map(|item| Token::Bytes(item.clone()))
-            .collect();
-
-        ethabi::encode(&[
-            chain_id_token,
-            Token::Array(commands_ids_tokens),
-            Token::Array(commands_tokens),
-            Token::Array(commands_params_tokens),
-        ])
-    }
-
-    fn new_command_batch(
-        block_height: u64,
-        destination_chain_id: Uint256,
-        destination_chain_name: &str,
-        messages: Vec<Binary>,
-    ) -> Result<CommandBatch, ContractError> {
-        let mut commands_ids: Vec<[u8; 32]> = Vec::new();
-        let mut commands: Vec<String> = Vec::new();
-        let mut commands_params: Vec<Vec<u8>> = Vec::new();
-
-        for message in messages {
-            // TODO: filter per gas cost
-
-            let command_type: CommandType = from_binary(&message)?;
-            let command_type_string = command_type.to_string();
-
-            let command = match command_type {
-                CommandType::ValidateCallsHash {
-                    source_chain,
-                    calls_hash,
-                } => new_validate_calls_hash_command(
-                    &source_chain,
-                    destination_chain_name,
-                    calls_hash,
-                    destination_chain_id,
-                    command_type_string,
-                )?,
-            };
-
-            commands_ids.push(command.command_id);
-            commands.push(command.command_type);
-            commands_params.push(command.params);
-        }
-
-        let data = pack_batch_arguments(
-            destination_chain_id,
-            &commands_ids,
-            &commands,
-            commands_params,
-        );
-
-        Ok(CommandBatch::new(block_height, commands_ids, data))
     }
 
     fn finalize_batch(deps: DepsMut, env: Env) -> Result<Response, ContractError> {

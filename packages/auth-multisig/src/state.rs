@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Binary, Decimal, Uint64};
+use cosmwasm_std::{Binary, Decimal, Uint64};
 use cw_storage_plus::{Item, Map};
 use snapshotter::snapshot::Snapshot;
 
@@ -21,7 +21,7 @@ pub struct Key {
     pub snapshot: Snapshot,
     pub signing_treshhold: Decimal,
     pub state: KeyState, // TODO: not being used right now
-    pub pub_keys: HashMap<Addr, Binary>,
+    pub pub_keys: HashMap<String, Binary>,
 }
 
 impl Key {
@@ -29,7 +29,7 @@ impl Key {
         id: u64,
         snapshot: Snapshot,
         signing_treshhold: Decimal,
-        pub_keys: HashMap<Addr, Binary>,
+        pub_keys: HashMap<String, Binary>,
     ) -> Self {
         Self {
             id: Uint64::from(id),

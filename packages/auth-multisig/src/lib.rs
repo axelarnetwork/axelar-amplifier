@@ -163,15 +163,16 @@ impl AuthMultisig {
         block: BlockInfo,
         active_workers: ActiveWorkers,
         signing_treshold: Decimal,
-        pub_keys: HashMap<Addr, Binary>,
+        pub_keys: HashMap<String, Binary>,
     ) -> Result<(), AuthError> {
         let id = KEYS_COUNTER.update(deps.storage, |mut counter| -> Result<u64, AuthError> {
             counter += 1;
             Ok(counter)
         })?;
 
-        let filter_fn =
-            &|_deps: &DepsMut, worker: &Worker| -> bool { pub_keys.contains_key(&worker.address) };
+        let filter_fn = &|_deps: &DepsMut, worker: &Worker| -> bool {
+            pub_keys.contains_key(&worker.address.clone().into_string())
+        };
         let weight_fn =
             &|_deps: &DepsMut, _worker: &Worker| -> Option<Uint256> { Some(Uint256::one()) };
 

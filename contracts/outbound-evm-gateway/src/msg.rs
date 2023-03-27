@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal};
+use cosmwasm_std::Decimal;
 use cosmwasm_std::{Binary, Uint128, Uint64};
 
 use crate::state::{OutboundSettings, ServiceInfo};
@@ -45,6 +45,6 @@ pub enum ActionResponse {
 pub enum AdminOperation {
     SetPubKeys {
         signing_treshold: Decimal,
-        pub_keys: HashMap<Addr, Binary>,
+        pub_keys: HashMap<String, Binary>,
     },
 }

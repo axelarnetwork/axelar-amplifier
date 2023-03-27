@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+
 use auth_multisig::AuthMultisig;
-use cosmwasm_std::{Addr, Coin, Empty, Uint128, Uint256, Uint64};
+use cosmwasm_std::{Addr, Binary, Coin, Decimal, Empty, Uint128, Uint256, Uint64};
 use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
+use secp256k1::{PublicKey, SecretKey};
+use service_interface::msg::ExecuteMsg;
 
 use crate::{
-    msg::{InstantiateMsg, RegistrationParameters},
+    msg::{ActionMessage, ActionResponse, AdminOperation, InstantiateMsg, RegistrationParameters},
     state::{OutboundSettings, ServiceInfo},
 };
 
 pub const OWNER: &str = "owner";
-pub const GATEWAY: &str = "gateway";
 pub const WORKERS: [&str; 6] = [
     "worker0", "worker1", "worker2", "worker3", "worker4", "worker5",
 ];
@@ -108,6 +111,32 @@ fn instantiate_service(
     .unwrap()
 }
 
+fn set_pub_keys(app: &mut App, service: Addr) {
+    let pub_keys = default_pub_keys();
+
+    let msg: ExecuteMsg<ActionMessage, ActionResponse, AdminOperation> = ExecuteMsg::Admin {
+        operation: AdminOperation::SetPubKeys {
+            pub_keys,
+            signing_treshold: Decimal::from_ratio(1u8, 2u8),
+        },
+    };
+
+    app.execute_contract(Addr::unchecked(OWNER), service, &msg, &[])
+        .unwrap();
+}
+
+pub fn default_pub_keys() -> HashMap<String, Binary> {
+    let mut pub_keys: HashMap<String, Binary> = HashMap::new();
+
+    for (i, worker) in WORKERS.into_iter().enumerate() {
+        let sk = SecretKey::parse(&[u8::try_from(i + 1).unwrap(); 32]).unwrap();
+        let pub_key = PublicKey::from_secret_key(&sk);
+        pub_keys.insert(worker.to_owned(), pub_key.serialize().into());
+    }
+
+    pub_keys
+}
+
 fn register_workers(app: &mut App, service_name: &str, registry: Addr) {
     for worker in WORKERS {
         let msg = service_registry::msg::ExecuteMsg::RegisterWorker {
@@ -190,6 +219,9 @@ pub fn setup_test_case(
         outbound_settings,
         auth_module,
     );
+    app.update_block(next_block);
+
+    set_pub_keys(&mut app, service_address.clone());
     app.update_block(next_block);
 
     register_workers(&mut app, &service_name, registry_addr.clone());

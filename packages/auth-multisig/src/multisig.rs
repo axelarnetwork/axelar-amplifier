@@ -93,7 +93,7 @@ impl SigningSession {
             });
         }
 
-        if let Some(pub_key) = self.key.pub_keys.get(&signer) {
+        if let Some(pub_key) = self.key.pub_keys.get(&signer.clone().into_string()) {
             if !signature.verify(self.multisig.payload_hash, pub_key) {
                 return Err(AuthError::AlreadySigned {
                     signer,
