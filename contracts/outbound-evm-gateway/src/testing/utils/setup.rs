@@ -125,14 +125,23 @@ fn set_pub_keys(app: &mut App, service: Addr) {
         .unwrap();
 }
 
-pub fn default_pub_keys() -> HashMap<String, Binary> {
-    let mut pub_keys: HashMap<String, Binary> = HashMap::new();
+pub fn default_keys() -> HashMap<String, (SecretKey, PublicKey)> {
+    let mut keys: HashMap<String, (SecretKey, PublicKey)> = HashMap::new();
 
     for (i, worker) in WORKERS.into_iter().enumerate() {
         let sk = SecretKey::parse(&[u8::try_from(i + 1).unwrap(); 32]).unwrap();
         let pub_key = PublicKey::from_secret_key(&sk);
-        pub_keys.insert(worker.to_owned(), pub_key.serialize().into());
+        keys.insert(worker.to_owned(), (sk, pub_key));
     }
+
+    keys
+}
+
+pub fn default_pub_keys() -> HashMap<String, Binary> {
+    let pub_keys: HashMap<String, Binary> = default_keys()
+        .into_iter()
+        .map(|(k, (_, v))| (k, v.serialize().into()))
+        .collect();
 
     pub_keys
 }
@@ -178,7 +187,7 @@ pub fn default_instantiation_message() -> InstantiateMsg {
             finalize_actions_limit: 10u32,
         },
         auth_module: AuthMultisig {
-            signing_timeout: Uint64::from(1u8),
+            signing_timeout: Uint64::from(5u8),
             signing_grace_period: Uint64::from(1u8),
         },
     }

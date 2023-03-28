@@ -26,7 +26,7 @@ impl WorkerSignature {
 pub struct MultiSig {
     key_id: Uint64,
     payload_hash: [u8; 32],
-    sigs: HashMap<Addr, WorkerSignature>, // TODO: move out to cosmwasm Map?
+    sigs: HashMap<String, WorkerSignature>, // TODO: move out to cosmwasm Map?
 }
 
 #[cw_serde]
@@ -86,7 +86,11 @@ impl SigningSession {
             return Err(AuthError::ExpiredSigningSession { id: self.id });
         }
 
-        if self.multisig.sigs.contains_key(&signer) {
+        if self
+            .multisig
+            .sigs
+            .contains_key(&signer.clone().into_string())
+        {
             return Err(AuthError::AlreadySigned {
                 signer,
                 id: self.id,
@@ -111,7 +115,7 @@ impl SigningSession {
             return Err(AuthError::SigningSessionClosed { id: self.id });
         }
 
-        self.multisig.sigs.insert(signer, signature);
+        self.multisig.sigs.insert(signer.into_string(), signature);
 
         if self.state != MultisigState::Completed
             && self.key.snapshot.get_participants_weight()
