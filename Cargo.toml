@@ -2,10 +2,11 @@
 members = [
   "contracts/service-registry",
   "contracts/service-interface",
-  "contracts/evm-connection-service",
   "contracts/connection-router",
-  "contracts/evm-batch-service",
   "contracts/batching",
+  "packages/auth",
+  "packages/auth-vote",
+  "packages/snapshotter",
 ]
 
 [profile.release]
@@ -20,5 +21,8 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
+auth = { version = "0.1.0", path = "./packages/auth" }
+auth-vote = { version = "0.1.0", path = "./packages/auth-vote" }
 service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
+snapshotter = { version = "0.1.0", path = "./packages/snapshotter" }
