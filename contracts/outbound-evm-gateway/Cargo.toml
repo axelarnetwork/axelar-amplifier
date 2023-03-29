@@ -1,8 +1,8 @@
 [package]
-name = "connection-router"
+name = "outbound-evm-gateway"
 version = "0.1.0"
 edition = "2021"
-description = "Connection router contract"
+description = "EVM Gateway contract handling outbound connections"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -37,7 +37,18 @@ cw2 = "0.15.1"
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
+auth = { workspace = true }
+auth-multisig = { workspace = true }
 service-interface = { workspace = true, features = ["library"] }
+service-registry = { workspace = true }
+connection-router = { workspace = true, features = ["library"] }
+ethabi = { version = "18.0.0", default-features = false, features = [] }
+hex = { version = "0.4.3", default-features = false, features = [] }
+sha3 = { version = "0.10", default-features = false, features = [] }
+libsecp256k1 = { version = "0.3.5", default-features = false }
+serde_json = "1.0.89"
+anyhow = "1.0.70"
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+libsecp256k1 = { version = "0.3.5", default-features = false, features = ["hmac"] }
