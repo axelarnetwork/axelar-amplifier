@@ -1,7 +1,6 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{
-    entry_point, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
-};
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128};
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;

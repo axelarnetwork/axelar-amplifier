@@ -117,7 +117,6 @@ dependencies = [
  "cw2",
  "schemars",
  "serde",
- "serde_json",
  "service-interface",
  "thiserror",
 ]
@@ -484,6 +483,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.6",
+]
+
+[[package]]
+name = "inbound-evm-gateway"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "auth",
+ "auth-vote",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw2",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "service-registry",
+ "thiserror",
 ]
 
 [[package]]

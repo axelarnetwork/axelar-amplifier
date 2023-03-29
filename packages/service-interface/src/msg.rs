@@ -5,9 +5,11 @@ use cosmwasm_std::Addr;
 pub struct InstantiateMsg {}
 
 #[cw_serde]
-pub enum ExecuteMsg<T, S> {
+pub enum ExecuteMsg<T, S, U> {
     RequestWorkerAction { message: T },
     PostWorkerReply { reply: S },
+    FinalizeActions {},
+    Admin { operation: U },
 }
 
 #[cw_serde]
@@ -23,6 +25,8 @@ pub enum QueryMsg {
     GetUnbondAllowed { worker_address: Addr },
     #[returns(WorkerState)]
     GetWorkerStatus { worker_address: Addr },
+    #[returns(bool)]
+    IsAddressWorkerEligible { address: Addr },
 }
 
 #[cw_serde]
