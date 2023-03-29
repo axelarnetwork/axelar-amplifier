@@ -6,6 +6,7 @@ members = [
   "contracts/batching",
   "packages/auth",
   "packages/auth-vote",
+  "packages/auth-multisig",
   "packages/snapshotter",
 ]
 
@@ -22,6 +23,7 @@ overflow-checks = true
 
 [workspace.dependencies]
 auth = { version = "0.1.0", path = "./packages/auth" }
+auth-multisig = { version = "0.1.0", path = "./packages/auth-multisig" }
 auth-vote = { version = "0.1.0", path = "./packages/auth-vote" }
 service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
