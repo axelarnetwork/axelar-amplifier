@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128, Uint256};
+use cosmwasm_std::{Addr, Uint128, HexBinary};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -33,7 +33,7 @@ pub enum ExecuteMsg {
         destination_domain: String,
         destination_addr: Addr,
         source_addr: Addr,
-        payload_hash: Uint256,
+        payload_hash: HexBinary,
     },
     // returns count messages and deletes them from the gateway's queue
     // can only be called by an outgoing gateway

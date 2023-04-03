@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::{Addr, HexBinary};
 
 pub struct Message {
     _id: String,
@@ -6,5 +6,5 @@ pub struct Message {
     _destination_domain: String,
     _source_domain: String,
     _source_addr: Addr,
-    _payload_hash: Uint256,
+    _payload_hash: HexBinary,
 }

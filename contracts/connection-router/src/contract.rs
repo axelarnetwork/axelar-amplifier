@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
+    entry_point, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, HexBinary
 };
 // use cw2::set_contract_version;
 
@@ -64,7 +64,6 @@ pub fn execute(
 }
 
 pub mod execute {
-    use cosmwasm_std::Uint256;
 
     use super::*;
 
@@ -103,7 +102,7 @@ pub mod execute {
         _destination_domain: String,
         _destination_addr: Addr,
         _source_addr: Addr,
-        _payload_hash: Uint256,
+        _payload_hash: HexBinary,
     ) -> Result<Response, ContractError> {
         todo!()
     }
