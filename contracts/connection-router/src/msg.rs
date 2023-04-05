@@ -6,28 +6,39 @@ pub struct InstantiateMsg {}
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    /*
+     * Router Admin Methods
+     * All of the below Register* methods can only be called by the router admin
+     */
+    // Registers a new domain with the router
     RegisterDomain {
         domain: String,
     },
-    // registers a gateway that processes messages sent from axelar to a remote domain
+    // Registers a gateway that processes messages sent from axelar to a remote domain.
+    // Returns an identifier for the queue corresponding to this gateway
     RegisterOutgoingGateway {
         domain: String,
         contract_addr: Addr,
-        // if specified, takes ownership of queue
+        // If specified, takes ownership of queue. The previous owner of the queue will no longer receive any messages
         queue_id: Option<Uint128>,
     },
-    // registers a gateway that processes messages sent from a remote domain to axelar
+    // Registers a gateway that processes messages sent from a remote domain to axelar
     RegisterIncomingGateway {
         domain: String,
         contract_addr: Addr,
     },
-    // removes a gateway from a domain, and deletes any owned queue
+    // Removes a gateway from a domain, and deletes any still owned queue
     DeregisterGateway {
         domain: String,
         contract_addr: Addr,
     },
-    // routes a message to all outgoing gateways registered to the destination domain
-    // can only be called by an incoming gateway
+
+    /*
+     * Gateway Methods
+     * The below methods can only be called by registered gateways
+     */
+    // Routes a message to all outgoing gateways registered to the destination domain.
+    // Called by an incoming gateway
     RouteMessage {
         id: String,
         destination_domain: String,
@@ -35,8 +46,8 @@ pub enum ExecuteMsg {
         source_addr: Addr,
         payload_hash: HexBinary,
     },
-    // returns count messages and deletes them from the gateway's queue
-    // can only be called by an outgoing gateway
+    // Returns count messages and deletes them from the gateway's queue.
+    // Called by an outgoing gateway
     ConsumeMessages {
         count: u32,
     },
