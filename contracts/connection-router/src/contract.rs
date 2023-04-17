@@ -1,12 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
+    entry_point, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    Uint128,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::ROUTES;
 
 /*
 // version info for migration info
@@ -32,31 +32,84 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RouteMessage { message } => execute::route_message(deps, message),
-        ExecuteMsg::UpdateRoute {
-            chain_id,
-            destination_contract,
-        } => execute::update_route(deps, chain_id, destination_contract),
+        ExecuteMsg::RegisterDomain { domain } => execute::register_domain(deps, domain),
+        ExecuteMsg::RegisterIncomingGateway {
+            domain,
+            contract_addr,
+        } => execute::register_incoming_gateway(deps, domain, contract_addr),
+        ExecuteMsg::RegisterOutgoingGateway {
+            domain,
+            contract_addr,
+            queue_id,
+        } => execute::register_outgoing_gateway(deps, domain, contract_addr, queue_id),
+        ExecuteMsg::DeregisterGateway {
+            domain,
+            contract_addr,
+        } => execute::deregister_gateway(deps, domain, contract_addr),
+        ExecuteMsg::RouteMessage {
+            id,
+            destination_domain,
+            destination_addr,
+            source_addr,
+            payload_hash,
+        } => execute::route_message(
+            deps,
+            id,
+            destination_domain,
+            destination_addr,
+            source_addr,
+            payload_hash,
+        ),
+        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, count),
     }
 }
 
 pub mod execute {
+
     use super::*;
 
-    pub fn route_message(_deps: DepsMut, _message: Binary) -> Result<Response, ContractError> {
+    pub fn register_domain(_deps: DepsMut, _domain: String) -> Result<Response, ContractError> {
         todo!()
     }
 
-    pub fn update_route(
-        deps: DepsMut,
-        chain_id: Uint128,
-        destination_contract: Addr,
+    pub fn register_incoming_gateway(
+        _deps: DepsMut,
+        _domain: String,
+        _contract_addr: Addr,
     ) -> Result<Response, ContractError> {
-        // TODO: Auth validation
+        todo!()
+    }
 
-        ROUTES.save(deps.storage, chain_id.u128(), &destination_contract)?;
+    pub fn register_outgoing_gateway(
+        _deps: DepsMut,
+        _domain: String,
+        _contract_addr: Addr,
+        _queue_id: Option<Uint128>,
+    ) -> Result<Response, ContractError> {
+        todo!()
+    }
 
-        Ok(Response::new())
+    pub fn deregister_gateway(
+        _deps: DepsMut,
+        _domain: String,
+        _contract_addr: Addr,
+    ) -> Result<Response, ContractError> {
+        todo!()
+    }
+
+    pub fn route_message(
+        _deps: DepsMut,
+        _id: String,
+        _destination_domain: String,
+        _destination_addr: Addr,
+        _source_addr: Addr,
+        _payload_hash: HexBinary,
+    ) -> Result<Response, ContractError> {
+        todo!()
+    }
+
+    pub fn consume_messages(_deps: DepsMut, _count: u32) -> Result<Response, ContractError> {
+        todo!()
     }
 }
 
