@@ -32,19 +32,19 @@ impl Snapshot {
         let mut participants: HashMap<String, Participant> = HashMap::new();
 
         for worker in candidates {
-            let weight = weight_fn(deps, &worker);
+            let weight = weight_fn(deps, &worker).unwrap_or(Uint256::zero());
 
-            if weight.is_none() || !filter_fn(deps, &worker) {
+            if weight.is_zero() || !filter_fn(deps, &worker) {
                 continue;
             }
-            let weight = weight.unwrap();
+
             total_weight += weight;
 
             let participant = Participant {
                 address: worker.address.clone(),
                 weight,
             };
-            participants.insert(worker.address.into_string(), participant);
+            participants.insert(worker.address, participant);
         }
 
         Self {
