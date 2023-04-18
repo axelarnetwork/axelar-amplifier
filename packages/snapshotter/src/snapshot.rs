@@ -58,26 +58,26 @@ impl Snapshot {
     pub fn get_participants_weight(&self) -> Uint256 {
         self.participants
             .iter()
-            .fold(Uint256::zero(), |accum, item| {
-                let (_, participant) = item;
+            .fold(Uint256::zero(), |accum, (_, participant)| {
                 accum + participant.weight
             })
     }
 
     pub fn get_participant_weight(&self, participant: &Addr) -> Uint256 {
-        let result = self.participants.get(&participant.to_owned().into_string());
-        match result {
+        match self.participants.get(&participant.to_owned().into_string()) {
             Some(participant) => participant.weight,
             None => Uint256::zero(),
         }
     }
 
-    pub fn calculate_min_passing_weight(&self, treshold: &Decimal) -> Uint256 {
+    pub fn calculate_min_passing_weight(&self, threshold: &Decimal) -> Uint256 {
         // TODO: check type sizes are correct, otherwise overflow may occur
-        let t = Decimal256::from(*treshold);
+        let threshold = Decimal256::from(*threshold);
 
-        let min_passing_weight = self.total_weight * t;
-        if min_passing_weight.mul(t.denominator()) >= self.total_weight.mul(t.denominator()) {
+        let min_passing_weight = self.total_weight * threshold;
+        if min_passing_weight.mul(threshold.denominator())
+            >= self.total_weight.mul(threshold.denominator())
+        {
             return min_passing_weight;
         }
 
