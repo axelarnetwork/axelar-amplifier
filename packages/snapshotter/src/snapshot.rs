@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Fraction, Timestamp, Uint256, Uint64};
-use service_registry::{msg::ActiveWorkers, state::Worker};
+use service_registry::state::Worker;
 
 #[cw_serde]
 pub struct Participant {
@@ -23,7 +23,7 @@ impl Snapshot {
         deps: &DepsMut,
         timestamp: Timestamp,
         height: Uint64,
-        active_workers: ActiveWorkers,
+        candidates: Vec<Worker>,
         filter_fn: impl Fn(&DepsMut, &Worker) -> bool,
         weight_fn: impl Fn(&DepsMut, &Worker) -> Option<Uint256>,
     ) -> Self {
@@ -31,7 +31,7 @@ impl Snapshot {
 
         let mut participants: HashMap<String, Participant> = HashMap::new();
 
-        for worker in active_workers.workers {
+        for worker in candidates {
             let weight = weight_fn(deps, &worker);
 
             if weight.is_none() || !filter_fn(deps, &worker) {

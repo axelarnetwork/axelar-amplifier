@@ -14,7 +14,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, Binary, BlockInfo, Decimal, DepsMut, Order, StdResult, Storage, Uint256, Uint64,
 };
-use service_registry::msg::ActiveWorkers;
 use service_registry::state::Worker;
 use snapshotter::snapshot::Snapshot;
 use state::PollState;
@@ -34,7 +33,7 @@ pub struct InitAuthModuleParameters<'a> {
 pub struct InitializeAuthSessionParameters<'a> {
     pub deps: DepsMut<'a>,
     pub block: BlockInfo,
-    pub active_workers: ActiveWorkers,
+    pub candidates: Vec<Worker>,
     pub message: Binary,
     pub filter_fn: &'a dyn Fn(&DepsMut, &Worker) -> bool,
     pub weight_fn: &'a dyn Fn(&DepsMut, &Worker) -> Option<Uint256>,
@@ -92,7 +91,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
             &parameters.deps,
             parameters.block.time,
             Uint64::from(parameters.block.height),
-            parameters.active_workers,
+            parameters.candidates,
             parameters.filter_fn,
             parameters.weight_fn,
         );
