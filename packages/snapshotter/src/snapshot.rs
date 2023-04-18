@@ -44,7 +44,7 @@ impl Snapshot {
                 address: worker.address.clone(),
                 weight,
             };
-            participants.insert(worker.address, participant);
+            participants.insert(worker.address.into_string(), participant);
         }
 
         Self {
@@ -64,8 +64,8 @@ impl Snapshot {
             })
     }
 
-    pub fn get_participant_weight(&self, voter: &String) -> Uint256 {
-        let result = self.participants.get(voter);
+    pub fn get_participant_weight(&self, participant: &Addr) -> Uint256 {
+        let result = self.participants.get(&participant.to_owned().into_string());
         match result {
             Some(participant) => participant.weight,
             None => Uint256::zero(),
