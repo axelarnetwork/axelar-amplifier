@@ -1,4 +1,6 @@
 pub trait AuthModule<'a> {
+    type Err;
+
     type InitAuthModuleParameters;
     type InitAuthModuleResult;
     type InitializeAuthSessionParameters;
@@ -11,20 +13,20 @@ pub trait AuthModule<'a> {
     fn init_auth_module(
         &self,
         parameters: Self::InitAuthModuleParameters,
-    ) -> Self::InitAuthModuleResult;
+    ) -> Result<Self::InitAuthModuleResult, Self::Err>;
 
     fn initialize_auth_session(
         &self,
         parameters: Self::InitializeAuthSessionParameters,
-    ) -> Self::InitializeAuthSessionResult;
+    ) -> Result<Self::InitializeAuthSessionResult, Self::Err>;
 
     fn submit_worker_validation(
         &self,
         parameters: Self::SubmitWorkerValidationParameters,
-    ) -> Self::SubmitWorkerValidationResult;
+    ) -> Result<Self::SubmitWorkerValidationResult, Self::Err>;
 
     fn finalize_open_sessions(
         &self,
         parameters: Self::FinalizePendingSessionsParameters,
-    ) -> Self::FinalizePendingSessionsResult;
+    ) -> Result<Self::FinalizePendingSessionsResult, Self::Err>;
 }

@@ -57,26 +57,28 @@ pub struct FinalizePendingSessionsParameters<'a> {
 }
 
 impl<'a> AuthModule<'a> for AuthVoting {
+    type Err = AuthError;
+
     type InitAuthModuleParameters = InitAuthModuleParameters<'a>;
     type InitAuthModuleResult = StdResult<()>;
     type InitializeAuthSessionParameters = InitializeAuthSessionParameters<'a>;
-    type InitializeAuthSessionResult = Result<Poll, AuthError>;
+    type InitializeAuthSessionResult = Poll;
     type SubmitWorkerValidationParameters = SubmitWorkerValidationParameters<'a>;
-    type SubmitWorkerValidationResult = Result<(Poll, VoteResult), AuthError>;
+    type SubmitWorkerValidationResult = (Poll, VoteResult);
     type FinalizePendingSessionsParameters = FinalizePendingSessionsParameters<'a>;
-    type FinalizePendingSessionsResult = Result<Vec<Poll>, AuthError>;
+    type FinalizePendingSessionsResult = Vec<Poll>;
 
     fn init_auth_module(
         &self,
         parameters: Self::InitAuthModuleParameters,
-    ) -> Self::InitAuthModuleResult {
-        POLL_COUNTER.save(parameters.store, &0)
+    ) -> Result<Self::InitAuthModuleResult, Self::Err> {
+        Ok(POLL_COUNTER.save(parameters.store, &0))
     }
 
     fn initialize_auth_session(
         &self,
         parameters: Self::InitializeAuthSessionParameters,
-    ) -> Self::InitializeAuthSessionResult {
+    ) -> Result<Self::InitializeAuthSessionResult, Self::Err> {
         let id = POLL_COUNTER.update(
             parameters.deps.storage,
             |mut counter| -> Result<u64, AuthError> {
@@ -111,7 +113,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
     fn submit_worker_validation(
         &self,
         parameters: Self::SubmitWorkerValidationParameters,
-    ) -> Self::SubmitWorkerValidationResult {
+    ) -> Result<Self::SubmitWorkerValidationResult, Self::Err> {
         let mut poll = POLLS
             .load(parameters.store, parameters.poll_id.u64())
             .or(Err(AuthError::PollNonExistent {
@@ -132,7 +134,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
     fn finalize_open_sessions(
         &self,
         parameters: Self::FinalizePendingSessionsParameters,
-    ) -> Self::FinalizePendingSessionsResult {
+    ) -> Result<Self::FinalizePendingSessionsResult, Self::Err> {
         let mut expired_polls: Vec<Poll> = Vec::new();
 
         // TODO: consider using pagination instead of removing? https://github.com/CosmWasm/cw-storage-plus#prefix.
