@@ -96,31 +96,27 @@ impl<'a> AuthModule<'a> for AuthVoting {
             parameters.weight_fn,
         );
 
-        let poll_metadata = Poll::new(
+        let poll = Poll::new(
             Uint64::from(id),
             Uint64::from(expires_at),
             snapshot,
             parameters.message,
         );
 
-        POLLS.save(parameters.deps.storage, id, &poll_metadata)?;
+        POLLS.save(parameters.deps.storage, id, &poll)?;
 
-        Ok(poll_metadata)
+        Ok(poll)
     }
 
     fn submit_worker_validation(
         &self,
         parameters: Self::SubmitWorkerValidationParameters,
     ) -> Self::SubmitWorkerValidationResult {
-        let metadata = POLLS.may_load(parameters.store, parameters.poll_id.u64())?;
-
-        if metadata.is_none() {
-            return Err(AuthError::PollNonExistent {
+        let mut poll = POLLS
+            .load(parameters.store, parameters.poll_id.u64())
+            .or(Err(AuthError::PollNonExistent {
                 poll_id: parameters.poll_id,
-            });
-        }
-
-        let mut poll = metadata.unwrap();
+            }))?;
 
         let vote_result = poll.vote(
             parameters.store,

@@ -78,9 +78,9 @@ impl Snapshot {
         if min_passing_weight.mul(threshold.denominator())
             >= self.total_weight.mul(threshold.denominator())
         {
-            return min_passing_weight;
+            min_passing_weight
+        } else {
+            min_passing_weight + Uint256::one()
         }
-
-        min_passing_weight + Uint256::one()
     }
 }
