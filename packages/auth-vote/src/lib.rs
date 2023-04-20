@@ -11,9 +11,7 @@ pub use crate::state::Poll;
 use crate::state::{POLLS, POLL_COUNTER};
 use auth::AuthModule;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{
-    Addr, Binary, BlockInfo, Decimal, DepsMut, Order, StdResult, Storage, Uint256, Uint64,
-};
+use cosmwasm_std::{Addr, Binary, BlockInfo, Decimal, DepsMut, Order, Storage, Uint256, Uint64};
 use service_registry::state::Worker;
 use snapshotter::snapshot::Snapshot;
 use state::PollState;
@@ -49,7 +47,7 @@ pub struct SubmitWorkerValidationParameters<'a> {
 
 pub struct FinalizePendingSessionsParameters<'a> {
     pub store: &'a mut dyn Storage,
-    pub limit: u32,
+    pub limit: usize,
     pub block_height: u64,
     pub pending_poll_handler: &'a mut dyn FnMut(&Poll),
     pub failed_poll_handler: &'a mut dyn FnMut(&Poll),
@@ -60,7 +58,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
     type Err = AuthError;
 
     type InitAuthModuleParameters = InitAuthModuleParameters<'a>;
-    type InitAuthModuleResult = StdResult<()>;
+    type InitAuthModuleResult = ();
     type InitializeAuthSessionParameters = InitializeAuthSessionParameters<'a>;
     type InitializeAuthSessionResult = Poll;
     type SubmitWorkerValidationParameters = SubmitWorkerValidationParameters<'a>;
@@ -72,7 +70,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
         &self,
         parameters: Self::InitAuthModuleParameters,
     ) -> Result<Self::InitAuthModuleResult, Self::Err> {
-        Ok(POLL_COUNTER.save(parameters.store, &0))
+        POLL_COUNTER.save(parameters.store, &0).map_err(Into::into)
     }
 
     fn initialize_auth_session(
@@ -144,7 +142,7 @@ impl<'a> AuthModule<'a> for AuthVoting {
             .try_for_each(|item| {
                 let (_, poll) = item.unwrap();
 
-                if expired_polls.len() >= parameters.limit.try_into().unwrap() {
+                if expired_polls.len() >= parameters.limit {
                     return ControlFlow::Break(());
                 }
 
