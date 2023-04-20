@@ -783,6 +783,7 @@ dependencies = [
  "cw2",
  "schemars",
  "serde",
+ "serde_json",
  "service-registry",
  "thiserror",
 ]

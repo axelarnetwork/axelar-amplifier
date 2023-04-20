@@ -84,3 +84,36 @@ impl Snapshot {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{from_binary, to_binary};
+
+    #[test]
+    fn test_snapshot_serialization() {
+        use super::*;
+        use cosmwasm_std::{Addr, Uint256};
+
+        let participant = "participant";
+
+        let snapshot = Snapshot {
+            timestamp: Timestamp::from_seconds(0),
+            height: Uint64::from(0u32),
+            total_weight: Uint256::from(100u32),
+            participants: vec![(
+                participant.to_string(),
+                Participant {
+                    address: Addr::unchecked(participant),
+                    weight: Uint256::from(100u32),
+                },
+            )]
+            .into_iter()
+            .collect(),
+        };
+
+        let serialized = to_binary(&snapshot).unwrap();
+        let deserialized: Snapshot = from_binary(&serialized).unwrap();
+
+        assert_eq!(snapshot, deserialized);
+    }
+}
