@@ -3,7 +3,7 @@ use std::fmt::Display;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Binary, Uint256, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-use snapshotter::snapshot::Snapshot;
+use snapshot::Snapshot;
 
 use crate::utils::hash;
 

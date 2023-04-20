@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use cosmwasm_std::{Addr, Binary, Order, Storage, Uint256, Uint64};
-use snapshotter::snapshot::Snapshot;
+use snapshot::Snapshot;
 
 use crate::{
     state::{is_voter_late_map, tallied_votes, Poll, PollState, TalliedVote, POLLS},

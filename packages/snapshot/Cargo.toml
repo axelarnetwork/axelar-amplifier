@@ -1,5 +1,5 @@
 [package]
-name = "snapshotter"
+name = "snapshot"
 version = "0.1.0"
 edition = "2021"
 description = "Crate to facilitate participants snapshot creation"

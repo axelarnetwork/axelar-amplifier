@@ -37,7 +37,7 @@ dependencies = [
  "schemars",
  "serde",
  "service-registry",
- "snapshotter",
+ "snapshot",
  "thiserror",
 ]
 
@@ -772,7 +772,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "snapshotter"
+name = "snapshot"
 version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",

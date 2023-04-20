@@ -13,7 +13,7 @@ use auth::AuthModule;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Binary, BlockInfo, Decimal, DepsMut, Order, Storage, Uint256, Uint64};
 use service_registry::state::Worker;
-use snapshotter::snapshot::Snapshot;
+use snapshot::Snapshot;
 use state::PollState;
 
 #[cw_serde]

@@ -6,7 +6,7 @@ members = [
   "contracts/batching",
   "packages/auth",
   "packages/auth-vote",
-  "packages/snapshotter",
+  "packages/snapshot",
 ]
 
 [profile.release]
@@ -25,4 +25,4 @@ auth = { version = "0.1.0", path = "./packages/auth" }
 auth-vote = { version = "0.1.0", path = "./packages/auth-vote" }
 service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
-snapshotter = { version = "0.1.0", path = "./packages/snapshotter" }
+snapshot = { version = "0.1.0", path = "./packages/snapshot" }

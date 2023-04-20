@@ -39,7 +39,7 @@ serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
 auth = { workspace = true }
 service-registry = { workspace = true }
-snapshotter = { workspace = true }
+snapshot = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
