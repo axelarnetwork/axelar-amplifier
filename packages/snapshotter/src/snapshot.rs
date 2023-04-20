@@ -64,7 +64,7 @@ impl Snapshot {
     }
 
     pub fn get_participant_weight(&self, participant: &Addr) -> Uint256 {
-        match self.participants.get(&participant.to_owned().into_string()) {
+        match self.participants.get(participant.as_str()) {
             Some(participant) => participant.weight,
             None => Uint256::zero(),
         }
@@ -76,7 +76,7 @@ impl Snapshot {
 
         let min_passing_weight = self.total_weight * threshold;
         if min_passing_weight.mul(threshold.denominator())
-            >= self.total_weight.mul(threshold.denominator())
+            >= self.total_weight.mul(threshold.numerator())
         {
             min_passing_weight
         } else {

@@ -214,14 +214,11 @@ impl<'a> Poll {
     fn get_majority_vote(&self, store: &dyn Storage) -> Result<TalliedVote, AuthError> {
         let (_, majority) = self
             .get_tallied_votes(store)
-            .reduce(|accum, item| {
-                let (_, max_tallied_vote) = accum.as_ref().unwrap();
-                let (_, tallied_vote) = item.as_ref().unwrap();
-                if max_tallied_vote.tally > tallied_vote.tally {
-                    accum
-                } else {
-                    item
-                }
+            .max_by(|a, b| {
+                let (_, tallied_vote_a) = a.as_ref().unwrap();
+                let (_, tallied_vote_b) = b.as_ref().unwrap();
+
+                tallied_vote_a.tally.cmp(&tallied_vote_b.tally)
             })
             .unwrap()?;
 
