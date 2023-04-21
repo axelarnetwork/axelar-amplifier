@@ -6,6 +6,7 @@ members = [
   "contracts/connection-router",
   "contracts/evm-batch-service",
   "contracts/batching",
+  "packages/axelar-wasm-std"
 ]
 
 [profile.release]
@@ -22,3 +23,4 @@ overflow-checks = true
 [workspace.dependencies]
 service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
+axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
