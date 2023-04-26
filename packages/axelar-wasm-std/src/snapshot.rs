@@ -93,6 +93,7 @@ impl Snapshot {
 mod tests {
     use super::*;
     use cosmwasm_std::{from_binary, testing::mock_dependencies, to_binary, Uint128};
+    use rand::Rng;
     use service_registry::state::WorkerState;
 
     fn mock_worker(address: &str, stake: Uint128) -> Worker {
@@ -138,14 +139,12 @@ mod tests {
     #[test]
     fn test_valid_snapshot() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(1682460479);
-        let height = Uint64::from(5u32);
+        let mut rng = rand::thread_rng();
 
         let result = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
@@ -157,17 +156,15 @@ mod tests {
     #[test]
     fn test_filter_function() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(1682460479);
-        let height = Uint64::from(5u32);
+        let mut rng = rand::thread_rng();
 
         let filter_fn =
             &|_: &DepsMut, worker: &Worker| -> bool { worker.stake >= Uint128::from(200u128) };
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             filter_fn,
             default_weight_function(),
@@ -180,16 +177,14 @@ mod tests {
     #[test]
     fn test_weight_function() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(1682460479);
-        let height = Uint64::from(5u32);
+        let mut rng = rand::thread_rng();
 
         let weight_fn = &|_: &DepsMut, _: &Worker| -> Option<Uint256> { Some(Uint256::one()) };
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             weight_fn,
@@ -205,9 +200,7 @@ mod tests {
     #[test]
     fn test_filter_zero_weight_candidates() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(1682460479);
-        let height = Uint64::from(5u32);
+        let mut rng = rand::thread_rng();
 
         let weight_fn = &|_: &DepsMut, worker: &Worker| -> Option<Uint256> {
             if worker.stake < Uint128::from(200u128) {
@@ -219,8 +212,8 @@ mod tests {
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             weight_fn,
@@ -233,16 +226,14 @@ mod tests {
     #[test]
     fn test_error_no_participants() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(1682460479);
-        let height = Uint64::from(5u32);
+        let mut rng = rand::thread_rng();
 
         let filter_fn = &|_: &DepsMut, _: &Worker| -> bool { false };
 
         let result = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             filter_fn,
             default_weight_function(),
@@ -257,14 +248,12 @@ mod tests {
     #[test]
     fn test_error_zero_height() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(1682460479);
-        let height = Uint64::zero();
+        let mut rng = rand::thread_rng();
 
         let result = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::zero(),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
@@ -279,14 +268,12 @@ mod tests {
     #[test]
     fn test_error_zero_timestamp() {
         let mut deps = mock_dependencies();
-
-        let timestamp = Timestamp::from_seconds(0);
-        let height = Uint64::from(5u32);
+        let mut rng = rand::thread_rng();
 
         let result = Snapshot::new(
             &deps.as_mut(),
-            timestamp,
-            height,
+            Timestamp::from_nanos(0),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
@@ -301,11 +288,12 @@ mod tests {
     #[test]
     fn test_snapshot_serialization() {
         let mut deps = mock_dependencies();
+        let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_seconds(1682460479),
-            Uint64::from(5u32),
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             |_, _| Some(Uint256::from(100u32)),
@@ -321,11 +309,12 @@ mod tests {
     #[test]
     fn test_min_passing_weight_one_third() {
         let mut deps = mock_dependencies();
+        let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_seconds(1682460479),
-            Uint64::from(5u32),
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             |_, _| Some(Uint256::from(1u32)),
@@ -342,11 +331,12 @@ mod tests {
     #[test]
     fn test_min_passing_weight_total_weight() {
         let mut deps = mock_dependencies();
+        let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_seconds(1682460479),
-            Uint64::from(5u32),
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
