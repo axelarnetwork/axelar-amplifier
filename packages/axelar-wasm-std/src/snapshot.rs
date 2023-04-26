@@ -317,4 +317,46 @@ mod tests {
 
         assert_eq!(snapshot, deserialized);
     }
+
+    #[test]
+    fn test_min_passing_weight_one_third() {
+        let mut deps = mock_dependencies();
+
+        let snapshot = Snapshot::new(
+            &deps.as_mut(),
+            Timestamp::from_seconds(1682460479),
+            Uint64::from(5u32),
+            default_workers(),
+            default_filter_function(),
+            |_, _| Some(Uint256::from(1u32)),
+        )
+        .unwrap();
+
+        let threshold = Decimal::from_ratio(Uint128::one(), Uint128::from(3u32));
+        assert_eq!(
+            snapshot.calculate_min_passing_weight(&threshold),
+            Uint256::from(4u32)
+        );
+    }
+
+    #[test]
+    fn test_min_passing_weight_total_weight() {
+        let mut deps = mock_dependencies();
+
+        let snapshot = Snapshot::new(
+            &deps.as_mut(),
+            Timestamp::from_seconds(1682460479),
+            Uint64::from(5u32),
+            default_workers(),
+            default_filter_function(),
+            default_weight_function(),
+        )
+        .unwrap();
+
+        let threshold = Decimal::from_ratio(Uint128::one(), Uint128::one());
+        assert_eq!(
+            snapshot.calculate_min_passing_weight(&threshold),
+            snapshot.total_weight
+        );
+    }
 }
