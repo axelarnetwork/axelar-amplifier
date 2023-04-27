@@ -10,7 +10,6 @@ pub struct Message {
     pub source_domain: String,
     pub source_address: String,
     pub payload_hash: HexBinary,
-    pub redelivered: bool,
 }
 
 impl Message {
@@ -28,17 +27,24 @@ pub struct Config {
     pub admin: Addr,
 }
 
+#[cw_serde]
+pub struct Gateway {
+    pub address: Addr,
+    pub is_frozen: bool,
+}
+
 pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cw_serde]
 pub struct Domain {
-    pub incoming_gateway: Option<Addr>,
-    pub outgoing_gateway: Option<Addr>,
+    pub incoming_gateway: Gateway,
+    pub outgoing_gateway: Gateway,
+    pub is_frozen: bool,
 }
 
 pub struct DomainIndexes<'a> {
-    pub incoming_gateway: MultiIndex<'a, String, Domain, String>,
-    pub outgoing_gateway: MultiIndex<'a, String, Domain, String>,
+    pub incoming_gateway: MultiIndex<'a, Addr, Domain, String>,
+    pub outgoing_gateway: MultiIndex<'a, Addr, Domain, String>,
 }
 
 pub fn domains<'a>() -> IndexedMap<'a, &'a str, Domain, DomainIndexes<'a>> {
@@ -46,18 +52,12 @@ pub fn domains<'a>() -> IndexedMap<'a, &'a str, Domain, DomainIndexes<'a>> {
         "domains",
         DomainIndexes {
             incoming_gateway: MultiIndex::new(
-                |_pk: &[u8], d: &Domain| match &d.incoming_gateway {
-                    None => "".to_string(),
-                    Some(g) => g.clone().into_string(),
-                },
+                |_pk: &[u8], d: &Domain| d.incoming_gateway.address.clone(),
                 "domains",
                 "incoming_gateways",
             ),
             outgoing_gateway: MultiIndex::new(
-                |_pk: &[u8], d: &Domain| match &d.outgoing_gateway {
-                    None => "".to_string(),
-                    Some(g) => g.clone().into_string(),
-                },
+                |_pk: &[u8], d: &Domain| d.outgoing_gateway.address.clone(),
                 "domains",
                 "outgoing_gateways",
             ),

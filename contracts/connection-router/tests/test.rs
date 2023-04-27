@@ -39,30 +39,8 @@ fn route() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: incoming_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: outgoing_eth.to_string(),
+                incoming_gateway_address: incoming_eth.to_string(),
+                outgoing_gateway_address: outgoing_eth.to_string(),
             },
             &[],
         )
@@ -78,34 +56,13 @@ fn route() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_poly.to_string(),
+                incoming_gateway_address: incoming_poly.to_string(),
+                outgoing_gateway_address: outgoing_poly.to_string(),
             },
             &[],
         )
         .unwrap();
 
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: incoming_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
     let mut nonce = 0;
     let mut gen_msgs = |num: u8, source: String, dest: String| {
         let mut msgs = vec![];
@@ -120,7 +77,6 @@ fn route() {
                 source_domain: source.clone(),
                 source_address: String::from("idc"),
                 payload_hash: HexBinary::from(vec![x, x, x, x]),
-                redelivered: false,
             })
         }
         msgs
@@ -149,7 +105,7 @@ fn route() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 1 },
+            &ExecuteMsg::ConsumeMessages { count: Some(1) },
             &[],
         )
         .unwrap();
@@ -162,7 +118,7 @@ fn route() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap();
@@ -175,7 +131,7 @@ fn route() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 256 },
+            &ExecuteMsg::ConsumeMessages { count: Some(256) },
             &[],
         )
         .unwrap();
@@ -188,7 +144,7 @@ fn route() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 256 },
+            &ExecuteMsg::ConsumeMessages { count: Some(256) },
             &[],
         )
         .unwrap();
@@ -237,7 +193,7 @@ fn route() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 1 },
+            &ExecuteMsg::ConsumeMessages { count: Some(1) },
             &[],
         )
         .unwrap();
@@ -305,7 +261,7 @@ fn route() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 256 },
+            &ExecuteMsg::ConsumeMessages { count: Some(256) },
             &[],
         )
         .unwrap();
@@ -318,7 +274,7 @@ fn route() {
         .execute_contract(
             outgoing_eth.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 256 },
+            &ExecuteMsg::ConsumeMessages { count: Some(256) },
             &[],
         )
         .unwrap();
@@ -372,30 +328,8 @@ fn multi_chain_route() {
                 contract_address.clone(),
                 &ExecuteMsg::RegisterDomain {
                     domain: c.domain.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-
-        let _ = app
-            .execute_contract(
-                admin_addr.clone(),
-                contract_address.clone(),
-                &ExecuteMsg::RegisterIncomingGateway {
-                    domain: c.domain.clone(),
-                    contract_address: c.incoming.to_string(),
-                },
-                &[],
-            )
-            .unwrap();
-
-        let _ = app
-            .execute_contract(
-                admin_addr.clone(),
-                contract_address.clone(),
-                &ExecuteMsg::RegisterOutgoingGateway {
-                    domain: c.domain.clone(),
-                    contract_address: c.outgoing.to_string(),
+                    incoming_gateway_address: c.incoming.to_string(),
+                    outgoing_gateway_address: c.outgoing.to_string(),
                 },
                 &[],
             )
@@ -416,7 +350,6 @@ fn multi_chain_route() {
                 source_domain: source.clone(),
                 source_address: String::from("idc"),
                 payload_hash: HexBinary::from(vec![x, x, x, x]),
-                redelivered: false,
             })
         }
         msgs
@@ -456,7 +389,7 @@ fn multi_chain_route() {
                 d.outgoing.clone(),
                 contract_address.clone(),
                 &ExecuteMsg::ConsumeMessages {
-                    count: expected.len() as u32,
+                    count: Some(expected.len() as u32),
                 },
                 &[],
             )
@@ -496,6 +429,8 @@ fn authorization() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain.clone(),
+                incoming_gateway_address: incoming.to_string(),
+                outgoing_gateway_address: outgoing.to_string(),
             },
             &[],
         )
@@ -509,6 +444,8 @@ fn authorization() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain.clone(),
+                incoming_gateway_address: incoming.to_string(),
+                outgoing_gateway_address: outgoing.to_string(),
             },
             &[],
         )
@@ -518,35 +455,7 @@ fn authorization() {
         .execute_contract(
             Addr::unchecked("random"),
             contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain.clone(),
-                contract_address: incoming.to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain.clone(),
-                contract_address: outgoing.to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::DeregisterDomain {
+            &ExecuteMsg::FreezeDomain {
                 domain: domain.clone(),
             },
             &[],
@@ -559,31 +468,131 @@ fn authorization() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
+            &ExecuteMsg::FreezeDomain {
                 domain: domain.clone(),
-                contract_address: incoming.to_string(),
             },
             &[],
         )
         .unwrap();
 
-    let _ = app
+    let res = app
         .execute_contract(
-            admin_addr.clone(),
+            Addr::unchecked("random"),
             contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
+            &ExecuteMsg::UnfreezeDomain {
                 domain: domain.clone(),
-                contract_address: outgoing.to_string(),
             },
             &[],
         )
-        .unwrap();
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
 
     let _ = app
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::DeregisterDomain {
+            &ExecuteMsg::UnfreezeDomain {
+                domain: domain.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UpgradeIncomingGateway {
+                domain: domain.clone(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::UpgradeIncomingGateway {
+                domain: domain.clone(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UpgradeOutgoingGateway {
+                domain: domain.clone(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::UpgradeOutgoingGateway {
+                domain: domain.clone(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeIncomingGateway {
+                domain: domain.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeIncomingGateway {
+                domain: domain.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeOutgoingGateway {
+                domain: domain.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeOutgoingGateway {
                 domain: domain.clone(),
             },
             &[],
@@ -613,8 +622,10 @@ fn upgrade() {
 
     let domain_eth = "Ethereum";
     let incoming_eth = Addr::unchecked("incoming_eth");
+    let outgoing_eth = Addr::unchecked("outgoing_eth");
 
     let domain_poly = "Polygon";
+    let incoming_poly = Addr::unchecked("incoming_poly");
     let outgoing_poly = Addr::unchecked("outgoing_poly");
 
     let _ = app
@@ -623,18 +634,8 @@ fn upgrade() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: incoming_eth.to_string(),
+                incoming_gateway_address: incoming_eth.to_string(),
+                outgoing_gateway_address: outgoing_eth.to_string(),
             },
             &[],
         )
@@ -646,18 +647,8 @@ fn upgrade() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: outgoing_poly.to_string(),
+                incoming_gateway_address: incoming_poly.to_string(),
+                outgoing_gateway_address: outgoing_poly.to_string(),
             },
             &[],
         )
@@ -667,7 +658,7 @@ fn upgrade() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap();
@@ -692,7 +683,7 @@ fn upgrade() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
+            &ExecuteMsg::UpgradeOutgoingGateway {
                 domain: domain_poly.to_string(),
                 contract_address: outgoing_poly_2.to_string(),
             },
@@ -719,7 +710,7 @@ fn upgrade() {
     let _ = app.execute_contract(
         admin_addr.clone(),
         contract_address.clone(),
-        &ExecuteMsg::RegisterIncomingGateway {
+        &ExecuteMsg::UpgradeIncomingGateway {
             domain: domain_eth.to_string(),
             contract_address: incoming_eth_2.to_string(),
         },
@@ -764,7 +755,7 @@ fn upgrade() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap_err();
@@ -778,7 +769,7 @@ fn upgrade() {
         .execute_contract(
             outgoing_poly_2.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap();
@@ -840,7 +831,7 @@ fn registration() {
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap_err();
@@ -856,51 +847,8 @@ fn registration() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id1".to_string(),
-                destination_domain: domain_poly.clone(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-    let res = app
-        .execute_contract(
-            outgoing_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: incoming_eth.to_string(),
+                incoming_gateway_address: incoming_eth.to_string(),
+                outgoing_gateway_address: outgoing_eth.to_string(),
             },
             &[],
         )
@@ -929,6 +877,8 @@ fn registration() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_poly.to_string(),
+                incoming_gateway_address: incoming_poly.to_string(),
+                outgoing_gateway_address: outgoing_poly.to_string(),
             },
             &[],
         )
@@ -955,7 +905,7 @@ fn registration() {
         .execute_contract(
             incoming_eth.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap_err();
@@ -986,24 +936,12 @@ fn registration() {
         res.downcast().unwrap()
     );
 
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
     // should be able to consume the messages now
     let _ = app
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap();
@@ -1011,9 +949,9 @@ fn registration() {
     // other addresses can't consume
     let res = app
         .execute_contract(
-            outgoing_eth.clone(),
+            Addr::unchecked("some random address"),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap_err();
@@ -1023,24 +961,12 @@ fn registration() {
         res.downcast().unwrap()
     );
 
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: incoming_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
     // incoming gateways can't consume
     let res = app
         .execute_contract(
-            outgoing_eth.clone(),
+            incoming_eth.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 32 },
+            &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap_err();
@@ -1056,6 +982,8 @@ fn registration() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_poly.to_string(),
+                incoming_gateway_address: Addr::unchecked("new gateway").to_string(),
+                outgoing_gateway_address: Addr::unchecked("new gateway").to_string(),
             },
             &[],
         )
@@ -1071,7 +999,7 @@ fn registration() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
+            &ExecuteMsg::UpgradeIncomingGateway {
                 domain: domain_eth.to_string(),
                 contract_address: incoming_poly.to_string(),
             },
@@ -1088,7 +1016,7 @@ fn registration() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
+            &ExecuteMsg::UpgradeOutgoingGateway {
                 domain: domain_eth.to_string(),
                 contract_address: outgoing_poly.to_string(),
             },
@@ -1103,250 +1031,7 @@ fn registration() {
 }
 
 #[test]
-fn redeliver() {
-    let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-
-    let admin_addr = Addr::unchecked("admin");
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("router"),
-            &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-    let domain_eth = String::from("Ethereum");
-    let incoming_eth = Addr::unchecked("incoming_eth");
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_eth.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_eth.clone(),
-                contract_address: incoming_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let domain_poly = String::from("Polygon");
-    let outgoing_poly = Addr::unchecked("outgoing_poly");
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_poly.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_poly.clone(),
-                contract_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let msg = Message {
-        id: "id1".to_string(),
-        destination_address: String::from("idc"),
-        destination_domain: domain_poly.clone(),
-        source_domain: domain_eth.clone(),
-        source_address: String::from("idc"),
-        payload_hash: HexBinary::from(vec![1, 0, 1, 0]),
-        redelivered: false,
-    };
-
-    // can't redeliver a message that was never delivered in the first place
-    let res = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RedeliverMessage {
-                msg: Message {
-                    id: msg.id.clone(),
-                    source_domain: msg.source_domain.clone(),
-                    source_address: msg.source_address.clone(),
-                    destination_domain: msg.destination_domain.clone(),
-                    destination_address: msg.destination_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                    redelivered: false,
-                },
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::MessageNotFound {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
-                destination_domain: msg.destination_domain.clone(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
-                destination_domain: msg.destination_domain.clone(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        ContractError::MessageAlreadyRouted { id: msg.uuid() },
-        res.downcast().unwrap()
-    );
-
-    // router admin can't call route
-    let res = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
-                destination_domain: msg.destination_domain.clone(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-
-    // incoming gateway can't call redeliver
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RedeliverMessage {
-                msg: Message {
-                    id: msg.id.clone(),
-                    source_domain: msg.source_domain.clone(),
-                    source_address: msg.source_address.clone(),
-                    destination_domain: msg.destination_domain.clone(),
-                    destination_address: msg.destination_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                    redelivered: false,
-                },
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    // message contents must be exactly the same
-    let res = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RedeliverMessage {
-                msg: Message {
-                    id: msg.id.clone(),
-                    source_domain: msg.source_domain.clone(),
-                    source_address: msg.source_address.clone(),
-                    destination_domain: msg.destination_domain.clone(),
-                    destination_address: String::from("my address hahah"),
-                    payload_hash: msg.payload_hash.clone(),
-                    redelivered: false,
-                },
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::MessageHashMismatch {},
-        res.downcast().unwrap()
-    );
-
-    // all good now
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RedeliverMessage {
-                msg: Message {
-                    id: msg.id.clone(),
-                    source_domain: msg.source_domain.clone(),
-                    source_address: msg.source_address.clone(),
-                    destination_domain: msg.destination_domain.clone(),
-                    destination_address: msg.destination_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                    redelivered: false,
-                },
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 2 },
-            &[],
-        )
-        .unwrap();
-
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
-    assert_eq!(2, msgs_ret.len());
-    let redelivered_msg = Message {
-        redelivered: true,
-        ..msg.clone()
-    };
-    assert_eq!(vec![msg, redelivered_msg], msgs_ret);
-}
-
-#[test]
-pub fn deregister_domain() {
+pub fn freeze() {
     let mut app = App::default();
     let code = ContractWrapper::new(execute, instantiate, query);
     let code_id = app.store_code(Box::new(code));
@@ -1374,30 +1059,8 @@ pub fn deregister_domain() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: incoming_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: outgoing_eth.to_string(),
+                incoming_gateway_address: incoming_eth.to_string(),
+                outgoing_gateway_address: outgoing_eth.to_string(),
             },
             &[],
         )
@@ -1413,43 +1076,26 @@ pub fn deregister_domain() {
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_poly.to_string(),
+                incoming_gateway_address: incoming_poly.to_string(),
+                outgoing_gateway_address: outgoing_poly.to_string(),
             },
             &[],
         )
         .unwrap();
 
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterIncomingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: incoming_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
+    let mut id = 1;
+    let mut get_id = || {
+        id = id + 1;
+        id
+    };
 
     let msg = Message {
-        id: "id1".to_string(),
+        id: get_id().to_string(),
         destination_address: String::from("idc"),
         destination_domain: domain_poly.clone(),
         source_domain: domain_eth.clone(),
         source_address: String::from("idc"),
         payload_hash: HexBinary::from(vec![1, 0, 1, 0]),
-        redelivered: false,
     };
 
     let _ = app
@@ -1470,18 +1116,19 @@ pub fn deregister_domain() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::DeregisterDomain {
+            &ExecuteMsg::FreezeDomain {
                 domain: domain_poly.clone(),
             },
             &[],
         )
         .unwrap();
+    // can't route to frozen domain
     let res = app
         .execute_contract(
             incoming_eth.clone(),
             contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: String::from("some different id"),
+                id: get_id().to_string(),
                 destination_domain: msg.destination_domain.clone(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -1490,18 +1137,48 @@ pub fn deregister_domain() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::DomainNotFound {}, res.downcast().unwrap());
+    assert_eq!(
+        ContractError::DomainFrozen {
+            domain: domain_poly.clone()
+        },
+        res.downcast().unwrap()
+    );
 
+    // can't route from frozen domain
     let res = app
         .execute_contract(
-            outgoing_poly.clone(),
+            incoming_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 1 },
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: domain_eth.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
             &[],
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::GatewayNotRegistered {},
+        ContractError::DomainFrozen {
+            domain: domain_poly.clone()
+        },
+        res.downcast().unwrap()
+    );
+
+    // frozen domain can't consume
+    let res = app
+        .execute_contract(
+            outgoing_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: Some(1) },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::DomainFrozen {
+            domain: domain_poly.clone()
+        },
         res.downcast().unwrap()
     );
 
@@ -1509,9 +1186,70 @@ pub fn deregister_domain() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
+            &ExecuteMsg::UnfreezeDomain {
                 domain: domain_poly.to_string(),
             },
+            &[],
+        )
+        .unwrap();
+
+    let res = app
+        .execute_contract(
+            outgoing_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: Some(1) },
+            &[],
+        )
+        .unwrap();
+    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(1, msgs_ret.len());
+    assert_eq!(vec![msg.clone()], msgs_ret);
+
+    // routing should succeed now
+    let _ = app
+        .execute_contract(
+            incoming_eth.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: msg.destination_domain.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let _ = app
+        .execute_contract(
+            incoming_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: domain_eth.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+    // clear out the queues
+    let _ = app
+        .execute_contract(
+            outgoing_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: Some(1) },
+            &[],
+        )
+        .unwrap();
+
+    let _ = app
+        .execute_contract(
+            outgoing_eth.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: Some(1) },
             &[],
         )
         .unwrap();
@@ -1520,22 +1258,170 @@ pub fn deregister_domain() {
         .execute_contract(
             admin_addr.clone(),
             contract_address.clone(),
-            &ExecuteMsg::RegisterOutgoingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: outgoing_poly.to_string(),
+            &ExecuteMsg::FreezeIncomingGateway {
+                domain: domain_poly.clone(),
             },
             &[],
         )
         .unwrap();
+    // can't route from frozen incoming gateway
+    let res = app
+        .execute_contract(
+            incoming_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: domain_eth.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::GatewayFrozen {}, res.downcast().unwrap());
+
+    // can still route to domain
+    let _ = app
+        .execute_contract(
+            incoming_eth.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: domain_poly.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // can still consume
+    let _ = app
+        .execute_contract(
+            outgoing_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: None },
+            &[],
+        )
+        .unwrap();
+
+    // now freeze outgoing
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::FreezeOutgoingGateway {
+                domain: domain_poly.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
     let res = app
         .execute_contract(
             outgoing_poly.clone(),
             contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: 1 },
+            &ExecuteMsg::ConsumeMessages { count: None },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::GatewayFrozen {}, res.downcast().unwrap());
+
+    let queued_id = get_id();
+    // can still route to domain, messages will queue up
+    let _ = app
+        .execute_contract(
+            incoming_eth.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: queued_id.to_string(),
+                destination_domain: domain_poly.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // incoming should still be frozen
+    let res = app
+        .execute_contract(
+            incoming_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: domain_eth.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::GatewayFrozen {}, res.downcast().unwrap());
+
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeIncomingGateway {
+                domain: domain_poly.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // incoming can route now
+    let _ = app
+        .execute_contract(
+            incoming_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_id().to_string(),
+                destination_domain: domain_eth.clone(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // outgoing should still be frozen
+    let res = app
+        .execute_contract(
+            outgoing_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: None },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::GatewayFrozen {}, res.downcast().unwrap());
+
+    let _ = app
+        .execute_contract(
+            admin_addr.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeOutgoingGateway {
+                domain: domain_poly.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // messages routed while frozen should have queued
+    let res = app
+        .execute_contract(
+            outgoing_poly.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages { count: None },
             &[],
         )
         .unwrap();
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(vec![msg], msgs_ret);
+    assert_eq!(queued_id.to_string(), msgs_ret[0].id);
 }

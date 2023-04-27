@@ -15,9 +15,6 @@ pub enum ContractError {
     #[error("DomainNotFound")]
     DomainNotFound {},
 
-    #[error("NoGatewaysRegistered")]
-    NoGatewaysRegistered {},
-
     #[error("GatewayNotRegistered")]
     GatewayNotRegistered {},
 
@@ -35,6 +32,12 @@ pub enum ContractError {
 
     #[error("Semver parsing error: {0}")]
     SemVer(String),
+
+    #[error("DomainFrozen")]
+    DomainFrozen { domain: String },
+
+    #[error("GatewayFrozen")]
+    GatewayFrozen {},
 }
 
 impl From<semver::Error> for ContractError {

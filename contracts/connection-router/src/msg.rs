@@ -16,28 +16,39 @@ pub enum ExecuteMsg {
     // Registers a new domain with the router
     RegisterDomain {
         domain: String,
+        incoming_gateway_address: String,
+        outgoing_gateway_address: String,
     },
     // Registers a gateway that processes messages sent from axelar to a remote domain.
-    RegisterOutgoingGateway {
+    UpgradeOutgoingGateway {
         domain: String,
         contract_address: String,
     },
     // Registers a gateway that processes messages sent from a remote domain to axelar
-    RegisterIncomingGateway {
+    UpgradeIncomingGateway {
         domain: String,
         contract_address: String,
     },
     // Deregisters an entire domain. No messages can be sent from or to this domain.
     // The queue of incoming messages is left unaltered, and can be later reclaimed by registering a domain
     // with the same identifier
-    DeregisterDomain {
+    FreezeDomain {
         domain: String,
     },
-    // Redelivers a given message. This will enqueue a given message on the destination
-    // domain's queue. The message id and contents must exactly match a previously routed message.
-    // Set redelivered to false. The router will set redelivered to true before enqueing the message
-    RedeliverMessage {
-        msg: Message,
+    FreezeIncomingGateway {
+        domain: String,
+    },
+    FreezeOutgoingGateway {
+        domain: String,
+    },
+    UnfreezeDomain {
+        domain: String,
+    },
+    UnfreezeIncomingGateway {
+        domain: String,
+    },
+    UnfreezeOutgoingGateway {
+        domain: String,
     },
 
     /*
@@ -56,7 +67,7 @@ pub enum ExecuteMsg {
     // Returns count messages and deletes them from the gateway's queue.
     // Called by an outgoing gateway
     ConsumeMessages {
-        count: u32,
+        count: Option<u32>,
     },
 }
 
