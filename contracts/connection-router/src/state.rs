@@ -1,6 +1,10 @@
+use std::str::FromStr;
+
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cosmwasm_std::{Addr, HexBinary, StdResult, StdError};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PrimaryKey, Key, Prefixer, KeyDeserialize};
+
+use crate::ContractError;
 
 #[cw_serde]
 pub struct Message {
@@ -36,6 +40,61 @@ pub struct Gateway {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cw_serde]
+pub struct DomainName {
+    value : String,    
+}
+
+
+impl FromStr for DomainName {
+    type Err = ContractError;
+    fn from_str(s : &str) -> Result<Self, Self::Err> {
+        
+        if s.contains("-") {
+            return Err(ContractError::InvalidDomainName{})
+        }
+        return Ok(DomainName{value: s.to_lowercase()});
+    }
+}
+
+impl From<DomainName> for String {
+    fn from(d: DomainName) -> Self {
+        d.value
+    }
+}
+impl ToString for DomainName {
+    fn to_string(&self) -> String {
+        self.value.clone()
+    }
+}
+impl<'a> PrimaryKey<'a> for DomainName {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.value.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for DomainName {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.value.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for DomainName {
+    type Output = String;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value).map_err(StdError::invalid_utf8)
+    }
+}
+
+
+
+#[cw_serde]
 pub struct Domain {
     pub incoming_gateway: Gateway,
     pub outgoing_gateway: Gateway,
@@ -43,11 +102,11 @@ pub struct Domain {
 }
 
 pub struct DomainIndexes<'a> {
-    pub incoming_gateway: MultiIndex<'a, Addr, Domain, String>,
-    pub outgoing_gateway: MultiIndex<'a, Addr, Domain, String>,
+    pub incoming_gateway: MultiIndex<'a, Addr, Domain, DomainName>,
+    pub outgoing_gateway: MultiIndex<'a, Addr, Domain, DomainName>,
 }
 
-pub fn domains<'a>() -> IndexedMap<'a, &'a str, Domain, DomainIndexes<'a>> {
+pub fn domains<'a>() -> IndexedMap<'a,DomainName, Domain, DomainIndexes<'a>> {
     return IndexedMap::new(
         "domains",
         DomainIndexes {

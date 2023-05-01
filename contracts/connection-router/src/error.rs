@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("DomainAlreadyExists")]
     DomainAlreadyExists {},
 
+    #[error("InvalidDomainName")]
+    InvalidDomainName {},
+
     #[error("DomainNotFound")]
     DomainNotFound {},
 
@@ -39,6 +42,7 @@ pub enum ContractError {
     #[error("GatewayFrozen")]
     GatewayFrozen {},
 }
+
 
 impl From<semver::Error> for ContractError {
     fn from(err: semver::Error) -> Self {
