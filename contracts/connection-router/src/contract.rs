@@ -6,7 +6,6 @@ use cosmwasm_std::{
     Response, StdResult,
 };
 use cw_storage_plus::VecDeque;
-use sha256::digest;
 
 use crate::error::ContractError;
 use crate::events::{DomainRegistered, RouterInstantiated};
@@ -45,7 +44,7 @@ pub fn execute(
         } => {
             let incoming_validated = deps.api.addr_validate(&incoming_gateway_address)?;
             let outgoing_validated = deps.api.addr_validate(&outgoing_gateway_address)?;
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::register_domain(
                 deps,
                 DomainName::from_str(&domain)?,
@@ -57,7 +56,7 @@ pub fn execute(
             domain,
             contract_address,
         } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             let addr_validated = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_incoming_gateway(deps, DomainName::from_str(&domain)?, addr_validated)
         }
@@ -65,32 +64,32 @@ pub fn execute(
             domain,
             contract_address,
         } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             let addr_validated = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_outgoing_gateway(deps, DomainName::from_str(&domain)?, addr_validated)
         }
         ExecuteMsg::FreezeIncomingGateway { domain } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::freeze_incoming_gateway(deps, DomainName::from_str(&domain)?)
         }
         ExecuteMsg::FreezeOutgoingGateway { domain } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::freeze_outgoing_gateway(deps, DomainName::from_str(&domain)?)
         }
         ExecuteMsg::FreezeDomain { domain } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::freeze_domain(deps, DomainName::from_str(&domain)?)
         }
         ExecuteMsg::UnfreezeDomain { domain } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::unfreeze_domain(deps, DomainName::from_str(&domain)?)
         }
         ExecuteMsg::UnfreezeIncomingGateway { domain } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::unfreeze_incoming_gateway(deps, DomainName::from_str(&domain)?)
         }
         ExecuteMsg::UnfreezeOutgoingGateway { domain } => {
-            execute::is_admin(&deps, info)?;
+            execute::require_admin(&deps, info)?;
             execute::unfreeze_outgoing_gateway(deps, DomainName::from_str(&domain)?)
         }
         ExecuteMsg::RouteMessage {
@@ -166,17 +165,17 @@ pub mod execute {
         deps: &DepsMut,
         contract_address: &Addr,
     ) -> StdResult<Option<(DomainName, Domain)>> {
-        find_domain_for_gateway_help(deps, contract_address, true)
+        find_domain_for_gateway(deps, contract_address, true)
     }
 
     pub fn find_domain_for_outgoing_gateway(
         deps: &DepsMut,
         contract_address: &Addr,
     ) -> StdResult<Option<(DomainName, Domain)>> {
-        find_domain_for_gateway_help(deps, contract_address, false)
+        find_domain_for_gateway(deps, contract_address, false)
     }
 
-    pub fn find_domain_for_gateway_help(
+    pub fn find_domain_for_gateway(
         deps: &DepsMut,
         contract_address: &Addr,
         is_incoming: bool,
@@ -375,27 +374,24 @@ pub mod execute {
         source_address: String,
         payload_hash: HexBinary,
     ) -> Result<Response, ContractError> {
-        let source_domain = match find_domain_for_incoming_gateway(&deps, &info.sender)? {
-            None => return Err(ContractError::GatewayNotRegistered {}),
-            Some((name, info)) => {
-                if info.is_frozen {
-                    return Err(ContractError::DomainFrozen { domain: name });
-                } else if info.incoming_gateway.is_frozen {
-                    return Err(ContractError::GatewayFrozen {});
-                } else {
-                    name
-                }
-            }
-        };
-        match domains().may_load(deps.storage, destination_domain.clone())? {
-            Some(info) => {
-                if info.is_frozen {
-                    return Err(ContractError::DomainFrozen {
-                        domain: destination_domain,
-                    });
-                }
-            }
-            None => return Err(ContractError::DomainNotFound {}),
+        let (source_domain, info) = find_domain_for_incoming_gateway(&deps, &info.sender)?
+            .ok_or(ContractError::GatewayNotRegistered {})?;
+        if info.is_frozen {
+            return Err(ContractError::DomainFrozen {
+                domain: source_domain,
+            });
+        }
+        if info.incoming_gateway.is_frozen {
+            return Err(ContractError::GatewayFrozen {});
+        }
+
+        let info = domains()
+            .may_load(deps.storage, destination_domain.clone())?
+            .ok_or(ContractError::DomainNotFound {})?;
+        if info.is_frozen {
+            return Err(ContractError::DomainFrozen {
+                domain: destination_domain,
+            });
         }
         let msg = Message {
             id,
@@ -405,15 +401,16 @@ pub mod execute {
             source_address,
             payload_hash,
         };
-        if let Ok(Some(_)) = MESSAGES.may_load(deps.storage, msg.uuid()) {
+
+        if MESSAGES.may_load(deps.storage, msg.uuid())?.is_some() {
             return Err(ContractError::MessageAlreadyRouted { id: msg.uuid() });
         }
+        MESSAGES.save(deps.storage, msg.uuid(), &())?;
 
-        let h = digest((to_binary(&msg)?).to_string());
-        MESSAGES.save(deps.storage, msg.uuid(), &h)?;
         let qid = get_queue_id(&destination_domain);
         let q: VecDeque<Message> = VecDeque::new(&qid);
         q.push_back(deps.storage, &msg)?;
+
         Ok(Response::new().add_event(MessageRouted { msg }.into()))
     }
 
@@ -440,8 +437,7 @@ pub mod execute {
 
         let to_consume = if let Some(c) = count { c } else { u32::MAX };
         for _ in 0..to_consume {
-            let elt = q.pop_front(deps.storage)?;
-            match elt {
+            match q.pop_front(deps.storage)? {
                 Some(m) => messages.push(m),
                 None => break,
             }
@@ -454,12 +450,12 @@ pub mod execute {
             .set_data(to_binary(&messages)?))
     }
 
-    pub fn is_admin(deps: &DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if config.admin != info.sender {
             return Err(ContractError::Unauthorized {});
         }
-        Ok(Response::new())
+        Ok(())
     }
 
     // queue id is just "[domain]-messages"

@@ -19,7 +19,6 @@ pub struct Message {
 }
 
 impl Message {
-    // id field is unique per source domain. To make this universally unique, we prepend the source domain
     pub fn uuid(&self) -> String {
         format!("{}-{}", self.source_domain.to_string(), self.id)
     }
@@ -103,18 +102,20 @@ pub struct DomainIndexes<'a> {
     pub outgoing_gateway: MultiIndex<'a, Addr, Domain, DomainName>,
 }
 
+const DOMAINS_PKEY: &str = "domains";
+
 pub fn domains<'a>() -> IndexedMap<'a, DomainName, Domain, DomainIndexes<'a>> {
     return IndexedMap::new(
-        "domains",
+        DOMAINS_PKEY,
         DomainIndexes {
             incoming_gateway: MultiIndex::new(
                 |_pk: &[u8], d: &Domain| d.incoming_gateway.address.clone(),
-                "domains",
+                DOMAINS_PKEY,
                 "incoming_gateways",
             ),
             outgoing_gateway: MultiIndex::new(
                 |_pk: &[u8], d: &Domain| d.outgoing_gateway.address.clone(),
-                "domains",
+                DOMAINS_PKEY,
                 "outgoing_gateways",
             ),
         },
@@ -128,5 +129,5 @@ impl<'a> IndexList<Domain> for DomainIndexes<'a> {
     }
 }
 
-// maps a message uuid ([source_domain]+[id]) to a sha256 hash of the contents
-pub const MESSAGES: Map<String, String> = Map::new("messages");
+// a set of all message uuids
+pub const MESSAGES: Map<String, ()> = Map::new("messages");
