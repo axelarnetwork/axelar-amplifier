@@ -67,12 +67,11 @@ impl Snapshot {
         })
     }
 
-    pub fn get_participant_weight(&self, participant: &Addr) ->Option<Uint256> {
-        self.participants.get(participant.as_str()).map(|p| p.weight)
+    pub fn get_participant_weight(&self, participant: &Addr) -> Option<Uint256> {
+        self.participants
+            .get(participant.as_str())
+            .map(|p| p.weight)
     }
-    
-
-
 
     pub fn calculate_min_passing_weight(&self, threshold: &Decimal) -> Uint256 {
         // TODO: check type sizes are correct, otherwise overflow may occur
