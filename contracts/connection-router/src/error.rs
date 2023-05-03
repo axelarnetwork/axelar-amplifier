@@ -1,6 +1,8 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
+use crate::state::DomainName;
+
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -37,12 +39,11 @@ pub enum ContractError {
     SemVer(String),
 
     #[error("DomainFrozen")]
-    DomainFrozen { domain: String },
+    DomainFrozen { domain: DomainName },
 
     #[error("GatewayFrozen")]
     GatewayFrozen {},
 }
-
 
 impl From<semver::Error> for ContractError {
     fn from(err: semver::Error) -> Self {

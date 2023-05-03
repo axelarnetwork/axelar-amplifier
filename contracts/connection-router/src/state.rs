@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, StdResult, StdError};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PrimaryKey, Key, Prefixer, KeyDeserialize};
+use cosmwasm_std::{Addr, HexBinary, StdError, StdResult};
+use cw_storage_plus::{
+    Index, IndexList, IndexedMap, Item, Key, KeyDeserialize, Map, MultiIndex, Prefixer, PrimaryKey,
+};
 
 use crate::ContractError;
 
@@ -10,8 +12,8 @@ use crate::ContractError;
 pub struct Message {
     pub id: String, // unique per source domain
     pub destination_address: String,
-    pub destination_domain: String,
-    pub source_domain: String,
+    pub destination_domain: DomainName,
+    pub source_domain: DomainName,
     pub source_address: String,
     pub payload_hash: HexBinary,
 }
@@ -19,10 +21,7 @@ pub struct Message {
 impl Message {
     // id field is unique per source domain. To make this universally unique, we prepend the source domain
     pub fn uuid(&self) -> String {
-        let mut global_id = self.source_domain.clone();
-        global_id.push('-');
-        global_id.push_str(&self.id);
-        global_id
+        format!("{}-{}", self.source_domain.to_string(), self.id)
     }
 }
 
@@ -41,18 +40,18 @@ pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cw_serde]
 pub struct DomainName {
-    value : String,    
+    value: String,
 }
-
 
 impl FromStr for DomainName {
     type Err = ContractError;
-    fn from_str(s : &str) -> Result<Self, Self::Err> {
-        
-        if s.contains("-") {
-            return Err(ContractError::InvalidDomainName{})
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.contains('-') {
+            return Err(ContractError::InvalidDomainName {});
         }
-        return Ok(DomainName{value: s.to_lowercase()});
+        Ok(DomainName {
+            value: s.to_lowercase(),
+        })
     }
 }
 
@@ -92,8 +91,6 @@ impl KeyDeserialize for DomainName {
     }
 }
 
-
-
 #[cw_serde]
 pub struct Domain {
     pub incoming_gateway: Gateway,
@@ -106,7 +103,7 @@ pub struct DomainIndexes<'a> {
     pub outgoing_gateway: MultiIndex<'a, Addr, Domain, DomainName>,
 }
 
-pub fn domains<'a>() -> IndexedMap<'a,DomainName, Domain, DomainIndexes<'a>> {
+pub fn domains<'a>() -> IndexedMap<'a, DomainName, Domain, DomainIndexes<'a>> {
     return IndexedMap::new(
         "domains",
         DomainIndexes {
