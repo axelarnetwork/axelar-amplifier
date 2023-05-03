@@ -1,7 +1,5 @@
-use cosmwasm_std::{Addr, Attribute, Event};
-use semver::Version;
-
 use crate::state::{DomainName, Message};
+use cosmwasm_std::{Addr, Attribute, Event};
 
 pub struct RouterInstantiated {
     pub admin: Addr,
@@ -46,11 +44,6 @@ pub struct MessageRouted {
 pub struct MessagesConsumed<'a> {
     pub domain: DomainName,
     pub msgs: &'a Vec<Message>,
-}
-
-pub struct ContractMigrated {
-    pub new_version: Version,
-    pub old_version: Version,
 }
 
 impl From<RouterInstantiated> for Event {
@@ -148,13 +141,5 @@ impl<'a> From<MessagesConsumed<'a>> for Vec<Event> {
             );
         }
         events
-    }
-}
-
-impl From<ContractMigrated> for Event {
-    fn from(other: ContractMigrated) -> Self {
-        Event::new("contract_migrated")
-            .add_attribute("new_version", other.new_version.to_string())
-            .add_attribute("old_version", other.old_version.to_string())
     }
 }

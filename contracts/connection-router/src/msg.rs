@@ -1,4 +1,3 @@
-use crate::state::{Domain, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
@@ -73,11 +72,4 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {
-    #[returns(Vec<(String,Domain)>)]
-    GetDomains {},
-
-    // returns not yet consumed messages in FIFO order
-    #[returns(Vec<Message>)]
-    GetPendingMessages { domain: String },
-}
+pub enum QueryMsg {}

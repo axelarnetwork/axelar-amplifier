@@ -35,18 +35,9 @@ pub enum ContractError {
     #[error("MessageNotFound")]
     MessageNotFound {},
 
-    #[error("Semver parsing error: {0}")]
-    SemVer(String),
-
     #[error("DomainFrozen")]
     DomainFrozen { domain: DomainName },
 
     #[error("GatewayFrozen")]
     GatewayFrozen {},
-}
-
-impl From<semver::Error> for ContractError {
-    fn from(err: semver::Error) -> Self {
-        Self::SemVer(err.to_string())
-    }
 }

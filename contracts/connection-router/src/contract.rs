@@ -1,22 +1,15 @@
 use std::str::FromStr;
 
-use cosmwasm_std::StdError;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Empty, Env, Event, HexBinary, MessageInfo,
-    Order, Response, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Order,
+    Response, StdResult,
 };
-use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::VecDeque;
-use semver::Version;
 use sha256::digest;
 
-// version info for migration info
-const CONTRACT_NAME: &str = "crates.io:connection-router";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 use crate::error::ContractError;
-use crate::events::{ContractMigrated, DomainRegistered, RouterInstantiated};
+use crate::events::{DomainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{domains, Config, Domain, DomainName, Message, CONFIG, MESSAGES};
 
@@ -34,7 +27,6 @@ pub fn instantiate(
             admin: admin.clone(),
         },
     )?;
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new().add_event(RouterInstantiated { admin }.into()))
 }
 
@@ -477,58 +469,8 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::GetDomains {} => to_binary(&query::get_domains(deps)?),
-        QueryMsg::GetPendingMessages { domain } => {
-            if let Ok(name) = DomainName::from_str(&domain) {
-                return to_binary(&query::get_pending_messages(deps, name)?);
-            }
-            Err(StdError::GenericErr {
-                msg: "Invalid domain name".to_string(),
-            })
-        }
-    }
+pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
+    todo!()
 }
 
-pub mod query {
-    use super::*;
-
-    pub fn get_domains(deps: Deps) -> StdResult<Vec<(String, Domain)>> {
-        let domains: StdResult<Vec<(String, Domain)>> = domains()
-            .range(deps.storage, None, None, Order::Ascending)
-            .collect();
-        domains
-    }
-
-    pub fn get_pending_messages(deps: Deps, domain: DomainName) -> StdResult<Vec<Message>> {
-        let qid = execute::get_queue_id(&domain);
-        let queue: VecDeque<Message> = VecDeque::new(&qid);
-        let mut messages = vec![];
-
-        for x in 0..256 {
-            let elt = queue.get(deps.storage, x)?;
-            match elt {
-                Some(m) => messages.push(m),
-                None => break,
-            }
-        }
-        Ok(messages)
-    }
-}
-
-#[entry_point]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    let new_version: Version = CONTRACT_VERSION.parse()?;
-    let old_version: Version = get_contract_version(deps.storage)?.version.parse()?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new().add_event(
-        ContractMigrated {
-            new_version,
-            old_version,
-        }
-        .into(),
-    ))
-}
+pub mod query {}
