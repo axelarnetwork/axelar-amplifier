@@ -10,7 +10,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /*
      * Router Admin Methods
-     * All of the below methods can only be called by the router admin
+     * All of the below messages can only be called by the router admin
      */
     // Registers a new domain with the router
     RegisterDomain {
@@ -51,8 +51,8 @@ pub enum ExecuteMsg {
     },
 
     /*
-     * Gateway Methods
-     * The below methods can only be called by registered gateways
+     * Gateway Messages
+     * The below messages can only be called by registered gateways
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway

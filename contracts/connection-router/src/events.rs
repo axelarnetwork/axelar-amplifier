@@ -112,7 +112,7 @@ impl From<DomainUnfrozen> for Event {
 impl Message {
     fn event_attributes(&self) -> Vec<Attribute> {
         vec![
-            ("id", self.id.clone()).into(),
+            ("id", self.id()).into(),
             ("source_domain", self.source_domain.clone()).into(),
             ("source_addressess", self.source_address.clone()).into(),
             ("destination_domain", self.destination_domain.clone()).into(),
@@ -129,17 +129,22 @@ impl From<MessageRouted> for Event {
     }
 }
 
-impl<'a> From<MessagesConsumed<'a>> for Vec<Event> {
+impl<'a> From<MessagesConsumed<'a>> for Event {
     fn from(other: MessagesConsumed) -> Self {
-        let mut events = vec![Event::new("messages_consumed")
+        Event::new("messages_consumed")
             .add_attribute("domain", other.domain)
-            .add_attribute("count", other.msgs.len().to_string())];
-        for m in other.msgs {
-            events.push(
-                Event::new(format!("message_consumed-{}", m.id.clone()))
-                    .add_attributes(m.event_attributes()),
-            );
-        }
-        events
+            .add_attribute("count", other.msgs.len().to_string())
+            .add_attribute(
+                "message_id",
+                format!(
+                    "[{}]",
+                    other
+                        .msgs
+                        .into_iter()
+                        .map(|m| m.id())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                ),
+            )
     }
 }

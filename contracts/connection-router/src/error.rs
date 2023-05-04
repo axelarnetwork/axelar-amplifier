@@ -17,6 +17,9 @@ pub enum ContractError {
     #[error("InvalidDomainName")]
     InvalidDomainName {},
 
+    #[error("InvalidMessageID")]
+    InvalidMessageID {},
+
     #[error("DomainNotFound")]
     DomainNotFound {},
 
