@@ -11,85 +11,108 @@ use connection_router::error::ContractError;
 use connection_router::msg::{ExecuteMsg, InstantiateMsg};
 use cosmwasm_std::HexBinary;
 
-#[test]
-fn route() {
+struct TestConfig {
+    app: cw_multi_test::App,
+    contract_address: Addr,
+    admin_address: Addr,
+}
+
+struct Chain {
+    domain_name: DomainName,
+    outgoing_gateway: Addr,
+    incoming_gateway: Addr,
+}
+
+fn setup() -> TestConfig {
     let mut app = App::default();
     let code = ContractWrapper::new(execute, instantiate, query);
     let code_id = app.store_code(Box::new(code));
 
-    let admin_addr = Addr::unchecked("admin");
+    let admin_address = Addr::unchecked("admin");
     let contract_address = app
         .instantiate_contract(
             code_id,
             Addr::unchecked("router"),
             &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
+                admin_address: admin_address.to_string(),
             },
             &[],
             "Contract",
             None,
         )
         .unwrap();
-    let domain_eth = "Ethereum";
-    let incoming_eth = Addr::unchecked("incoming_eth");
-    let outgoing_eth = Addr::unchecked("outgoing_eth");
+    TestConfig {
+        app,
+        contract_address,
+        admin_address,
+    }
+}
 
-    let _ = app
+fn make_chain(name: &str) -> Chain {
+    Chain {
+        domain_name: DomainName::from_str(name).unwrap(),
+        outgoing_gateway: Addr::unchecked(format!("{}_outgoing", name)),
+        incoming_gateway: Addr::unchecked(format!("{}_incoming", name)),
+    }
+}
+
+fn register_chain(config: &mut TestConfig, chain: &Chain) {
+    let _ = config
+        .app
         .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
+            config.admin_address.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
-                domain: domain_eth.to_string(),
-                incoming_gateway_address: incoming_eth.to_string(),
-                outgoing_gateway_address: outgoing_eth.to_string(),
+                domain: chain.domain_name.to_string(),
+                incoming_gateway_address: chain.incoming_gateway.to_string(),
+                outgoing_gateway_address: chain.outgoing_gateway.to_string(),
             },
             &[],
         )
         .unwrap();
+}
 
-    let domain_poly = "Polygon";
-    let incoming_poly = Addr::unchecked("incoming_poly");
-    let outgoing_poly = Addr::unchecked("outgoing_poly");
+fn generate_messages(
+    src_chain: &Chain,
+    dest_chain: &Chain,
+    nonce: &mut usize,
+    count: usize,
+) -> Vec<Message> {
+    let mut msgs = vec![];
+    for x in 0..count {
+        *nonce = *nonce + 1;
+        let id = format!("id-{}", nonce);
+        msgs.push(Message {
+            id: id,
+            destination_address: String::from("idc"),
+            destination_domain: dest_chain.domain_name.clone(),
+            source_domain: src_chain.domain_name.clone(),
+            source_address: String::from("idc"),
+            payload_hash: HexBinary::from(vec![x as u8; 256]),
+        })
+    }
+    msgs
+}
 
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_poly.to_string(),
-                incoming_gateway_address: incoming_poly.to_string(),
-                outgoing_gateway_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
+// tests that each message is properly delivered and consumed only once
+#[test]
+fn route() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
 
-    let mut nonce = 0;
-    let mut gen_msgs = |num: u8, source: String, dest: String| {
-        let mut msgs = vec![];
-        for x in 0..num {
-            nonce = nonce + 1;
-            let mut id = "id".to_string();
-            id.push_str(&nonce.to_string());
-            msgs.push(Message {
-                id: id,
-                destination_address: String::from("idc"),
-                destination_domain: DomainName::from_str(&dest).unwrap(),
-                source_domain: DomainName::from_str(&source).unwrap(),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![x, x, x, x]),
-            })
-        }
-        msgs
-    };
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
-    let msgs = gen_msgs(255, domain_eth.to_string(), domain_poly.to_string());
+    let nonce: &mut usize = &mut 0;
+    let msgs = generate_messages(&eth, &polygon, nonce, 255);
 
     for msg in &msgs {
-        let _ = app
+        let _ = config
+            .app
             .execute_contract(
-                incoming_eth.clone(),
-                contract_address.clone(),
+                eth.incoming_gateway.clone(),
+                config.contract_address.clone(),
                 &ExecuteMsg::RouteMessage {
                     id: msg.id.clone(),
                     destination_domain: msg.destination_domain.to_string(),
@@ -102,10 +125,12 @@ fn route() {
             .unwrap();
     }
 
-    let res = app
+    let mut offset = 0;
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(1) },
             &[],
         )
@@ -113,12 +138,14 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(msgs[0..1], msgs_ret);
+    assert_eq!(msgs[offset..msgs_ret.len()], msgs_ret);
+    offset = offset + 1;
 
-    let res = app
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
@@ -126,25 +153,28 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(32, msgs_ret.len());
-    assert_eq!(msgs[1..33], msgs_ret);
+    assert_eq!(msgs[offset..offset + msgs_ret.len()], msgs_ret);
+    offset = offset + msgs_ret.len();
 
-    let res = app
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(256) },
             &[],
         )
         .unwrap();
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
-    assert_eq!(222, msgs_ret.len());
-    assert_eq!(msgs[33..], msgs_ret);
+    assert_eq!(msgs.len() - offset, msgs_ret.len());
+    assert_eq!(msgs[offset..], msgs_ret);
 
-    let res = app
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(256) },
             &[],
         )
@@ -153,13 +183,69 @@ fn route() {
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(0, msgs_ret.len());
     assert_eq!(Vec::<Message>::new(), msgs_ret);
+}
 
-    // try to route a message with the same id
-    let msg = &msgs[0];
-    let res = app
+#[test]
+fn route_non_existing_domain() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+    let res = config
+        .app
         .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: msg.id.clone(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::DomainNotFound {}, res.downcast().unwrap());
+}
+
+#[test]
+fn message_id() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+    let msg2 = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
+    assert_eq!(msg.id, msg2.id);
+    assert_ne!(msg.uuid(), msg2.uuid());
+
+    // try to route same message twice
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: msg.id.clone(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+    let res = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
                 id: msg.id.clone(),
                 destination_domain: msg.destination_domain.to_string(),
@@ -175,11 +261,12 @@ fn route() {
         res.downcast().unwrap()
     );
 
-    // Should be able to route same id from a different source though
-    let _ = app
+    // Should be able to route same id from a different source
+    let _ = config
+        .app
         .execute_contract(
-            incoming_poly.clone(),
-            contract_address.clone(),
+            polygon.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
                 id: msg.id.clone(),
                 destination_domain: msg.destination_domain.to_string(),
@@ -190,205 +277,56 @@ fn route() {
             &[],
         )
         .unwrap();
-    let _ = app
-        .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(1) },
-            &[],
-        )
-        .unwrap();
-
-    {
-        // route to non-existing domain
-        let msgs = gen_msgs(1, domain_eth.to_string(), "funny_domain".to_string());
-        let msg = &msgs[0];
-        let res = app
-            .execute_contract(
-                incoming_eth.clone(),
-                contract_address.clone(),
-                &ExecuteMsg::RouteMessage {
-                    id: msg.id.clone(),
-                    destination_domain: msg.destination_domain.to_string(),
-                    destination_address: msg.destination_address.to_string(),
-                    source_address: msg.source_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                },
-                &[],
-            )
-            .unwrap_err();
-        assert_eq!(ContractError::DomainNotFound {}, res.downcast().unwrap());
-    }
-
-    // make sure messages are routed to the correct domain
-    let eth_messages = gen_msgs(50, domain_poly.to_string(), domain_eth.to_string());
-    let poly_messages = gen_msgs(50, domain_eth.to_string(), domain_poly.to_string());
-
-    for msg in &eth_messages {
-        let _ = app
-            .execute_contract(
-                incoming_poly.clone(),
-                contract_address.clone(),
-                &ExecuteMsg::RouteMessage {
-                    id: msg.id.clone(),
-                    destination_domain: msg.destination_domain.to_string(),
-                    destination_address: msg.destination_address.to_string(),
-                    source_address: msg.source_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-    }
-
-    for msg in &poly_messages {
-        let _ = app
-            .execute_contract(
-                incoming_eth.clone(),
-                contract_address.clone(),
-                &ExecuteMsg::RouteMessage {
-                    id: msg.id.clone(),
-                    destination_domain: msg.destination_domain.to_string(),
-                    destination_address: msg.destination_address.clone(),
-                    source_address: msg.source_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                },
-                &[],
-            )
-            .unwrap();
-    }
-
-    let res = app
-        .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(256) },
-            &[],
-        )
-        .unwrap();
-
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
-    assert_eq!(poly_messages.len(), msgs_ret.len());
-    assert_eq!(poly_messages, msgs_ret);
-
-    let res = app
-        .execute_contract(
-            outgoing_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(256) },
-            &[],
-        )
-        .unwrap();
-
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
-    assert_eq!(eth_messages.len(), msgs_ret.len());
-    assert_eq!(eth_messages, msgs_ret);
 }
 
 #[test]
 fn multi_chain_route() {
-    let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-
-    let admin_addr = Addr::unchecked("admin");
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("router"),
-            &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-    let chain_names = vec!["ethereum", "polygon", "osmosis", "avalanche", "moonbeam"];
-    struct Chain {
-        domain: DomainName,
-        incoming: Addr,
-        outgoing: Addr,
-    }
-    let mut chains = vec![];
-    for n in &chain_names {
-        let mut incoming = String::from("incoming");
-        incoming.push_str(n.clone());
-        let mut outgoing = String::from("outgoing");
-        outgoing.push_str(n.clone());
-        chains.push(Chain {
-            domain: DomainName::from_str(&n.to_string()).unwrap(),
-            incoming: Addr::unchecked(incoming),
-            outgoing: Addr::unchecked(outgoing),
-        })
-    }
+    let mut config = setup();
+    let chains = vec![
+        make_chain("ethereum"),
+        make_chain("polygon"),
+        make_chain("osmosis"),
+        make_chain("avalanche"),
+        make_chain("moonbeam"),
+    ];
     for c in &chains {
-        let _ = app
-            .execute_contract(
-                admin_addr.clone(),
-                contract_address.clone(),
-                &ExecuteMsg::RegisterDomain {
-                    domain: c.domain.to_string(),
-                    incoming_gateway_address: c.incoming.to_string(),
-                    outgoing_gateway_address: c.outgoing.to_string(),
-                },
-                &[],
-            )
-            .unwrap();
+        register_chain(&mut config, c);
     }
 
-    let mut nonce = 0;
-    let mut gen_msgs = |num: u8, source: DomainName, dest: DomainName| {
-        let mut msgs = vec![];
-        for x in 0..num {
-            nonce = nonce + 1;
-            let mut id = "id".to_string();
-            id.push_str(&nonce.to_string());
-            msgs.push(Message {
-                id: id,
-                destination_address: String::from("idc"),
-                destination_domain: dest.clone(),
-                source_domain: source.clone(),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![x, x, x, x]),
-            })
-        }
-        msgs
-    };
-
+    let nonce = &mut 0;
     let mut all_msgs = HashMap::new();
     for d in &chains {
         let mut msgs = vec![];
         for s in &chains {
-            let mut sending = gen_msgs(50, s.domain.clone(), d.domain.clone());
+            let mut sending = generate_messages(&s, &d, nonce, 50);
             for msg in &sending {
-                let _ = app
-                    .execute_contract(
-                        s.incoming.clone(),
-                        contract_address.clone(),
-                        &ExecuteMsg::RouteMessage {
-                            id: msg.id.clone(),
-                            destination_domain: msg.destination_domain.to_string(),
-                            destination_address: msg.destination_address.clone(),
-                            source_address: msg.source_address.clone(),
-                            payload_hash: msg.payload_hash.clone(),
-                        },
-                        &[],
-                    )
-                    .unwrap();
+                let res = config.app.execute_contract(
+                    s.incoming_gateway.clone(),
+                    config.contract_address.clone(),
+                    &ExecuteMsg::RouteMessage {
+                        id: msg.id.clone(),
+                        destination_domain: msg.destination_domain.to_string(),
+                        destination_address: msg.destination_address.clone(),
+                        source_address: msg.source_address.clone(),
+                        payload_hash: msg.payload_hash.clone(),
+                    },
+                    &[],
+                );
+                assert!(res.is_ok());
             }
             msgs.append(&mut sending);
         }
-        all_msgs.insert(d.domain.to_string(), msgs);
+        all_msgs.insert(d.domain_name.to_string(), msgs);
     }
 
     for d in &chains {
-        let expected = all_msgs.get(&d.domain.to_string()).unwrap();
+        let expected = all_msgs.get(&d.domain_name.to_string()).unwrap();
 
-        let res = app
+        let res = config
+            .app
             .execute_contract(
-                d.outgoing.clone(),
-                contract_address.clone(),
+                d.outgoing_gateway.clone(),
+                config.contract_address.clone(),
                 &ExecuteMsg::ConsumeMessages {
                     count: Some(expected.len() as u32),
                 },
@@ -403,35 +341,22 @@ fn multi_chain_route() {
 
 #[test]
 fn authorization() {
-    let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
+    let TestConfig {
+        mut app,
+        contract_address,
+        admin_address,
+    } = setup();
 
-    let admin_addr = Addr::unchecked("admin");
-    let domain = "Ethereum".to_string();
-    let incoming = Addr::unchecked("incoming_gateway");
-    let outgoing = Addr::unchecked("outgoing_gateway");
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("router"),
-            &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
+    let chain = make_chain("ethereum");
 
     let res = app
         .execute_contract(
             Addr::unchecked("random"),
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
-                domain: domain.clone(),
-                incoming_gateway_address: incoming.to_string(),
-                outgoing_gateway_address: outgoing.to_string(),
+                domain: chain.domain_name.to_string(),
+                incoming_gateway_address: chain.incoming_gateway.to_string(),
+                outgoing_gateway_address: chain.outgoing_gateway.to_string(),
             },
             &[],
         )
@@ -439,323 +364,209 @@ fn authorization() {
 
     assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
 
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain.clone(),
-                incoming_gateway_address: incoming.to_string(),
-                outgoing_gateway_address: outgoing.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::FreezeDomain {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::FreezeDomain {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::UnfreezeDomain {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UnfreezeDomain {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeIncomingGateway {
-                domain: domain.clone(),
-                contract_address: Addr::unchecked("new gateway").to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeIncomingGateway {
-                domain: domain.clone(),
-                contract_address: Addr::unchecked("new gateway").to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeOutgoingGateway {
-                domain: domain.clone(),
-                contract_address: Addr::unchecked("new gateway").to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeOutgoingGateway {
-                domain: domain.clone(),
-                contract_address: Addr::unchecked("new gateway").to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::UnfreezeIncomingGateway {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UnfreezeIncomingGateway {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            Addr::unchecked("random"),
-            contract_address.clone(),
-            &ExecuteMsg::UnfreezeOutgoingGateway {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UnfreezeOutgoingGateway {
-                domain: domain.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-}
-
-#[test]
-fn upgrade() {
-    let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-
-    let admin_addr = Addr::unchecked("admin");
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("router"),
-            &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-
-    let domain_eth = "Ethereum";
-    let incoming_eth = Addr::unchecked("incoming_eth");
-    let outgoing_eth = Addr::unchecked("outgoing_eth");
-
-    let domain_poly = "Polygon";
-    let incoming_poly = Addr::unchecked("incoming_poly");
-    let outgoing_poly = Addr::unchecked("outgoing_poly");
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_eth.to_string(),
-                incoming_gateway_address: incoming_eth.to_string(),
-                outgoing_gateway_address: outgoing_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_poly.to_string(),
-                incoming_gateway_address: incoming_poly.to_string(),
-                outgoing_gateway_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id1".to_string(),
-                destination_domain: "Polygon".to_string(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let outgoing_poly_2 = Addr::unchecked("outgoing_poly_2");
-    let _ = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeOutgoingGateway {
-                domain: domain_poly.to_string(),
-                contract_address: outgoing_poly_2.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let _ = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id2".to_string(),
-                destination_domain: "Polygon".to_string(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let incoming_eth_2 = Addr::unchecked("incoming_eth_2");
-    let _ = app.execute_contract(
-        admin_addr.clone(),
+    let res = app.execute_contract(
+        admin_address.clone(),
         contract_address.clone(),
-        &ExecuteMsg::UpgradeIncomingGateway {
-            domain: domain_eth.to_string(),
-            contract_address: incoming_eth_2.to_string(),
+        &ExecuteMsg::RegisterDomain {
+            domain: chain.domain_name.to_string(),
+            incoming_gateway_address: chain.incoming_gateway.to_string(),
+            outgoing_gateway_address: chain.outgoing_gateway.to_string(),
         },
         &[],
     );
-    let _ = app
-        .execute_contract(
-            incoming_eth_2.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id3".to_string(),
-                destination_domain: "Polygon".to_string(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
-            },
-            &[],
-        )
-        .unwrap();
+    assert!(res.is_ok());
 
     let res = app
         .execute_contract(
-            incoming_eth.clone(),
+            Addr::unchecked("random"),
             contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id4".to_string(),
-                destination_domain: "Polygon".to_string(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
+            &ExecuteMsg::FreezeDomain {
+                domain: chain.domain_name.to_string(),
             },
             &[],
         )
         .unwrap_err();
 
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let res = app.execute_contract(
+        admin_address.clone(),
+        contract_address.clone(),
+        &ExecuteMsg::FreezeDomain {
+            domain: chain.domain_name.to_string(),
+        },
+        &[],
     );
+    assert!(res.is_ok());
 
     let res = app
         .execute_contract(
-            outgoing_poly.clone(),
+            Addr::unchecked("random"),
             contract_address.clone(),
+            &ExecuteMsg::UnfreezeDomain {
+                domain: chain.domain_name.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let res = app.execute_contract(
+        admin_address.clone(),
+        contract_address.clone(),
+        &ExecuteMsg::UnfreezeDomain {
+            domain: chain.domain_name.to_string(),
+        },
+        &[],
+    );
+
+    assert!(res.is_ok());
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UpgradeIncomingGateway {
+                domain: chain.domain_name.to_string(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let res = app.execute_contract(
+        admin_address.clone(),
+        contract_address.clone(),
+        &ExecuteMsg::UpgradeIncomingGateway {
+            domain: chain.domain_name.to_string(),
+            contract_address: Addr::unchecked("new gateway").to_string(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UpgradeOutgoingGateway {
+                domain: chain.domain_name.to_string(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let res = app.execute_contract(
+        admin_address.clone(),
+        contract_address.clone(),
+        &ExecuteMsg::UpgradeOutgoingGateway {
+            domain: chain.domain_name.to_string(),
+            contract_address: Addr::unchecked("new gateway").to_string(),
+        },
+        &[],
+    );
+
+    assert!(res.is_ok());
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeIncomingGateway {
+                domain: chain.domain_name.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let res = app.execute_contract(
+        admin_address.clone(),
+        contract_address.clone(),
+        &ExecuteMsg::UnfreezeIncomingGateway {
+            domain: chain.domain_name.to_string(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            contract_address.clone(),
+            &ExecuteMsg::UnfreezeOutgoingGateway {
+                domain: chain.domain_name.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+
+    let res = app.execute_contract(
+        admin_address.clone(),
+        contract_address.clone(),
+        &ExecuteMsg::UnfreezeOutgoingGateway {
+            domain: chain.domain_name.to_string(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+}
+
+#[test]
+fn upgrade_outgoing_gateway() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    // queue a message
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: msg.id.clone(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let new_gateway = Addr::unchecked("polygon_outgoing_gateway_2");
+    let _ = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::UpgradeOutgoingGateway {
+                domain: polygon.domain_name.to_string(),
+                contract_address: new_gateway.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = config
+        .app
+        .execute_contract(
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
@@ -765,266 +576,286 @@ fn upgrade() {
         ContractError::GatewayNotRegistered {},
         res.downcast().unwrap()
     );
-
-    let res = app
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly_2.clone(),
-            contract_address.clone(),
+            new_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
         .unwrap();
 
     let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
-    assert_eq!(msgs.len(), 3);
-    assert_eq!(msgs[0].id, "id1");
-    assert_eq!(msgs[1].id, "id2");
-    assert_eq!(msgs[2].id, "id3");
+    assert_eq!(msgs.len(), 1);
+    assert_eq!(msgs[0], *msg);
 }
 
 #[test]
-fn registration() {
-    let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
+fn upgrade_incoming_gateway() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
 
-    let admin_addr = Addr::unchecked("admin");
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("router"),
-            &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+    let new_gateway = Addr::unchecked("polygon_incoming_gateway_2");
+
+    let _ = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::UpgradeIncomingGateway {
+                domain: polygon.domain_name.to_string(),
+                contract_address: new_gateway.to_string(),
             },
             &[],
-            "Contract",
-            None,
         )
         .unwrap();
-    let domain_eth = String::from("Ethereum");
-    let incoming_eth = Addr::unchecked("incoming_eth");
-    let outgoing_eth = Addr::unchecked("outgoing_eth");
 
-    let domain_poly = String::from("Polygon");
-    let incoming_poly = Addr::unchecked("incoming_poly");
-    let outgoing_poly = Addr::unchecked("outgoing_poly");
-
-    let res = app
+    let msg = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
+    let res = config
+        .app
         .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
+            polygon.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: "id1".to_string(),
-                destination_domain: domain_poly.clone(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
+                id: msg.id.clone(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
             },
             &[],
         )
         .unwrap_err();
-
     assert_eq!(
         ContractError::GatewayNotRegistered {},
         res.downcast().unwrap()
     );
-    let res = app
+
+    let res = config.app.execute_contract(
+        new_gateway,
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessage {
+            id: msg.id.clone(),
+            destination_domain: msg.destination_domain.to_string(),
+            destination_address: msg.destination_address.clone(),
+            source_address: msg.source_address.clone(),
+            payload_hash: msg.payload_hash.clone(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            eth.outgoing_gateway,
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(32) },
             &[],
         )
-        .unwrap_err();
+        .unwrap();
 
+    let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(msgs.len(), 1);
+    assert_eq!(msgs[0], *msg);
+}
+
+#[test]
+fn register_domain() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+    let res = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: msg.id.clone(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
     assert_eq!(
         ContractError::GatewayNotRegistered {},
         res.downcast().unwrap()
     );
-
-    let _ = app
+    register_chain(&mut config, &eth);
+    let res = config
+        .app
         .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_eth.to_string(),
-                incoming_gateway_address: incoming_eth.to_string(),
-                outgoing_gateway_address: outgoing_eth.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: "id1".to_string(),
-                destination_domain: domain_poly.clone(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
+                id: msg.id.clone(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.clone(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
             },
             &[],
         )
         .unwrap_err();
-
     assert_eq!(ContractError::DomainNotFound {}, res.downcast().unwrap());
+    register_chain(&mut config, &polygon);
+    let res = config.app.execute_contract(
+        eth.incoming_gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessage {
+            id: msg.id.clone(),
+            destination_domain: msg.destination_domain.to_string(),
+            destination_address: msg.destination_address.clone(),
+            source_address: msg.source_address.clone(),
+            payload_hash: msg.payload_hash.clone(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+}
 
-    let _ = app
+#[test]
+fn domain_already_registered() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    register_chain(&mut config, &eth);
+
+    let res = config
+        .app
         .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
+            config.admin_address.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
-                domain: domain_poly.to_string(),
-                incoming_gateway_address: incoming_poly.to_string(),
-                outgoing_gateway_address: outgoing_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    // should be able to send messages now
-    let _ = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id1".to_string(),
-                destination_domain: domain_poly.clone(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
-            },
-            &[],
-        )
-        .unwrap();
-
-    // incoming gateways can't consume
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-
-    // only the registered incoming gateway can send messages
-    let res = app
-        .execute_contract(
-            outgoing_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: "id1".to_string(),
-                destination_domain: domain_poly.clone(),
-                destination_address: String::from("idc"),
-                source_address: String::from("idc"),
-                payload_hash: HexBinary::from(vec![0, 0, 1, 1]),
-            },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-
-    // should be able to consume the messages now
-    let _ = app
-        .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
-            &[],
-        )
-        .unwrap();
-
-    // other addresses can't consume
-    let res = app
-        .execute_contract(
-            Addr::unchecked("some random address"),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-
-    // incoming gateways can't consume
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
-
-    let res = app
-        .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RegisterDomain {
-                domain: domain_poly.to_string(),
+                domain: eth.domain_name.to_string(),
                 incoming_gateway_address: Addr::unchecked("new gateway").to_string(),
                 outgoing_gateway_address: Addr::unchecked("new gateway").to_string(),
             },
             &[],
         )
         .unwrap_err();
-
     assert_eq!(
         ContractError::DomainAlreadyExists {},
         res.downcast().unwrap()
     );
 
-    // register same gateway to a different domain
-    let res = app
+    // case insensitive
+    let res = config
+        .app
         .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeIncomingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: incoming_poly.to_string(),
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterDomain {
+                domain: "ETHEREUM".to_string(),
+                incoming_gateway_address: Addr::unchecked("new gateway").to_string(),
+                outgoing_gateway_address: Addr::unchecked("new gateway").to_string(),
             },
             &[],
         )
         .unwrap_err();
+    assert_eq!(
+        ContractError::DomainAlreadyExists {},
+        res.downcast().unwrap()
+    );
+}
 
+#[test]
+fn invalid_domain_name() {
+    let mut config = setup();
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterDomain {
+                domain: "bad-".to_string(),
+                incoming_gateway_address: Addr::unchecked("incoming").to_string(),
+                outgoing_gateway_address: Addr::unchecked("outgoing").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidDomainName {}, res.downcast().unwrap());
+}
+
+#[test]
+fn gateway_already_registered() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+    register_chain(&mut config, &eth);
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterDomain {
+                domain: polygon.domain_name.to_string(),
+                incoming_gateway_address: eth.incoming_gateway.to_string(),
+                outgoing_gateway_address: polygon.outgoing_gateway.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::GatewayAlreadyRegistered {},
+        res.downcast().unwrap()
+    );
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterDomain {
+                domain: polygon.domain_name.to_string(),
+                incoming_gateway_address: polygon.incoming_gateway.to_string(),
+                outgoing_gateway_address: eth.outgoing_gateway.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
     assert_eq!(
         ContractError::GatewayAlreadyRegistered {},
         res.downcast().unwrap()
     );
 
-    let res = app
+    register_chain(&mut config, &polygon);
+    let res = config
+        .app
         .execute_contract(
-            admin_addr.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::UpgradeOutgoingGateway {
-                domain: domain_eth.to_string(),
-                contract_address: outgoing_poly.to_string(),
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::UpgradeIncomingGateway {
+                domain: eth.domain_name.to_string(),
+                contract_address: polygon.incoming_gateway.to_string(),
             },
             &[],
         )
         .unwrap_err();
+    assert_eq!(
+        ContractError::GatewayAlreadyRegistered {},
+        res.downcast().unwrap()
+    );
 
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::UpgradeOutgoingGateway {
+                domain: eth.domain_name.to_string(),
+                contract_address: polygon.outgoing_gateway.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
     assert_eq!(
         ContractError::GatewayAlreadyRegistered {},
         res.downcast().unwrap()
@@ -1033,30 +864,18 @@ fn registration() {
 
 #[test]
 pub fn freeze() {
-    let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-
-    let admin_addr = Addr::unchecked("admin");
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("router"),
-            &InstantiateMsg {
-                admin_address: admin_addr.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
+    let TestConfig {
+        mut app,
+        contract_address,
+        admin_address,
+    } = setup();
     let domain_eth = DomainName::from_str("ethereum").unwrap();
     let incoming_eth = Addr::unchecked("incoming_eth");
     let outgoing_eth = Addr::unchecked("outgoing_eth");
 
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_eth.to_string(),
@@ -1073,7 +892,7 @@ pub fn freeze() {
 
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
                 domain: domain_poly.to_string(),
@@ -1115,7 +934,7 @@ pub fn freeze() {
         .unwrap();
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::FreezeDomain {
                 domain: domain_poly.to_string(),
@@ -1185,7 +1004,7 @@ pub fn freeze() {
 
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::UnfreezeDomain {
                 domain: domain_poly.to_string(),
@@ -1257,7 +1076,7 @@ pub fn freeze() {
 
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::FreezeIncomingGateway {
                 domain: domain_poly.to_string(),
@@ -1311,7 +1130,7 @@ pub fn freeze() {
     // now freeze outgoing
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::FreezeOutgoingGateway {
                 domain: domain_poly.to_string(),
@@ -1366,7 +1185,7 @@ pub fn freeze() {
 
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::UnfreezeIncomingGateway {
                 domain: domain_poly.to_string(),
@@ -1404,7 +1223,7 @@ pub fn freeze() {
 
     let _ = app
         .execute_contract(
-            admin_addr.clone(),
+            admin_address.clone(),
             contract_address.clone(),
             &ExecuteMsg::UnfreezeOutgoingGateway {
                 domain: domain_poly.to_string(),
