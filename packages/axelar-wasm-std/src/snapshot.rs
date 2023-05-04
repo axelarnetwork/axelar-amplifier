@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Fraction, Timestamp, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Timestamp, Uint256, Uint64};
 use service_registry::state::Worker;
 
 use crate::error::SnapshotError;
@@ -77,14 +77,9 @@ impl Snapshot {
         // TODO: check type sizes are correct, otherwise overflow may occur
         let threshold = Decimal256::from(*threshold);
 
-        let min_passing_weight = self.total_weight * threshold;
-        if min_passing_weight.mul(threshold.denominator())
-            >= self.total_weight.mul(threshold.numerator())
-        {
-            min_passing_weight
-        } else {
-            min_passing_weight + Uint256::one()
-        }
+        Decimal256::from_ratio(self.total_weight, Uint256::one())
+            .mul(threshold)
+            .to_uint_ceil()
     }
 }
 
@@ -347,5 +342,46 @@ mod tests {
             snapshot.calculate_min_passing_weight(&threshold),
             snapshot.total_weight
         );
+    }
+
+    #[test]
+    fn test_min_passing_weight_ceil() {
+        let mut deps = mock_dependencies();
+        let mut rng = rand::thread_rng();
+
+        let mut snapshot = Snapshot::new(
+            &deps.as_mut(),
+            Timestamp::from_nanos(rng.gen()),
+            Uint64::from(rng.gen::<u64>()),
+            default_workers(),
+            default_filter_function(),
+            default_weight_function(),
+        )
+        .unwrap();
+
+        let threshold = Decimal::from_ratio(2u8, 3u8);
+
+        // (total_weight, min_passing_weight)
+        let test_data = [
+            (Uint256::from(300u16), Uint256::from(200u16)),
+            (Uint256::from(299u16), Uint256::from(200u16)),
+            (Uint256::from(301u16), Uint256::from(201u16)),
+            (Uint256::from(297u16), Uint256::from(198u16)),
+            (Uint256::from(298u16), Uint256::from(199u16)),
+            (Uint256::from(302u16), Uint256::from(202u16)),
+        ];
+
+        test_data
+            .into_iter()
+            .for_each(|(total_weight, expected_passing_weight)| {
+                snapshot.total_weight = total_weight;
+                assert_eq!(
+                    snapshot.calculate_min_passing_weight(&threshold),
+                    expected_passing_weight,
+                    "multiplier: {}, expected_ceil: {}",
+                    total_weight,
+                    expected_passing_weight
+                );
+            });
     }
 }
