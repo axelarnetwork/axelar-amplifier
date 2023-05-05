@@ -107,7 +107,7 @@ impl FromStr for DomainName {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(ID_SEPARATOR) {
+        if s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidDomainName {});
         }
         Ok(DomainName {

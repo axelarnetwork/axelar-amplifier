@@ -832,6 +832,21 @@ fn invalid_domain_name() {
         )
         .unwrap_err();
     assert_eq!(ContractError::InvalidDomainName {}, res.downcast().unwrap());
+
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterDomain {
+                domain: "".to_string(),
+                incoming_gateway_address: Addr::unchecked("incoming").to_string(),
+                outgoing_gateway_address: Addr::unchecked("outgoing").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidDomainName {}, res.downcast().unwrap());
 }
 
 #[test]
