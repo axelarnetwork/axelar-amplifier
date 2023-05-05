@@ -309,6 +309,23 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+
+    let res = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: "".to_string(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
 }
 
 #[test]
