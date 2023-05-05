@@ -1,5 +1,6 @@
-use crate::state::{DomainName, Message};
 use cosmwasm_std::{Addr, Attribute, Event};
+
+use crate::types::{DomainName, Message};
 
 pub struct RouterInstantiated {
     pub admin: Addr,

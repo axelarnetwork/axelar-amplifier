@@ -1,7 +1,7 @@
 use connection_router;
 use std::{collections::HashMap, vec};
 
-use connection_router::state::{DomainName, Message, ID_SEPARATOR};
+use connection_router::types::{DomainName, Message, ID_SEPARATOR};
 use cosmwasm_std::{from_binary, Addr};
 use cw_multi_test::{App, ContractWrapper, Executor};
 

@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use crate::state::DomainName;
+use crate::types::DomainName;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {

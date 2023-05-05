@@ -8,7 +8,7 @@ use cw_storage_plus::VecDeque;
 use crate::error::ContractError;
 use crate::events::{DomainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{domains, Config, Domain, DomainName, Message, CONFIG, MESSAGES};
+use crate::state::{domains, Config, CONFIG, MESSAGES};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -118,7 +118,8 @@ pub mod execute {
             DomainFrozen, DomainUnfrozen, GatewayFrozen, GatewayInfo, GatewayUnfrozen,
             GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
-        state::Gateway,
+        state::get_message_queue_id,
+        types::{Domain, DomainName, Gateway, Message},
     };
 
     use super::*;
@@ -393,7 +394,7 @@ pub mod execute {
         }
         MESSAGES.save(deps.storage, msg.id(), &())?;
 
-        let qid = get_queue_id(&destination_domain);
+        let qid = get_message_queue_id(&destination_domain);
         let q: VecDeque<Message> = VecDeque::new(&qid);
         q.push_back(deps.storage, &msg)?;
 
@@ -416,7 +417,7 @@ pub mod execute {
             return Err(ContractError::GatewayFrozen {});
         }
 
-        let qid = get_queue_id(&domain.name);
+        let qid = get_message_queue_id(&domain.name);
         let q: VecDeque<Message> = VecDeque::new(&qid);
         let mut messages = vec![];
 
@@ -441,11 +442,6 @@ pub mod execute {
             return Err(ContractError::Unauthorized {});
         }
         Ok(())
-    }
-
-    // queue id is just "[domain]-messages"
-    pub fn get_queue_id(destination_domain: &DomainName) -> String {
-        format!("{}-messages", destination_domain.to_string())
     }
 }
 
