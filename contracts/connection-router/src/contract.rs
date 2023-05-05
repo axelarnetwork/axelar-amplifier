@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Order,
-    Response, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
+    StdResult,
 };
 use cw_storage_plus::VecDeque;
 
@@ -121,16 +121,14 @@ pub fn execute(
 
 pub mod execute {
 
-    use core::panic;
-
-    use cosmwasm_std::{Addr, StdError};
+    use cosmwasm_std::Addr;
 
     use crate::{
         events::{
             DomainFrozen, DomainUnfrozen, GatewayFrozen, GatewayInfo, GatewayUnfrozen,
             GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
-        state::{Gateway, MessageID},
+        state::Gateway,
     };
 
     use super::*;

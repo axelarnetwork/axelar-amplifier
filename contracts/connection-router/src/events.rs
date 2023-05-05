@@ -140,7 +140,7 @@ impl<'a> From<MessagesConsumed<'a>> for Event {
                     "[{}]",
                     other
                         .msgs
-                        .into_iter()
+                        .iter()
                         .map(|m| m.id())
                         .collect::<Vec<String>>()
                         .join(",")

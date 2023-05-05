@@ -67,7 +67,7 @@ impl Message {
         Message {
             id,
             destination_address,
-            destination_domain: destination_domain,
+            destination_domain,
             source_domain,
             source_address,
             payload_hash,
@@ -189,7 +189,7 @@ impl<'a> GatewayIndex<'a> {
             .collect::<Result<Vec<(String, Domain)>, _>>()?;
         match &matching_domains[..] {
             [] => Ok(None),
-            [(name, domain)] => Ok(Some(domain.clone())),
+            [(_, domain)] => Ok(Some(domain.clone())),
             _ => panic!("More than one gateway for domain"),
         }
     }

@@ -2,7 +2,7 @@ use connection_router;
 use std::str::FromStr;
 use std::{collections::HashMap, vec};
 
-use connection_router::state::{DomainName, Message};
+use connection_router::state::{DomainName, Message, MessageID, ID_SEPARATOR};
 use cosmwasm_std::{from_binary, Addr};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -82,16 +82,25 @@ fn generate_messages(
     for x in 0..count {
         *nonce = *nonce + 1;
         let id = format!("id-{}", nonce);
-        msgs.push(Message {
-            id: id,
-            destination_address: String::from("idc"),
-            destination_domain: dest_chain.domain_name.clone(),
-            source_domain: src_chain.domain_name.clone(),
-            source_address: String::from("idc"),
-            payload_hash: HexBinary::from(vec![x as u8; 256]),
-        })
+        msgs.push(Message::new(
+            MessageID::from_str(&id).unwrap(),
+            String::from("idc"),
+            dest_chain.domain_name.clone(),
+            src_chain.domain_name.clone(),
+            String::from("idc"),
+            HexBinary::from(vec![x as u8; 256]),
+        ))
     }
     msgs
+}
+
+fn get_base_id(msg: &Message) -> String {
+    msg.id()
+        .to_string()
+        .split_once(ID_SEPARATOR)
+        .unwrap()
+        .1
+        .to_string()
 }
 
 // tests that each message is properly delivered and consumed only once
@@ -114,7 +123,7 @@ fn route() {
                 eth.incoming_gateway.clone(),
                 config.contract_address.clone(),
                 &ExecuteMsg::RouteMessage {
-                    id: msg.id.clone(),
+                    id: get_base_id(msg),
                     destination_domain: msg.destination_domain.to_string(),
                     destination_address: msg.destination_address.to_string(),
                     source_address: msg.source_address.clone(),
@@ -199,7 +208,13 @@ fn route_non_existing_domain() {
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: msg
+                    .id()
+                    .to_string()
+                    .split_once(ID_SEPARATOR)
+                    .unwrap()
+                    .1
+                    .to_string(),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.to_string(),
                 source_address: msg.source_address.clone(),
@@ -222,8 +237,8 @@ fn message_id() {
 
     let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
     let msg2 = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
-    assert_eq!(msg.id, msg2.id);
-    assert_ne!(msg.uuid(), msg2.uuid());
+    assert_eq!(get_base_id(msg), get_base_id(msg2));
+    assert_ne!(msg.id(), msg2.id());
 
     // try to route same message twice
     let _ = config
@@ -232,7 +247,7 @@ fn message_id() {
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.to_string(),
                 source_address: msg.source_address.clone(),
@@ -241,13 +256,14 @@ fn message_id() {
             &[],
         )
         .unwrap();
+
     let res = config
         .app
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.to_string(),
                 source_address: msg.source_address.clone(),
@@ -257,7 +273,7 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::MessageAlreadyRouted { id: msg.uuid() },
+        ContractError::MessageAlreadyRouted { id: msg.id() },
         res.downcast().unwrap()
     );
 
@@ -268,7 +284,7 @@ fn message_id() {
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.to_string(),
                 source_address: msg.source_address.clone(),
@@ -277,6 +293,23 @@ fn message_id() {
             &[],
         )
         .unwrap();
+
+    let res = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: "bad:".to_string(),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
 }
 
 #[test]
@@ -304,7 +337,7 @@ fn multi_chain_route() {
                     s.incoming_gateway.clone(),
                     config.contract_address.clone(),
                     &ExecuteMsg::RouteMessage {
-                        id: msg.id.clone(),
+                        id: get_base_id(msg),
                         destination_domain: msg.destination_domain.to_string(),
                         destination_address: msg.destination_address.clone(),
                         source_address: msg.source_address.clone(),
@@ -538,7 +571,7 @@ fn upgrade_outgoing_gateway() {
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -621,7 +654,7 @@ fn upgrade_incoming_gateway() {
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -639,7 +672,7 @@ fn upgrade_incoming_gateway() {
         new_gateway,
         config.contract_address.clone(),
         &ExecuteMsg::RouteMessage {
-            id: msg.id.clone(),
+            id: get_base_id(msg),
             destination_domain: msg.destination_domain.to_string(),
             destination_address: msg.destination_address.clone(),
             source_address: msg.source_address.clone(),
@@ -676,7 +709,7 @@ fn register_domain() {
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -696,7 +729,7 @@ fn register_domain() {
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -711,7 +744,7 @@ fn register_domain() {
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
         &ExecuteMsg::RouteMessage {
-            id: msg.id.clone(),
+            id: get_base_id(msg),
             destination_domain: msg.destination_domain.to_string(),
             destination_address: msg.destination_address.clone(),
             source_address: msg.source_address.clone(),
@@ -775,7 +808,7 @@ fn invalid_domain_name() {
             config.admin_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterDomain {
-                domain: "bad-".to_string(),
+                domain: "bad:".to_string(),
                 incoming_gateway_address: Addr::unchecked("incoming").to_string(),
                 outgoing_gateway_address: Addr::unchecked("outgoing").to_string(),
             },
@@ -890,7 +923,7 @@ fn freeze_incoming_gateway() {
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -907,7 +940,7 @@ fn freeze_incoming_gateway() {
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
         &ExecuteMsg::RouteMessage {
-            id: msg.id.clone(),
+            id: get_base_id(msg),
             destination_domain: msg.destination_domain.to_string(),
             destination_address: msg.destination_address.clone(),
             source_address: msg.source_address.clone(),
@@ -963,7 +996,7 @@ fn freeze_outgoing_gateway() {
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
         &ExecuteMsg::RouteMessage {
-            id: msg.id.clone(),
+            id: get_base_id(msg),
             destination_domain: msg.destination_domain.to_string(),
             destination_address: msg.destination_address.clone(),
             source_address: msg.source_address.clone(),
@@ -994,7 +1027,7 @@ fn freeze_outgoing_gateway() {
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], *msg);
 }
-/*
+
 #[test]
 fn freeze_domain() {
     let mut config = setup();
@@ -1003,37 +1036,43 @@ fn freeze_domain() {
     register_chain(&mut config, &eth);
     register_chain(&mut config, &polygon);
 
-    let _ = config.app
+    let nonce = &mut 0;
+    // queue a message first
+    let queued_msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+    let _ = config
+        .app
         .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: msg.id.clone(),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
+                id: get_base_id(queued_msg),
+                destination_domain: queued_msg.destination_domain.to_string(),
+                destination_address: queued_msg.destination_address.clone(),
+                source_address: queued_msg.source_address.clone(),
+                payload_hash: queued_msg.payload_hash.clone(),
             },
             &[],
         )
         .unwrap();
-    let _ = app
+
+    let res = config.app.execute_contract(
+        config.admin_address.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::FreezeDomain {
+            domain: polygon.domain_name.to_string(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+    let res = config
+        .app
         .execute_contract(
-            admin_address.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::FreezeDomain {
-                domain: domain_poly.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
-    // can't route to frozen domain
-    let res = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: get_id().to_string(),
+                id: get_base_id(msg),
                 destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
@@ -1042,21 +1081,24 @@ fn freeze_domain() {
             &[],
         )
         .unwrap_err();
+    // can't route to frozen domain
     assert_eq!(
         ContractError::DomainFrozen {
-            domain: domain_poly.clone()
+            domain: polygon.domain_name.clone()
         },
         res.downcast().unwrap()
     );
 
     // can't route from frozen domain
-    let res = app
+    let msg = &generate_messages(&polygon, &eth, nonce, 1)[0];
+    let res = config
+        .app
         .execute_contract(
-            incoming_poly.clone(),
-            contract_address.clone(),
+            polygon.incoming_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::RouteMessage {
-                id: get_id().to_string(),
-                destination_domain: domain_eth.to_string(),
+                id: get_base_id(msg),
+                destination_domain: msg.destination_domain.to_string(),
                 destination_address: msg.destination_address.clone(),
                 source_address: msg.source_address.clone(),
                 payload_hash: msg.payload_hash.clone(),
@@ -1066,82 +1108,89 @@ fn freeze_domain() {
         .unwrap_err();
     assert_eq!(
         ContractError::DomainFrozen {
-            domain: domain_poly.clone(),
+            domain: polygon.domain_name.clone(),
         },
         res.downcast().unwrap()
     );
 
     // frozen domain can't consume
-    let res = app
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(1) },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         ContractError::DomainFrozen {
-            domain: domain_poly.clone()
+            domain: polygon.domain_name.clone()
         },
         res.downcast().unwrap()
     );
 
-    let _ = app
+    // unfreeze and test that everything works correctly
+    let _ = config
+        .app
         .execute_contract(
-            admin_address.clone(),
-            contract_address.clone(),
+            config.admin_address.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::UnfreezeDomain {
-                domain: domain_poly.to_string(),
+                domain: polygon.domain_name.to_string(),
             },
             &[],
         )
         .unwrap();
 
-    let res = app
+    // queued message should have been preserved
+    let res = config
+        .app
         .execute_contract(
-            outgoing_poly.clone(),
-            contract_address.clone(),
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
             &ExecuteMsg::ConsumeMessages { count: Some(1) },
             &[],
         )
         .unwrap();
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(vec![msg.clone()], msgs_ret);
+    assert_eq!(vec![queued_msg.clone()], msgs_ret);
 
-    // routing should succeed now
-    let _ = app
-        .execute_contract(
-            incoming_eth.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_id().to_string(),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    // can route to the domain now
+    let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+    let res = config.app.execute_contract(
+        eth.incoming_gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessage {
+            id: get_base_id(msg),
+            destination_domain: msg.destination_domain.to_string(),
+            destination_address: msg.destination_address.clone(),
+            source_address: msg.source_address.clone(),
+            payload_hash: msg.payload_hash.clone(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
 
-    let _ = app
-        .execute_contract(
-            incoming_poly.clone(),
-            contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_id().to_string(),
-                destination_domain: domain_eth.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    // can route from the domain
+    let msg = &generate_messages(&polygon, &eth, nonce, 1)[0];
+    let res = config.app.execute_contract(
+        polygon.incoming_gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessage {
+            id: get_base_id(msg),
+            destination_domain: msg.destination_domain.to_string(),
+            destination_address: msg.destination_address.clone(),
+            source_address: msg.source_address.clone(),
+            payload_hash: msg.payload_hash.clone(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
 }
 
+/*
 #[test]
 pub fn freeze() {
     let TestConfig {
