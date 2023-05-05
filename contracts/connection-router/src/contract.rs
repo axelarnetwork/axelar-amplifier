@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
@@ -42,12 +40,12 @@ pub fn execute(
             incoming_gateway_address,
             outgoing_gateway_address,
         } => {
+            execute::require_admin(&deps, info)?;
             let incoming_gateway_address = deps.api.addr_validate(&incoming_gateway_address)?;
             let outgoing_gateway_address = deps.api.addr_validate(&outgoing_gateway_address)?;
-            execute::require_admin(&deps, info)?;
             execute::register_domain(
                 deps,
-                DomainName::from_str(&domain)?,
+                domain.parse()?,
                 incoming_gateway_address,
                 outgoing_gateway_address,
             )
@@ -58,11 +56,7 @@ pub fn execute(
         } => {
             execute::require_admin(&deps, info)?;
             let contract_address = deps.api.addr_validate(&contract_address)?;
-            execute::upgrade_incoming_gateway(
-                deps,
-                DomainName::from_str(&domain)?,
-                contract_address,
-            )
+            execute::upgrade_incoming_gateway(deps, domain.parse()?, contract_address)
         }
         ExecuteMsg::UpgradeOutgoingGateway {
             domain,
@@ -70,35 +64,31 @@ pub fn execute(
         } => {
             execute::require_admin(&deps, info)?;
             let contract_address = deps.api.addr_validate(&contract_address)?;
-            execute::upgrade_outgoing_gateway(
-                deps,
-                DomainName::from_str(&domain)?,
-                contract_address,
-            )
+            execute::upgrade_outgoing_gateway(deps, domain.parse()?, contract_address)
         }
         ExecuteMsg::FreezeIncomingGateway { domain } => {
             execute::require_admin(&deps, info)?;
-            execute::freeze_incoming_gateway(deps, DomainName::from_str(&domain)?)
+            execute::freeze_incoming_gateway(deps, domain.parse()?)
         }
         ExecuteMsg::FreezeOutgoingGateway { domain } => {
             execute::require_admin(&deps, info)?;
-            execute::freeze_outgoing_gateway(deps, DomainName::from_str(&domain)?)
+            execute::freeze_outgoing_gateway(deps, domain.parse()?)
         }
         ExecuteMsg::FreezeDomain { domain } => {
             execute::require_admin(&deps, info)?;
-            execute::freeze_domain(deps, DomainName::from_str(&domain)?)
+            execute::freeze_domain(deps, domain.parse()?)
         }
         ExecuteMsg::UnfreezeDomain { domain } => {
             execute::require_admin(&deps, info)?;
-            execute::unfreeze_domain(deps, DomainName::from_str(&domain)?)
+            execute::unfreeze_domain(deps, domain.parse()?)
         }
         ExecuteMsg::UnfreezeIncomingGateway { domain } => {
             execute::require_admin(&deps, info)?;
-            execute::unfreeze_incoming_gateway(deps, DomainName::from_str(&domain)?)
+            execute::unfreeze_incoming_gateway(deps, domain.parse()?)
         }
         ExecuteMsg::UnfreezeOutgoingGateway { domain } => {
             execute::require_admin(&deps, info)?;
-            execute::unfreeze_outgoing_gateway(deps, DomainName::from_str(&domain)?)
+            execute::unfreeze_outgoing_gateway(deps, domain.parse()?)
         }
         ExecuteMsg::RouteMessage {
             id,
@@ -110,7 +100,7 @@ pub fn execute(
             deps,
             info,
             id,
-            DomainName::from_str(&destination_domain)?,
+            destination_domain.parse()?,
             destination_address,
             source_address,
             payload_hash,

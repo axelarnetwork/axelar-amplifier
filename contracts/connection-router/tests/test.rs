@@ -1,8 +1,7 @@
 use connection_router;
-use std::str::FromStr;
 use std::{collections::HashMap, vec};
 
-use connection_router::state::{DomainName, Message, MessageID, ID_SEPARATOR};
+use connection_router::state::{DomainName, Message, ID_SEPARATOR};
 use cosmwasm_std::{from_binary, Addr};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -50,7 +49,7 @@ fn setup() -> TestConfig {
 
 fn make_chain(name: &str) -> Chain {
     Chain {
-        domain_name: DomainName::from_str(name).unwrap(),
+        domain_name: name.parse().unwrap(),
         outgoing_gateway: Addr::unchecked(format!("{}_outgoing", name)),
         incoming_gateway: Addr::unchecked(format!("{}_incoming", name)),
     }
@@ -83,7 +82,7 @@ fn generate_messages(
         *nonce = *nonce + 1;
         let id = format!("id-{}", nonce);
         msgs.push(Message::new(
-            MessageID::from_str(&id).unwrap(),
+            id.parse().unwrap(),
             String::from("idc"),
             dest_chain.domain_name.clone(),
             src_chain.domain_name.clone(),

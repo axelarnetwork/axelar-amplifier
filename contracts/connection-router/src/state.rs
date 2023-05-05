@@ -1,3 +1,4 @@
+use core::panic;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
@@ -18,7 +19,7 @@ impl FromStr for MessageID {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(ID_SEPARATOR) {
+        if s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidMessageID {});
         }
         Ok(MessageID {
@@ -182,16 +183,17 @@ impl<'a> GatewayIndex<'a> {
         deps: &DepsMut,
         contract_address: &Addr,
     ) -> StdResult<Option<Domain>> {
-        let matching_domains = self
+        let mut matching_domains = self
             .0
             .prefix(contract_address.clone())
             .range(deps.storage, None, None, Order::Ascending)
-            .collect::<Result<Vec<(String, Domain)>, _>>()?;
-        match &matching_domains[..] {
-            [] => Ok(None),
-            [(_, domain)] => Ok(Some(domain.clone())),
-            _ => panic!("More than one gateway for domain"),
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if matching_domains.len() > 1 {
+            panic!("More than one gateway for domain")
         }
+
+        Ok(matching_domains.pop().map(|(_, domain)| domain))
     }
 }
 
