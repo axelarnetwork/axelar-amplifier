@@ -1,18 +1,17 @@
 use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Uint256};
-use service_registry::state::Worker;
+use cosmwasm_std::{Addr, Decimal, Decimal256, Uint256};
 
 use crate::{
-    error::SnapshotError,
-    nonzero::{NonZeroTimestamp, NonZeroUint64},
+    nonempty::NonEmptyVec,
+    nonzero::{NonZeroTimestamp, NonZeroUint256, NonZeroUint64},
 };
 
 #[cw_serde]
 pub struct Participant {
     pub address: Addr,
-    pub weight: Uint256,
+    pub weight: NonZeroUint256,
 }
 
 #[cw_serde]
@@ -25,48 +24,35 @@ pub struct Snapshot {
 
 impl Snapshot {
     pub fn new(
-        deps: &DepsMut,
         timestamp: NonZeroTimestamp,
         height: NonZeroUint64,
-        candidates: Vec<Worker>,
-        filter_fn: impl Fn(&DepsMut, &Worker) -> bool,
-        weight_fn: impl Fn(&DepsMut, &Worker) -> Option<Uint256>,
-    ) -> Result<Self, SnapshotError> {
+        participants: NonEmptyVec<Participant>,
+    ) -> Self {
         let mut total_weight: Uint256 = Uint256::zero();
-        let mut participants: HashMap<String, Participant> = HashMap::new();
 
-        for worker in candidates {
-            let weight = weight_fn(deps, &worker).unwrap_or(Uint256::zero());
+        let participants: HashMap<String, Participant> = participants
+            .as_vec()
+            .iter()
+            .cloned()
+            .map(|participant| {
+                total_weight += participant.weight.as_uint256();
 
-            if weight.is_zero() || !filter_fn(deps, &worker) {
-                continue;
-            }
+                (participant.address.to_string(), participant)
+            })
+            .collect();
 
-            total_weight += weight;
-
-            let participant = Participant {
-                address: worker.address.clone(),
-                weight,
-            };
-            participants.insert(worker.address.into_string(), participant);
-        }
-
-        if participants.is_empty() {
-            return Err(SnapshotError::NoParticipants {});
-        }
-
-        Ok(Self {
+        Self {
             timestamp,
             height,
             total_weight,
             participants,
-        })
+        }
     }
 
-    pub fn get_participant_weight(&self, participant: &Addr) -> Option<Uint256> {
+    pub fn get_participant_weight(&self, participant: &Addr) -> Option<&Uint256> {
         self.participants
             .get(participant.as_str())
-            .map(|p| p.weight)
+            .map(|p| p.weight.as_uint256())
     }
 
     pub fn calculate_min_passing_weight(&self, threshold: &Decimal) -> Uint256 {
@@ -82,173 +68,68 @@ impl Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::{from_binary, testing::mock_dependencies, to_binary, Uint128};
+    use cosmwasm_std::{from_binary, to_binary, Uint128};
     use rand::Rng;
-    use service_registry::state::WorkerState;
 
-    fn mock_worker(address: &str, stake: Uint128) -> Worker {
-        Worker {
+    fn mock_participant(address: &str, weight: NonZeroUint256) -> Participant {
+        Participant {
             address: Addr::unchecked(address),
-            stake,
-            commission_rate: Uint128::zero(),
-            state: WorkerState::Active,
-            service_name: "service".to_string(),
+            weight,
         }
     }
 
-    fn mock_workers(workers: Vec<(&str, Uint128)>) -> Vec<Worker> {
-        workers
+    fn mock_participants(participants: Vec<(&str, NonZeroUint256)>) -> NonEmptyVec<Participant> {
+        let participants: Vec<Participant> = participants
             .into_iter()
-            .map(|(address, stake)| mock_worker(address, stake))
-            .collect()
+            .map(|(address, weight)| mock_participant(address, weight))
+            .collect();
+
+        NonEmptyVec::try_from(participants).unwrap()
     }
 
-    fn default_workers() -> Vec<Worker> {
-        mock_workers(vec![
-            ("worker0", Uint128::from(100u128)),
-            ("worker1", Uint128::from(100u128)),
-            ("worker2", Uint128::from(100u128)),
-            ("worker3", Uint128::from(100u128)),
-            ("worker4", Uint128::from(200u128)),
-            ("worker5", Uint128::from(200u128)),
-            ("worker6", Uint128::from(300u128)),
-            ("worker7", Uint128::from(300u128)),
-            ("worker8", Uint128::from(300u128)),
-            ("worker9", Uint128::from(300u128)),
+    fn non_zero_256(value: impl Into<Uint256>) -> NonZeroUint256 {
+        NonZeroUint256::try_from(value.into()).unwrap()
+    }
+
+    fn default_participants() -> NonEmptyVec<Participant> {
+        mock_participants(vec![
+            ("participant0", non_zero_256(100u16)),
+            ("participant1", non_zero_256(100u16)),
+            ("participant2", non_zero_256(100u16)),
+            ("participant3", non_zero_256(100u16)),
+            ("participant4", non_zero_256(200u16)),
+            ("participant5", non_zero_256(200u16)),
+            ("participant6", non_zero_256(300u16)),
+            ("participant7", non_zero_256(300u16)),
+            ("participant8", non_zero_256(300u16)),
+            ("participant9", non_zero_256(300u16)),
         ])
-    }
-
-    fn default_filter_function() -> impl Fn(&DepsMut, &Worker) -> bool {
-        &|_: &DepsMut, _: &Worker| -> bool { true }
-    }
-
-    fn default_weight_function() -> impl Fn(&DepsMut, &Worker) -> Option<Uint256> {
-        &|_: &DepsMut, worker: &Worker| -> Option<Uint256> { Some(Uint256::from(worker.stake)) }
     }
 
     #[test]
     fn test_valid_snapshot() {
-        let mut deps = mock_dependencies();
         let mut rng = rand::thread_rng();
 
-        let result = Snapshot::new(
-            &deps.as_mut(),
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
-            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            default_weight_function(),
-        );
+        let timestamp = NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap();
+        let height = NonZeroUint64::try_from(rng.gen::<u64>()).unwrap();
 
-        assert!(result.is_ok())
-    }
+        let result = Snapshot::new(timestamp.clone(), height.clone(), default_participants());
 
-    #[test]
-    fn test_filter_function() {
-        let mut deps = mock_dependencies();
-        let mut rng = rand::thread_rng();
-
-        let filter_fn =
-            &|_: &DepsMut, worker: &Worker| -> bool { worker.stake >= Uint128::from(200u128) };
-
-        let snapshot = Snapshot::new(
-            &deps.as_mut(),
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
-            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            filter_fn,
-            default_weight_function(),
-        )
-        .unwrap();
-
-        assert_eq!(snapshot.participants.len(), 6);
-    }
-
-    #[test]
-    fn test_weight_function() {
-        let mut deps = mock_dependencies();
-        let mut rng = rand::thread_rng();
-
-        let weight_fn = &|_: &DepsMut, _: &Worker| -> Option<Uint256> { Some(Uint256::one()) };
-
-        let snapshot = Snapshot::new(
-            &deps.as_mut(),
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
-            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            weight_fn,
-        )
-        .unwrap();
-
-        assert_eq!(
-            snapshot.total_weight,
-            Uint256::from(snapshot.participants.len() as u32)
-        );
-    }
-
-    #[test]
-    fn test_filter_zero_weight_candidates() {
-        let mut deps = mock_dependencies();
-        let mut rng = rand::thread_rng();
-
-        let weight_fn = &|_: &DepsMut, worker: &Worker| -> Option<Uint256> {
-            if worker.stake < Uint128::from(200u128) {
-                Some(Uint256::zero())
-            } else {
-                Some(Uint256::one())
-            }
-        };
-
-        let snapshot = Snapshot::new(
-            &deps.as_mut(),
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
-            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            weight_fn,
-        )
-        .unwrap();
-
-        assert_eq!(snapshot.participants.len(), 6);
-    }
-
-    #[test]
-    fn test_error_no_participants() {
-        let mut deps = mock_dependencies();
-        let mut rng = rand::thread_rng();
-
-        let filter_fn = &|_: &DepsMut, _: &Worker| -> bool { false };
-
-        let result = Snapshot::new(
-            &deps.as_mut(),
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
-            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            filter_fn,
-            default_weight_function(),
-        );
-
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            SnapshotError::NoParticipants.to_string()
-        );
+        assert_eq!(result.timestamp, timestamp);
+        assert_eq!(result.height, height);
+        assert_eq!(result.total_weight, Uint256::from(2000u16));
+        assert_eq!(result.participants.len(), 10);
     }
 
     #[test]
     fn test_snapshot_serialization() {
-        let mut deps = mock_dependencies();
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
-            &deps.as_mut(),
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            |_, _| Some(Uint256::from(100u32)),
-        )
-        .unwrap();
+            default_participants(),
+        );
 
         let serialized = to_binary(&snapshot).unwrap();
         let deserialized: Snapshot = from_binary(&serialized).unwrap();
@@ -258,40 +139,30 @@ mod tests {
 
     #[test]
     fn test_min_passing_weight_one_third() {
-        let mut deps = mock_dependencies();
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
-            &deps.as_mut(),
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            |_, _| Some(Uint256::from(1u32)),
-        )
-        .unwrap();
+            default_participants(),
+        );
 
         let threshold = Decimal::from_ratio(Uint128::one(), Uint128::from(3u32));
         assert_eq!(
             snapshot.calculate_min_passing_weight(&threshold),
-            Uint256::from(4u32)
+            Uint256::from(667u32)
         );
     }
 
     #[test]
     fn test_min_passing_weight_total_weight() {
-        let mut deps = mock_dependencies();
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
-            &deps.as_mut(),
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            default_weight_function(),
-        )
-        .unwrap();
+            default_participants(),
+        );
 
         let threshold = Decimal::from_ratio(Uint128::one(), Uint128::one());
         assert_eq!(
@@ -302,18 +173,13 @@ mod tests {
 
     #[test]
     fn test_min_passing_weight_ceil() {
-        let mut deps = mock_dependencies();
         let mut rng = rand::thread_rng();
 
         let mut snapshot = Snapshot::new(
-            &deps.as_mut(),
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_workers(),
-            default_filter_function(),
-            default_weight_function(),
-        )
-        .unwrap();
+            default_participants(),
+        );
 
         let threshold = Decimal::from_ratio(2u8, 3u8);
 

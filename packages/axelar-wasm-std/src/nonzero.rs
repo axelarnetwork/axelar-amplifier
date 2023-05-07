@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{StdError, Timestamp, Uint64};
+use cosmwasm_std::{StdError, Timestamp, Uint256, Uint64};
 
 #[cw_serde]
 pub struct NonZeroUint64(Uint64);
@@ -30,6 +30,28 @@ impl TryFrom<u64> for NonZeroUint64 {
 
 impl NonZeroUint64 {
     pub fn as_uint64(&self) -> &Uint64 {
+        &self.0
+    }
+}
+
+// TODO: consider using macro for these types
+#[cw_serde]
+pub struct NonZeroUint256(Uint256);
+
+impl TryFrom<Uint256> for NonZeroUint256 {
+    type Error = StdError;
+
+    fn try_from(value: Uint256) -> Result<Self, Self::Error> {
+        if value == Uint256::zero() {
+            Err(zero_error())
+        } else {
+            Ok(NonZeroUint256(value))
+        }
+    }
+}
+
+impl NonZeroUint256 {
+    pub fn as_uint256(&self) -> &Uint256 {
         &self.0
     }
 }
@@ -78,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn test_non_zero_uint64_zero() {
+    fn test_zero_non_zero_uint64() {
         let expected_error = zero_error().to_string();
 
         assert_eq!(
@@ -100,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn test_non_zero_timestamp_zero() {
+    fn test_zero_non_zero_timestamp() {
         let expected_error = zero_error().to_string();
 
         assert_eq!(
