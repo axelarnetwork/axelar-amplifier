@@ -1,10 +1,13 @@
 use std::{collections::HashMap, ops::Mul};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Timestamp, Uint256, Uint64};
+use cosmwasm_std::{Addr, Decimal, Decimal256, DepsMut, Uint256};
 use service_registry::state::Worker;
 
-use crate::error::SnapshotError;
+use crate::{
+    error::SnapshotError,
+    nonzero::{NonZeroTimestamp, NonZeroUint64},
+};
 
 #[cw_serde]
 pub struct Participant {
@@ -14,8 +17,8 @@ pub struct Participant {
 
 #[cw_serde]
 pub struct Snapshot {
-    pub timestamp: Timestamp,
-    pub height: Uint64,
+    pub timestamp: NonZeroTimestamp,
+    pub height: NonZeroUint64,
     pub total_weight: Uint256,
     pub participants: HashMap<String, Participant>,
 }
@@ -23,19 +26,12 @@ pub struct Snapshot {
 impl Snapshot {
     pub fn new(
         deps: &DepsMut,
-        timestamp: Timestamp,
-        height: Uint64,
+        timestamp: NonZeroTimestamp,
+        height: NonZeroUint64,
         candidates: Vec<Worker>,
         filter_fn: impl Fn(&DepsMut, &Worker) -> bool,
         weight_fn: impl Fn(&DepsMut, &Worker) -> Option<Uint256>,
     ) -> Result<Self, SnapshotError> {
-        if height.is_zero() {
-            return Err(SnapshotError::ZeroHeight {});
-        }
-        if timestamp.nanos() == 0 {
-            return Err(SnapshotError::ZeroTimestamp {});
-        }
-
         let mut total_weight: Uint256 = Uint256::zero();
         let mut participants: HashMap<String, Participant> = HashMap::new();
 
@@ -137,8 +133,8 @@ mod tests {
 
         let result = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
@@ -157,8 +153,8 @@ mod tests {
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             filter_fn,
             default_weight_function(),
@@ -177,8 +173,8 @@ mod tests {
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             weight_fn,
@@ -206,8 +202,8 @@ mod tests {
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             weight_fn,
@@ -226,8 +222,8 @@ mod tests {
 
         let result = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             filter_fn,
             default_weight_function(),
@@ -240,54 +236,14 @@ mod tests {
     }
 
     #[test]
-    fn test_error_zero_height() {
-        let mut deps = mock_dependencies();
-        let mut rng = rand::thread_rng();
-
-        let result = Snapshot::new(
-            &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::zero(),
-            default_workers(),
-            default_filter_function(),
-            default_weight_function(),
-        );
-
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            SnapshotError::ZeroHeight.to_string()
-        );
-    }
-
-    #[test]
-    fn test_error_zero_timestamp() {
-        let mut deps = mock_dependencies();
-        let mut rng = rand::thread_rng();
-
-        let result = Snapshot::new(
-            &deps.as_mut(),
-            Timestamp::from_nanos(0),
-            Uint64::from(rng.gen::<u64>()),
-            default_workers(),
-            default_filter_function(),
-            default_weight_function(),
-        );
-
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            SnapshotError::ZeroTimestamp.to_string()
-        );
-    }
-
-    #[test]
     fn test_snapshot_serialization() {
         let mut deps = mock_dependencies();
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             |_, _| Some(Uint256::from(100u32)),
@@ -307,8 +263,8 @@ mod tests {
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             |_, _| Some(Uint256::from(1u32)),
@@ -329,8 +285,8 @@ mod tests {
 
         let snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
@@ -351,8 +307,8 @@ mod tests {
 
         let mut snapshot = Snapshot::new(
             &deps.as_mut(),
-            Timestamp::from_nanos(rng.gen()),
-            Uint64::from(rng.gen::<u64>()),
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             default_workers(),
             default_filter_function(),
             default_weight_function(),
