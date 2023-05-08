@@ -235,29 +235,28 @@ pub mod execute {
         ))
     }
 
-    pub fn freeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
+    fn set_domain_frozen_status(
+        deps: DepsMut,
+        domain: &DomainName,
+        is_frozen: bool,
+    ) -> Result<Domain, ContractError> {
         domains().update(deps.storage, domain.clone(), |domain| match domain {
             None => Err(ContractError::DomainNotFound {}),
             Some(mut domain) => {
-                domain.is_frozen = true;
+                domain.is_frozen = is_frozen;
                 Ok(domain)
             }
-        })?;
+        })
+    }
+
+    pub fn freeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
+        set_domain_frozen_status(deps, &domain, true)?;
         Ok(Response::new().add_event(DomainFrozen { name: domain }.into()))
     }
 
-    pub fn unfreeze_domain(
-        deps: DepsMut,
-        domain_name: DomainName,
-    ) -> Result<Response, ContractError> {
-        domains().update(deps.storage, domain_name.clone(), |domain| match domain {
-            None => Err(ContractError::DomainNotFound {}),
-            Some(mut domain) => {
-                domain.is_frozen = false;
-                Ok(domain)
-            }
-        })?;
-        Ok(Response::new().add_event(DomainUnfrozen { name: domain_name }.into()))
+    pub fn unfreeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
+        set_domain_frozen_status(deps, &domain, false)?;
+        Ok(Response::new().add_event(DomainUnfrozen { name: domain }.into()))
     }
 
     fn set_gateway_frozen_status(
@@ -275,7 +274,7 @@ pub mod execute {
         })
     }
 
-    fn set_gateway_frozen(
+    fn freeze_gateway(
         deps: DepsMut,
         domain_name: &DomainName,
         get_gateway: fn(&mut Domain) -> &mut Gateway,
@@ -283,7 +282,7 @@ pub mod execute {
         set_gateway_frozen_status(deps, domain_name, get_gateway, true)
     }
 
-    fn set_gateway_unfrozen(
+    fn unfreeze_gateway(
         deps: DepsMut,
         domain_name: &DomainName,
         get_gateway: fn(&mut Domain) -> &mut Gateway,
@@ -295,7 +294,7 @@ pub mod execute {
         deps: DepsMut,
         domain_name: DomainName,
     ) -> Result<Response, ContractError> {
-        let domain = set_gateway_frozen(deps, &domain_name, |domain: &mut Domain| {
+        let domain = freeze_gateway(deps, &domain_name, |domain: &mut Domain| {
             &mut domain.incoming_gateway
         })?;
         Ok(Response::new().add_event(
@@ -314,7 +313,7 @@ pub mod execute {
         deps: DepsMut,
         domain_name: DomainName,
     ) -> Result<Response, ContractError> {
-        let domain = set_gateway_frozen(deps, &domain_name, |domain: &mut Domain| {
+        let domain = freeze_gateway(deps, &domain_name, |domain: &mut Domain| {
             &mut domain.outgoing_gateway
         })?;
         Ok(Response::new().add_event(
@@ -333,7 +332,7 @@ pub mod execute {
         deps: DepsMut,
         domain_name: DomainName,
     ) -> Result<Response, ContractError> {
-        let domain = set_gateway_unfrozen(deps, &domain_name, |domain: &mut Domain| {
+        let domain = unfreeze_gateway(deps, &domain_name, |domain: &mut Domain| {
             &mut domain.incoming_gateway
         })?;
         Ok(Response::new().add_event(
@@ -352,7 +351,7 @@ pub mod execute {
         deps: DepsMut,
         domain_name: DomainName,
     ) -> Result<Response, ContractError> {
-        let domain = set_gateway_unfrozen(deps, &domain_name, |domain: &mut Domain| {
+        let domain = unfreeze_gateway(deps, &domain_name, |domain: &mut Domain| {
             &mut domain.outgoing_gateway
         })?;
         Ok(Response::new().add_event(

@@ -20,7 +20,7 @@ pub enum GatewayDirection {
 pub struct GatewayInfo {
     pub domain: DomainName,
     pub gateway_address: Addr,
-    pub direction: GatewayDirection, // true if this gateway is an incoming gateway
+    pub direction: GatewayDirection,
 }
 
 pub struct GatewayUpgraded {
