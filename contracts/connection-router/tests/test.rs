@@ -329,6 +329,52 @@ fn message_id() {
 }
 
 #[test]
+fn invalid_address() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+
+    let res = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(&msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: "".to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidAddress {}, res.downcast().unwrap());
+
+    let res = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(&msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.clone(),
+                source_address: "".to_string(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidAddress {}, res.downcast().unwrap());
+}
+
+#[test]
 fn multi_chain_route() {
     let mut config = setup();
     let chains = vec![

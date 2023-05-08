@@ -12,10 +12,15 @@ pub struct DomainRegistered {
     pub outgoing_gateway: Addr,
 }
 
+pub enum GatewayDirection {
+    Incoming,
+    Outgoing,
+}
+
 pub struct GatewayInfo {
     pub domain: DomainName,
     pub gateway_address: Addr,
-    pub incoming: bool, // true if this gateway is an incoming gateway
+    pub direction: GatewayDirection, // true if this gateway is an incoming gateway
 }
 
 pub struct GatewayUpgraded {
@@ -62,17 +67,16 @@ impl From<DomainRegistered> for Event {
     }
 }
 
-impl GatewayInfo {
-    fn event_attributes(&self) -> Vec<Attribute> {
+impl From<GatewayInfo> for Vec<Attribute> {
+    fn from(other: GatewayInfo) -> Self {
         vec![
-            ("domain", self.domain.clone()).into(),
-            ("gateway_address", self.gateway_address.clone()).into(),
+            ("domain", other.domain.clone()).into(),
+            ("gateway_address", other.gateway_address.clone()).into(),
             (
                 "gateway_type",
-                if self.incoming {
-                    "incoming"
-                } else {
-                    "outgoing"
+                match &other.direction {
+                    GatewayDirection::Incoming => "incoming",
+                    GatewayDirection::Outgoing => "outgoing",
                 },
             )
                 .into(),
@@ -82,19 +86,22 @@ impl GatewayInfo {
 
 impl From<GatewayUpgraded> for Event {
     fn from(other: GatewayUpgraded) -> Self {
-        Event::new("gateway_upgraded").add_attributes(other.gateway.event_attributes())
+        let attrs: Vec<Attribute> = other.gateway.into();
+        Event::new("gateway_upgraded").add_attributes(attrs)
     }
 }
 
 impl From<GatewayFrozen> for Event {
     fn from(other: GatewayFrozen) -> Self {
-        Event::new("gateway_frozen").add_attributes(other.gateway.event_attributes())
+        let attrs: Vec<Attribute> = other.gateway.into();
+        Event::new("gateway_frozen").add_attributes(attrs)
     }
 }
 
 impl From<GatewayUnfrozen> for Event {
     fn from(other: GatewayUnfrozen) -> Self {
-        Event::new("gateway_unfrozen").add_attributes(other.gateway.event_attributes())
+        let attrs: Vec<Attribute> = other.gateway.into();
+        Event::new("gateway_unfrozen").add_attributes(attrs)
     }
 }
 
@@ -110,23 +117,23 @@ impl From<DomainUnfrozen> for Event {
     }
 }
 
-impl Message {
-    fn event_attributes(&self) -> Vec<Attribute> {
+impl From<Message> for Vec<Attribute> {
+    fn from(other: Message) -> Self {
         vec![
-            ("id", self.id()).into(),
-            ("source_domain", self.source_domain.clone()).into(),
-            ("source_addressess", self.source_address.clone()).into(),
-            ("destination_domain", self.destination_domain.clone()).into(),
-            ("destination_addressess", self.destination_address.clone()).into(),
-            ("payload_hash", self.payload_hash.to_string()).into(),
+            ("id", other.id()).into(),
+            ("source_domain", other.source_domain.clone()).into(),
+            ("source_addressess", other.source_address.clone()).into(),
+            ("destination_domain", other.destination_domain.clone()).into(),
+            ("destination_addressess", other.destination_address.clone()).into(),
+            ("payload_hash", other.payload_hash.to_string()).into(),
         ]
     }
 }
 
 impl From<MessageRouted> for Event {
     fn from(other: MessageRouted) -> Self {
-        let msg = other.msg;
-        Event::new("message_routed").add_attributes(msg.event_attributes())
+        let attrs: Vec<Attribute> = other.msg.into();
+        Event::new("message_routed").add_attributes(attrs)
     }
 }
 

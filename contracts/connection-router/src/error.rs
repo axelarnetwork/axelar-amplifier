@@ -8,39 +8,39 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("Caller is not authorized")]
     Unauthorized {},
 
-    #[error("DomainAlreadyExists")]
+    #[error("Domain already exists")]
     DomainAlreadyExists {},
 
-    #[error("InvalidDomainName")]
+    #[error("Domain name is invalid")]
     InvalidDomainName {},
 
-    #[error("InvalidMessageID")]
+    #[error("Message ID is invalid")]
     InvalidMessageID {},
 
-    #[error("DomainNotFound")]
+    #[error("Domain was not found")]
     DomainNotFound {},
 
-    #[error("GatewayNotRegistered")]
+    #[error("Gateway is not registered")]
     GatewayNotRegistered {},
 
-    #[error("GatewayAlreadyRegistered")]
+    #[error("Gateway was already registered")]
     GatewayAlreadyRegistered {},
 
-    #[error("MessageHashMistmatch")]
-    MessageHashMismatch {},
-
-    #[error("MessageAlreadyRouted")]
+    #[error("Message was already routed")]
     MessageAlreadyRouted { id: String },
 
-    #[error("MessageNotFound")]
+    #[error("Message was not found")]
     MessageNotFound {},
 
-    #[error("DomainFrozen")]
+    #[error("Domain is frozen")]
     DomainFrozen { domain: DomainName },
 
-    #[error("GatewayFrozen")]
+    #[error("Gateway is frozen")]
     GatewayFrozen {},
+
+    #[error("Address is invalid")]
+    InvalidAddress {},
 }
