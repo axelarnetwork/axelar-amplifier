@@ -1,11 +1,12 @@
-use std::{collections::HashMap, ops::Mul};
+use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Decimal256, Uint256};
+use cosmwasm_std::{Addr, Uint256};
 
 use crate::{
     nonempty::NonEmptyVec,
     nonzero::{NonZeroTimestamp, NonZeroUint256, NonZeroUint64},
+    threshold::Threshold,
 };
 
 #[cw_serde]
@@ -55,20 +56,15 @@ impl Snapshot {
             .map(|p| p.weight.as_uint256())
     }
 
-    pub fn calculate_min_passing_weight(&self, threshold: &Decimal) -> Uint256 {
-        // TODO: check type sizes are correct, otherwise overflow may occur
-        let threshold = Decimal256::from(*threshold);
-
-        Decimal256::from_ratio(self.total_weight, Uint256::one())
-            .mul(threshold)
-            .to_uint_ceil()
+    pub fn calculate_min_passing_weight(&self, threshold: &Threshold) -> Uint256 {
+        self.total_weight.mul_ceil(*threshold.as_decimal())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::{from_binary, to_binary, Uint128};
+    use cosmwasm_std::{from_binary, to_binary, Decimal256, Uint128};
     use rand::Rng;
 
     fn mock_participant(address: &str, weight: NonZeroUint256) -> Participant {
@@ -147,7 +143,9 @@ mod tests {
             default_participants(),
         );
 
-        let threshold = Decimal::from_ratio(Uint128::one(), Uint128::from(3u32));
+        let threshold =
+            Threshold::try_from(Decimal256::from_ratio(Uint128::one(), Uint128::from(3u32)))
+                .unwrap();
         assert_eq!(
             snapshot.calculate_min_passing_weight(&threshold),
             Uint256::from(667u32)
@@ -164,7 +162,8 @@ mod tests {
             default_participants(),
         );
 
-        let threshold = Decimal::from_ratio(Uint128::one(), Uint128::one());
+        let threshold =
+            Threshold::try_from(Decimal256::from_ratio(Uint128::one(), Uint128::one())).unwrap();
         assert_eq!(
             snapshot.calculate_min_passing_weight(&threshold),
             snapshot.total_weight
@@ -181,7 +180,7 @@ mod tests {
             default_participants(),
         );
 
-        let threshold = Decimal::from_ratio(2u8, 3u8);
+        let threshold = Threshold::try_from(Decimal256::from_ratio(2u8, 3u8)).unwrap();
 
         // (total_weight, min_passing_weight)
         let test_data = [

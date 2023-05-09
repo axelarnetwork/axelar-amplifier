@@ -101,18 +101,11 @@ mod tests {
 
     #[test]
     fn test_zero_non_zero_uint64() {
-        let expected_error = zero_error().to_string();
-
         assert_eq!(
-            NonZeroUint64::try_from(Uint64::zero())
-                .unwrap_err()
-                .to_string(),
-            expected_error
+            NonZeroUint64::try_from(Uint64::zero()).unwrap_err(),
+            zero_error()
         );
-        assert_eq!(
-            NonZeroUint64::try_from(0u64).unwrap_err().to_string(),
-            expected_error
-        );
+        assert_eq!(NonZeroUint64::try_from(0u64).unwrap_err(), zero_error());
     }
 
     #[test]
@@ -123,19 +116,13 @@ mod tests {
 
     #[test]
     fn test_zero_non_zero_timestamp() {
-        let expected_error = zero_error().to_string();
-
         assert_eq!(
-            NonZeroTimestamp::try_from(Timestamp::from_nanos(0u64))
-                .unwrap_err()
-                .to_string(),
-            expected_error
+            NonZeroTimestamp::try_from(Timestamp::from_nanos(0u64)).unwrap_err(),
+            zero_error()
         );
         assert_eq!(
-            NonZeroTimestamp::try_from_nanos(0u64)
-                .unwrap_err()
-                .to_string(),
-            expected_error
+            NonZeroTimestamp::try_from_nanos(0u64).unwrap_err(),
+            zero_error()
         );
     }
 }

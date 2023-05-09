@@ -37,11 +37,9 @@ mod tests {
 
     #[test]
     fn test_empty_non_empty_vec() {
-        let expected_error = empty_error().to_string();
-
         assert_eq!(
-            NonEmptyVec::<u8>::try_from(vec![]).unwrap_err().to_string(),
-            expected_error
+            NonEmptyVec::<u8>::try_from(vec![]).unwrap_err(),
+            empty_error()
         )
     }
 }
