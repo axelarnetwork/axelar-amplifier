@@ -31,7 +31,7 @@ impl Snapshot {
         threshold: Threshold,
         participants: NonEmptyVec<Participant>,
     ) -> Self {
-        let mut total_weight: Uint256 = Uint256::zero();
+        let mut total_weight = Uint256::zero();
 
         let participants: HashMap<String, Participant> = participants
             .as_vec()

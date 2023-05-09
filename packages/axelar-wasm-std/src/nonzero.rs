@@ -8,11 +8,7 @@ impl TryFrom<Uint64> for NonZeroUint64 {
     type Error = StdError;
 
     fn try_from(value: Uint64) -> Result<Self, Self::Error> {
-        if value == Uint64::zero() {
-            Err(zero_error())
-        } else {
-            Ok(NonZeroUint64(value))
-        }
+        value.u64().try_into()
     }
 }
 
@@ -20,7 +16,7 @@ impl TryFrom<u64> for NonZeroUint64 {
     type Error = StdError;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value == 0u64 {
+        if value == 0 {
             Err(zero_error())
         } else {
             Ok(NonZeroUint64(Uint64::from(value)))
