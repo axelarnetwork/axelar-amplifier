@@ -57,14 +57,14 @@ impl Snapshot {
     }
 
     pub fn calculate_min_passing_weight(&self, threshold: &Threshold) -> Uint256 {
-        self.total_weight.mul_ceil(*threshold.as_decimal())
+        self.total_weight.mul_ceil(*threshold)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::{from_binary, to_binary, Decimal256, Uint128};
+    use cosmwasm_std::{from_binary, to_binary, Uint64};
     use rand::Rng;
 
     fn mock_participant(address: &str, weight: NonZeroUint256) -> Participant {
@@ -143,9 +143,7 @@ mod tests {
             default_participants(),
         );
 
-        let threshold =
-            Threshold::try_from(Decimal256::from_ratio(Uint128::one(), Uint128::from(3u32)))
-                .unwrap();
+        let threshold = Threshold::try_from_ratio(1u8, 3u8).unwrap();
         assert_eq!(
             snapshot.calculate_min_passing_weight(&threshold),
             Uint256::from(667u32)
@@ -162,8 +160,7 @@ mod tests {
             default_participants(),
         );
 
-        let threshold =
-            Threshold::try_from(Decimal256::from_ratio(Uint128::one(), Uint128::one())).unwrap();
+        let threshold = Threshold::try_from_ratio(1u8, 1u8).unwrap();
         assert_eq!(
             snapshot.calculate_min_passing_weight(&threshold),
             snapshot.total_weight
@@ -180,7 +177,7 @@ mod tests {
             default_participants(),
         );
 
-        let threshold = Threshold::try_from(Decimal256::from_ratio(2u8, 3u8)).unwrap();
+        let threshold = Threshold::try_from_ratio(2u8, 3u8).unwrap();
 
         // (total_weight, min_passing_weight)
         let test_data = [
@@ -204,5 +201,25 @@ mod tests {
                     expected_passing_weight
                 );
             });
+    }
+
+    #[test]
+    fn test_min_passing_weight_no_overflow() {
+        let mut rng = rand::thread_rng();
+
+        let mut snapshot = Snapshot::new(
+            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
+            default_participants(),
+        );
+
+        let threshold = Threshold::try_from_ratio(Uint64::MAX, Uint64::MAX).unwrap();
+
+        snapshot.total_weight = Uint256::MAX;
+
+        assert_eq!(
+            snapshot.calculate_min_passing_weight(&threshold),
+            snapshot.total_weight
+        );
     }
 }
