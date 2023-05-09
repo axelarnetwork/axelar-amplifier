@@ -20,6 +20,7 @@ pub struct Snapshot {
     pub timestamp: NonZeroTimestamp,
     pub height: NonZeroUint64,
     pub total_weight: Uint256,
+    pub min_pass_weight: Uint256,
     pub participants: HashMap<String, Participant>,
 }
 
@@ -27,6 +28,7 @@ impl Snapshot {
     pub fn new(
         timestamp: NonZeroTimestamp,
         height: NonZeroUint64,
+        threshold: Threshold,
         participants: NonEmptyVec<Participant>,
     ) -> Self {
         let mut total_weight: Uint256 = Uint256::zero();
@@ -42,10 +44,13 @@ impl Snapshot {
             })
             .collect();
 
+        let min_pass_weight = total_weight.mul_ceil(threshold);
+
         Self {
             timestamp,
             height,
             total_weight,
+            min_pass_weight,
             participants,
         }
     }
@@ -54,10 +59,6 @@ impl Snapshot {
         self.participants
             .get(participant.as_str())
             .map(|p| p.weight.as_uint256())
-    }
-
-    pub fn calculate_min_passing_weight(&self, threshold: &Threshold) -> Uint256 {
-        self.total_weight.mul_ceil(*threshold)
     }
 }
 
@@ -108,12 +109,19 @@ mod tests {
 
         let timestamp = NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap();
         let height = NonZeroUint64::try_from(rng.gen::<u64>()).unwrap();
+        let threshold = Threshold::try_from_ratio(2u8, 3u8).unwrap();
 
-        let result = Snapshot::new(timestamp.clone(), height.clone(), default_participants());
+        let result = Snapshot::new(
+            timestamp.clone(),
+            height.clone(),
+            threshold,
+            default_participants(),
+        );
 
         assert_eq!(result.timestamp, timestamp);
         assert_eq!(result.height, height);
         assert_eq!(result.total_weight, Uint256::from(2000u16));
+        assert_eq!(result.min_pass_weight, Uint256::from(1334u16));
         assert_eq!(result.participants.len(), 10);
     }
 
@@ -124,6 +132,7 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
+            Threshold::try_from_ratio(2u8, 3u8).unwrap(),
             default_participants(),
         );
 
@@ -140,14 +149,11 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
+            Threshold::try_from_ratio(1u8, 3u8).unwrap(),
             default_participants(),
         );
 
-        let threshold = Threshold::try_from_ratio(1u8, 3u8).unwrap();
-        assert_eq!(
-            snapshot.calculate_min_passing_weight(&threshold),
-            Uint256::from(667u32)
-        );
+        assert_eq!(snapshot.min_pass_weight, Uint256::from(667u32));
     }
 
     #[test]
@@ -157,27 +163,16 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
+            Threshold::try_from_ratio(1u8, 1u8).unwrap(),
             default_participants(),
         );
 
-        let threshold = Threshold::try_from_ratio(1u8, 1u8).unwrap();
-        assert_eq!(
-            snapshot.calculate_min_passing_weight(&threshold),
-            snapshot.total_weight
-        );
+        assert_eq!(snapshot.min_pass_weight, snapshot.total_weight);
     }
 
     #[test]
     fn test_min_passing_weight_ceil() {
         let mut rng = rand::thread_rng();
-
-        let mut snapshot = Snapshot::new(
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
-            NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_participants(),
-        );
-
-        let threshold = Threshold::try_from_ratio(2u8, 3u8).unwrap();
 
         // (total_weight, min_passing_weight)
         let test_data = [
@@ -192,13 +187,22 @@ mod tests {
         test_data
             .into_iter()
             .for_each(|(total_weight, expected_passing_weight)| {
-                snapshot.total_weight = total_weight;
+                let participants = mock_participants(vec![(
+                    "participant",
+                    NonZeroUint256::try_from(total_weight).unwrap(),
+                )]);
+
+                let snapshot = Snapshot::new(
+                    NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+                    NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
+                    Threshold::try_from_ratio(2u8, 3u8).unwrap(),
+                    participants,
+                );
+
                 assert_eq!(
-                    snapshot.calculate_min_passing_weight(&threshold),
-                    expected_passing_weight,
-                    "multiplier: {}, expected_ceil: {}",
-                    total_weight,
-                    expected_passing_weight
+                    snapshot.min_pass_weight, expected_passing_weight,
+                    "total_weight: {}, expected_passing_weight: {}",
+                    total_weight, expected_passing_weight
                 );
             });
     }
@@ -207,19 +211,18 @@ mod tests {
     fn test_min_passing_weight_no_overflow() {
         let mut rng = rand::thread_rng();
 
-        let mut snapshot = Snapshot::new(
+        let participants = mock_participants(vec![(
+            "participant",
+            NonZeroUint256::try_from(Uint256::MAX).unwrap(),
+        )]);
+
+        let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            default_participants(),
+            Threshold::try_from_ratio(Uint64::MAX, Uint64::MAX).unwrap(),
+            participants,
         );
 
-        let threshold = Threshold::try_from_ratio(Uint64::MAX, Uint64::MAX).unwrap();
-
-        snapshot.total_weight = Uint256::MAX;
-
-        assert_eq!(
-            snapshot.calculate_min_passing_weight(&threshold),
-            snapshot.total_weight
-        );
+        assert_eq!(snapshot.min_pass_weight, snapshot.total_weight);
     }
 }
