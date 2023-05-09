@@ -19,8 +19,8 @@ pub struct Participant {
 pub struct Snapshot {
     pub timestamp: NonZeroTimestamp,
     pub height: NonZeroUint64,
-    pub total_weight: Uint256,
-    pub min_pass_weight: Uint256,
+    pub total_weight: NonZeroUint256,
+    pub min_pass_weight: NonZeroUint256,
     pub participants: HashMap<String, Participant>,
 }
 
@@ -44,7 +44,9 @@ impl Snapshot {
             })
             .collect();
 
-        let min_pass_weight = total_weight.mul_ceil(threshold);
+        // Unwrap won't panic here since it's impossible to have zero values when using NonEmptyVec of Participants with NonZero weight
+        let min_pass_weight = NonZeroUint256::try_from(total_weight.mul_ceil(threshold)).unwrap();
+        let total_weight = NonZeroUint256::try_from(total_weight).unwrap();
 
         Self {
             timestamp,
@@ -120,8 +122,14 @@ mod tests {
 
         assert_eq!(result.timestamp, timestamp);
         assert_eq!(result.height, height);
-        assert_eq!(result.total_weight, Uint256::from(2000u16));
-        assert_eq!(result.min_pass_weight, Uint256::from(1334u16));
+        assert_eq!(
+            result.total_weight,
+            NonZeroUint256::try_from(Uint256::from(2000u16)).unwrap()
+        );
+        assert_eq!(
+            result.min_pass_weight,
+            NonZeroUint256::try_from(Uint256::from(1334u16)).unwrap()
+        );
         assert_eq!(result.participants.len(), 10);
     }
 
@@ -153,7 +161,10 @@ mod tests {
             default_participants(),
         );
 
-        assert_eq!(snapshot.min_pass_weight, Uint256::from(667u32));
+        assert_eq!(
+            snapshot.min_pass_weight,
+            NonZeroUint256::try_from(Uint256::from(667u32)).unwrap()
+        );
     }
 
     #[test]
@@ -200,9 +211,11 @@ mod tests {
                 );
 
                 assert_eq!(
-                    snapshot.min_pass_weight, expected_passing_weight,
+                    snapshot.min_pass_weight,
+                    NonZeroUint256::try_from(expected_passing_weight).unwrap(),
                     "total_weight: {}, expected_passing_weight: {}",
-                    total_weight, expected_passing_weight
+                    total_weight,
+                    expected_passing_weight
                 );
             });
     }
