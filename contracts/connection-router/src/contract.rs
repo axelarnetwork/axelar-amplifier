@@ -1,126 +1,470 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
-    Uint128,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
+    StdResult,
 };
-// use cw2::set_contract_version;
+use cw_storage_plus::Deque;
 
 use crate::error::ContractError;
+use crate::events::{DomainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-
-/*
-// version info for migration info
-const CONTRACT_NAME: &str = "crates.io:service-registry";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-*/
+use crate::state::{domains, Config, CONFIG, MESSAGES};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    unimplemented!();
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            admin: admin.clone(),
+        },
+    )?;
+    Ok(Response::new().add_event(RouterInstantiated { admin }.into()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RegisterDomain { domain } => execute::register_domain(deps, domain),
-        ExecuteMsg::RegisterIncomingGateway {
+        ExecuteMsg::RegisterDomain {
             domain,
-            contract_addr,
-        } => execute::register_incoming_gateway(deps, domain, contract_addr),
-        ExecuteMsg::RegisterOutgoingGateway {
+            incoming_gateway_address,
+            outgoing_gateway_address,
+        } => {
+            execute::require_admin(&deps, info)?;
+            let incoming_gateway_address = deps.api.addr_validate(&incoming_gateway_address)?;
+            let outgoing_gateway_address = deps.api.addr_validate(&outgoing_gateway_address)?;
+            execute::register_domain(
+                deps,
+                domain.parse()?,
+                incoming_gateway_address,
+                outgoing_gateway_address,
+            )
+        }
+        ExecuteMsg::UpgradeIncomingGateway {
             domain,
-            contract_addr,
-            queue_id,
-        } => execute::register_outgoing_gateway(deps, domain, contract_addr, queue_id),
-        ExecuteMsg::DeregisterGateway {
+            contract_address,
+        } => {
+            execute::require_admin(&deps, info)?;
+            let contract_address = deps.api.addr_validate(&contract_address)?;
+            execute::upgrade_incoming_gateway(deps, domain.parse()?, contract_address)
+        }
+        ExecuteMsg::UpgradeOutgoingGateway {
             domain,
-            contract_addr,
-        } => execute::deregister_gateway(deps, domain, contract_addr),
+            contract_address,
+        } => {
+            execute::require_admin(&deps, info)?;
+            let contract_address = deps.api.addr_validate(&contract_address)?;
+            execute::upgrade_outgoing_gateway(deps, domain.parse()?, contract_address)
+        }
+        ExecuteMsg::FreezeIncomingGateway { domain } => {
+            execute::require_admin(&deps, info)?;
+            execute::freeze_incoming_gateway(deps, domain.parse()?)
+        }
+        ExecuteMsg::FreezeOutgoingGateway { domain } => {
+            execute::require_admin(&deps, info)?;
+            execute::freeze_outgoing_gateway(deps, domain.parse()?)
+        }
+        ExecuteMsg::FreezeDomain { domain } => {
+            execute::require_admin(&deps, info)?;
+            execute::freeze_domain(deps, domain.parse()?)
+        }
+        ExecuteMsg::UnfreezeDomain { domain } => {
+            execute::require_admin(&deps, info)?;
+            execute::unfreeze_domain(deps, domain.parse()?)
+        }
+        ExecuteMsg::UnfreezeIncomingGateway { domain } => {
+            execute::require_admin(&deps, info)?;
+            execute::unfreeze_incoming_gateway(deps, domain.parse()?)
+        }
+        ExecuteMsg::UnfreezeOutgoingGateway { domain } => {
+            execute::require_admin(&deps, info)?;
+            execute::unfreeze_outgoing_gateway(deps, domain.parse()?)
+        }
         ExecuteMsg::RouteMessage {
             id,
             destination_domain,
-            destination_addr,
-            source_addr,
+            destination_address,
+            source_address,
             payload_hash,
         } => execute::route_message(
             deps,
+            info,
             id,
-            destination_domain,
-            destination_addr,
-            source_addr,
+            destination_domain.parse()?,
+            destination_address,
+            source_address,
             payload_hash,
         ),
-        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, count),
+        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, info, count),
     }
 }
 
 pub mod execute {
 
+    use cosmwasm_std::Addr;
+
+    use crate::{
+        events::{
+            DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
+            GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
+        },
+        state::get_message_queue_id,
+        types::{Domain, DomainName, Gateway, Message},
+    };
+
     use super::*;
 
-    pub fn register_domain(_deps: DepsMut, _domain: String) -> Result<Response, ContractError> {
-        todo!()
+    pub fn register_domain(
+        deps: DepsMut,
+        name: DomainName,
+        incoming_gateway: Addr,
+        outgoing_gateway: Addr,
+    ) -> Result<Response, ContractError> {
+        if find_domain_for_incoming_gateway(&deps, &incoming_gateway)?.is_some() {
+            return Err(ContractError::GatewayAlreadyRegistered {});
+        }
+        if find_domain_for_outgoing_gateway(&deps, &outgoing_gateway)?.is_some() {
+            return Err(ContractError::GatewayAlreadyRegistered {});
+        }
+        domains().update(deps.storage, name.clone(), |domain| match domain {
+            Some(_) => Err(ContractError::DomainAlreadyExists {}),
+            None => Ok(Domain {
+                name: name.clone(),
+                incoming_gateway: Gateway {
+                    address: incoming_gateway.clone(),
+                    is_frozen: false,
+                },
+                outgoing_gateway: Gateway {
+                    address: outgoing_gateway.clone(),
+                    is_frozen: false,
+                },
+                is_frozen: false,
+            }),
+        })?;
+        Ok(Response::new().add_event(
+            DomainRegistered {
+                name,
+                incoming_gateway,
+                outgoing_gateway,
+            }
+            .into(),
+        ))
     }
 
-    pub fn register_incoming_gateway(
-        _deps: DepsMut,
-        _domain: String,
-        _contract_addr: Addr,
-    ) -> Result<Response, ContractError> {
-        todo!()
+    pub fn find_domain_for_incoming_gateway(
+        deps: &DepsMut,
+        contract_address: &Addr,
+    ) -> StdResult<Option<Domain>> {
+        domains()
+            .idx
+            .incoming_gateway
+            .find_domain(deps, contract_address)
     }
 
-    pub fn register_outgoing_gateway(
-        _deps: DepsMut,
-        _domain: String,
-        _contract_addr: Addr,
-        _queue_id: Option<Uint128>,
-    ) -> Result<Response, ContractError> {
-        todo!()
+    pub fn find_domain_for_outgoing_gateway(
+        deps: &DepsMut,
+        contract_address: &Addr,
+    ) -> StdResult<Option<Domain>> {
+        domains()
+            .idx
+            .outgoing_gateway
+            .find_domain(deps, contract_address)
     }
 
-    pub fn deregister_gateway(
-        _deps: DepsMut,
-        _domain: String,
-        _contract_addr: Addr,
+    pub fn upgrade_incoming_gateway(
+        deps: DepsMut,
+        domain: DomainName,
+        contract_address: Addr,
     ) -> Result<Response, ContractError> {
-        todo!()
+        if find_domain_for_incoming_gateway(&deps, &contract_address)?.is_some() {
+            return Err(ContractError::GatewayAlreadyRegistered {});
+        }
+        domains().update(deps.storage, domain.clone(), |domain| match domain {
+            None => Err(ContractError::DomainNotFound {}),
+            Some(mut domain) => {
+                domain.incoming_gateway.address = contract_address.clone();
+                Ok(domain)
+            }
+        })?;
+        Ok(Response::new().add_event(
+            GatewayUpgraded {
+                gateway: GatewayInfo {
+                    domain,
+                    gateway_address: contract_address,
+                    direction: GatewayDirection::Incoming,
+                },
+            }
+            .into(),
+        ))
+    }
+
+    pub fn upgrade_outgoing_gateway(
+        deps: DepsMut,
+        domain: DomainName,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        if find_domain_for_outgoing_gateway(&deps, &contract_address)?.is_some() {
+            return Err(ContractError::GatewayAlreadyRegistered {});
+        }
+        domains().update(deps.storage, domain.clone(), |domain| match domain {
+            None => Err(ContractError::DomainNotFound {}),
+            Some(mut domain) => {
+                domain.outgoing_gateway.address = contract_address.clone();
+                Ok(domain)
+            }
+        })?;
+        Ok(Response::new().add_event(
+            GatewayUpgraded {
+                gateway: GatewayInfo {
+                    domain,
+                    gateway_address: contract_address,
+                    direction: GatewayDirection::Outgoing,
+                },
+            }
+            .into(),
+        ))
+    }
+
+    fn set_domain_frozen_status(
+        deps: DepsMut,
+        domain: &DomainName,
+        is_frozen: bool,
+    ) -> Result<Domain, ContractError> {
+        domains().update(deps.storage, domain.clone(), |domain| match domain {
+            None => Err(ContractError::DomainNotFound {}),
+            Some(mut domain) => {
+                domain.is_frozen = is_frozen;
+                Ok(domain)
+            }
+        })
+    }
+
+    pub fn freeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
+        set_domain_frozen_status(deps, &domain, true)?;
+        Ok(Response::new().add_event(DomainFrozen { name: domain }.into()))
+    }
+
+    pub fn unfreeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
+        set_domain_frozen_status(deps, &domain, false)?;
+        Ok(Response::new().add_event(DomainUnfrozen { name: domain }.into()))
+    }
+
+    fn set_gateway_frozen_status(
+        deps: DepsMut,
+        domain_name: &DomainName,
+        get_gateway: fn(&mut Domain) -> &mut Gateway,
+        is_frozen: bool,
+    ) -> Result<Domain, ContractError> {
+        domains().update(deps.storage, domain_name.clone(), |domain| match domain {
+            None => Err(ContractError::DomainNotFound {}),
+            Some(mut domain) => {
+                get_gateway(&mut domain).is_frozen = is_frozen;
+                Ok(domain)
+            }
+        })
+    }
+
+    fn freeze_gateway(
+        deps: DepsMut,
+        domain_name: &DomainName,
+        get_gateway: fn(&mut Domain) -> &mut Gateway,
+    ) -> Result<Domain, ContractError> {
+        set_gateway_frozen_status(deps, domain_name, get_gateway, true)
+    }
+
+    fn unfreeze_gateway(
+        deps: DepsMut,
+        domain_name: &DomainName,
+        get_gateway: fn(&mut Domain) -> &mut Gateway,
+    ) -> Result<Domain, ContractError> {
+        set_gateway_frozen_status(deps, domain_name, get_gateway, false)
+    }
+
+    pub fn freeze_incoming_gateway(
+        deps: DepsMut,
+        domain_name: DomainName,
+    ) -> Result<Response, ContractError> {
+        let domain = freeze_gateway(deps, &domain_name, |domain: &mut Domain| {
+            &mut domain.incoming_gateway
+        })?;
+        Ok(Response::new().add_event(
+            GatewayFrozen {
+                gateway: GatewayInfo {
+                    domain: domain_name,
+                    gateway_address: domain.incoming_gateway.address,
+                    direction: GatewayDirection::Incoming,
+                },
+            }
+            .into(),
+        ))
+    }
+
+    pub fn freeze_outgoing_gateway(
+        deps: DepsMut,
+        domain_name: DomainName,
+    ) -> Result<Response, ContractError> {
+        let domain = freeze_gateway(deps, &domain_name, |domain: &mut Domain| {
+            &mut domain.outgoing_gateway
+        })?;
+        Ok(Response::new().add_event(
+            GatewayFrozen {
+                gateway: GatewayInfo {
+                    domain: domain_name,
+                    gateway_address: domain.outgoing_gateway.address,
+                    direction: GatewayDirection::Outgoing,
+                },
+            }
+            .into(),
+        ))
+    }
+
+    pub fn unfreeze_incoming_gateway(
+        deps: DepsMut,
+        domain_name: DomainName,
+    ) -> Result<Response, ContractError> {
+        let domain = unfreeze_gateway(deps, &domain_name, |domain: &mut Domain| {
+            &mut domain.incoming_gateway
+        })?;
+        Ok(Response::new().add_event(
+            GatewayUnfrozen {
+                gateway: GatewayInfo {
+                    domain: domain_name,
+                    gateway_address: domain.incoming_gateway.address,
+                    direction: GatewayDirection::Incoming,
+                },
+            }
+            .into(),
+        ))
+    }
+
+    pub fn unfreeze_outgoing_gateway(
+        deps: DepsMut,
+        domain_name: DomainName,
+    ) -> Result<Response, ContractError> {
+        let domain = unfreeze_gateway(deps, &domain_name, |domain: &mut Domain| {
+            &mut domain.outgoing_gateway
+        })?;
+        Ok(Response::new().add_event(
+            GatewayUnfrozen {
+                gateway: GatewayInfo {
+                    domain: domain_name,
+                    gateway_address: domain.outgoing_gateway.address,
+                    direction: GatewayDirection::Outgoing,
+                },
+            }
+            .into(),
+        ))
     }
 
     pub fn route_message(
-        _deps: DepsMut,
-        _id: String,
-        _destination_domain: String,
-        _destination_addr: Addr,
-        _source_addr: Addr,
-        _payload_hash: HexBinary,
+        deps: DepsMut,
+        info: MessageInfo,
+        id: String,
+        destination_domain: DomainName,
+        destination_address: String,
+        source_address: String,
+        payload_hash: HexBinary,
     ) -> Result<Response, ContractError> {
-        todo!()
+        if source_address.is_empty() || destination_address.is_empty() {
+            return Err(ContractError::InvalidAddress {});
+        }
+        let source_domain = find_domain_for_incoming_gateway(&deps, &info.sender)?
+            .ok_or(ContractError::GatewayNotRegistered {})?;
+        if source_domain.is_frozen {
+            return Err(ContractError::DomainFrozen {
+                domain: source_domain.name,
+            });
+        }
+        if source_domain.incoming_gateway.is_frozen {
+            return Err(ContractError::GatewayFrozen {});
+        }
+
+        let info = domains()
+            .may_load(deps.storage, destination_domain.clone())?
+            .ok_or(ContractError::DomainNotFound {})?;
+        if info.is_frozen {
+            return Err(ContractError::DomainFrozen {
+                domain: destination_domain,
+            });
+        }
+        let msg = Message::new(
+            id.parse()?,
+            destination_address,
+            destination_domain.clone(),
+            source_domain.name,
+            source_address,
+            payload_hash,
+        );
+
+        if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
+            return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
+        }
+        MESSAGES.save(deps.storage, msg.id(), &())?;
+
+        let qid = get_message_queue_id(&destination_domain);
+        let q: Deque<Message> = Deque::new(&qid);
+        q.push_back(deps.storage, &msg)?;
+
+        Ok(Response::new().add_event(MessageRouted { msg }.into()))
     }
 
-    pub fn consume_messages(_deps: DepsMut, _count: u32) -> Result<Response, ContractError> {
-        todo!()
+    pub fn consume_messages(
+        deps: DepsMut,
+        info: MessageInfo,
+        count: Option<u32>,
+    ) -> Result<Response, ContractError> {
+        let domain = find_domain_for_outgoing_gateway(&deps, &info.sender)?
+            .ok_or(ContractError::GatewayNotRegistered {})?;
+        if domain.is_frozen {
+            return Err(ContractError::DomainFrozen {
+                domain: domain.name,
+            });
+        }
+        if domain.outgoing_gateway.is_frozen {
+            return Err(ContractError::GatewayFrozen {});
+        }
+
+        let qid = get_message_queue_id(&domain.name);
+        let q: Deque<Message> = Deque::new(&qid);
+        let mut messages = vec![];
+
+        let to_consume = count.unwrap_or(u32::MAX);
+        for _ in 0..to_consume {
+            match q.pop_front(deps.storage)? {
+                Some(m) => messages.push(m),
+                None => break,
+            }
+        }
+        Ok(Response::new()
+            .add_event(Event::from(MessagesConsumed {
+                domain: domain.name,
+                msgs: &messages,
+            }))
+            .set_data(to_binary(&messages)?))
+    }
+
+    pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.admin != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+        Ok(())
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    todo!();
+    todo!()
 }
 
-pub mod query {
-    //use super::*;
-}
-
-#[cfg(test)]
-mod tests {}
+pub mod query {}
