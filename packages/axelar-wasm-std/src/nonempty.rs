@@ -23,7 +23,7 @@ impl<T> NonEmptyVec<T> {
 }
 
 fn empty_error() -> StdError {
-    StdError::generic_err("Cannot set empty vector to non-empty type")
+    StdError::generic_err("cannot set empty vector to non-empty type")
 }
 
 #[cfg(test)]

@@ -86,7 +86,7 @@ impl NonZeroTimestamp {
 }
 
 fn zero_error() -> StdError {
-    StdError::generic_err("Cannot set zero to non-zero type")
+    StdError::generic_err("cannot set zero to non-zero type")
 }
 
 #[cfg(test)]
