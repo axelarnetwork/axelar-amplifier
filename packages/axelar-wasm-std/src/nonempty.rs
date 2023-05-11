@@ -22,6 +22,12 @@ impl<T> NonEmptyVec<T> {
     }
 }
 
+impl<T> From<NonEmptyVec<T>> for Vec<T> {
+    fn from(value: NonEmptyVec<T>) -> Self {
+        value.0
+    }
+}
+
 fn empty_error() -> StdError {
     StdError::generic_err("cannot set empty vector to non-empty type")
 }

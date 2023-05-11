@@ -33,13 +33,11 @@ impl Snapshot {
     ) -> Self {
         let mut total_weight = Uint256::zero();
 
+        let participants: Vec<Participant> = participants.into();
         let participants: HashMap<String, Participant> = participants
-            .as_vec()
-            .iter()
-            .cloned()
+            .into_iter()
             .map(|participant| {
                 total_weight += participant.weight.as_uint256();
-
                 (participant.address.to_string(), participant)
             })
             .collect();
