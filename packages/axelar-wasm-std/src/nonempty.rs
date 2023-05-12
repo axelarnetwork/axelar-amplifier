@@ -1,15 +1,21 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum NonEmptyError {
+    #[error("cannot set empty value to non-empty type")]
+    Empty,
+}
 
 #[cw_serde]
 pub struct NonEmptyVec<T>(Vec<T>);
 
 impl<T> TryFrom<Vec<T>> for NonEmptyVec<T> {
-    type Error = StdError;
+    type Error = NonEmptyError;
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         if value.is_empty() {
-            Err(empty_error())
+            Err(NonEmptyError::Empty)
         } else {
             Ok(NonEmptyVec(value))
         }
@@ -28,10 +34,6 @@ impl<T> From<NonEmptyVec<T>> for Vec<T> {
     }
 }
 
-fn empty_error() -> StdError {
-    StdError::generic_err("cannot set empty vector to non-empty type")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -45,7 +47,7 @@ mod tests {
     fn test_empty_non_empty_vec() {
         assert_eq!(
             NonEmptyVec::<u8>::try_from(vec![]).unwrap_err(),
-            empty_error()
+            NonEmptyError::Empty
         )
     }
 }

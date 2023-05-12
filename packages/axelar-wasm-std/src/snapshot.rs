@@ -5,7 +5,7 @@ use cosmwasm_std::{Addr, Uint256};
 
 use crate::{
     nonempty::NonEmptyVec,
-    nonzero::{NonZeroTimestamp, NonZeroUint256, NonZeroUint64},
+    num::{NonZeroTimestamp, NonZeroUint256, NonZeroUint64},
     threshold::Threshold,
 };
 
