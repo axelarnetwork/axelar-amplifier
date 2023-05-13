@@ -18,6 +18,7 @@ mod event_processor;
 mod event_sub;
 mod evm;
 mod handlers;
+mod queue;
 pub mod report;
 pub mod state;
 mod tm_client;

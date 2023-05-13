@@ -6,21 +6,24 @@ version = "0.1.0"
 
 [dependencies]
 async-trait = "0.1.59"
-clap = {version = "4.0.26", features = ["derive", "cargo"]}
+clap = {version = "4.2.7", features = ["derive", "cargo"]}
 config = "0.13.2"
 cosmos-sdk-proto = "0.16.0"
-cosmrs = "0.11.0"
+cosmrs = {version = "0.14.0", features = ["cosmwasm"]}
+cosmwasm-std = {version = "1.2.1", features = ["stargate"]}
 deref-derive = "0.1.0"
+ecdsa = {version = "0.16.6"}
 enum-display-derive = "0.1.1"
 error-stack = {version = "0.2.4", features = ["eyre"]}
 futures = "0.3.25"
 jsonrpsee = {version = "0.16.2", features = ["http-client"]}
+k256 = {version = "0.13.1", features = ["ecdsa"]}
 mockall = "0.11.3"
 serde = {version = "1.0.147", features = ["derive"]}
 serde_json = "1.0.89"
 subtle-encoding = "0.5.1"
-tendermint = "0.27.0"
-tendermint-rpc = {version = "0.27.0", features = ["http-client"]}
+tendermint = "0.32.0"
+tendermint-rpc = {version = "0.32.0", features = ["http-client"]}
 thiserror = "1.0.37"
 tokio = "1.22.0"
 tokio-stream = {version = "0.1.11", features = ["sync"]}
@@ -32,3 +35,7 @@ tracing-subscriber = {version = "0.3.16", features = ["json", "valuable"]}
 url = "2.3.1"
 valuable = {version = "0.1.0", features = ["derive"]}
 web3 = {version = "0.18.0", default-features = false}
+
+[dev-dependencies]
+rand = "0.8.5"
+random-string = "1.0.0"

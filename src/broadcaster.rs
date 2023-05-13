@@ -8,7 +8,6 @@ use cosmos_sdk_proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, TxRaw,
 };
 use cosmos_sdk_proto::traits::MessageExt;
-use cosmrs::crypto::secp256k1::SigningKey;
 use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
 use cosmrs::Coin;
 use error_stack::{FutureExt, IntoReport, IntoReportCompat, Report, Result, ResultExt};
@@ -23,13 +22,15 @@ use valuable::Valuable;
 use crate::broadcaster::clients::BroadcastClient;
 use crate::broadcaster::dec_coin::DecCoin;
 use crate::broadcaster::fee::zero_fee;
+use crate::broadcaster::key::ECDSASigningKey;
 use crate::broadcaster::BroadcasterError::ExecutionError;
 use crate::report::LoggableError;
 
 pub mod accounts;
-mod clients;
+pub mod clients;
 mod dec_coin;
 mod fee;
+pub mod key;
 
 #[derive(Error, Debug)]
 pub enum BroadcasterError {
@@ -70,7 +71,7 @@ pub struct Broadcaster<T: BroadcastClient> {
     client: T,
     acc_number: u64,
     acc_sequence: u64,
-    priv_key: SigningKey,
+    priv_key: ECDSASigningKey,
     config: Config,
 }
 
@@ -78,12 +79,12 @@ pub struct BroadcasterBuilder<T: BroadcastClient> {
     client: T,
     acc_number: u64,
     acc_sequence: u64,
-    priv_key: SigningKey,
+    priv_key: ECDSASigningKey,
     config: Config,
 }
 
 impl<T: BroadcastClient> BroadcasterBuilder<T> {
-    pub fn new(client: T, priv_key: SigningKey, config: Config) -> Self {
+    pub fn new(client: T, priv_key: ECDSASigningKey, config: Config) -> Self {
         Self {
             client,
             priv_key,
@@ -132,7 +133,7 @@ impl<T: BroadcastClient> Broadcaster<T> {
         Ok(response)
     }
 
-    async fn estimate_fee<M>(&mut self, msgs: M) -> Result<Fee, BroadcasterError>
+    pub async fn estimate_fee<M>(&mut self, msgs: M) -> Result<Fee, BroadcasterError>
     where
         M: IntoIterator<Item = cosmrs::Any>,
     {
@@ -202,7 +203,7 @@ impl<T: BroadcastClient> Broadcaster<T> {
         let auth_info = SignerInfo::single_direct(Some(self.priv_key.public_key()), self.acc_sequence).auth_info(fee);
 
         SignDoc::new(&body, &auth_info, &self.config.chain_id, self.acc_number)
-            .and_then(|sign_doc| sign_doc.sign(&self.priv_key))
+            .and_then(|sign_doc| sign_doc.sign(&((&self.priv_key).into())))
             .and_then(|tx| tx.to_bytes())
             .map(|tx| BroadcastTxRequest {
                 tx_bytes: tx,
@@ -281,13 +282,13 @@ mod tests {
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
     use cosmos_sdk_proto::Any;
     use cosmrs::bank::MsgSend;
-    use cosmrs::crypto::secp256k1::SigningKey;
     use cosmrs::tx::Msg;
     use error_stack::IntoReport;
     use tokio::test;
     use tonic::Status;
 
     use crate::broadcaster::clients::MockBroadcastClient;
+    use crate::broadcaster::key::ECDSASigningKey;
     use crate::broadcaster::{BroadcasterBuilder, BroadcasterError, Config};
     use crate::types::TMAddress;
 
@@ -298,7 +299,7 @@ mod tests {
             .expect_simulate()
             .returning(|_| Err(Status::unavailable("unavailable service")).into_report());
 
-        let mut broadcaster = BroadcasterBuilder::new(client, SigningKey::random(), Config::default()).build();
+        let mut broadcaster = BroadcasterBuilder::new(client, ECDSASigningKey::random(), Config::default()).build();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -318,7 +319,7 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcasterBuilder::new(client, SigningKey::random(), Config::default()).build();
+        let mut broadcaster = BroadcasterBuilder::new(client, ECDSASigningKey::random(), Config::default()).build();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -345,7 +346,7 @@ mod tests {
             .expect_broadcast_tx()
             .returning(|_| Err(Status::aborted("failed")).into_report());
 
-        let mut broadcaster = BroadcasterBuilder::new(client, SigningKey::random(), Config::default()).build();
+        let mut broadcaster = BroadcasterBuilder::new(client, ECDSASigningKey::random(), Config::default()).build();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -375,7 +376,7 @@ mod tests {
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
             .returning(|_| Err(Status::deadline_exceeded("time out")).into_report());
 
-        let mut broadcaster = BroadcasterBuilder::new(client, SigningKey::random(), Config::default()).build();
+        let mut broadcaster = BroadcasterBuilder::new(client, ECDSASigningKey::random(), Config::default()).build();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -410,7 +411,7 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcasterBuilder::new(client, SigningKey::random(), Config::default()).build();
+        let mut broadcaster = BroadcasterBuilder::new(client, ECDSASigningKey::random(), Config::default()).build();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -447,7 +448,7 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcasterBuilder::new(client, SigningKey::random(), Config::default()).build();
+        let mut broadcaster = BroadcasterBuilder::new(client, ECDSASigningKey::random(), Config::default()).build();
         let msgs = vec![dummy_msg()];
 
         assert_eq!(broadcaster.acc_sequence, 0);

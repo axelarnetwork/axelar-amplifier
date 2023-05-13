@@ -203,6 +203,9 @@ mod tests {
     use std::time::Duration;
 
     use futures::stream::StreamExt;
+    use rand::Rng;
+    use random_string::generate;
+    use tendermint::abci;
     use tokio::test;
 
     use crate::event_sub::{Event, EventSubClient, EventSubError};
@@ -301,8 +304,32 @@ mod tests {
         let block_count = 10;
         let block: tendermint::Block = serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
         let block_height = block.header.height;
-        let block_results: tm_client::BlockResultsResponse =
-            serde_json::from_str(include_str!("../tests/fixtures/block_results.json")).unwrap();
+        let mut rng = rand::thread_rng();
+        let block_results = tm_client::BlockResultsResponse {
+            height: block_height,
+            begin_block_events: vec![0; rng.gen_range(0..20)]
+                .into_iter()
+                .map(|_| Some(random_event()))
+                .collect(),
+            end_block_events: vec![0; rng.gen_range(0..20)]
+                .into_iter()
+                .map(|_| Some(random_event()))
+                .collect(),
+            consensus_param_updates: None,
+            txs_results: Some(
+                vec![0; rng.gen_range(0..20)]
+                    .into_iter()
+                    .map(|_| abci::response::DeliverTx {
+                        events: vec![0; rng.gen_range(0..20)]
+                            .into_iter()
+                            .map(|_| random_event())
+                            .collect(),
+                        ..Default::default()
+                    })
+                    .collect(),
+            ),
+            validator_updates: vec![],
+        };
         let begin_block_events_count = block_results.begin_block_events.iter().flatten().count();
         let tx_events_count: usize = block_results
             .txs_results
@@ -357,5 +384,18 @@ mod tests {
 
         assert!(driver.close().is_ok());
         assert!(handle.await.is_ok());
+    }
+
+    fn random_event() -> abci::Event {
+        let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+        abci::Event::new(
+            generate(10, charset),
+            vec![abci::EventAttribute {
+                key: generate(10, charset),
+                value: generate(10, charset),
+                index: false,
+            }],
+        )
     }
 }
