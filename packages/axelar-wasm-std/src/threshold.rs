@@ -44,7 +44,7 @@ impl Threshold {
 }
 
 fn out_of_bounds_error() -> StdError {
-    StdError::generic_err("cannot set value out of (0, 1] bounds to threshold type")
+    StdError::generic_err("threshold must fall into the interval (0, 1]")
 }
 
 #[cfg(test)]
