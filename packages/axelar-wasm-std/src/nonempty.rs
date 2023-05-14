@@ -3,7 +3,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum NonEmptyError {
-    #[error("cannot set empty value to non-empty type")]
+    #[error("type cannot be empty")]
     Empty,
 }
 
