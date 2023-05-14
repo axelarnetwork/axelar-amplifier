@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum NumError {
-    #[error("cannot set zero to non-zero type")]
+    #[error("type cannot be zero")]
     Zero,
 }
 
