@@ -31,9 +31,9 @@ impl TryFrom<u64> for NonZeroUint64 {
     }
 }
 
-impl NonZeroUint64 {
-    pub fn as_uint64(&self) -> &Uint64 {
-        &self.0
+impl<'a> From<&'a NonZeroUint64> for &'a Uint64 {
+    fn from(value: &'a NonZeroUint64) -> Self {
+        &value.0
     }
 }
 
@@ -53,9 +53,9 @@ impl TryFrom<Uint256> for NonZeroUint256 {
     }
 }
 
-impl NonZeroUint256 {
-    pub fn as_uint256(&self) -> &Uint256 {
-        &self.0
+impl<'a> From<&'a NonZeroUint256> for &'a Uint256 {
+    fn from(value: &'a NonZeroUint256) -> Self {
+        &value.0
     }
 }
 
@@ -82,9 +82,11 @@ impl NonZeroTimestamp {
             Ok(NonZeroTimestamp(Timestamp::from_nanos(value)))
         }
     }
+}
 
-    pub fn as_timestamp(&self) -> &Timestamp {
-        &self.0
+impl<'a> From<&'a NonZeroTimestamp> for &'a Timestamp {
+    fn from(value: &'a NonZeroTimestamp) -> Self {
+        &value.0
     }
 }
 

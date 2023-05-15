@@ -37,7 +37,9 @@ impl Snapshot {
         let participants: HashMap<String, Participant> = participants
             .into_iter()
             .map(|participant| {
-                total_weight += participant.weight.as_uint256();
+                let weight: &Uint256 = (&participant.weight).into();
+                total_weight += weight;
+
                 (participant.address.to_string(), participant)
             })
             .collect();
@@ -58,7 +60,7 @@ impl Snapshot {
     pub fn get_participant_weight(&self, participant: &Addr) -> Option<&Uint256> {
         self.participants
             .get(participant.as_str())
-            .map(|p| p.weight.as_uint256())
+            .map(|p| (&p.weight).into())
     }
 }
 

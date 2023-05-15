@@ -22,12 +22,6 @@ impl<T> TryFrom<Vec<T>> for NonEmptyVec<T> {
     }
 }
 
-impl<T> NonEmptyVec<T> {
-    pub fn as_vec(&self) -> &Vec<T> {
-        &self.0
-    }
-}
-
 impl<T> From<NonEmptyVec<T>> for Vec<T> {
     fn from(value: NonEmptyVec<T>) -> Self {
         value.0
