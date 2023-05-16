@@ -34,15 +34,11 @@ impl Fraction<Uint64> for Threshold {
 impl TryFrom<(NonZeroUint64, NonZeroUint64)> for Threshold {
     type Error = Error;
 
-    fn try_from(value: (NonZeroUint64, NonZeroUint64)) -> Result<Self, Error> {
-        let numerator: &Uint64 = (&value.0).into();
-        let denominator: &Uint64 = (&value.1).into();
-
-        // TODO: consider implementing `PartialOrd` for `NonZeroUint64`
+    fn try_from((numerator, denominator): (NonZeroUint64, NonZeroUint64)) -> Result<Self, Error> {
         if numerator > denominator {
             Err(Error::OutOfInterval)
         } else {
-            Ok(Threshold(value.0, value.1))
+            Ok(Threshold(numerator, denominator))
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Timestamp, Uint256, Uint64};
 use thiserror::Error;
@@ -44,6 +46,12 @@ impl From<NonZeroUint64> for Uint64 {
     }
 }
 
+impl PartialOrd for NonZeroUint64 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
 // TODO: consider using macro for these types
 #[cw_serde]
 #[derive(Copy)]
@@ -64,6 +72,12 @@ impl TryFrom<Uint256> for NonZeroUint256 {
 impl<'a> From<&'a NonZeroUint256> for &'a Uint256 {
     fn from(value: &'a NonZeroUint256) -> Self {
         &value.0
+    }
+}
+
+impl PartialOrd for NonZeroUint256 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
     }
 }
 
