@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{entry_point, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{entry_point, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Binary};
 
-use crate::{error::ContractError, msg::ExecuteMsg};
+use crate::{error::ContractError, msg::ExecuteMsg, msg::QueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -10,5 +10,10 @@ pub fn execute(
     _info: MessageInfo,
     _msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    todo!()
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
     todo!()
 }
