@@ -111,7 +111,10 @@ mod tests {
 
         let timestamp = NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap();
         let height = NonZeroUint64::try_from(rng.gen::<u64>()).unwrap();
-        let threshold = Threshold::try_from_ratio(2u8, 3u8).unwrap();
+
+        let numerator: NonZeroUint64 = Uint64::from(2u8).try_into().unwrap();
+        let denominator: NonZeroUint64 = Uint64::from(3u8).try_into().unwrap();
+        let threshold: Threshold = (numerator, denominator).try_into().unwrap();
 
         let result = Snapshot::new(
             timestamp.clone(),
@@ -140,7 +143,7 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            Threshold::try_from_ratio(2u8, 3u8).unwrap(),
+            Threshold::try_from((2u64, 3u64)).unwrap(),
             default_participants(),
         );
 
@@ -157,7 +160,7 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            Threshold::try_from_ratio(1u8, 3u8).unwrap(),
+            Threshold::try_from((1u64, 3u64)).unwrap(),
             default_participants(),
         );
 
@@ -174,7 +177,7 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            Threshold::try_from_ratio(1u8, 1u8).unwrap(),
+            Threshold::try_from((1u64, 1u64)).unwrap(),
             default_participants(),
         );
 
@@ -206,7 +209,7 @@ mod tests {
                 let snapshot = Snapshot::new(
                     NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
                     NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-                    Threshold::try_from_ratio(2u8, 3u8).unwrap(),
+                    Threshold::try_from((2u64, 3u64)).unwrap(),
                     participants,
                 );
 
@@ -232,7 +235,7 @@ mod tests {
         let snapshot = Snapshot::new(
             NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
-            Threshold::try_from_ratio(Uint64::MAX, Uint64::MAX).unwrap(),
+            Threshold::try_from((Uint64::MAX, Uint64::MAX)).unwrap(),
             participants,
         );
 

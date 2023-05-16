@@ -9,13 +9,18 @@ pub enum NumError {
 }
 
 #[cw_serde]
+#[derive(Copy)]
 pub struct NonZeroUint64(Uint64);
 
 impl TryFrom<Uint64> for NonZeroUint64 {
     type Error = NumError;
 
     fn try_from(value: Uint64) -> Result<Self, Self::Error> {
-        value.u64().try_into()
+        if value.is_zero() {
+            Err(NumError::Zero)
+        } else {
+            Ok(NonZeroUint64(value))
+        }
     }
 }
 
@@ -23,11 +28,7 @@ impl TryFrom<u64> for NonZeroUint64 {
     type Error = NumError;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value == 0 {
-            Err(NumError::Zero)
-        } else {
-            Ok(NonZeroUint64(Uint64::from(value)))
-        }
+        Uint64::from(value).try_into()
     }
 }
 
@@ -37,8 +38,15 @@ impl<'a> From<&'a NonZeroUint64> for &'a Uint64 {
     }
 }
 
+impl From<NonZeroUint64> for Uint64 {
+    fn from(value: NonZeroUint64) -> Self {
+        value.0
+    }
+}
+
 // TODO: consider using macro for these types
 #[cw_serde]
+#[derive(Copy)]
 pub struct NonZeroUint256(Uint256);
 
 impl TryFrom<Uint256> for NonZeroUint256 {
