@@ -20,7 +20,7 @@ pub struct Snapshot {
     pub timestamp: NonZeroTimestamp,
     pub height: NonZeroUint64,
     pub total_weight: NonZeroUint256,
-    pub min_pass_weight: NonZeroUint256,
+    pub quorum: NonZeroUint256,
     pub participants: HashMap<String, Participant>,
 }
 
@@ -28,7 +28,7 @@ impl Snapshot {
     pub fn new(
         timestamp: NonZeroTimestamp,
         height: NonZeroUint64,
-        threshold: Threshold,
+        quorum_threshold: Threshold,
         participants: NonEmptyVec<Participant>,
     ) -> Self {
         let mut total_weight = Uint256::zero();
@@ -45,7 +45,7 @@ impl Snapshot {
             .collect();
 
         // Shouldn't panic here since it's impossible to have zero values when using NonEmptyVec of Participants with NonZero weight
-        let min_pass_weight = NonZeroUint256::try_from(total_weight.mul_ceil(threshold))
+        let quorum = NonZeroUint256::try_from(total_weight.mul_ceil(quorum_threshold))
             .expect("violated invariant: min_pass_weight is zero");
         let total_weight = NonZeroUint256::try_from(total_weight)
             .expect("violated invariant: total_weight is zero");
@@ -54,7 +54,7 @@ impl Snapshot {
             timestamp,
             height,
             total_weight,
-            min_pass_weight,
+            quorum,
             participants,
         }
     }
@@ -132,7 +132,7 @@ mod tests {
             NonZeroUint256::try_from(Uint256::from(2000u16)).unwrap()
         );
         assert_eq!(
-            result.min_pass_weight,
+            result.quorum,
             NonZeroUint256::try_from(Uint256::from(1334u16)).unwrap()
         );
         assert_eq!(result.participants.len(), 10);
@@ -156,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_min_passing_weight_one_third() {
+    fn test_quorum_one_third() {
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
@@ -167,13 +167,13 @@ mod tests {
         );
 
         assert_eq!(
-            snapshot.min_pass_weight,
+            snapshot.quorum,
             NonZeroUint256::try_from(Uint256::from(667u32)).unwrap()
         );
     }
 
     #[test]
-    fn test_min_passing_weight_total_weight() {
+    fn test_quorum_total_weight() {
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
@@ -183,14 +183,14 @@ mod tests {
             default_participants(),
         );
 
-        assert_eq!(snapshot.min_pass_weight, snapshot.total_weight);
+        assert_eq!(snapshot.quorum, snapshot.total_weight);
     }
 
     #[test]
-    fn test_min_passing_weight_ceil() {
+    fn test_quorum_ceil() {
         let mut rng = rand::thread_rng();
 
-        // (total_weight, min_passing_weight)
+        // (total_weight, quorum)
         let test_data = [
             (Uint256::from(300u16), Uint256::from(200u16)),
             (Uint256::from(299u16), Uint256::from(200u16)),
@@ -202,7 +202,7 @@ mod tests {
 
         test_data
             .into_iter()
-            .for_each(|(total_weight, expected_passing_weight)| {
+            .for_each(|(total_weight, expected_quorum)| {
                 let participants = mock_participants(vec![(
                     "participant",
                     NonZeroUint256::try_from(total_weight).unwrap(),
@@ -216,17 +216,17 @@ mod tests {
                 );
 
                 assert_eq!(
-                    snapshot.min_pass_weight,
-                    NonZeroUint256::try_from(expected_passing_weight).unwrap(),
-                    "total_weight: {}, expected_passing_weight: {}",
+                    snapshot.quorum,
+                    NonZeroUint256::try_from(expected_quorum).unwrap(),
+                    "total_weight: {}, expected_quorum: {}",
                     total_weight,
-                    expected_passing_weight
+                    expected_quorum
                 );
             });
     }
 
     #[test]
-    fn test_min_passing_weight_no_overflow() {
+    fn test_quorum_no_overflow() {
         let mut rng = rand::thread_rng();
 
         let participants = mock_participants(vec![(
@@ -241,6 +241,6 @@ mod tests {
             participants,
         );
 
-        assert_eq!(snapshot.min_pass_weight, snapshot.total_weight);
+        assert_eq!(snapshot.quorum, snapshot.total_weight);
     }
 }
