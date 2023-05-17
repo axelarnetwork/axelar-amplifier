@@ -67,7 +67,7 @@ impl Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::{from_binary, to_binary, Uint64};
+    use cosmwasm_std::{from_binary, to_binary, Timestamp, Uint64};
     use rand::Rng;
 
     fn mock_participant(address: &str, weight: NonZeroUint256) -> Participant {
@@ -109,7 +109,7 @@ mod tests {
     fn test_valid_snapshot() {
         let mut rng = rand::thread_rng();
 
-        let timestamp = NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap();
+        let timestamp: NonZeroTimestamp = Timestamp::from_nanos(rng.gen()).try_into().unwrap();
         let height = NonZeroUint64::try_from(rng.gen::<u64>()).unwrap();
 
         let numerator: NonZeroUint64 = Uint64::from(2u8).try_into().unwrap();
@@ -141,7 +141,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((2u64, 3u64)).unwrap(),
             default_participants(),
@@ -158,7 +158,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((1u64, 3u64)).unwrap(),
             default_participants(),
@@ -175,7 +175,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         let snapshot = Snapshot::new(
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((1u64, 1u64)).unwrap(),
             default_participants(),
@@ -207,7 +207,7 @@ mod tests {
                 )]);
 
                 let snapshot = Snapshot::new(
-                    NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+                    Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
                     NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
                     Threshold::try_from((2u64, 3u64)).unwrap(),
                     participants,
@@ -233,7 +233,7 @@ mod tests {
         )]);
 
         let snapshot = Snapshot::new(
-            NonZeroTimestamp::try_from_nanos(rng.gen()).unwrap(),
+            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
             NonZeroUint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((Uint64::MAX, Uint64::MAX)).unwrap(),
             participants,

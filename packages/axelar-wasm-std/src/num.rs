@@ -96,16 +96,6 @@ impl TryFrom<Timestamp> for NonZeroTimestamp {
     }
 }
 
-impl NonZeroTimestamp {
-    pub fn try_from_nanos(value: u64) -> Result<Self, NumError> {
-        if value == 0u64 {
-            Err(NumError::Zero)
-        } else {
-            Ok(NonZeroTimestamp(Timestamp::from_nanos(value)))
-        }
-    }
-}
-
 impl<'a> From<&'a NonZeroTimestamp> for &'a Timestamp {
     fn from(value: &'a NonZeroTimestamp) -> Self {
         &value.0
@@ -134,17 +124,12 @@ mod tests {
     #[test]
     fn test_non_zero_timestamp() {
         assert!(NonZeroTimestamp::try_from(Timestamp::from_nanos(1u64)).is_ok());
-        assert!(NonZeroTimestamp::try_from_nanos(1u64).is_ok());
     }
 
     #[test]
     fn test_zero_non_zero_timestamp() {
         assert_eq!(
             NonZeroTimestamp::try_from(Timestamp::from_nanos(0u64)).unwrap_err(),
-            NumError::Zero
-        );
-        assert_eq!(
-            NonZeroTimestamp::try_from_nanos(0u64).unwrap_err(),
             NumError::Zero
         );
     }
