@@ -44,9 +44,11 @@ impl Snapshot {
             })
             .collect();
 
-        // Unwrap won't panic here since it's impossible to have zero values when using NonEmptyVec of Participants with NonZero weight
-        let min_pass_weight = NonZeroUint256::try_from(total_weight.mul_ceil(threshold)).unwrap();
-        let total_weight = NonZeroUint256::try_from(total_weight).unwrap();
+        // Shouldn't panic here since it's impossible to have zero values when using NonEmptyVec of Participants with NonZero weight
+        let min_pass_weight = NonZeroUint256::try_from(total_weight.mul_ceil(threshold))
+            .expect("violated invariant: min_pass_weight is zero");
+        let total_weight = NonZeroUint256::try_from(total_weight)
+            .expect("violated invariant: total_weight is zero");
 
         Self {
             timestamp,
