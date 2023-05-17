@@ -1,11 +1,11 @@
-mod nonempty;
-mod num;
-mod snapshot;
-mod threshold;
+pub mod nonempty;
+pub mod num;
+pub mod snapshot;
+pub mod threshold;
 
 pub use crate::{
-    nonempty::{NonEmptyError, NonEmptyVec},
-    num::{NonZeroTimestamp, NonZeroUint256, NonZeroUint64, NumError},
+    nonempty::NonEmptyVec,
+    num::{NonZeroTimestamp, NonZeroUint256, NonZeroUint64},
     snapshot::{Participant, Snapshot},
     threshold::Threshold,
 };

@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum NonEmptyError {
+pub enum Error {
     #[error("type cannot be empty")]
     Empty,
 }
@@ -11,11 +11,11 @@ pub enum NonEmptyError {
 pub struct NonEmptyVec<T>(Vec<T>);
 
 impl<T> TryFrom<Vec<T>> for NonEmptyVec<T> {
-    type Error = NonEmptyError;
+    type Error = Error;
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         if value.is_empty() {
-            Err(NonEmptyError::Empty)
+            Err(Error::Empty)
         } else {
             Ok(NonEmptyVec(value))
         }
@@ -41,7 +41,7 @@ mod tests {
     fn test_empty_non_empty_vec() {
         assert_eq!(
             NonEmptyVec::<u8>::try_from(vec![]).unwrap_err(),
-            NonEmptyError::Empty
+            Error::Empty
         )
     }
 }

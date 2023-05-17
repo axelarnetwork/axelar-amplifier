@@ -5,7 +5,7 @@ use cosmwasm_std::{Timestamp, Uint256, Uint64};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum NumError {
+pub enum Error {
     #[error("type cannot be zero")]
     Zero,
 }
@@ -15,11 +15,11 @@ pub enum NumError {
 pub struct NonZeroUint64(Uint64);
 
 impl TryFrom<Uint64> for NonZeroUint64 {
-    type Error = NumError;
+    type Error = Error;
 
     fn try_from(value: Uint64) -> Result<Self, Self::Error> {
         if value.is_zero() {
-            Err(NumError::Zero)
+            Err(Error::Zero)
         } else {
             Ok(NonZeroUint64(value))
         }
@@ -27,7 +27,7 @@ impl TryFrom<Uint64> for NonZeroUint64 {
 }
 
 impl TryFrom<u64> for NonZeroUint64 {
-    type Error = NumError;
+    type Error = Error;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         Uint64::from(value).try_into()
@@ -58,11 +58,11 @@ impl PartialOrd for NonZeroUint64 {
 pub struct NonZeroUint256(Uint256);
 
 impl TryFrom<Uint256> for NonZeroUint256 {
-    type Error = NumError;
+    type Error = Error;
 
     fn try_from(value: Uint256) -> Result<Self, Self::Error> {
         if value == Uint256::zero() {
-            Err(NumError::Zero)
+            Err(Error::Zero)
         } else {
             Ok(NonZeroUint256(value))
         }
@@ -85,11 +85,11 @@ impl PartialOrd for NonZeroUint256 {
 pub struct NonZeroTimestamp(Timestamp);
 
 impl TryFrom<Timestamp> for NonZeroTimestamp {
-    type Error = NumError;
+    type Error = Error;
 
     fn try_from(value: Timestamp) -> Result<Self, Self::Error> {
         if value.nanos() == 0u64 {
-            Err(NumError::Zero)
+            Err(Error::Zero)
         } else {
             Ok(NonZeroTimestamp(value))
         }
@@ -116,9 +116,9 @@ mod tests {
     fn test_zero_non_zero_uint64() {
         assert_eq!(
             NonZeroUint64::try_from(Uint64::zero()).unwrap_err(),
-            NumError::Zero
+            Error::Zero
         );
-        assert_eq!(NonZeroUint64::try_from(0u64).unwrap_err(), NumError::Zero);
+        assert_eq!(NonZeroUint64::try_from(0u64).unwrap_err(), Error::Zero);
     }
 
     #[test]
@@ -130,7 +130,7 @@ mod tests {
     fn test_zero_non_zero_timestamp() {
         assert_eq!(
             NonZeroTimestamp::try_from(Timestamp::from_nanos(0u64)).unwrap_err(),
-            NumError::Zero
+            Error::Zero
         );
     }
 }

@@ -3,7 +3,7 @@ use cosmwasm_std::{Fraction, Uint64};
 use std::fmt::Debug;
 use thiserror::Error;
 
-use crate::{NonZeroUint64, NumError};
+use crate::NonZeroUint64;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -59,7 +59,7 @@ impl TryFrom<(u64, u64)> for Threshold {
     }
 }
 
-fn try_from<T: TryInto<NonZeroUint64, Error = NumError>>(
+fn try_from<T: TryInto<NonZeroUint64, Error = crate::num::Error>>(
     value: (T, T),
 ) -> Result<Threshold, Error> {
     let numerator: NonZeroUint64 = value.0.try_into().map_err(|_| Error::OutOfInterval)?;
