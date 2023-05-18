@@ -1,24 +1,23 @@
 use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Timestamp;
 
 #[cw_serde]
-pub struct NonZeroTimestamp(Timestamp);
+pub struct Timestamp(cosmwasm_std::Timestamp);
 
-impl TryFrom<Timestamp> for NonZeroTimestamp {
+impl TryFrom<cosmwasm_std::Timestamp> for Timestamp {
     type Error = Error;
 
-    fn try_from(value: Timestamp) -> Result<Self, Self::Error> {
+    fn try_from(value: cosmwasm_std::Timestamp) -> Result<Self, Self::Error> {
         if value.nanos() == 0u64 {
             Err(Error::InvalidValue("0".into()))
         } else {
-            Ok(NonZeroTimestamp(value))
+            Ok(Timestamp(value))
         }
     }
 }
 
-impl<'a> From<&'a NonZeroTimestamp> for &'a Timestamp {
-    fn from(value: &'a NonZeroTimestamp) -> Self {
+impl<'a> From<&'a Timestamp> for &'a cosmwasm_std::Timestamp {
+    fn from(value: &'a Timestamp) -> Self {
         &value.0
     }
 }
@@ -29,13 +28,13 @@ mod tests {
 
     #[test]
     fn test_non_zero_timestamp() {
-        assert!(NonZeroTimestamp::try_from(Timestamp::from_nanos(1u64)).is_ok());
+        assert!(Timestamp::try_from(cosmwasm_std::Timestamp::from_nanos(1u64)).is_ok());
     }
 
     #[test]
     fn test_zero_non_zero_timestamp() {
         assert_eq!(
-            NonZeroTimestamp::try_from(Timestamp::from_nanos(0u64)).unwrap_err(),
+            Timestamp::try_from(cosmwasm_std::Timestamp::from_nanos(0u64)).unwrap_err(),
             Error::InvalidValue("0".into())
         );
     }

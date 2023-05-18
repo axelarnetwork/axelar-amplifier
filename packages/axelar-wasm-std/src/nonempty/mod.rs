@@ -4,6 +4,6 @@ mod uint;
 mod vec;
 
 pub use error::Error;
-pub use timestamp::NonZeroTimestamp;
-pub use uint::{NonZeroUint256, NonZeroUint64};
-pub use vec::NonEmptyVec;
+pub use timestamp::Timestamp;
+pub use uint::{Uint256, Uint64};
+pub use vec::Vec;
