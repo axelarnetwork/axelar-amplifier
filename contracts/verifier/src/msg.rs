@@ -1,15 +1,25 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::HexBinary;
+
+// TODO: should be some type used across contracts?
+#[cw_serde]
+pub struct Message {
+    id: String,
+    source_address: String,
+    destination_address: String,
+    destination_domain: String,
+    payload_hash: HexBinary,
+}
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // Verifies a message corresponding to message_id. Returns true or false
-    VerifyMessage { message_id: String },
+    // returns true or false
+    VerifyMessage { msg: Message },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    // Verifies a message corresponding to message_id
     #[returns(bool)]
-    VerifyMessage { message_id: String },
+    VerifyMessage { msg: Message },
 }
