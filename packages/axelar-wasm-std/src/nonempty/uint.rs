@@ -1,14 +1,8 @@
 use std::cmp::Ordering;
 
+use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Timestamp, Uint256, Uint64};
-use thiserror::Error;
-
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum Error {
-    #[error("type cannot be zero")]
-    Zero,
-}
+use cosmwasm_std::{Uint256, Uint64};
 
 #[cw_serde]
 #[derive(Copy)]
@@ -19,7 +13,7 @@ impl TryFrom<Uint64> for NonZeroUint64 {
 
     fn try_from(value: Uint64) -> Result<Self, Self::Error> {
         if value.is_zero() {
-            Err(Error::Zero)
+            Err(Error::InvalidValue(value.into()))
         } else {
             Ok(NonZeroUint64(value))
         }
@@ -62,7 +56,7 @@ impl TryFrom<Uint256> for NonZeroUint256 {
 
     fn try_from(value: Uint256) -> Result<Self, Self::Error> {
         if value == Uint256::zero() {
-            Err(Error::Zero)
+            Err(Error::InvalidValue(value.into()))
         } else {
             Ok(NonZeroUint256(value))
         }
@@ -81,27 +75,6 @@ impl PartialOrd for NonZeroUint256 {
     }
 }
 
-#[cw_serde]
-pub struct NonZeroTimestamp(Timestamp);
-
-impl TryFrom<Timestamp> for NonZeroTimestamp {
-    type Error = Error;
-
-    fn try_from(value: Timestamp) -> Result<Self, Self::Error> {
-        if value.nanos() == 0u64 {
-            Err(Error::Zero)
-        } else {
-            Ok(NonZeroTimestamp(value))
-        }
-    }
-}
-
-impl<'a> From<&'a NonZeroTimestamp> for &'a Timestamp {
-    fn from(value: &'a NonZeroTimestamp) -> Self {
-        &value.0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,21 +89,24 @@ mod tests {
     fn test_zero_non_zero_uint64() {
         assert_eq!(
             NonZeroUint64::try_from(Uint64::zero()).unwrap_err(),
-            Error::Zero
+            Error::InvalidValue("0".into())
         );
-        assert_eq!(NonZeroUint64::try_from(0u64).unwrap_err(), Error::Zero);
-    }
-
-    #[test]
-    fn test_non_zero_timestamp() {
-        assert!(NonZeroTimestamp::try_from(Timestamp::from_nanos(1u64)).is_ok());
-    }
-
-    #[test]
-    fn test_zero_non_zero_timestamp() {
         assert_eq!(
-            NonZeroTimestamp::try_from(Timestamp::from_nanos(0u64)).unwrap_err(),
-            Error::Zero
+            NonZeroUint64::try_from(0u64).unwrap_err(),
+            Error::InvalidValue("0".into())
+        );
+    }
+
+    #[test]
+    fn test_non_zero_uint256() {
+        assert!(NonZeroUint256::try_from(Uint256::one()).is_ok());
+    }
+
+    #[test]
+    fn test_zero_non_zero_uint256() {
+        assert_eq!(
+            NonZeroUint256::try_from(Uint256::zero()).unwrap_err(),
+            Error::InvalidValue("0".into())
         );
     }
 }

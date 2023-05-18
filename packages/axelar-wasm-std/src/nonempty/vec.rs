@@ -1,11 +1,5 @@
+use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
-use thiserror::Error;
-
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum Error {
-    #[error("type cannot be empty")]
-    Empty,
-}
 
 #[cw_serde]
 pub struct NonEmptyVec<T>(Vec<T>);
@@ -15,7 +9,7 @@ impl<T> TryFrom<Vec<T>> for NonEmptyVec<T> {
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
         if value.is_empty() {
-            Err(Error::Empty)
+            Err(Error::InvalidValue("empty".to_string()))
         } else {
             Ok(NonEmptyVec(value))
         }
@@ -41,7 +35,7 @@ mod tests {
     fn test_empty_non_empty_vec() {
         assert_eq!(
             NonEmptyVec::<u8>::try_from(vec![]).unwrap_err(),
-            Error::Empty
+            Error::InvalidValue("empty".to_string())
         )
     }
 }
