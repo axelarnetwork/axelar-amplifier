@@ -9,8 +9,8 @@ use crate::nonempty;
 pub enum Error {
     #[error("threshold must fall into the interval (0, 1]")]
     OutOfInterval,
-    #[error("denominator cannot be zero")]
-    ZeroDenominator,
+    #[error("invalid parameter: {0}")]
+    InvalidParameter(#[from] nonempty::Error),
 }
 
 #[cw_serde]
@@ -64,8 +64,8 @@ impl TryFrom<(u64, u64)> for Threshold {
 fn try_from<T: TryInto<nonempty::Uint64, Error = crate::nonempty::Error>>(
     value: (T, T),
 ) -> Result<Threshold, Error> {
-    let numerator: nonempty::Uint64 = value.0.try_into().map_err(|_| Error::OutOfInterval)?;
-    let denominator: nonempty::Uint64 = value.1.try_into().map_err(|_| Error::ZeroDenominator)?;
+    let numerator: nonempty::Uint64 = value.0.try_into().map_err(Error::InvalidParameter)?;
+    let denominator: nonempty::Uint64 = value.1.try_into().map_err(Error::InvalidParameter)?;
 
     (numerator, denominator).try_into()
 }
@@ -83,7 +83,7 @@ mod tests {
     fn test_threshold_zero_numerator() {
         assert_eq!(
             Threshold::try_from((0u64, 3u64)).unwrap_err(),
-            Error::OutOfInterval
+            Error::InvalidParameter(nonempty::Error::InvalidValue("0".into()))
         );
     }
 
@@ -91,7 +91,7 @@ mod tests {
     fn test_threshold_zero_denominator() {
         assert_eq!(
             Threshold::try_from((2u64, 0u64)).unwrap_err(),
-            Error::ZeroDenominator
+            Error::InvalidParameter(nonempty::Error::InvalidValue("0".into()))
         );
     }
 
