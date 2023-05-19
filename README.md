@@ -467,9 +467,135 @@ sequenceDiagram
     Relayer->>Gateway: ExecuteMessage(M)
     Gateway->>Router: RouteMessage(M)
 ```
+## EVM Gateway flows
+
+```mermaid
+sequenceDiagram
+    participant Relayer
+    participant Execution Service
+    participant Destination Contract
+    participant Gateway
+    participant Verifier
+
+    Relayer->>Verifier: Relay signed batch
+
+    Relayer->>Gateway: ValidateMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: true
+    Gateway->>Gateway: mark message as validated
+
+    Execution Service->>Destination Contract: ExecuteMessage(M)
+    Destination Contract->>Gateway: ExecuteMessage(M)
+    Gateway->>Gateway: mark message as executed
+    Gateway-->>Destination Contract: execution approved 
+    Destination Contract->>Destination Contract: execute payload
+
+```
+
+
+```mermaid
+sequenceDiagram
+    participant Relayer
+    participant Destination Contract
+    participant Gateway
+    participant Verifier
+
+    Relayer->>Verifier: Relay signed batch
+
+    Relayer->>Destination Contract: ExecuteMessage(M)
+    Destination Contract->>Gateway: ExecuteMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: true
+    Gateway->>Gateway: mark message as executed
+    Gateway-->>Destination Contract: execution approved 
+    Destination Contract->>Destination Contract: execute payload
+
+```
+
+```mermaid
+sequenceDiagram
+    participant Relayer
+    participant Validation Service
+    participant Execution Service
+    participant Destination Contract
+    participant Gateway
+    participant Verifier
+
+    Relayer->>Gateway: ValidateMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: false
+    Gateway->>Gateway: store message, mark as not validated
+
+    Validation Service->>Verifier: Relay signed batch
+
+    Relayer->>Gateway: ValidateMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: true
+    Gateway->>Gateway: mark message as validated
+
+    Execution Service->>Destination Contract: ExecuteMessage(M)
+    Destination Contract->>Gateway: ExecuteMessage(M)
+    Gateway->>Gateway: mark message as executed
+    Gateway-->>Destination Contract: execution approved 
+    Destination Contract->>Destination Contract: execute payload
+
+```
+
+
+```mermaid
+sequenceDiagram
+    participant Validation Service
+    participant Execution Service
+    participant Destination Contract
+    participant Gateway
+    participant Verifier
+
+
+    Validation Service->>Verifier: Relay signed batch
+
+
+    Execution Service->>Destination Contract: ExecuteMessage(M)
+    Destination Contract->>Gateway: ExecuteMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: true
+    Gateway->>Gateway: mark message as executed
+    Gateway-->>Destination Contract: execution approved
+    Destination Contract->>Destination Contract: execute payload
+
+```
 
 
 
+```mermaid
+sequenceDiagram
+    participant Validation Service
+    participant Execution Service
+    participant Destination Contract
+    participant Gateway
+    participant Verifier
+
+
+
+
+    Execution Service->>Destination Contract: ExecuteMessage(M)
+    Destination Contract->>Gateway: ExecuteMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: false
+    Gateway->>Gateway: store message, mark as not validated
+    Gateway-->>Destination Contract: execution not approved
+    Destination Contract->>Destination Contract: call fails
+
+    Validation Service->>Verifier: Relay signed batch
+
+    Execution Service->>Destination Contract: ExecuteMessage(M)
+    Destination Contract->>Gateway: ExecuteMessage(M)
+    Gateway->>Verifier: VerifyMessage(M)
+    Verifier-->>Gateway: true
+    Gateway->>Gateway: mark message as executed
+    Gateway-->>Destination Contract: execution approved
+    Destination Contract->>Destination Contract: execute payload
+
+```
 
 
 
