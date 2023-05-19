@@ -46,6 +46,7 @@ sequenceDiagram
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Voting Verifier: VerifyMessage(M)
+    Voting Verifier->>OffChain Voting Worker: emit event
     Voting Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -77,6 +78,7 @@ sequenceDiagram
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Voting Verifier: VerifyMessage(M)
+    Voting Verifier->>OffChain Voting Worker: emit event
     Voting Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -130,6 +132,7 @@ sequenceDiagram
     Relayer->>Gateway: ExecuteMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Voting Verifier: VerifyMessage(M)
+    Voting Verifier->>OffChain Voting Worker: emit event
     Voting Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -190,6 +193,7 @@ sequenceDiagram
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Light Client Verifier: VerifyMessage(M)
+    Light Client Verifier->>Light Client Relayer: emit event
     Light Client Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -222,6 +226,7 @@ sequenceDiagram
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Light Client Verifier: VerifyMessage(M)
+    Light Client Verifier->>Light Client Relayer: emit event
     Light Client Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -251,6 +256,7 @@ sequenceDiagram
     Relayer->>Gateway: ExecuteMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Light Client Verifier: VerifyMessage(M)
+    Light Client Verifier->>Light Client Relayer: emit event
     Light Client Verifier-->>Verifier: false
     Verifier-->>Gateway: false
 
@@ -323,6 +329,7 @@ sequenceDiagram
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Light Client Verifier: VerifyMessage(M)
+    Light Client Verifier->>Light Client Relayer: emit event
     Light Client Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -353,6 +360,7 @@ sequenceDiagram
     Relayer->>Gateway: ExecuteMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Light Client Verifier: VerifyMessage(M)
+    Light Client Verifier->>Light Client Relayer: emit event
     Light Client Verifier-->>Verifier: false
     Verifier-->>Gateway: false
 
@@ -390,6 +398,7 @@ sequenceDiagram
     Verifier->>Light Client Verifier: VerifyMessage(M)
     Light Client Verifier-->>Verifier: true
     Verifier->>Voting Verifier: VerifyMessage(M)
+    Voting Verifier->>OffChain Voting Worker: emit event
     Voting Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
@@ -430,8 +439,10 @@ sequenceDiagram
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Light Client Verifier: VerifyMessage(M)
+    Light Client Verifier->>Light Client Relayer: emit event
     Light Client Verifier-->>Verifier: false
     Verifier->>Voting Verifier: VerifyMessage(M)
+    Voting Verifier->>OffChain Voting Worker: emit event
     Voting Verifier-->>Verifier: false
     Verifier-->>Gateway: false
     Gateway->>Gateway: Store message, mark as not validated
