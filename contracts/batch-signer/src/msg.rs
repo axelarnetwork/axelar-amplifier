@@ -1,6 +1,8 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
+use crate::types::{KeccackHash, Proof, SigningStatus};
+
 #[cw_serde]
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
@@ -19,7 +21,17 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    // TODO: return a proper type
-    #[returns(HexBinary)]
+    #[returns(GetProofResponse)]
     GetProof { proof_id: String },
+}
+
+#[cw_serde]
+pub struct GetProofResponse {
+    pub proof_id: String,
+    pub commands_ids: Vec<KeccackHash>,
+    pub key_id: String,
+    pub status: SigningStatus,
+    pub data_encoded: HexBinary,
+    pub proof: Proof,
+    pub execute_data_encoded: HexBinary,
 }
