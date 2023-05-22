@@ -5,8 +5,9 @@ Structure of a routing packet (`M` in the diagrams)
     struct Message {
         id: String,
         source_address: String,
+        source_chain: String
         destination_address: String,
-        destination_domain: String,
+        destination_chain: String,
         payload_hash: HexBinary
     }
 ```
@@ -32,6 +33,26 @@ G --"RouteMessage(M)"-->R
 As an optimization `VerifyMessage(M)` can be replaced with `VerifyMessage(M.id, hash(M))`
 
 # Event Flow
+
+### Universal Gateway Interface
+Any cross chain message execution requires these four steps:
+1. Relay the message
+2. Check for validation
+3. Check for prior execution and mark as executed (to prevent replay attacks)
+4. Execute the app specific logic
+
+Gateways need to decide if they will support and expose step 4 or step 3 (like EVM gateways).
+Gateways expose the highest step they support, which internally calls prior steps.
+For example, if a gateway exposes 4, the method would first check for validation, check for prior execution
+and mark the message as executed before actually executing the payload. If any of the checks fails, the whole
+method fails.
+
+Optionally, gateways can choose to expose any intermediate steps as well to support specific execution flows.
+For example, if a gateway is using a validation method(s) that needs to be triggered, such as RPC voting,
+that gateway could expose 1 or 2 as a way for relayers to trigger validation. 
+
+When executing app specific logic, if the gateway is not actually the final destination of the chain, the
+execute method (4) just accepts the routing packet, instead of the actual payload.
 
 ## Voting Contract Flows
 ValidateMessage -> Poll -> ValidateMessage -> ExecuteMessage
