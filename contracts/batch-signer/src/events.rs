@@ -12,7 +12,7 @@ pub struct SigningStarted {
 
 impl From<SigningStarted> for Event {
     fn from(other: SigningStarted) -> Self {
-        Event::new("SigningStarted")
+        Event::new("signing_started")
             .add_attribute("proof_id", other.proof_id)
             .add_attribute("sig_key_id", other.sig_key_id)
             .add_attribute(
