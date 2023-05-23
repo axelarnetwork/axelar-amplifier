@@ -1,3 +1,11 @@
+use async_trait::async_trait;
+use error_stack::{IntoReport, Report, Result, ResultExt};
+use serde::de::value::MapDeserializer;
+use serde::Deserialize;
+use serde_json::{Map, Value};
+use std::convert::{TryFrom, TryInto};
+use web3::types::U64;
+
 use crate::deserializers::{
     deserialize_evm_address, deserialize_hash, deserialize_str_to_from_str, deserialize_tm_addresses,
 };
@@ -7,14 +15,8 @@ use crate::evm::error::Error;
 use crate::evm::finalizer::Finalizer;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::ChainName;
+use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress};
-use async_trait::async_trait;
-use error_stack::{IntoReport, Report, Result, ResultExt};
-use serde::de::value::MapDeserializer;
-use serde::Deserialize;
-use serde_json::{Map, Value};
-use std::convert::{TryFrom, TryInto};
-use web3::types::U64;
 
 const EVENT_TYPE: &str = "axelar.evm.v1beta1.ConfirmGatewayTxStarted";
 
@@ -50,35 +52,41 @@ impl TryFrom<Map<String, Value>> for Event {
     }
 }
 
-pub struct Handler<F, C>
+pub struct Handler<F, C, B>
 where
     F: Finalizer,
     C: EthereumClient,
+    B: BroadcasterClient,
 {
     chain: ChainName,
     rpc_client: C,
     finalizer: F,
+    #[allow(dead_code)]
+    broadcast_client: B,
 }
 
-impl<F, C> Handler<F, C>
+impl<F, C, B> Handler<F, C, B>
 where
     F: Finalizer,
     C: EthereumClient,
+    B: BroadcasterClient,
 {
-    pub fn new(chain: ChainName, finalizer: F, rpc_client: C) -> Self {
+    pub fn new(chain: ChainName, finalizer: F, rpc_client: C, broadcast_client: B) -> Self {
         Self {
             chain,
             finalizer,
             rpc_client,
+            broadcast_client,
         }
     }
 }
 
 #[async_trait]
-impl<F, C> EventHandler for Handler<F, C>
+impl<F, C, B> EventHandler for Handler<F, C, B>
 where
     F: Finalizer + Send + Sync,
     C: EthereumClient + Send + Sync,
+    B: BroadcasterClient + Send + Sync,
 {
     type Err = Error;
 

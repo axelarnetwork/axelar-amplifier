@@ -7,7 +7,7 @@ use serde::Deserialize;
 #[serde(default)]
 pub struct Config {
     pub tm_url: Url,
-    broadcast: broadcaster::Config,
+    pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_evm_chain_configs")]
     pub evm_chain_configs: Vec<EvmChainConfig>,
 }

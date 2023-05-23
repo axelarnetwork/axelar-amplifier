@@ -1,6 +1,3 @@
-// will remove in the next PR
-#![allow(dead_code)]
-
 use cosmrs::{Any, Gas};
 
 #[derive(Default)]

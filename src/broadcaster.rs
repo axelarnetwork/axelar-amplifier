@@ -46,7 +46,7 @@ pub enum BroadcasterError {
     ExecutionError { response: TxResponse },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub chain_id: Id,
     pub tx_fetch_interval: Duration,
