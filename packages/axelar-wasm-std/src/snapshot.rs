@@ -42,7 +42,7 @@ impl Snapshot {
 
         // Shouldn't panic here since it's impossible to have zero values when using nonempty::Vec of Participants with NonZero weight
         let quorum = nonempty::Uint256::try_from(total_weight.mul_ceil(quorum_threshold))
-            .expect("violated invariant: min_pass_weight is zero");
+            .expect("violated invariant: quorum is zero");
         let total_weight = nonempty::Uint256::try_from(total_weight)
             .expect("violated invariant: total_weight is zero");
 
