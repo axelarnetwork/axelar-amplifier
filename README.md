@@ -5,7 +5,7 @@ Structure of a routing packet (`M` in the diagrams)
     struct Message {
         id: String,
         source_address: String,
-        source_chain: String
+        source_chain: String,
         destination_address: String,
         destination_chain: String,
         payload_hash: HexBinary
