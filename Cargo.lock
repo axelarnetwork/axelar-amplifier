@@ -37,6 +37,7 @@ dependencies = [
  "cw-storage-plus 1.0.1",
  "cw2",
  "either",
+ "hex",
  "schemars",
  "serde",
  "serde_json",
