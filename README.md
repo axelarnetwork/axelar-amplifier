@@ -25,7 +25,10 @@ end
 Relayer --"ValidateMessage(M)"-->G
 G --"VerifyMessage(M)"--> Vr
 Vr --"VerifyMessage(M)"--> Vo
+Vo --"MessageVerified(M)"--> Vr
 Vr --"VerifyMessage(M)"--> Lc
+Lc --"MessageVerified(M)"--> Vr
+Vr --"MessageVerified(M)"--> G
 
 Relayer --"ExecuteMessage(M)"-->G
 G --"RouteMessage(M)"-->R
