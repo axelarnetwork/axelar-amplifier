@@ -22,31 +22,31 @@ subgraph Axelar
 	R{"Router"}
 end
 
-Relayer --"ValidateMessage(M)"-->G
-G --"VerifyMessage(M)"--> Vr
-Vr --"VerifyMessage(M)"--> Vo
-Vo --"MessageVerified(M)"--> Vr
-Vr --"VerifyMessage(M)"--> Lc
-Lc --"MessageVerified(M)"--> Vr
-Vr --"MessageVerified(M)"--> G
+Relayer --"VerifyMessages([M])"-->G
+G --"VerifyMessages([M])"--> Vr
+Vr --"VerifyMessages([M])"--> Vo
+Vo --"MessagesVerified([M])"--> Vr
+Vr --"VerifyMessages([M])"--> Lc
+Lc --"MessagesVerified([M])"--> Vr
+Vr --"MessagesVerified([M])"--> G
 
-Relayer --"ExecuteMessage(M)"-->G
+Relayer --"ExecuteMessages([M])"-->G
 G --"RouteMessage(M)"-->R
 ```
-As an optimization `VerifyMessage(M)` can be replaced with `VerifyMessage(M.id, hash(M))`
+As an optimization `VerifyMessages([M])` can be replaced with `VerifyMessages([(M.id, hash(M))])`
 
 # Event Flow
 
 In all of the below flows, the specifics of how an individual verification method works (voting verifier or light client verifier)
 is not important and is not part of this design. They are merely shown as examples. Each specific verification method 
-just needs to accept `VerifyMessage` calls, and return true or false. Each specific verification method is free to
+just needs to accept `VerifyMessages` calls, which returns a list of true/false values. Each specific verification method is free to
 add additional methods and queries to its interface, to be called by associated worker processes or contracts (that could be on or off chain). 
 
 In the below flows, the blue box represents the protocol. All messages flowing into, out of or within the blue box
 are part of the protocol.
 
 ## Voting Contract Flows
-ValidateMessage -> Poll -> ExecuteMessage
+VerifyMessage -> Poll -> ExecuteMessage
 ```mermaid
 sequenceDiagram
     participant Relayer
@@ -57,33 +57,35 @@ sequenceDiagram
     end
     participant Voting Verifier
     participant OffChain Voting Worker
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Voting Verifier: VerifyMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Voting Verifier: VerifyMessages([M])
+    Voting Verifier->>Voting Verifier: StartPoll
     Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-    Gateway-->>Relayer: false
-    OffChain Voting Worker->>Voting Verifier: StartPoll
+    Voting Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
+    Gateway->>Gateway: Store messages, mark as not validated
+    Gateway-->>Relayer: [false]
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: mark message as validated
-    Gateway->>Relayer: emit message verified event
+    Voting Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
+    Gateway->>Gateway: mark messages as validated
+    Gateway->>Relayer: emit messages verified event
 
 
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
-Poll -> ValidateMessage -> ExecuteMessage
+Poll -> VerifyMessage -> ExecuteMessage
 ```mermaid
 sequenceDiagram
     participant Relayer
@@ -99,19 +101,21 @@ sequenceDiagram
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
 
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Voting Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
 
-    Relayer->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
+    Gateway-->>Relayer: [true]
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
     Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 ExecuteMessage -> Poll -> ExecuteMessage
 ```mermaid
@@ -124,33 +128,35 @@ sequenceDiagram
     end
     participant Voting Verifier
     participant OffChain Voting Worker
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Voting Verifier: VerifyMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Voting Verifier: VerifyMessages([M])
+    Voting Verifier->>Voting Verifier: StartPoll
     Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
+    Voting Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
     Gateway->>Gateway: Store message, mark as not validated
-    Gateway->>Relayer: false
-    OffChain Voting Worker->>Voting Verifier: StartPoll
+    Gateway->>Relayer: [false]
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
 
 
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Voting Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: mark message as validated
     Gateway->>Relayer: emit message verified event
 
 
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 Poll -> ExecuteMessage
@@ -170,16 +176,18 @@ sequenceDiagram
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
 
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Voting Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
     Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 ## Light client Flows
@@ -198,28 +206,30 @@ sequenceDiagram
 
     Light Client Relayer->>Light Client Verifier: Relay block header
 
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Light Client Verifier: VerifyMessages([M])
     Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
+    Light Client Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
     Gateway->>Gateway: Store message, mark as not validated
 
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier-->>Verifier: truet
+    Verifier->>Light Client Verifier: VerifyMessages([M])
+    Light Client Verifier-->>Verifier: [true]t
 
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 ```mermaid
@@ -237,27 +247,29 @@ sequenceDiagram
 
     Light Client Relayer->>Light Client Verifier: Relay block header
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Light Client Verifier: VerifyMessages([M])
     Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway-->>Relayer: false
+    Light Client Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
+    Gateway-->>Relayer: [false]
 
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
 
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 ```mermaid
@@ -273,20 +285,22 @@ sequenceDiagram
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
-    Relayer->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
+    Gateway-->>Relayer: [true]
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 
@@ -303,17 +317,19 @@ sequenceDiagram
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 
@@ -329,31 +345,33 @@ sequenceDiagram
     participant Light Client Relayer
 
 
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Light Client Verifier: VerifyMessages([M])
     Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
+    Light Client Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
     Gateway->>Gateway: Store message, mark as not validated
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
 
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
-    Relayer->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
+    Gateway-->>Relayer: [true]
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 ```mermaid
 sequenceDiagram
@@ -367,27 +385,29 @@ sequenceDiagram
     participant Light Client Relayer
 
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Light Client Verifier: VerifyMessages([M])
     Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
+    Light Client Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
     Gateway->>Gateway: store message, mark as not validated
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
 
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: mark as validated
     Gateway->>Relayer: emit message verified event
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 ## Multiple validation methods
@@ -410,34 +430,36 @@ sequenceDiagram
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
     Verifier->>Verifier: store message as verified by light client
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
     Verifier->>Verifier: light client already verified
-    Verifier->>Voting Verifier: VerifyMessage(M)
+    Verifier->>Voting Verifier: VerifyMessages([M])
+    Voting Verifier->>Voting Verifier: StartPoll
     Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
+    Voting Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
     Gateway->>Gateway: Store message, mark as not validated
-    Gateway-->>Relayer: false
+    Gateway-->>Relayer: [false]
 
-    OffChain Voting Worker->>Voting Verifier: StartPoll
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
 
-    Voting Verifier->>Verifier: MessageVerified(M)
+    Voting Verifier->>Verifier: MessagesVerified([M])
     Verifier->>Verifier: security policy is met
-    Verifier->>Gateway: MessageVerified(M)
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
     Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 
@@ -456,42 +478,44 @@ sequenceDiagram
 
 
     Light Client Relayer->>Light Client Verifier: Relay block header
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
+    Gateway->>Verifier: VerifyMessages([M])
+    Verifier->>Light Client Verifier: VerifyMessages([M])
     Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier->>Voting Verifier: VerifyMessage(M)
+    Light Client Verifier-->>Verifier: [false]
+    Verifier->>Voting Verifier: VerifyMessages([M])
+    Voting Verifier->>Voting Verifier: StartPoll
     Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
+    Voting Verifier-->>Verifier: [false]
+    Verifier-->>Gateway: [false]
     Gateway->>Gateway: Store message, mark as not validated
 
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
+    Light Client Verifier->>Verifier: MessagesVerified([M])
     Verifier->>Verifier: store message as verified by light client
 
-    OffChain Voting Worker->>Voting Verifier: StartPoll
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
 
-    Voting Verifier->>Verifier: MessageVerified(M)
+    Voting Verifier->>Verifier: MessagesVerified([M])
     Verifier->>Verifier: security policy is met
-    Verifier->>Gateway: MessageVerified(M)
+    Verifier->>Gateway: MessagesVerified([M])
     Gateway->>Gateway: store message, mark as validated
     Gateway->>Relayer: emit message verified event
 
 
-    Relayer->>Gateway: ValidateMessage(M)
+    Relayer->>Gateway: VerifyMessages([M])
     Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
+    Gateway-->>Relayer: [true]
 
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
+    Relayer->>Gateway: ExecuteMessages([M])
+    Gateway->>Gateway: VerifyMessages([M])
+    Gateway->>Gateway: messages already stored as validated
+    Gateway->>Gateway: mark messages as executed
+    loop For each message
+        Gateway->>Router: RouteMessage(M)
+    end
 ```
 
 
