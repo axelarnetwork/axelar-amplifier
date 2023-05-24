@@ -34,36 +34,26 @@ As an optimization `VerifyMessage(M)` can be replaced with `VerifyMessage(M.id, 
 
 # Event Flow
 
-### Universal Gateway Interface
-Any cross chain message execution requires these four steps:
-1. Relay the message
-2. Check for validation
-3. Check for prior execution and mark as executed (to prevent replay attacks)
-4. Execute the app specific logic
+In all of the below flows, the specifics of how an individual verification method works (voting verifier or light client verifier)
+is not important and is not part of this design. They are merely shown as examples. Each specific verification method 
+just needs to accept `VerifyMessage` calls, and return true or false. Each specific verification method is free to
+add additional methods and queries to its interface, to be called by associated worker processes or contracts (that could be on or off chain). 
 
-Gateways need to decide if they will support and expose step 4 or step 3 (like EVM gateways).
-Gateways expose the highest step they support, which internally calls prior steps.
-For example, if a gateway exposes 4, the method would first check for validation, check for prior execution
-and mark the message as executed before actually executing the payload. If any of the checks fails, the whole
-method fails.
-
-Optionally, gateways can choose to expose any intermediate steps as well to support specific execution flows.
-For example, if a gateway is using a validation method(s) that needs to be triggered, such as RPC voting,
-that gateway could expose 1 or 2 as a way for relayers to trigger validation. 
-
-When executing app specific logic, if the gateway is not actually the final destination of the chain, the
-execute method (4) just accepts the routing packet, instead of the actual payload.
+In the below flows, the blue box represents the protocol. All messages flowing into, out of or within the blue box
+are part of the protocol.
 
 ## Voting Contract Flows
 ValidateMessage -> Poll -> ExecuteMessage
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Voting Verifier
     participant OffChain Voting Worker
-    participant Router
     Relayer->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
     Verifier->>Voting Verifier: VerifyMessage(M)
@@ -94,11 +84,13 @@ Poll -> ValidateMessage -> ExecuteMessage
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Voting Verifier
     participant OffChain Voting Worker
-    participant Router
     OffChain Voting Worker->>Voting Verifier: StartPoll
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: Vote
@@ -122,11 +114,13 @@ ExecuteMessage -> Poll -> ExecuteMessage
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Voting Verifier
     participant OffChain Voting Worker
-    participant Router
     Relayer->>Gateway: ExecuteMessage(M)
     Gateway->>Gateway: ValidateMessage(M)
     Gateway->>Verifier: VerifyMessage(M)
@@ -160,11 +154,13 @@ Poll -> ExecuteMessage
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Voting Verifier
     participant OffChain Voting Worker
-    participant Router
 
     OffChain Voting Worker->>Voting Verifier: StartPoll
     OffChain Voting Worker->>Voting Verifier: Vote
@@ -189,11 +185,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Light Client Relayer
-    participant Router
 
     Light Client Relayer->>Light Client Verifier: Relay block header
 
@@ -209,7 +207,8 @@ sequenceDiagram
     Light Client Verifier->>Verifier: MessageVerified(M)
     Verifier->>Gateway: MessageVerified(M)
     Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified even    Verifier->>Light Client Verifier: VerifyMessage(M)
+    Gateway->>Relayer: emit message verified event
+    Verifier->>Light Client Verifier: VerifyMessage(M)
     Light Client Verifier-->>Verifier: truet
 
 
@@ -223,11 +222,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
+
     participant Light Client Verifier
     participant Light Client Relayer
-    participant Router
 
     Light Client Relayer->>Light Client Verifier: Relay block header
 
@@ -257,11 +260,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Light Client Relayer
-    participant Router
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
@@ -285,11 +290,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Light Client Relayer
-    participant Router
 
     Light Client Relayer->>Light Client Verifier: Relay block header
     Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
@@ -310,11 +317,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Light Client Relayer
-    participant Router
 
 
     Relayer->>Gateway: ValidateMessage(M)
@@ -346,11 +355,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Light Client Relayer
-    participant Router
 
 
     Relayer->>Gateway: ExecuteMessage(M)
@@ -383,13 +394,15 @@ Assume the security policy is both light client and rpc voting validations are n
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Voting Verifier
     participant Light Client Relayer
     participant OffChain Voting Worker
-    participant Router
 
 
     Light Client Relayer->>Light Client Verifier: Relay block header
@@ -428,13 +441,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Relayer
+    box Blue Protocol
     participant Gateway
     participant Verifier
+    participant Router
+    end
     participant Light Client Verifier
     participant Voting Verifier
     participant Light Client Relayer
     participant OffChain Voting Worker
-    participant Router
 
 
     Light Client Relayer->>Light Client Verifier: Relay block header
@@ -474,135 +489,6 @@ sequenceDiagram
     Gateway->>Gateway: message already stored as validated
     Gateway->>Gateway: mark message as executed
     Gateway->>Router: RouteMessage(M)
-```
-## EVM Gateway flows
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    participant Execution Service
-    participant Destination Contract
-    participant Gateway
-    participant Verifier
-
-    Relayer->>Verifier: Relay signed batch
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: true
-    Gateway->>Gateway: mark message as validated
-
-    Execution Service->>Destination Contract: ExecuteMessage(M)
-    Destination Contract->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: mark message as executed
-    Gateway-->>Destination Contract: execution approved 
-    Destination Contract->>Destination Contract: execute payload
-
-```
-
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    participant Destination Contract
-    participant Gateway
-    participant Verifier
-
-    Relayer->>Verifier: Relay signed batch
-
-    Relayer->>Destination Contract: ExecuteMessage(M)
-    Destination Contract->>Gateway: ExecuteMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: true
-    Gateway->>Gateway: mark message as executed
-    Gateway-->>Destination Contract: execution approved 
-    Destination Contract->>Destination Contract: execute payload
-
-```
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    participant Validation Service
-    participant Execution Service
-    participant Destination Contract
-    participant Gateway
-    participant Verifier
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: store message, mark as not validated
-
-    Validation Service->>Verifier: Relay signed batch
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: true
-    Gateway->>Gateway: mark message as validated
-
-    Execution Service->>Destination Contract: ExecuteMessage(M)
-    Destination Contract->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: mark message as executed
-    Gateway-->>Destination Contract: execution approved 
-    Destination Contract->>Destination Contract: execute payload
-
-```
-
-
-```mermaid
-sequenceDiagram
-    participant Validation Service
-    participant Execution Service
-    participant Destination Contract
-    participant Gateway
-    participant Verifier
-
-
-    Validation Service->>Verifier: Relay signed batch
-
-
-    Execution Service->>Destination Contract: ExecuteMessage(M)
-    Destination Contract->>Gateway: ExecuteMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: true
-    Gateway->>Gateway: mark message as executed
-    Gateway-->>Destination Contract: execution approved
-    Destination Contract->>Destination Contract: execute payload
-
-```
-
-
-
-```mermaid
-sequenceDiagram
-    participant Validation Service
-    participant Execution Service
-    participant Destination Contract
-    participant Gateway
-    participant Verifier
-
-
-
-
-    Execution Service->>Destination Contract: ExecuteMessage(M)
-    Destination Contract->>Gateway: ExecuteMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: store message, mark as not validated
-    Gateway-->>Destination Contract: execution not approved
-    Destination Contract->>Destination Contract: call fails
-
-    Validation Service->>Verifier: Relay signed batch
-
-    Execution Service->>Destination Contract: ExecuteMessage(M)
-    Destination Contract->>Gateway: ExecuteMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier-->>Gateway: true
-    Gateway->>Gateway: mark message as executed
-    Gateway-->>Destination Contract: execution approved
-    Destination Contract->>Destination Contract: execute payload
-
 ```
 
 
