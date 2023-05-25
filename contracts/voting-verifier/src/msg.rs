@@ -21,25 +21,13 @@ pub enum ExecuteMsg {
     // Queries the service registry for current workers and their stakes.
     // Calls StartPoll on the generic voting contract
     // returns the poll id to be used for voting
-    StartPoll {
-        messages: Vec<Message>,
-    },
+    StartPoll { messages: Vec<Message> },
 
     // Calls EndPoll on the generic voting contract.
     // For all verified messages, calls MessagesVerified on the verifier
-    EndPoll {
-        poll_id: String,
-    },
-
-    // casts a vote for a poll. Is just a pass through to the generic voting contract
-    Vote {
-        poll_id: String,
-        votes: Vec<bool>, // can be changed to HexBinary to save space
-    },
+    EndPoll { poll_id: String },
 
     // returns a vector of true/false values, indicating current verification status for each message
     // calls StartPoll for any not yet verified messages
-    VerifyMessages {
-        messages: Vec<Message>,
-    },
+    VerifyMessages { messages: Vec<Message> },
 }
