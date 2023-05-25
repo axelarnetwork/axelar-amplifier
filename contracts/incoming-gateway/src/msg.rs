@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 
-// TODO: should be some type used across contracts?
 #[cw_serde]
 pub struct Message {
     id: String,
@@ -13,11 +12,15 @@ pub struct Message {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // Posts a message to the gateway and stores it with current validation status
-    // TODO: add the ability to pass just message ID?
-    ValidateMessage { msg: Message },
+    // Returns a vector of true/false values for each passed in message, indicating current verification status
+    // Permissionless
+    VerifyMessages { messages: Vec<Message> },
 
-    // Executes a message if the message is fully validated
-    // TODO: add the ability to pass just message ID?
-    ExecuteMessage { msg: Message },
+    // Callback for the verifier. Indicates each contained message was fully verified
+    // Can only be called by the verifier
+    MessagesVerified { messages: Vec<Message> },
+
+    // For each message, sends message to the router if fully verified
+    // Permissionless
+    ExecuteMessages { messages: Vec<Message> },
 }
