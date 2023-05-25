@@ -1,7 +1,10 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
-use crate::types::{KeccackHash, Proof, SigningStatus};
+use crate::{
+    command::SigningStatus,
+    types::{KeccackHash, Proof},
+};
 
 #[cw_serde]
 pub enum ExecuteMsg {
