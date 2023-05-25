@@ -889,6 +889,7 @@ dependencies = [
  "cw-storage-plus 1.0.1",
  "cw2",
  "either",
+ "incoming-gateway",
  "schemars",
  "serde",
  "serde_json",

@@ -1,5 +1,6 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{entry_point, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
 use crate::{error::ContractError, msg::ExecuteMsg};
 
