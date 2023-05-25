@@ -3,7 +3,7 @@ use cosmwasm_std::HexBinary;
 
 #[cw_serde]
 pub struct Message {
-    id: String,
+    pub id: String,
     source_address: String,
     destination_address: String,
     destination_domain: String,
