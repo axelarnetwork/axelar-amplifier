@@ -7,6 +7,7 @@ members = [
   "contracts/evm-batch-service",
   "contracts/batching",
   "contracts/voting-verifier",
+  "contracts/voting-generic"
 ]
 
 [profile.release]
