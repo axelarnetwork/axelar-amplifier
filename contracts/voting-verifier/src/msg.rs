@@ -1,4 +1,4 @@
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
 #[cw_serde]
@@ -30,4 +30,17 @@ pub enum ExecuteMsg {
     // returns a vector of true/false values, indicating current verification status for each message
     // calls StartPoll for any not yet verified messages
     VerifyMessages { messages: Vec<Message> },
+}
+
+#[cw_serde]
+pub struct Poll {
+    poll_id: String,
+    messages: Vec<Message>,
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(Poll)]
+    GetPoll { poll_id: String },
 }
