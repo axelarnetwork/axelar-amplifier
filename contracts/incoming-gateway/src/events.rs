@@ -22,3 +22,24 @@ impl From<MessagesVerified> for Event {
         )
     }
 }
+
+pub struct MessagesExecuted {
+    pub msgs: Vec<Message>,
+}
+
+impl From<MessagesExecuted> for Event {
+    fn from(other: MessagesExecuted) -> Self {
+        Event::new("messages_executed").add_attribute(
+            "message_id",
+            format!(
+                "[{}]",
+                other
+                    .msgs
+                    .iter()
+                    .map(|m| m.id.clone())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        )
+    }
+}
