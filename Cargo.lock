@@ -409,41 +409,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "evm-batch-service"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw2",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "thiserror",
-]
-
-[[package]]
-name = "evm-connection-service"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw2",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "service-registry",
- "thiserror",
-]
-
-[[package]]
 name = "ff"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

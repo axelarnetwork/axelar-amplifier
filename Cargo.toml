@@ -1,13 +1,5 @@
 [workspace]
-members = [
-  "contracts/service-registry",
-  "contracts/service-interface",
-  "contracts/evm-connection-service",
-  "contracts/connection-router",
-  "contracts/evm-batch-service",
-  "contracts/batching",
-  "packages/axelar-wasm-std"
-]
+members = ["contracts/*", "packages/*"]
 
 [profile.release]
 opt-level = 3
