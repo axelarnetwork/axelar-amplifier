@@ -1,10 +1,8 @@
-use std::cmp::Ordering;
-
 use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
-#[derive(Copy)]
+#[derive(Copy, PartialOrd)]
 pub struct Uint64(cosmwasm_std::Uint64);
 
 impl TryFrom<cosmwasm_std::Uint64> for Uint64 {
@@ -39,15 +37,9 @@ impl From<Uint64> for cosmwasm_std::Uint64 {
     }
 }
 
-impl PartialOrd for Uint64 {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
 // TODO: consider using macro for these types
 #[cw_serde]
-#[derive(Copy)]
+#[derive(Copy, PartialOrd)]
 pub struct Uint256(cosmwasm_std::Uint256);
 
 impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
@@ -65,12 +57,6 @@ impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
 impl<'a> From<&'a Uint256> for &'a cosmwasm_std::Uint256 {
     fn from(value: &'a Uint256) -> Self {
         &value.0
-    }
-}
-
-impl PartialOrd for Uint256 {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
     }
 }
 
