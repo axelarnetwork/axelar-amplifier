@@ -13,7 +13,7 @@ pub struct Message {
     pub source_chain: String,
     pub destination_address: String,
     pub payload_hash: HexBinary,
-    pub source_tx_hash: HexBinary,
+    pub source_tx_hash: HexBinary, // TODO: get tx hash and event index from id?
     pub source_event_index: Uint256,
 }
 

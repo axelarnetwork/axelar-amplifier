@@ -3,7 +3,25 @@ use cosmwasm_std::{
     entry_point, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
 };
 
-use crate::{error::ContractError, msg::ExecuteMsg, msg::QueryMsg};
+use crate::{
+    error::ContractError,
+    msg::QueryMsg,
+    msg::{ExecuteMsg, InstantiateMsg},
+    state::{Config, CONFIG},
+};
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    let gateway = deps.api.addr_validate(&msg.gateway_address)?;
+    CONFIG.save(deps.storage, &Config { gateway })?;
+
+    Ok(Response::new())
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(

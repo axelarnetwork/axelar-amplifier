@@ -7,6 +7,11 @@ use crate::{
 };
 
 #[cw_serde]
+pub struct InstantiateMsg {
+    pub gateway_address: String,
+}
+
+#[cw_serde]
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
