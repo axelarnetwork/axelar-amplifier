@@ -57,6 +57,7 @@ dependencies = [
  "either",
  "ethabi",
  "hex",
+ "outgoing-gateway",
  "schemars",
  "serde",
  "serde_json",

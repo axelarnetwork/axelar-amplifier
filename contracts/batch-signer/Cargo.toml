@@ -43,6 +43,7 @@ either = "1.8.1"
 hex = { version = "0.4.3", default-features = false, features = [] }
 sha3 = { version = "0.10", default-features = false, features = [] }
 ethabi = { version = "18.0.0", default-features = false, features = [] }
+outgoing-gateway = { workspace = true, features = ["library"]}
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

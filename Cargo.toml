@@ -16,3 +16,4 @@ overflow-checks = true
 service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
 axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
+outgoing-gateway = { version = "0.1.0", path = "./contracts/outgoing-gateway" }

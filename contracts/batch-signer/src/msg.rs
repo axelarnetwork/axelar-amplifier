@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{HexBinary, Uint256};
 
 use crate::{
     command::SigningStatus,
@@ -9,6 +9,7 @@ use crate::{
 #[cw_serde]
 pub struct InstantiateMsg {
     pub gateway_address: String,
+    pub destination_chain_id: Uint256,
 }
 
 #[cw_serde]
