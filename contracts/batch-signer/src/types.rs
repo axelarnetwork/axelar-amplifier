@@ -1,10 +1,10 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 pub type KeccackHash = [u8; 32]; // TODO: move to axelar_wasm_std, probably change to newtype with hex encoding (HexBinary/[u8;32])
 
-// TODO this doesn't belong in this contract
+// TODO: this doesn't belong in this contract
 // TODO: should this be an enum of different types of commands?
 #[cw_serde]
 pub struct Message {
@@ -13,8 +13,23 @@ pub struct Message {
     pub source_chain: String,
     pub destination_address: String,
     pub payload_hash: HexBinary,
-    pub source_tx_hash: HexBinary, // TODO: get tx hash and event index from id?
-    pub source_event_index: Uint256,
+}
+
+// TODO: confirm message id format
+impl Message {
+    pub fn source_tx_hash(&self) -> HexBinary {
+        let parts: Vec<&str> = self.id.split('-').collect();
+
+        HexBinary::from_hex(parts[0])
+            .expect("violated invariant: message id cannot be parsed to tx hash")
+    }
+
+    pub fn source_event_index(&self) -> Uint256 {
+        let parts: Vec<&str> = self.id.split('-').collect();
+
+        Uint256::from_str(parts[1])
+            .expect("violated invariant: message id cannot be parsed to event index")
+    }
 }
 
 impl Display for Message {

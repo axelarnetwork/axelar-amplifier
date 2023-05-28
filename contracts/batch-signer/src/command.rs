@@ -62,10 +62,13 @@ fn build_commands_data(messages: Vec<Message>) -> (Vec<KeccackHash>, Vec<String>
 
     for message in messages {
         let command_type = message.to_string();
-        let command_id = Keccak256::digest(message.id)
+        let command_id = Keccak256::digest(&message.id)
             .as_slice()
             .try_into()
             .expect("Wrong length");
+
+        let tx_hash = message.source_tx_hash();
+        let event_index = message.source_event_index();
 
         commands_ids.push(command_id);
         commands_types.push(command_type);
@@ -74,8 +77,8 @@ fn build_commands_data(messages: Vec<Message>) -> (Vec<KeccackHash>, Vec<String>
             message.source_address,
             message.destination_address,
             message.payload_hash,
-            message.source_tx_hash,
-            message.source_event_index,
+            tx_hash,
+            event_index,
         ));
     }
 
