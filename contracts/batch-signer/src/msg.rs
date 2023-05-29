@@ -2,7 +2,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256};
 
 use crate::{
-    command::SigningStatus,
+    batch::SigningStatus,
     types::{KeccackHash, Proof},
 };
 

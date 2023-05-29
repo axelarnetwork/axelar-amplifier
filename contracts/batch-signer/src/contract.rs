@@ -50,7 +50,7 @@ pub fn execute(
 pub mod execute {
     use cosmwasm_std::{to_binary, QueryRequest, WasmQuery};
 
-    use crate::{command::CommandBatch, state::COMMANDS_BATCH_QUEUE, types::Message};
+    use crate::{batch::CommandBatch, state::COMMANDS_BATCH_QUEUE, types::Message};
 
     use super::*;
 

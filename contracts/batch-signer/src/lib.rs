@@ -1,4 +1,4 @@
-pub mod command;
+pub mod batch;
 pub mod contract;
 pub mod error;
 pub mod events;

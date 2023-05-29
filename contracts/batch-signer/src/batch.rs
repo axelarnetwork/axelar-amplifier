@@ -17,8 +17,8 @@ pub struct CommandBatch {
     pub id: KeccackHash,
     pub commands_ids: Vec<KeccackHash>,
     pub encoded_data: HexBinary,
-    pub unsigned_hash: KeccackHash,
-    pub status: SigningStatus,
+    pub hash_to_sign: KeccackHash,
+    pub status: SigningStatus, // TODO: is this really needed?
 }
 
 impl CommandBatch {
@@ -38,7 +38,7 @@ impl CommandBatch {
             id,
             commands_ids,
             encoded_data,
-            unsigned_hash,
+            hash_to_sign: unsigned_hash,
             status: SigningStatus::Signing,
         }
     }

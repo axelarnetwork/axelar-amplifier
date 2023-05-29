@@ -9,7 +9,7 @@ pub struct SigningStarted {
     pub proof_id: String,
     pub sig_key_id: Uint64,
     pub pub_keys: HashMap<String, HexBinary>,
-    pub unsigned_hash: HexBinary,
+    pub hash_to_sign: HexBinary,
 }
 
 impl From<SigningStarted> for Event {
@@ -22,7 +22,7 @@ impl From<SigningStarted> for Event {
                 to_string(&other.pub_keys)
                     .expect("violated invariant: pub_keys are not serializable"),
             )
-            .add_attribute("unsigned_hash", other.unsigned_hash.to_hex())
+            .add_attribute("hash_to_sign", other.hash_to_sign.to_hex())
     }
 }
 
