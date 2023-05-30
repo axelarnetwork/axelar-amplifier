@@ -3,11 +3,11 @@ use cosmwasm_std::HexBinary;
 
 #[cw_serde]
 pub struct Message {
-    id: String,
-    source_address: String,
-    destination_address: String,
-    destination_domain: String,
-    payload_hash: HexBinary,
+    pub id: String,
+    pub source_address: String,
+    pub destination_address: String,
+    pub destination_domain: String,
+    pub payload_hash: HexBinary,
 }
 #[cw_serde]
 pub struct InstantiateMsg {
