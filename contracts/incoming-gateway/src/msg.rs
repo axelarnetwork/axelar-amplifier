@@ -16,10 +16,6 @@ pub enum ExecuteMsg {
     // Permissionless
     VerifyMessages { messages: Vec<Message> },
 
-    // Callback for the verifier. Indicates each contained message was fully verified
-    // Can only be called by the verifier
-    MessagesVerified { messages: Vec<Message> },
-
     // For each message, sends message to the router if fully verified
     // Permissionless
     ExecuteMessages { messages: Vec<Message> },
