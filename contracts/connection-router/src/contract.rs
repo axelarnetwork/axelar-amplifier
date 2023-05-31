@@ -1,8 +1,8 @@
-#[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
-    StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response, StdResult,
 };
+#[cfg(not(feature = "library"))]
+use cosmwasm_str::entry_point;
 use cw_storage_plus::Deque;
 
 use crate::error::ContractError;
@@ -119,7 +119,7 @@ pub mod execute {
             GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
         state::get_message_queue_id,
-        types::{Domain, DomainName, Gateway, Message},
+        types::{Domain, DomainName, Gateway, ValidatedMessage},
     };
 
     use super::*;
@@ -397,7 +397,7 @@ pub mod execute {
                 domain: destination_domain,
             });
         }
-        let msg = Message::new(
+        let msg = ValidatedMessage::new(
             id.parse()?,
             destination_address,
             destination_domain.clone(),
@@ -412,7 +412,7 @@ pub mod execute {
         MESSAGES.save(deps.storage, msg.id(), &())?;
 
         let qid = get_message_queue_id(&destination_domain);
-        let q: Deque<Message> = Deque::new(&qid);
+        let q: Deque<ValidatedMessage> = Deque::new(&qid);
         q.push_back(deps.storage, &msg)?;
 
         Ok(Response::new().add_event(MessageRouted { msg }.into()))
@@ -435,7 +435,7 @@ pub mod execute {
         }
 
         let qid = get_message_queue_id(&domain.name);
-        let q: Deque<Message> = Deque::new(&qid);
+        let q: Deque<ValidatedMessage> = Deque::new(&qid);
         let mut messages = vec![];
 
         let to_consume = count.unwrap_or(u32::MAX);
