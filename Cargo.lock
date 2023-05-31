@@ -900,6 +900,7 @@ dependencies = [
 name = "voting-verifier"
 version = "0.1.0"
 dependencies = [
+ "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",

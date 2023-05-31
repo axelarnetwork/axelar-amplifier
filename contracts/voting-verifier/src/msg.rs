@@ -1,14 +1,6 @@
+use connection_router::types::Message;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
 
-#[cw_serde]
-pub struct Message {
-    pub id: String,
-    pub source_address: String,
-    pub destination_address: String,
-    pub destination_domain: String,
-    pub payload_hash: HexBinary,
-}
 #[cw_serde]
 pub struct InstantiateMsg {
     service_registry_address: String, // service registry to determine current worker stake
