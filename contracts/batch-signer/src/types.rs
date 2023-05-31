@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, Uint256};
-use std::{fmt::Display, str::FromStr};
+use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use std::fmt::Display;
 
 pub type KeccackHash = [u8; 32]; // TODO: move to axelar_wasm_std, probably change to newtype with hex encoding (HexBinary/[u8;32])
 
@@ -24,10 +24,10 @@ impl Message {
             .expect("violated invariant: message id cannot be parsed to tx hash")
     }
 
-    pub fn source_event_index(&self) -> Uint256 {
+    pub fn source_event_index(&self) -> Uint64 {
         let parts: Vec<&str> = self.id.split('-').collect();
 
-        Uint256::from_str(parts[1])
+        Uint64::try_from(parts[1])
             .expect("violated invariant: message id cannot be parsed to event index")
     }
 }
