@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, StdError, StdResult};
+use cosmwasm_std::{Addr, Attribute, Event, HexBinary, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 
 use crate::ContractError;
@@ -101,6 +101,36 @@ impl KeyDeserialize for DomainName {
 
 #[cw_serde]
 pub struct Message {
+    pub id: String,
+    pub source_address: String,
+    pub source_domain: String,
+    pub destination_address: String,
+    pub destination_domain: String,
+    pub payload_hash: HexBinary,
+}
+
+impl From<Message> for Vec<Attribute> {
+    fn from(other: Message) -> Self {
+        vec![
+            ("id", other.id),
+            ("source_address", other.source_address),
+            ("destination_address", other.destination_address),
+            ("destination_domain", other.destination_domain),
+            ("payload_hash", other.payload_hash.to_string()),
+        ]
+        .into_iter()
+        .map(Into::into)
+        .collect()
+    }
+}
+
+pub fn make_message_event(event_name: &str, msg: Message) -> Event {
+    let attrs: Vec<Attribute> = msg.into();
+    Event::new(event_name).add_attributes(attrs)
+}
+
+#[cw_serde]
+pub struct ValidatedMessage {
     id: MessageID, // unique per source domain
     pub destination_address: String,
     pub destination_domain: DomainName,
@@ -109,7 +139,7 @@ pub struct Message {
     pub payload_hash: HexBinary,
 }
 
-impl Message {
+impl ValidatedMessage {
     pub fn new(
         id: MessageID,
         destination_address: String,
@@ -118,7 +148,7 @@ impl Message {
         source_address: String,
         payload_hash: HexBinary,
     ) -> Self {
-        Message {
+        ValidatedMessage {
             id,
             destination_address,
             destination_domain,
