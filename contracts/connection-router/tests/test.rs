@@ -1,7 +1,7 @@
 use connection_router;
 use std::{collections::HashMap, vec};
 
-use connection_router::types::{DomainName, Message, ID_SEPARATOR};
+use connection_router::types::{DomainName, ValidatedMessage, ID_SEPARATOR};
 use cosmwasm_std::{from_binary, Addr};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -76,12 +76,12 @@ fn generate_messages(
     dest_chain: &Chain,
     nonce: &mut usize,
     count: usize,
-) -> Vec<Message> {
+) -> Vec<ValidatedMessage> {
     let mut msgs = vec![];
     for x in 0..count {
         *nonce = *nonce + 1;
         let id = format!("id-{}", nonce);
-        msgs.push(Message::new(
+        msgs.push(ValidatedMessage::new(
             id.parse().unwrap(),
             String::from("idc"),
             dest_chain.domain_name.clone(),
@@ -93,7 +93,7 @@ fn generate_messages(
     msgs
 }
 
-fn get_base_id(msg: &Message) -> String {
+fn get_base_id(msg: &ValidatedMessage) -> String {
     msg.id()
         .to_string()
         .split_once(ID_SEPARATOR)
@@ -144,7 +144,7 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
     assert_eq!(msgs[offset..msgs_ret.len()], msgs_ret);
     offset = offset + 1;
@@ -159,7 +159,7 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(32, msgs_ret.len());
     assert_eq!(msgs[offset..offset + msgs_ret.len()], msgs_ret);
     offset = offset + msgs_ret.len();
@@ -174,7 +174,7 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len() - offset, msgs_ret.len());
     assert_eq!(msgs[offset..], msgs_ret);
 
@@ -188,9 +188,9 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(0, msgs_ret.len());
-    assert_eq!(Vec::<Message>::new(), msgs_ret);
+    assert_eq!(Vec::<ValidatedMessage>::new(), msgs_ret);
 }
 
 #[test]
@@ -428,7 +428,7 @@ fn multi_chain_route() {
                 &[],
             )
             .unwrap();
-        let actual: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+        let actual: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
         assert_eq!(expected.len(), actual.len());
         assert_eq!(expected, &actual);
     }
@@ -681,7 +681,7 @@ fn upgrade_outgoing_gateway() {
         )
         .unwrap();
 
-    let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], *msg);
 }
@@ -753,7 +753,7 @@ fn upgrade_incoming_gateway() {
         )
         .unwrap();
 
-    let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], *msg);
 }
@@ -1100,7 +1100,7 @@ fn freeze_outgoing_gateway() {
         &[],
     );
     assert!(res.is_ok());
-    let msgs: Vec<Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
+    let msgs: Vec<ValidatedMessage> = from_binary(&res.unwrap().data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], *msg);
 }
@@ -1230,7 +1230,7 @@ fn freeze_domain() {
             &[],
         )
         .unwrap();
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<ValidatedMessage> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
     assert_eq!(vec![queued_msg.clone()], msgs_ret);
 
