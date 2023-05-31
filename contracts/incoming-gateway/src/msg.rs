@@ -1,14 +1,6 @@
+use connection_router::types::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
-
-#[cw_serde]
-pub struct Message {
-    pub id: String,
-    pub source_address: String,
-    pub destination_address: String,
-    pub destination_domain: String,
-    pub payload_hash: HexBinary,
-}
 
 #[cw_serde]
 pub enum ExecuteMsg {

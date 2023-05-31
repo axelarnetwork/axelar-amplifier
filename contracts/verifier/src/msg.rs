@@ -1,5 +1,5 @@
+use connection_router::types::Message;
 use cosmwasm_schema::cw_serde;
-use incoming_gateway::msg::Message;
 
 #[cw_serde]
 pub enum ExecuteMsg {
