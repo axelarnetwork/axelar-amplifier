@@ -15,7 +15,7 @@ pub enum ExecuteMsg {
     // returns the poll id to be used for voting
     StartPoll { messages: Vec<Message> },
 
-    // Calls EndPoll on the generic voting contract.
+    // Calls TallyResults on the generic voting contract.
     // For all verified messages, calls MessagesVerified on the verifier
     EndPoll { poll_id: String },
 
