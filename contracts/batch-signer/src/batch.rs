@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
-use ethabi::{ethereum_types::U256, Token};
+use ethabi::{ethereum_types, Token};
 use sha3::{Digest, Keccak256};
 
 use crate::types::{KeccackHash, Message};
@@ -123,12 +123,10 @@ fn encode_command_params(
     ethabi::encode(&[
         Token::String(source_chain),
         Token::String(source_address),
-        Token::Address(
-            ethabi::ethereum_types::H160::from_str(destination_address.as_str()).unwrap(),
-        ),
+        Token::Address(ethereum_types::H160::from_str(destination_address.as_str()).unwrap()),
         Token::FixedBytes(payload_hash.into()),
         Token::FixedBytes(source_tx_hash.into()),
-        Token::Uint(U256::from(source_event_index.u64())),
+        Token::Uint(ethereum_types::U256::from(source_event_index.u64())),
     ])
     .into()
 }
@@ -139,8 +137,10 @@ fn encode_data(
     commands_types: &[String],
     commands_params: Vec<HexBinary>,
 ) -> HexBinary {
-    let destination_chain_id =
-        Token::Uint(U256::from_dec_str(&destination_chain_id.to_string()).unwrap());
+    let destination_chain_id = Token::Uint(
+        ethereum_types::U256::from_dec_str(&destination_chain_id.to_string())
+            .expect("violated invariant: Uint256 is not a valid EVM uint256"),
+    );
     let commands_ids: Vec<Token> = commands_ids
         .iter()
         .map(|item| Token::FixedBytes(item.to_vec()))
