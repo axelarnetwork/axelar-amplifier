@@ -52,6 +52,7 @@ fn build_batch_id(block_height: u64, data: &HexBinary) -> KeccackHash {
 
     id_hasher.update(block_height.to_be_bytes());
     id_hasher.update(data.as_slice());
+
     id_hasher
         .finalize()
         .as_slice()
@@ -127,7 +128,7 @@ fn encode_command_params(
         ),
         Token::FixedBytes(payload_hash.into()),
         Token::FixedBytes(source_tx_hash.into()),
-        Token::Uint(U256::from_dec_str(&source_event_index.to_string()).unwrap()), // TODO: could this be done better?
+        Token::Uint(U256::from(source_event_index.u64())),
     ])
     .into()
 }
