@@ -23,6 +23,6 @@ pub struct CommandBatch {
 pub struct Proof {
     pub addresses: Vec<Addr>,
     pub weights: Vec<Uint256>,
-    pub threshold: Uint256,
+    pub quorum: Uint256,
     pub signatures: Vec<HexBinary>,
 }
