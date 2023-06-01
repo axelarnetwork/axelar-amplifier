@@ -12,7 +12,7 @@ impl From<GatewayEvent> for Event {
     fn from(other: GatewayEvent) -> Self {
         match other {
             GatewayEvent::MessageVerified { msg } => make_message_event("message_verified", msg),
-            GatewayEvent::MessageExecuted { msg } => make_message_event("message_verified", msg),
+            GatewayEvent::MessageExecuted { msg } => make_message_event("message_executed", msg),
             GatewayEvent::MessageVerificationFailed { msg } => {
                 make_message_event("message_verification_failed", msg)
             }

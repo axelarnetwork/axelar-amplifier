@@ -99,6 +99,8 @@ impl KeyDeserialize for DomainName {
     }
 }
 
+// Message is a type meant to be used in interfaces where the data can be provided by the user.
+// The fields have not necessarily been validated, and should be checked prior to further processing.
 #[cw_serde]
 pub struct Message {
     pub id: String,
@@ -129,6 +131,9 @@ pub fn make_message_event(event_name: &str, msg: Message) -> Event {
     Event::new(event_name).add_attributes(attrs)
 }
 
+// ValidatedMessage represents a message for which the fields have been successfully validated.
+// This should never be supplied by the user. For user input, use the Message type, validate the
+// inputs and then convert to ValidatedMessage
 #[cw_serde]
 pub struct ValidatedMessage {
     id: MessageID, // unique per source domain
