@@ -1,15 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
+use connection_router::types::Message;
 
-// TODO should be some type used across contracts?
-#[cw_serde]
-pub struct Message {
-    id: String,
-    source_address: String,
-    source_domain: String,
-    destination_address: String,
-    payload_hash: HexBinary,
-}
 
 #[cw_serde]
 pub enum ExecuteMsg {
