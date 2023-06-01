@@ -1,6 +1,5 @@
 use connection_router::types::Message;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::HexBinary;
 
 #[cw_serde]
 pub enum ExecuteMsg {
