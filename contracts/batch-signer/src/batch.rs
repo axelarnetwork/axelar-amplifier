@@ -56,7 +56,7 @@ fn build_batch_id(block_height: u64, data: &HexBinary) -> KeccackHash {
         .finalize()
         .as_slice()
         .try_into()
-        .expect("Wrong length")
+        .expect("violated invariant: Keccak256 length is not 32 bytes") // TODO: should we add a trait specific to panic violated invariants?
 }
 
 fn build_commands_data(
@@ -91,10 +91,10 @@ fn build_commands_data(
 }
 
 fn build_command_id(tx_hash: &HexBinary, event_index: &Uint64, chain_id: &Uint256) -> KeccackHash {
-    // TODO: is format required to be exactly like core?
+    // TODO: is format required to be exactly like core? https://github.com/axelarnetwork/axelar-core/blob/4cb04c2925f2dec307afc3b7e94d7d254728cbeb/x/evm/types/types.go#L662
     let data = [
         tx_hash.as_slice(),
-        &event_index.to_le_bytes()[..],
+        &event_index.to_le_bytes(),
         chain_id
             .to_be_bytes()
             .iter()
@@ -108,7 +108,7 @@ fn build_command_id(tx_hash: &HexBinary, event_index: &Uint64, chain_id: &Uint25
     Keccak256::digest(data)
         .as_slice()
         .try_into()
-        .expect("Wrong length")
+        .expect("violated invariant: Keccak256 length is not 32 bytes")
 }
 
 fn encode_command_params(
@@ -174,7 +174,7 @@ fn build_hash_to_sign(data: &HexBinary) -> KeccackHash {
     Keccak256::digest(unsigned)
         .as_slice()
         .try_into()
-        .expect("Wrong length")
+        .expect("violated invariant: Keccak256 length is not 32 bytes")
 }
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ impl Message {
     }
 }
 
+// TODO: this would most likely change when other command types are supported
 impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "approveContractCall")
