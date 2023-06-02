@@ -1,6 +1,6 @@
 use cosmwasm_std::{Addr, Attribute, Event};
 
-use crate::types::{DomainName, ValidatedMessage};
+use crate::types::{DomainName, Message};
 
 pub struct RouterInstantiated {
     pub admin: Addr,
@@ -44,12 +44,12 @@ pub struct DomainUnfrozen {
 }
 
 pub struct MessageRouted {
-    pub msg: ValidatedMessage,
+    pub msg: Message,
 }
 
 pub struct MessagesConsumed<'a> {
     pub domain: DomainName,
-    pub msgs: &'a Vec<ValidatedMessage>,
+    pub msgs: &'a Vec<Message>,
 }
 
 impl From<RouterInstantiated> for Event {
@@ -117,8 +117,8 @@ impl From<DomainUnfrozen> for Event {
     }
 }
 
-impl From<ValidatedMessage> for Vec<Attribute> {
-    fn from(other: ValidatedMessage) -> Self {
+impl From<Message> for Vec<Attribute> {
+    fn from(other: Message) -> Self {
         vec![
             ("id", other.id()).into(),
             ("source_domain", other.source_domain.clone()).into(),
@@ -130,10 +130,14 @@ impl From<ValidatedMessage> for Vec<Attribute> {
     }
 }
 
+pub fn make_message_event(event_name: &str, msg: Message) -> Event {
+    let attrs: Vec<Attribute> = msg.into();
+    Event::new(event_name).add_attributes(attrs)
+}
+
 impl From<MessageRouted> for Event {
     fn from(other: MessageRouted) -> Self {
-        let attrs: Vec<Attribute> = other.msg.into();
-        Event::new("message_routed").add_attributes(attrs)
+        make_message_event("message_routed", other.msg)
     }
 }
 

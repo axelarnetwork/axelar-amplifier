@@ -119,7 +119,7 @@ pub mod execute {
             GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
         state::get_message_queue_id,
-        types::{Domain, DomainName, Gateway, ValidatedMessage},
+        types::{Domain, DomainName, Gateway, Message},
     };
 
     use super::*;
@@ -397,7 +397,7 @@ pub mod execute {
                 domain: destination_domain,
             });
         }
-        let msg = ValidatedMessage::new(
+        let msg = Message::new(
             id.parse()?,
             destination_address,
             destination_domain.clone(),
@@ -412,7 +412,7 @@ pub mod execute {
         MESSAGES.save(deps.storage, msg.id(), &())?;
 
         let qid = get_message_queue_id(&destination_domain);
-        let q: Deque<ValidatedMessage> = Deque::new(&qid);
+        let q: Deque<Message> = Deque::new(&qid);
         q.push_back(deps.storage, &msg)?;
 
         Ok(Response::new().add_event(MessageRouted { msg }.into()))
@@ -435,7 +435,7 @@ pub mod execute {
         }
 
         let qid = get_message_queue_id(&domain.name);
-        let q: Deque<ValidatedMessage> = Deque::new(&qid);
+        let q: Deque<Message> = Deque::new(&qid);
         let mut messages = vec![];
 
         let to_consume = count.unwrap_or(u32::MAX);

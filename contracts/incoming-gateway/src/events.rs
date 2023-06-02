@@ -1,4 +1,5 @@
-use connection_router::types::{make_message_event, Message};
+use connection_router::events::make_message_event;
+use connection_router::types::Message;
 use cosmwasm_std::Event;
 
 pub enum GatewayEvent {
