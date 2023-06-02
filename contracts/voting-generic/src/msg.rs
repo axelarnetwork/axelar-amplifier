@@ -18,7 +18,7 @@ pub enum ExecuteMsg {
     // generates and returns a poll ID
     StartPoll {
         participants: Vec<Participant>,
-        block_height_expiry: u64,
+        block_height_expiry: Option<u64>,
     },
 
     // returns a PollResult

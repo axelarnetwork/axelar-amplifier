@@ -5,11 +5,12 @@ use crate::msg::Participant;
 pub struct PollStarted {
     poll_id: String,
     participants: Vec<Participant>,
+    expiry: Option<u64>,
 }
 
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
-        Event::new("poll_started")
+        let ev = Event::new("poll_started")
             .add_attribute("poll_id", other.poll_id)
             .add_attribute(
                 "participants",
@@ -22,7 +23,11 @@ impl From<PollStarted> for Event {
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
-            )
+            );
+        match other.expiry {
+            Some(expiry) => ev.add_attribute("block_height_expiry", expiry.to_string()),
+            _ => ev,
+        }
     }
 }
 
