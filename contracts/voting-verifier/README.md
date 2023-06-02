@@ -17,13 +17,15 @@ subgraph Axelar
     V{"Verifier"}
     R{"Service Registry"}
 end
+OC{"Off-Chain Procceses"}
+
 G--"VerifyMessages([M, M', M''])"-->V
 V--"VerifyMessages([M, M', M''])"-->Vr
-Workers --"StartPoll([M, M', M''])"-->Vr
+OC --"StartPoll([M, M', M''])"-->Vr
 Vr--"GetActiveWorkers"-->R
 Vr--"StartPoll(workers)"-->Vg
-Workers--"Vote(poll_id, votes)"-->Vg
-Workers--"EndPoll(poll_id)"-->Vr
+OC--"Vote(poll_id, votes)"-->Vg
+OC--"EndPoll(poll_id)"-->Vr
 Vr--"EndPoll(poll_id)"-->Vg
 Vr--"MessagesVerified([M,M',M''])"-->V
 
@@ -35,7 +37,8 @@ participant Verifier
 participant Voting Verifier
 participant Generic Voting Contract
 participant Service Registry
-participant Workers
+participant OC as Off-Chain Processes
+
 
 Verifier->>Voting Verifier: VerifyMessages([M,M',M''])
 Voting Verifier->>Voting Verifier: StartPoll([M,M',M''])
@@ -45,13 +48,13 @@ Voting Verifier->>Service Registry: GetActiveWorkers
 Service Registry-->>Voting Verifier: list of workers and stake
 Voting Verifier->>Generic Voting Contract: StartPoll(workers)
 Generic Voting Contract-->>Voting Verifier: poll_id
-Voting Verifier->>Workers: emit event with poll_id and messages
+Voting Verifier->>OC: emit event with poll_id and messages
 Voting Verifier-->>Verifier: [false,false,false]
 
-Workers->>Generic Voting Contract: Vote(poll_id, votes)
-Workers->>Generic Voting Contract: Vote(poll_id, votes)
+OC->>Generic Voting Contract: Vote(poll_id, votes)
+OC->>Generic Voting Contract: Vote(poll_id, votes)
 
-Workers->>Voting Verifier: EndPoll(poll_id)
+OC->>Voting Verifier: EndPoll(poll_id)
 Voting Verifier->>Generic Voting Contract: EndPoll(poll_id)
 Generic Voting Contract-->>Voting Verifier: poll result
 
