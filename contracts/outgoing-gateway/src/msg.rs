@@ -1,6 +1,5 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
 use connection_router::types::Message;
-
+use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
 pub enum ExecuteMsg {
