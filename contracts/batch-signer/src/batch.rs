@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use ethabi::{ethereum_types, Token};
@@ -71,10 +69,11 @@ fn build_commands_data(
     for message in messages {
         let command_type = message.to_string();
 
-        let tx_hash = message.source_tx_hash();
-        let event_index = message.source_event_index();
-
-        let command_id = build_command_id(&tx_hash, &event_index, &destination_chain_id);
+        let command_id = build_command_id(
+            &message.source_tx_hash,
+            &message.source_event_index,
+            &destination_chain_id,
+        );
 
         commands_ids.push(command_id);
         commands_types.push(command_type);
@@ -83,15 +82,19 @@ fn build_commands_data(
             message.source_address,
             message.destination_address,
             message.payload_hash,
-            tx_hash,
-            event_index,
+            message.source_tx_hash,
+            message.source_event_index,
         ));
     }
 
     (commands_ids, commands_types, commands_params)
 }
 
-fn build_command_id(tx_hash: &HexBinary, event_index: &Uint64, chain_id: &Uint256) -> KeccackHash {
+fn build_command_id(
+    tx_hash: &KeccackHash,
+    event_index: &Uint64,
+    chain_id: &Uint256,
+) -> KeccackHash {
     // TODO: is format required to be exactly like core? https://github.com/axelarnetwork/axelar-core/blob/4cb04c2925f2dec307afc3b7e94d7d254728cbeb/x/evm/types/types.go#L662
     let data = [
         tx_hash.as_slice(),
@@ -115,15 +118,15 @@ fn build_command_id(tx_hash: &HexBinary, event_index: &Uint64, chain_id: &Uint25
 fn encode_command_params(
     source_chain: String,
     source_address: String,
-    destination_address: String,
-    payload_hash: HexBinary,
-    source_tx_hash: HexBinary,
+    destination_address: ethereum_types::Address,
+    payload_hash: KeccackHash,
+    source_tx_hash: KeccackHash,
     source_event_index: Uint64,
 ) -> HexBinary {
     ethabi::encode(&[
         Token::String(source_chain),
         Token::String(source_address),
-        Token::Address(ethereum_types::H160::from_str(destination_address.as_str()).unwrap()),
+        Token::Address(destination_address),
         Token::FixedBytes(payload_hash.into()),
         Token::FixedBytes(source_tx_hash.into()),
         Token::Uint(ethereum_types::U256::from(source_event_index.u64())),
@@ -180,6 +183,8 @@ fn build_hash_to_sign(data: &HexBinary) -> KeccackHash {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -194,21 +199,47 @@ mod tests {
                 id: "c8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f-1".into(),
                 source_chain: "Polygon".into(),
                 source_address: "0x66423a1b45e14EaB8B132665FebC7Ec86BfcBF44".into(),
-                destination_address: "05a8AA0ed1e1bc598C23B415F67Cd774B530546C".into(),
+                destination_address: ethereum_types::Address::from_str(
+                    "05a8AA0ed1e1bc598C23B415F67Cd774B530546C",
+                )
+                .unwrap(),
                 payload_hash: HexBinary::from_hex(
                     "df0e679e57348329e51e4337b7839882c29f21a3095a718c239f147b143f9ff8",
                 )
+                .unwrap()
+                .as_slice()
+                .try_into()
                 .unwrap(),
+                source_tx_hash: hex::decode(
+                    "c8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                source_event_index: Uint64::one(),
             },
             Message {
                 id: "e7a7263a63ac449b4c6ce2a93accfae9ae49c1d96e3fa9c19cc417130bcfda22-1".into(),
                 source_chain: "Polygon".into(),
                 source_address: "0x66423a1b45e14EaB8B132665FebC7Ec86BfcBF44".into(),
-                destination_address: "05a8AA0ed1e1bc598C23B415F67Cd774B530546C".into(),
+                destination_address: ethereum_types::Address::from_str(
+                    "05a8AA0ed1e1bc598C23B415F67Cd774B530546C",
+                )
+                .unwrap(),
                 payload_hash: HexBinary::from_hex(
                     "d8f619df9786ea29e466d37c846576a49080089909bf228c19458739606341a5",
                 )
+                .unwrap()
+                .as_slice()
+                .try_into()
                 .unwrap(),
+                source_tx_hash: hex::decode(
+                    "e7a7263a63ac449b4c6ce2a93accfae9ae49c1d96e3fa9c19cc417130bcfda22",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                source_event_index: Uint64::one(),
             },
         ];
 

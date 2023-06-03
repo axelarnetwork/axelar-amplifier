@@ -4,11 +4,11 @@ use cosmwasm_std::HexBinary;
 // TODO should be some type used across contracts?
 #[cw_serde]
 pub struct Message {
-    id: String,
-    source_address: String,
-    source_domain: String,
-    destination_address: String,
-    payload_hash: HexBinary,
+    pub id: String,
+    pub source_address: String,
+    pub source_domain: String,
+    pub destination_address: String,
+    pub payload_hash: HexBinary,
 }
 
 #[cw_serde]

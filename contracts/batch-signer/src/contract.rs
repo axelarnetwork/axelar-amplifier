@@ -62,14 +62,20 @@ pub mod execute {
         let config = CONFIG.load(deps.storage)?;
 
         let query_msg = outgoing_gateway::msg::QueryMsg::GetMessages { message_ids };
-        let messages: Vec<Message> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.gateway.into(),
-            msg: to_binary(&query_msg)?,
-        }))?;
+        let messages: Vec<outgoing_gateway::msg::Message> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: config.gateway.into(),
+                msg: to_binary(&query_msg)?,
+            }))?;
 
         if messages.is_empty() {
             return Ok(Response::default());
         }
+
+        let messages: Vec<Message> = messages
+            .into_iter()
+            .map(|msg| msg.try_into())
+            .collect::<Result<Vec<Message>, ContractError>>()?;
 
         let command_batch =
             CommandBatch::new(env.block.height, messages, config.destination_chain_id);
