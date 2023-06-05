@@ -19,13 +19,14 @@ pub struct Message {
     pub source_event_index: Uint64,
 }
 
-impl TryFrom<outgoing_gateway::msg::Message> for Message {
+impl TryFrom<connection_router::types::Message> for Message {
     type Error = ContractError;
 
-    fn try_from(msg: outgoing_gateway::msg::Message) -> Result<Self, Self::Error> {
+    fn try_from(msg: connection_router::types::Message) -> Result<Self, Self::Error> {
         // TODO: confirm message id format
-        // TODO: move all id deconstruction to Message struct impl
-        let id_parts: Vec<&str> = msg.id.split(ID_SEPARATOR).collect();
+        // TODO: move all id deconstruction to Message struct impl?
+        let id = msg.id();
+        let id_parts: Vec<&str> = id.split(ID_SEPARATOR).collect();
         let id_parts: [&str; 2] =
             id_parts
                 .try_into()
@@ -50,9 +51,9 @@ impl TryFrom<outgoing_gateway::msg::Message> for Message {
             })?;
 
         Ok(Message {
-            id: msg.id,
+            id,
             source_address: msg.source_address,
-            source_chain: msg.source_domain,
+            source_chain: msg.source_domain.into(),
             destination_address: ethereum_types::Address::from_str(&msg.destination_address)
                 .map_err(|_| ContractError::InvalidMessage {
                     context: "destination_address is not a valid EVM address".into(),

@@ -18,7 +18,7 @@ pub struct CommandBatch {
     pub commands_ids: Vec<KeccackHash>,
     pub encoded_data: HexBinary,
     pub hash_to_sign: KeccackHash,
-    pub status: SigningStatus, // TODO: is this really needed?
+    pub status: SigningStatus, // TODO: is this needed here or perhaps a reference to multisig?
 }
 
 impl CommandBatch {
@@ -96,6 +96,7 @@ fn build_command_id(
     chain_id: &Uint256,
 ) -> KeccackHash {
     // TODO: is format required to be exactly like core? https://github.com/axelarnetwork/axelar-core/blob/4cb04c2925f2dec307afc3b7e94d7d254728cbeb/x/evm/types/types.go#L662
+    // TODO: or could we just use a hash of the message ID?
     let data = [
         tx_hash.as_slice(),
         &event_index.to_le_bytes(),

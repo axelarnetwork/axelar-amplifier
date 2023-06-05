@@ -62,7 +62,7 @@ pub mod execute {
         let config = CONFIG.load(deps.storage)?;
 
         let query_msg = outgoing_gateway::msg::QueryMsg::GetMessages { message_ids };
-        let messages: Vec<outgoing_gateway::msg::Message> =
+        let messages: Vec<connection_router::types::Message> =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: config.gateway.into(),
                 msg: to_binary(&query_msg)?,
