@@ -3,7 +3,6 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
     StdResult,
 };
-use cw_storage_plus::Deque;
 
 use crate::error::ContractError;
 use crate::events::{DomainRegistered, RouterInstantiated};
@@ -105,11 +104,13 @@ pub fn execute(
             source_address,
             payload_hash,
         ),
-        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, info, count),
+        ExecuteMsg::ConsumeMessages { ids } => execute::consume_messages(deps, info, ids),
     }
 }
 
 pub mod execute {
+
+    use std::vec;
 
     use cosmwasm_std::Addr;
 
@@ -118,7 +119,6 @@ pub mod execute {
             DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
             GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
-        state::get_message_queue_id,
         types::{Domain, DomainName, Gateway, Message},
     };
 
@@ -400,20 +400,13 @@ pub mod execute {
         let msg = Message::new(
             id.parse()?,
             destination_address,
-            destination_domain.clone(),
+            destination_domain,
             source_domain.name,
             source_address,
             payload_hash,
         );
 
-        if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
-            return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
-        }
-        MESSAGES.save(deps.storage, msg.id(), &())?;
-
-        let qid = get_message_queue_id(&destination_domain);
-        let q: Deque<Message> = Deque::new(&qid);
-        q.push_back(deps.storage, &msg)?;
+        MESSAGES.save(deps.storage, msg.id(), &msg)?;
 
         Ok(Response::new().add_event(MessageRouted { msg }.into()))
     }
@@ -421,7 +414,7 @@ pub mod execute {
     pub fn consume_messages(
         deps: DepsMut,
         info: MessageInfo,
-        count: Option<u32>,
+        ids: Vec<String>,
     ) -> Result<Response, ContractError> {
         let domain = find_domain_for_outgoing_gateway(&deps, &info.sender)?
             .ok_or(ContractError::GatewayNotRegistered {})?;
@@ -433,18 +426,19 @@ pub mod execute {
         if domain.outgoing_gateway.is_frozen {
             return Err(ContractError::GatewayFrozen {});
         }
-
-        let qid = get_message_queue_id(&domain.name);
-        let q: Deque<Message> = Deque::new(&qid);
         let mut messages = vec![];
-
-        let to_consume = count.unwrap_or(u32::MAX);
-        for _ in 0..to_consume {
-            match q.pop_front(deps.storage)? {
-                Some(m) => messages.push(m),
-                None => break,
+        for id in ids {
+            let msg = match MESSAGES.may_load(deps.storage, id.clone())? {
+                Some(m) => Ok(m),
+                None => Err(ContractError::MessageNotFound {}),
+            }?;
+            if msg.destination_domain != domain.name {
+                return Err(ContractError::WrongDomain {});
             }
+            messages.push(msg);
+            MESSAGES.remove(deps.storage, id);
         }
+
         Ok(Response::new()
             .add_event(Event::from(MessagesConsumed {
                 domain: domain.name,

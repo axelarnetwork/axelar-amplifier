@@ -63,10 +63,10 @@ pub enum ExecuteMsg {
         source_address: String,
         payload_hash: HexBinary,
     },
-    // Returns count messages and deletes them from the gateway's queue.
+    // For each id, returns the associated message and deletes the message from storage
     // Called by an outgoing gateway
     ConsumeMessages {
-        count: Option<u32>,
+        ids: Vec<String>,
     },
 }
 

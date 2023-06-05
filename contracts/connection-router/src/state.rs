@@ -4,7 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
-use crate::types::{Domain, DomainName};
+use crate::types::{Domain, DomainName, Message};
 
 #[cw_serde]
 pub struct Config {
@@ -75,10 +75,5 @@ impl<'a> IndexList<Domain> for DomainIndexes<'a> {
     }
 }
 
-// a set of all message uuids
-pub const MESSAGES: Map<String, ()> = Map::new("messages");
-
-const MESSAGE_QUEUE_SUFFIX: &str = "-messages";
-pub fn get_message_queue_id(destination_domain: &DomainName) -> String {
-    format!("{}{}", destination_domain.to_string(), MESSAGE_QUEUE_SUFFIX)
-}
+// maps a message uuid to a message
+pub const MESSAGES: Map<String, Message> = Map::new("messages");

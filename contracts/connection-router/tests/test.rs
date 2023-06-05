@@ -132,6 +132,7 @@ fn route() {
             )
             .unwrap();
     }
+    let ids: Vec<String> = msgs.iter().map(|m| m.id()).collect();
 
     let mut offset = 0;
     let res = config
@@ -139,7 +140,9 @@ fn route() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(1) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: ids[..1].to_vec(),
+            },
             &[],
         )
         .unwrap();
@@ -154,7 +157,9 @@ fn route() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: ids[offset..offset + 32].to_vec(),
+            },
             &[],
         )
         .unwrap();
@@ -169,7 +174,9 @@ fn route() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(256) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: ids[offset..].to_vec(),
+            },
             &[],
         )
         .unwrap();
@@ -177,20 +184,112 @@ fn route() {
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len() - offset, msgs_ret.len());
     assert_eq!(msgs[offset..], msgs_ret);
+}
 
+#[test]
+fn consume_message_wrong_domain() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let nonce: &mut usize = &mut 0;
+    let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+    let res = config
+        .app
+        .execute_contract(
+            eth.outgoing_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::WrongDomain {}, res.downcast().unwrap());
+}
+
+#[test]
+fn consume_message_not_found() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let nonce: &mut usize = &mut 0;
+    let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+
+    let res = config
+        .app
+        .execute_contract(
+            eth.outgoing_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::MessageNotFound {}, res.downcast().unwrap());
+
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = config.app.execute_contract(
+        polygon.outgoing_gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::ConsumeMessages {
+            ids: vec![msg.id()],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    // can only consume once
     let res = config
         .app
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: None },
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
             &[],
         )
-        .unwrap();
-
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
-    assert_eq!(0, msgs_ret.len());
-    assert_eq!(Vec::<Message>::new(), msgs_ret);
+        .unwrap_err();
+    assert_eq!(ContractError::MessageNotFound {}, res.downcast().unwrap());
 }
 
 #[test]
@@ -239,60 +338,6 @@ fn message_id() {
     assert_eq!(get_base_id(msg), get_base_id(msg2));
     assert_ne!(msg.id(), msg2.id());
 
-    // try to route same message twice
-    let _ = config
-        .app
-        .execute_contract(
-            eth.incoming_gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
-    let res = config
-        .app
-        .execute_contract(
-            eth.incoming_gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        ContractError::MessageAlreadyRouted { id: msg.id() },
-        res.downcast().unwrap()
-    );
-
-    // Should be able to route same id from a different source
-    let _ = config
-        .app
-        .execute_contract(
-            polygon.incoming_gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
-            &[],
-        )
-        .unwrap();
-
     let res = config
         .app
         .execute_contract(
@@ -326,6 +371,109 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+}
+
+#[test]
+fn reroute() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // can route same message again
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = config.app.execute_contract(
+        polygon.outgoing_gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::ConsumeMessages {
+            ids: vec![msg.id()],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    // no duplicates in response
+    let msgs_ret: Vec<Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
+    assert_eq!(msgs_ret.len(), 1);
+    assert_eq!(msgs_ret[0], *msg);
+
+    // can only consume once
+    let res = config
+        .app
+        .execute_contract(
+            polygon.outgoing_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::MessageNotFound {}, res.downcast().unwrap());
+
+    // can route same message again
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage {
+                id: get_base_id(msg),
+                destination_domain: msg.destination_domain.to_string(),
+                destination_address: msg.destination_address.to_string(),
+                source_address: msg.source_address.clone(),
+                payload_hash: msg.payload_hash.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    let res = config.app.execute_contract(
+        polygon.outgoing_gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::ConsumeMessages {
+            ids: vec![msg.id()],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    let msgs_ret: Vec<Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
+    assert_eq!(msgs_ret.len(), 1);
+    assert_eq!(msgs_ret[0], *msg);
 }
 
 #[test]
@@ -423,7 +571,7 @@ fn multi_chain_route() {
                 d.outgoing_gateway.clone(),
                 config.contract_address.clone(),
                 &ExecuteMsg::ConsumeMessages {
-                    count: Some(expected.len() as u32),
+                    ids: expected.iter().map(|m| m.id()).collect(),
                 },
                 &[],
             )
@@ -662,7 +810,9 @@ fn upgrade_outgoing_gateway() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
             &[],
         )
         .unwrap_err();
@@ -676,7 +826,9 @@ fn upgrade_outgoing_gateway() {
         .execute_contract(
             new_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
             &[],
         )
         .unwrap();
@@ -748,7 +900,9 @@ fn upgrade_incoming_gateway() {
         .execute_contract(
             eth.outgoing_gateway,
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(32) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![msg.id()],
+            },
             &[],
         )
         .unwrap();
@@ -1031,7 +1185,9 @@ fn freeze_incoming_gateway() {
     let res = config.app.execute_contract(
         polygon.outgoing_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::ConsumeMessages { count: None },
+        &ExecuteMsg::ConsumeMessages {
+            ids: vec![msg.id()],
+        },
         &[],
     );
     assert!(res.is_ok());
@@ -1061,7 +1217,7 @@ fn freeze_outgoing_gateway() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: None },
+            &ExecuteMsg::ConsumeMessages { ids: vec![] },
             &[],
         )
         .unwrap_err();
@@ -1096,7 +1252,9 @@ fn freeze_outgoing_gateway() {
     let res = config.app.execute_contract(
         polygon.outgoing_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::ConsumeMessages { count: None },
+        &ExecuteMsg::ConsumeMessages {
+            ids: vec![msg.id()],
+        },
         &[],
     );
     assert!(res.is_ok());
@@ -1196,7 +1354,9 @@ fn freeze_domain() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(1) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![queued_msg.id()],
+            },
             &[],
         )
         .unwrap_err();
@@ -1226,7 +1386,9 @@ fn freeze_domain() {
         .execute_contract(
             polygon.outgoing_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::ConsumeMessages { count: Some(1) },
+            &ExecuteMsg::ConsumeMessages {
+                ids: vec![queued_msg.id()],
+            },
             &[],
         )
         .unwrap();

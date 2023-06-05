@@ -43,4 +43,7 @@ pub enum ContractError {
 
     #[error("Address is invalid")]
     InvalidAddress {},
+
+    #[error("Destination domain of message does not match domain of caller")]
+    WrongDomain {},
 }
