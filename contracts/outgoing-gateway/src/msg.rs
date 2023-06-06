@@ -3,8 +3,9 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // Fetch pending messages from the router
-    FetchPendingMessages { limit: Option<u32> },
+    // For each message id, returns the associated message.
+    // Fetches messages from the router if not found in storage.
+    FetchMessages { message_ids: Vec<String> },
 }
 
 #[cw_serde]
