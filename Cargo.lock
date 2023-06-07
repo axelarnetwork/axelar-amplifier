@@ -3,6 +3,26 @@
 version = 3
 
 [[package]]
+name = "aggregate-verifier"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw2",
+ "either",
+ "incoming-gateway",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -384,9 +404,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.6.1"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
 
 [[package]]
 name = "elliptic-curve"
@@ -480,6 +500,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.6",
+]
+
+[[package]]
+name = "incoming-gateway"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw2",
+ "either",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
 ]
 
 [[package]]
