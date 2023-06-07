@@ -1,5 +1,4 @@
-use connection_router::state::Message;
-use connection_router::{self, external};
+use connection_router::{self, msg, state};
 use std::{collections::HashMap, vec};
 
 use connection_router::types::{DomainName, ID_SEPARATOR};
@@ -8,7 +7,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 
 use connection_router::contract::*;
 use connection_router::error::ContractError;
-use connection_router::msg::{ExecuteMsg, InstantiateMsg};
+use connection_router::msg::{ExecuteMsg, InstantiateMsg, Message};
 use cosmwasm_std::HexBinary;
 
 struct TestConfig {
@@ -77,12 +76,12 @@ fn generate_messages(
     dest_chain: &Chain,
     nonce: &mut usize,
     count: usize,
-) -> Vec<external::Message> {
+) -> Vec<msg::Message> {
     let mut msgs = vec![];
     for x in 0..count {
         *nonce = *nonce + 1;
         let id = format!("id-{}", nonce);
-        msgs.push(external::Message {
+        msgs.push(msg::Message {
             id: id.parse().unwrap(),
             destination_address: String::from("idc"),
             destination_domain: dest_chain.domain_name.to_string(),
@@ -94,13 +93,7 @@ fn generate_messages(
     msgs
 }
 
-fn convert_messages(msgs: &[external::Message]) -> Vec<Message> {
-    msgs.iter()
-        .map(|m| Message::try_from(m.clone()).unwrap())
-        .collect()
-}
-
-fn get_base_id(msg: &Message) -> String {
+fn get_base_id(msg: &state::Message) -> String {
     msg.id()
         .to_string()
         .split_once(ID_SEPARATOR)
@@ -147,7 +140,7 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(convert_messages(&msgs[offset..msgs_ret.len()]), msgs_ret);
+    assert_eq!(&msgs[offset..msgs_ret.len()], msgs_ret);
     offset = offset + 1;
 
     let res = config
@@ -162,10 +155,7 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(32, msgs_ret.len());
-    assert_eq!(
-        convert_messages(&msgs[offset..offset + msgs_ret.len()]),
-        msgs_ret
-    );
+    assert_eq!(&msgs[offset..offset + msgs_ret.len()], msgs_ret);
     offset = offset + msgs_ret.len();
 
     let res = config
@@ -180,7 +170,7 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len() - offset, msgs_ret.len());
-    assert_eq!(convert_messages(&msgs[offset..]), msgs_ret);
+    assert_eq!(&msgs[offset..], msgs_ret);
 
     let res = config
         .app
@@ -192,9 +182,9 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<state::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(0, msgs_ret.len());
-    assert_eq!(Vec::<Message>::new(), msgs_ret);
+    assert_eq!(Vec::<state::Message>::new(), msgs_ret);
 }
 
 #[test]
@@ -229,8 +219,8 @@ fn message_id() {
     let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
     let msg2 = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
     {
-        let msg = Message::try_from(msg.clone()).unwrap();
-        let msg2 = Message::try_from(msg2.clone()).unwrap();
+        let msg = state::Message::try_from(msg.clone()).unwrap();
+        let msg2 = state::Message::try_from(msg2.clone()).unwrap();
         assert_eq!(get_base_id(&msg), get_base_id(&msg2));
         assert_ne!(msg.id(), msg2.id());
     }
@@ -256,7 +246,7 @@ fn message_id() {
         .unwrap_err();
     assert_eq!(
         ContractError::MessageAlreadyRouted {
-            id: Message::try_from(msg.clone()).unwrap().id()
+            id: state::Message::try_from(msg.clone()).unwrap().id()
         },
         res.downcast().unwrap()
     );
@@ -267,7 +257,7 @@ fn message_id() {
         .execute_contract(
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage(external::Message {
+            &ExecuteMsg::RouteMessage(msg::Message {
                 source_domain: polygon.domain_name.to_string(),
                 ..msg.clone()
             }),
@@ -280,7 +270,7 @@ fn message_id() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage(external::Message {
+            &ExecuteMsg::RouteMessage(msg::Message {
                 id: "bad:".to_string(),
                 ..msg.clone()
             }),
@@ -294,7 +284,7 @@ fn message_id() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage(external::Message {
+            &ExecuteMsg::RouteMessage(msg::Message {
                 id: "".to_string(),
                 ..msg.clone()
             }),
@@ -320,7 +310,7 @@ fn invalid_address() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage(external::Message {
+            &ExecuteMsg::RouteMessage(msg::Message {
                 destination_address: "".to_string(),
                 ..msg.clone()
             }),
@@ -334,7 +324,7 @@ fn invalid_address() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage(external::Message {
+            &ExecuteMsg::RouteMessage(msg::Message {
                 source_address: "".to_string(),
                 ..msg.clone()
             }),
@@ -417,7 +407,7 @@ fn multi_chain_route() {
             .unwrap();
         let actual: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
         assert_eq!(expected.len(), actual.len());
-        assert_eq!(&convert_messages(&expected), &actual);
+        assert_eq!(expected, &actual);
     }
 }
 
@@ -664,7 +654,7 @@ fn upgrade_outgoing_gateway() {
 
     let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
-    assert_eq!(convert_messages(&[msg.clone()]), msgs);
+    assert_eq!(msg.clone(), msgs[0]);
 }
 
 #[test]
@@ -724,7 +714,7 @@ fn upgrade_incoming_gateway() {
 
     let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
-    assert_eq!(msgs, convert_messages(&[msg.clone()]));
+    assert_eq!(msgs[0], msg.clone());
 }
 
 #[test]
@@ -1037,7 +1027,7 @@ fn freeze_outgoing_gateway() {
     assert!(res.is_ok());
     let msgs: Vec<Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
-    assert_eq!(msgs, convert_messages(&[msg.clone()]));
+    assert_eq!(msgs[0], msg.clone());
 }
 
 #[test]
@@ -1149,7 +1139,7 @@ fn freeze_domain() {
         .unwrap();
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(convert_messages(&[queued_msg.clone()]), msgs_ret);
+    assert_eq!(queued_msg.clone(), msgs_ret[0]);
 
     // can route to the domain now
     let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];

@@ -5,7 +5,7 @@ use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 use crate::{
-    external,
+    msg,
     types::{Domain, DomainName, MessageID, ID_SEPARATOR},
     ContractError,
 };
@@ -128,9 +128,9 @@ impl Message {
     }
 }
 
-impl TryFrom<external::Message> for Message {
+impl TryFrom<msg::Message> for Message {
     type Error = ContractError;
-    fn try_from(value: external::Message) -> Result<Self, Self::Error> {
+    fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
         if value.destination_address.is_empty() || value.source_address.is_empty() {
             return Err(ContractError::InvalidAddress {});
         }
@@ -142,5 +142,18 @@ impl TryFrom<external::Message> for Message {
             value.source_address,
             value.payload_hash,
         ))
+    }
+}
+
+impl From<Message> for msg::Message {
+    fn from(value: Message) -> Self {
+        msg::Message {
+            id: value.id.to_string(),
+            destination_address: value.destination_address,
+            destination_domain: value.destination_domain.to_string(),
+            source_address: value.source_address,
+            source_domain: value.source_domain.to_string(),
+            payload_hash: value.payload_hash,
+        }
     }
 }

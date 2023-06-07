@@ -106,6 +106,7 @@ pub mod execute {
             DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
             GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
+        msg,
         state::{get_message_queue_id, Message},
         types::{Domain, DomainName, Gateway},
     };
@@ -427,7 +428,12 @@ pub mod execute {
                 domain: domain.name,
                 msgs: &messages,
             }))
-            .set_data(to_binary(&messages)?))
+            .set_data(to_binary(
+                &messages
+                    .into_iter()
+                    .map(Into::into)
+                    .collect::<Vec<msg::Message>>(),
+            )?))
     }
 
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
