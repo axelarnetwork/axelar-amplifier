@@ -1,4 +1,4 @@
-use connection_router::msg::Message;
+use connection_router::external::Message;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]

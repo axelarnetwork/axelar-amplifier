@@ -1,7 +1,8 @@
-use connection_router;
+use connection_router::state::Message;
+use connection_router::{self, external};
 use std::{collections::HashMap, vec};
 
-use connection_router::types::{DomainName, Message, ID_SEPARATOR};
+use connection_router::types::{DomainName, ID_SEPARATOR};
 use cosmwasm_std::{from_binary, Addr};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -76,21 +77,27 @@ fn generate_messages(
     dest_chain: &Chain,
     nonce: &mut usize,
     count: usize,
-) -> Vec<Message> {
+) -> Vec<external::Message> {
     let mut msgs = vec![];
     for x in 0..count {
         *nonce = *nonce + 1;
         let id = format!("id-{}", nonce);
-        msgs.push(Message::new(
-            id.parse().unwrap(),
-            String::from("idc"),
-            dest_chain.domain_name.clone(),
-            src_chain.domain_name.clone(),
-            String::from("idc"),
-            HexBinary::from(vec![x as u8; 256]),
-        ))
+        msgs.push(external::Message {
+            id: id.parse().unwrap(),
+            destination_address: String::from("idc"),
+            destination_domain: dest_chain.domain_name.to_string(),
+            source_domain: src_chain.domain_name.to_string(),
+            source_address: String::from("idc"),
+            payload_hash: HexBinary::from(vec![x as u8; 256]),
+        })
     }
     msgs
+}
+
+fn convert_messages(msgs: &[external::Message]) -> Vec<Message> {
+    msgs.iter()
+        .map(|m| Message::try_from(m.clone()).unwrap())
+        .collect()
 }
 
 fn get_base_id(msg: &Message) -> String {
@@ -121,13 +128,7 @@ fn route() {
             .execute_contract(
                 eth.incoming_gateway.clone(),
                 config.contract_address.clone(),
-                &ExecuteMsg::RouteMessage {
-                    id: get_base_id(msg),
-                    destination_domain: msg.destination_domain.to_string(),
-                    destination_address: msg.destination_address.to_string(),
-                    source_address: msg.source_address.clone(),
-                    payload_hash: msg.payload_hash.clone(),
-                },
+                &ExecuteMsg::RouteMessage(msg.clone()),
                 &[],
             )
             .unwrap();
@@ -146,7 +147,7 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(msgs[offset..msgs_ret.len()], msgs_ret);
+    assert_eq!(convert_messages(&msgs[offset..msgs_ret.len()]), msgs_ret);
     offset = offset + 1;
 
     let res = config
@@ -161,7 +162,10 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(32, msgs_ret.len());
-    assert_eq!(msgs[offset..offset + msgs_ret.len()], msgs_ret);
+    assert_eq!(
+        convert_messages(&msgs[offset..offset + msgs_ret.len()]),
+        msgs_ret
+    );
     offset = offset + msgs_ret.len();
 
     let res = config
@@ -176,7 +180,7 @@ fn route() {
 
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len() - offset, msgs_ret.len());
-    assert_eq!(msgs[offset..], msgs_ret);
+    assert_eq!(convert_messages(&msgs[offset..]), msgs_ret);
 
     let res = config
         .app
@@ -206,19 +210,7 @@ fn route_non_existing_domain() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: msg
-                    .id()
-                    .to_string()
-                    .split_once(ID_SEPARATOR)
-                    .unwrap()
-                    .1
-                    .to_string(),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
@@ -236,22 +228,19 @@ fn message_id() {
 
     let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
     let msg2 = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
-    assert_eq!(get_base_id(msg), get_base_id(msg2));
-    assert_ne!(msg.id(), msg2.id());
-
+    {
+        let msg = Message::try_from(msg.clone()).unwrap();
+        let msg2 = Message::try_from(msg2.clone()).unwrap();
+        assert_eq!(get_base_id(&msg), get_base_id(&msg2));
+        assert_ne!(msg.id(), msg2.id());
+    }
     // try to route same message twice
     let _ = config
         .app
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap();
@@ -261,18 +250,14 @@ fn message_id() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::MessageAlreadyRouted { id: msg.id() },
+        ContractError::MessageAlreadyRouted {
+            id: Message::try_from(msg.clone()).unwrap().id()
+        },
         res.downcast().unwrap()
     );
 
@@ -282,13 +267,10 @@ fn message_id() {
         .execute_contract(
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(external::Message {
+                source_domain: polygon.domain_name.to_string(),
+                ..msg.clone()
+            }),
             &[],
         )
         .unwrap();
@@ -298,13 +280,10 @@ fn message_id() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
+            &ExecuteMsg::RouteMessage(external::Message {
                 id: "bad:".to_string(),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+                ..msg.clone()
+            }),
             &[],
         )
         .unwrap_err();
@@ -315,13 +294,10 @@ fn message_id() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
+            &ExecuteMsg::RouteMessage(external::Message {
                 id: "".to_string(),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+                ..msg.clone()
+            }),
             &[],
         )
         .unwrap_err();
@@ -344,13 +320,10 @@ fn invalid_address() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(&msg),
-                destination_domain: msg.destination_domain.to_string(),
+            &ExecuteMsg::RouteMessage(external::Message {
                 destination_address: "".to_string(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+                ..msg.clone()
+            }),
             &[],
         )
         .unwrap_err();
@@ -361,17 +334,37 @@ fn invalid_address() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(&msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
+            &ExecuteMsg::RouteMessage(external::Message {
                 source_address: "".to_string(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+                ..msg.clone()
+            }),
             &[],
         )
         .unwrap_err();
     assert_eq!(ContractError::InvalidAddress {}, res.downcast().unwrap());
+}
+
+#[test]
+fn wrong_source_domain() {
+    let mut config = setup();
+    let eth = make_chain("ethereum");
+    let polygon = make_chain("polygon");
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+
+    let res = config
+        .app
+        .execute_contract(
+            polygon.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessage(msg.clone()),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::WrongSourceDomain {}, res.downcast().unwrap());
 }
 
 #[test]
@@ -398,13 +391,7 @@ fn multi_chain_route() {
                 let res = config.app.execute_contract(
                     s.incoming_gateway.clone(),
                     config.contract_address.clone(),
-                    &ExecuteMsg::RouteMessage {
-                        id: get_base_id(msg),
-                        destination_domain: msg.destination_domain.to_string(),
-                        destination_address: msg.destination_address.clone(),
-                        source_address: msg.source_address.clone(),
-                        payload_hash: msg.payload_hash.clone(),
-                    },
+                    &ExecuteMsg::RouteMessage(msg.clone()),
                     &[],
                 );
                 assert!(res.is_ok());
@@ -430,7 +417,7 @@ fn multi_chain_route() {
             .unwrap();
         let actual: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
         assert_eq!(expected.len(), actual.len());
-        assert_eq!(expected, &actual);
+        assert_eq!(&convert_messages(&expected), &actual);
     }
 }
 
@@ -632,13 +619,7 @@ fn upgrade_outgoing_gateway() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap();
@@ -683,7 +664,7 @@ fn upgrade_outgoing_gateway() {
 
     let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
-    assert_eq!(msgs[0], *msg);
+    assert_eq!(convert_messages(&[msg.clone()]), msgs);
 }
 
 #[test]
@@ -715,13 +696,7 @@ fn upgrade_incoming_gateway() {
         .execute_contract(
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
@@ -733,13 +708,7 @@ fn upgrade_incoming_gateway() {
     let res = config.app.execute_contract(
         new_gateway,
         config.contract_address.clone(),
-        &ExecuteMsg::RouteMessage {
-            id: get_base_id(msg),
-            destination_domain: msg.destination_domain.to_string(),
-            destination_address: msg.destination_address.clone(),
-            source_address: msg.source_address.clone(),
-            payload_hash: msg.payload_hash.clone(),
-        },
+        &ExecuteMsg::RouteMessage(msg.clone()),
         &[],
     );
     assert!(res.is_ok());
@@ -755,7 +724,7 @@ fn upgrade_incoming_gateway() {
 
     let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
-    assert_eq!(msgs[0], *msg);
+    assert_eq!(msgs, convert_messages(&[msg.clone()]));
 }
 
 #[test]
@@ -770,13 +739,7 @@ fn register_domain() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
@@ -784,34 +747,24 @@ fn register_domain() {
         ContractError::GatewayNotRegistered {},
         res.downcast().unwrap()
     );
+
     register_chain(&mut config, &eth);
     let res = config
         .app
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
     assert_eq!(ContractError::DomainNotFound {}, res.downcast().unwrap());
+
     register_chain(&mut config, &polygon);
     let res = config.app.execute_contract(
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::RouteMessage {
-            id: get_base_id(msg),
-            destination_domain: msg.destination_domain.to_string(),
-            destination_address: msg.destination_address.clone(),
-            source_address: msg.source_address.clone(),
-            payload_hash: msg.payload_hash.clone(),
-        },
+        &ExecuteMsg::RouteMessage(msg.clone()),
         &[],
     );
     assert!(res.is_ok());
@@ -999,13 +952,7 @@ fn freeze_incoming_gateway() {
         .execute_contract(
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
@@ -1016,13 +963,7 @@ fn freeze_incoming_gateway() {
     let res = config.app.execute_contract(
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::RouteMessage {
-            id: get_base_id(msg),
-            destination_domain: msg.destination_domain.to_string(),
-            destination_address: msg.destination_address.clone(),
-            source_address: msg.source_address.clone(),
-            payload_hash: msg.payload_hash.clone(),
-        },
+        &ExecuteMsg::RouteMessage(msg.clone()),
         &[],
     );
     assert!(res.is_ok());
@@ -1072,13 +1013,7 @@ fn freeze_outgoing_gateway() {
     let res = config.app.execute_contract(
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::RouteMessage {
-            id: get_base_id(msg),
-            destination_domain: msg.destination_domain.to_string(),
-            destination_address: msg.destination_address.clone(),
-            source_address: msg.source_address.clone(),
-            payload_hash: msg.payload_hash.clone(),
-        },
+        &ExecuteMsg::RouteMessage(msg.clone()),
         &[],
     );
     assert!(res.is_ok());
@@ -1102,7 +1037,7 @@ fn freeze_outgoing_gateway() {
     assert!(res.is_ok());
     let msgs: Vec<Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
-    assert_eq!(msgs[0], *msg);
+    assert_eq!(msgs, convert_messages(&[msg.clone()]));
 }
 
 #[test]
@@ -1121,13 +1056,7 @@ fn freeze_domain() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(queued_msg),
-                destination_domain: queued_msg.destination_domain.to_string(),
-                destination_address: queued_msg.destination_address.clone(),
-                source_address: queued_msg.source_address.clone(),
-                payload_hash: queued_msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(queued_msg.clone()),
             &[],
         )
         .unwrap();
@@ -1148,13 +1077,7 @@ fn freeze_domain() {
         .execute_contract(
             eth.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
@@ -1173,13 +1096,7 @@ fn freeze_domain() {
         .execute_contract(
             polygon.incoming_gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessage {
-                id: get_base_id(msg),
-                destination_domain: msg.destination_domain.to_string(),
-                destination_address: msg.destination_address.clone(),
-                source_address: msg.source_address.clone(),
-                payload_hash: msg.payload_hash.clone(),
-            },
+            &ExecuteMsg::RouteMessage(msg.clone()),
             &[],
         )
         .unwrap_err();
@@ -1232,20 +1149,14 @@ fn freeze_domain() {
         .unwrap();
     let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
-    assert_eq!(vec![queued_msg.clone()], msgs_ret);
+    assert_eq!(convert_messages(&[queued_msg.clone()]), msgs_ret);
 
     // can route to the domain now
     let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
     let res = config.app.execute_contract(
         eth.incoming_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::RouteMessage {
-            id: get_base_id(msg),
-            destination_domain: msg.destination_domain.to_string(),
-            destination_address: msg.destination_address.clone(),
-            source_address: msg.source_address.clone(),
-            payload_hash: msg.payload_hash.clone(),
-        },
+        &ExecuteMsg::RouteMessage(msg.clone()),
         &[],
     );
     assert!(res.is_ok());
@@ -1255,13 +1166,7 @@ fn freeze_domain() {
     let res = config.app.execute_contract(
         polygon.incoming_gateway.clone(),
         config.contract_address.clone(),
-        &ExecuteMsg::RouteMessage {
-            id: get_base_id(msg),
-            destination_domain: msg.destination_domain.to_string(),
-            destination_address: msg.destination_address.clone(),
-            source_address: msg.source_address.clone(),
-            payload_hash: msg.payload_hash.clone(),
-        },
+        &ExecuteMsg::RouteMessage(msg.clone()),
         &[],
     );
     assert!(res.is_ok());
