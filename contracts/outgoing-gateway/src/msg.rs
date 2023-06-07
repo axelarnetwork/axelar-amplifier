@@ -5,7 +5,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 pub enum ExecuteMsg {
     // For each message id, returns the associated message.
     // Fetches messages from the router if not found in storage.
-    FetchMessages { message_ids: Vec<String> },
+    CollectMessages { message_ids: Vec<String> },
 }
 
 #[cw_serde]
