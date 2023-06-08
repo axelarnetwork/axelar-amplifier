@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // Stores the message internally. Can only be called by the router
+    // Stores the messages internally. Can only be called by the router
     SendMessages { messages: Vec<Message> },
 }
 
