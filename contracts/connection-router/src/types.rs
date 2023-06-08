@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, StdError, StdResult};
+use cosmwasm_std::{Addr, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 
 use crate::ContractError;
@@ -96,45 +96,6 @@ impl KeyDeserialize for DomainName {
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         String::from_utf8(value).map_err(StdError::invalid_utf8)
-    }
-}
-
-#[cw_serde]
-pub struct Message {
-    id: MessageID, // unique per source domain
-    pub destination_address: String,
-    pub destination_domain: DomainName,
-    pub source_domain: DomainName,
-    pub source_address: String,
-    pub payload_hash: HexBinary,
-}
-
-impl Message {
-    pub fn new(
-        id: MessageID,
-        destination_address: String,
-        destination_domain: DomainName,
-        source_domain: DomainName,
-        source_address: String,
-        payload_hash: HexBinary,
-    ) -> Self {
-        Message {
-            id,
-            destination_address,
-            destination_domain,
-            source_domain,
-            source_address,
-            payload_hash,
-        }
-    }
-
-    pub fn id(&self) -> String {
-        format!(
-            "{}{}{}",
-            self.source_domain.to_string(),
-            ID_SEPARATOR,
-            self.id.to_string()
-        )
     }
 }
 
