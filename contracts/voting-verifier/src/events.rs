@@ -1,5 +1,5 @@
-use connection_router::types::make_message_event;
-use connection_router::types::Message;
+use connection_router::events::make_message_event;
+use connection_router::state::Message;
 use cosmwasm_std::Event;
 
 pub struct PollStarted {

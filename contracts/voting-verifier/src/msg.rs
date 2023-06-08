@@ -1,4 +1,4 @@
-use connection_router::types::Message;
+use connection_router::msg::Message;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
