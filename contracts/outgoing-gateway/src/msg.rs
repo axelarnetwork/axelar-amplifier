@@ -3,9 +3,8 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // For each message id, returns the associated message.
-    // Fetches messages from the router if not found in storage.
-    CollectMessages { message_ids: Vec<String> },
+    // Stores the message internally. Can only be called by the router
+    SendMessages { messages: Vec<Message> },
 }
 
 #[cw_serde]
