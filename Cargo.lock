@@ -14,7 +14,6 @@ dependencies = [
  "cw-storage-plus 1.0.1",
  "cw2",
  "either",
- "incoming-gateway",
  "schemars",
  "serde",
  "serde_json",
@@ -445,6 +444,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 
 [[package]]
+name = "gateway"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw2",
+ "either",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -503,25 +521,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "incoming-gateway"
-version = "0.1.0"
-dependencies = [
- "connection-router",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.0.1",
- "cw2",
- "either",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "thiserror",
-]
-
-[[package]]
 name = "itertools"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -559,25 +558,6 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
-
-[[package]]
-name = "outgoing-gateway"
-version = "0.1.0"
-dependencies = [
- "connection-router",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.0.1",
- "cw2",
- "either",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "thiserror",
-]
 
 [[package]]
 name = "pkcs8"
