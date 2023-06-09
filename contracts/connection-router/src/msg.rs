@@ -1,6 +1,8 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
+use crate::types::ID_SEPARATOR;
+
 // Message is a type meant to be used in interfaces where the data can be provided by the user.
 // The fields have not necessarily been validated, and should be checked prior to further processing.
 #[cw_serde]
@@ -11,6 +13,12 @@ pub struct Message {
     pub destination_address: String,
     pub destination_domain: String,
     pub payload_hash: HexBinary,
+}
+
+impl Message {
+    pub fn id(&self) -> String {
+        format!("{}{}{}", self.source_domain, ID_SEPARATOR, self.id)
+    }
 }
 
 #[cw_serde]
