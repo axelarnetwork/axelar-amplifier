@@ -7,6 +7,8 @@ pub enum GatewayEvent {
     MessageVerificationFailed { msg: Message },
     MessageExecuted { msg: Message },
     MessageExecutionFailed { msg: Message },
+    MessageSent { msg: Message },
+    MessageSendingFailed { msg: Message },
 }
 
 impl From<GatewayEvent> for Event {
@@ -19,6 +21,10 @@ impl From<GatewayEvent> for Event {
             }
             GatewayEvent::MessageExecutionFailed { msg } => {
                 make_message_event("message_execution_failed", msg)
+            }
+            GatewayEvent::MessageSent { msg } => make_message_event("message_sent", msg),
+            GatewayEvent::MessageSendingFailed { msg } => {
+                make_message_event("message_sending_failed", msg)
             }
         }
     }
