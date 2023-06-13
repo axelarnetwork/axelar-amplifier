@@ -45,14 +45,14 @@ alt not yet batched
     Signers->>Multisig: ExecuteMsg::SubmitSignature
     Multisig-->>Relayer: emit SignatureSubmitted event
   end
+else already batched but signing not complete
+	Relayer->>+Batcher: ExecuteMsg::ConstructProof
+	Batcher-x-Multisig: ExecuteMsg::CompleteSigningSession
 else already batched and signing complete
 	Relayer->>+Batcher: ExecuteMsg::ConstructProof
 	Batcher->>+Multisig: ExecuteMsg::CompleteSigningSession
 	Multisig-->>-Batcher: reply with signatures vector and snapshot
 	Batcher-->>-Relayer: emit event with proof
-else already batched but signing not complete
-	Relayer->>+Batcher: ExecuteMsg::ConstructProof
-	Batcher-x-Multisig: ExecuteMsg::CompleteSigningSession
 end
 ```
 
