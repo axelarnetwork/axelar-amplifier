@@ -43,4 +43,7 @@ pub enum ContractError {
 
     #[error("Address is invalid")]
     InvalidAddress {},
+
+    #[error("Source domain does not match registered gateway")]
+    WrongSourceDomain {},
 }

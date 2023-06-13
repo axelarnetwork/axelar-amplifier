@@ -1,14 +1,14 @@
 #[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
-    StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
 };
 use cw_storage_plus::Deque;
 
 use crate::error::ContractError;
 use crate::events::{DomainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{domains, Config, CONFIG, MESSAGES};
+use crate::state::{domains, Config, Message, CONFIG, MESSAGES};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -90,21 +90,9 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::unfreeze_outgoing_gateway(deps, domain.parse()?)
         }
-        ExecuteMsg::RouteMessage {
-            id,
-            destination_domain,
-            destination_address,
-            source_address,
-            payload_hash,
-        } => execute::route_message(
-            deps,
-            info,
-            id,
-            destination_domain.parse()?,
-            destination_address,
-            source_address,
-            payload_hash,
-        ),
+        ExecuteMsg::RouteMessage(msg) => {
+            execute::route_message(deps, info, Message::try_from(msg)?)
+        }
         ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, info, count),
     }
 }
@@ -118,8 +106,9 @@ pub mod execute {
             DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
             GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
         },
-        state::get_message_queue_id,
-        types::{Domain, DomainName, Gateway, Message},
+        msg,
+        state::{get_message_queue_id, Message},
+        types::{Domain, DomainName, Gateway},
     };
 
     use super::*;
@@ -369,15 +358,8 @@ pub mod execute {
     pub fn route_message(
         deps: DepsMut,
         info: MessageInfo,
-        id: String,
-        destination_domain: DomainName,
-        destination_address: String,
-        source_address: String,
-        payload_hash: HexBinary,
+        msg: Message,
     ) -> Result<Response, ContractError> {
-        if source_address.is_empty() || destination_address.is_empty() {
-            return Err(ContractError::InvalidAddress {});
-        }
         let source_domain = find_domain_for_incoming_gateway(&deps, &info.sender)?
             .ok_or(ContractError::GatewayNotRegistered {})?;
         if source_domain.is_frozen {
@@ -389,29 +371,25 @@ pub mod execute {
             return Err(ContractError::GatewayFrozen {});
         }
 
+        if source_domain.name != msg.source_domain {
+            return Err(ContractError::WrongSourceDomain {});
+        }
+
         let info = domains()
-            .may_load(deps.storage, destination_domain.clone())?
+            .may_load(deps.storage, msg.destination_domain.clone())?
             .ok_or(ContractError::DomainNotFound {})?;
         if info.is_frozen {
             return Err(ContractError::DomainFrozen {
-                domain: destination_domain,
+                domain: msg.destination_domain,
             });
         }
-        let msg = Message::new(
-            id.parse()?,
-            destination_address,
-            destination_domain.clone(),
-            source_domain.name,
-            source_address,
-            payload_hash,
-        );
 
         if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
             return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
         }
         MESSAGES.save(deps.storage, msg.id(), &())?;
 
-        let qid = get_message_queue_id(&destination_domain);
+        let qid = get_message_queue_id(&msg.destination_domain);
         let q: Deque<Message> = Deque::new(&qid);
         q.push_back(deps.storage, &msg)?;
 
@@ -450,7 +428,12 @@ pub mod execute {
                 domain: domain.name,
                 msgs: &messages,
             }))
-            .set_data(to_binary(&messages)?))
+            .set_data(to_binary(
+                &messages
+                    .into_iter()
+                    .map(Into::into)
+                    .collect::<Vec<msg::Message>>(),
+            )?))
     }
 
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
