@@ -41,14 +41,14 @@ alt not yet batched
 	Multisig-->>Signers: emit SigningStarted event
 	Multisig->>-Batcher: reply with session ID
 	deactivate Batcher
-	Signers->>Multisig: ExecuteMsg::SubmitSignature
-	Multisig-->>Relayer: emit SignatureSubmitted event
-	Signers->>Multisig: ExecuteMsg::SubmitSignature
-	Multisig-->>Relayer: emit SignatureSubmitted event
+  loop Collect signatures
+    Signers->>Multisig: ExecuteMsg::SubmitSignature
+    Multisig-->>Relayer: emit SignatureSubmitted event
+  end
 else already batched and signing complete
 	Relayer->>+Batcher: ExecuteMsg::ConstructProof
 	Batcher->>+Multisig: ExecuteMsg::CompleteSigningSession
-	Multisig-->>-Batcher: reply with signatures vector
+	Multisig-->>-Batcher: reply with signatures vector and snapshot
 	Batcher-->>-Relayer: emit event with proof
 else already batched but signing not complete
 	Relayer->>+Batcher: ExecuteMsg::ConstructProof
