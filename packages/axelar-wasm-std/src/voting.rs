@@ -15,7 +15,7 @@
 */
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut};
+use cosmwasm_std::{Addr, Uint256};
 
 use crate::Snapshot;
 
@@ -23,6 +23,34 @@ use thiserror::Error;
 
 #[cw_serde]
 pub struct PollID(String);
+
+#[cw_serde]
+pub struct WeightedPoll {
+    pub poll_id: PollID,
+    pub snapshot: Snapshot,
+    pub block_height_expiry: Option<u64>,
+    pub poll_size: usize,
+    pub votes: Vec<Uint256>, // running weight of votes
+    pub status: PollStatus,
+}
+
+pub trait Poll {
+    // errors if the poll is not finished
+    fn tally() -> Result<PollResult, Error>;
+    // errors if sender is not a participant, if sender already voted, if the poll is finished or
+    // if the number of votes doesn't match the poll size
+    fn cast_vote(sender: Addr, poll_id: PollID, votes: Vec<bool>) -> Result<PollStatus, Error>;
+}
+
+impl Poll for WeightedPoll {
+    fn tally() -> Result<PollResult, Error> {
+        todo!()
+    }
+
+    fn cast_vote(_sender: Addr, _poll_id: PollID, _votes: Vec<bool>) -> Result<PollStatus, Error> {
+        todo!()
+    }
+}
 
 #[cw_serde]
 pub struct PollResult {
@@ -38,28 +66,3 @@ pub enum PollStatus {
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {}
-
-pub fn start_poll(
-    _deps: DepsMut,
-    _snapshot: Snapshot,
-    _block_height_expiry: Option<u64>,
-    _poll_size: usize, // number of items in the poll to be voted on
-) -> Result<PollID, Error> {
-    todo!()
-}
-
-// errors if the poll is not finished
-pub fn tally_results(_deps: DepsMut, _poll_id: PollID) -> Result<PollResult, Error> {
-    todo!()
-}
-
-// errors if sender is not a participant, if sender already voted, if poll doesn't exist, if the poll is finished or
-// if the number of votes doesn't match the poll size
-pub fn cast_vote(
-    _deps: DepsMut,
-    _sender: Addr,
-    _poll_id: PollID,
-    _votes: Vec<bool>,
-) -> Result<PollStatus, Error> {
-    todo!()
-}
