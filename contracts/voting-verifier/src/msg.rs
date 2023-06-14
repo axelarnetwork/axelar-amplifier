@@ -5,19 +5,20 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 pub struct InstantiateMsg {
     service_registry_address: String, // service registry to determine current worker stake
     verifier_address: String,         // verifier to call back to when messages are verified
-    voting_generic_address: String,   // generic voting contract to use for polls
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     // Queries the service registry for current workers and their stakes.
-    // Calls StartPoll on the generic voting contract
     // returns the poll id to be used for voting
     StartPoll { messages: Vec<Message> },
 
-    // Calls TallyResults on the generic voting contract.
+    // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier
     EndPoll { poll_id: String },
+
+    // Casts votes for specified poll
+    Vote { poll_id: String, votes: Vec<bool> },
 
     // returns a vector of true/false values, indicating current verification status for each message
     // calls StartPoll for any not yet verified messages
