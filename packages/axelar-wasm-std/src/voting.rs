@@ -53,7 +53,7 @@ pub struct WeightedPoll {
     pub snapshot: Snapshot,
     pub block_height_expiry: Option<u64>,
     pub poll_size: usize,
-    pub votes: Vec<Uint256>, // running weight of votes
+    pub votes: Vec<Uint256>, // running tally of weighted votes
     pub status: PollStatus,
 }
 
