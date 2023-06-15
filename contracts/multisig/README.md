@@ -9,18 +9,15 @@ subgraph Axelar
   m[Multisig]
 end
 s[Signer worker]
-k[Key master]
 
 b--StartSigningSession-->m
 s--SubmitSignature-->m
-k--SubmitKeySet-->m
 b--CompleteSigningSession-->m
 ```
 
 - **StartSigningSession**: The multisig contract receives a binary message from the batcher contract. It uses the current active set of keys to link to a new signing session and then emits an event to notify signers that a message is pending signature.
 - **SubmitSignature**: Each signer will sign the message using their own private key and then submit the signature to the multisig contract. This process validates that the signer is a participant in the snapshot associated with the active key that was set for the multisig session.
 - **CompleteSigningSession**: Called by the batcher contract to finalize a multisig session in case enough signatures were collected and returns the collected signatures.
-- **SubmitKeySet**: Permissioned call by the “key master” to provide a new set of public keys for each signer. The multisig contract creates a snapshot that lists the participants with active stakes and filters out any keys that do not belong to a participant.
 
 <br>
 
@@ -69,9 +66,6 @@ pub enum ExecuteMsg {
     },
     CompleteSigningSession {
         multisig_session_id: Uint64,
-    },
-    SubmitKeySet {
-        pub_keys: HashMap<String, HexBinary>,
     },
 }
 ```
