@@ -32,25 +32,21 @@ participant Multisig
 end
 actor Signers
 
-alt not yet batched
-	Relayer->>+Batcher: ExecuteMsg::ConstructProof
-	Batcher->>+Multisig: ExecuteMsg::StartSigningSession
-	Multisig-->>Signers: emit SigningStarted event
-	Multisig->>-Batcher: reply with session ID
-	deactivate Batcher
-  loop Collect signatures
-    Signers->>Multisig: ExecuteMsg::SubmitSignature
-    Multisig-->>Relayer: emit SignatureSubmitted event
-  end
-else already batched but signing not complete
-	Relayer->>+Batcher: ExecuteMsg::ConstructProof
-	Batcher-x-Multisig: ExecuteMsg::CompleteSigningSession
-else already batched and signing complete
-	Relayer->>+Batcher: ExecuteMsg::ConstructProof
-	Batcher->>+Multisig: ExecuteMsg::CompleteSigningSession
-	Multisig-->>-Batcher: reply with signatures vector and snapshot
-	Batcher-->>-Relayer: emit event with proof
+
+Relayer->>+Batcher: ExecuteMsg::ConstructProof
+Batcher->>+Multisig: ExecuteMsg::StartSigningSession
+Multisig-->>Signers: emit SigningStarted event
+Multisig->>-Batcher: reply with session ID
+deactivate Batcher
+loop Collect signatures
+  Signers->>Multisig: ExecuteMsg::SubmitSignature
+  Multisig-->>Relayer: emit SignatureSubmitted event
 end
+Relayer->>+Batcher: QueryMsg::GetProof
+Batcher->>+Multisig: QueryMsg::GetSigningSession
+Multisig-->>-Batcher: reply with status, current signatures vector and snapshot
+Batcher-->>-Relayer: emit event with proof
+
 ```
 
 ## Interface
@@ -67,6 +63,23 @@ pub enum ExecuteMsg {
     CompleteSigningSession {
         multisig_session_id: Uint64,
     },
+}
+
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(GetSigningSessionResponse)]
+    GetSigningSession { multisig_session_id: Uint64 },
+}
+
+pub struct GetSigningSessionResponse {
+    state: MultisigState,
+    signatures: HashMap<String, HexBinary>,
+    snapshot: Snapshot,
+}
+
+pub enum MultisigState {
+    Pending,
+    Completed,
 }
 ```
 
