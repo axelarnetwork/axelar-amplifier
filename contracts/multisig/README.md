@@ -39,9 +39,10 @@ Multisig-->>Signers: emit SigningStarted event
 Multisig->>-Batcher: reply with session ID
 deactivate Batcher
 loop Collect signatures
-  Signers->>Multisig: ExecuteMsg::SubmitSignature
+  Signers->>+Multisig: ExecuteMsg::SubmitSignature
   Multisig-->>Relayer: emit SignatureSubmitted event
 end
+Multisig-->>-Batcher: emit SigningCompleted event
 Relayer->>+Batcher: QueryMsg::GetProof
 Batcher->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Batcher: reply with status, current signatures vector and snapshot
