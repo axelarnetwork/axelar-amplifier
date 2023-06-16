@@ -46,7 +46,7 @@ Multisig-->>-Relayer: emit SigningCompleted event
 Relayer->>+Batcher: QueryMsg::GetProof
 Batcher->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Batcher: reply with status, current signatures vector and snapshot
-Batcher-->>-Relayer: emit event with proof
+Batcher-->>-Relayer: returns data and proof
 
 ```
 
