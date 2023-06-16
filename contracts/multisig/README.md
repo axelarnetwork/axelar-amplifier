@@ -42,7 +42,7 @@ loop Collect signatures
   Signers->>+Multisig: ExecuteMsg::SubmitSignature
   Multisig-->>Relayer: emit SignatureSubmitted event
 end
-Multisig-->>-Batcher: emit SigningCompleted event
+Multisig-->>-Relayer: emit SigningCompleted event
 Relayer->>+Batcher: QueryMsg::GetProof
 Batcher->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Batcher: reply with status, current signatures vector and snapshot
