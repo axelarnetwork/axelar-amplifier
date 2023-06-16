@@ -1,8 +1,8 @@
 [package]
-name = "outgoing-gateway"
+name = "gateway"
 version = "0.1.0"
 edition = "2021"
-description = "Outgoing gateway contract"
+description = "Gateway contract"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -38,7 +38,7 @@ schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
 service-interface = { workspace = true, features = ["library"] }
-connection-router = { workspace = true, features = ["library"] }
+connection-router = { workspace = true, features = ["library"]}
 serde_json = "1.0.89"
 either = "1.8.1"
 
