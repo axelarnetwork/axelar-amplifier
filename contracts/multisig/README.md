@@ -1,6 +1,6 @@
 # Multisig contract
 
-This contract is used by the batcher contract during proof construction to collect signatures from signers. For the purpose of this proof of concept, the initial design will not focus on key rotation. Instead, it will rely on a permissioned model where a "key master" will provide the keys that belong to each signer.
+This contract is used by the batcher contract during proof construction to start a signing session and collect signatures from participants.
 
 ```mermaid
 flowchart TD
