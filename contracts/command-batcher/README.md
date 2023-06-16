@@ -38,36 +38,41 @@ end
 actor Signers
 
 Relayer->>+Batcher: ExecuteMsg::ConstructProof
-Batcher->>+Gateway: QueryMsg::GetMessages
-Gateway-->>-Batcher: query result
-Batcher->>+Multisig: ExecuteMsg::StartSigningSession
-Multisig-->>Signers: emit SigningStarted event
-Multisig->>-Batcher: reply with session ID
-Batcher-->>Relayer: emit proof ID
+alt batch not created previously
+  Batcher->>+Gateway: QueryMsg::GetMessages
+  Gateway-->>-Batcher: query result
+  Batcher->>+Multisig: ExecuteMsg::StartSigningSession
+  Multisig-->>Signers: emit SigningStarted event
+  Multisig->>-Batcher: reply with session ID
+else previously created batch found
+  Batcher->>Batcher: retrieves batch from storage
+end
+Batcher-->>Relayer: emit ProofUnderConstruction event
 deactivate Batcher
 loop Collect signatures
 	Signers->>+Multisig: signature collection
 end
-Multisig-->>-Batcher: emit SigningCompleted event
+Multisig-->>-Relayer: emit SigningCompleted event
 Relayer->>+Batcher: QueryMsg::GetProof
 Batcher->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Batcher: reply with status, current signatures vector and snapshot
-Batcher-->>-Relayer: emit DataProven event
+Batcher-->>-Relayer: returns GetProofResponse
 ```
 
 1. Relayer asks Batcher contract to construct proof providing a list of messages IDs
-2. If no batch for the given messages was previously created, it retrieves the messages from gateway to construct it
+2. If no batch for the given messages was previously created, it queries the gateway for the messages to construct it
 3. With the retrieved messages, the Batcher contract transforms them into a batch of commands and generates the binary message that needs to be signed by the multisig.
 4. The Multisig contract is called asking to sign the binary message
 5. Multisig emits event indicating a new multisig session has started
-6. Multisig event returns the newly created session ID to the Batcher which is then stored with the batch for reference
-7. Batcher contract emits event which includes the ID of the proof under construction.
-8. Signers submit their signatures until threshold is reached
-9. Multisig emits event indicating the multisig session has been completed
-10. Relayer queries Batcher for the proof, using the proof ID
-11. Batcher queries Multisig for the multisig session, using the session ID
-12. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
-13. If the Multisig state is `Completed`, the Batcher emits the `DataProven` event which includes the proof itself and the data to be sent to the destination gateway.
+6. Multisig triggers a reply in Batcher returning the newly created session ID which is then stored with the batch for reference
+7. If previous batch was found for the given messages IDs, the Batcher retrieves it from storage instead of querying the gateway and build it again.
+8. Batcher contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
+9. Signers submit their signatures until threshold is reached
+10. Multisig emits event indicating the multisig session has been completed
+11. Relayer queries Batcher for the proof, using the proof ID
+12. Batcher queries Multisig for the multisig session, using the session ID
+13. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
+14. If the Multisig state is `Completed`, the Batcher finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway.
 
 ## Interface
 
@@ -79,14 +84,15 @@ pub enum ExecuteMsg {
         message_ids: Vec<String>,
     },
 }
-```
 
-## Events
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(GetProofResponse)]
+    GetProof { proof_id: String },
+}
 
-```Rust
-// Emitted when the proof has been finalized
-pub struct DataProven {
-    pub proof_id: HexBinary, // Unique hash derived from the message ids
+pub struct GetProofResponse {
+    pub proof_id: HexBinary,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub proof: Proof,
@@ -105,5 +111,13 @@ pub struct Proof {
     pub weights: Vec<Uint256>,
     pub threshold: Uint256,
     pub signatures: Vec<HexBinary>,
+}
+```
+
+## Events
+
+```Rust
+pub struct ProofUnderConstruction {
+    pub proof_id: HexBinary, // Unique hash derived from the message ids
 }
 ```
