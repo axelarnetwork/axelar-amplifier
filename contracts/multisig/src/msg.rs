@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
+
+use crate::types::MultisigState;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -15,14 +18,18 @@ pub enum ExecuteMsg {
         multisig_session_id: Uint64,
         signature: HexBinary,
     },
-    CompleteSigningSession {
-        multisig_session_id: Uint64,
-    },
-    SubmitKeySet {
-        pub_keys: HashMap<String, HexBinary>,
-    },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    #[returns(GetSigningSessionResponse)]
+    GetSigningSession { multisig_session_id: Uint64 },
+}
+
+#[cw_serde]
+pub struct GetSigningSessionResponse {
+    state: MultisigState,
+    signatures: HashMap<String, HexBinary>,
+    snapshot: Snapshot,
+}
