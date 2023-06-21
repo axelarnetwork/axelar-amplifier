@@ -9,10 +9,6 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // Queries the service registry for current workers and their stakes.
-    // returns the poll id to be used for voting
-    StartPoll { messages: Vec<Message> },
-
     // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier
     EndPoll { poll_id: String },
@@ -21,7 +17,7 @@ pub enum ExecuteMsg {
     Vote { poll_id: String, votes: Vec<bool> },
 
     // returns a vector of true/false values, indicating current verification status for each message
-    // calls StartPoll for any not yet verified messages
+    // starts a poll for any not yet verified messages
     VerifyMessages { messages: Vec<Message> },
 }
 
