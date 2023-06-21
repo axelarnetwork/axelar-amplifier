@@ -3,6 +3,8 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
 };
+#[cfg(not(feature = "library"))]
+use cosmwasm_str::entry_point;
 use cw_storage_plus::Deque;
 
 use crate::error::ContractError;
