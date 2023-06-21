@@ -1,9 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
-};
-use cw_storage_plus::Deque;
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
 use crate::events::{DomainRegistered, RouterInstantiated};
@@ -93,21 +90,20 @@ pub fn execute(
         ExecuteMsg::RouteMessage(msg) => {
             execute::route_message(deps, info, Message::try_from(msg)?)
         }
-        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, info, count),
     }
 }
 
 pub mod execute {
 
-    use cosmwasm_std::Addr;
+    use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
         events::{
             DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
-            GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
+            GatewayUnfrozen, GatewayUpgraded, MessageRouted,
         },
-        msg,
-        state::{get_message_queue_id, Message},
+        gateway_msg::ExecuteMsg as GatewayExecuteMsg,
+        state::Message,
         types::{Domain, DomainName, Gateway},
     };
 
@@ -383,57 +379,24 @@ pub mod execute {
                 domain: msg.destination_domain,
             });
         }
+        if info.outgoing_gateway.is_frozen {
+            return Err(ContractError::GatewayFrozen {});
+        }
 
         if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
             return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
         }
         MESSAGES.save(deps.storage, msg.id(), &())?;
 
-        let qid = get_message_queue_id(&msg.destination_domain);
-        let q: Deque<Message> = Deque::new(&qid);
-        q.push_back(deps.storage, &msg)?;
-
-        Ok(Response::new().add_event(MessageRouted { msg }.into()))
-    }
-
-    pub fn consume_messages(
-        deps: DepsMut,
-        info: MessageInfo,
-        count: Option<u32>,
-    ) -> Result<Response, ContractError> {
-        let domain = find_domain_for_outgoing_gateway(&deps, &info.sender)?
-            .ok_or(ContractError::GatewayNotRegistered {})?;
-        if domain.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: domain.name,
-            });
-        }
-        if domain.outgoing_gateway.is_frozen {
-            return Err(ContractError::GatewayFrozen {});
-        }
-
-        let qid = get_message_queue_id(&domain.name);
-        let q: Deque<Message> = Deque::new(&qid);
-        let mut messages = vec![];
-
-        let to_consume = count.unwrap_or(u32::MAX);
-        for _ in 0..to_consume {
-            match q.pop_front(deps.storage)? {
-                Some(m) => messages.push(m),
-                None => break,
-            }
-        }
         Ok(Response::new()
-            .add_event(Event::from(MessagesConsumed {
-                domain: domain.name,
-                msgs: &messages,
-            }))
-            .set_data(to_binary(
-                &messages
-                    .into_iter()
-                    .map(Into::into)
-                    .collect::<Vec<msg::Message>>(),
-            )?))
+            .add_message(WasmMsg::Execute {
+                contract_addr: info.outgoing_gateway.address.to_string(),
+                msg: to_binary(&GatewayExecuteMsg::SendMessages {
+                    messages: vec![msg.clone().into()],
+                })?,
+                funds: vec![],
+            })
+            .add_event(MessageRouted { msg }.into()))
     }
 
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
