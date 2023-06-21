@@ -7,7 +7,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 
 use connection_router::contract::*;
 use connection_router::error::ContractError;
-use connection_router::msg::{ExecuteMsg, InstantiateMsg, Message};
+use connection_router::msg::{ExecuteMsg, InstantiateMsg};
 use cosmwasm_std::HexBinary;
 
 struct TestConfig {
@@ -138,7 +138,7 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
     assert_eq!(&msgs[offset..msgs_ret.len()], msgs_ret);
     offset = offset + 1;
@@ -153,7 +153,7 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(32, msgs_ret.len());
     assert_eq!(&msgs[offset..offset + msgs_ret.len()], msgs_ret);
     offset = offset + msgs_ret.len();
@@ -168,7 +168,7 @@ fn route() {
         )
         .unwrap();
 
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len() - offset, msgs_ret.len());
     assert_eq!(&msgs[offset..], msgs_ret);
 
@@ -405,7 +405,7 @@ fn multi_chain_route() {
                 &[],
             )
             .unwrap();
-        let actual: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+        let actual: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
         assert_eq!(expected.len(), actual.len());
         assert_eq!(expected, &actual);
     }
@@ -652,7 +652,7 @@ fn upgrade_outgoing_gateway() {
         )
         .unwrap();
 
-    let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msg.clone(), msgs[0]);
 }
@@ -712,7 +712,7 @@ fn upgrade_incoming_gateway() {
         )
         .unwrap();
 
-    let msgs: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], msg.clone());
 }
@@ -1025,7 +1025,7 @@ fn freeze_outgoing_gateway() {
         &[],
     );
     assert!(res.is_ok());
-    let msgs: Vec<Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
+    let msgs: Vec<msg::Message> = from_binary(&res.unwrap().data.unwrap()).unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0], msg.clone());
 }
@@ -1137,7 +1137,7 @@ fn freeze_domain() {
             &[],
         )
         .unwrap();
-    let msgs_ret: Vec<Message> = from_binary(&res.data.unwrap()).unwrap();
+    let msgs_ret: Vec<msg::Message> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(1, msgs_ret.len());
     assert_eq!(queued_msg.clone(), msgs_ret[0]);
 
