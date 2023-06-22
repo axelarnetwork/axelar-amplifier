@@ -1,5 +1,6 @@
 [workspace]
 members = ["contracts/*", "packages/*"]
+exclude = ["contracts/multisig"] # TODO: remove this line once multisig work starts
 
 [profile.release]
 opt-level = 3
