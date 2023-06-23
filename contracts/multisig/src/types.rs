@@ -19,18 +19,18 @@ pub enum MultisigState {
 #[cw_serde]
 pub struct SigningSession {
     pub id: Uint64,
-    pub key_set_id: Uint64,
-    pub sig_msg: HexBinary,
+    pub key_id: Uint64,
+    pub msg: HexBinary,
     pub signatures: HashMap<String, HexBinary>,
     pub state: MultisigState,
 }
 
 impl SigningSession {
-    pub fn new(sig_session_id: Uint64, key_set_id: Uint64, sig_msg: HexBinary) -> Self {
+    pub fn new(sig_id: Uint64, key_id: Uint64, msg: HexBinary) -> Self {
         Self {
-            id: sig_session_id,
-            key_set_id,
-            sig_msg,
+            id: sig_id,
+            key_id,
+            msg,
             signatures: HashMap::new(),
             state: MultisigState::Pending,
         }
