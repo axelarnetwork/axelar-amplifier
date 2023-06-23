@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use crate::types::DomainName;
+use crate::types::ChainName;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -11,17 +11,17 @@ pub enum ContractError {
     #[error("Caller is not authorized")]
     Unauthorized {},
 
-    #[error("Domain already exists")]
-    DomainAlreadyExists {},
+    #[error("Chain already exists")]
+    ChainAlreadyExists {},
 
-    #[error("Domain name is invalid")]
-    InvalidDomainName {},
+    #[error("Chain name is invalid")]
+    InvalidChainName {},
 
     #[error("Message ID is invalid")]
     InvalidMessageID {},
 
-    #[error("Domain was not found")]
-    DomainNotFound {},
+    #[error("Chain was not found")]
+    ChainNotFound {},
 
     #[error("Gateway is not registered")]
     GatewayNotRegistered {},
@@ -35,15 +35,12 @@ pub enum ContractError {
     #[error("Message was not found")]
     MessageNotFound {},
 
-    #[error("Domain is frozen")]
-    DomainFrozen { domain: DomainName },
-
-    #[error("Gateway is frozen")]
-    GatewayFrozen {},
+    #[error("Chain is frozen")]
+    ChainFrozen { chain: ChainName },
 
     #[error("Address is invalid")]
     InvalidAddress {},
 
-    #[error("Source domain does not match registered gateway")]
-    WrongSourceDomain {},
+    #[error("Source chain does not match registered gateway")]
+    WrongSourceChain {},
 }
