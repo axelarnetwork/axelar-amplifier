@@ -55,10 +55,10 @@ Batcher-->>-Relayer: returns data and proof
 ```Rust
 pub enum ExecuteMsg {
     StartSigningSession {
-        sig_msg: HexBinary,
+        msg: HexBinary,
     },
     SubmitSignature {
-        multisig_session_id: Uint64,
+        sig_id: Uint64,
         signature: HexBinary,
     },
 }
@@ -66,7 +66,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetSigningSessionResponse)]
-    GetSigningSession { multisig_session_id: Uint64 },
+    GetSigningSession { sig_id: Uint64 },
 }
 
 pub struct GetSigningSessionResponse {
@@ -84,23 +84,23 @@ pub enum MultisigState {
 ## Events
 
 ```Rust
-// Emitted when a new signing session is open
-pub struct SigningStarted {
-    pub multisig_session_id: Uint64,
-    pub key_set_id: Uint64,
-    pub pub_keys: HashMap<String, HexBinary>,
-    pub sig_msg: HexBinary,
-}
-
-// Emitted when a participants submits a signature
-pub struct SignatureSubmitted {
-    pub multisig_session_id: Uint64,
-    pub participant: Addr,
-    pub signature: HexBinary,
-}
-
-// Emitted when a signing session was completed
-pub struct SigningCompleted {
-    pub multisig_session_id: Uint64,
+pub enum Event {
+    // Emitted when a new signing session is open
+    SigningStarted {
+        sig_id: Uint64,
+        key_id: Uint64,
+        pub_keys: HashMap<String, HexBinary>,
+        msg: HexBinary,
+    },
+    // Emitted when a participants submits a signature
+    SignatureSubmitted {
+        sig_id: Uint64,
+        participant: Addr,
+        signature: HexBinary,
+    },
+    // Emitted when a signing session was completed
+    SigningCompleted {
+        sig_id: Uint64,
+    },
 }
 ```

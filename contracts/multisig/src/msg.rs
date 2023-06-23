@@ -12,10 +12,10 @@ pub struct InstantiateMsg {}
 #[cw_serde]
 pub enum ExecuteMsg {
     StartSigningSession {
-        sig_msg: HexBinary,
+        msg: HexBinary,
     },
     SubmitSignature {
-        multisig_session_id: Uint64,
+        sig_id: Uint64,
         signature: HexBinary,
     },
 }
@@ -24,7 +24,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetSigningSessionResponse)]
-    GetSigningSession { multisig_session_id: Uint64 },
+    GetSigningSession { sig_id: Uint64 },
 }
 
 #[cw_serde]
