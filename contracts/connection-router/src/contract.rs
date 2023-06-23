@@ -95,6 +95,7 @@ pub fn execute(
 
 pub mod execute {
 
+    use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
@@ -102,7 +103,7 @@ pub mod execute {
             DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
             GatewayUnfrozen, GatewayUpgraded, MessageRouted,
         },
-        gateway_msg::ExecuteMsg as GatewayExecuteMsg,
+        msg,
         state::Message,
         types::{Domain, DomainName, Gateway},
     };
@@ -349,6 +350,11 @@ pub mod execute {
             }
             .into(),
         ))
+    }
+
+    #[cw_serde]
+    pub enum GatewayExecuteMsg {
+        SendMessages { messages: Vec<msg::Message> },
     }
 
     pub fn route_message(
