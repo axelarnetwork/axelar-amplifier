@@ -68,7 +68,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
-    RouteMessage(Message),
+    RouteMessages(Vec<Message>),
 }
 
 #[cw_serde]

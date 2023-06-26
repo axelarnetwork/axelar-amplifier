@@ -87,15 +87,18 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::unfreeze_outgoing_gateway(deps, domain.parse()?)
         }
-        ExecuteMsg::RouteMessage(msg) => {
-            execute::route_message(deps, info, Message::try_from(msg)?)
-        }
+        ExecuteMsg::RouteMessages(msgs) => execute::route_message(
+            deps,
+            info,
+            msgs.into_iter()
+                .map(Message::try_from)
+                .collect::<Result<Vec<Message>, _>>()?,
+        ),
     }
 }
 
 pub mod execute {
 
-    use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
@@ -352,15 +355,10 @@ pub mod execute {
         ))
     }
 
-    #[cw_serde]
-    pub enum GatewayExecuteMsg {
-        SendMessages { messages: Vec<msg::Message> },
-    }
-
     pub fn route_message(
         deps: DepsMut,
         info: MessageInfo,
-        msg: Message,
+        msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         let source_domain = find_domain_for_incoming_gateway(&deps, &info.sender)?
             .ok_or(ContractError::GatewayNotRegistered {})?;
@@ -373,36 +371,40 @@ pub mod execute {
             return Err(ContractError::GatewayFrozen {});
         }
 
-        if source_domain.name != msg.source_domain {
-            return Err(ContractError::WrongSourceDomain {});
-        }
+        let mut wasm_msgs = vec![];
+        for msg in &msgs {
+            if source_domain.name != msg.source_domain {
+                return Err(ContractError::WrongSourceDomain {});
+            }
 
-        let info = domains()
-            .may_load(deps.storage, msg.destination_domain.clone())?
-            .ok_or(ContractError::DomainNotFound {})?;
-        if info.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: msg.destination_domain,
+            let info = domains()
+                .may_load(deps.storage, msg.destination_domain.clone())?
+                .ok_or(ContractError::DomainNotFound {})?;
+            if info.is_frozen {
+                return Err(ContractError::DomainFrozen {
+                    domain: msg.destination_domain.clone(),
+                });
+            }
+
+            if info.outgoing_gateway.is_frozen {
+                return Err(ContractError::GatewayFrozen {});
+            }
+
+            if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
+                return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
+            }
+            MESSAGES.save(deps.storage, msg.id(), &())?;
+
+            wasm_msgs.push(WasmMsg::Execute {
+                contract_addr: info.outgoing_gateway.address.to_string(),
+                msg: to_binary(&msg::ExecuteMsg::RouteMessages(vec![msg.clone().into()]))?,
+                funds: vec![],
             });
         }
-        if info.outgoing_gateway.is_frozen {
-            return Err(ContractError::GatewayFrozen {});
-        }
-
-        if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
-            return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
-        }
-        MESSAGES.save(deps.storage, msg.id(), &())?;
 
         Ok(Response::new()
-            .add_message(WasmMsg::Execute {
-                contract_addr: info.outgoing_gateway.address.to_string(),
-                msg: to_binary(&GatewayExecuteMsg::SendMessages {
-                    messages: vec![msg.clone().into()],
-                })?,
-                funds: vec![],
-            })
-            .add_event(MessageRouted { msg }.into()))
+            .add_messages(wasm_msgs)
+            .add_events(msgs.into_iter().map(|msg| MessageRouted { msg }.into())))
     }
 
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {

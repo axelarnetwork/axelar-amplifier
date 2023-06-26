@@ -8,7 +8,7 @@ const MOCK_GATEWAY_MESSAGES: Map<String, Message> = Map::new("gateway_messages")
 
 #[cw_serde]
 pub enum MockGatewayExecuteMsg {
-    SendMessages { messages: Vec<Message> },
+    RouteMessages(Vec<Message>),
 }
 
 pub fn mock_gateway_execute(
@@ -18,7 +18,7 @@ pub fn mock_gateway_execute(
     msg: MockGatewayExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        MockGatewayExecuteMsg::SendMessages { messages } => {
+        MockGatewayExecuteMsg::RouteMessages(messages) => {
             for m in messages {
                 MOCK_GATEWAY_MESSAGES.save(deps.storage, m.id.clone(), &m)?;
             }
