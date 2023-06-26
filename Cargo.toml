@@ -1,6 +1,6 @@
 [workspace]
 members = ["contracts/*", "packages/*"]
-exclude = ["contracts/command-batcher", "contracts/multisig"] # TODO: remove this line once implementation work starts
+exclude = ["contracts/command-batcher"] # TODO: remove this line once implementation work starts
 
 [profile.release]
 opt-level = 3
