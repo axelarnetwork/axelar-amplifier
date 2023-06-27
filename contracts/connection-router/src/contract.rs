@@ -373,7 +373,7 @@ pub mod execute {
             return Err(ContractError::GatewayFrozen {});
         }
 
-        let mut msgs_by_destination = HashMap::new();
+        let mut msgs_by_destination: HashMap<String, Vec<msg::Message>> = HashMap::new();
         for msg in &msgs {
             if source_domain.name != msg.source_domain {
                 return Err(ContractError::WrongSourceDomain {});
@@ -386,7 +386,7 @@ pub mod execute {
 
             msgs_by_destination
                 .entry(msg.destination_domain.to_string())
-                .or_insert(vec![])
+                .or_default()
                 .push(msg.clone().into());
         }
 
