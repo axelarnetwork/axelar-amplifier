@@ -99,6 +99,8 @@ pub fn execute(
 
 pub mod execute {
 
+    use std::{collections::HashMap, vec};
+
     use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
@@ -371,23 +373,10 @@ pub mod execute {
             return Err(ContractError::GatewayFrozen {});
         }
 
-        let mut wasm_msgs = vec![];
+        let mut msgs_by_destination = HashMap::new();
         for msg in &msgs {
             if source_domain.name != msg.source_domain {
                 return Err(ContractError::WrongSourceDomain {});
-            }
-
-            let info = domains()
-                .may_load(deps.storage, msg.destination_domain.clone())?
-                .ok_or(ContractError::DomainNotFound {})?;
-            if info.is_frozen {
-                return Err(ContractError::DomainFrozen {
-                    domain: msg.destination_domain.clone(),
-                });
-            }
-
-            if info.outgoing_gateway.is_frozen {
-                return Err(ContractError::GatewayFrozen {});
             }
 
             if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
@@ -395,9 +384,31 @@ pub mod execute {
             }
             MESSAGES.save(deps.storage, msg.id(), &())?;
 
+            msgs_by_destination
+                .entry(msg.destination_domain.to_string())
+                .or_insert(vec![])
+                .push(msg.clone().into());
+        }
+
+        let mut wasm_msgs = vec![];
+        for (destination_domain, msgs) in msgs_by_destination {
+            let destination_domain = domains()
+                .may_load(deps.storage, destination_domain.parse()?)?
+                .ok_or(ContractError::DomainNotFound {})?;
+
+            if destination_domain.is_frozen {
+                return Err(ContractError::DomainFrozen {
+                    domain: destination_domain.name,
+                });
+            }
+
+            if destination_domain.outgoing_gateway.is_frozen {
+                return Err(ContractError::GatewayFrozen {});
+            }
+
             wasm_msgs.push(WasmMsg::Execute {
-                contract_addr: info.outgoing_gateway.address.to_string(),
-                msg: to_binary(&msg::ExecuteMsg::RouteMessages(vec![msg.clone().into()]))?,
+                contract_addr: destination_domain.outgoing_gateway.address.to_string(),
+                msg: to_binary(&msg::ExecuteMsg::RouteMessages(msgs))?,
                 funds: vec![],
             });
         }

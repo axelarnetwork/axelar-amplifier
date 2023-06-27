@@ -117,17 +117,15 @@ fn route() {
     let nonce: &mut usize = &mut 0;
     let msgs = generate_messages(&eth, &polygon, nonce, 255);
 
-    for msg in &msgs {
-        let _ = config
-            .app
-            .execute_contract(
-                eth.incoming_gateway.clone(),
-                config.contract_address.clone(),
-                &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-                &[],
-            )
-            .unwrap();
-    }
+    let _ = config
+        .app
+        .execute_contract(
+            eth.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessages(msgs.clone()),
+            &[],
+        )
+        .unwrap();
 
     let msgs_ret = mock::get_gateway_messages(&mut config.app, polygon.outgoing_gateway, &msgs);
 
@@ -320,27 +318,40 @@ fn multi_chain_route() {
     }
 
     let nonce = &mut 0;
-    let mut all_msgs = HashMap::new();
+    let mut all_msgs_by_dest = HashMap::new();
+    let mut all_msgs_by_src = HashMap::new();
     for d in &chains {
         let mut msgs = vec![];
         for s in &chains {
             let mut sending = generate_messages(&s, &d, nonce, 50);
-            for msg in &sending {
-                let res = config.app.execute_contract(
-                    s.incoming_gateway.clone(),
-                    config.contract_address.clone(),
-                    &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-                    &[],
-                );
-                assert!(res.is_ok());
-            }
+
+            all_msgs_by_src
+                .entry(s.domain_name.to_string())
+                .or_insert(vec![])
+                .append(&mut sending);
+
             msgs.append(&mut sending);
         }
-        all_msgs.insert(d.domain_name.to_string(), msgs);
+        all_msgs_by_dest.insert(d.domain_name.to_string(), msgs);
+    }
+
+    for s in &chains {
+        let res = config.app.execute_contract(
+            s.incoming_gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessages(
+                all_msgs_by_src
+                    .get_mut(&s.domain_name.to_string())
+                    .unwrap()
+                    .clone(),
+            ),
+            &[],
+        );
+        assert!(res.is_ok());
     }
 
     for d in &chains {
-        let expected = all_msgs.get(&d.domain_name.to_string()).unwrap();
+        let expected = all_msgs_by_dest.get(&d.domain_name.to_string()).unwrap();
 
         let actual =
             mock::get_gateway_messages(&mut config.app, d.outgoing_gateway.clone(), expected);
