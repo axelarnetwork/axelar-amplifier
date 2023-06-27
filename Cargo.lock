@@ -489,7 +489,6 @@ dependencies = [
  "serde",
  "serde_json",
  "service-interface",
- "sha256",
  "thiserror",
 ]
 

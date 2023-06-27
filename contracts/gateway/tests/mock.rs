@@ -4,7 +4,6 @@ use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Res
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 use gateway::error::ContractError;
-use sha256::digest;
 
 const MOCK_VERIFIER_MESSAGES: Map<String, bool> = Map::new("verifier_messages");
 
@@ -25,7 +24,9 @@ pub fn mock_verifier_execute(
             let mut res = vec![];
             for m in messages {
                 let m = connection_router::state::Message::try_from(m).unwrap();
-                match MOCK_VERIFIER_MESSAGES.may_load(deps.storage, digest(m.clone()))? {
+                match MOCK_VERIFIER_MESSAGES
+                    .may_load(deps.storage, serde_json::to_string(&m).unwrap())?
+                {
                     Some(b) => res.push((m.id(), b)),
                     None => res.push((m.id(), false)),
                 }
@@ -35,7 +36,11 @@ pub fn mock_verifier_execute(
         MockVerifierExecuteMsg::MessagesVerified { messages } => {
             for m in messages {
                 let m = connection_router::state::Message::try_from(m).unwrap();
-                MOCK_VERIFIER_MESSAGES.save(deps.storage, digest(m.clone()), &true)?;
+                MOCK_VERIFIER_MESSAGES.save(
+                    deps.storage,
+                    serde_json::to_string(&m).unwrap(),
+                    &true,
+                )?;
             }
             Ok(Response::new())
         }
