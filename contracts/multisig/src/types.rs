@@ -4,10 +4,10 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, Storage, Uint256, Uint64};
 
-use crate::{state::KEY_SETS, ContractError};
+use crate::{secp256k1::Secp256k1Signature, state::KEY_SETS, ContractError};
 
 #[cw_serde]
-pub struct PublicKey(HexBinary);
+pub struct PublicKey(pub HexBinary);
 
 impl From<HexBinary> for PublicKey {
     fn from(other: HexBinary) -> Self {
@@ -21,20 +21,8 @@ impl From<PublicKey> for HexBinary {
     }
 }
 
-impl TryFrom<&PublicKey> for secp256k1::PublicKey {
-    type Error = ContractError;
-
-    fn try_from(other: &PublicKey) -> Result<Self, Self::Error> {
-        secp256k1::PublicKey::parse_slice(&other.0, None).map_err(|err| {
-            ContractError::InvalidPublicKeyFormat {
-                context: err.to_string(),
-            }
-        })
-    }
-}
-
 #[cw_serde]
-pub struct Message(HexBinary);
+pub struct Message(pub HexBinary);
 
 impl From<HexBinary> for Message {
     fn from(other: HexBinary) -> Self {
@@ -48,20 +36,8 @@ impl From<Message> for HexBinary {
     }
 }
 
-impl TryFrom<&Message> for secp256k1::Message {
-    type Error = ContractError;
-
-    fn try_from(other: &Message) -> Result<Self, Self::Error> {
-        secp256k1::Message::parse_slice(other.0.as_slice()).map_err(|err| {
-            ContractError::InvalidMessageFormat {
-                context: err.to_string(),
-            }
-        })
-    }
-}
-
 #[cw_serde]
-pub struct Signature(HexBinary);
+pub struct Signature(pub HexBinary);
 
 impl From<HexBinary> for Signature {
     fn from(other: HexBinary) -> Self {
@@ -72,28 +48,6 @@ impl From<HexBinary> for Signature {
 impl From<Signature> for HexBinary {
     fn from(original: Signature) -> Self {
         original.0
-    }
-}
-
-impl TryFrom<&Signature> for secp256k1::Signature {
-    type Error = ContractError;
-
-    fn try_from(other: &Signature) -> Result<Self, Self::Error> {
-        secp256k1::Signature::parse_der(&other.0).map_err(|err| {
-            ContractError::InvalidSignatureFormat {
-                context: err.to_string(),
-            }
-        })
-    }
-}
-
-impl Signature {
-    pub fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError> {
-        Ok(secp256k1::verify(
-            &msg.try_into()?,
-            &self.try_into()?,
-            &pub_key.try_into()?,
-        ))
     }
 }
 
