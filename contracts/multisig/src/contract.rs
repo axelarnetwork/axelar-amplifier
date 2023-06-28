@@ -98,9 +98,11 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetSigningSession { sig_id } => to_binary(&query::get_signing_session(sig_id)?),
+        QueryMsg::GetSigningSession { sig_id } => {
+            to_binary(&query::get_signing_session(deps, sig_id)?)
+        }
     }
 }
 
@@ -109,7 +111,15 @@ pub mod query {
 
     use super::*;
 
-    pub fn get_signing_session(_sig_id: Uint64) -> StdResult<GetSigningSessionResponse> {
-        todo!()
+    pub fn get_signing_session(deps: Deps, sig_id: Uint64) -> StdResult<GetSigningSessionResponse> {
+        let session = SIGNING_SESSIONS.load(deps.storage, sig_id.into())?;
+
+        let key = session.key(deps.storage)?;
+
+        Ok(GetSigningSessionResponse {
+            state: session.state,
+            signatures: session.signatures,
+            snapshot: key.snapshot,
+        })
     }
 }

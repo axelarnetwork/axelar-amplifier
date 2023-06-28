@@ -4,7 +4,7 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
 
-use crate::types::MultisigState;
+use crate::types::{MultisigState, Signature};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -29,7 +29,7 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub struct GetSigningSessionResponse {
-    state: MultisigState,
-    signatures: HashMap<String, HexBinary>,
-    snapshot: Snapshot,
+    pub state: MultisigState,
+    pub signatures: HashMap<String, Signature>,
+    pub snapshot: Snapshot,
 }
