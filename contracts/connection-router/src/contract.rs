@@ -1,11 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
-};
-#[cfg(not(feature = "library"))]
-use cosmwasm_str::entry_point;
-use cw_storage_plus::Deque;
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
 use crate::events::{DomainRegistered, RouterInstantiated};
@@ -92,24 +87,29 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::unfreeze_outgoing_gateway(deps, domain.parse()?)
         }
-        ExecuteMsg::RouteMessage(msg) => {
-            execute::route_message(deps, info, Message::try_from(msg)?)
-        }
-        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, info, count),
+        ExecuteMsg::RouteMessages(msgs) => execute::route_message(
+            deps,
+            info,
+            msgs.into_iter()
+                .map(Message::try_from)
+                .collect::<Result<Vec<Message>, _>>()?,
+        ),
     }
 }
 
 pub mod execute {
 
-    use cosmwasm_std::Addr;
+    use std::{collections::HashMap, vec};
+
+    use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
         events::{
             DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
-            GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
+            GatewayUnfrozen, GatewayUpgraded, MessageRouted,
         },
         msg,
-        state::{get_message_queue_id, Message},
+        state::Message,
         types::{Domain, DomainName, Gateway},
     };
 
@@ -360,7 +360,7 @@ pub mod execute {
     pub fn route_message(
         deps: DepsMut,
         info: MessageInfo,
-        msg: Message,
+        msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         let source_domain = find_domain_for_incoming_gateway(&deps, &info.sender)?
             .ok_or(ContractError::GatewayNotRegistered {})?;
@@ -373,69 +373,49 @@ pub mod execute {
             return Err(ContractError::GatewayFrozen {});
         }
 
-        if source_domain.name != msg.source_domain {
-            return Err(ContractError::WrongSourceDomain {});
-        }
-
-        let info = domains()
-            .may_load(deps.storage, msg.destination_domain.clone())?
-            .ok_or(ContractError::DomainNotFound {})?;
-        if info.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: msg.destination_domain,
-            });
-        }
-
-        if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
-            return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
-        }
-        MESSAGES.save(deps.storage, msg.id(), &())?;
-
-        let qid = get_message_queue_id(&msg.destination_domain);
-        let q: Deque<Message> = Deque::new(&qid);
-        q.push_back(deps.storage, &msg)?;
-
-        Ok(Response::new().add_event(MessageRouted { msg }.into()))
-    }
-
-    pub fn consume_messages(
-        deps: DepsMut,
-        info: MessageInfo,
-        count: Option<u32>,
-    ) -> Result<Response, ContractError> {
-        let domain = find_domain_for_outgoing_gateway(&deps, &info.sender)?
-            .ok_or(ContractError::GatewayNotRegistered {})?;
-        if domain.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: domain.name,
-            });
-        }
-        if domain.outgoing_gateway.is_frozen {
-            return Err(ContractError::GatewayFrozen {});
-        }
-
-        let qid = get_message_queue_id(&domain.name);
-        let q: Deque<Message> = Deque::new(&qid);
-        let mut messages = vec![];
-
-        let to_consume = count.unwrap_or(u32::MAX);
-        for _ in 0..to_consume {
-            match q.pop_front(deps.storage)? {
-                Some(m) => messages.push(m),
-                None => break,
+        let mut msgs_by_destination: HashMap<String, Vec<msg::Message>> = HashMap::new();
+        for msg in &msgs {
+            if source_domain.name != msg.source_domain {
+                return Err(ContractError::WrongSourceDomain {});
             }
+
+            if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
+                return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
+            }
+            MESSAGES.save(deps.storage, msg.id(), &())?;
+
+            msgs_by_destination
+                .entry(msg.destination_domain.to_string())
+                .or_default()
+                .push(msg.clone().into());
         }
+
+        let mut wasm_msgs = vec![];
+        for (destination_domain, msgs) in msgs_by_destination {
+            let destination_domain = domains()
+                .may_load(deps.storage, destination_domain.parse()?)?
+                .ok_or(ContractError::DomainNotFound {})?;
+
+            if destination_domain.is_frozen {
+                return Err(ContractError::DomainFrozen {
+                    domain: destination_domain.name,
+                });
+            }
+
+            if destination_domain.outgoing_gateway.is_frozen {
+                return Err(ContractError::GatewayFrozen {});
+            }
+
+            wasm_msgs.push(WasmMsg::Execute {
+                contract_addr: destination_domain.outgoing_gateway.address.to_string(),
+                msg: to_binary(&msg::ExecuteMsg::RouteMessages(msgs))?,
+                funds: vec![],
+            });
+        }
+
         Ok(Response::new()
-            .add_event(Event::from(MessagesConsumed {
-                domain: domain.name,
-                msgs: &messages,
-            }))
-            .set_data(to_binary(
-                &messages
-                    .into_iter()
-                    .map(Into::into)
-                    .collect::<Vec<msg::Message>>(),
-            )?))
+            .add_messages(wasm_msgs)
+            .add_events(msgs.into_iter().map(|msg| MessageRouted { msg }.into())))
     }
 
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
