@@ -3,19 +3,21 @@ use std::collections::HashMap;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
+use crate::types::{Message, PublicKey, Signature};
+
 pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         sig_id: Uint64,
         key_id: Uint64,
-        pub_keys: HashMap<String, HexBinary>,
-        msg: HexBinary,
+        pub_keys: HashMap<String, PublicKey>,
+        msg: Message,
     },
     // Emitted when a participants submits a signature
     SignatureSubmitted {
         sig_id: Uint64,
         participant: Addr,
-        signature: HexBinary,
+        signature: Signature,
     },
     // Emitted when a signing session was completed
     SigningCompleted {
@@ -39,7 +41,7 @@ impl From<Event> for cosmwasm_std::Event {
                     to_string(&pub_keys)
                         .expect("violated invariant: pub_keys are not serializable"),
                 )
-                .add_attribute("msg", msg.to_hex()),
+                .add_attribute("msg", Into::<HexBinary>::into(msg).to_hex()),
             Event::SignatureSubmitted {
                 sig_id,
                 participant,
@@ -47,7 +49,7 @@ impl From<Event> for cosmwasm_std::Event {
             } => cosmwasm_std::Event::new("signature_submitted")
                 .add_attribute("sig_id", sig_id)
                 .add_attribute("participant", participant)
-                .add_attribute("signature", signature.to_hex()),
+                .add_attribute("signature", Into::<HexBinary>::into(signature).to_hex()),
             Event::SigningCompleted { sig_id } => {
                 cosmwasm_std::Event::new("signing_completed").add_attribute("sig_id", sig_id)
             }

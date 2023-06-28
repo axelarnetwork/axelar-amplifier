@@ -1,14 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult, Uint64,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint64,
 };
 
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{get_current_key_set, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::SigningSession,
+    types::{Message, Signature, SigningSession},
     ContractError,
 };
 
@@ -21,7 +21,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
 
-    todo!()
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -32,9 +32,11 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { msg } => execute::start_signing_session(deps, info, msg),
+        ExecuteMsg::StartSigningSession { msg } => {
+            execute::start_signing_session(deps, info, msg.into())
+        }
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
-            execute::submit_signature(sig_id, signature)
+            execute::submit_signature(sig_id, signature.into())
         }
     }
 }
@@ -45,9 +47,9 @@ pub mod execute {
     pub fn start_signing_session(
         deps: DepsMut,
         info: MessageInfo,
-        msg: HexBinary,
+        msg: Message, // TODO: validate message before using this custom type
     ) -> Result<Response, ContractError> {
-        let key = get_current_key_set(deps.storage, info.sender)?;
+        let key = get_current_key_set(deps.storage, &info.sender)?;
 
         let sig_id = SIGNING_SESSION_COUNTER.update(
             deps.storage,
@@ -73,7 +75,7 @@ pub mod execute {
 
     pub fn submit_signature(
         _sig_id: Uint64,
-        _signature: HexBinary,
+        _signature: Signature, // TODO: validate signature before using this custom type
     ) -> Result<Response, ContractError> {
         todo!()
     }
