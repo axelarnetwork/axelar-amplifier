@@ -9,12 +9,6 @@ use crate::{secp256k1::Secp256k1Signature, state::KEY_SETS, ContractError};
 #[cw_serde]
 pub struct PublicKey(pub HexBinary);
 
-impl From<HexBinary> for PublicKey {
-    fn from(other: HexBinary) -> Self {
-        Self(other)
-    }
-}
-
 impl From<PublicKey> for HexBinary {
     fn from(original: PublicKey) -> Self {
         original.0
@@ -24,12 +18,6 @@ impl From<PublicKey> for HexBinary {
 #[cw_serde]
 pub struct Message(pub HexBinary);
 
-impl From<HexBinary> for Message {
-    fn from(other: HexBinary) -> Self {
-        Self(other)
-    }
-}
-
 impl From<Message> for HexBinary {
     fn from(original: Message) -> Self {
         original.0
@@ -38,12 +26,6 @@ impl From<Message> for HexBinary {
 
 #[cw_serde]
 pub struct Signature(pub HexBinary);
-
-impl From<HexBinary> for Signature {
-    fn from(other: HexBinary) -> Self {
-        Self(other)
-    }
-}
 
 impl From<Signature> for HexBinary {
     fn from(original: Signature) -> Self {

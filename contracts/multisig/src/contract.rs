@@ -33,10 +33,10 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::StartSigningSession { msg } => {
-            execute::start_signing_session(deps, info, msg.into())
+            execute::start_signing_session(deps, info, msg.try_into()?)
         }
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
-            execute::submit_signature(deps, info, sig_id, signature.into())
+            execute::submit_signature(deps, info, sig_id, signature.try_into()?)
         }
     }
 }
@@ -47,7 +47,7 @@ pub mod execute {
     pub fn start_signing_session(
         deps: DepsMut,
         info: MessageInfo,
-        msg: Message, // TODO: validate message before using this custom type
+        msg: Message,
     ) -> Result<Response, ContractError> {
         let key = get_current_key_set(deps.storage, &info.sender)?;
 
@@ -77,7 +77,7 @@ pub mod execute {
         deps: DepsMut,
         info: MessageInfo,
         sig_id: Uint64,
-        signature: Signature, // TODO: validate signature before using this custom type
+        signature: Signature,
     ) -> Result<Response, ContractError> {
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, sig_id.into())

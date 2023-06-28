@@ -1,8 +1,20 @@
+use cosmwasm_std::HexBinary;
+
 // TODO: Logic specific to secp256k1 will most likely be handled by core in the future.
 use crate::{
     types::{Message, PublicKey, Signature},
     ContractError,
 };
+
+impl TryFrom<HexBinary> for PublicKey {
+    type Error = ContractError;
+
+    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
+        let pub_key = Self(other);
+        let _validated: secp256k1::PublicKey = (&pub_key).try_into()?;
+        Ok(pub_key)
+    }
+}
 
 impl TryFrom<&PublicKey> for secp256k1::PublicKey {
     type Error = ContractError;
@@ -16,6 +28,16 @@ impl TryFrom<&PublicKey> for secp256k1::PublicKey {
     }
 }
 
+impl TryFrom<HexBinary> for Message {
+    type Error = ContractError;
+
+    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
+        let msg = Self(other);
+        let _validated: secp256k1::Message = (&msg).try_into()?;
+        Ok(msg)
+    }
+}
+
 impl TryFrom<&Message> for secp256k1::Message {
     type Error = ContractError;
 
@@ -25,6 +47,16 @@ impl TryFrom<&Message> for secp256k1::Message {
                 context: err.to_string(),
             }
         })
+    }
+}
+
+impl TryFrom<HexBinary> for Signature {
+    type Error = ContractError;
+
+    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
+        let sig = Self(other);
+        let _validated: secp256k1::Signature = (&sig).try_into()?;
+        Ok(sig)
     }
 }
 
