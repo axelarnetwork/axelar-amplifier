@@ -7,7 +7,7 @@ use crate::types::MessageFlowDirection;
 // The fields have not necessarily been validated, and should be checked prior to further processing.
 #[cw_serde]
 pub struct Message {
-    pub id: String,
+    pub id: String, // should be globally unique
     pub source_address: String,
     pub source_chain: String,
     pub destination_address: String,
@@ -37,6 +37,7 @@ pub enum ExecuteMsg {
         contract_address: String,
     },
     // Freezes a chain, in the specified direction. This overrides any previous frozen status. Pass None to unfreeze
+    // TODO: come up with a better name?
     FreezeChain {
         chain: String,
         direction: MessageFlowDirection,

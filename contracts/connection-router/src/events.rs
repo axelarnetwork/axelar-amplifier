@@ -118,7 +118,7 @@ impl From<ChainUnfrozen> for Event {
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.id()).into(),
+            ("id", other.id).into(),
             ("source_chain", other.source_chain.clone()).into(),
             ("source_addressess", other.source_address.clone()).into(),
             ("destination_chain", other.destination_chain.clone()).into(),
@@ -151,7 +151,7 @@ impl<'a> From<MessagesConsumed<'a>> for Event {
                     other
                         .msgs
                         .iter()
-                        .map(|m| m.id())
+                        .map(|m| m.id.as_str())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),

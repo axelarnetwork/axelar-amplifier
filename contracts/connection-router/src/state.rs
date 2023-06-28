@@ -73,7 +73,7 @@ impl<'a> IndexList<Chain> for ChainIndexes<'a> {
 // This should never be supplied by the user.
 #[cw_serde]
 pub struct Message {
-    id: MessageID, // unique per source chain
+    pub id: MessageID, // globally unique
     pub destination_address: String,
     pub destination_chain: ChainName,
     pub source_chain: ChainName,
@@ -99,15 +99,6 @@ impl Message {
             payload_hash,
         }
     }
-
-    pub fn id(&self) -> String {
-        format!(
-            "{}{}{}",
-            self.source_chain.to_string(),
-            ID_SEPARATOR,
-            self.id.to_string()
-        )
-    }
 }
 
 impl TryFrom<msg::Message> for Message {
@@ -115,6 +106,12 @@ impl TryFrom<msg::Message> for Message {
     fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
         if value.destination_address.is_empty() || value.source_address.is_empty() {
             return Err(ContractError::InvalidAddress {});
+        }
+        if !value
+            .id
+            .starts_with(&format!("{}{}", value.source_chain, ID_SEPARATOR))
+        {
+            return Err(ContractError::InvalidMessageID {});
         }
         Ok(Message::new(
             value.id.parse()?,

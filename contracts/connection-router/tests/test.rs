@@ -1,4 +1,4 @@
-use connection_router::{self, msg, state};
+use connection_router::{self, msg};
 use std::{collections::HashMap, vec};
 
 use connection_router::types::{ChainName, MessageFlowDirection, ID_SEPARATOR};
@@ -79,7 +79,12 @@ fn generate_messages(
     let mut msgs = vec![];
     for x in 0..count {
         *nonce = *nonce + 1;
-        let id = format!("id-{}", nonce);
+        let id = format!(
+            "{}{}id-{}",
+            src_chain.chain_name.to_string(),
+            ID_SEPARATOR,
+            nonce
+        );
         msgs.push(msg::Message {
             id: id.parse().unwrap(),
             destination_address: String::from("idc"),
@@ -90,15 +95,6 @@ fn generate_messages(
         })
     }
     msgs
-}
-
-fn get_base_id(msg: &state::Message) -> String {
-    msg.id()
-        .to_string()
-        .split_once(ID_SEPARATOR)
-        .unwrap()
-        .1
-        .to_string()
 }
 
 // tests that each message is properly delivered
@@ -160,38 +156,27 @@ fn message_id() {
     register_chain(&mut config, &polygon);
 
     let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
-    let msg2 = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
-    {
-        let msg = state::Message::try_from(msg.clone()).unwrap();
-        let msg2 = state::Message::try_from(msg2.clone()).unwrap();
-        assert_eq!(get_base_id(&msg), get_base_id(&msg2));
-        assert_ne!(msg.id(), msg2.id());
-    }
     // try to route same message twice
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-            &[],
-        );
+    let res = config.app.execute_contract(
+        eth.gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessages(vec![msg.clone()]),
+        &[],
+    );
 
     assert!(res.is_ok());
 
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-            &[],
-        );
-    
+    let res = config.app.execute_contract(
+        eth.gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessages(vec![msg.clone()]),
+        &[],
+    );
+
     assert!(res.is_ok());
 
-    // Should be able to route same id from a different source
-    let _ = config
+    // msg id uses wrong source chain
+    let res = config
         .app
         .execute_contract(
             polygon.gateway.clone(),
@@ -202,7 +187,24 @@ fn message_id() {
             }]),
             &[],
         )
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+
+    // don't prepend source chain
+    let bad_id = msg.id.split(&msg.source_chain).collect::<Vec<&str>>()[0];
+    let res = config
+        .app
+        .execute_contract(
+            eth.gateway.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RouteMessages(vec![msg::Message {
+                id: bad_id.to_string(),
+                ..msg.clone()
+            }]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
 
     let res = config
         .app

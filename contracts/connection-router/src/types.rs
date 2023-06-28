@@ -16,7 +16,7 @@ impl FromStr for MessageID {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(ID_SEPARATOR) || s.is_empty() {
+        if !s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidMessageID {});
         }
         Ok(MessageID {
