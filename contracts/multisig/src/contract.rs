@@ -36,7 +36,7 @@ pub fn execute(
             execute::start_signing_session(deps, info, msg.into())
         }
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
-            execute::submit_signature(sig_id, signature.into())
+            execute::submit_signature(deps, info, sig_id, signature.into())
         }
     }
 }
@@ -74,10 +74,26 @@ pub mod execute {
     }
 
     pub fn submit_signature(
-        _sig_id: Uint64,
-        _signature: Signature, // TODO: validate signature before using this custom type
+        deps: DepsMut,
+        info: MessageInfo,
+        sig_id: Uint64,
+        signature: Signature, // TODO: validate signature before using this custom type
     ) -> Result<Response, ContractError> {
-        todo!()
+        let mut session = SIGNING_SESSIONS
+            .load(deps.storage, sig_id.into())
+            .map_err(|_| ContractError::SigningSessionNotFound { sig_id })?;
+
+        session.add_signature(deps.storage, info.sender.clone().into(), signature.clone())?;
+
+        SIGNING_SESSIONS.save(deps.storage, sig_id.into(), &session)?;
+
+        let event = Event::SignatureSubmitted {
+            sig_id,
+            participant: info.sender,
+            signature,
+        };
+
+        Ok(Response::new().add_event(event.into()))
     }
 }
 

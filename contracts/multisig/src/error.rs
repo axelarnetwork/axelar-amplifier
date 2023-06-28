@@ -29,4 +29,7 @@ pub enum ContractError {
 
     #[error("Signing session {sig_id:?} is already closed")]
     SigningSessionClosed { sig_id: Uint64 },
+
+    #[error("Signing session {sig_id:?} not found")]
+    SigningSessionNotFound { sig_id: Uint64 },
 }
