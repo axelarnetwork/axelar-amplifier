@@ -2,7 +2,7 @@ use core::panic;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 
 use crate::{
     msg,
@@ -67,14 +67,6 @@ impl<'a> IndexList<Chain> for ChainIndexes<'a> {
         let v: Vec<&dyn Index<Chain>> = vec![&self.gateway.0];
         Box::new(v.into_iter())
     }
-}
-
-// a set of all message uuids
-pub const MESSAGES: Map<String, ()> = Map::new("messages");
-
-const MESSAGE_QUEUE_SUFFIX: &str = "-messages";
-pub fn get_message_queue_id(destination_chain: &ChainName) -> String {
-    format!("{}{}", destination_chain.to_string(), MESSAGE_QUEUE_SUFFIX)
 }
 
 // Message represents a message for which the fields have been successfully validated.

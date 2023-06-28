@@ -5,7 +5,7 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 use crate::error::ContractError;
 use crate::events::{ChainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{chains, Config, Message, CONFIG, MESSAGES};
+use crate::state::{chains, Config, Message, CONFIG};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -183,11 +183,6 @@ pub mod execute {
             if source_chain.name != msg.source_chain {
                 return Err(ContractError::WrongSourceChain {});
             }
-
-            if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
-                return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
-            }
-            MESSAGES.save(deps.storage, msg.id(), &())?;
 
             msgs_by_destination
                 .entry(msg.destination_chain.to_string())

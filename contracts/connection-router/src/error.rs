@@ -29,12 +29,6 @@ pub enum ContractError {
     #[error("Gateway was already registered")]
     GatewayAlreadyRegistered {},
 
-    #[error("Message was already routed")]
-    MessageAlreadyRouted { id: String },
-
-    #[error("Message was not found")]
-    MessageNotFound {},
-
     #[error("Chain is frozen")]
     ChainFrozen { chain: ChainName },
 

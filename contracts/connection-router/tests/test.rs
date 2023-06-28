@@ -168,15 +168,16 @@ fn message_id() {
         assert_ne!(msg.id(), msg2.id());
     }
     // try to route same message twice
-    let _ = config
+    let res = config
         .app
         .execute_contract(
             eth.gateway.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessages(vec![msg.clone()]),
             &[],
-        )
-        .unwrap();
+        );
+
+    assert!(res.is_ok());
 
     let res = config
         .app
@@ -185,14 +186,9 @@ fn message_id() {
             config.contract_address.clone(),
             &ExecuteMsg::RouteMessages(vec![msg.clone()]),
             &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        ContractError::MessageAlreadyRouted {
-            id: state::Message::try_from(msg.clone()).unwrap().id()
-        },
-        res.downcast().unwrap()
-    );
+        );
+    
+    assert!(res.is_ok());
 
     // Should be able to route same id from a different source
     let _ = config
