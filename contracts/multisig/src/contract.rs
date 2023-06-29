@@ -98,8 +98,6 @@ pub mod execute {
 
         session.add_signature(deps.storage, info.sender.clone().into(), signature.clone())?;
 
-        SIGNING_SESSIONS.save(deps.storage, sig_id.into(), &session)?;
-
         let event = Event::SignatureSubmitted {
             sig_id,
             participant: info.sender,

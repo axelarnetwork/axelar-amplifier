@@ -4,7 +4,11 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, Storage, Uint256, Uint64};
 
-use crate::{secp256k1::Secp256k1Signature, state::KEYS, ContractError};
+use crate::{
+    secp256k1::Secp256k1Signature,
+    state::{KEYS, SIGNING_SESSIONS},
+    ContractError,
+};
 
 #[cw_serde]
 pub struct PublicKey(pub HexBinary);
@@ -68,7 +72,7 @@ impl SigningSession {
 
     pub fn add_signature(
         &mut self,
-        store: &dyn Storage, // TODO: use mutable and update storage in same function?
+        store: &mut dyn Storage, // TODO: use mutable and update storage in same function?
         signer: String,
         signature: Signature,
     ) -> Result<(), ContractError> {
@@ -105,6 +109,8 @@ impl SigningSession {
         if self.signers_weight(&key) >= key.snapshot.quorum.into() {
             self.state = MultisigState::Completed;
         }
+
+        SIGNING_SESSIONS.save(store, self.id.into(), self)?;
 
         Ok(())
     }
