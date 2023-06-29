@@ -58,13 +58,13 @@ pub mod execute {
         deps: DepsMut,
         msgs: Vec<state::Message>,
     ) -> Result<Response, ContractError> {
-        // Simply pass through to the voting verifier for now. If there are multiple verification
+        // Simply pass through to a single verifier for now. If there are multiple verification
         // methods in the future, as well as support for a callback when a message is actually
         // verified, we can store the verification status. But for now, simple pass through works
-        let voting_verifier = CONFIG.load(deps.storage)?.verifier;
+        let verifier = CONFIG.load(deps.storage)?.verifier;
         Ok(Response::new().add_submessage(SubMsg::reply_on_success(
             WasmMsg::Execute {
-                contract_addr: voting_verifier.to_string(),
+                contract_addr: verifier.to_string(),
                 msg: to_binary(&ExecuteMsg::VerifyMessages {
                     messages: msgs.into_iter().map(msg::Message::from).collect(),
                 })?,
@@ -85,7 +85,7 @@ pub fn reply(_deps: DepsMut, _: Env, reply: Reply) -> Result<Response, ContractE
             // check format of data
             let _: Vec<(String, bool)> = from_binary(&data)?;
 
-            // voting verifier is the only verifier, so just return the response as is
+            // only one verifier, so just return the response as is
             Ok(Response::new().set_data(data))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Ok(Response::new()),
