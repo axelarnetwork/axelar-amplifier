@@ -4,7 +4,7 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, Storage, Uint256, Uint64};
 
-use crate::{secp256k1::Secp256k1Signature, state::KEY_SETS, ContractError};
+use crate::{secp256k1::Secp256k1Signature, state::KEYS, ContractError};
 
 #[cw_serde]
 pub struct PublicKey(pub HexBinary);
@@ -35,7 +35,7 @@ impl From<Signature> for HexBinary {
 
 #[cw_serde]
 pub struct Key {
-    pub id: Uint64,
+    pub id: String,
     pub snapshot: Snapshot,
     pub pub_keys: HashMap<String, PublicKey>,
 }
@@ -49,14 +49,14 @@ pub enum MultisigState {
 #[cw_serde]
 pub struct SigningSession {
     pub id: Uint64,
-    pub key_id: Uint64,
+    pub key_id: String,
     pub msg: Message,
     pub signatures: HashMap<String, Signature>,
     pub state: MultisigState,
 }
 
 impl SigningSession {
-    pub fn new(sig_id: Uint64, key_id: Uint64, msg: Message) -> Self {
+    pub fn new(sig_id: Uint64, key_id: String, msg: Message) -> Self {
         Self {
             id: sig_id,
             key_id,
@@ -110,7 +110,7 @@ impl SigningSession {
     }
 
     pub fn key(&self, store: &dyn Storage) -> Result<Key, StdError> {
-        KEY_SETS.load(store, self.key_id.u64())
+        KEYS.load(store, self.key_id.clone())
     }
 
     fn signers_weight(&self, key: &Key) -> Uint256 {

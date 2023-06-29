@@ -9,7 +9,7 @@ pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         sig_id: Uint64,
-        key_id: Uint64,
+        key_id: String,
         pub_keys: HashMap<String, PublicKey>,
         msg: Message,
     },

@@ -1,14 +1,18 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint64,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    Uint64,
 };
+
+use axelar_wasm_std::Snapshot;
+use std::collections::HashMap;
 
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{get_current_key_set, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Message, Signature, SigningSession},
+    state::{get_current_key, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    types::{Key, Message, Signature, SigningSession},
     ContractError,
 };
 
@@ -17,8 +21,10 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    CONFIG.save(deps.storage, &Config { admin })?;
     SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
 
     Ok(Response::default())
@@ -38,10 +44,17 @@ pub fn execute(
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
             execute::submit_signature(deps, info, sig_id, signature.try_into()?)
         }
+        ExecuteMsg::SetKey {
+            owner,
+            snapshot,
+            pub_keys,
+        } => execute::set_key(deps, info, owner, snapshot, pub_keys),
     }
 }
 
 pub mod execute {
+    use crate::{state::KEYS, types::PublicKey};
+
     use super::*;
 
     pub fn start_signing_session(
@@ -49,7 +62,7 @@ pub mod execute {
         info: MessageInfo,
         msg: Message,
     ) -> Result<Response, ContractError> {
-        let key = get_current_key_set(deps.storage, &info.sender)?;
+        let key = get_current_key(deps.storage, &info.sender)?;
 
         let sig_id = SIGNING_SESSION_COUNTER.update(
             deps.storage,
@@ -59,7 +72,7 @@ pub mod execute {
             },
         )?;
 
-        let signing_session = SigningSession::new(sig_id, key.id, msg.clone());
+        let signing_session = SigningSession::new(sig_id, key.clone().id, msg.clone());
 
         SIGNING_SESSIONS.save(deps.storage, sig_id.into(), &signing_session)?;
 
@@ -94,6 +107,32 @@ pub mod execute {
         };
 
         Ok(Response::new().add_event(event.into()))
+    }
+
+    // TODO: this will disappear once keygen and key rotation are introduced
+    pub fn set_key(
+        deps: DepsMut,
+        info: MessageInfo,
+        owner: Addr,
+        snapshot: Snapshot,
+        pub_keys: HashMap<String, HexBinary>,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.admin != info.sender {
+            return Err(ContractError::Unauthorized {});
+        }
+
+        let key = Key {
+            id: owner.to_string(),
+            snapshot,
+            pub_keys: pub_keys
+                .into_iter()
+                .map(|(k, v)| (k, PublicKey::try_from(v).unwrap()))
+                .collect(),
+        };
+        KEYS.save(deps.storage, owner.into(), &key)?;
+
+        Ok(Response::default())
     }
 }
 
