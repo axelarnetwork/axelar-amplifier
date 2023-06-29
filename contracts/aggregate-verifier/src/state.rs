@@ -4,7 +4,7 @@ use cw_storage_plus::Item;
 
 #[cw_serde]
 pub struct Config {
-    pub voting_verifier: Addr,
+    pub verifier: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

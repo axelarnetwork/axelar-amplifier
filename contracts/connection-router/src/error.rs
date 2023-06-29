@@ -41,8 +41,8 @@ pub enum ContractError {
     #[error("Gateway is frozen")]
     GatewayFrozen {},
 
-    #[error("Address is invalid")]
-    InvalidAddress {},
+    #[error("address of {0} is invalid")]
+    InvalidAddress(String),
 
     #[error("Source domain does not match registered gateway")]
     WrongSourceDomain {},

@@ -6,16 +6,16 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Domain name is invalid")]
+    #[error("domain name is invalid")]
     InvalidDomainName {},
 
-    #[error("Message ID is invalid")]
+    #[error("message ID is invalid")]
     InvalidMessageID {},
 
-    #[error("Address is invalid")]
-    InvalidAddress {},
+    #[error("address of {0} is invalid")]
+    InvalidAddress(String),
 
-    #[error("Router error")]
+    #[error("router error")]
     RouterError {
         error: connection_router::error::ContractError,
     },
@@ -24,9 +24,11 @@ pub enum ContractError {
 impl From<connection_router::ContractError> for ContractError {
     fn from(value: connection_router::ContractError) -> Self {
         match value {
-            connection_router::ContractError::InvalidAddress {} => Self::InvalidAddress {},
+            connection_router::ContractError::InvalidAddress(address) => {
+                Self::InvalidAddress(address)
+            }
             connection_router::ContractError::InvalidDomainName {} => Self::InvalidDomainName {},
-            connection_router::ContractError::InvalidMessageID {} => Self::InvalidDomainName {},
+            connection_router::ContractError::InvalidMessageID {} => Self::InvalidMessageID {},
             _ => Self::RouterError { error: value },
         }
     }

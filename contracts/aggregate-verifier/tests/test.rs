@@ -1,5 +1,7 @@
 use aggregate_verifier::contract::*;
+use aggregate_verifier::error::ContractError;
 use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
+use connection_router::msg::Message;
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -28,6 +30,42 @@ fn convert_messages(
 }
 
 #[test]
+fn bad_message_id() {
+    let mut app = App::default();
+    let voting_verifier_address = make_mock_voting_verifier(&mut app);
+
+    let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
+    let code_id = app.store_code(Box::new(code));
+
+    let verifier_address = app
+        .instantiate_contract(
+            code_id,
+            Addr::unchecked("gateway"),
+            &InstantiateMsg {
+                verifier_address: voting_verifier_address.to_string(),
+            },
+            &[],
+            "Contract",
+            None,
+        )
+        .unwrap();
+    let mut msgs = convert_messages(&generate_messages(10));
+    msgs[0] = Message {
+        id: "".to_string(),
+        ..msgs[0].clone()
+    };
+    let res = app
+        .execute_contract(
+            Addr::unchecked("relayer"),
+            verifier_address.clone(),
+            &ExecuteMsg::VerifyMessages { messages: msgs },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap())
+}
+
+#[test]
 fn verify_messages_empty() {
     let mut app = App::default();
     let voting_verifier_address = make_mock_voting_verifier(&mut app);
@@ -40,7 +78,7 @@ fn verify_messages_empty() {
             code_id,
             Addr::unchecked("gateway"),
             &InstantiateMsg {
-                voting_verifier_address: voting_verifier_address.to_string(),
+                verifier_address: voting_verifier_address.to_string(),
             },
             &[],
             "Contract",
@@ -73,7 +111,7 @@ fn verify_messages_not_verified() {
             code_id,
             Addr::unchecked("gateway"),
             &InstantiateMsg {
-                voting_verifier_address: voting_verifier_address.to_string(),
+                verifier_address: voting_verifier_address.to_string(),
             },
             &[],
             "Contract",
@@ -114,7 +152,7 @@ fn verify_messages_verified() {
             code_id,
             Addr::unchecked("gateway"),
             &InstantiateMsg {
-                voting_verifier_address: voting_verifier_address.to_string(),
+                verifier_address: voting_verifier_address.to_string(),
             },
             &[],
             "Contract",
@@ -157,7 +195,7 @@ fn verify_messages_mixed_status() {
             code_id,
             Addr::unchecked("gateway"),
             &InstantiateMsg {
-                voting_verifier_address: voting_verifier_address.to_string(),
+                verifier_address: voting_verifier_address.to_string(),
             },
             &[],
             "Contract",
