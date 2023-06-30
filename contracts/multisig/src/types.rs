@@ -5,13 +5,16 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, Storage, Uint256, Uint64};
 
 use crate::{
-    secp256k1::Secp256k1Signature,
     state::{KEYS, SIGNING_SESSIONS},
     ContractError,
 };
 
+pub trait VerifiableSignature {
+    fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError>;
+}
+
 #[cw_serde]
-pub struct PublicKey(pub HexBinary);
+pub struct PublicKey(HexBinary);
 
 impl From<PublicKey> for HexBinary {
     fn from(original: PublicKey) -> Self {
@@ -19,8 +22,20 @@ impl From<PublicKey> for HexBinary {
     }
 }
 
+impl<'a> From<&'a PublicKey> for &'a [u8] {
+    fn from(original: &'a PublicKey) -> Self {
+        original.0.as_slice()
+    }
+}
+
+impl PublicKey {
+    pub fn unchecked(hex: HexBinary) -> Self {
+        Self(hex)
+    }
+}
+
 #[cw_serde]
-pub struct Message(pub HexBinary);
+pub struct Message(HexBinary);
 
 impl From<Message> for HexBinary {
     fn from(original: Message) -> Self {
@@ -28,12 +43,36 @@ impl From<Message> for HexBinary {
     }
 }
 
+impl<'a> From<&'a Message> for &'a [u8] {
+    fn from(original: &'a Message) -> Self {
+        original.0.as_slice()
+    }
+}
+
+impl Message {
+    pub fn unchecked(hex: HexBinary) -> Self {
+        Self(hex)
+    }
+}
+
 #[cw_serde]
-pub struct Signature(pub HexBinary);
+pub struct Signature(HexBinary);
 
 impl From<Signature> for HexBinary {
     fn from(original: Signature) -> Self {
         original.0
+    }
+}
+
+impl<'a> From<&'a Signature> for &'a [u8] {
+    fn from(original: &'a Signature) -> Self {
+        original.0.as_slice()
+    }
+}
+
+impl Signature {
+    pub fn unchecked(hex: HexBinary) -> Self {
+        Self(hex)
     }
 }
 
