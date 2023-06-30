@@ -1,7 +1,9 @@
+use serde::Deserialize;
+
 use crate::broadcaster;
 use crate::evm::{deserialize_evm_chain_configs, EvmChainConfig};
+use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 #[serde(default)]
@@ -10,6 +12,7 @@ pub struct Config {
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_evm_chain_configs")]
     pub evm_chain_configs: Vec<EvmChainConfig>,
+    pub tofnd_config: TofndConfig,
 }
 
 impl Default for Config {
@@ -18,14 +21,16 @@ impl Default for Config {
             tm_url: "tcp://localhost:26657".parse().unwrap(),
             broadcast: broadcaster::Config::default(),
             evm_chain_configs: vec![],
+            tofnd_config: TofndConfig::default(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
     use crate::evm::ChainName;
+
+    use super::Config;
 
     #[test]
     fn deserialize_evm_configs() {
@@ -58,5 +63,35 @@ mod tests {
     fn fail_deserialization() {
         assert!(toml::from_str::<Config>("tm_url = 'some other string'").is_err());
         assert!(toml::from_str::<Config>("tm_url = 5").is_err());
+    }
+
+    #[test]
+    fn deserialize_tofnd_config() {
+        let url = "http://localhost:50051/";
+
+        let config_str = format!(
+            "
+            [tofnd_config]
+            url = '{}'
+            dail_timeout = '5s'
+            ",
+            url
+        );
+
+        let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
+
+        assert_eq!(cfg.tofnd_config.url.as_str(), url);
+        assert_eq!(cfg.tofnd_config.dail_timeout.as_secs(), 5);
+    }
+
+    #[test]
+    fn fail_deserialize_tofnd_config() {
+        let invalid_timeout = "
+            [tofnd_config]
+            url = 'http://localhost:50051/'
+            dail_timeout = '5x'
+            ";
+
+        assert!(toml::from_str::<Config>(invalid_timeout).is_err());
     }
 }
