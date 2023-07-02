@@ -614,6 +614,7 @@ dependencies = [
  "cw-storage-plus 1.0.1",
  "cw2",
  "libsecp256k1",
+ "rand 0.8.5",
  "schemars",
  "serde",
  "serde_json",

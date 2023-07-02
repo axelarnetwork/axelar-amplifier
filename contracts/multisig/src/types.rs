@@ -172,3 +172,224 @@ impl SigningSession {
             .sum()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use axelar_wasm_std::{nonempty, Participant, Threshold};
+    use cosmwasm_std::{testing::MockStorage, Addr, Timestamp};
+    use rand::Rng;
+
+    #[derive(Clone)]
+    pub struct TestSigner {
+        pub address: Addr,
+        pub pub_key: PublicKey,
+        pub signature: Signature,
+    }
+
+    pub struct TestConfig {
+        pub store: MockStorage,
+        pub key_id: String,
+        pub message: Message,
+        pub signers: Vec<TestSigner>,
+    }
+
+    fn setup() -> TestConfig {
+        let mut store = MockStorage::new();
+        let mut rng = rand::thread_rng();
+
+        let signers = vec![
+            TestSigner {
+                address: Addr::unchecked("signer1"),
+                pub_key: HexBinary::from_hex(
+                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                signature: HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
+                .unwrap().try_into().unwrap(),
+            },
+            TestSigner {
+                address: Addr::unchecked("signer2"),
+                pub_key: HexBinary::from_hex(
+                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                signature: HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
+                .unwrap().try_into().unwrap(),
+            },
+            TestSigner {
+                address: Addr::unchecked("signer3"),
+                pub_key: HexBinary::from_hex(
+                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                signature: HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
+                .unwrap().try_into().unwrap(),
+            }
+        ];
+
+        let participants = signers
+            .iter()
+            .map(|signer| Participant {
+                address: signer.address.clone(),
+                weight: Uint256::one().try_into().unwrap(),
+            })
+            .collect::<Vec<_>>();
+
+        let snapshot = Snapshot::new(
+            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
+            nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
+            Threshold::try_from((2u64, 3u64)).unwrap(),
+            nonempty::Vec::try_from(participants).unwrap(),
+        );
+
+        let pub_keys = signers
+            .iter()
+            .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
+            .collect::<HashMap<_, _>>();
+
+        let key_id = "key_id".to_string();
+        let key = Key {
+            id: key_id.clone(),
+            snapshot,
+            pub_keys,
+        };
+        KEYS.save(&mut store, key_id.clone(), &key).unwrap();
+
+        let message: Message =
+            HexBinary::from_hex("fa0609efd1dfeedfdcc8ba51520fae2d5176b7621d2560f071e801b0817e1537")
+                .unwrap()
+                .try_into()
+                .unwrap();
+
+        TestConfig {
+            store,
+            key_id,
+            message,
+            signers,
+        }
+    }
+
+    fn sign(
+        session: &mut SigningSession,
+        signer_ix: usize,
+        config: &mut TestConfig,
+    ) -> Result<(), ContractError> {
+        let signer = config.signers[signer_ix].clone();
+
+        session.add_signature(
+            &mut config.store,
+            signer.address.clone().into_string(),
+            signer.signature.clone(),
+        )
+    }
+
+    #[test]
+    fn test_add_signature() {
+        let mut config = setup();
+
+        let mut session =
+            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+
+        let result = sign(&mut session, 0, &mut config);
+        let stored = SIGNING_SESSIONS
+            .load(&config.store, session.id.u64())
+            .unwrap();
+        assert!(result.is_ok());
+        assert_eq!(session.signatures.len(), 1);
+        assert_eq!(session.state, MultisigState::Pending);
+        assert_eq!(stored, session);
+
+        let result = sign(&mut session, 0, &mut config);
+        let stored = SIGNING_SESSIONS
+            .load(&config.store, session.id.u64())
+            .unwrap();
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::DuplicateSignature {
+                sig_id: session.id,
+                signer: config.signers[0].address.clone().into_string()
+            }
+        );
+        assert_eq!(session.signatures.len(), 1);
+        assert_eq!(session.state, MultisigState::Pending);
+        assert_eq!(stored, session);
+
+        let result = sign(&mut session, 1, &mut config);
+        let stored = SIGNING_SESSIONS
+            .load(&config.store, session.id.u64())
+            .unwrap();
+        assert!(result.is_ok());
+        assert_eq!(session.signatures.len(), 2);
+        assert_eq!(session.state, MultisigState::Completed);
+        assert_eq!(stored, session);
+
+        let result = sign(&mut session, 2, &mut config);
+        let stored = SIGNING_SESSIONS
+            .load(&config.store, session.id.u64())
+            .unwrap();
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SigningSessionClosed { sig_id: session.id }
+        );
+        assert_eq!(session.signatures.len(), 2);
+        assert_eq!(session.state, MultisigState::Completed);
+        assert_eq!(stored, session);
+    }
+
+    #[test]
+    fn test_add_invalid_signature() {
+        let mut config = setup();
+
+        let mut session =
+            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+
+        let invalid_sig: Signature = HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e035111c")
+                .unwrap().try_into().unwrap();
+
+        let result = session.add_signature(
+            &mut config.store,
+            config.signers[0].address.clone().into_string(),
+            invalid_sig,
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::InvalidSignature {
+                sig_id: session.id,
+                signer: config.signers[0].address.clone().into_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_add_signature_not_participant() {
+        let mut config = setup();
+
+        let mut session =
+            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+
+        let invalid_participant = "not_a_participant".to_string();
+
+        let result = session.add_signature(
+            &mut config.store,
+            invalid_participant.clone(),
+            config.signers[0].signature.clone(),
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::NotAParticipant {
+                sig_id: session.id,
+                signer: invalid_participant
+            }
+        );
+    }
+}
