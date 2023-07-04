@@ -1,10 +1,14 @@
 use core::panic;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, Order, StdResult};
+use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
-use crate::types::{Domain, DomainName};
+use crate::{
+    msg,
+    types::{Domain, DomainName, MessageID, ID_SEPARATOR},
+    ContractError,
+};
 
 #[cw_serde]
 pub struct Config {
@@ -81,4 +85,75 @@ pub const MESSAGES: Map<String, ()> = Map::new("messages");
 const MESSAGE_QUEUE_SUFFIX: &str = "-messages";
 pub fn get_message_queue_id(destination_domain: &DomainName) -> String {
     format!("{}{}", destination_domain.to_string(), MESSAGE_QUEUE_SUFFIX)
+}
+
+// Message represents a message for which the fields have been successfully validated.
+// This should never be supplied by the user.
+#[cw_serde]
+pub struct Message {
+    id: MessageID, // unique per source domain
+    pub destination_address: String,
+    pub destination_domain: DomainName,
+    pub source_domain: DomainName,
+    pub source_address: String,
+    pub payload_hash: HexBinary,
+}
+
+impl Message {
+    pub fn new(
+        id: MessageID,
+        destination_address: String,
+        destination_domain: DomainName,
+        source_domain: DomainName,
+        source_address: String,
+        payload_hash: HexBinary,
+    ) -> Self {
+        Message {
+            id,
+            destination_address,
+            destination_domain,
+            source_domain,
+            source_address,
+            payload_hash,
+        }
+    }
+
+    pub fn id(&self) -> String {
+        format!(
+            "{}{}{}",
+            self.source_domain.to_string(),
+            ID_SEPARATOR,
+            self.id.to_string()
+        )
+    }
+}
+
+impl TryFrom<msg::Message> for Message {
+    type Error = ContractError;
+    fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
+        if value.destination_address.is_empty() || value.source_address.is_empty() {
+            return Err(ContractError::InvalidAddress {});
+        }
+        Ok(Message::new(
+            value.id.parse()?,
+            value.destination_address,
+            value.destination_domain.parse()?,
+            value.source_domain.parse()?,
+            value.source_address,
+            value.payload_hash,
+        ))
+    }
+}
+
+impl From<Message> for msg::Message {
+    fn from(value: Message) -> Self {
+        msg::Message {
+            id: value.id.to_string(),
+            destination_address: value.destination_address,
+            destination_domain: value.destination_domain.to_string(),
+            source_address: value.source_address,
+            source_domain: value.source_domain.to_string(),
+            payload_hash: value.payload_hash,
+        }
+    }
 }

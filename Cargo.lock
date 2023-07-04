@@ -3,6 +3,25 @@
 version = 3
 
 [[package]]
+name = "aggregate-verifier"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw2",
+ "either",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -335,6 +354,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw0"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ae676b6cced78a3d38ad4b01ab4ed66fc78ac191c3c0d6bfd5372cb2efd473b"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "cw2"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -510,6 +541,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 
 [[package]]
+name = "gateway"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw2",
+ "either",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -608,6 +658,24 @@ name = "libc"
 version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
+
+[[package]]
+name = "multisig"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw2",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
+]
 
 [[package]]
 name = "opaque-debug"
@@ -1026,6 +1094,26 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "voting-verifier"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw0",
+ "cw2",
+ "either",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "thiserror",
+]
 
 [[package]]
 name = "wasi"
