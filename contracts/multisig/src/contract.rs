@@ -174,12 +174,14 @@ pub mod query {
 #[cfg(test)]
 mod tests {
     use crate::{
+        msg::GetSigningSessionResponse,
         test::common::{build_snapshot, mock_message, mock_signers, TestSigner},
         types::MultisigState,
     };
 
     use super::*;
     use cosmwasm_std::{
+        from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, OwnedDeps,
     };
@@ -313,7 +315,7 @@ mod tests {
         assert_eq!(event.ty, "signing_started".to_string());
         assert_eq!(
             get_event_attribute(event, "sig_id").unwrap(),
-            Uint64::one().to_string()
+            session.id.to_string()
         );
         assert_eq!(
             get_event_attribute(event, "key_id").unwrap(),
@@ -391,7 +393,7 @@ mod tests {
         let signers = mock_signers();
 
         let sig_id = Uint64::one();
-        let signer = mock_signers().get(0).unwrap().to_owned();
+        let signer = signers.get(0).unwrap().to_owned();
         do_sign(deps.as_mut(), sig_id, &signer).unwrap();
 
         // second signature
@@ -436,6 +438,30 @@ mod tests {
             ContractError::SigningSessionNotFound {
                 sig_id: invalid_sig_id
             }
+        );
+    }
+
+    #[test]
+    fn test_query_signing_session() {
+        let mut deps = setup_with_session_started();
+
+        let sig_id = Uint64::one();
+        let signer = mock_signers().get(0).unwrap().to_owned();
+        do_sign(deps.as_mut(), sig_id, &signer).unwrap();
+
+        let msg = QueryMsg::GetSigningSession { sig_id };
+
+        let res = query(deps.as_ref(), mock_env(), msg);
+        assert!(res.is_ok());
+
+        let query_res: GetSigningSessionResponse = from_binary(&res.unwrap()).unwrap();
+        let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+
+        assert_eq!(query_res.state, session.state);
+        assert_eq!(query_res.signatures, session.signatures);
+        assert_eq!(
+            query_res.snapshot,
+            session.key(deps.as_ref().storage).unwrap().snapshot
         );
     }
 }
