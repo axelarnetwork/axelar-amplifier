@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, HexBinary, Uint64};
+use cosmwasm_std::{HexBinary, Uint64};
 
 use crate::types::{MultisigState, Signature};
 
@@ -22,7 +22,7 @@ pub enum ExecuteMsg {
     },
     SetKey {
         // TODO: this will disappear once keygen and key rotation is introduced
-        owner: Addr,
+        owner: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     },

@@ -177,16 +177,8 @@ impl SigningSession {
 mod tests {
     use super::*;
 
-    use axelar_wasm_std::{nonempty, Participant, Threshold};
-    use cosmwasm_std::{testing::MockStorage, Addr, Timestamp};
-    use rand::Rng;
-
-    #[derive(Clone)]
-    pub struct TestSigner {
-        pub address: Addr,
-        pub pub_key: PublicKey,
-        pub signature: Signature,
-    }
+    use crate::test::common::{build_key, build_snapshot, mock_message, mock_signers, TestSigner};
+    use cosmwasm_std::testing::MockStorage;
 
     pub struct TestConfig {
         pub store: MockStorage,
@@ -197,81 +189,18 @@ mod tests {
 
     fn setup() -> TestConfig {
         let mut store = MockStorage::new();
-        let mut rng = rand::thread_rng();
 
-        let signers = vec![
-            TestSigner {
-                address: Addr::unchecked("signer1"),
-                pub_key: HexBinary::from_hex(
-                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
-                )
-                .unwrap()
-                .try_into()
-                .unwrap(),
-                signature: HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
-                .unwrap().try_into().unwrap(),
-            },
-            TestSigner {
-                address: Addr::unchecked("signer2"),
-                pub_key: HexBinary::from_hex(
-                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
-                )
-                .unwrap()
-                .try_into()
-                .unwrap(),
-                signature: HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
-                .unwrap().try_into().unwrap(),
-            },
-            TestSigner {
-                address: Addr::unchecked("signer3"),
-                pub_key: HexBinary::from_hex(
-                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
-                )
-                .unwrap()
-                .try_into()
-                .unwrap(),
-                signature: HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
-                .unwrap().try_into().unwrap(),
-            }
-        ];
+        let signers = mock_signers();
+        let snapshot = build_snapshot(&signers);
 
-        let participants = signers
-            .iter()
-            .map(|signer| Participant {
-                address: signer.address.clone(),
-                weight: Uint256::one().try_into().unwrap(),
-            })
-            .collect::<Vec<_>>();
+        let key = build_key(&signers, snapshot);
+        KEYS.save(&mut store, key.id.clone(), &key).unwrap();
 
-        let snapshot = Snapshot::new(
-            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-            nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
-            Threshold::try_from((2u64, 3u64)).unwrap(),
-            nonempty::Vec::try_from(participants).unwrap(),
-        );
-
-        let pub_keys = signers
-            .iter()
-            .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
-            .collect::<HashMap<_, _>>();
-
-        let key_id = "key_id".to_string();
-        let key = Key {
-            id: key_id.clone(),
-            snapshot,
-            pub_keys,
-        };
-        KEYS.save(&mut store, key_id.clone(), &key).unwrap();
-
-        let message: Message =
-            HexBinary::from_hex("fa0609efd1dfeedfdcc8ba51520fae2d5176b7621d2560f071e801b0817e1537")
-                .unwrap()
-                .try_into()
-                .unwrap();
+        let message: Message = mock_message().try_into().unwrap();
 
         TestConfig {
             store,
-            key_id,
+            key_id: key.id,
             message,
             signers,
         }
@@ -287,7 +216,7 @@ mod tests {
         session.add_signature(
             &mut config.store,
             signer.address.clone().into_string(),
-            signer.signature.clone(),
+            TryInto::<Signature>::try_into(signer.signature.clone()).unwrap(),
         )
     }
 
@@ -381,7 +310,7 @@ mod tests {
         let result = session.add_signature(
             &mut config.store,
             invalid_participant.clone(),
-            config.signers[0].signature.clone(),
+            TryInto::<Signature>::try_into(config.signers[0].signature.clone()).unwrap(),
         );
 
         assert_eq!(
