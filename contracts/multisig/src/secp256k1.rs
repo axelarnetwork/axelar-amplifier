@@ -22,7 +22,7 @@ impl TryFrom<&PublicKey> for secp256k1::PublicKey {
     fn try_from(other: &PublicKey) -> Result<Self, Self::Error> {
         secp256k1::PublicKey::parse_slice(other.into(), None).map_err(|err| {
             ContractError::InvalidPublicKeyFormat {
-                context: err.to_string(),
+                reason: err.to_string(),
             }
         })
     }
@@ -44,7 +44,7 @@ impl TryFrom<&Message> for secp256k1::Message {
     fn try_from(other: &Message) -> Result<Self, Self::Error> {
         secp256k1::Message::parse_slice(other.into()).map_err(|err| {
             ContractError::InvalidMessageFormat {
-                context: err.to_string(),
+                reason: err.to_string(),
             }
         })
     }
@@ -68,13 +68,13 @@ impl TryFrom<&Signature> for secp256k1::Signature {
 
         if sig.len() < 64 {
             return Err(ContractError::InvalidSignatureFormat {
-                context: "Invalid input length".into(),
+                reason: "Invalid input length".into(),
             });
         }
 
         secp256k1::Signature::parse_slice(&sig[0..64]).map_err(|err| {
             ContractError::InvalidSignatureFormat {
-                context: err.to_string(),
+                reason: err.to_string(),
             }
         })
     }
@@ -122,7 +122,7 @@ mod tests {
         assert_eq!(
             PublicKey::try_from(hex.clone()).unwrap_err(),
             ContractError::InvalidPublicKeyFormat {
-                context: "Invalid input length".into()
+                reason: "Invalid input length".into()
             }
         );
     }
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(
             Message::try_from(hex.clone()).unwrap_err(),
             ContractError::InvalidMessageFormat {
-                context: "Invalid input length".into()
+                reason: "Invalid input length".into()
             }
         );
     }
@@ -160,7 +160,7 @@ mod tests {
         assert_eq!(
             Signature::try_from(hex.clone()).unwrap_err(),
             ContractError::InvalidSignatureFormat {
-                context: "Invalid input length".into()
+                reason: "Invalid input length".into()
             }
         );
     }

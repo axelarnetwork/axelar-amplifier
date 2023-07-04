@@ -21,14 +21,14 @@ pub enum ContractError {
     #[error("{signer:?} submitted an invalid signature for signing session {sig_id:?}")]
     InvalidSignature { sig_id: Uint64, signer: String },
 
-    #[error("Invalid public key format: {context:?}")]
-    InvalidPublicKeyFormat { context: String },
+    #[error("Invalid public key format: {reason:?}")]
+    InvalidPublicKeyFormat { reason: String },
 
-    #[error("Invalid message format: {context:?}")]
-    InvalidMessageFormat { context: String },
+    #[error("Invalid message format: {reason:?}")]
+    InvalidMessageFormat { reason: String },
 
-    #[error("Invalid signature format: {context:?}")]
-    InvalidSignatureFormat { context: String },
+    #[error("Invalid signature format: {reason:?}")]
+    InvalidSignatureFormat { reason: String },
 
     #[error("Signing session {sig_id:?} is already closed")]
     SigningSessionClosed { sig_id: Uint64 },
