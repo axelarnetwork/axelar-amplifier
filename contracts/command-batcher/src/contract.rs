@@ -1,21 +1,17 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, QueryRequest, Response,
-    StdResult, WasmQuery,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, StdResult,
+    WasmQuery,
 };
 
 use crate::{
     batch::CommandBatch,
     error::ContractError,
-    msg::QueryMsg,
-    msg::{ExecuteMsg, InstantiateMsg},
-    state::COMMANDS_BATCH_QUEUE,
-    state::{Config, CONFIG},
+    msg::{ExecuteMsg, GetProofResponse, InstantiateMsg, QueryMsg},
+    state::{Config, COMMANDS_BATCH_QUEUE, CONFIG},
     types::Message,
 };
-
-pub const REPLY_CONSTRUCT_PROOF: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -47,10 +43,6 @@ pub fn execute(
         ExecuteMsg::ConstructProof { message_ids } => {
             execute::construct_proof(deps, env, message_ids)
         }
-        ExecuteMsg::SignProof {
-            proof_id,
-            signature,
-        } => execute::sign_proof(proof_id, signature),
     }
 }
 
@@ -89,13 +81,19 @@ pub mod execute {
 
         Ok(Response::new())
     }
-
-    pub fn sign_proof(_proof_id: String, _signature: HexBinary) -> Result<Response, ContractError> {
-        todo!()
-    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    todo!()
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::GetProof { proof_id } => to_binary(&query::get_proof(proof_id)?),
+    }
+}
+
+pub mod query {
+    use super::*;
+
+    pub fn get_proof(_proof_id: String) -> StdResult<GetProofResponse> {
+        todo!()
+    }
 }
