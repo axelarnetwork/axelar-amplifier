@@ -94,24 +94,11 @@ impl VerifiableSignature for Signature {
 mod tests {
     use super::*;
 
-    fn valid_public_key() -> HexBinary {
-        HexBinary::from_hex("03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d")
-            .unwrap()
-    }
-
-    fn valid_message() -> HexBinary {
-        HexBinary::from_hex("fa0609efd1dfeedfdcc8ba51520fae2d5176b7621d2560f071e801b0817e1537")
-            .unwrap()
-    }
-
-    fn valid_signature() -> HexBinary {
-        HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b")
-            .unwrap()
-    }
+    use crate::test::common::test_data;
 
     #[test]
     fn test_try_from_hexbinary_to_public_key() {
-        let hex = valid_public_key();
+        let hex = test_data::pub_key();
         let pub_key = PublicKey::try_from(hex.clone()).unwrap();
         assert_eq!(HexBinary::from(pub_key), hex);
     }
@@ -129,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_try_from_hexbinary_to_message() {
-        let hex = valid_message();
+        let hex = test_data::message();
         let message = Message::try_from(hex.clone()).unwrap();
         assert_eq!(HexBinary::from(message), hex);
     }
@@ -147,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_try_from_hexbinary_to_signature() {
-        let hex = valid_signature();
+        let hex = test_data::signature();
         let signature = Signature::try_from(hex.clone()).unwrap();
         assert_eq!(HexBinary::from(signature), hex);
     }
@@ -167,9 +154,9 @@ mod tests {
 
     #[test]
     fn test_verify_signature() {
-        let signature = Signature::try_from(valid_signature()).unwrap();
-        let message = Message::try_from(valid_message()).unwrap();
-        let public_key = PublicKey::try_from(valid_public_key()).unwrap();
+        let signature = Signature::try_from(test_data::signature()).unwrap();
+        let message = Message::try_from(test_data::message()).unwrap();
+        let public_key = PublicKey::try_from(test_data::pub_key()).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, true);
     }
@@ -182,8 +169,8 @@ mod tests {
         .unwrap();
 
         let signature = Signature::try_from(invalid_signature).unwrap();
-        let message = Message::try_from(valid_message()).unwrap();
-        let public_key = PublicKey::try_from(valid_public_key()).unwrap();
+        let message = Message::try_from(test_data::message()).unwrap();
+        let public_key = PublicKey::try_from(test_data::pub_key()).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);
     }
@@ -195,8 +182,8 @@ mod tests {
         )
         .unwrap();
 
-        let signature = Signature::try_from(valid_signature()).unwrap();
-        let message = Message::try_from(valid_message()).unwrap();
+        let signature = Signature::try_from(test_data::signature()).unwrap();
+        let message = Message::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from(invalid_pub_key).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);

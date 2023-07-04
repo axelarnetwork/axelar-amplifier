@@ -41,7 +41,7 @@ impl From<Event> for cosmwasm_std::Event {
                     to_string(&pub_keys)
                         .expect("violated invariant: pub_keys are not serializable"),
                 )
-                .add_attribute("msg", Into::<HexBinary>::into(msg).to_hex()),
+                .add_attribute("msg", HexBinary::from(msg).to_hex()),
             Event::SignatureSubmitted {
                 sig_id,
                 participant,
@@ -49,7 +49,7 @@ impl From<Event> for cosmwasm_std::Event {
             } => cosmwasm_std::Event::new("signature_submitted")
                 .add_attribute("sig_id", sig_id)
                 .add_attribute("participant", participant)
-                .add_attribute("signature", Into::<HexBinary>::into(signature).to_hex()),
+                .add_attribute("signature", HexBinary::from(signature).to_hex()),
             Event::SigningCompleted { sig_id } => {
                 cosmwasm_std::Event::new("signing_completed").add_attribute("sig_id", sig_id)
             }

@@ -21,7 +21,7 @@ pub enum ExecuteMsg {
         signature: HexBinary,
     },
     SetKey {
-        // TODO: this will disappear once keygen and key rotation is introduced
+        // TODO: this will disappear once keygen and key rotation are introduced
         owner: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,

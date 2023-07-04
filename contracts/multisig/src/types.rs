@@ -177,7 +177,10 @@ impl SigningSession {
 mod tests {
     use super::*;
 
-    use crate::test::common::{build_key, build_snapshot, mock_message, mock_signers, TestSigner};
+    use crate::{
+        test::common::test_data,
+        test::common::{build_key, build_snapshot, TestSigner},
+    };
     use cosmwasm_std::testing::MockStorage;
 
     pub struct TestConfig {
@@ -190,13 +193,13 @@ mod tests {
     fn setup() -> TestConfig {
         let mut store = MockStorage::new();
 
-        let signers = mock_signers();
+        let signers = test_data::signers();
         let snapshot = build_snapshot(&signers);
 
         let key = build_key(&signers, snapshot);
         KEYS.save(&mut store, key.id.clone(), &key).unwrap();
 
-        let message: Message = mock_message().try_into().unwrap();
+        let message: Message = test_data::message().try_into().unwrap();
 
         TestConfig {
             store,
@@ -216,7 +219,7 @@ mod tests {
         session.add_signature(
             &mut config.store,
             signer.address.clone().into_string(),
-            TryInto::<Signature>::try_into(signer.signature.clone()).unwrap(),
+            Signature::try_from(signer.signature.clone()).unwrap(),
         )
     }
 
@@ -310,7 +313,7 @@ mod tests {
         let result = session.add_signature(
             &mut config.store,
             invalid_participant.clone(),
-            TryInto::<Signature>::try_into(config.signers[0].signature.clone()).unwrap(),
+            Signature::try_from(config.signers[0].signature.clone()).unwrap(),
         );
 
         assert_eq!(

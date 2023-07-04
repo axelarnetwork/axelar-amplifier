@@ -175,7 +175,8 @@ pub mod query {
 mod tests {
     use crate::{
         msg::GetSigningSessionResponse,
-        test::common::{build_snapshot, mock_message, mock_signers, TestSigner},
+        test::common::test_data,
+        test::common::{build_snapshot, TestSigner},
         types::MultisigState,
     };
 
@@ -207,7 +208,7 @@ mod tests {
         let info = mock_info(ADMIN, &[]);
         let env = mock_env();
 
-        let signers = mock_signers();
+        let signers = test_data::signers();
         let pub_keys = signers
             .iter()
             .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
@@ -226,7 +227,7 @@ mod tests {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
-        let message = mock_message();
+        let message = test_data::message();
         let msg = ExecuteMsg::StartSigningSession {
             msg: message.clone(),
         };
@@ -300,7 +301,7 @@ mod tests {
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
         let key = get_current_key(deps.as_ref().storage, &Addr::unchecked(BATCHER)).unwrap();
-        let message = mock_message();
+        let message = test_data::message();
 
         assert_eq!(session.id, Uint64::one());
         assert_eq!(session.key_id, key.id);
@@ -347,7 +348,7 @@ mod tests {
     fn test_submit_signature() {
         let mut deps = setup_with_session_started();
 
-        let signers = mock_signers();
+        let signers = test_data::signers();
 
         let sig_id = Uint64::one();
         let signer = signers.get(0).unwrap().to_owned();
@@ -390,7 +391,7 @@ mod tests {
     fn test_submit_signature_completed() {
         let mut deps = setup_with_session_started();
 
-        let signers = mock_signers();
+        let signers = test_data::signers();
 
         let sig_id = Uint64::one();
         let signer = signers.get(0).unwrap().to_owned();
@@ -430,7 +431,7 @@ mod tests {
         let mut deps = setup_with_session_started();
 
         let invalid_sig_id = Uint64::zero();
-        let signer = mock_signers().get(0).unwrap().to_owned();
+        let signer = test_data::signers().get(0).unwrap().to_owned();
         let res = do_sign(deps.as_mut(), invalid_sig_id, &signer);
 
         assert_eq!(
@@ -446,7 +447,7 @@ mod tests {
         let mut deps = setup_with_session_started();
 
         let sig_id = Uint64::one();
-        let signer = mock_signers().get(0).unwrap().to_owned();
+        let signer = test_data::signers().get(0).unwrap().to_owned();
         do_sign(deps.as_mut(), sig_id, &signer).unwrap();
 
         let msg = QueryMsg::GetSigningSession { sig_id };
