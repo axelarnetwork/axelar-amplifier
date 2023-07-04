@@ -11,4 +11,4 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const COMMANDS_BATCH_QUEUE: Map<&[u8], CommandBatch> = Map::new("command_batch");
+pub const COMMANDS_BATCH: Map<&[u8], CommandBatch> = Map::new("command_batch");

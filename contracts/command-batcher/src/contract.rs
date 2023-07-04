@@ -9,7 +9,7 @@ use crate::{
     batch::CommandBatch,
     error::ContractError,
     msg::{ExecuteMsg, GetProofResponse, InstantiateMsg, QueryMsg},
-    state::{Config, COMMANDS_BATCH_QUEUE, CONFIG},
+    state::{Config, COMMANDS_BATCH, CONFIG},
     types::Message,
 };
 
@@ -75,7 +75,7 @@ pub mod execute {
         let command_batch =
             CommandBatch::new(env.block.height, messages, config.destination_chain_id);
 
-        COMMANDS_BATCH_QUEUE.save(deps.storage, &command_batch.id, &command_batch)?;
+        COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
 
         // TODO: start signing session
 

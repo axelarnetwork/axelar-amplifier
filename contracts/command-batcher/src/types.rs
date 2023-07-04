@@ -7,8 +7,6 @@ use crate::error::ContractError;
 
 pub type KeccackHash = [u8; 32]; // TODO: move to axelar_wasm_std, probably change to newtype with hex encoding (HexBinary/[u8;32])
 
-pub const ID_SEPARATOR: char = '-';
-
 pub struct Message {
     pub id: String,
     pub source_address: String,
