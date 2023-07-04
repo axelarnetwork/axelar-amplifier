@@ -52,7 +52,10 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::{state::KEYS, types::PublicKey};
+    use crate::{
+        state::KEYS,
+        types::{MultisigState, PublicKey},
+    };
 
     use super::*;
 
@@ -103,7 +106,13 @@ pub mod execute {
             signature,
         };
 
-        Ok(Response::new().add_event(event.into()))
+        if session.state == MultisigState::Completed {
+            Ok(Response::new()
+                .add_event(event.into())
+                .add_event(Event::SigningCompleted { sig_id }.into()))
+        } else {
+            Ok(Response::new().add_event(event.into()))
+        }
     }
 
     // TODO: this will disappear once keygen and key rotation are introduced
@@ -165,7 +174,7 @@ pub mod query {
 #[cfg(test)]
 mod tests {
     use crate::{
-        test::common::{build_snapshot, mock_message, mock_signers},
+        test::common::{build_snapshot, mock_message, mock_signers, TestSigner},
         types::MultisigState,
     };
 
@@ -211,10 +220,44 @@ mod tests {
         execute(deps, env, info, msg)
     }
 
+    fn do_start_signing_session(deps: DepsMut, sender: &str) -> Result<Response, ContractError> {
+        let info = mock_info(sender, &[]);
+        let env = mock_env();
+
+        let message = mock_message();
+        let msg = ExecuteMsg::StartSigningSession {
+            msg: message.clone(),
+        };
+        execute(deps, env, info, msg)
+    }
+
+    fn do_sign(
+        deps: DepsMut,
+        sig_id: Uint64,
+        signer: &TestSigner,
+    ) -> Result<Response, ContractError> {
+        let msg = ExecuteMsg::SubmitSignature {
+            sig_id,
+            signature: signer.signature.clone(),
+        };
+        execute(
+            deps,
+            mock_env(),
+            mock_info(signer.address.as_str(), &[]),
+            msg,
+        )
+    }
+
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
         do_set_key(deps.as_mut()).unwrap();
+        deps
+    }
+
+    fn setup_with_session_started() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+        let mut deps = setup();
+        do_start_signing_session(deps.as_mut(), BATCHER).unwrap();
         deps
     }
 
@@ -249,16 +292,13 @@ mod tests {
     fn test_start_signing_session() {
         let mut deps = setup();
 
-        let message = mock_message();
-        let msg = ExecuteMsg::StartSigningSession {
-            msg: message.clone(),
-        };
-        let res = execute(deps.as_mut(), mock_env(), mock_info(BATCHER, &[]), msg);
+        let res = do_start_signing_session(deps.as_mut(), BATCHER);
 
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
         let key = get_current_key(deps.as_ref().storage, &Addr::unchecked(BATCHER)).unwrap();
+        let message = mock_message();
 
         assert_eq!(session.id, Uint64::one());
         assert_eq!(session.key_id, key.id);
@@ -290,18 +330,111 @@ mod tests {
     fn test_start_signing_session_wrong_sender() {
         let mut deps = setup();
 
-        let message = mock_message();
-        let msg = ExecuteMsg::StartSigningSession {
-            msg: message.clone(),
-        };
-
         let sender = "someone else";
-        let res = execute(deps.as_mut(), mock_env(), mock_info(sender, &[]), msg);
+        let res = do_start_signing_session(deps.as_mut(), sender);
 
         assert_eq!(
             res.unwrap_err(),
             ContractError::NoActiveKeyFound {
                 owner: sender.to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_submit_signature() {
+        let mut deps = setup_with_session_started();
+
+        let signers = mock_signers();
+
+        let sig_id = Uint64::one();
+        let signer = signers.get(0).unwrap().to_owned();
+        let res = do_sign(deps.as_mut(), sig_id, &signer);
+
+        assert!(res.is_ok());
+
+        let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+
+        assert_eq!(session.signatures.len(), 1);
+        assert_eq!(
+            session
+                .signatures
+                .get(&signer.address.clone().into_string())
+                .unwrap(),
+            &Signature::try_from(signer.signature.clone()).unwrap()
+        );
+        assert_eq!(session.state, MultisigState::Pending);
+
+        let res = res.unwrap();
+        assert_eq!(res.events.len(), 1);
+
+        let event = res.events.get(0).unwrap();
+        assert_eq!(event.ty, "signature_submitted".to_string());
+        assert_eq!(
+            get_event_attribute(event, "sig_id").unwrap(),
+            sig_id.to_string()
+        );
+        assert_eq!(
+            get_event_attribute(event, "participant").unwrap(),
+            signer.address.into_string()
+        );
+        assert_eq!(
+            get_event_attribute(event, "signature").unwrap(),
+            signer.signature.to_hex()
+        );
+    }
+
+    #[test]
+    fn test_submit_signature_completed() {
+        let mut deps = setup_with_session_started();
+
+        let signers = mock_signers();
+
+        let sig_id = Uint64::one();
+        let signer = mock_signers().get(0).unwrap().to_owned();
+        do_sign(deps.as_mut(), sig_id, &signer).unwrap();
+
+        // second signature
+        let signer = signers.get(1).unwrap().to_owned();
+        let res = do_sign(deps.as_mut(), sig_id, &signer);
+
+        assert!(res.is_ok());
+
+        let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+
+        assert_eq!(session.signatures.len(), 2);
+        assert_eq!(
+            session
+                .signatures
+                .get(&signer.address.into_string())
+                .unwrap(),
+            &Signature::try_from(signer.signature).unwrap()
+        );
+        assert_eq!(session.state, MultisigState::Completed);
+
+        let res = res.unwrap();
+        assert_eq!(res.events.len(), 2);
+
+        let event = res.events.get(1).unwrap();
+        assert_eq!(event.ty, "signing_completed".to_string());
+        assert_eq!(
+            get_event_attribute(event, "sig_id").unwrap(),
+            sig_id.to_string()
+        );
+    }
+
+    #[test]
+    fn test_submit_signature_wrong_session_id() {
+        let mut deps = setup_with_session_started();
+
+        let invalid_sig_id = Uint64::zero();
+        let signer = mock_signers().get(0).unwrap().to_owned();
+        let res = do_sign(deps.as_mut(), invalid_sig_id, &signer);
+
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::SigningSessionNotFound {
+                sig_id: invalid_sig_id
             }
         );
     }
