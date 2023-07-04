@@ -12,7 +12,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2 0.15.1",
+ "cw2",
  "either",
  "schemars",
  "serde",
@@ -36,7 +36,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
+ "cw2",
  "rand",
  "schemars",
  "serde",
@@ -69,7 +69,7 @@ version = "0.1.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw2 0.15.1",
+ "cw2",
  "thiserror",
 ]
 
@@ -119,8 +119,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw-utils 1.0.1",
- "cw2 0.15.1",
+ "cw2",
  "either",
  "ethabi",
  "gateway",
@@ -142,7 +141,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2 0.15.1",
+ "cw2",
  "schemars",
  "serde",
  "serde_json",
@@ -292,7 +291,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
+ "cw-utils",
  "derivative",
  "itertools",
  "prost",
@@ -331,22 +330,7 @@ checksum = "0ae0b69fa7679de78825b4edeeec045066aa2b2c4b6e063d80042e565bb4da5c"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw2 0.15.1",
- "schemars",
- "semver",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw-utils"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c80e93d1deccb8588db03945016a292c3c631e6325d349ebb35d2db6f4f946f7"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw2 1.0.1",
+ "cw2",
  "schemars",
  "semver",
  "serde",
@@ -374,19 +358,6 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
- "schemars",
- "serde",
-]
-
-[[package]]
-name = "cw2"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb70cee2cf0b4a8ff7253e6bc6647107905e8eb37208f87d54f67810faa62f8"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.0.1",
  "schemars",
  "serde",
 ]
@@ -550,7 +521,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2 0.15.1",
+ "cw2",
  "either",
  "schemars",
  "serde",
@@ -669,7 +640,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2 0.15.1",
+ "cw2",
  "schemars",
  "serde",
  "serde_json",
@@ -916,7 +887,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
+ "cw2",
  "schemars",
  "serde",
  "thiserror",
@@ -931,7 +902,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
+ "cw2",
  "schemars",
  "serde",
  "service-interface",
@@ -1087,7 +1058,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
  "cw0",
- "cw2 0.15.1",
+ "cw2",
  "either",
  "schemars",
  "serde",

@@ -45,7 +45,6 @@ sha3 = { version = "0.10", default-features = false, features = [] }
 ethabi = { version = "18.0.0", default-features = false, features = [] }
 gateway = { workspace = true, features = ["library"]}
 connection-router = { workspace = true, features = ["library"] }
-cw-utils = "1.0.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
