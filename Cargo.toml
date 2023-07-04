@@ -1,6 +1,5 @@
 [workspace]
 members = ["contracts/*", "packages/*"]
-exclude = ["contracts/command-batcher"] # TODO: remove this line once implementation work starts
 
 [profile.release]
 opt-level = 3
@@ -19,5 +18,3 @@ service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
 gateway = { version = "0.1.0", path = "./contracts/gateway" }
 connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
 axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
-connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
-outgoing-gateway = { version = "0.1.0", path = "./contracts/outgoing-gateway" }

@@ -17,14 +17,14 @@ pub struct Message {
     pub payload_hash: KeccackHash,
 }
 
-impl TryFrom<connection_router::types::Message> for Message {
+impl TryFrom<connection_router::msg::Message> for Message {
     type Error = ContractError;
 
-    fn try_from(msg: connection_router::types::Message) -> Result<Self, Self::Error> {
+    fn try_from(msg: connection_router::msg::Message) -> Result<Self, Self::Error> {
         Ok(Message {
-            id: msg.id(),
+            id: msg.id,
             source_address: msg.source_address,
-            source_chain: msg.source_domain.into(),
+            source_chain: msg.source_domain,
             destination_address: ethereum_types::Address::from_str(&msg.destination_address)
                 .map_err(|_| ContractError::InvalidMessage {
                     context: "destination_address is not a valid EVM address".into(),

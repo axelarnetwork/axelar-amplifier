@@ -1,10 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Reply, Response,
-    StdResult, SubMsg, WasmMsg,
+    to_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, QueryRequest, Response,
+    StdResult, WasmQuery,
 };
-use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
     batch::CommandBatch,
@@ -40,12 +39,14 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
+        ExecuteMsg::ConstructProof { message_ids } => {
+            execute::construct_proof(deps, env, message_ids)
+        }
         ExecuteMsg::SignProof {
             proof_id,
             signature,
@@ -58,54 +59,17 @@ pub mod execute {
 
     pub fn construct_proof(
         deps: DepsMut,
+        env: Env,
         message_ids: Vec<String>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
 
-        let submsg = SubMsg::reply_on_success(
-            WasmMsg::Execute {
+        let query = gateway::msg::QueryMsg::GetMessages { message_ids };
+        let messages: Vec<connection_router::msg::Message> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: config.gateway.into(),
-                msg: to_binary(&outgoing_gateway::msg::ExecuteMsg::FetchMessages { message_ids })?,
-                funds: vec![],
-            },
-            REPLY_CONSTRUCT_PROOF,
-        );
-
-        Ok(Response::new().add_submessage(submsg))
-    }
-
-    pub fn sign_proof(_proof_id: String, _signature: HexBinary) -> Result<Response, ContractError> {
-        todo!()
-    }
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        REPLY_CONSTRUCT_PROOF => {
-            let res = parse_reply_execute_data(msg)?;
-
-            match res {
-                MsgExecuteContractResponse { data: None } => Ok(Response::new()), // TODO: should this return error instead? or let the gateway handle it?
-                MsgExecuteContractResponse { data: Some(data) } => {
-                    let messages: Vec<connection_router::types::Message> = from_binary(&data)?;
-                    reply::construct_proof(deps, env, messages)
-                }
-            }
-        }
-        _ => Err(ContractError::InvalidReplyID {}),
-    }
-}
-
-pub mod reply {
-    use super::*;
-
-    pub fn construct_proof(
-        deps: DepsMut,
-        env: Env,
-        messages: Vec<connection_router::types::Message>,
-    ) -> Result<Response, ContractError> {
-        let config = CONFIG.load(deps.storage)?;
+                msg: to_binary(&query)?,
+            }))?;
 
         if messages.is_empty() {
             return Ok(Response::default());
@@ -124,6 +88,10 @@ pub mod reply {
         // TODO: start signing session
 
         Ok(Response::new())
+    }
+
+    pub fn sign_proof(_proof_id: String, _signature: HexBinary) -> Result<Response, ContractError> {
+        todo!()
     }
 }
 

@@ -12,7 +12,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2",
+ "cw2 0.15.1",
  "either",
  "schemars",
  "serde",
@@ -64,30 +64,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea908e7347a8c64e378c17e30ef880ad73e3b4498346b055c2c00ea342f3179"
 
 [[package]]
-name = "batch-signer"
-version = "0.1.0"
-dependencies = [
- "connection-router",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.0.1",
- "cw-utils 1.0.1",
- "cw2 0.15.1",
- "either",
- "ethabi",
- "hex",
- "outgoing-gateway",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "sha3",
- "thiserror",
-]
-
-[[package]]
 name = "batching"
 version = "0.1.0"
 dependencies = [
@@ -132,6 +108,30 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "command-batcher"
+version = "0.1.0"
+dependencies = [
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.0.1",
+ "cw-utils 1.0.1",
+ "cw2 0.15.1",
+ "either",
+ "ethabi",
+ "gateway",
+ "hex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-interface",
+ "sha3",
+ "thiserror",
+]
 
 [[package]]
 name = "connection-router"
@@ -550,7 +550,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2",
+ "cw2 0.15.1",
  "either",
  "schemars",
  "serde",
@@ -669,7 +669,7 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
- "cw2",
+ "cw2 0.15.1",
  "schemars",
  "serde",
  "serde_json",
@@ -682,25 +682,6 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
-
-[[package]]
-name = "outgoing-gateway"
-version = "0.1.0"
-dependencies = [
- "connection-router",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.0.1",
- "cw2 0.15.1",
- "either",
- "schemars",
- "serde",
- "serde_json",
- "service-interface",
- "thiserror",
-]
 
 [[package]]
 name = "pkcs8"
@@ -1106,7 +1087,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
  "cw0",
- "cw2",
+ "cw2 0.15.1",
  "either",
  "schemars",
  "serde",
