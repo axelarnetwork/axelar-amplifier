@@ -17,7 +17,7 @@ r--ConstructProof-->b
 b--GetMessages-->g
 g-.->b
 b--StartSigningSession-->m
-b--CompleteSigningSession-->m
+b--GetSigningSession-->m
 s--SubmitSignature-->m
 ```
 
@@ -38,34 +38,41 @@ end
 actor Signers
 
 Relayer->>+Batcher: ExecuteMsg::ConstructProof
-Note over Batcher: Determine if batch was already built for the same messages
-Batcher->>+Gateway: QueryMsg::GetMessages
-Gateway-->>-Batcher: query result
-Batcher->>+Multisig: ExecuteMsg::StartSigningSession
-Multisig-->>Signers: emit SigningStarted event
-Multisig->>-Batcher: reply with session ID
+alt batch not created previously
+  Batcher->>+Gateway: QueryMsg::GetMessages
+  Gateway-->>-Batcher: query result
+  Batcher->>+Multisig: ExecuteMsg::StartSigningSession
+  Multisig-->>Signers: emit SigningStarted event
+  Multisig->>-Batcher: reply with session ID
+else previously created batch found
+  Batcher->>Batcher: retrieves batch from storage
+end
+Batcher-->>Relayer: emit ProofUnderConstruction event
 deactivate Batcher
 loop Collect signatures
-	Signers->>Multisig: ExecuteMsg::SubmitSignature
+	Signers->>+Multisig: signature collection
 end
-Relayer->>+Batcher: ExecuteMsg::ConstructProof
-Note over Batcher: Determine if batch was already built for the same messages
-Batcher->>+Multisig: ExecuteMsg::CompleteSigningSession
-Multisig-->>-Batcher: reply with signatures map and snapshot
-Batcher-->>-Relayer: emit DataProven event
+Multisig-->>-Relayer: emit SigningCompleted event
+Relayer->>+Batcher: QueryMsg::GetProof
+Batcher->>+Multisig: QueryMsg::GetSigningSession
+Multisig-->>-Batcher: reply with status, current signatures vector and snapshot
+Batcher-->>-Relayer: returns GetProofResponse
 ```
 
 1. Relayer asks Batcher contract to construct proof providing a list of messages IDs
-2. If no previous batch was created for those messages, then the Batcher contract retrieves messages from gateway
+2. If no batch for the given messages was previously created, it queries the gateway for the messages to construct it
 3. With the retrieved messages, the Batcher contract transforms them into a batch of commands and generates the binary message that needs to be signed by the multisig.
 4. The Multisig contract is called asking to sign the binary message
 5. Multisig emits event indicating a new multisig session has started
-6. Multisig event returns the newly created session ID to the Batcher which is then stored with the batch
-7. Signers submit their signatures until threshold is reached
-8. Relayer asks again the Batcher contract to construct the proof
-9. Since a batch for the requested messages was already created and a signing session is associated, the Batcher contract asks the Multisig to complete the signing session if applicable
-10. Multisig determines the conditions are met to finalize the signing session and if true, returns the list of collected signatures and the snapshot that was used during the multisig to determine valid participants
-11. Batcher emits event that contains the data and the proof required to relay the messages to the destination chain
+6. Multisig triggers a reply in Batcher returning the newly created session ID which is then stored with the batch for reference
+7. If previous batch was found for the given messages IDs, the Batcher retrieves it from storage instead of querying the gateway and build it again.
+8. Batcher contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
+9. Signers submit their signatures until threshold is reached
+10. Multisig emits event indicating the multisig session has been completed
+11. Relayer queries Batcher for the proof, using the proof ID
+12. Batcher queries Multisig for the multisig session, using the session ID
+13. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
+14. If the Multisig state is `Completed`, the Batcher finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway.
 
 ## Interface
 
@@ -77,14 +84,15 @@ pub enum ExecuteMsg {
         message_ids: Vec<String>,
     },
 }
-```
 
-## Events
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(GetProofResponse)]
+    GetProof { proof_id: String },
+}
 
-```Rust
-// Emitted when the proof has been finalized
-pub struct DataProven {
-    pub proof_id: HexBinary, // Unique hash derived from the message ids
+pub struct GetProofResponse {
+    pub proof_id: HexBinary,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub proof: Proof,
@@ -103,5 +111,13 @@ pub struct Proof {
     pub weights: Vec<Uint256>,
     pub threshold: Uint256,
     pub signatures: Vec<HexBinary>,
+}
+```
+
+## Events
+
+```Rust
+pub struct ProofUnderConstruction {
+    pub proof_id: HexBinary, // Unique hash derived from the message ids
 }
 ```
