@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
-    Uint64,
+    to_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult, Uint64,
 };
 
 use axelar_wasm_std::Snapshot;
@@ -111,10 +110,12 @@ pub mod execute {
     pub fn set_key(
         deps: DepsMut,
         info: MessageInfo,
-        owner: Addr,
+        owner: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     ) -> Result<Response, ContractError> {
+        let owner = deps.api.addr_validate(&owner)?;
+
         let config = CONFIG.load(deps.storage)?;
         if config.admin != info.sender {
             return Err(ContractError::Unauthorized {});
@@ -158,5 +159,150 @@ pub mod query {
             signatures: session.signatures,
             snapshot: key.snapshot,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        test::common::{build_snapshot, mock_message, mock_signers},
+        types::MultisigState,
+    };
+
+    use super::*;
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        Addr, Empty, OwnedDeps,
+    };
+
+    use serde_json::from_str;
+
+    const ADMIN: &str = "admin";
+    const INSTANTIATOR: &str = "inst";
+    const BATCHER: &str = "batcher";
+
+    fn do_instantiate(deps: DepsMut) -> Result<Response, ContractError> {
+        let info = mock_info(INSTANTIATOR, &[]);
+        let env = mock_env();
+
+        let msg = InstantiateMsg {
+            admin_address: ADMIN.to_string(),
+        };
+
+        instantiate(deps, env, info, msg)
+    }
+
+    fn do_set_key(deps: DepsMut) -> Result<Response, ContractError> {
+        let info = mock_info(ADMIN, &[]);
+        let env = mock_env();
+
+        let signers = mock_signers();
+        let pub_keys = signers
+            .iter()
+            .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
+            .collect::<HashMap<String, HexBinary>>();
+
+        let msg = ExecuteMsg::SetKey {
+            owner: BATCHER.to_string(),
+            snapshot: build_snapshot(&signers),
+            pub_keys,
+        };
+
+        execute(deps, env, info, msg)
+    }
+
+    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        do_set_key(deps.as_mut()).unwrap();
+        deps
+    }
+
+    // TODO: move to external crate?
+    fn get_event_attribute<'a>(
+        event: &'a cosmwasm_std::Event,
+        attribute_name: &'a str,
+    ) -> Option<&'a str> {
+        event
+            .attributes
+            .iter()
+            .find(|attribute| attribute.key == attribute_name)
+            .map(|attribute| attribute.value.as_str())
+    }
+
+    #[test]
+    fn test_instantiation() {
+        let mut deps = mock_dependencies();
+
+        let res = do_instantiate(deps.as_mut());
+        assert!(res.is_ok());
+        assert_eq!(0, res.unwrap().messages.len());
+
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        let session_counter = SIGNING_SESSION_COUNTER.load(deps.as_ref().storage).unwrap();
+
+        assert_eq!(ADMIN.to_string(), config.admin);
+        assert_eq!(session_counter, Uint64::zero());
+    }
+
+    #[test]
+    fn test_start_signing_session() {
+        let mut deps = setup();
+
+        let message = mock_message();
+        let msg = ExecuteMsg::StartSigningSession {
+            msg: message.clone(),
+        };
+        let res = execute(deps.as_mut(), mock_env(), mock_info(BATCHER, &[]), msg);
+
+        assert!(res.is_ok());
+
+        let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+        let key = get_current_key(deps.as_ref().storage, &Addr::unchecked(BATCHER)).unwrap();
+
+        assert_eq!(session.id, Uint64::one());
+        assert_eq!(session.key_id, key.id);
+        assert_eq!(session.msg, message.clone().try_into().unwrap());
+        assert!(session.signatures.is_empty());
+        assert_eq!(session.state, MultisigState::Pending);
+
+        let res = res.unwrap();
+        assert_eq!(res.events.len(), 1);
+
+        let event = res.events.get(0).unwrap();
+        assert_eq!(event.ty, "signing_started".to_string());
+        assert_eq!(
+            get_event_attribute(event, "sig_id").unwrap(),
+            Uint64::one().to_string()
+        );
+        assert_eq!(
+            get_event_attribute(event, "key_id").unwrap(),
+            session.key_id
+        );
+        assert_eq!(
+            key.pub_keys,
+            from_str(get_event_attribute(event, "pub_keys").unwrap()).unwrap()
+        );
+        assert_eq!(get_event_attribute(event, "msg").unwrap(), message.to_hex());
+    }
+
+    #[test]
+    fn test_start_signing_session_wrong_sender() {
+        let mut deps = setup();
+
+        let message = mock_message();
+        let msg = ExecuteMsg::StartSigningSession {
+            msg: message.clone(),
+        };
+
+        let sender = "someone else";
+        let res = execute(deps.as_mut(), mock_env(), mock_info(sender, &[]), msg);
+
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::NoActiveKeyFound {
+                owner: sender.to_string()
+            }
+        );
     }
 }
