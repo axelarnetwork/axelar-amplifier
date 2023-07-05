@@ -12,10 +12,3 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 pub const OUTGOING_MESSAGES: Map<String, Message> = Map::new("outgoing_messages");
-
-// data to store for use in submessage reply
-#[cw_serde]
-pub struct CallbackCache {
-    pub messages: Vec<Message>,
-}
-pub const CACHED: Item<CallbackCache> = Item::new("callback_cache");

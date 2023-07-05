@@ -47,6 +47,42 @@ pub fn mock_verifier_execute(
     }
 }
 
+#[cw_serde]
+pub enum MockVerifierQueryMsg {
+    IsVerified { messages: Vec<Message> },
+}
+pub fn mock_verifier_query(deps: Deps, _env: Env, msg: MockVerifierQueryMsg) -> StdResult<Binary> {
+    let mut res = vec![];
+
+    match msg {
+        MockVerifierQueryMsg::IsVerified { messages } => {
+            for m in messages {
+                let m = connection_router::state::Message::try_from(m).unwrap();
+                match MOCK_VERIFIER_MESSAGES
+                    .may_load(deps.storage, serde_json::to_string(&m).unwrap())?
+                {
+                    Some(v) => res.push((m.id(), v)),
+                    None => res.push((m.id(), false)),
+                }
+            }
+        }
+    }
+    to_binary(&res)
+}
+
+pub fn is_verified(
+    app: &mut App,
+    verifier_address: Addr,
+    msgs: Vec<connection_router::msg::Message>,
+) -> Vec<(String, bool)> {
+    app.wrap()
+        .query_wasm_smart(
+            verifier_address,
+            &MockVerifierQueryMsg::IsVerified { messages: msgs },
+        )
+        .unwrap()
+}
+
 pub fn mark_messages_as_verified(
     app: &mut App,
     verifier_address: Addr,
@@ -71,9 +107,11 @@ pub fn mock_router_execute(
     msg: connection_router::msg::ExecuteMsg,
 ) -> Result<Response, connection_router::error::ContractError> {
     match msg {
-        connection_router::msg::ExecuteMsg::RouteMessage(msg) => {
-            let msg = connection_router::state::Message::try_from(msg)?;
-            MOCK_ROUTER_MESSAGES.save(deps.storage, msg.id(), &msg)?;
+        connection_router::msg::ExecuteMsg::RouteMessages(msgs) => {
+            for msg in msgs {
+                let msg = connection_router::state::Message::try_from(msg)?;
+                MOCK_ROUTER_MESSAGES.save(deps.storage, msg.id(), &msg)?;
+            }
         }
         _ => (),
     }
@@ -146,7 +184,7 @@ pub fn make_mock_verifier(app: &mut App) -> Addr {
         |_, _, _, _: aggregate_verifier::msg::InstantiateMsg| {
             Ok::<Response, ContractError>(Response::new())
         },
-        |_, _, _: aggregate_verifier::msg::QueryMsg| to_binary(&()),
+        mock_verifier_query,
     );
     let code_id = app.store_code(Box::new(code));
 

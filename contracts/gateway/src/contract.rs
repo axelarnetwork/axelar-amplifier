@@ -1,16 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, Event, MessageInfo, Reply, Response,
-    StdError, StdResult, WasmMsg,
-};
-use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::{
     error::ContractError,
-    events::GatewayEvent,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{Config, CACHED, CONFIG, OUTGOING_MESSAGES},
+    state::{Config, CONFIG, OUTGOING_MESSAGES},
 };
 
 use connection_router::state::Message;
@@ -35,7 +30,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -58,7 +53,7 @@ pub fn execute(
             if info.sender == router {
                 route_outgoing_messages(deps, msgs)
             } else {
-                route_incoming_messages(env, deps, msgs)
+                route_incoming_messages(deps, msgs)
             }
         }
     }
@@ -66,12 +61,9 @@ pub fn execute(
 
 pub mod execute {
 
-    use cosmwasm_std::{to_binary, Addr, QueryRequest, SubMsg, WasmMsg, WasmQuery};
+    use cosmwasm_std::{to_binary, QueryRequest, WasmMsg, WasmQuery};
 
-    use crate::{
-        events::GatewayEvent,
-        state::{CallbackCache, CACHED, OUTGOING_MESSAGES},
-    };
+    use crate::{events::GatewayEvent, state::OUTGOING_MESSAGES};
 
     use super::*;
 
@@ -102,12 +94,12 @@ pub mod execute {
     }
 
     pub fn route_incoming_messages(
-        env: Env,
         deps: DepsMut,
         mut msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
         let verifier = config.verifier;
+        let router = config.router;
         let orig_len = msgs.len();
         msgs.sort_unstable_by_key(|a| a.id());
         msgs.dedup_by(|a, b| a.id() == b.id());
@@ -126,16 +118,17 @@ pub mod execute {
         let (verified, unverified): (Vec<Message>, Vec<Message>) =
             msgs.into_iter().partition(|m| -> bool {
                 match query_response.iter().find(|r| m.id() == r.0) {
-                    Some((m, v)) => *v,
+                    Some((_, v)) => *v,
                     None => false,
                 }
             });
 
         Ok(Response::new()
             .add_message(WasmMsg::Execute {
-                contract_addr: verifier.to_string(),
+                contract_addr: router.to_string(),
                 msg: to_binary(&connection_router::msg::ExecuteMsg::RouteMessages(
-                    verified.clone()
+                    verified
+                        .clone()
                         .into_iter()
                         .map(connection_router::msg::Message::from)
                         .collect(),
@@ -167,7 +160,6 @@ pub mod execute {
                 .map(|m| GatewayEvent::MessageRouted { msg: m }.into()),
         ))
     }
-
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -3,7 +3,6 @@ use core::panic;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-use sha256::{digest, Sha256Digest};
 
 use crate::{
     msg,
@@ -132,8 +131,12 @@ impl Message {
 impl TryFrom<msg::Message> for Message {
     type Error = ContractError;
     fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
-        if value.destination_address.is_empty() || value.source_address.is_empty() {
-            return Err(ContractError::InvalidAddress {});
+        if value.destination_address.is_empty() {
+            return Err(ContractError::InvalidAddress(value.destination_address));
+        }
+
+        if value.source_address.is_empty() {
+            return Err(ContractError::InvalidAddress(value.source_address));
         }
         Ok(Message::new(
             value.id.parse()?,
@@ -156,19 +159,5 @@ impl From<Message> for msg::Message {
             source_domain: value.source_domain.to_string(),
             payload_hash: value.payload_hash,
         }
-    }
-}
-
-impl Sha256Digest for Message {
-    fn digest(self) -> String {
-        digest(format!(
-            "{}-{}-{}-{}-{}-{}",
-            self.id.to_string(),
-            self.source_address,
-            self.source_domain.to_string(),
-            self.destination_address,
-            self.destination_domain.to_string(),
-            self.payload_hash
-        ))
     }
 }
