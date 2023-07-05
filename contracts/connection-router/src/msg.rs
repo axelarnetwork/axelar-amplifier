@@ -76,12 +76,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
-    RouteMessage(Message),
-    // Returns count messages and deletes them from the gateway's queue.
-    // Called by an outgoing gateway
-    ConsumeMessages {
-        count: Option<u32>,
-    },
+    RouteMessages(Vec<Message>),
 }
 
 #[cw_serde]
