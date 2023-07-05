@@ -67,6 +67,36 @@ pub mod execute {
 
     use super::*;
 
+    fn contains_duplicates(msgs: &mut Vec<Message>) -> bool {
+        let orig_len = msgs.len();
+        msgs.sort_unstable_by_key(|a| a.id());
+        msgs.dedup_by(|a, b| a.id() == b.id());
+        orig_len != msgs.len()
+    }
+
+    fn partition_by_verified(
+        deps: DepsMut,
+        msgs: Vec<Message>,
+    ) -> Result<(Vec<Message>, Vec<Message>), ContractError> {
+        let verifier = CONFIG.load(deps.storage)?.verifier;
+
+        let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
+            messages: msgs.iter().map(|m| m.clone().into()).collect(),
+        };
+        let query_response: Vec<(String, bool)> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: verifier.to_string(),
+                msg: to_binary(&query_msg)?,
+            }))?;
+
+        Ok(msgs.into_iter().partition(|m| -> bool {
+            match query_response.iter().find(|r| m.id() == r.0) {
+                Some((_, v)) => *v,
+                None => false,
+            }
+        }))
+    }
+
     pub fn verify_messages(
         deps: DepsMut,
         mut msgs: Vec<Message>,
@@ -74,17 +104,16 @@ pub mod execute {
         let config = CONFIG.load(deps.storage)?;
         let verifier = config.verifier;
 
-        let orig_len = msgs.len();
-        msgs.sort_unstable_by_key(|a| a.id());
-        msgs.dedup_by(|a, b| a.id() == b.id());
-        if msgs.len() != orig_len {
+        if contains_duplicates(&mut msgs) {
             return Err(ContractError::DuplicateMessageID {});
         }
+
+        let (_, unverified) = partition_by_verified(deps, msgs)?;
 
         Ok(Response::new().add_message(WasmMsg::Execute {
             contract_addr: verifier.to_string(),
             msg: to_binary(&aggregate_verifier::msg::ExecuteMsg::VerifyMessages {
-                messages: msgs
+                messages: unverified
                     .into_iter()
                     .map(connection_router::msg::Message::from)
                     .collect(),
@@ -97,31 +126,13 @@ pub mod execute {
         deps: DepsMut,
         mut msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        let verifier = config.verifier;
-        let router = config.router;
-        let orig_len = msgs.len();
-        msgs.sort_unstable_by_key(|a| a.id());
-        msgs.dedup_by(|a, b| a.id() == b.id());
-        if msgs.len() != orig_len {
+        let router = CONFIG.load(deps.storage)?.router;
+
+        if contains_duplicates(&mut msgs) {
             return Err(ContractError::DuplicateMessageID {});
         }
-        let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
-            messages: msgs.iter().map(|m| m.clone().into()).collect(),
-        };
-        let query_response: Vec<(String, bool)> =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: verifier.to_string(),
-                msg: to_binary(&query_msg)?,
-            }))?;
 
-        let (verified, unverified): (Vec<Message>, Vec<Message>) =
-            msgs.into_iter().partition(|m| -> bool {
-                match query_response.iter().find(|r| m.id() == r.0) {
-                    Some((_, v)) => *v,
-                    None => false,
-                }
-            });
+        let (verified, unverified) = partition_by_verified(deps, msgs)?;
 
         Ok(Response::new()
             .add_message(WasmMsg::Execute {
