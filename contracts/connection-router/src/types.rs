@@ -3,7 +3,7 @@ use std::str::FromStr;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use flagset::flags;
+use flagset::{flags, FlagSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -111,12 +111,12 @@ pub struct Gateway {
 pub struct ChainEndpoint {
     pub name: ChainName,
     pub gateway: Gateway,
-    pub frozen_status: GatewayDirection,
+    pub frozen_status: GatewayDirectionFlagSet,
 }
 
 flags! {
     #[derive(Serialize,Deserialize, JsonSchema)]
-pub enum GatewayDirection : u32 {
+pub enum GatewayDirection : u8 {
     None = 0b00,
     Incoming = 0b01,
     Outgoing = 0b10,
@@ -124,15 +124,14 @@ pub enum GatewayDirection : u32 {
 }
 }
 
-impl TryFrom<u32> for GatewayDirection {
-    type Error = ContractError;
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            x if x == GatewayDirection::Bidirectional as u32 => Ok(GatewayDirection::Bidirectional),
-            x if x == GatewayDirection::Incoming as u32 => Ok(GatewayDirection::Incoming),
-            x if x == GatewayDirection::Outgoing as u32 => Ok(GatewayDirection::Outgoing),
-            x if x == GatewayDirection::None as u32 => Ok(GatewayDirection::None),
-            _ => Err(ContractError::InvalidMessageID {}),
-        }
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct GatewayDirectionFlagSet(pub FlagSet<GatewayDirection>);
+
+impl JsonSchema for GatewayDirectionFlagSet {
+    fn schema_name() -> String {
+        "GatewayDirectionFlagSet".to_string()
+    }
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        GatewayDirection::json_schema(gen)
     }
 }

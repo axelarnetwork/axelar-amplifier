@@ -77,7 +77,7 @@ pub mod execute {
         events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
         msg::{self},
         state::Message,
-        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection},
+        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection, GatewayDirectionFlagSet},
     };
 
     use super::*;
@@ -97,7 +97,7 @@ pub mod execute {
                 gateway: Gateway {
                     address: gateway.clone(),
                 },
-                frozen_status: GatewayDirection::None,
+                frozen_status: GatewayDirectionFlagSet(FlagSet::from(GatewayDirection::None)),
             }),
         })?;
         Ok(Response::new().add_event(ChainRegistered { name, gateway }.into()))
@@ -147,7 +147,7 @@ pub mod execute {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
-                chain.frozen_status = (chain.frozen_status | direction).bits().try_into()?;
+                chain.frozen_status.0 |= direction;
                 Ok(chain)
             }
         })?;
@@ -162,21 +162,19 @@ pub mod execute {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
-                chain.frozen_status = (chain.frozen_status - direction).bits().try_into()?;
+                chain.frozen_status.0 -= direction;
                 Ok(chain)
             }
         })?;
         Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
     }
 
-    fn incoming_frozen(direction: &GatewayDirection) -> bool {
-        let set: FlagSet<GatewayDirection> = (*direction).into();
-        set.contains(GatewayDirection::Incoming)
+    fn incoming_frozen(direction: &GatewayDirectionFlagSet) -> bool {
+        direction.0.contains(GatewayDirection::Incoming)
     }
 
-    fn outgoing_frozen(direction: &GatewayDirection) -> bool {
-        let set: FlagSet<GatewayDirection> = (*direction).into();
-        set.contains(GatewayDirection::Outgoing)
+    fn outgoing_frozen(direction: &GatewayDirectionFlagSet) -> bool {
+        direction.0.contains(GatewayDirection::Outgoing)
     }
 
     pub fn route_message(
