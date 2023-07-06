@@ -70,14 +70,14 @@ pub mod execute {
 
     use std::{collections::HashMap, vec};
 
+    use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::{Addr, WasmMsg};
-    use flagset::FlagSet;
 
     use crate::{
         events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
         msg::{self},
         state::Message,
-        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection, GatewayDirectionFlagSet},
+        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection},
     };
 
     use super::*;
@@ -97,7 +97,7 @@ pub mod execute {
                 gateway: Gateway {
                     address: gateway.clone(),
                 },
-                frozen_status: GatewayDirectionFlagSet(FlagSet::from(GatewayDirection::None)),
+                frozen_status: FlagSet::from(GatewayDirection::None),
             }),
         })?;
         Ok(Response::new().add_event(ChainRegistered { name, gateway }.into()))
@@ -147,7 +147,7 @@ pub mod execute {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
-                chain.frozen_status.0 |= direction;
+                *chain.frozen_status |= direction;
                 Ok(chain)
             }
         })?;
@@ -162,19 +162,19 @@ pub mod execute {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
-                chain.frozen_status.0 -= direction;
+                *chain.frozen_status -= direction;
                 Ok(chain)
             }
         })?;
         Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
     }
 
-    fn incoming_frozen(direction: &GatewayDirectionFlagSet) -> bool {
-        direction.0.contains(GatewayDirection::Incoming)
+    fn incoming_frozen(direction: &FlagSet<GatewayDirection>) -> bool {
+        direction.contains(GatewayDirection::Incoming)
     }
 
-    fn outgoing_frozen(direction: &GatewayDirectionFlagSet) -> bool {
-        direction.0.contains(GatewayDirection::Outgoing)
+    fn outgoing_frozen(direction: &FlagSet<GatewayDirection>) -> bool {
+        direction.contains(GatewayDirection::Outgoing)
     }
 
     pub fn route_message(

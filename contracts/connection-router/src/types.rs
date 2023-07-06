@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
+use axelar_wasm_std::flagset::FlagSet;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use flagset::{flags, FlagSet};
+use flagset::flags;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -111,27 +112,16 @@ pub struct Gateway {
 pub struct ChainEndpoint {
     pub name: ChainName,
     pub gateway: Gateway,
-    pub frozen_status: GatewayDirectionFlagSet,
+    pub frozen_status: FlagSet<GatewayDirection>,
 }
 
 flags! {
-    #[derive(Serialize,Deserialize, JsonSchema)]
-pub enum GatewayDirection : u8 {
-    None = 0b00,
-    Incoming = 0b01,
-    Outgoing = 0b10,
-    Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits() ,
-}
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct GatewayDirectionFlagSet(pub FlagSet<GatewayDirection>);
-
-impl JsonSchema for GatewayDirectionFlagSet {
-    fn schema_name() -> String {
-        "GatewayDirectionFlagSet".to_string()
-    }
-    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-        GatewayDirection::json_schema(gen)
+    #[repr(u8)]
+    #[derive(Deserialize, Serialize, Hash, JsonSchema)]
+    pub enum GatewayDirection: u8 {
+        None = 0,
+        Incoming = 1,
+        Outgoing = 2,
+        Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
     }
 }
