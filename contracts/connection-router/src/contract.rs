@@ -5,7 +5,7 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 use crate::error::ContractError;
 use crate::events::{ChainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{chains, Config, Message, CONFIG};
+use crate::state::{chain_endpoints, Config, Message, CONFIG};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -76,7 +76,7 @@ pub mod execute {
         events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
         msg::{self},
         state::Message,
-        types::{Chain, ChainName, Gateway, GatewayDirection},
+        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection},
     };
 
     use super::*;
@@ -89,9 +89,9 @@ pub mod execute {
         if find_chain_for_gateway(&deps, &gateway)?.is_some() {
             return Err(ContractError::GatewayAlreadyRegistered {});
         }
-        chains().update(deps.storage, name.clone(), |chain| match chain {
+        chain_endpoints().update(deps.storage, name.clone(), |chain| match chain {
             Some(_) => Err(ContractError::ChainAlreadyExists {}),
-            None => Ok(Chain {
+            None => Ok(ChainEndpoint {
                 name: name.clone(),
                 gateway: Gateway {
                     address: gateway.clone(),
@@ -105,8 +105,11 @@ pub mod execute {
     pub fn find_chain_for_gateway(
         deps: &DepsMut,
         contract_address: &Addr,
-    ) -> StdResult<Option<Chain>> {
-        chains().idx.gateway.find_chain(deps, contract_address)
+    ) -> StdResult<Option<ChainEndpoint>> {
+        chain_endpoints()
+            .idx
+            .gateway
+            .find_chain(deps, contract_address)
     }
 
     pub fn upgrade_gateway(
@@ -117,7 +120,7 @@ pub mod execute {
         if find_chain_for_gateway(&deps, &contract_address)?.is_some() {
             return Err(ContractError::GatewayAlreadyRegistered {});
         }
-        chains().update(deps.storage, chain.clone(), |chain| match chain {
+        chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
                 chain.gateway.address = contract_address.clone();
@@ -140,7 +143,7 @@ pub mod execute {
         chain: ChainName,
         direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
-        chains().update(deps.storage, chain.clone(), |chain| match chain {
+        chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
                 chain.frozen_status = chain.frozen_status | direction;
@@ -155,7 +158,7 @@ pub mod execute {
         chain: ChainName,
         direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
-        chains().update(deps.storage, chain.clone(), |chain| match chain {
+        chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
                 chain.frozen_status = chain.frozen_status & !direction;
@@ -200,7 +203,7 @@ pub mod execute {
 
         let mut wasm_msgs = vec![];
         for (destination_chain, msgs) in msgs_by_destination {
-            let destination_chain = chains()
+            let destination_chain = chain_endpoints()
                 .may_load(deps.storage, destination_chain.parse()?)?
                 .ok_or(ContractError::ChainNotFound {})?;
 

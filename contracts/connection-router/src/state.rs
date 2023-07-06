@@ -6,7 +6,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 
 use crate::{
     msg,
-    types::{Chain, ChainName, MessageID, ID_SEPARATOR},
+    types::{ChainEndpoint, ChainName, MessageID, ID_SEPARATOR},
     ContractError,
 };
 
@@ -17,22 +17,26 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub struct ChainIndexes<'a> {
+pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,
 }
 
-pub struct GatewayIndex<'a>(MultiIndex<'a, Addr, Chain, ChainName>);
+pub struct GatewayIndex<'a>(MultiIndex<'a, Addr, ChainEndpoint, ChainName>);
 
 impl<'a> GatewayIndex<'a> {
     pub fn new(
-        idx_fn: fn(&[u8], &Chain) -> Addr,
+        idx_fn: fn(&[u8], &ChainEndpoint) -> Addr,
         pk_namespace: &'a str,
         idx_namespace: &'a str,
     ) -> Self {
         GatewayIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
 
-    pub fn find_chain(&self, deps: &DepsMut, contract_address: &Addr) -> StdResult<Option<Chain>> {
+    pub fn find_chain(
+        &self,
+        deps: &DepsMut,
+        contract_address: &Addr,
+    ) -> StdResult<Option<ChainEndpoint>> {
         let mut matching_chains = self
             .0
             .prefix(contract_address.clone())
@@ -49,12 +53,12 @@ impl<'a> GatewayIndex<'a> {
 
 const DOMAINS_PKEY: &str = "chains";
 
-pub fn chains<'a>() -> IndexedMap<'a, ChainName, Chain, ChainIndexes<'a>> {
+pub fn chain_endpoints<'a>() -> IndexedMap<'a, ChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
     return IndexedMap::new(
         DOMAINS_PKEY,
-        ChainIndexes {
+        ChainEndpointIndexes {
             gateway: GatewayIndex::new(
-                |_pk: &[u8], d: &Chain| d.gateway.address.clone(),
+                |_pk: &[u8], d: &ChainEndpoint| d.gateway.address.clone(),
                 DOMAINS_PKEY,
                 "gateways",
             ),
@@ -62,9 +66,9 @@ pub fn chains<'a>() -> IndexedMap<'a, ChainName, Chain, ChainIndexes<'a>> {
     );
 }
 
-impl<'a> IndexList<Chain> for ChainIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Chain>> + '_> {
-        let v: Vec<&dyn Index<Chain>> = vec![&self.gateway.0];
+impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<ChainEndpoint>> + '_> {
+        let v: Vec<&dyn Index<ChainEndpoint>> = vec![&self.gateway.0];
         Box::new(v.into_iter())
     }
 }

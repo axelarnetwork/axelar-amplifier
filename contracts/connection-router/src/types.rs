@@ -108,7 +108,7 @@ pub struct Gateway {
 }
 
 #[cw_serde]
-pub struct Chain {
+pub struct ChainEndpoint {
     pub name: ChainName,
     pub gateway: Gateway,
     pub frozen_status: GatewayDirection,
