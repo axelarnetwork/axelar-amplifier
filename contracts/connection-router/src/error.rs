@@ -8,33 +8,33 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Caller is not authorized")]
+    #[error("caller is not authorized")]
     Unauthorized {},
 
-    #[error("Chain already exists")]
+    #[error("chain already exists")]
     ChainAlreadyExists {},
 
-    #[error("Chain name is invalid")]
+    #[error("chain name is invalid")]
     InvalidChainName {},
 
-    #[error("Message ID is invalid")]
+    #[error("message ID is invalid")]
     InvalidMessageID {},
 
-    #[error("Chain was not found")]
+    #[error("chain was not found")]
     ChainNotFound {},
 
-    #[error("Gateway is not registered")]
+    #[error("gateway is not registered")]
     GatewayNotRegistered {},
 
-    #[error("Gateway was already registered")]
+    #[error("gateway was already registered")]
     GatewayAlreadyRegistered {},
 
-    #[error("Chain is frozen")]
+    #[error("chain is frozen")]
     ChainFrozen { chain: ChainName },
 
-    #[error("Address is invalid")]
+    #[error("address is invalid")]
     InvalidAddress {},
 
-    #[error("Source chain does not match registered gateway")]
+    #[error("source chain does not match registered gateway")]
     WrongSourceChain {},
 }

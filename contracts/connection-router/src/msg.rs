@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
-use crate::types::MessageFlowDirection;
+use crate::types::GatewayDirection;
 
 // Message is a type meant to be used in interfaces where the data can be provided by the user.
 // The fields have not necessarily been validated, and should be checked prior to further processing.
@@ -36,11 +36,15 @@ pub enum ExecuteMsg {
         chain: String,
         contract_address: String,
     },
-    // Freezes a chain, in the specified direction. This overrides any previous frozen status. Pass None to unfreeze
-    // TODO: come up with a better name?
+    // Freezes a chain, in the specified direction.
     FreezeChain {
         chain: String,
-        direction: MessageFlowDirection,
+        direction: GatewayDirection,
+    },
+    // Unfreezes a chain, in the specified direction.
+    UnfreezeChain {
+        chain: String,
+        direction: GatewayDirection,
     },
 
     /*

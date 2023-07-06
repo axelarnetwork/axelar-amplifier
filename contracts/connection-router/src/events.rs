@@ -19,7 +19,6 @@ pub enum GatewayDirection {
 pub struct GatewayInfo {
     pub chain: ChainName,
     pub gateway_address: Addr,
-    pub direction: GatewayDirection,
 }
 
 pub struct GatewayUpgraded {
@@ -69,15 +68,7 @@ impl From<GatewayInfo> for Vec<Attribute> {
     fn from(other: GatewayInfo) -> Self {
         vec![
             ("chain", other.chain.clone()).into(),
-            ("gateway_address", other.gateway_address.clone()).into(),
-            (
-                "gateway_type",
-                match &other.direction {
-                    GatewayDirection::Incoming => "incoming",
-                    GatewayDirection::Outgoing => "outgoing",
-                },
-            )
-                .into(),
+            ("gateway_address", other.gateway_address).into(),
         ]
     }
 }

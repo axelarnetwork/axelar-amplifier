@@ -52,6 +52,10 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::freeze_chain(deps, chain.parse()?, direction)
         }
+        ExecuteMsg::UnfreezeChain { chain, direction } => {
+            execute::require_admin(&deps, info)?;
+            execute::unfreeze_chain(deps, chain.parse()?, direction)
+        }
         ExecuteMsg::RouteMessages(msgs) => execute::route_message(
             deps,
             info,
@@ -69,10 +73,10 @@ pub mod execute {
     use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
-        events::{ChainFrozen, GatewayDirection, GatewayInfo, GatewayUpgraded, MessageRouted},
+        events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
         msg::{self},
         state::Message,
-        types::{Chain, ChainName, Gateway, MessageFlowDirection},
+        types::{Chain, ChainName, Gateway, GatewayDirection},
     };
 
     use super::*;
@@ -92,7 +96,7 @@ pub mod execute {
                 gateway: Gateway {
                     address: gateway.clone(),
                 },
-                frozen_status: MessageFlowDirection::None,
+                frozen_status: GatewayDirection::None,
             }),
         })?;
         Ok(Response::new().add_event(ChainRegistered { name, gateway }.into()))
@@ -125,44 +129,48 @@ pub mod execute {
                 gateway: GatewayInfo {
                     chain,
                     gateway_address: contract_address,
-                    direction: GatewayDirection::Incoming,
                 },
             }
             .into(),
         ))
     }
 
-    fn set_chain_frozen_status(
-        deps: DepsMut,
-        chain: &ChainName,
-        direction: MessageFlowDirection,
-    ) -> Result<Chain, ContractError> {
-        chains().update(deps.storage, chain.clone(), |chain| match chain {
-            None => Err(ContractError::ChainNotFound {}),
-            Some(mut chain) => {
-                chain.frozen_status = direction;
-                Ok(chain)
-            }
-        })
-    }
-
     pub fn freeze_chain(
         deps: DepsMut,
         chain: ChainName,
-        direction: MessageFlowDirection,
+        direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
-        set_chain_frozen_status(deps, &chain, direction)?;
+        chains().update(deps.storage, chain.clone(), |chain| match chain {
+            None => Err(ContractError::ChainNotFound {}),
+            Some(mut chain) => {
+                chain.frozen_status = chain.frozen_status | direction;
+                Ok(chain)
+            }
+        })?;
         Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
     }
 
-    fn incoming_frozen(direction: &MessageFlowDirection) -> bool {
-        direction == &MessageFlowDirection::Bidirectional
-            || direction == &MessageFlowDirection::Incoming
+    pub fn unfreeze_chain(
+        deps: DepsMut,
+        chain: ChainName,
+        direction: GatewayDirection,
+    ) -> Result<Response, ContractError> {
+        chains().update(deps.storage, chain.clone(), |chain| match chain {
+            None => Err(ContractError::ChainNotFound {}),
+            Some(mut chain) => {
+                chain.frozen_status = chain.frozen_status & !direction;
+                Ok(chain)
+            }
+        })?;
+        Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
     }
 
-    fn outgoing_frozen(direction: &MessageFlowDirection) -> bool {
-        direction == &MessageFlowDirection::Bidirectional
-            || direction == &MessageFlowDirection::Outgoing
+    fn incoming_frozen(direction: &GatewayDirection) -> bool {
+        direction == &GatewayDirection::Bidirectional || direction == &GatewayDirection::Incoming
+    }
+
+    fn outgoing_frozen(direction: &GatewayDirection) -> bool {
+        direction == &GatewayDirection::Bidirectional || direction == &GatewayDirection::Outgoing
     }
 
     pub fn route_message(

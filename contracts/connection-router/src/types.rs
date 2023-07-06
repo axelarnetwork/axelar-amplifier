@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    ops::{BitAnd, BitOr, Not},
+    str::FromStr,
+};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult};
@@ -108,13 +111,54 @@ pub struct Gateway {
 pub struct Chain {
     pub name: ChainName,
     pub gateway: Gateway,
-    pub frozen_status: MessageFlowDirection,
+    pub frozen_status: GatewayDirection,
 }
 
 #[cw_serde]
-pub enum MessageFlowDirection {
-    None,
-    Incoming,
-    Outgoing,
-    Bidirectional,
+pub enum GatewayDirection {
+    None = 0x00,
+    Incoming = 0x01,
+    Outgoing = 0x10,
+    Bidirectional = 0x11,
+}
+
+impl TryFrom<u32> for GatewayDirection {
+    type Error = ();
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            x if x == GatewayDirection::Bidirectional as u32 => Ok(GatewayDirection::Bidirectional),
+            x if x == GatewayDirection::Incoming as u32 => Ok(GatewayDirection::Incoming),
+            x if x == GatewayDirection::Outgoing as u32 => Ok(GatewayDirection::Outgoing),
+            x if x == GatewayDirection::None as u32 => Ok(GatewayDirection::None),
+            _ => Err(()),
+        }
+    }
+}
+
+impl BitOr for GatewayDirection {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        (self as u32 | rhs as u32)
+            .try_into()
+            .expect("unexpected GatewayDirection bitor result")
+    }
+}
+
+impl Not for GatewayDirection {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        // only want to invert the bottom two bits
+        (!(self as u32) & 0x11)
+            .try_into()
+            .expect("unexpected GatewayDirection not result")
+    }
+}
+
+impl BitAnd for GatewayDirection {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        (self as u32 & rhs as u32)
+            .try_into()
+            .expect("unexpected GatewayDirection bitand result")
+    }
 }
