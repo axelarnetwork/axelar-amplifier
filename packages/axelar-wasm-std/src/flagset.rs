@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct FlagSet<T>(flagset::FlagSet<T>)
 where
     flagset::FlagSet<T>: Serialize,
