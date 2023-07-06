@@ -71,6 +71,7 @@ pub mod execute {
     use std::{collections::HashMap, vec};
 
     use cosmwasm_std::{Addr, WasmMsg};
+    use flagset::FlagSet;
 
     use crate::{
         events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
@@ -146,7 +147,7 @@ pub mod execute {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
-                chain.frozen_status = chain.frozen_status | direction;
+                chain.frozen_status = (chain.frozen_status | direction).bits().try_into()?;
                 Ok(chain)
             }
         })?;
@@ -161,7 +162,7 @@ pub mod execute {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
             None => Err(ContractError::ChainNotFound {}),
             Some(mut chain) => {
-                chain.frozen_status = chain.frozen_status & !direction;
+                chain.frozen_status = (chain.frozen_status - direction).bits().try_into()?;
                 Ok(chain)
             }
         })?;
@@ -169,11 +170,13 @@ pub mod execute {
     }
 
     fn incoming_frozen(direction: &GatewayDirection) -> bool {
-        direction == &GatewayDirection::Bidirectional || direction == &GatewayDirection::Incoming
+        let set: FlagSet<GatewayDirection> = (*direction).into();
+        set.contains(GatewayDirection::Incoming)
     }
 
     fn outgoing_frozen(direction: &GatewayDirection) -> bool {
-        direction == &GatewayDirection::Bidirectional || direction == &GatewayDirection::Outgoing
+        let set: FlagSet<GatewayDirection> = (*direction).into();
+        set.contains(GatewayDirection::Outgoing)
     }
 
     pub fn route_message(
