@@ -1,11 +1,8 @@
 use core::panic;
-use std::ops::Deref;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
-use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
-use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     msg,
@@ -141,73 +138,5 @@ impl From<Message> for msg::Message {
             source_chain: value.source_chain.to_string(),
             payload_hash: value.payload_hash,
         }
-    }
-}
-
-#[derive(Serialize, Clone, Debug, PartialEq)]
-pub struct FlagSet<T>(flagset::FlagSet<T>)
-where
-    flagset::FlagSet<T>: Serialize,
-    T: flagset::Flags + Serialize,
-    <T as flagset::Flags>::Type: Serialize;
-
-impl<T> From<T> for FlagSet<T>
-where
-    flagset::FlagSet<T>: From<T>,
-    T: flagset::Flags + Serialize,
-    <T as flagset::Flags>::Type: Serialize,
-{
-    fn from(flag: T) -> Self {
-        FlagSet(flagset::FlagSet::from(flag))
-    }
-}
-
-impl<T> From<flagset::FlagSet<T>> for FlagSet<T>
-where
-    flagset::FlagSet<T>: Serialize,
-    T: flagset::Flags + Serialize,
-    <T as flagset::Flags>::Type: Serialize,
-{
-    fn from(flag_set: flagset::FlagSet<T>) -> Self {
-        FlagSet(flag_set)
-    }
-}
-
-impl<T> Deref for FlagSet<T>
-where
-    T: flagset::Flags + Serialize,
-    <T as flagset::Flags>::Type: Serialize,
-{
-    type Target = flagset::FlagSet<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'de, T> Deserialize<'de> for FlagSet<T>
-where
-    T: flagset::Flags + Serialize,
-    <T as flagset::Flags>::Type: Serialize + Deserialize<'de>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        flagset::FlagSet::<T>::deserialize(deserializer).map(FlagSet::from)
-    }
-}
-
-impl<T> JsonSchema for FlagSet<T>
-where
-    T: flagset::Flags + Serialize,
-    <T as flagset::Flags>::Type: Serialize,
-{
-    fn schema_name() -> String {
-        "FlagSet".to_string()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        gen.root_schema_for::<FlagSet<T>>().schema.into()
     }
 }
