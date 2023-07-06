@@ -14,4 +14,6 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    IsVerified { messages: Vec<Message> },
+}

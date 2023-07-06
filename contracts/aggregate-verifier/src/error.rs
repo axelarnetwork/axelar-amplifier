@@ -19,6 +19,9 @@ pub enum ContractError {
     RouterError {
         error: connection_router::error::ContractError,
     },
+
+    #[error("received invalid verifier reply: {0}")]
+    InvalidVerifierReply(String),
 }
 
 impl From<connection_router::ContractError> for ContractError {

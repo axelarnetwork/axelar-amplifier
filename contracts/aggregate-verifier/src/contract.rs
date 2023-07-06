@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult,
+    from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Reply, Response,
+    StdResult, WasmQuery,
 };
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
@@ -88,14 +89,25 @@ pub fn reply(_deps: DepsMut, _: Env, reply: Reply) -> Result<Response, ContractE
             // only one verifier, so just return the response as is
             Ok(Response::new().set_data(data))
         }
-        Ok(MsgExecuteContractResponse { data: None }) => Ok(Response::new()),
-        Err(e) => Err(ContractError::Std(StdError::GenericErr {
-            msg: format!("invalid verifier reply: {}", e),
-        })),
+        Ok(MsgExecuteContractResponse { data: None }) => {
+            Err(ContractError::InvalidVerifierReply("no data".to_string()))
+        }
+        Err(e) => Err(ContractError::InvalidVerifierReply(format!(
+            "parse error: {}",
+            e
+        ))),
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    todo!() // TODO: add IsVerified query
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::IsVerified { messages: _ } => {
+            let verifier = CONFIG.load(deps.storage)?.verifier;
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: verifier.to_string(),
+                msg: to_binary(&msg)?,
+            }))
+        }
+    }
 }
