@@ -2,20 +2,24 @@ use aggregate_verifier::contract::*;
 use aggregate_verifier::error::ContractError;
 use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
 use connection_router::msg::Message;
+use connection_router::types::ID_SEPARATOR;
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
 pub mod mock;
+
 fn generate_messages(count: usize) -> Vec<connection_router::state::Message> {
     let mut msgs = vec![];
     for x in 0..count {
+        let src_chain = "mock-chain";
+        let id = format!("{}{}{}", src_chain, ID_SEPARATOR, x);
         msgs.push(connection_router::state::Message::new(
-            x.to_string().parse().unwrap(),
+            id.parse().unwrap(),
             "idc".into(),
-            "cj-chain".parse().unwrap(),
-            "cj-chain-2".parse().unwrap(),
+            "mock-chain-2".parse().unwrap(),
+            src_chain.parse().unwrap(),
             "idc".into(),
             vec![x as u8, 0, 0, 0].into(),
         ));
@@ -62,7 +66,10 @@ fn bad_message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap())
+    assert_eq!(
+        ContractError::RouterError(connection_router::error::ContractError::InvalidMessageID {}),
+        res.downcast().unwrap()
+    )
 }
 
 #[test]
@@ -134,7 +141,7 @@ fn verify_messages_not_verified() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), false))
+            .map(|m| (m.id.to_string(), false))
             .collect::<Vec<(String, bool)>>()
     );
 }
@@ -177,7 +184,7 @@ fn verify_messages_verified() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 }
@@ -226,9 +233,9 @@ fn verify_messages_mixed_status() {
         ret,
         msgs.iter()
             .map(|m| if verified.iter().find(|m2| *m2 == m).is_some() {
-                (m.id(), true)
+                (m.id.to_string(), true)
             } else {
-                (m.id(), false)
+                (m.id.to_string(), false)
             })
             .collect::<Vec<(String, bool)>>()
     );

@@ -27,9 +27,9 @@ pub fn mock_verifier_execute(
             let mut res = vec![];
             for m in messages {
                 let m = connection_router::state::Message::try_from(m).unwrap();
-                match MOCK_VOTING_VERIFIER_MESSAGES.may_load(deps.storage, m.id())? {
-                    Some(b) => res.push((m.id(), b)),
-                    None => res.push((m.id(), false)),
+                match MOCK_VOTING_VERIFIER_MESSAGES.may_load(deps.storage, m.id.to_string())? {
+                    Some(b) => res.push((m.id.to_string(), b)),
+                    None => res.push((m.id.to_string(), false)),
                 }
             }
             Ok(Response::new().set_data(to_binary(&res)?))
@@ -37,7 +37,7 @@ pub fn mock_verifier_execute(
         MockVotingVerifierExecuteMsg::MessagesVerified { messages } => {
             for m in messages {
                 let m = connection_router::state::Message::try_from(m).unwrap();
-                MOCK_VOTING_VERIFIER_MESSAGES.save(deps.storage, m.id(), &true)?;
+                MOCK_VOTING_VERIFIER_MESSAGES.save(deps.storage, m.id.to_string(), &true)?;
             }
             Ok(Response::new())
         }

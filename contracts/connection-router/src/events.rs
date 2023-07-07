@@ -1,15 +1,14 @@
 use cosmwasm_std::{Addr, Attribute, Event};
 
-use crate::{state::Message, types::DomainName};
+use crate::{state::Message, types::ChainName};
 
 pub struct RouterInstantiated {
     pub admin: Addr,
 }
 
-pub struct DomainRegistered {
-    pub name: DomainName,
-    pub incoming_gateway: Addr,
-    pub outgoing_gateway: Addr,
+pub struct ChainRegistered {
+    pub name: ChainName,
+    pub gateway: Addr,
 }
 
 pub enum GatewayDirection {
@@ -18,9 +17,8 @@ pub enum GatewayDirection {
 }
 
 pub struct GatewayInfo {
-    pub domain: DomainName,
+    pub chain: ChainName,
     pub gateway_address: Addr,
-    pub direction: GatewayDirection,
 }
 
 pub struct GatewayUpgraded {
@@ -35,12 +33,12 @@ pub struct GatewayUnfrozen {
     pub gateway: GatewayInfo,
 }
 
-pub struct DomainFrozen {
-    pub name: DomainName,
+pub struct ChainFrozen {
+    pub name: ChainName,
 }
 
-pub struct DomainUnfrozen {
-    pub name: DomainName,
+pub struct ChainUnfrozen {
+    pub name: ChainName,
 }
 
 pub struct MessageRouted {
@@ -48,7 +46,7 @@ pub struct MessageRouted {
 }
 
 pub struct MessagesConsumed<'a> {
-    pub domain: DomainName,
+    pub chain: ChainName,
     pub msgs: &'a Vec<Message>,
 }
 
@@ -58,28 +56,19 @@ impl From<RouterInstantiated> for Event {
     }
 }
 
-impl From<DomainRegistered> for Event {
-    fn from(other: DomainRegistered) -> Self {
-        Event::new("domain_registered")
+impl From<ChainRegistered> for Event {
+    fn from(other: ChainRegistered) -> Self {
+        Event::new("chain_registered")
             .add_attribute("name", other.name)
-            .add_attribute("incoming_gateway", other.incoming_gateway)
-            .add_attribute("outgoing_gateway", other.outgoing_gateway)
+            .add_attribute("gateway", other.gateway)
     }
 }
 
 impl From<GatewayInfo> for Vec<Attribute> {
     fn from(other: GatewayInfo) -> Self {
         vec![
-            ("domain", other.domain.clone()).into(),
-            ("gateway_address", other.gateway_address.clone()).into(),
-            (
-                "gateway_type",
-                match &other.direction {
-                    GatewayDirection::Incoming => "incoming",
-                    GatewayDirection::Outgoing => "outgoing",
-                },
-            )
-                .into(),
+            ("chain", other.chain.clone()).into(),
+            ("gateway_address", other.gateway_address).into(),
         ]
     }
 }
@@ -105,25 +94,25 @@ impl From<GatewayUnfrozen> for Event {
     }
 }
 
-impl From<DomainFrozen> for Event {
-    fn from(other: DomainFrozen) -> Self {
-        Event::new("domain_frozen").add_attribute("name", other.name)
+impl From<ChainFrozen> for Event {
+    fn from(other: ChainFrozen) -> Self {
+        Event::new("chain_frozen").add_attribute("name", other.name)
     }
 }
 
-impl From<DomainUnfrozen> for Event {
-    fn from(other: DomainUnfrozen) -> Self {
-        Event::new("domain_unfrozen").add_attribute("name", other.name)
+impl From<ChainUnfrozen> for Event {
+    fn from(other: ChainUnfrozen) -> Self {
+        Event::new("chain_unfrozen").add_attribute("name", other.name)
     }
 }
 
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.id()).into(),
-            ("source_domain", other.source_domain.clone()).into(),
+            ("id", other.id).into(),
+            ("source_chain", other.source_chain.clone()).into(),
             ("source_addressess", other.source_address.clone()).into(),
-            ("destination_domain", other.destination_domain.clone()).into(),
+            ("destination_chain", other.destination_chain.clone()).into(),
             ("destination_addressess", other.destination_address.clone()).into(),
             ("payload_hash", other.payload_hash.to_string()).into(),
         ]
@@ -144,7 +133,7 @@ impl From<MessageRouted> for Event {
 impl<'a> From<MessagesConsumed<'a>> for Event {
     fn from(other: MessagesConsumed) -> Self {
         Event::new("messages_consumed")
-            .add_attribute("domain", other.domain)
+            .add_attribute("chain", other.chain)
             .add_attribute("count", other.msgs.len().to_string())
             .add_attribute(
                 "message_id",
@@ -153,7 +142,7 @@ impl<'a> From<MessagesConsumed<'a>> for Event {
                     other
                         .msgs
                         .iter()
-                        .map(|m| m.id())
+                        .map(|m| m.id.as_str())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),

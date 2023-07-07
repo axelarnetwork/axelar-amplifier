@@ -37,6 +37,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
+ "flagset",
  "rand",
  "schemars",
  "serde",
@@ -113,12 +114,14 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "connection-router"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
  "cw2 0.15.1",
+ "flagset",
  "schemars",
  "serde",
  "serde_json",
@@ -478,6 +481,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "flagset"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cda653ca797810c02f7ca4b804b40b8b95ae046eb989d356bce17919a8c25499"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "forward_ref"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -487,14 +499,15 @@ checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 name = "gateway"
 version = "0.1.0"
 dependencies = [
+ "aggregate-verifier",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
- "either",
  "schemars",
  "serde",
  "serde_json",
