@@ -51,15 +51,15 @@ impl<'a> GatewayIndex<'a> {
     }
 }
 
-const DOMAINS_PKEY: &str = "chains";
+const CHAINS_PKEY: &str = "chains";
 
 pub fn chain_endpoints<'a>() -> IndexedMap<'a, ChainName, ChainEndpoint, ChainEndpointIndexes<'a>> {
     return IndexedMap::new(
-        DOMAINS_PKEY,
+        CHAINS_PKEY,
         ChainEndpointIndexes {
             gateway: GatewayIndex::new(
                 |_pk: &[u8], d: &ChainEndpoint| d.gateway.address.clone(),
-                DOMAINS_PKEY,
+                CHAINS_PKEY,
                 "gateways",
             ),
         },

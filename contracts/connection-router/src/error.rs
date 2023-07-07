@@ -20,13 +20,13 @@ pub enum ContractError {
     #[error("message ID is invalid")]
     InvalidMessageID {},
 
-    #[error("chain was not found")]
+    #[error("chain is not found")]
     ChainNotFound {},
 
     #[error("gateway is not registered")]
     GatewayNotRegistered {},
 
-    #[error("gateway was already registered")]
+    #[error("gateway is already registered")]
     GatewayAlreadyRegistered {},
 
     #[error("chain is frozen")]
