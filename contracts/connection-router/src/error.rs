@@ -1,49 +1,40 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use crate::types::DomainName;
+use crate::types::ChainName;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Caller is not authorized")]
+    #[error("caller is not authorized")]
     Unauthorized {},
 
-    #[error("Domain already exists")]
-    DomainAlreadyExists {},
+    #[error("chain already exists")]
+    ChainAlreadyExists {},
 
-    #[error("Domain name is invalid")]
-    InvalidDomainName {},
+    #[error("chain name is invalid")]
+    InvalidChainName {},
 
-    #[error("Message ID is invalid")]
+    #[error("message ID is invalid")]
     InvalidMessageID {},
 
-    #[error("Domain was not found")]
-    DomainNotFound {},
+    #[error("chain is not found")]
+    ChainNotFound {},
 
-    #[error("Gateway is not registered")]
+    #[error("gateway is not registered")]
     GatewayNotRegistered {},
 
-    #[error("Gateway was already registered")]
+    #[error("gateway is already registered")]
     GatewayAlreadyRegistered {},
 
-    #[error("Message was already routed")]
-    MessageAlreadyRouted { id: String },
+    #[error("chain is frozen")]
+    ChainFrozen { chain: ChainName },
 
-    #[error("Message was not found")]
-    MessageNotFound {},
-
-    #[error("Domain is frozen")]
-    DomainFrozen { domain: DomainName },
-
-    #[error("Gateway is frozen")]
-    GatewayFrozen {},
-
-    #[error("Address is invalid")]
+    #[error("address is invalid")]
     InvalidAddress {},
 
-    #[error("Source domain does not match registered gateway")]
-    WrongSourceDomain {},
+    #[error("source chain does not match registered gateway")]
+    WrongSourceChain {},
 }
