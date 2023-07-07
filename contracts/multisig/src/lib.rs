@@ -1,9 +1,8 @@
 pub mod contract;
-mod error;
+pub mod error;
+pub mod events;
 pub mod msg;
-mod poll;
-mod snapshot;
 pub mod state;
-mod utils;
+pub mod types;
 
 pub use crate::error::ContractError;

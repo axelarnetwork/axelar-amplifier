@@ -1,8 +1,12 @@
 use std::str::FromStr;
 
+use axelar_wasm_std::flagset::FlagSet;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, StdError, StdResult};
+use cosmwasm_std::{Addr, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
+use flagset::flags;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::ContractError;
 
@@ -16,7 +20,7 @@ impl FromStr for MessageID {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(ID_SEPARATOR) || s.is_empty() {
+        if !s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidMessageID {});
         }
         Ok(MessageID {
@@ -44,36 +48,36 @@ impl<'a> MessageID {
 }
 
 #[cw_serde]
-pub struct DomainName {
+pub struct ChainName {
     value: String,
 }
 
-impl FromStr for DomainName {
+impl FromStr for ChainName {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.contains(ID_SEPARATOR) || s.is_empty() {
-            return Err(ContractError::InvalidDomainName {});
+            return Err(ContractError::InvalidChainName {});
         }
-        Ok(DomainName {
+        Ok(ChainName {
             value: s.to_lowercase(),
         })
     }
 }
 
-impl From<DomainName> for String {
-    fn from(d: DomainName) -> Self {
+impl From<ChainName> for String {
+    fn from(d: ChainName) -> Self {
         d.value
     }
 }
 
-impl ToString for DomainName {
+impl ToString for ChainName {
     fn to_string(&self) -> String {
         self.value.clone()
     }
 }
 
-impl<'a> PrimaryKey<'a> for DomainName {
+impl<'a> PrimaryKey<'a> for ChainName {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -84,13 +88,13 @@ impl<'a> PrimaryKey<'a> for DomainName {
     }
 }
 
-impl<'a> Prefixer<'a> for DomainName {
+impl<'a> Prefixer<'a> for ChainName {
     fn prefix(&self) -> Vec<Key> {
         vec![Key::Ref(self.value.as_bytes())]
     }
 }
 
-impl KeyDeserialize for DomainName {
+impl KeyDeserialize for ChainName {
     type Output = String;
 
     #[inline(always)]
@@ -100,54 +104,24 @@ impl KeyDeserialize for DomainName {
 }
 
 #[cw_serde]
-pub struct Message {
-    id: MessageID, // unique per source domain
-    pub destination_address: String,
-    pub destination_domain: DomainName,
-    pub source_domain: DomainName,
-    pub source_address: String,
-    pub payload_hash: HexBinary,
-}
-
-impl Message {
-    pub fn new(
-        id: MessageID,
-        destination_address: String,
-        destination_domain: DomainName,
-        source_domain: DomainName,
-        source_address: String,
-        payload_hash: HexBinary,
-    ) -> Self {
-        Message {
-            id,
-            destination_address,
-            destination_domain,
-            source_domain,
-            source_address,
-            payload_hash,
-        }
-    }
-
-    pub fn id(&self) -> String {
-        format!(
-            "{}{}{}",
-            self.source_domain.to_string(),
-            ID_SEPARATOR,
-            self.id.to_string()
-        )
-    }
-}
-
-#[cw_serde]
 pub struct Gateway {
     pub address: Addr,
-    pub is_frozen: bool,
 }
 
 #[cw_serde]
-pub struct Domain {
-    pub name: DomainName,
-    pub incoming_gateway: Gateway,
-    pub outgoing_gateway: Gateway,
-    pub is_frozen: bool,
+pub struct ChainEndpoint {
+    pub name: ChainName,
+    pub gateway: Gateway,
+    pub frozen_status: FlagSet<GatewayDirection>,
+}
+
+flags! {
+    #[repr(u8)]
+    #[derive(Deserialize, Serialize, Hash, JsonSchema)]
+    pub enum GatewayDirection: u8 {
+        None = 0,
+        Incoming = 1,
+        Outgoing = 2,
+        Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
+    }
 }

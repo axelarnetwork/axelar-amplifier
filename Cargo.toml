@@ -1,12 +1,6 @@
 [workspace]
-members = [
-  "contracts/service-registry",
-  "contracts/service-interface",
-  "contracts/evm-connection-service",
-  "contracts/connection-router",
-  "contracts/evm-batch-service",
-  "contracts/batching",
-]
+members = ["contracts/*", "packages/*"]
+exclude = ["contracts/command-batcher"] # TODO: remove this line once implementation work starts
 
 [profile.release]
 opt-level = 3
@@ -22,3 +16,7 @@ overflow-checks = true
 [workspace.dependencies]
 service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
+gateway = { version = "0.1.0", path = "./contracts/gateway" }
+connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
+aggregate-verifier = { version = "0.1.0", path = "./contracts/aggregate-verifier"}
+axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }

@@ -1,14 +1,11 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, Event, HexBinary, MessageInfo, Response,
-    StdResult,
-};
-use cw_storage_plus::Deque;
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
-use crate::events::{DomainRegistered, RouterInstantiated};
+use crate::events::{ChainRegistered, RouterInstantiated};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{domains, Config, CONFIG, MESSAGES};
+use crate::state::{chain_endpoints, Config, Message, CONFIG};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -35,422 +32,198 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::RegisterDomain {
-            domain,
-            incoming_gateway_address,
-            outgoing_gateway_address,
+        ExecuteMsg::RegisterChain {
+            chain,
+            gateway_address,
         } => {
             execute::require_admin(&deps, info)?;
-            let incoming_gateway_address = deps.api.addr_validate(&incoming_gateway_address)?;
-            let outgoing_gateway_address = deps.api.addr_validate(&outgoing_gateway_address)?;
-            execute::register_domain(
-                deps,
-                domain.parse()?,
-                incoming_gateway_address,
-                outgoing_gateway_address,
-            )
+            let gateway_address = deps.api.addr_validate(&gateway_address)?;
+            execute::register_chain(deps, chain.parse()?, gateway_address)
         }
-        ExecuteMsg::UpgradeIncomingGateway {
-            domain,
+        ExecuteMsg::UpgradeGateway {
+            chain,
             contract_address,
         } => {
             execute::require_admin(&deps, info)?;
             let contract_address = deps.api.addr_validate(&contract_address)?;
-            execute::upgrade_incoming_gateway(deps, domain.parse()?, contract_address)
+            execute::upgrade_gateway(deps, chain.parse()?, contract_address)
         }
-        ExecuteMsg::UpgradeOutgoingGateway {
-            domain,
-            contract_address,
-        } => {
+        ExecuteMsg::FreezeChain { chain, direction } => {
             execute::require_admin(&deps, info)?;
-            let contract_address = deps.api.addr_validate(&contract_address)?;
-            execute::upgrade_outgoing_gateway(deps, domain.parse()?, contract_address)
+            execute::freeze_chain(deps, chain.parse()?, direction)
         }
-        ExecuteMsg::FreezeIncomingGateway { domain } => {
+        ExecuteMsg::UnfreezeChain { chain, direction } => {
             execute::require_admin(&deps, info)?;
-            execute::freeze_incoming_gateway(deps, domain.parse()?)
+            execute::unfreeze_chain(deps, chain.parse()?, direction)
         }
-        ExecuteMsg::FreezeOutgoingGateway { domain } => {
-            execute::require_admin(&deps, info)?;
-            execute::freeze_outgoing_gateway(deps, domain.parse()?)
-        }
-        ExecuteMsg::FreezeDomain { domain } => {
-            execute::require_admin(&deps, info)?;
-            execute::freeze_domain(deps, domain.parse()?)
-        }
-        ExecuteMsg::UnfreezeDomain { domain } => {
-            execute::require_admin(&deps, info)?;
-            execute::unfreeze_domain(deps, domain.parse()?)
-        }
-        ExecuteMsg::UnfreezeIncomingGateway { domain } => {
-            execute::require_admin(&deps, info)?;
-            execute::unfreeze_incoming_gateway(deps, domain.parse()?)
-        }
-        ExecuteMsg::UnfreezeOutgoingGateway { domain } => {
-            execute::require_admin(&deps, info)?;
-            execute::unfreeze_outgoing_gateway(deps, domain.parse()?)
-        }
-        ExecuteMsg::RouteMessage {
-            id,
-            destination_domain,
-            destination_address,
-            source_address,
-            payload_hash,
-        } => execute::route_message(
+        ExecuteMsg::RouteMessages(msgs) => execute::route_message(
             deps,
             info,
-            id,
-            destination_domain.parse()?,
-            destination_address,
-            source_address,
-            payload_hash,
+            msgs.into_iter()
+                .map(Message::try_from)
+                .collect::<Result<Vec<Message>, _>>()?,
         ),
-        ExecuteMsg::ConsumeMessages { count } => execute::consume_messages(deps, info, count),
     }
 }
 
 pub mod execute {
 
-    use cosmwasm_std::Addr;
+    use std::{collections::HashMap, vec};
+
+    use axelar_wasm_std::flagset::FlagSet;
+    use cosmwasm_std::{Addr, WasmMsg};
 
     use crate::{
-        events::{
-            DomainFrozen, DomainUnfrozen, GatewayDirection, GatewayFrozen, GatewayInfo,
-            GatewayUnfrozen, GatewayUpgraded, MessageRouted, MessagesConsumed,
-        },
-        state::get_message_queue_id,
-        types::{Domain, DomainName, Gateway, Message},
+        events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
+        msg::{self},
+        state::Message,
+        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection},
     };
 
     use super::*;
 
-    pub fn register_domain(
+    pub fn register_chain(
         deps: DepsMut,
-        name: DomainName,
-        incoming_gateway: Addr,
-        outgoing_gateway: Addr,
+        name: ChainName,
+        gateway: Addr,
     ) -> Result<Response, ContractError> {
-        if find_domain_for_incoming_gateway(&deps, &incoming_gateway)?.is_some() {
+        if find_chain_for_gateway(&deps, &gateway)?.is_some() {
             return Err(ContractError::GatewayAlreadyRegistered {});
         }
-        if find_domain_for_outgoing_gateway(&deps, &outgoing_gateway)?.is_some() {
-            return Err(ContractError::GatewayAlreadyRegistered {});
-        }
-        domains().update(deps.storage, name.clone(), |domain| match domain {
-            Some(_) => Err(ContractError::DomainAlreadyExists {}),
-            None => Ok(Domain {
+        chain_endpoints().update(deps.storage, name.clone(), |chain| match chain {
+            Some(_) => Err(ContractError::ChainAlreadyExists {}),
+            None => Ok(ChainEndpoint {
                 name: name.clone(),
-                incoming_gateway: Gateway {
-                    address: incoming_gateway.clone(),
-                    is_frozen: false,
+                gateway: Gateway {
+                    address: gateway.clone(),
                 },
-                outgoing_gateway: Gateway {
-                    address: outgoing_gateway.clone(),
-                    is_frozen: false,
-                },
-                is_frozen: false,
+                frozen_status: FlagSet::from(GatewayDirection::None),
             }),
         })?;
-        Ok(Response::new().add_event(
-            DomainRegistered {
-                name,
-                incoming_gateway,
-                outgoing_gateway,
-            }
-            .into(),
-        ))
+        Ok(Response::new().add_event(ChainRegistered { name, gateway }.into()))
     }
 
-    pub fn find_domain_for_incoming_gateway(
+    pub fn find_chain_for_gateway(
         deps: &DepsMut,
         contract_address: &Addr,
-    ) -> StdResult<Option<Domain>> {
-        domains()
+    ) -> StdResult<Option<ChainEndpoint>> {
+        chain_endpoints()
             .idx
-            .incoming_gateway
-            .find_domain(deps, contract_address)
+            .gateway
+            .find_chain(deps, contract_address)
     }
 
-    pub fn find_domain_for_outgoing_gateway(
-        deps: &DepsMut,
-        contract_address: &Addr,
-    ) -> StdResult<Option<Domain>> {
-        domains()
-            .idx
-            .outgoing_gateway
-            .find_domain(deps, contract_address)
-    }
-
-    pub fn upgrade_incoming_gateway(
+    pub fn upgrade_gateway(
         deps: DepsMut,
-        domain: DomainName,
+        chain: ChainName,
         contract_address: Addr,
     ) -> Result<Response, ContractError> {
-        if find_domain_for_incoming_gateway(&deps, &contract_address)?.is_some() {
+        if find_chain_for_gateway(&deps, &contract_address)?.is_some() {
             return Err(ContractError::GatewayAlreadyRegistered {});
         }
-        domains().update(deps.storage, domain.clone(), |domain| match domain {
-            None => Err(ContractError::DomainNotFound {}),
-            Some(mut domain) => {
-                domain.incoming_gateway.address = contract_address.clone();
-                Ok(domain)
+        chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
+            None => Err(ContractError::ChainNotFound {}),
+            Some(mut chain) => {
+                chain.gateway.address = contract_address.clone();
+                Ok(chain)
             }
         })?;
         Ok(Response::new().add_event(
             GatewayUpgraded {
                 gateway: GatewayInfo {
-                    domain,
+                    chain,
                     gateway_address: contract_address,
-                    direction: GatewayDirection::Incoming,
                 },
             }
             .into(),
         ))
     }
 
-    pub fn upgrade_outgoing_gateway(
+    pub fn freeze_chain(
         deps: DepsMut,
-        domain: DomainName,
-        contract_address: Addr,
+        chain: ChainName,
+        direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
-        if find_domain_for_outgoing_gateway(&deps, &contract_address)?.is_some() {
-            return Err(ContractError::GatewayAlreadyRegistered {});
-        }
-        domains().update(deps.storage, domain.clone(), |domain| match domain {
-            None => Err(ContractError::DomainNotFound {}),
-            Some(mut domain) => {
-                domain.outgoing_gateway.address = contract_address.clone();
-                Ok(domain)
+        chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
+            None => Err(ContractError::ChainNotFound {}),
+            Some(mut chain) => {
+                *chain.frozen_status |= direction;
+                Ok(chain)
             }
         })?;
-        Ok(Response::new().add_event(
-            GatewayUpgraded {
-                gateway: GatewayInfo {
-                    domain,
-                    gateway_address: contract_address,
-                    direction: GatewayDirection::Outgoing,
-                },
-            }
-            .into(),
-        ))
+        Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
     }
 
-    fn set_domain_frozen_status(
+    pub fn unfreeze_chain(
         deps: DepsMut,
-        domain: &DomainName,
-        is_frozen: bool,
-    ) -> Result<Domain, ContractError> {
-        domains().update(deps.storage, domain.clone(), |domain| match domain {
-            None => Err(ContractError::DomainNotFound {}),
-            Some(mut domain) => {
-                domain.is_frozen = is_frozen;
-                Ok(domain)
-            }
-        })
-    }
-
-    pub fn freeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
-        set_domain_frozen_status(deps, &domain, true)?;
-        Ok(Response::new().add_event(DomainFrozen { name: domain }.into()))
-    }
-
-    pub fn unfreeze_domain(deps: DepsMut, domain: DomainName) -> Result<Response, ContractError> {
-        set_domain_frozen_status(deps, &domain, false)?;
-        Ok(Response::new().add_event(DomainUnfrozen { name: domain }.into()))
-    }
-
-    fn set_gateway_frozen_status(
-        deps: DepsMut,
-        domain_name: &DomainName,
-        get_gateway: fn(&mut Domain) -> &mut Gateway,
-        is_frozen: bool,
-    ) -> Result<Domain, ContractError> {
-        domains().update(deps.storage, domain_name.clone(), |domain| match domain {
-            None => Err(ContractError::DomainNotFound {}),
-            Some(mut domain) => {
-                get_gateway(&mut domain).is_frozen = is_frozen;
-                Ok(domain)
-            }
-        })
-    }
-
-    fn freeze_gateway(
-        deps: DepsMut,
-        domain_name: &DomainName,
-        get_gateway: fn(&mut Domain) -> &mut Gateway,
-    ) -> Result<Domain, ContractError> {
-        set_gateway_frozen_status(deps, domain_name, get_gateway, true)
-    }
-
-    fn unfreeze_gateway(
-        deps: DepsMut,
-        domain_name: &DomainName,
-        get_gateway: fn(&mut Domain) -> &mut Gateway,
-    ) -> Result<Domain, ContractError> {
-        set_gateway_frozen_status(deps, domain_name, get_gateway, false)
-    }
-
-    pub fn freeze_incoming_gateway(
-        deps: DepsMut,
-        domain_name: DomainName,
+        chain: ChainName,
+        direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
-        let domain = freeze_gateway(deps, &domain_name, |domain: &mut Domain| {
-            &mut domain.incoming_gateway
-        })?;
-        Ok(Response::new().add_event(
-            GatewayFrozen {
-                gateway: GatewayInfo {
-                    domain: domain_name,
-                    gateway_address: domain.incoming_gateway.address,
-                    direction: GatewayDirection::Incoming,
-                },
+        chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
+            None => Err(ContractError::ChainNotFound {}),
+            Some(mut chain) => {
+                *chain.frozen_status -= direction;
+                Ok(chain)
             }
-            .into(),
-        ))
+        })?;
+        Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
     }
 
-    pub fn freeze_outgoing_gateway(
-        deps: DepsMut,
-        domain_name: DomainName,
-    ) -> Result<Response, ContractError> {
-        let domain = freeze_gateway(deps, &domain_name, |domain: &mut Domain| {
-            &mut domain.outgoing_gateway
-        })?;
-        Ok(Response::new().add_event(
-            GatewayFrozen {
-                gateway: GatewayInfo {
-                    domain: domain_name,
-                    gateway_address: domain.outgoing_gateway.address,
-                    direction: GatewayDirection::Outgoing,
-                },
-            }
-            .into(),
-        ))
+    fn incoming_frozen(direction: &FlagSet<GatewayDirection>) -> bool {
+        direction.contains(GatewayDirection::Incoming)
     }
 
-    pub fn unfreeze_incoming_gateway(
-        deps: DepsMut,
-        domain_name: DomainName,
-    ) -> Result<Response, ContractError> {
-        let domain = unfreeze_gateway(deps, &domain_name, |domain: &mut Domain| {
-            &mut domain.incoming_gateway
-        })?;
-        Ok(Response::new().add_event(
-            GatewayUnfrozen {
-                gateway: GatewayInfo {
-                    domain: domain_name,
-                    gateway_address: domain.incoming_gateway.address,
-                    direction: GatewayDirection::Incoming,
-                },
-            }
-            .into(),
-        ))
-    }
-
-    pub fn unfreeze_outgoing_gateway(
-        deps: DepsMut,
-        domain_name: DomainName,
-    ) -> Result<Response, ContractError> {
-        let domain = unfreeze_gateway(deps, &domain_name, |domain: &mut Domain| {
-            &mut domain.outgoing_gateway
-        })?;
-        Ok(Response::new().add_event(
-            GatewayUnfrozen {
-                gateway: GatewayInfo {
-                    domain: domain_name,
-                    gateway_address: domain.outgoing_gateway.address,
-                    direction: GatewayDirection::Outgoing,
-                },
-            }
-            .into(),
-        ))
+    fn outgoing_frozen(direction: &FlagSet<GatewayDirection>) -> bool {
+        direction.contains(GatewayDirection::Outgoing)
     }
 
     pub fn route_message(
         deps: DepsMut,
         info: MessageInfo,
-        id: String,
-        destination_domain: DomainName,
-        destination_address: String,
-        source_address: String,
-        payload_hash: HexBinary,
+        msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
-        if source_address.is_empty() || destination_address.is_empty() {
-            return Err(ContractError::InvalidAddress {});
-        }
-        let source_domain = find_domain_for_incoming_gateway(&deps, &info.sender)?
+        let source_chain = find_chain_for_gateway(&deps, &info.sender)?
             .ok_or(ContractError::GatewayNotRegistered {})?;
-        if source_domain.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: source_domain.name,
+        if incoming_frozen(&source_chain.frozen_status) {
+            return Err(ContractError::ChainFrozen {
+                chain: source_chain.name,
             });
         }
-        if source_domain.incoming_gateway.is_frozen {
-            return Err(ContractError::GatewayFrozen {});
-        }
 
-        let info = domains()
-            .may_load(deps.storage, destination_domain.clone())?
-            .ok_or(ContractError::DomainNotFound {})?;
-        if info.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: destination_domain,
-            });
-        }
-        let msg = Message::new(
-            id.parse()?,
-            destination_address,
-            destination_domain.clone(),
-            source_domain.name,
-            source_address,
-            payload_hash,
-        );
-
-        if MESSAGES.may_load(deps.storage, msg.id())?.is_some() {
-            return Err(ContractError::MessageAlreadyRouted { id: msg.id() });
-        }
-        MESSAGES.save(deps.storage, msg.id(), &())?;
-
-        let qid = get_message_queue_id(&destination_domain);
-        let q: Deque<Message> = Deque::new(&qid);
-        q.push_back(deps.storage, &msg)?;
-
-        Ok(Response::new().add_event(MessageRouted { msg }.into()))
-    }
-
-    pub fn consume_messages(
-        deps: DepsMut,
-        info: MessageInfo,
-        count: Option<u32>,
-    ) -> Result<Response, ContractError> {
-        let domain = find_domain_for_outgoing_gateway(&deps, &info.sender)?
-            .ok_or(ContractError::GatewayNotRegistered {})?;
-        if domain.is_frozen {
-            return Err(ContractError::DomainFrozen {
-                domain: domain.name,
-            });
-        }
-        if domain.outgoing_gateway.is_frozen {
-            return Err(ContractError::GatewayFrozen {});
-        }
-
-        let qid = get_message_queue_id(&domain.name);
-        let q: Deque<Message> = Deque::new(&qid);
-        let mut messages = vec![];
-
-        let to_consume = count.unwrap_or(u32::MAX);
-        for _ in 0..to_consume {
-            match q.pop_front(deps.storage)? {
-                Some(m) => messages.push(m),
-                None => break,
+        let mut msgs_by_destination: HashMap<String, Vec<msg::Message>> = HashMap::new();
+        for msg in &msgs {
+            if source_chain.name != msg.source_chain {
+                return Err(ContractError::WrongSourceChain {});
             }
+
+            msgs_by_destination
+                .entry(msg.destination_chain.to_string())
+                .or_default()
+                .push(msg.clone().into());
         }
+
+        let mut wasm_msgs = vec![];
+        for (destination_chain, msgs) in msgs_by_destination {
+            let destination_chain = chain_endpoints()
+                .may_load(deps.storage, destination_chain.parse()?)?
+                .ok_or(ContractError::ChainNotFound {})?;
+
+            if outgoing_frozen(&destination_chain.frozen_status) {
+                return Err(ContractError::ChainFrozen {
+                    chain: destination_chain.name,
+                });
+            }
+
+            wasm_msgs.push(WasmMsg::Execute {
+                contract_addr: destination_chain.gateway.address.to_string(),
+                msg: to_binary(&msg::ExecuteMsg::RouteMessages(msgs))?,
+                funds: vec![],
+            });
+        }
+
         Ok(Response::new()
-            .add_event(Event::from(MessagesConsumed {
-                domain: domain.name,
-                msgs: &messages,
-            }))
-            .set_data(to_binary(&messages)?))
+            .add_messages(wasm_msgs)
+            .add_events(msgs.into_iter().map(|msg| MessageRouted { msg }.into())))
     }
 
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
