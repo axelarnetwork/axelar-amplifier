@@ -27,8 +27,8 @@ pub fn mock_verifier_execute(
                 match MOCK_VERIFIER_MESSAGES
                     .may_load(deps.storage, serde_json::to_string(&m).unwrap())?
                 {
-                    Some(b) => res.push((m.id(), b)),
-                    None => res.push((m.id(), false)),
+                    Some(b) => res.push((m.id, b)),
+                    None => res.push((m.id, false)),
                 }
             }
             Ok(Response::new().set_data(to_binary(&res)?))
@@ -61,8 +61,8 @@ pub fn mock_verifier_query(deps: Deps, _env: Env, msg: MockVerifierQueryMsg) -> 
                 match MOCK_VERIFIER_MESSAGES
                     .may_load(deps.storage, serde_json::to_string(&m).unwrap())?
                 {
-                    Some(v) => res.push((m.id(), v)),
-                    None => res.push((m.id(), false)),
+                    Some(v) => res.push((m.id.to_string(), v)),
+                    None => res.push((m.id.to_string(), false)),
                 }
             }
         }
@@ -110,7 +110,7 @@ pub fn mock_router_execute(
         connection_router::msg::ExecuteMsg::RouteMessages(msgs) => {
             for msg in msgs {
                 let msg = connection_router::state::Message::try_from(msg)?;
-                MOCK_ROUTER_MESSAGES.save(deps.storage, msg.id(), &msg)?;
+                MOCK_ROUTER_MESSAGES.save(deps.storage, msg.id.to_string(), &msg)?;
             }
         }
         _ => (),
@@ -147,7 +147,7 @@ pub fn get_router_messages(
         .query_wasm_smart(
             router_address,
             &MockRouterQueryMsg::GetMessages {
-                ids: msgs.iter().map(|m| m.id()).collect(),
+                ids: msgs.iter().map(|m| m.id.to_string()).collect(),
             },
         )
         .unwrap()

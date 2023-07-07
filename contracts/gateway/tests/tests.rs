@@ -1,4 +1,5 @@
 use connection_router::msg::Message;
+use connection_router::types::ID_SEPARATOR;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 use gateway::contract::*;
@@ -32,14 +33,16 @@ fn verify_one_message() {
         )
         .unwrap();
 
+    let src_chain = "mock-chain-2";
     let msg = Message {
-        id: "foobar".into(),
+        id: format!("{}{}foobar", src_chain, ID_SEPARATOR,).into(),
         destination_address: "idc".into(),
-        destination_domain: "cj-chain".into(),
-        source_domain: "cj-chain-2".into(),
+        destination_chain: "mock-chain".into(),
+        source_chain: src_chain.into(),
         source_address: "idc".into(),
         payload_hash: vec![0, 0, 0, 0].into(),
     };
+
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
@@ -49,7 +52,7 @@ fn verify_one_message() {
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> =
         is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
-    assert_eq!(ret, vec![(msg.id(), false)]);
+    assert_eq!(ret, vec![(msg.id.clone(), false)]);
 
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
@@ -60,7 +63,7 @@ fn verify_one_message() {
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> =
         is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
-    assert_eq!(ret, vec![(msg.id(), false)]);
+    assert_eq!(ret, vec![(msg.id.clone(), false)]);
 
     mark_messages_as_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
 
@@ -73,7 +76,7 @@ fn verify_one_message() {
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> =
         is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
-    assert_eq!(ret, vec![(msg.id(), true)]);
+    assert_eq!(ret, vec![(msg.id.clone(), true)]);
 
     // should still return true if queried again
     let res = app.execute_contract(
@@ -85,17 +88,19 @@ fn verify_one_message() {
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> =
         is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
-    assert_eq!(ret, vec![(msg.id(), true)]);
+    assert_eq!(ret, vec![(msg.id, true)]);
 }
 
 fn generate_messages(count: usize) -> Vec<connection_router::state::Message> {
     let mut msgs = vec![];
     for x in 0..count {
+        let src_chain = "mock-chain";
+        let id = format!("{}{}{}", src_chain, ID_SEPARATOR, x);
         msgs.push(connection_router::state::Message::new(
-            x.to_string().parse().unwrap(),
+            id.parse().unwrap(),
             "idc".into(),
-            "cj-chain".parse().unwrap(),
-            "cj-chain-2".parse().unwrap(),
+            "mock-chain-2".parse().unwrap(),
+            src_chain.parse().unwrap(),
             "idc".into(),
             vec![x as u8, 0, 0, 0].into(),
         ));
@@ -138,6 +143,7 @@ fn verify_multiple_messages() {
         &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
         &[],
     );
+    println!("{:?}", res);
     assert!(res.is_ok());
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
@@ -148,7 +154,7 @@ fn verify_multiple_messages() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), false))
+            .map(|m| (m.id.to_string(), false))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -174,7 +180,7 @@ fn verify_multiple_messages() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -194,7 +200,7 @@ fn verify_multiple_messages() {
     assert_eq!(
         ret,
         msgs.into_iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 }
@@ -246,7 +252,11 @@ fn verify_multiple_messages_mixed_status() {
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(ret.len(), msgs.len());
     for (id, status) in ret {
-        let expected_status = if msgs_verified.iter().find(|m| m.id() == id).is_some() {
+        let expected_status = if msgs_verified
+            .iter()
+            .find(|m| m.id.to_string() == id)
+            .is_some()
+        {
             true
         } else {
             false
@@ -270,7 +280,11 @@ fn verify_multiple_messages_mixed_status() {
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(ret.len(), msgs.len());
     for (id, status) in ret {
-        let expected_status = if msgs_verified.iter().find(|m| m.id() == id).is_some() {
+        let expected_status = if msgs_verified
+            .iter()
+            .find(|m| m.id.to_string() == id)
+            .is_some()
+        {
             true
         } else {
             false
@@ -300,7 +314,7 @@ fn verify_multiple_messages_mixed_status() {
     assert_eq!(
         ret,
         msgs.into_iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 }
@@ -344,7 +358,7 @@ fn execute_one_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), false))
+            .map(|m| (m.id.to_string(), false))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -369,7 +383,7 @@ fn execute_one_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -388,7 +402,7 @@ fn execute_one_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -436,7 +450,7 @@ fn execute_multiple_messages() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), false))
+            .map(|m| (m.id.to_string(), false))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -462,7 +476,7 @@ fn execute_multiple_messages() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -482,7 +496,7 @@ fn execute_multiple_messages() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -538,7 +552,11 @@ fn execute_multiple_messages_mixed_status() {
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(ret.len(), msgs.len());
     for (id, status) in ret {
-        let expected_status = if msgs_verified.iter().find(|m| m.id() == id).is_some() {
+        let expected_status = if msgs_verified
+            .iter()
+            .find(|m| m.id.to_string() == id)
+            .is_some()
+        {
             true
         } else {
             false
@@ -598,7 +616,7 @@ fn execute_not_verified_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), false))
+            .map(|m| (m.id.to_string(), false))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -623,7 +641,7 @@ fn execute_not_verified_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -677,7 +695,7 @@ fn execute_pre_verified_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -731,7 +749,7 @@ fn execute_twice() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -753,7 +771,7 @@ fn execute_twice() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 }
@@ -796,7 +814,7 @@ fn receive_one_message() {
         .query_wasm_smart(
             gateway_address,
             &QueryMsg::GetMessages {
-                message_ids: msgs.iter().map(|m| m.id()).collect(),
+                message_ids: msgs.iter().map(|m| m.id.to_string()).collect(),
             },
         )
         .unwrap();
@@ -844,7 +862,7 @@ fn receive_many_messages() {
         .query_wasm_smart(
             gateway_address,
             &QueryMsg::GetMessages {
-                message_ids: msgs.iter().map(|m| m.id()).collect(),
+                message_ids: msgs.iter().map(|m| m.id.to_string()).collect(),
             },
         )
         .unwrap();
@@ -924,7 +942,7 @@ fn duplicate_message_id() {
         ret,
         msgs[0..1]
             .iter()
-            .map(|m| (m.id(), true))
+            .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
 
@@ -943,10 +961,7 @@ fn duplicate_message_id() {
         ret,
         msgs[1..2]
             .iter()
-            .map(|m| (m.id(), false))
+            .map(|m| (m.id.to_string(), false))
             .collect::<Vec<(String, bool)>>()
     );
 }
-
-// TODO same ID diff message
-// TODO errors from router

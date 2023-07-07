@@ -69,8 +69,8 @@ pub mod execute {
 
     fn contains_duplicates(msgs: &mut Vec<Message>) -> bool {
         let orig_len = msgs.len();
-        msgs.sort_unstable_by_key(|a| a.id());
-        msgs.dedup_by(|a, b| a.id() == b.id());
+        msgs.sort_unstable_by_key(|a| a.id.to_string());
+        msgs.dedup_by(|a, b| a.id == b.id);
         orig_len != msgs.len()
     }
 
@@ -90,7 +90,7 @@ pub mod execute {
             }))?;
 
         Ok(msgs.into_iter().partition(|m| -> bool {
-            match query_response.iter().find(|r| m.id() == r.0) {
+            match query_response.iter().find(|r| m.id.to_string() == r.0) {
                 Some((_, v)) => *v,
                 None => false,
             }
@@ -163,7 +163,7 @@ pub mod execute {
         msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         for m in &msgs {
-            OUTGOING_MESSAGES.save(deps.storage, m.id(), m)?;
+            OUTGOING_MESSAGES.save(deps.storage, m.id.to_string(), m)?;
         }
 
         Ok(Response::new().add_events(
