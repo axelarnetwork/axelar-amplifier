@@ -115,12 +115,14 @@ impl TryFrom<msg::Message> for Message {
         if value.source_address.is_empty() {
             return Err(ContractError::InvalidAddress(value.source_address));
         }
+
         if !value
             .id
             .starts_with(&format!("{}{}", value.source_chain, ID_SEPARATOR))
         {
             return Err(ContractError::InvalidMessageID {});
         }
+
         Ok(Message::new(
             value.id.parse()?,
             value.destination_address,

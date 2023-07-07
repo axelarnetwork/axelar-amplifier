@@ -192,7 +192,9 @@ pub fn make_mock_verifier(app: &mut App) -> Addr {
         .instantiate_contract(
             code_id,
             Addr::unchecked("verifier"),
-            &aggregate_verifier::msg::InstantiateMsg {},
+            &aggregate_verifier::msg::InstantiateMsg {
+                verifier_address: Addr::unchecked("doesn't matter").to_string(),
+            },
             &[],
             "Contract",
             None,

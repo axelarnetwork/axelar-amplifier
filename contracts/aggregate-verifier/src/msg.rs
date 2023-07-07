@@ -2,7 +2,9 @@ use connection_router::msg::Message;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
-pub struct InstantiateMsg {}
+pub struct InstantiateMsg {
+    pub verifier_address: String,
+}
 
 #[cw_serde]
 pub enum ExecuteMsg {
