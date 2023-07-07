@@ -2,14 +2,18 @@ use connection_router::msg::Message;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
-pub enum ExecuteMsg {
-    // Returns a vector of true/false values for each passed in message, indicating current verification status
-    // Permissionless
-    VerifyMessages { messages: Vec<Message> },
+pub struct InstantiateMsg {
+    pub verifier_address: String,
+    pub router_address: String,
+}
 
-    // For each message, sends message to the router if fully verified
+#[cw_serde]
+pub enum ExecuteMsg {
     // Permissionless
-    ExecuteMessages { messages: Vec<Message> },
+    VerifyMessages(Vec<Message>),
+
+    // Permissionless
+    RouteMessages(Vec<Message>),
 }
 
 #[cw_serde]

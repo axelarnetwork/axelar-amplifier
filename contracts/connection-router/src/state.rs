@@ -108,8 +108,12 @@ impl Message {
 impl TryFrom<msg::Message> for Message {
     type Error = ContractError;
     fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
-        if value.destination_address.is_empty() || value.source_address.is_empty() {
-            return Err(ContractError::InvalidAddress {});
+        if value.destination_address.is_empty() {
+            return Err(ContractError::InvalidAddress(value.destination_address));
+        }
+
+        if value.source_address.is_empty() {
+            return Err(ContractError::InvalidAddress(value.source_address));
         }
         if !value
             .id
