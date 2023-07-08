@@ -1,3 +1,4 @@
+use cosmwasm_crypto::secp256k1_verify;
 use cosmwasm_std::HexBinary;
 
 // TODO: Logic specific to secp256k1 will most likely be handled by core in the future.
@@ -10,21 +11,13 @@ impl TryFrom<HexBinary> for PublicKey {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        let pub_key = PublicKey::unchecked(other);
-        let _validated: secp256k1::PublicKey = (&pub_key).try_into()?;
-        Ok(pub_key)
-    }
-}
+        if other.len() != 33 && other.len() != 65 {
+            return Err(ContractError::InvalidPublicKeyFormat {
+                reason: "Invalid input length".into(),
+            });
+        }
 
-impl TryFrom<&PublicKey> for secp256k1::PublicKey {
-    type Error = ContractError;
-
-    fn try_from(other: &PublicKey) -> Result<Self, Self::Error> {
-        secp256k1::PublicKey::parse_slice(other.into(), None).map_err(|err| {
-            ContractError::InvalidPublicKeyFormat {
-                reason: err.to_string(),
-            }
-        })
+        Ok(PublicKey::unchecked(other))
     }
 }
 
@@ -32,21 +25,13 @@ impl TryFrom<HexBinary> for Message {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        let msg = Message::unchecked(other);
-        let _validated: secp256k1::Message = (&msg).try_into()?;
-        Ok(msg)
-    }
-}
+        if other.len() != 32 {
+            return Err(ContractError::InvalidMessageFormat {
+                reason: "Invalid input length".into(),
+            });
+        }
 
-impl TryFrom<&Message> for secp256k1::Message {
-    type Error = ContractError;
-
-    fn try_from(other: &Message) -> Result<Self, Self::Error> {
-        secp256k1::Message::parse_slice(other.into()).map_err(|err| {
-            ContractError::InvalidMessageFormat {
-                reason: err.to_string(),
-            }
-        })
+        Ok(Message::unchecked(other))
     }
 }
 
@@ -54,39 +39,20 @@ impl TryFrom<HexBinary> for Signature {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        let sig = Signature::unchecked(other);
-        let _validated: secp256k1::Signature = (&sig).try_into()?;
-        Ok(sig)
-    }
-}
-
-impl TryFrom<&Signature> for secp256k1::Signature {
-    type Error = ContractError;
-
-    fn try_from(other: &Signature) -> Result<Self, Self::Error> {
-        let sig: &[u8] = other.into();
-
-        if sig.len() < 64 {
+        if other.len() != 65 {
             return Err(ContractError::InvalidSignatureFormat {
                 reason: "Invalid input length".into(),
             });
         }
 
-        secp256k1::Signature::parse_slice(&sig[0..64]).map_err(|err| {
-            ContractError::InvalidSignatureFormat {
-                reason: err.to_string(),
-            }
-        })
+        Ok(Signature::unchecked(other))
     }
 }
 
 impl VerifiableSignature for Signature {
     fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError> {
-        Ok(secp256k1::verify(
-            &msg.try_into()?,
-            &self.try_into()?,
-            &pub_key.try_into()?,
-        ))
+        let signature: &[u8] = self.into();
+        Ok(secp256k1_verify(msg.into(), &signature[0..64], pub_key.into()).unwrap())
     }
 }
 
