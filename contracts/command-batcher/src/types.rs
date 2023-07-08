@@ -22,7 +22,7 @@ impl TryFrom<connection_router::msg::Message> for Message {
         Ok(Message {
             id: msg.id,
             source_address: msg.source_address,
-            source_chain: msg.source_domain,
+            source_chain: msg.source_chain,
             destination_address: ethereum_types::Address::from_str(&msg.destination_address)
                 .map_err(|_| ContractError::InvalidMessage {
                     context: "destination_address is not a valid EVM address".into(),

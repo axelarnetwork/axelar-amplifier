@@ -1,3 +1,4 @@
+pub mod flagset;
 pub mod nonempty;
 pub mod snapshot;
 pub mod threshold;
