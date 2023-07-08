@@ -5,4 +5,13 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    RouterError(#[from] connection_router::ContractError),
+
+    #[error("sender is not router")]
+    SenderNotRouter {},
+
+    #[error("batch contains duplicate message ids")]
+    DuplicateMessageID {},
 }
