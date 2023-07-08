@@ -5,4 +5,10 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    RouterError(#[from] connection_router::ContractError),
+
+    #[error("received invalid verifier reply: {0}")]
+    InvalidVerifierReply(String),
 }
