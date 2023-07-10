@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{get_current_key, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    state::{get_current_key, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
     types::{Key, Message, Signature, SigningSession},
     ContractError,
 };
@@ -20,10 +20,8 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InstantiateMsg,
+    _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
-    CONFIG.save(deps.storage, &Config { admin })?;
     SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
 
     Ok(Response::default())
@@ -43,11 +41,9 @@ pub fn execute(
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
             execute::submit_signature(deps, info, sig_id, signature.try_into()?)
         }
-        ExecuteMsg::SetKey {
-            owner,
-            snapshot,
-            pub_keys,
-        } => execute::set_key(deps, info, owner, snapshot, pub_keys),
+        ExecuteMsg::KeyGen { snapshot, pub_keys } => {
+            execute::key_gen(deps, info, snapshot, pub_keys)
+        }
     }
 }
 
@@ -116,29 +112,21 @@ pub mod execute {
     }
 
     // TODO: this will disappear once keygen and key rotation are introduced
-    pub fn set_key(
+    pub fn key_gen(
         deps: DepsMut,
         info: MessageInfo,
-        owner: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     ) -> Result<Response, ContractError> {
-        let owner = deps.api.addr_validate(&owner)?;
-
-        let config = CONFIG.load(deps.storage)?;
-        if config.admin != info.sender {
-            return Err(ContractError::Unauthorized {});
-        }
-
         let key = Key {
-            id: owner.to_string(),
+            id: info.sender.to_string(),
             snapshot,
             pub_keys: pub_keys
                 .into_iter()
                 .map(|(k, v)| (k, PublicKey::try_from(v).unwrap()))
                 .collect(),
         };
-        KEYS.save(deps.storage, owner.into(), &key)?;
+        KEYS.save(deps.storage, key.id.clone(), &key)?;
 
         Ok(Response::default())
     }
@@ -189,7 +177,6 @@ mod tests {
 
     use serde_json::from_str;
 
-    const ADMIN: &str = "admin";
     const INSTANTIATOR: &str = "inst";
     const BATCHER: &str = "batcher";
 
@@ -197,15 +184,13 @@ mod tests {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
 
-        let msg = InstantiateMsg {
-            admin_address: ADMIN.to_string(),
-        };
+        let msg = InstantiateMsg {};
 
         instantiate(deps, env, info, msg)
     }
 
-    fn do_set_key(deps: DepsMut) -> Result<Response, ContractError> {
-        let info = mock_info(ADMIN, &[]);
+    fn do_key_gen(deps: DepsMut) -> Result<Response, ContractError> {
+        let info = mock_info(BATCHER, &[]);
         let env = mock_env();
 
         let signers = test_data::signers();
@@ -214,8 +199,7 @@ mod tests {
             .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
             .collect::<HashMap<String, HexBinary>>();
 
-        let msg = ExecuteMsg::SetKey {
-            owner: BATCHER.to_string(),
+        let msg = ExecuteMsg::KeyGen {
             snapshot: build_snapshot(&signers),
             pub_keys,
         };
@@ -254,7 +238,7 @@ mod tests {
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        do_set_key(deps.as_mut()).unwrap();
+        do_key_gen(deps.as_mut()).unwrap();
         deps
     }
 
@@ -284,10 +268,8 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(0, res.unwrap().messages.len());
 
-        let config = CONFIG.load(deps.as_ref().storage).unwrap();
         let session_counter = SIGNING_SESSION_COUNTER.load(deps.as_ref().storage).unwrap();
 
-        assert_eq!(ADMIN.to_string(), config.admin);
         assert_eq!(session_counter, Uint64::zero());
     }
 

@@ -7,9 +7,7 @@ use cosmwasm_std::{HexBinary, Uint64};
 use crate::types::{MultisigState, Signature};
 
 #[cw_serde]
-pub struct InstantiateMsg {
-    pub admin_address: String,
-}
+pub struct InstantiateMsg {}
 
 #[cw_serde]
 pub enum ExecuteMsg {
@@ -20,9 +18,8 @@ pub enum ExecuteMsg {
         sig_id: Uint64,
         signature: HexBinary,
     },
-    SetKey {
+    KeyGen {
         // TODO: this will disappear once keygen and key rotation are introduced
-        owner: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     },

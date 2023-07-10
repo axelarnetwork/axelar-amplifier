@@ -6,9 +6,6 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Caller is not authorized")]
-    Unauthorized {},
-
     #[error("No active key found for {owner:?}")]
     NoActiveKeyFound { owner: String },
 
