@@ -2,12 +2,9 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, StdError, Storage, Uint256, Uint64};
+use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::{
-    state::{KEYS, SIGNING_SESSIONS},
-    ContractError,
-};
+use crate::ContractError;
 
 pub trait VerifiableSignature {
     fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError>;
@@ -111,10 +108,12 @@ impl SigningSession {
 
     pub fn add_signature(
         &mut self,
-        store: &mut dyn Storage, // TODO: use mutable and update storage in same function?
+        key: Key,
         signer: String,
         signature: Signature,
     ) -> Result<(), ContractError> {
+        assert!(self.key_id == key.id, "violated invariant: key_id mismatch"); // TODO: correct way of handling this?
+
         if self.signatures.contains_key(&signer) {
             return Err(ContractError::DuplicateSignature {
                 sig_id: self.id,
@@ -127,7 +126,6 @@ impl SigningSession {
             return Err(ContractError::SigningSessionClosed { sig_id: self.id });
         }
 
-        let key = self.key(store)?;
         if let Some(pub_key) = key.pub_keys.get(&signer) {
             if !signature.verify(&self.msg, pub_key)? {
                 return Err(ContractError::InvalidSignature {
@@ -149,13 +147,7 @@ impl SigningSession {
             self.state = MultisigState::Completed;
         }
 
-        SIGNING_SESSIONS.save(store, self.id.into(), self)?;
-
         Ok(())
-    }
-
-    pub fn key(&self, store: &dyn Storage) -> Result<Key, StdError> {
-        KEYS.load(store, self.key_id.clone())
     }
 
     fn signers_weight(&self, key: &Key) -> Uint256 {
@@ -178,6 +170,7 @@ mod tests {
     use super::*;
 
     use crate::{
+        state::{KEYS, SIGNING_SESSIONS},
         test::common::test_data,
         test::common::{build_key, build_snapshot, TestSigner},
     };
@@ -216,11 +209,17 @@ mod tests {
     ) -> Result<(), ContractError> {
         let signer = config.signers[signer_ix].clone();
 
-        session.add_signature(
-            &mut config.store,
+        let key = KEYS.load(&config.store, session.key_id.clone())?;
+
+        let res = session.add_signature(
+            key,
             signer.address.clone().into_string(),
             Signature::try_from(signer.signature.clone()).unwrap(),
-        )
+        );
+
+        SIGNING_SESSIONS.save(&mut config.store, session.id.u64(), &session)?;
+
+        res
     }
 
     #[test]
@@ -278,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_add_invalid_signature() {
-        let mut config = setup();
+        let config = setup();
 
         let mut session =
             SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
@@ -286,8 +285,10 @@ mod tests {
         let invalid_sig: Signature = HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e035111c")
                 .unwrap().try_into().unwrap();
 
+        let key = KEYS.load(&config.store, session.key_id.clone()).unwrap();
+
         let result = session.add_signature(
-            &mut config.store,
+            key,
             config.signers[0].address.clone().into_string(),
             invalid_sig,
         );
@@ -303,15 +304,17 @@ mod tests {
 
     #[test]
     fn test_add_signature_not_participant() {
-        let mut config = setup();
+        let config = setup();
 
         let mut session =
             SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
         let invalid_participant = "not_a_participant".to_string();
 
+        let key = KEYS.load(&config.store, session.key_id.clone()).unwrap();
+
         let result = session.add_signature(
-            &mut config.store,
+            key,
             invalid_participant.clone(),
             Signature::try_from(config.signers[0].signature.clone()).unwrap(),
         );

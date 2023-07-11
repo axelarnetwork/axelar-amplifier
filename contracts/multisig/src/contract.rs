@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{get_current_key, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Key, Message, Signature, SigningSession},
+    state::{get_current_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    types::{Key, Message, MultisigState, PublicKey, Signature, SigningSession},
     ContractError,
 };
 
@@ -48,11 +48,6 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::{
-        state::KEYS,
-        types::{MultisigState, PublicKey},
-    };
-
     use super::*;
 
     pub fn start_signing_session(
@@ -94,7 +89,11 @@ pub mod execute {
             .load(deps.storage, sig_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { sig_id })?;
 
-        session.add_signature(deps.storage, info.sender.clone().into(), signature.clone())?;
+        let key = KEYS.load(deps.storage, session.key_id.clone())?;
+
+        session.add_signature(key, info.sender.clone().into(), signature.clone())?;
+
+        SIGNING_SESSIONS.save(deps.storage, sig_id.u64(), &session)?;
 
         let event = Event::SignatureSubmitted {
             sig_id,
@@ -149,7 +148,7 @@ pub mod query {
     pub fn get_signing_session(deps: Deps, sig_id: Uint64) -> StdResult<GetSigningSessionResponse> {
         let session = SIGNING_SESSIONS.load(deps.storage, sig_id.into())?;
 
-        let key = session.key(deps.storage)?;
+        let key = KEYS.load(deps.storage, session.key_id)?;
 
         Ok(GetSigningSessionResponse {
             state: session.state,
@@ -439,12 +438,10 @@ mod tests {
 
         let query_res: GetSigningSessionResponse = from_binary(&res.unwrap()).unwrap();
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+        let key = KEYS.load(deps.as_ref().storage, session.key_id).unwrap();
 
         assert_eq!(query_res.state, session.state);
         assert_eq!(query_res.signatures, session.signatures);
-        assert_eq!(
-            query_res.snapshot,
-            session.key(deps.as_ref().storage).unwrap().snapshot
-        );
+        assert_eq!(query_res.snapshot, key.snapshot);
     }
 }
