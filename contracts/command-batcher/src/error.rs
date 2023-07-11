@@ -6,6 +6,12 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("Invalid input: {reason}")]
+    InvalidInput { reason: String },
+
+    #[error("Invalid participants: {reason}")]
+    InvalidParticipants { reason: String },
+
     #[error("Message is invalid: {context}")]
     InvalidMessage { context: String },
 }

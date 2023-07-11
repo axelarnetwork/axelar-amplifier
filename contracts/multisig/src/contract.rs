@@ -31,6 +31,10 @@ pub fn execute(
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
             execute::submit_signature(sig_id, signature)
         }
+        ExecuteMsg::KeyGen {
+            snapshot: _,
+            pub_keys: _,
+        } => todo!(),
     }
 }
 

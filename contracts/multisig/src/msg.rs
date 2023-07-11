@@ -18,6 +18,11 @@ pub enum ExecuteMsg {
         sig_id: Uint64,
         signature: HexBinary,
     },
+    KeyGen {
+        // TODO: this will disappear once keygen and key rotation are introduced
+        snapshot: Snapshot,
+        pub_keys: HashMap<String, HexBinary>,
+    },
 }
 
 #[cw_serde]

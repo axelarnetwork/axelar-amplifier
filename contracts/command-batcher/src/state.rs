@@ -7,7 +7,10 @@ use crate::batch::CommandBatch;
 #[cw_serde]
 pub struct Config {
     pub gateway: Addr,
+    pub multisig: Addr,
+    pub registry: Addr,
     pub destination_chain_id: Uint256,
+    pub service_name: String,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

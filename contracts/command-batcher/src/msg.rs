@@ -1,12 +1,19 @@
+use std::collections::HashMap;
+
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
 use crate::types::{Data, Proof};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     pub gateway_address: String,
+    pub multisig_address: String,
+    pub registry_address: String,
     pub destination_chain_id: Uint256,
+    pub service_name: String,
+    pub pub_keys: HashMap<String, HexBinary>, // TODO: this will be moved once keygen and key rotation are introduced
+    pub quorum_threshold: (Uint64, Uint64),
 }
 
 #[cw_serde]

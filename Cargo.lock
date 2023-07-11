@@ -114,6 +114,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 name = "command-batcher"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -125,10 +126,12 @@ dependencies = [
  "ethabi",
  "gateway",
  "hex",
+ "multisig",
  "schemars",
  "serde",
  "serde_json",
  "service-interface",
+ "service-registry",
  "sha3",
  "thiserror",
 ]
