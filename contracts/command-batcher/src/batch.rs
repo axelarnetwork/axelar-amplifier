@@ -10,7 +10,7 @@ pub struct CommandBatch {
     pub id: KeccackHash,
     pub commands_ids: Vec<KeccackHash>,
     pub encoded_data: HexBinary,
-    pub hash_to_sign: KeccackHash,
+    pub hash_to_sign: HexBinary,
 }
 
 impl CommandBatch {
@@ -127,7 +127,7 @@ fn encode_data(
     .into()
 }
 
-fn build_hash_to_sign(data: &HexBinary) -> KeccackHash {
+fn build_hash_to_sign(data: &HexBinary) -> HexBinary {
     let msg = Keccak256::digest(data.as_slice());
 
     let unsigned = [
@@ -136,10 +136,7 @@ fn build_hash_to_sign(data: &HexBinary) -> KeccackHash {
     ]
     .concat();
 
-    Keccak256::digest(unsigned)
-        .as_slice()
-        .try_into()
-        .expect("violated invariant: Keccak256 length is not 32 bytes")
+    Keccak256::digest(unsigned).as_slice().into()
 }
 
 #[cfg(test)]

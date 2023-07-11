@@ -150,9 +150,15 @@ pub mod execute {
 
         COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
 
-        // TODO: start signing session
+        let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
+            msg: command_batch.hash_to_sign,
+        };
 
-        Ok(Response::new())
+        Ok(Response::new().add_message(WasmMsg::Execute {
+            contract_addr: config.multisig.into(),
+            msg: to_binary(&start_sig_msg)?,
+            funds: vec![],
+        }))
     }
 }
 
