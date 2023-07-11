@@ -11,7 +11,7 @@ use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{get_current_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Key, Message, MultisigState, PublicKey, Signature, SigningSession},
+    types::{Key, Message, MultisigState, PublicKey, Signature},
     ContractError,
 };
 
@@ -48,6 +48,8 @@ pub fn execute(
 }
 
 pub mod execute {
+    use crate::signing::SigningSession;
+
     use super::*;
 
     pub fn start_signing_session(
