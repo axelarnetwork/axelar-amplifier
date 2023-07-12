@@ -7,11 +7,16 @@ use crate::{
     ContractError,
 };
 
+const MESSAGE_HASH_LEN: usize = 32;
+const COMPRESSED_PUBKEY_LEN: usize = 33;
+const UNCOMPRESSED_PUBKEY_LEN: usize = 65;
+const SIGNATURE_LEN: usize = 65;
+
 impl TryFrom<HexBinary> for PublicKey {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        if other.len() != 33 && other.len() != 65 {
+        if other.len() != COMPRESSED_PUBKEY_LEN && other.len() != UNCOMPRESSED_PUBKEY_LEN {
             return Err(ContractError::InvalidPublicKeyFormat {
                 reason: "Invalid input length".into(),
             });
@@ -25,7 +30,7 @@ impl TryFrom<HexBinary> for Message {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        if other.len() != 32 {
+        if other.len() != MESSAGE_HASH_LEN {
             return Err(ContractError::InvalidMessageFormat {
                 reason: "Invalid input length".into(),
             });
@@ -39,7 +44,7 @@ impl TryFrom<HexBinary> for Signature {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        if other.len() != 65 {
+        if other.len() != SIGNATURE_LEN {
             return Err(ContractError::InvalidSignatureFormat {
                 reason: "Invalid input length".into(),
             });

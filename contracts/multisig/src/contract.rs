@@ -116,7 +116,6 @@ pub mod execute {
         }
     }
 
-    // TODO: this will disappear once keygen and key rotation are introduced
     pub fn key_gen(
         deps: DepsMut,
         info: MessageInfo,

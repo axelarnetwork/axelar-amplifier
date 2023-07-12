@@ -20,7 +20,6 @@ pub enum ExecuteMsg {
         signature: HexBinary,
     },
     KeyGen {
-        // TODO: this will disappear once keygen and key rotation are introduced
         key_id: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
