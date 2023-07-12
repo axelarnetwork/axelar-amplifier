@@ -7,7 +7,7 @@ use cosmwasm_std::{Addr, HexBinary};
 use crate::ContractError;
 
 pub trait VerifiableSignature {
-    fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError>;
+    fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError>;
 }
 
 #[cw_serde]
@@ -32,21 +32,21 @@ impl PublicKey {
 }
 
 #[cw_serde]
-pub struct Message(HexBinary);
+pub struct MsgToSign(HexBinary);
 
-impl From<Message> for HexBinary {
-    fn from(original: Message) -> Self {
+impl From<MsgToSign> for HexBinary {
+    fn from(original: MsgToSign) -> Self {
         original.0
     }
 }
 
-impl<'a> From<&'a Message> for &'a [u8] {
-    fn from(original: &'a Message) -> Self {
+impl<'a> From<&'a MsgToSign> for &'a [u8] {
+    fn from(original: &'a MsgToSign) -> Self {
         original.0.as_slice()
     }
 }
 
-impl Message {
+impl MsgToSign {
     pub fn unchecked(hex: HexBinary) -> Self {
         Self(hex)
     }

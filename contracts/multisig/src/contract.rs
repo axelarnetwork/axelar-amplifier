@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{get_current_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Key, KeyID, Message, MultisigState, PublicKey, Signature},
+    state::{get_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    types::{Key, KeyID, MsgToSign, MultisigState, PublicKey, Signature},
     ContractError,
 };
 
@@ -38,9 +38,10 @@ pub fn execute(
         ExecuteMsg::StartSigningSession { key_id, msg } => {
             execute::start_signing_session(deps, info, key_id, msg.try_into()?)
         }
-        ExecuteMsg::SubmitSignature { sig_id, signature } => {
-            execute::submit_signature(deps, info, sig_id, signature.try_into()?)
-        }
+        ExecuteMsg::SubmitSignature {
+            session_id,
+            signature,
+        } => execute::submit_signature(deps, info, session_id, signature.try_into()?),
         ExecuteMsg::KeyGen {
             key_id,
             snapshot,
@@ -58,12 +59,12 @@ pub mod execute {
         deps: DepsMut,
         info: MessageInfo,
         key_id: String,
-        msg: Message,
+        msg: MsgToSign,
     ) -> Result<Response, ContractError> {
         let key_id = KeyID::from((info.sender, key_id));
-        let key = get_current_key(deps.storage, &key_id)?;
+        let key = get_key(deps.storage, &key_id)?;
 
-        let sig_id = SIGNING_SESSION_COUNTER.update(
+        let session_id = SIGNING_SESSION_COUNTER.update(
             deps.storage,
             |mut counter| -> Result<Uint64, ContractError> {
                 counter += Uint64::one();
@@ -71,12 +72,12 @@ pub mod execute {
             },
         )?;
 
-        let signing_session = SigningSession::new(sig_id, key.clone().id, msg.clone());
+        let signing_session = SigningSession::new(session_id, key.clone().id, msg.clone());
 
-        SIGNING_SESSIONS.save(deps.storage, sig_id.into(), &signing_session)?;
+        SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
         let event = Event::SigningStarted {
-            sig_id,
+            session_id,
             key_id: key.id,
             pub_keys: key.pub_keys,
             msg,
@@ -88,21 +89,21 @@ pub mod execute {
     pub fn submit_signature(
         deps: DepsMut,
         info: MessageInfo,
-        sig_id: Uint64,
+        session_id: Uint64,
         signature: Signature,
     ) -> Result<Response, ContractError> {
         let mut session = SIGNING_SESSIONS
-            .load(deps.storage, sig_id.into())
-            .map_err(|_| ContractError::SigningSessionNotFound { sig_id })?;
+            .load(deps.storage, session_id.into())
+            .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
         let key = KEYS.load(deps.storage, (&session.key_id).into())?;
 
         session.add_signature(key, info.sender.clone().into(), signature.clone())?;
 
-        SIGNING_SESSIONS.save(deps.storage, sig_id.u64(), &session)?;
+        SIGNING_SESSIONS.save(deps.storage, session_id.u64(), &session)?;
 
         let event = Event::SignatureSubmitted {
-            sig_id,
+            session_id,
             participant: info.sender,
             signature,
         };
@@ -110,7 +111,7 @@ pub mod execute {
         if session.state == MultisigState::Completed {
             Ok(Response::new()
                 .add_event(event.into())
-                .add_event(Event::SigningCompleted { sig_id }.into()))
+                .add_event(Event::SigningCompleted { session_id }.into()))
         } else {
             Ok(Response::new().add_event(event.into()))
         }
@@ -142,8 +143,8 @@ pub mod execute {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetSigningSession { sig_id } => {
-            to_binary(&query::get_signing_session(deps, sig_id)?)
+        QueryMsg::GetSigningSession { session_id } => {
+            to_binary(&query::get_signing_session(deps, session_id)?)
         }
     }
 }
@@ -153,8 +154,11 @@ pub mod query {
 
     use super::*;
 
-    pub fn get_signing_session(deps: Deps, sig_id: Uint64) -> StdResult<GetSigningSessionResponse> {
-        let session = SIGNING_SESSIONS.load(deps.storage, sig_id.into())?;
+    pub fn get_signing_session(
+        deps: Deps,
+        session_id: Uint64,
+    ) -> StdResult<GetSigningSessionResponse> {
+        let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
 
         let key = KEYS.load(deps.storage, (&session.key_id).into())?;
 
@@ -229,11 +233,11 @@ mod tests {
 
     fn do_sign(
         deps: DepsMut,
-        sig_id: Uint64,
+        session_id: Uint64,
         signer: &TestSigner,
     ) -> Result<Response, ContractError> {
         let msg = ExecuteMsg::SubmitSignature {
-            sig_id,
+            session_id,
             signature: signer.signature.clone(),
         };
         execute(
@@ -293,7 +297,7 @@ mod tests {
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
 
         let key_id: KeyID = (Addr::unchecked(BATCHER), "key".to_string()).into();
-        let key = get_current_key(deps.as_ref().storage, &key_id).unwrap();
+        let key = get_key(deps.as_ref().storage, &key_id).unwrap();
         let message = test_data::message();
 
         assert_eq!(session.id, Uint64::one());
@@ -308,7 +312,7 @@ mod tests {
         let event = res.events.get(0).unwrap();
         assert_eq!(event.ty, "signing_started".to_string());
         assert_eq!(
-            get_event_attribute(event, "sig_id").unwrap(),
+            get_event_attribute(event, "session_id").unwrap(),
             session.id.to_string()
         );
         assert_eq!(
@@ -343,9 +347,9 @@ mod tests {
 
         let signers = test_data::signers();
 
-        let sig_id = Uint64::one();
+        let session_id = Uint64::one();
         let signer = signers.get(0).unwrap().to_owned();
-        let res = do_sign(deps.as_mut(), sig_id, &signer);
+        let res = do_sign(deps.as_mut(), session_id, &signer);
 
         assert!(res.is_ok());
 
@@ -367,8 +371,8 @@ mod tests {
         let event = res.events.get(0).unwrap();
         assert_eq!(event.ty, "signature_submitted".to_string());
         assert_eq!(
-            get_event_attribute(event, "sig_id").unwrap(),
-            sig_id.to_string()
+            get_event_attribute(event, "session_id").unwrap(),
+            session_id.to_string()
         );
         assert_eq!(
             get_event_attribute(event, "participant").unwrap(),
@@ -386,13 +390,13 @@ mod tests {
 
         let signers = test_data::signers();
 
-        let sig_id = Uint64::one();
+        let session_id = Uint64::one();
         let signer = signers.get(0).unwrap().to_owned();
-        do_sign(deps.as_mut(), sig_id, &signer).unwrap();
+        do_sign(deps.as_mut(), session_id, &signer).unwrap();
 
         // second signature
         let signer = signers.get(1).unwrap().to_owned();
-        let res = do_sign(deps.as_mut(), sig_id, &signer);
+        let res = do_sign(deps.as_mut(), session_id, &signer);
 
         assert!(res.is_ok());
 
@@ -414,8 +418,8 @@ mod tests {
         let event = res.events.get(1).unwrap();
         assert_eq!(event.ty, "signing_completed".to_string());
         assert_eq!(
-            get_event_attribute(event, "sig_id").unwrap(),
-            sig_id.to_string()
+            get_event_attribute(event, "session_id").unwrap(),
+            session_id.to_string()
         );
     }
 
@@ -423,14 +427,14 @@ mod tests {
     fn test_submit_signature_wrong_session_id() {
         let mut deps = setup_with_session_started();
 
-        let invalid_sig_id = Uint64::zero();
+        let invalid_session_id = Uint64::zero();
         let signer = test_data::signers().get(0).unwrap().to_owned();
-        let res = do_sign(deps.as_mut(), invalid_sig_id, &signer);
+        let res = do_sign(deps.as_mut(), invalid_session_id, &signer);
 
         assert_eq!(
             res.unwrap_err(),
             ContractError::SigningSessionNotFound {
-                sig_id: invalid_sig_id
+                session_id: invalid_session_id
             }
         );
     }
@@ -439,11 +443,11 @@ mod tests {
     fn test_query_signing_session() {
         let mut deps = setup_with_session_started();
 
-        let sig_id = Uint64::one();
+        let session_id = Uint64::one();
         let signer = test_data::signers().get(0).unwrap().to_owned();
-        do_sign(deps.as_mut(), sig_id, &signer).unwrap();
+        do_sign(deps.as_mut(), session_id, &signer).unwrap();
 
-        let msg = QueryMsg::GetSigningSession { sig_id };
+        let msg = QueryMsg::GetSigningSession { session_id };
 
         let res = query(deps.as_ref(), mock_env(), msg);
         assert!(res.is_ok());

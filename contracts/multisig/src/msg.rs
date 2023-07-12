@@ -16,7 +16,7 @@ pub enum ExecuteMsg {
         msg: HexBinary,
     },
     SubmitSignature {
-        sig_id: Uint64,
+        session_id: Uint64,
         signature: HexBinary,
     },
     KeyGen {
@@ -30,7 +30,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetSigningSessionResponse)]
-    GetSigningSession { sig_id: Uint64 },
+    GetSigningSession { session_id: Uint64 },
 }
 
 #[cw_serde]

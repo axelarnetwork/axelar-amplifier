@@ -3,7 +3,7 @@ use cosmwasm_std::HexBinary;
 
 // TODO: Logic specific to secp256k1 will most likely be handled by core in the future.
 use crate::{
-    types::{Message, PublicKey, Signature, VerifiableSignature},
+    types::{MsgToSign, PublicKey, Signature, VerifiableSignature},
     ContractError,
 };
 
@@ -27,7 +27,7 @@ impl TryFrom<HexBinary> for PublicKey {
     }
 }
 
-impl TryFrom<HexBinary> for Message {
+impl TryFrom<HexBinary> for MsgToSign {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
@@ -37,7 +37,7 @@ impl TryFrom<HexBinary> for Message {
             });
         }
 
-        Ok(Message::unchecked(other))
+        Ok(MsgToSign::unchecked(other))
     }
 }
 
@@ -56,7 +56,7 @@ impl TryFrom<HexBinary> for Signature {
 }
 
 impl VerifiableSignature for Signature {
-    fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError> {
+    fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
         let signature: &[u8] = self.into();
         secp256k1_verify(
             msg.into(),
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn test_try_from_hexbinary_to_message() {
         let hex = test_data::message();
-        let message = Message::try_from(hex.clone()).unwrap();
+        let message = MsgToSign::try_from(hex.clone()).unwrap();
         assert_eq!(HexBinary::from(message), hex);
     }
 
@@ -104,7 +104,7 @@ mod tests {
     fn test_try_from_hexbinary_to_message_fails() {
         let hex = HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap();
         assert_eq!(
-            Message::try_from(hex.clone()).unwrap_err(),
+            MsgToSign::try_from(hex.clone()).unwrap_err(),
             ContractError::InvalidMessageFormat {
                 reason: "Invalid input length".into()
             }
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn test_verify_signature() {
         let signature = Signature::try_from(test_data::signature()).unwrap();
-        let message = Message::try_from(test_data::message()).unwrap();
+        let message = MsgToSign::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from(test_data::pub_key()).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, true);
@@ -148,7 +148,7 @@ mod tests {
         .unwrap();
 
         let signature = Signature::try_from(invalid_signature).unwrap();
-        let message = Message::try_from(test_data::message()).unwrap();
+        let message = MsgToSign::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from(test_data::pub_key()).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);
@@ -162,7 +162,7 @@ mod tests {
         .unwrap();
 
         let signature = Signature::try_from(test_data::signature()).unwrap();
-        let message = Message::try_from(test_data::message()).unwrap();
+        let message = MsgToSign::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from(invalid_pub_key).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);

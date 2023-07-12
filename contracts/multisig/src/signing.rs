@@ -5,7 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Uint256, Uint64};
 
 use crate::{
-    types::{Key, KeyID, Message, MultisigState, Signature, VerifiableSignature},
+    types::{Key, KeyID, MsgToSign, MultisigState, Signature, VerifiableSignature},
     ContractError,
 };
 
@@ -13,15 +13,15 @@ use crate::{
 pub struct SigningSession {
     pub id: Uint64,
     pub key_id: KeyID,
-    pub msg: Message,
+    pub msg: MsgToSign,
     pub signatures: HashMap<String, Signature>,
     pub state: MultisigState,
 }
 
 impl SigningSession {
-    pub fn new(sig_id: Uint64, key_id: KeyID, msg: Message) -> Self {
+    pub fn new(session_id: Uint64, key_id: KeyID, msg: MsgToSign) -> Self {
         Self {
-            id: sig_id,
+            id: session_id,
             key_id,
             msg,
             signatures: HashMap::new(),
@@ -39,26 +39,28 @@ impl SigningSession {
 
         if self.signatures.contains_key(&signer) {
             return Err(ContractError::DuplicateSignature {
-                sig_id: self.id,
+                session_id: self.id,
                 signer,
             });
         }
 
         // TODO: revisit again once expiration and/or rewards are introduced
         if self.state == MultisigState::Completed {
-            return Err(ContractError::SigningSessionClosed { sig_id: self.id });
+            return Err(ContractError::SigningSessionClosed {
+                session_id: self.id,
+            });
         }
 
         match key.pub_keys.get(&signer) {
             Some(pub_key) if !signature.verify(&self.msg, pub_key)? => {
                 return Err(ContractError::InvalidSignature {
-                    sig_id: self.id,
+                    session_id: self.id,
                     signer,
                 });
             }
             None => {
                 return Err(ContractError::NotAParticipant {
-                    sig_id: self.id,
+                    session_id: self.id,
                     signer,
                 });
             }
@@ -104,7 +106,7 @@ mod tests {
     pub struct TestConfig {
         pub store: MockStorage,
         pub key_id: KeyID,
-        pub message: Message,
+        pub message: MsgToSign,
         pub signers: Vec<TestSigner>,
     }
 
@@ -118,7 +120,7 @@ mod tests {
         let key = build_key(key_id, &signers, snapshot);
         KEYS.save(&mut store, (&key.id).into(), &key).unwrap();
 
-        let message: Message = test_data::message().try_into().unwrap();
+        let message: MsgToSign = test_data::message().try_into().unwrap();
 
         TestConfig {
             store,
@@ -171,7 +173,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             ContractError::DuplicateSignature {
-                sig_id: session.id,
+                session_id: session.id,
                 signer: config.signers[0].address.clone().into_string()
             }
         );
@@ -194,7 +196,9 @@ mod tests {
             .unwrap();
         assert_eq!(
             result.unwrap_err(),
-            ContractError::SigningSessionClosed { sig_id: session.id }
+            ContractError::SigningSessionClosed {
+                session_id: session.id
+            }
         );
         assert_eq!(session.signatures.len(), 2);
         assert_eq!(session.state, MultisigState::Completed);
@@ -222,7 +226,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             ContractError::InvalidSignature {
-                sig_id: session.id,
+                session_id: session.id,
                 signer: config.signers[0].address.clone().into_string()
             }
         );
@@ -248,7 +252,7 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             ContractError::NotAParticipant {
-                sig_id: session.id,
+                session_id: session.id,
                 signer: invalid_participant
             }
         );
