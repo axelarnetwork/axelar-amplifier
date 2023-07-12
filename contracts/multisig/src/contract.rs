@@ -134,7 +134,14 @@ pub mod execute {
                 .collect(),
         };
 
-        KEYS.save(deps.storage, (&key_id).into(), &key)?;
+        let storage_key = (&key_id).into();
+
+        if KEYS.has(deps.storage, storage_key) {
+            return Err(ContractError::DuplicateKeyID {
+                key_id: key_id.to_string(),
+            });
+        }
+        KEYS.save(deps.storage, storage_key, &key)?;
 
         Ok(Response::default())
     }
@@ -284,6 +291,23 @@ mod tests {
         let session_counter = SIGNING_SESSION_COUNTER.load(deps.as_ref().storage).unwrap();
 
         assert_eq!(session_counter, Uint64::zero());
+    }
+
+    #[test]
+    fn test_key_gen() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        let res = do_key_gen(deps.as_mut());
+        assert!(res.is_ok());
+
+        let res = do_key_gen(deps.as_mut());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::DuplicateKeyID {
+                key_id: KeyID::from((Addr::unchecked(BATCHER), "key".to_string())).to_string()
+            }
+        );
     }
 
     #[test]

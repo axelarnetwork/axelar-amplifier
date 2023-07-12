@@ -35,4 +35,7 @@ pub enum ContractError {
 
     #[error("Signing session {session_id:?} not found")]
     SigningSessionNotFound { session_id: Uint64 },
+
+    #[error("Key ID {key_id:?} already exists")]
+    DuplicateKeyID { key_id: String },
 }
