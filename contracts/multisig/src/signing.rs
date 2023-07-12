@@ -4,21 +4,21 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Uint256, Uint64};
 
 use crate::{
-    types::{Key, Message, MultisigState, Signature, VerifiableSignature},
+    types::{Key, KeyID, Message, MultisigState, Signature, VerifiableSignature},
     ContractError,
 };
 
 #[cw_serde]
 pub struct SigningSession {
     pub id: Uint64,
-    pub key_id: String,
+    pub key_id: KeyID,
     pub msg: Message,
     pub signatures: HashMap<String, Signature>,
     pub state: MultisigState,
 }
 
 impl SigningSession {
-    pub fn new(sig_id: Uint64, key_id: String, msg: Message) -> Self {
+    pub fn new(sig_id: Uint64, key_id: KeyID, msg: Message) -> Self {
         Self {
             id: sig_id,
             key_id,
@@ -96,11 +96,11 @@ mod tests {
         test::common::test_data,
         test::common::{build_key, build_snapshot, TestSigner},
     };
-    use cosmwasm_std::{testing::MockStorage, HexBinary};
+    use cosmwasm_std::{testing::MockStorage, Addr, HexBinary};
 
     pub struct TestConfig {
         pub store: MockStorage,
-        pub key_id: String,
+        pub key_id: KeyID,
         pub message: Message,
         pub signers: Vec<TestSigner>,
     }
@@ -111,8 +111,9 @@ mod tests {
         let signers = test_data::signers();
         let snapshot = build_snapshot(&signers);
 
-        let key = build_key(&signers, snapshot);
-        KEYS.save(&mut store, key.id.clone(), &key).unwrap();
+        let key_id = (Addr::unchecked("key"), "id".to_string()).into();
+        let key = build_key(key_id, &signers, snapshot);
+        KEYS.save(&mut store, (&key.id).into(), &key).unwrap();
 
         let message: Message = test_data::message().try_into().unwrap();
 
@@ -131,7 +132,7 @@ mod tests {
     ) -> Result<(), ContractError> {
         let signer = config.signers[signer_ix].clone();
 
-        let key = KEYS.load(&config.store, session.key_id.clone())?;
+        let key = KEYS.load(&config.store, (&session.key_id).into())?;
 
         let res = session.add_signature(
             key,
@@ -207,7 +208,7 @@ mod tests {
         let invalid_sig: Signature = HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e035111c")
                 .unwrap().try_into().unwrap();
 
-        let key = KEYS.load(&config.store, session.key_id.clone()).unwrap();
+        let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
 
         let result = session.add_signature(
             key,
@@ -233,7 +234,7 @@ mod tests {
 
         let invalid_participant = "not_a_participant".to_string();
 
-        let key = KEYS.load(&config.store, session.key_id.clone()).unwrap();
+        let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
 
         let result = session.add_signature(
             key,

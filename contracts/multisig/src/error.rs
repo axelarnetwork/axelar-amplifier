@@ -6,8 +6,8 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("No active key found for {owner:?}")]
-    NoActiveKeyFound { owner: String },
+    #[error("No active key found for {key_id:?}")]
+    NoActiveKeyFound { key_id: String },
 
     #[error("{signer:?} already submitted a signature for signing session {sig_id:?}")]
     DuplicateSignature { sig_id: Uint64, signer: String },

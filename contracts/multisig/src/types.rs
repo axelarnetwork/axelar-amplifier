@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{Addr, HexBinary};
 
 use crate::ContractError;
 
@@ -74,8 +74,35 @@ impl Signature {
 }
 
 #[cw_serde]
+pub struct KeyID {
+    owner: Addr,
+    subkey: String,
+}
+
+impl From<(Addr, String)> for KeyID {
+    fn from(original: (Addr, String)) -> Self {
+        Self {
+            owner: original.0,
+            subkey: original.1,
+        }
+    }
+}
+
+impl<'a> From<&'a KeyID> for (&'a Addr, &'a str) {
+    fn from(original: &'a KeyID) -> Self {
+        (&original.owner, &original.subkey)
+    }
+}
+
+impl fmt::Display for KeyID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.owner, self.subkey)
+    }
+}
+
+#[cw_serde]
 pub struct Key {
-    pub id: String,
+    pub id: KeyID,
     pub snapshot: Snapshot,
     pub pub_keys: HashMap<String, PublicKey>,
 }

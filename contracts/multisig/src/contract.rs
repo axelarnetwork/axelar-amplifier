@@ -11,7 +11,7 @@ use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{get_current_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Key, Message, MultisigState, PublicKey, Signature},
+    types::{Key, KeyID, Message, MultisigState, PublicKey, Signature},
     ContractError,
 };
 
@@ -35,15 +35,17 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { msg } => {
-            execute::start_signing_session(deps, info, msg.try_into()?)
+        ExecuteMsg::StartSigningSession { key_id, msg } => {
+            execute::start_signing_session(deps, info, key_id, msg.try_into()?)
         }
         ExecuteMsg::SubmitSignature { sig_id, signature } => {
             execute::submit_signature(deps, info, sig_id, signature.try_into()?)
         }
-        ExecuteMsg::KeyGen { snapshot, pub_keys } => {
-            execute::key_gen(deps, info, snapshot, pub_keys)
-        }
+        ExecuteMsg::KeyGen {
+            key_id,
+            snapshot,
+            pub_keys,
+        } => execute::key_gen(deps, info, key_id, snapshot, pub_keys),
     }
 }
 
@@ -55,9 +57,11 @@ pub mod execute {
     pub fn start_signing_session(
         deps: DepsMut,
         info: MessageInfo,
+        key_id: String,
         msg: Message,
     ) -> Result<Response, ContractError> {
-        let key = get_current_key(deps.storage, &info.sender)?;
+        let key_id = KeyID::from((info.sender, key_id));
+        let key = get_current_key(deps.storage, &key_id)?;
 
         let sig_id = SIGNING_SESSION_COUNTER.update(
             deps.storage,
@@ -91,7 +95,7 @@ pub mod execute {
             .load(deps.storage, sig_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { sig_id })?;
 
-        let key = KEYS.load(deps.storage, session.key_id.clone())?;
+        let key = KEYS.load(deps.storage, (&session.key_id).into())?;
 
         session.add_signature(key, info.sender.clone().into(), signature.clone())?;
 
@@ -116,18 +120,21 @@ pub mod execute {
     pub fn key_gen(
         deps: DepsMut,
         info: MessageInfo,
+        key_id: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     ) -> Result<Response, ContractError> {
+        let key_id = KeyID::from((info.sender, key_id));
         let key = Key {
-            id: info.sender.to_string(),
+            id: key_id.clone(),
             snapshot,
             pub_keys: pub_keys
                 .into_iter()
                 .map(|(k, v)| (k, PublicKey::try_from(v).unwrap()))
                 .collect(),
         };
-        KEYS.save(deps.storage, key.id.clone(), &key)?;
+
+        KEYS.save(deps.storage, (&key_id).into(), &key)?;
 
         Ok(Response::default())
     }
@@ -150,7 +157,7 @@ pub mod query {
     pub fn get_signing_session(deps: Deps, sig_id: Uint64) -> StdResult<GetSigningSessionResponse> {
         let session = SIGNING_SESSIONS.load(deps.storage, sig_id.into())?;
 
-        let key = KEYS.load(deps.storage, session.key_id)?;
+        let key = KEYS.load(deps.storage, (&session.key_id).into())?;
 
         Ok(GetSigningSessionResponse {
             state: session.state,
@@ -201,6 +208,7 @@ mod tests {
             .collect::<HashMap<String, HexBinary>>();
 
         let msg = ExecuteMsg::KeyGen {
+            key_id: "key".to_string(),
             snapshot: build_snapshot(&signers),
             pub_keys,
         };
@@ -214,6 +222,7 @@ mod tests {
 
         let message = test_data::message();
         let msg = ExecuteMsg::StartSigningSession {
+            key_id: "key".to_string(),
             msg: message.clone(),
         };
         execute(deps, env, info, msg)
@@ -283,7 +292,9 @@ mod tests {
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
-        let key = get_current_key(deps.as_ref().storage, &Addr::unchecked(BATCHER)).unwrap();
+
+        let key_id: KeyID = (Addr::unchecked(BATCHER), "key".to_string()).into();
+        let key = get_current_key(deps.as_ref().storage, &key_id).unwrap();
         let message = test_data::message();
 
         assert_eq!(session.id, Uint64::one());
@@ -303,7 +314,7 @@ mod tests {
         );
         assert_eq!(
             get_event_attribute(event, "key_id").unwrap(),
-            session.key_id
+            session.key_id.to_string()
         );
         assert_eq!(
             key.pub_keys,
@@ -322,7 +333,7 @@ mod tests {
         assert_eq!(
             res.unwrap_err(),
             ContractError::NoActiveKeyFound {
-                owner: sender.to_string()
+                key_id: KeyID::from((Addr::unchecked(sender), "key".to_string())).to_string()
             }
         );
     }
@@ -440,7 +451,9 @@ mod tests {
 
         let query_res: GetSigningSessionResponse = from_binary(&res.unwrap()).unwrap();
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
-        let key = KEYS.load(deps.as_ref().storage, session.key_id).unwrap();
+        let key = KEYS
+            .load(deps.as_ref().storage, (&session.key_id).into())
+            .unwrap();
 
         assert_eq!(query_res.state, session.state);
         assert_eq!(query_res.signatures, session.signatures);

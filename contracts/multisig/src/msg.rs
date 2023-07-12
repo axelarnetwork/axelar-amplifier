@@ -12,6 +12,7 @@ pub struct InstantiateMsg {}
 #[cw_serde]
 pub enum ExecuteMsg {
     StartSigningSession {
+        key_id: String,
         msg: HexBinary,
     },
     SubmitSignature {
@@ -20,6 +21,7 @@ pub enum ExecuteMsg {
     },
     KeyGen {
         // TODO: this will disappear once keygen and key rotation are introduced
+        key_id: String,
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     },

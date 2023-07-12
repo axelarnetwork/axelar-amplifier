@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
-use crate::types::{Message, PublicKey, Signature};
+use crate::types::{KeyID, Message, PublicKey, Signature};
 
 pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         sig_id: Uint64,
-        key_id: String,
+        key_id: KeyID,
         pub_keys: HashMap<String, PublicKey>,
         msg: Message,
     },
@@ -35,7 +35,7 @@ impl From<Event> for cosmwasm_std::Event {
                 msg,
             } => cosmwasm_std::Event::new("signing_started")
                 .add_attribute("sig_id", sig_id)
-                .add_attribute("key_id", key_id)
+                .add_attribute("key_id", key_id.to_string())
                 .add_attribute(
                     "pub_keys",
                     to_string(&pub_keys)
