@@ -10,7 +10,8 @@ use crate::{
 const MESSAGE_HASH_LEN: usize = 32;
 const COMPRESSED_PUBKEY_LEN: usize = 33;
 const UNCOMPRESSED_PUBKEY_LEN: usize = 65;
-const SIGNATURE_LEN: usize = 65;
+const EVM_SIGNATURE_LEN: usize = 65;
+const ECDSA_SIGNATURE_LEN: usize = 64;
 
 impl TryFrom<HexBinary> for PublicKey {
     type Error = ContractError;
@@ -44,7 +45,7 @@ impl TryFrom<HexBinary> for Signature {
     type Error = ContractError;
 
     fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        if other.len() != SIGNATURE_LEN {
+        if other.len() != EVM_SIGNATURE_LEN {
             return Err(ContractError::InvalidSignatureFormat {
                 reason: "Invalid input length".into(),
             });
@@ -57,10 +58,13 @@ impl TryFrom<HexBinary> for Signature {
 impl VerifiableSignature for Signature {
     fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError> {
         let signature: &[u8] = self.into();
-        secp256k1_verify(msg.into(), &signature[0..64], pub_key.into()).map_err(|e| {
-            ContractError::SignatureVerificationFailed {
-                reason: e.to_string(),
-            }
+        secp256k1_verify(
+            msg.into(),
+            &signature[0..ECDSA_SIGNATURE_LEN],
+            pub_key.into(),
+        )
+        .map_err(|e| ContractError::SignatureVerificationFailed {
+            reason: e.to_string(),
         })
     }
 }
