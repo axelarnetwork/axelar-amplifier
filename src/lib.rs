@@ -55,7 +55,6 @@ pub struct App<'a> {
     event_sub_client: event_sub::EventSubClient<tendermint_rpc::HttpClient>,
     event_sub_driver: event_sub::EventSubClientDriver,
     event_processor: EventProcessor,
-    event_processor_driver: event_processor::EventProcessorDriver,
     broadcaster: QueuedBroadcaster<ServiceClient<Channel>>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
@@ -75,7 +74,7 @@ impl<'a> App<'a> {
             None => event_sub_client,
         };
 
-        let (event_processor, event_processor_driver) = EventProcessor::new();
+        let event_processor = EventProcessor::new();
         // TODO: make these parameters configurable
         let (broadcaster, broadcaster_driver) =
             QueuedBroadcaster::new(broadcaster, 1000000, 1000, Duration::from_secs(5));
@@ -84,7 +83,6 @@ impl<'a> App<'a> {
             event_sub_client,
             event_sub_driver,
             event_processor,
-            event_processor_driver,
             broadcaster,
             broadcaster_driver,
             state_updater: state::Updater::default(),
@@ -132,7 +130,6 @@ impl<'a> App<'a> {
 
         // TODO: Make the teardown process more robust so that it is done however the program is terminated
         self.event_sub_driver.close().map_err(Error::new)?;
-        self.event_processor_driver.close().map_err(Error::new)?;
         state.flush().map_err(Error::new)?;
 
         let _ = event_sub_handle.await;

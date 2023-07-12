@@ -3,11 +3,10 @@ use crate::handlers::chain;
 use async_trait::async_trait;
 use core::future::Future;
 use core::pin::Pin;
-use error_stack::{Context, IntoReport, Report, Result, ResultExt};
+use error_stack::{Context, IntoReport, Result, ResultExt};
 use futures::{future::try_join_all, StreamExt};
 use std::vec;
 use thiserror::Error;
-use tokio::{select, sync::oneshot};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 
@@ -34,20 +33,6 @@ pub enum EventProcessorError {
     EventHandlerError,
     #[error("event stream error")]
     EventStreamError,
-    #[error("failed closing event processor")]
-    CloseFailed,
-}
-
-pub struct EventProcessorDriver {
-    close_tx: oneshot::Sender<()>,
-}
-
-impl EventProcessorDriver {
-    pub fn close(self) -> Result<(), EventProcessorError> {
-        self.close_tx
-            .send(())
-            .map_err(|_| Report::new(EventProcessorError::CloseFailed))
-    }
 }
 
 fn consume_events<H, S>(event_stream: S, handler: H) -> Task
@@ -74,20 +59,11 @@ where
 
 pub struct EventProcessor {
     tasks: Vec<Pin<Task>>,
-    close_rx: oneshot::Receiver<()>,
 }
 
 impl EventProcessor {
-    pub fn new() -> (Self, EventProcessorDriver) {
-        let (close_tx, close_rx) = oneshot::channel();
-
-        (
-            EventProcessor {
-                tasks: vec![],
-                close_rx,
-            },
-            EventProcessorDriver { close_tx },
-        )
+    pub fn new() -> Self {
+        EventProcessor { tasks: vec![] }
     }
 
     pub fn add_handler<H, S>(&mut self, handler: H, event_stream: S) -> &mut Self
@@ -99,18 +75,16 @@ impl EventProcessor {
         self
     }
 
-    pub async fn run(mut self) -> Result<(), EventProcessorError> {
+    pub async fn run(self) -> Result<(), EventProcessorError> {
         let handles = self.tasks.into_iter().map(tokio::spawn);
 
-        select! {
-            result = try_join_all(handles) => result
-                    .into_report()
-                    .change_context(EventProcessorError::EventHandlerError)?
-                    .into_iter()
-                    .find(Result::is_err)
-                    .unwrap_or(Ok(())),
-            _ = &mut self.close_rx => Ok(()),
-        }
+        try_join_all(handles)
+            .await
+            .into_report()
+            .change_context(EventProcessorError::EventHandlerError)?
+            .into_iter()
+            .find(Result::is_err)
+            .unwrap_or(Ok(()))
     }
 }
 
@@ -130,7 +104,7 @@ mod tests {
     async fn should_handle_events() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let (mut processor, driver) = EventProcessor::new();
+        let mut processor = EventProcessor::new();
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().returning(|_| Ok(())).times(event_count);
@@ -139,7 +113,6 @@ mod tests {
             for i in 0..event_count {
                 assert!(tx.send(event_sub::Event::BlockEnd((i as u32).into())).is_ok());
             }
-            assert!(driver.close().is_ok());
         });
 
         processor.add_handler(handler, BroadcastStream::new(rx).map(IntoReport::into_report));
@@ -149,7 +122,7 @@ mod tests {
     #[tokio::test]
     async fn should_return_error_if_handler_fails() {
         let (tx, rx) = broadcast::channel::<event_sub::Event>(10);
-        let (mut processor, _driver) = EventProcessor::new();
+        let mut processor = EventProcessor::new();
 
         let mut handler = MockEventHandler::new();
         handler
@@ -169,7 +142,7 @@ mod tests {
     async fn should_support_multiple_types_of_handlers() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let (mut processor, driver) = EventProcessor::new();
+        let mut processor = EventProcessor::new();
         let stream = BroadcastStream::new(rx).map(IntoReport::into_report);
         let another_stream = BroadcastStream::new(tx.subscribe()).map(IntoReport::into_report);
 
@@ -183,7 +156,6 @@ mod tests {
             for i in 0..event_count {
                 assert!(tx.send(event_sub::Event::BlockEnd((i as u32).into())).is_ok());
             }
-            assert!(driver.close().is_ok());
         });
 
         processor
