@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("{signer:?} is not a participant in signing session {sig_id:?}")]
     NotAParticipant { sig_id: Uint64, signer: String },
 
+    #[error("Signature verification failed: {reason:?}")]
+    SignatureVerificationFailed { reason: String },
+
     #[error("{signer:?} submitted an invalid signature for signing session {sig_id:?}")]
     InvalidSignature { sig_id: Uint64, signer: String },
 

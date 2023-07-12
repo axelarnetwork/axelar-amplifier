@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Uint256, Uint64};
 
@@ -48,35 +49,37 @@ impl SigningSession {
             return Err(ContractError::SigningSessionClosed { sig_id: self.id });
         }
 
-        if let Some(pub_key) = key.pub_keys.get(&signer) {
-            if !signature.verify(&self.msg, pub_key)? {
+        match key.pub_keys.get(&signer) {
+            Some(pub_key) if !signature.verify(&self.msg, pub_key)? => {
                 return Err(ContractError::InvalidSignature {
                     sig_id: self.id,
                     signer,
                 });
             }
-        } else {
-            return Err(ContractError::NotAParticipant {
-                sig_id: self.id,
-                signer,
-            });
+            None => {
+                return Err(ContractError::NotAParticipant {
+                    sig_id: self.id,
+                    signer,
+                });
+            }
+            _ => {}
         }
 
         self.signatures.insert(signer, signature);
 
         // TODO: may need to also check state != Completed if expiration is ever introduced
-        if self.signers_weight(&key) >= key.snapshot.quorum.into() {
+        if self.signers_weight(&key.snapshot) >= key.snapshot.quorum.into() {
             self.state = MultisigState::Completed;
         }
 
         Ok(())
     }
 
-    fn signers_weight(&self, key: &Key) -> Uint256 {
+    fn signers_weight(&self, snapshot: &Snapshot) -> Uint256 {
         self.signatures
             .iter()
             .map(|(addr, _)| -> Uint256 {
-                key.snapshot
+                snapshot
                     .participants
                     .get(addr)
                     .expect("violated invariant: signature submitted by non-participant")

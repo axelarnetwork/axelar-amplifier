@@ -56,8 +56,11 @@ impl TryFrom<HexBinary> for Signature {
 
 impl VerifiableSignature for Signature {
     fn verify(&self, msg: &Message, pub_key: &PublicKey) -> Result<bool, ContractError> {
-        let signature: &[u8] = self.into();
-        Ok(secp256k1_verify(msg.into(), &signature[0..64], pub_key.into()).unwrap())
+        secp256k1_verify(msg.into(), self.into(), pub_key.into()).map_err(|e| {
+            ContractError::SignatureVerificationFailed {
+                reason: e.to_string(),
+            }
+        })
     }
 }
 
