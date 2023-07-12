@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 
 use axelar_wasm_std::flagset::FlagSet;
@@ -35,15 +36,15 @@ impl From<MessageID> for String {
     }
 }
 
-impl ToString for MessageID {
-    fn to_string(&self) -> String {
-        self.value.clone()
-    }
-}
-
 impl<'a> MessageID {
     pub fn as_str(&'a self) -> &'a str {
         self.value.as_str()
+    }
+}
+
+impl fmt::Display for MessageID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -71,9 +72,9 @@ impl From<ChainName> for String {
     }
 }
 
-impl ToString for ChainName {
-    fn to_string(&self) -> String {
-        self.value.clone()
+impl fmt::Display for ChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 

@@ -3,6 +3,9 @@ use core::panic;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
+use sha2::{Digest, Sha256};
+
+use axelar_wasm_std::hash;
 
 use crate::{
     msg,
@@ -102,6 +105,24 @@ impl Message {
             source_address,
             payload_hash,
         }
+    }
+
+    pub fn hash(&self) -> hash::Hash {
+        let mut hasher = Sha256::new();
+
+        let message_string = format!(
+            "{}_{}_{}_{}_{}_{}",
+            self.id,
+            self.destination_chain,
+            self.destination_address,
+            self.source_chain,
+            self.source_address,
+            self.payload_hash
+        );
+
+        hasher.update(message_string);
+
+        hash::Hash::new(hasher.finalize().into())
     }
 }
 

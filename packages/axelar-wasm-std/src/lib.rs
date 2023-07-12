@@ -1,4 +1,6 @@
+pub mod counter;
 pub mod flagset;
+pub mod hash;
 pub mod nonempty;
 pub mod snapshot;
 pub mod threshold;
