@@ -18,10 +18,16 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+pub enum ProofStatus {
+    Pending,
+    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
+}
+
+#[cw_serde]
 pub struct GetProofResponse {
     pub proof_id: HexBinary,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub proof: Proof,
-    pub execute_data: HexBinary, // encoded data and proof sent to destination gateway
+    pub status: ProofStatus,
 }
