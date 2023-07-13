@@ -142,7 +142,9 @@ pub mod execute {
 
         KEYS.update(deps.storage, &key_id, |existing| match existing {
             None => Ok(key),
-             _=> Err(ContractError::DuplicateKeyID { key_id: key_id.to_string() }),
+            _ => Err(ContractError::DuplicateKeyID {
+                key_id: key_id.to_string(),
+            }),
         })?;
 
         Ok(Response::default())
