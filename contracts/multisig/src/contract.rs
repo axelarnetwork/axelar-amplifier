@@ -140,12 +140,10 @@ pub mod execute {
                 .collect(),
         };
 
-        if KEYS.has(deps.storage, &key_id) {
-            return Err(ContractError::DuplicateKeyID {
-                key_id: key_id.to_string(),
-            });
-        }
-        KEYS.save(deps.storage, &key_id, &key)?;
+        KEYS.update(deps.storage, &key_id, |existing| match existing {
+            None => Ok(key),
+             _=> Err(ContractError::DuplicateKeyID { key_id: key_id.to_string() }),
+        })?;
 
         Ok(Response::default())
     }
