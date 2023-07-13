@@ -1,3 +1,5 @@
+mod secp256k1;
+
 use std::collections::HashMap;
 
 use axelar_wasm_std::Snapshot;
@@ -34,7 +36,10 @@ impl SigningSession {
         key: Key,
         signer: String,
         signature: Signature,
-    ) -> Result<(), ContractError> {
+    ) -> Result<(), ContractError>
+    where
+        Signature: VerifiableSignature,
+    {
         assert!(self.key_id == key.id, "violated invariant: key_id mismatch"); // TODO: correct way of handling this?
 
         if self.signatures.contains_key(&signer) {
