@@ -61,7 +61,10 @@ pub mod execute {
         key_id: String,
         msg: MsgToSign,
     ) -> Result<Response, ContractError> {
-        let key_id = KeyID::from((info.sender, key_id));
+        let key_id = KeyID {
+            owner: info.sender,
+            subkey: key_id,
+        };
         let key = get_key(deps.storage, &key_id)?;
 
         let session_id = SIGNING_SESSION_COUNTER.update(
@@ -96,7 +99,7 @@ pub mod execute {
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
-        let key = KEYS.load(deps.storage, (&session.key_id).into())?;
+        let key = KEYS.load(deps.storage, &session.key_id)?;
 
         session.add_signature(key, info.sender.clone().into(), signature.clone())?;
 
@@ -124,7 +127,10 @@ pub mod execute {
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     ) -> Result<Response, ContractError> {
-        let key_id = KeyID::from((info.sender, key_id));
+        let key_id = KeyID {
+            owner: info.sender,
+            subkey: key_id,
+        };
         let key = Key {
             id: key_id.clone(),
             snapshot,
@@ -134,14 +140,12 @@ pub mod execute {
                 .collect(),
         };
 
-        let storage_key = (&key_id).into();
-
-        if KEYS.has(deps.storage, storage_key) {
+        if KEYS.has(deps.storage, &key_id) {
             return Err(ContractError::DuplicateKeyID {
                 key_id: key_id.to_string(),
             });
         }
-        KEYS.save(deps.storage, storage_key, &key)?;
+        KEYS.save(deps.storage, &key_id, &key)?;
 
         Ok(Response::default())
     }
@@ -167,7 +171,7 @@ pub mod query {
     ) -> StdResult<GetSigningSessionResponse> {
         let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
 
-        let key = KEYS.load(deps.storage, (&session.key_id).into())?;
+        let key = KEYS.load(deps.storage, &session.key_id)?;
 
         Ok(GetSigningSessionResponse {
             state: session.state,
@@ -305,7 +309,11 @@ mod tests {
         assert_eq!(
             res.unwrap_err(),
             ContractError::DuplicateKeyID {
-                key_id: KeyID::from((Addr::unchecked(BATCHER), "key".to_string())).to_string()
+                key_id: KeyID {
+                    owner: Addr::unchecked(BATCHER),
+                    subkey: "key".to_string(),
+                }
+                .to_string()
             }
         );
     }
@@ -320,7 +328,10 @@ mod tests {
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
 
-        let key_id: KeyID = (Addr::unchecked(BATCHER), "key".to_string()).into();
+        let key_id: KeyID = KeyID {
+            owner: Addr::unchecked(BATCHER),
+            subkey: "key".to_string(),
+        };
         let key = get_key(deps.as_ref().storage, &key_id).unwrap();
         let message = test_data::message();
 
@@ -360,7 +371,11 @@ mod tests {
         assert_eq!(
             res.unwrap_err(),
             ContractError::NoActiveKeyFound {
-                key_id: KeyID::from((Addr::unchecked(sender), "key".to_string())).to_string()
+                key_id: KeyID {
+                    owner: Addr::unchecked(sender),
+                    subkey: "key".to_string(),
+                }
+                .to_string()
             }
         );
     }

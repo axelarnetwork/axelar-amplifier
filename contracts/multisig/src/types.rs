@@ -2,7 +2,8 @@ use std::{collections::HashMap, fmt};
 
 use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary};
+use cosmwasm_std::{from_binary, Addr, HexBinary, StdResult};
+use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 
 use crate::ContractError;
 
@@ -75,22 +76,28 @@ impl Signature {
 
 #[cw_serde]
 pub struct KeyID {
-    owner: Addr,
-    subkey: String,
+    pub owner: Addr,
+    pub subkey: String,
 }
 
-impl From<(Addr, String)> for KeyID {
-    fn from(original: (Addr, String)) -> Self {
-        Self {
-            owner: original.0,
-            subkey: original.1,
-        }
+impl<'a> PrimaryKey<'a> for &KeyID {
+    type Prefix = Addr;
+    type SubPrefix = ();
+    type Suffix = String;
+    type SuperSuffix = KeyID;
+
+    fn key(&self) -> std::vec::Vec<cw_storage_plus::Key<'_>> {
+        let mut keys = self.owner.key();
+        keys.extend(self.subkey.key());
+        keys
     }
 }
 
-impl<'a> From<&'a KeyID> for (&'a Addr, &'a str) {
-    fn from(original: &'a KeyID) -> Self {
-        (&original.owner, &original.subkey)
+impl KeyDeserialize for KeyID {
+    type Output = KeyID;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        Ok(from_binary(&value.into()).expect("violated invariant: KeyID is not deserializable"))
     }
 }
 
@@ -111,4 +118,23 @@ pub struct Key {
 pub enum MultisigState {
     Pending,
     Completed,
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::to_binary;
+
+    use super::*;
+
+    #[test]
+    fn test_key_deserialize() {
+        let key = KeyID {
+            owner: Addr::unchecked("owner".to_string()),
+            subkey: "subkey".to_string(),
+        };
+
+        let serialized = to_binary(&key).unwrap();
+
+        assert_eq!(key, KeyID::from_vec(serialized.into()).unwrap());
+    }
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Storage, Uint64};
+use cosmwasm_std::{Storage, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use crate::{
@@ -12,9 +12,9 @@ pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_session
 
 // TODO: key management will change once keygen and key rotation are introduced
 // Map key is currently owner address, however this will change to some derivation of it once keygen and keyrotation are introduced
-pub const KEYS: Map<(&Addr, &str), Key> = Map::new("keys");
+pub const KEYS: Map<&KeyID, Key> = Map::new("keys");
 pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError> {
-    KEYS.load(store, key_id.into())
+    KEYS.load(store, key_id)
         .map_err(|_| ContractError::NoActiveKeyFound {
             key_id: key_id.to_string(),
         })

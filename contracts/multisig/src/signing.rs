@@ -121,7 +121,10 @@ mod tests {
         let signers = test_data::signers();
         let snapshot = build_snapshot(&signers);
 
-        let key_id = (Addr::unchecked("key"), "id".to_string()).into();
+        let key_id = KeyID {
+            owner: Addr::unchecked("owner"),
+            subkey: "subkey".to_string(),
+        };
         let key = build_key(key_id, &signers, snapshot);
         KEYS.save(&mut store, (&key.id).into(), &key).unwrap();
 
