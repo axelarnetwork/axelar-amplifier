@@ -1,5 +1,3 @@
-mod secp256k1;
-
 use std::collections::HashMap;
 
 use axelar_wasm_std::Snapshot;
