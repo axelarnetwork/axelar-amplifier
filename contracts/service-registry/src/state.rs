@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128, Uint64};
+use cosmwasm_std::{Addr, Timestamp, Uint128, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -11,7 +11,7 @@ pub struct Service {
     pub min_num_workers: Uint64,
     pub max_num_workers: Option<Uint64>,
     pub min_worker_bond: Uint128,
-    pub unbonding_period: Uint128,
+    pub unbonding_period: u64,
     pub description: String,
 }
 
@@ -19,6 +19,7 @@ pub struct Service {
 pub struct Worker {
     pub address: Addr,
     pub stake: Uint128, // TODO: correct size?
+    pub unbond_timestamp: Option<Timestamp>,
     pub commission_rate: Uint128,
     pub state: WorkerState,
     pub service_name: String,

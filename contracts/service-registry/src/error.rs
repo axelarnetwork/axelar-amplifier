@@ -20,6 +20,9 @@ pub enum ContractError {
     UnregisteredWorker {},
     #[error("Invalid worker state for this operation")]
     InvalidWorkerState {},
+    #[error("worker unbonding too early")]
+    UnbondTooEarly {},
+
     #[error("{msg}")]
     ServiceContractError { msg: String },
 }
