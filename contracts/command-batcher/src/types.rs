@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
-use ethabi::ethereum_types;
+use ethabi::{ethereum_types, Token};
 use std::{fmt::Display, str::FromStr};
 
 use crate::error::ContractError;
@@ -49,6 +49,38 @@ pub struct Data {
     pub commands_ids: Vec<[u8; 32]>,
     pub commands_types: Vec<String>,
     pub commands_params: Vec<HexBinary>,
+}
+
+impl Data {
+    pub fn encode(&self) -> HexBinary {
+        let destination_chain_id = Token::Uint(
+            ethereum_types::U256::from_dec_str(&self.destination_chain_id.to_string())
+                .expect("violated invariant: Uint256 is not a valid EVM uint256"),
+        );
+        let commands_ids: Vec<Token> = self
+            .commands_ids
+            .iter()
+            .map(|item| Token::FixedBytes(item.to_vec()))
+            .collect();
+        let commands_types: Vec<Token> = self
+            .commands_types
+            .iter()
+            .map(|item| Token::String(item.into()))
+            .collect();
+        let commands_params: Vec<Token> = self
+            .commands_params
+            .iter()
+            .map(|item| Token::Bytes(item.to_vec()))
+            .collect();
+
+        ethabi::encode(&[
+            destination_chain_id,
+            Token::Array(commands_ids),
+            Token::Array(commands_types),
+            Token::Array(commands_params),
+        ])
+        .into()
+    }
 }
 
 #[cw_serde]
