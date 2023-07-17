@@ -1,4 +1,5 @@
 use core::panic;
+use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
@@ -165,5 +166,34 @@ impl From<Message> for msg::Message {
             source_chain: value.source_chain.to_string(),
             payload_hash: value.payload_hash,
         }
+    }
+}
+
+impl fmt::Display for Message {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let serialized = serde_json::to_string(self).map_err(|_| fmt::Error)?;
+        write!(f, "{}", serialized)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Message;
+    #[test]
+    fn can_serialize_message() {
+        let msg = Message {
+            id: "chain:id".to_string().parse().unwrap(),
+            source_chain: "chain".to_string().parse().unwrap(),
+            source_address: "source_address".to_string(),
+            destination_chain: "destination_chain".to_string().parse().unwrap(),
+            destination_address: "destination_address".to_string(),
+            payload_hash: [1; 32].into(),
+        };
+        let str = msg.to_string();
+        let serialized = serde_json::to_string(&msg).unwrap();
+        let deserialized: Message = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(str, serialized);
+        assert_eq!(msg, deserialized);
     }
 }

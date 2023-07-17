@@ -1,6 +1,4 @@
-use cosmwasm_std::{
-    to_binary, Deps, DepsMut, Env, Event, MessageInfo, QueryRequest, Response, WasmQuery,
-};
+use cosmwasm_std::{to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, WasmQuery};
 
 use axelar_wasm_std::{snapshot, voting};
 use connection_router::state::Message;
@@ -64,13 +62,16 @@ pub fn verify_messages(
         .set_data(to_binary(&VerifyMessagesResponse {
             verification_statuses,
         })?)
-        .add_events(Vec::<Event>::from(PollStarted {
-            poll_id: id.into(),
-            source_gateway_address: config.source_gateway_address,
-            confirmation_height: config.confirmation_height,
-            participants: snapshot.get_participants(),
-            messages: unverified_messages,
-        })))
+        .add_event(
+            PollStarted {
+                poll_id: id.into(),
+                source_gateway_address: config.source_gateway_address,
+                confirmation_height: config.confirmation_height,
+                participants: snapshot.get_participants(),
+                messages: unverified_messages,
+            }
+            .into(),
+        ))
 }
 
 pub fn vote(

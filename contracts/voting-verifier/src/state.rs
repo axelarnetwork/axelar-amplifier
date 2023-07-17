@@ -120,10 +120,6 @@ mod tests {
                 )
                 .unwrap();
         }
-        let a = PendingMessageID {
-            poll_id: 4,
-            index: 0,
-        };
 
         // query all
         let all: StdResult<Vec<_>> = PENDING_MESSAGES
