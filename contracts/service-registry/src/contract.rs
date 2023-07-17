@@ -42,7 +42,7 @@ pub fn execute(
             min_num_workers,
             max_num_workers,
             min_worker_bond,
-            unbonding_period,
+            unbonding_period_days,
             description,
         } => execute::register_service(
             deps,
@@ -51,7 +51,7 @@ pub fn execute(
             min_num_workers,
             max_num_workers,
             min_worker_bond,
-            unbonding_period,
+            unbonding_period_days,
             description,
         ),
         ExecuteMsg::RegisterWorker {
@@ -83,7 +83,7 @@ pub mod execute {
         min_num_workers: Uint64,
         max_num_workers: Option<Uint64>,
         min_worker_bond: Uint128,
-        unbonding_period: u64, // TODO: pending definition if we want this. Use Duration data type
+        unbonding_period_days: u64,
         description: String,
     ) -> Result<Response, ContractError> {
         let key = &service_name.clone();
@@ -97,7 +97,7 @@ pub mod execute {
                     min_num_workers,
                     max_num_workers,
                     min_worker_bond,
-                    unbonding_period,
+                    unbonding_period_days,
                     description,
                 }),
             }
@@ -141,7 +141,7 @@ pub mod execute {
                             Ok(Worker {
                                 address: worker_address,
                                 stake: bond.unwrap().amount,
-                                unbond_timestamp: None,
+                                deregistered_at: None,
                                 commission_rate,
                                 state: WorkerState::Active,
                                 service_name,
@@ -153,7 +153,7 @@ pub mod execute {
                     None => Ok(Worker {
                         address: worker_address,
                         stake: bond.unwrap().amount,
-                        unbond_timestamp: None,
+                        deregistered_at: None,
                         commission_rate,
                         state: WorkerState::Active,
                         service_name,
@@ -181,7 +181,7 @@ pub mod execute {
                             Ok(Worker {
                                 address: found.address,
                                 stake: found.stake,
-                                unbond_timestamp: Some(env.block.time),
+                                deregistered_at: Some(env.block.time),
                                 commission_rate: found.commission_rate,
                                 state: WorkerState::Deregistering,
                                 service_name,
@@ -212,28 +212,26 @@ pub mod execute {
             &worker_address,
             |sw| -> Result<Worker, ContractError> {
                 match sw {
-                    Some(found) => {
-                        if found.state == WorkerState::Deregistering {
-                            let unbond_timestamp = found
-                                .unbond_timestamp
-                                .expect("missing unbond_timestamp on deregistering worker");
-                            if unbond_timestamp.plus_days(service.unbonding_period) > env.block.time
-                            {
-                                return Err(ContractError::UnbondTooEarly {});
-                            }
-
-                            Ok(Worker {
-                                address: found.address,
-                                stake: found.stake,
-                                unbond_timestamp: None,
-                                commission_rate: found.commission_rate,
-                                state: WorkerState::Inactive,
-                                service_name,
-                            })
-                        } else {
-                            Err(ContractError::InvalidWorkerState {})
+                    Some(found) if found.state == WorkerState::Deregistering => {
+                        let unbond_timestamp = found
+                            .deregistered_at
+                            .expect("missing unbond_timestamp on deregistering worker");
+                        if unbond_timestamp.plus_days(service.unbonding_period_days)
+                            > env.block.time
+                        {
+                            return Err(ContractError::UnbondTooEarly {});
                         }
+
+                        Ok(Worker {
+                            address: found.address,
+                            stake: found.stake,
+                            deregistered_at: None,
+                            commission_rate: found.commission_rate,
+                            state: WorkerState::Inactive,
+                            service_name,
+                        })
                     }
+                    Some(_) => Err(ContractError::InvalidWorkerState {}),
                     None => Err(ContractError::UnregisteredWorker {}),
                 }
             },

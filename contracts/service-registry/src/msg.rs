@@ -14,7 +14,7 @@ pub enum ExecuteMsg {
         min_num_workers: Uint64,
         max_num_workers: Option<Uint64>,
         min_worker_bond: Uint128,
-        unbonding_period: u64, // number of days to wait after deregistering before allowing unbonding
+        unbonding_period_days: u64, // number of days to wait after deregistering before allowing unbonding
         description: String,
     },
     RegisterWorker {
