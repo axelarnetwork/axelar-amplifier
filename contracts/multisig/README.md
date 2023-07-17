@@ -58,7 +58,7 @@ pub enum ExecuteMsg {
         msg: HexBinary,
     },
     SubmitSignature {
-        sig_id: Uint64,
+        session_id: Uint64,
         signature: HexBinary,
     },
 }
@@ -66,7 +66,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetSigningSessionResponse)]
-    GetSigningSession { sig_id: Uint64 },
+    GetSigningSession { session_id: Uint64 },
 }
 
 pub struct GetSigningSessionResponse {
@@ -87,20 +87,20 @@ pub enum MultisigState {
 pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
-        sig_id: Uint64,
+        session_id: Uint64,
         key_id: Uint64,
         pub_keys: HashMap<String, HexBinary>,
         msg: HexBinary,
     },
     // Emitted when a participants submits a signature
     SignatureSubmitted {
-        sig_id: Uint64,
+        session_id: Uint64,
         participant: Addr,
         signature: HexBinary,
     },
     // Emitted when a signing session was completed
     SigningCompleted {
-        sig_id: Uint64,
+        session_id: Uint64,
     },
 }
 ```
