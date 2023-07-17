@@ -95,6 +95,7 @@ fn is_message_verified(deps: &Deps, message: &Message) -> Result<bool, ContractE
 fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
+    // todo: add chain para to query after service registry updated
     // query service registry for active workers
     let active_workers_query: QueryMsg = QueryMsg::GetActiveWorkers {
         service_name: config.service_name,

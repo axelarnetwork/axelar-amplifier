@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_binary, Addr, Uint64, Uint128};
+use cosmwasm_std::{from_binary, Addr, Uint128, Uint64};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use axelar_wasm_std::Threshold;
@@ -17,11 +17,7 @@ fn initialize_contract(app: &mut App, service_registry_address: String) -> Addr 
     let msg = msg::InstantiateMsg {
         service_registry_address,
         service_name: "service_name".to_string(),
-        min_num_workers: Uint64::one(),
-        max_num_workers: None,
-        min_worker_bond: Uint128::one(),
-        unbonding_period: Uint128::one(),
-        description: "description".to_string(),
+        chain: "chain".to_string(),
         voting_threshold: Threshold::try_from((1u64, 2u64)).unwrap(),
         block_expiry: 100,
         confirmation_height: 100,
