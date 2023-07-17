@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_binary, Addr, Uint128, Uint64};
+use cosmwasm_std::{from_binary, Addr};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use axelar_wasm_std::Threshold;

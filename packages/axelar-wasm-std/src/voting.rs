@@ -61,7 +61,7 @@ pub enum Error {}
 pub struct WeightedPoll {
     pub poll_id: PollID,
     pub snapshot: Snapshot,
-    pub block_height_expiry: u64,
+    pub expires_at: u64,
     pub poll_size: usize,
     pub votes: Vec<Uint256>, // running tally of weighted votes
     pub status: PollStatus,
@@ -72,7 +72,7 @@ impl WeightedPoll {
         WeightedPoll {
             poll_id,
             snapshot,
-            block_height_expiry: expiry,
+            expires_at: expiry,
             poll_size,
             votes: vec![Uint256::zero(); poll_size],
             status: PollStatus::InProgress,

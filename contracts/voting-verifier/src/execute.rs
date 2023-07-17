@@ -34,14 +34,25 @@ pub fn verify_messages(
         })?));
     }
 
-    let unverified_messages = filter_unverified_messages(&deps.as_ref(), messages)?;
+    let unverified_messages: Vec<&Message> = verification_statuses
+        .iter()
+        .enumerate()
+        .filter_map(|(i, (_, is_verified))| {
+            if *is_verified {
+                None
+            } else {
+                Some(messages.get(i).unwrap())
+            }
+        })
+        .collect();
 
     let snapshot = take_snapshot(&deps.as_ref(), &env)?;
+    let participants = snapshot.get_participants();
 
     let id = POLL_ID.incr(deps.storage)?;
     let poll = voting::WeightedPoll::new(
         id.into(),
-        snapshot.clone(),
+        snapshot,
         env.block.height + config.block_expiry,
         unverified_messages.len(),
     );
@@ -67,7 +78,7 @@ pub fn verify_messages(
                 poll_id: id.into(),
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
-                participants: snapshot.get_participants(),
+                participants,
                 messages: unverified_messages,
             }
             .into(),
@@ -103,7 +114,7 @@ fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractE
     };
 
     let res: ActiveWorkers = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.service_registry_contract.to_string(),
+        contract_addr: config.service_registry.to_string(),
         msg: to_binary(&active_workers_query)?,
     }))?;
 
@@ -119,17 +130,4 @@ fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractE
         config.voting_threshold,
         participants.try_into()?,
     ))
-}
-
-fn filter_unverified_messages(
-    deps: &Deps,
-    messages: Vec<Message>,
-) -> Result<Vec<Message>, ContractError> {
-    Ok(messages
-        .into_iter()
-        .map(|msg| is_message_verified(deps, &msg).map(|v| (msg, v)))
-        .collect::<Result<Vec<(Message, bool)>, _>>()?
-        .into_iter()
-        .filter_map(|(msg, is_verified)| if is_verified { Some(msg) } else { None })
-        .collect())
 }

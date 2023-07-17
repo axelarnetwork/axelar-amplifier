@@ -13,7 +13,7 @@ pub struct InstantiateMsg {
     pub source_gateway_address: String,
     pub voting_threshold: Threshold,
     pub block_expiry: u64,
-    pub confirmation_height: u8,
+    pub confirmation_height: u64,
 }
 
 #[cw_serde]

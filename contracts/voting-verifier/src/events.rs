@@ -9,7 +9,7 @@ impl From<Config> for Event {
     fn from(other: Config) -> Self {
         Event::new("instantiated")
             .add_attribute("service_name", other.service_name)
-            .add_attribute("service_registry_contract", other.service_registry_contract)
+            .add_attribute("service_registry_contract", other.service_registry)
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("voting_threshold", other.voting_threshold.to_string())
             .add_attribute("block_expiry", other.block_expiry.to_string())
@@ -17,15 +17,15 @@ impl From<Config> for Event {
     }
 }
 
-pub struct PollStarted {
+pub struct PollStarted<'a> {
     pub poll_id: PollID,
     pub source_gateway_address: String,
-    pub confirmation_height: u8,
-    pub messages: Vec<Message>,
+    pub confirmation_height: u64,
+    pub messages: Vec<&'a Message>,
     pub participants: Vec<Addr>,
 }
 
-impl From<PollStarted> for Event {
+impl From<PollStarted<'_>> for Event {
     fn from(other: PollStarted) -> Self {
         Event::new("poll_started")
             .add_attribute("poll_id", other.poll_id)

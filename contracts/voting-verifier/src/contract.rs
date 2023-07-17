@@ -17,8 +17,8 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let config = Config {
-        service_name: msg.service_name.clone(),
-        service_registry_contract: deps.api.addr_validate(&msg.service_registry_address)?,
+        service_name: msg.service_name,
+        service_registry: deps.api.addr_validate(&msg.service_registry_address)?,
         source_gateway_address: msg.source_gateway_address,
         chain: msg.chain.parse()?,
         voting_threshold: msg.voting_threshold,

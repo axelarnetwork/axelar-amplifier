@@ -4,7 +4,7 @@ use std::fmt;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
-use sha2::{Digest, Sha256};
+use sha3::{Digest, Sha3_256};
 
 use axelar_wasm_std::hash;
 
@@ -109,7 +109,7 @@ impl Message {
     }
 
     pub fn hash(&self) -> hash::Hash {
-        let mut hasher = Sha256::new();
+        let mut hasher = Sha3_256::new();
 
         let message_string = format!(
             "{}_{}_{}_{}_{}_{}",

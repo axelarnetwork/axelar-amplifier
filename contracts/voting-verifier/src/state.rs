@@ -9,13 +9,13 @@ use connection_router::types::ChainName;
 
 #[cw_serde]
 pub struct Config {
-    pub service_registry_contract: Addr,
+    pub service_registry: Addr,
     pub service_name: String,
     pub source_gateway_address: String,
     pub chain: ChainName,
     pub voting_threshold: Threshold,
     pub block_expiry: u64, // number of blocks after which a poll expires
-    pub confirmation_height: u8,
+    pub confirmation_height: u64,
 }
 
 #[cw_serde]
