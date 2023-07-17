@@ -17,9 +17,9 @@ pub enum ContractError {
     NonEmptyError(#[from] nonempty::Error),
 
     #[error("{0}")]
-    RegistryError(#[from] service_registry::ContractError),
+    ServiceRegistryError(#[from] service_registry::ContractError),
 
-    #[error("empty messages")]
+    #[error("empty batch of messages")]
     EmptyMessages,
 
     #[error("source chain mismatch")]

@@ -11,8 +11,7 @@ impl From<Config> for Event {
         Event::new("instantiated")
             .add_attribute("service_name", other.service_name)
             .add_attribute("service_registry_contract", other.service_registry_contract)
-            .add_attribute("verifier_contract", other.verifier_contract)
-            .add_attribute("gateway_address", other.gateway_address)
+            .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("voting_threshold", other.voting_threshold.to_string())
             .add_attribute("block_expiry", other.block_expiry.to_string())
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
@@ -21,7 +20,7 @@ impl From<Config> for Event {
 
 pub struct PollStarted {
     pub poll_id: PollID,
-    pub gateway_address: String,
+    pub source_gateway_address: String,
     pub confirmation_height: u8,
     pub messages: Vec<Message>,
     pub participants: Vec<Addr>,
@@ -31,7 +30,7 @@ impl From<PollStarted> for Vec<Event> {
     fn from(other: PollStarted) -> Self {
         let ev = Event::new("poll_started")
             .add_attribute("poll_id", other.poll_id)
-            .add_attribute("gateway_address", other.gateway_address)
+            .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
             .add_attribute(
                 "participants",

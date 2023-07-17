@@ -9,7 +9,7 @@ use service_registry::msg::{ActiveWorkers, QueryMsg};
 use crate::error::ContractError;
 use crate::events::PollStarted;
 use crate::msg::VerifyMessagesResponse;
-use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
+use crate::state::{PendingMessageID, CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 pub fn verify_messages(
     deps: DepsMut,
@@ -53,7 +53,11 @@ pub fn verify_messages(
         .iter()
         .enumerate()
         .try_for_each(|(i, message)| {
-            PENDING_MESSAGES.save(deps.storage, (id, i as u64), &message.hash())
+            let id = PendingMessageID {
+                poll_id: id,
+                index: i as u64,
+            };
+            PENDING_MESSAGES.save(deps.storage, &id, &message.hash())
         })?;
 
     Ok(Response::new()
@@ -62,7 +66,7 @@ pub fn verify_messages(
         })?)
         .add_events(Vec::<Event>::from(PollStarted {
             poll_id: id.into(),
-            gateway_address: config.gateway_address,
+            source_gateway_address: config.source_gateway_address,
             confirmation_height: config.confirmation_height,
             participants: snapshot.get_participants(),
             messages: unverified_messages,
@@ -119,17 +123,11 @@ fn filter_unverified_messages(
     deps: &Deps,
     messages: Vec<Message>,
 ) -> Result<Vec<Message>, ContractError> {
-    messages
+    Ok(messages
         .into_iter()
-        .try_fold(
-            vec![],
-            |mut unverified, message| match is_message_verified(deps, &message) {
-                Ok(is_verified) if !is_verified => {
-                    unverified.push(message);
-                    Ok(unverified)
-                }
-                Ok(_) => Ok(unverified),
-                Err(err) => Err(err),
-            },
-        )
+        .map(|msg| is_message_verified(deps, &msg).map(|v| (msg, v)))
+        .collect::<Result<Vec<(Message, bool)>, _>>()?
+        .into_iter()
+        .filter_map(|(msg, is_verified)| if is_verified { Some(msg) } else { None })
+        .collect())
 }

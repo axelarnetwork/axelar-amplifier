@@ -1,14 +1,21 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Uint128, Uint64};
 
 use axelar_wasm_std::Threshold;
 use connection_router::msg::Message;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    pub service_registry_address: String, // service registry to determine current worker stake
-    pub verifier_address: String,         // verifier to call back to when messages are verified
+    // params to register service
+    pub service_registry_address: String,
     pub service_name: String,
-    pub gateway_address: String,
+    pub min_num_workers: Uint64,
+    pub max_num_workers: Option<Uint64>,
+    pub min_worker_bond: Uint128,
+    pub unbonding_period: Uint128,
+    pub description: String,
+
+    pub source_gateway_address: String,
     pub voting_threshold: Threshold,
     pub block_expiry: u64,
     pub confirmation_height: u8,
