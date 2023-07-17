@@ -54,6 +54,12 @@ impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
     }
 }
 
+impl From<Uint256> for cosmwasm_std::Uint256 {
+    fn from(value: Uint256) -> Self {
+        value.0
+    }
+}
+
 impl<'a> From<&'a Uint256> for &'a cosmwasm_std::Uint256 {
     fn from(value: &'a Uint256) -> Self {
         &value.0

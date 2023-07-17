@@ -16,10 +16,13 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [features]
+default = ["secp256k1"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+# use this feature to use secp256k1 for signature verification
+secp256k1 = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -40,6 +43,9 @@ thiserror = { version = "1.0.31" }
 service-interface = { workspace = true, features = ["library"] }
 serde_json = "1.0.89"
 axelar-wasm-std = { workspace = true }
+cosmwasm-crypto = "1.2.7"
+getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+rand = "0.8.5"

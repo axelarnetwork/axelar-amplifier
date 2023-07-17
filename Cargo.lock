@@ -137,9 +137,9 @@ checksum = "cec318a675afcb6a1ea1d4340e2d377e56e47c266f28043ceccbf4412ddfdd3b"
 
 [[package]]
 name = "cosmwasm-crypto"
-version = "1.2.4"
+version = "1.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b76d2207945b8aa3ce0735da53ab9a74f75fe3e7794754c216a9edfa04e1e627"
+checksum = "bb64554a91d6a9231127f4355d351130a0b94e663d5d9dc8b3a54ca17d83de49"
 dependencies = [
  "digest 0.10.6",
  "ed25519-zebra",
@@ -611,12 +611,15 @@ name = "multisig"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
  "cw2 0.15.1",
+ "getrandom 0.2.6",
+ "rand",
  "schemars",
  "serde",
  "serde_json",
