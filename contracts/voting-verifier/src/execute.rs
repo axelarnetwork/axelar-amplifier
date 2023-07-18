@@ -1,6 +1,6 @@
 use cosmwasm_std::{to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, WasmQuery};
 
-use axelar_wasm_std::{snapshot, voting};
+use axelar_wasm_std::{hash, snapshot, voting};
 use connection_router::state::Message;
 use service_registry::msg::{ActiveWorkers, QueryMsg};
 
@@ -16,34 +16,40 @@ pub fn verify_messages(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    //  a vector of (message id, is verified) tuple
-    let verification_statuses = messages
+    // load verified message hash if message id exists in storage
+    let verified_messages = messages
         .iter()
-        .map(|message| {
-            let is_verified = is_message_verified(&deps.as_ref(), message)?;
-            Ok((message.id.to_string(), is_verified))
-        })
-        .collect::<Result<Vec<(String, bool)>, ContractError>>()?;
+        .map(|message| Ok(VERIFIED_MESSAGES.may_load(deps.storage, &message.id)?))
+        .collect::<Result<Vec<Option<hash::Hash>>, ContractError>>()?;
 
-    if verification_statuses
+    // contract response, a vector of (message_id, is_verified) tuples
+    let verification_statuses = verified_messages
         .iter()
-        .all(|(_, is_verified)| *is_verified)
+        .zip(&messages)
+        .map(|(hash, message)| (message.id.to_string(), *hash == Some(message.hash())))
+        .collect();
+
+    if verified_messages
+        .iter()
+        .all(|hash: &Option<hash::Hash>| hash.is_some())
     {
         return Ok(Response::new().set_data(to_binary(&VerifyMessagesResponse {
             verification_statuses,
         })?));
     }
 
-    let unverified_messages: Vec<&Message> = verification_statuses
+    let unverified_messages: Vec<&Message> = verified_messages
         .iter()
-        .enumerate()
-        .filter_map(|(i, (_, is_verified))| {
-            if *is_verified {
-                None
-            } else {
-                Some(messages.get(i).unwrap())
-            }
-        })
+        .zip(&messages)
+        .filter_map(
+            |(hash, message)| {
+                if hash.is_none() {
+                    Some(message)
+                } else {
+                    None
+                }
+            },
+        )
         .collect();
 
     let snapshot = take_snapshot(&deps.as_ref(), &env)?;
@@ -91,12 +97,6 @@ pub fn vote(
 
 pub fn end_poll(_deps: DepsMut, _poll_id: String) -> Result<Response, ContractError> {
     todo!()
-}
-
-fn is_message_verified(deps: &Deps, message: &Message) -> Result<bool, ContractError> {
-    let hash = VERIFIED_MESSAGES.may_load(deps.storage, &message.id)?;
-
-    Ok(hash == Some(message.hash()))
 }
 
 fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
