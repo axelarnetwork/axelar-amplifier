@@ -29,15 +29,6 @@ pub fn verify_messages(
         .map(|(hash, message)| (message.id.to_string(), *hash == Some(message.hash())))
         .collect();
 
-    if verified_messages
-        .iter()
-        .all(|hash: &Option<hash::Hash>| hash.is_some())
-    {
-        return Ok(Response::new().set_data(to_binary(&VerifyMessagesResponse {
-            verification_statuses,
-        })?));
-    }
-
     let unverified_messages: Vec<&Message> = verified_messages
         .iter()
         .zip(&messages)
@@ -51,6 +42,12 @@ pub fn verify_messages(
             },
         )
         .collect();
+
+    if unverified_messages.is_empty() {
+        return Ok(Response::new().set_data(to_binary(&VerifyMessagesResponse {
+            verification_statuses,
+        })?));
+    }
 
     let snapshot = take_snapshot(&deps.as_ref(), &env)?;
     let participants = snapshot.get_participants();
