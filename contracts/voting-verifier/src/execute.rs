@@ -1,6 +1,6 @@
 use cosmwasm_std::{to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, WasmQuery};
 
-use axelar_wasm_std::{hash, snapshot, voting};
+use axelar_wasm_std::{snapshot, voting};
 use connection_router::state::Message;
 use service_registry::msg::{ActiveWorkers, QueryMsg};
 
@@ -16,31 +16,28 @@ pub fn verify_messages(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // load verified message hash if message id exists in storage
-    let verified_messages = messages
-        .iter()
-        .map(|message| Ok(VERIFIED_MESSAGES.may_load(deps.storage, &message.id)?))
-        .collect::<Result<Vec<Option<hash::Hash>>, ContractError>>()?;
-
     // contract response, a vector of (message_id, is_verified) tuples
-    let verification_statuses = verified_messages
+    let verification_statuses = messages
         .iter()
-        .zip(&messages)
-        .map(|(hash, message)| (message.id.to_string(), *hash == Some(message.hash())))
-        .collect();
+        .map(|message| {
+            Ok((
+                message.id.to_string(),
+                is_message_verified(&deps.as_ref(), message)?,
+            ))
+        })
+        .collect::<Result<Vec<(String, bool)>, ContractError>>()?;
 
-    let unverified_messages: Vec<&Message> = verified_messages
+    let unverified_messages: Vec<&Message> = verification_statuses
         .iter()
         .zip(&messages)
-        .filter_map(
-            |(hash, message)| {
-                if hash.is_none() {
-                    Some(message)
-                } else {
-                    None
-                }
-            },
-        )
+        .filter_map(|(status, message)| {
+            // already verified
+            if status.1 {
+                None
+            } else {
+                Some(message)
+            }
+        })
         .collect();
 
     if unverified_messages.is_empty() {
@@ -122,4 +119,14 @@ fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractE
         config.voting_threshold,
         participants.try_into()?,
     ))
+}
+
+fn is_message_verified(deps: &Deps, message: &Message) -> Result<bool, ContractError> {
+    match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
+        Some(hash) if hash != message.hash() => {
+            Err(ContractError::MessageHashMismatch(message.id.to_string()))
+        }
+        Some(_) => Ok(true),
+        None => Ok(false),
+    }
 }
