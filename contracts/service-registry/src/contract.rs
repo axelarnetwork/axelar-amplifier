@@ -213,11 +213,10 @@ pub mod execute {
             |sw| -> Result<Worker, ContractError> {
                 match sw {
                     Some(found) if found.state == WorkerState::Deregistering => {
-                        let unbond_timestamp = found
+                        let deregistered_at = found
                             .deregistered_at
-                            .expect("missing unbond_timestamp on deregistering worker");
-                        if unbond_timestamp.plus_days(service.unbonding_period_days)
-                            > env.block.time
+                            .expect("missing deregistered_at on deregistering worker");
+                        if deregistered_at.plus_days(service.unbonding_period_days) > env.block.time
                         {
                             return Err(ContractError::UnbondTooEarly {});
                         }
