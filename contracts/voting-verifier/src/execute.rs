@@ -7,7 +7,7 @@ use service_registry::msg::{ActiveWorkers, QueryMsg};
 use crate::error::ContractError;
 use crate::events::PollStarted;
 use crate::msg::VerifyMessagesResponse;
-use crate::state::{PendingMessageID, CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
+use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 pub fn verify_messages(
     deps: DepsMut,
@@ -58,16 +58,11 @@ pub fn verify_messages(
     );
     POLLS.save(deps.storage, id, &poll)?;
 
-    unverified_messages
+    let unverified_message_hashes = unverified_messages
         .iter()
-        .enumerate()
-        .try_for_each(|(i, message)| {
-            let id = PendingMessageID {
-                poll_id: id,
-                index: i as u64,
-            };
-            PENDING_MESSAGES.save(deps.storage, &id, &message.hash())
-        })?;
+        .map(|message| message.hash())
+        .collect();
+    PENDING_MESSAGES.save(deps.storage, id, &unverified_message_hashes)?;
 
     Ok(Response::new()
         .set_data(to_binary(&VerifyMessagesResponse {
@@ -99,9 +94,9 @@ pub fn end_poll(_deps: DepsMut, _poll_id: String) -> Result<Response, ContractEr
 }
 
 fn is_message_verified(deps: &Deps, message: &Message) -> Result<bool, ContractError> {
-    Ok(VERIFIED_MESSAGES
-        .may_load(deps.storage, &message.hash())?
-        .is_some())
+    let hash = VERIFIED_MESSAGES.may_load(deps.storage, &message.id)?;
+
+    Ok(hash == Some(message.hash()))
 }
 
 fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
