@@ -1,4 +1,6 @@
-use cosmwasm_std::{to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, WasmQuery};
+use cosmwasm_std::{
+    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
+};
 
 use axelar_wasm_std::{snapshot, voting};
 use connection_router::state::Message;
@@ -8,7 +10,7 @@ use crate::error::ContractError;
 use crate::events::PollStarted;
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::VerifyMessagesResponse;
-use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
+use crate::state::{Config, CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 enum VerificationStatus {
     Verified(Message),
@@ -35,7 +37,7 @@ pub fn verify_messages(
         })
         .collect::<Result<Vec<VerificationStatus>, ContractError>>()?;
 
-    let response = VerifyMessagesResponse {
+    let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
         verification_statuses: messages
             .iter()
             .map(|status| match status {
@@ -43,9 +45,9 @@ pub fn verify_messages(
                 Pending(message) => (message.id.to_string(), false),
             })
             .collect(),
-    };
+    })?);
 
-    let messages: Vec<&Message> = messages
+    let pending_messages: Vec<&Message> = messages
         .iter()
         .filter_map(|status| match status {
             Pending(message) => Some(message),
@@ -53,32 +55,27 @@ pub fn verify_messages(
         })
         .collect();
 
-    if messages.is_empty() {
-        return Ok(Response::new().set_data(to_binary(&response)?));
+    if pending_messages.is_empty() {
+        return Ok(response);
     }
 
     let snapshot = take_snapshot(deps.as_ref(), &env)?;
     let participants = snapshot.get_participants();
+    let id = create_poll(deps.storage, env, &config, snapshot, pending_messages.len())?;
 
-    let id = POLL_ID.incr(deps.storage)?;
-    let poll = voting::WeightedPoll::new(
-        id.into(),
-        snapshot,
-        env.block.height + config.block_expiry,
-        messages.len(),
-    );
-    POLLS.save(deps.storage, id, &poll)?;
-
-    let hashes = messages.iter().map(|message| message.hash()).collect();
+    let hashes = pending_messages
+        .iter()
+        .map(|message| message.hash())
+        .collect();
     PENDING_MESSAGES.save(deps.storage, id, &hashes)?;
 
-    Ok(Response::new().set_data(to_binary(&response)?).add_event(
+    Ok(response.add_event(
         PollStarted {
             poll_id: id.into(),
             source_gateway_address: config.source_gateway_address,
             confirmation_height: config.confirmation_height,
             participants,
-            messages,
+            messages: pending_messages,
         }
         .into(),
     ))
@@ -133,4 +130,24 @@ fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractEr
         Some(_) => Ok(true),
         None => Ok(false),
     }
+}
+
+fn create_poll(
+    store: &mut dyn Storage,
+    env: Env,
+    config: &Config,
+    snapshot: snapshot::Snapshot,
+    poll_size: usize,
+) -> Result<u64, ContractError> {
+    let id = POLL_ID.incr(store)?;
+
+    let poll = voting::WeightedPoll::new(
+        id.into(),
+        snapshot,
+        env.block.height + config.block_expiry,
+        poll_size,
+    );
+    POLLS.save(store, id, &poll)?;
+
+    Ok(id)
 }
