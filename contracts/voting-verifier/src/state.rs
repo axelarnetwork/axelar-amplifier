@@ -3,14 +3,13 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
 use axelar_wasm_std::{counter, hash, voting::WeightedPoll, Threshold};
-use connection_router::types::{ChainName, MessageID};
+use connection_router::types::MessageID;
 
 #[cw_serde]
 pub struct Config {
     pub service_registry: Addr,
     pub service_name: String,
     pub source_gateway_address: String,
-    pub chain: ChainName,
     pub voting_threshold: Threshold,
     pub block_expiry: u64, // number of blocks after which a poll expires
     pub confirmation_height: u64,

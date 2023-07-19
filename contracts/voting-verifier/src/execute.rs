@@ -22,7 +22,7 @@ pub fn verify_messages(
         .map(|message| {
             Ok((
                 message.id.to_string(),
-                is_message_verified(&deps.as_ref(), message)?,
+                is_message_verified(deps.as_ref(), message)?,
             ))
         })
         .collect::<Result<Vec<(String, bool)>, ContractError>>()?;
@@ -46,7 +46,7 @@ pub fn verify_messages(
         })?));
     }
 
-    let snapshot = take_snapshot(&deps.as_ref(), &env)?;
+    let snapshot = take_snapshot(deps.as_ref(), &env)?;
     let participants = snapshot.get_participants();
 
     let id = POLL_ID.incr(deps.storage)?;
@@ -93,12 +93,12 @@ pub fn end_poll(_deps: DepsMut, _poll_id: String) -> Result<Response, ContractEr
     todo!()
 }
 
-fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
+fn take_snapshot(deps: Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // todo: add chain para to query after service registry updated
+    // todo: add chain param to query after service registry updated
     // query service registry for active workers
-    let active_workers_query: QueryMsg = QueryMsg::GetActiveWorkers {
+    let active_workers_query = QueryMsg::GetActiveWorkers {
         service_name: config.service_name,
     };
 
@@ -121,7 +121,7 @@ fn take_snapshot(deps: &Deps, env: &Env) -> Result<snapshot::Snapshot, ContractE
     ))
 }
 
-fn is_message_verified(deps: &Deps, message: &Message) -> Result<bool, ContractError> {
+fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
     match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
         Some(hash) if hash != message.hash() => {
             Err(ContractError::MessageHashMismatch(message.id.to_string()))
