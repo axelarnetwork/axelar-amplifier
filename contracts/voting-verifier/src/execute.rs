@@ -6,13 +6,13 @@ use service_registry::msg::{ActiveWorkers, QueryMsg};
 
 use crate::error::ContractError;
 use crate::events::PollStarted;
-use crate::execute::VerificationStatus::{Unverified, Verified};
+use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::VerifyMessagesResponse;
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 enum VerificationStatus {
     Verified(Message),
-    Unverified(Message),
+    Pending(Message),
 }
 
 pub fn verify_messages(
@@ -29,7 +29,7 @@ pub fn verify_messages(
                 if verified {
                     Verified(message)
                 } else {
-                    Unverified(message)
+                    Pending(message)
                 }
             })
         })
@@ -40,7 +40,7 @@ pub fn verify_messages(
             .iter()
             .map(|status| match status {
                 Verified(message) => (message.id.to_string(), true),
-                Unverified(message) => (message.id.to_string(), false),
+                Pending(message) => (message.id.to_string(), false),
             })
             .collect(),
     };
@@ -48,7 +48,7 @@ pub fn verify_messages(
     let messages: Vec<&Message> = messages
         .iter()
         .filter_map(|status| match status {
-            Unverified(message) => Some(message),
+            Pending(message) => Some(message),
             Verified(_) => None,
         })
         .collect();
