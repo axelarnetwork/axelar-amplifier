@@ -6,8 +6,14 @@ use service_registry::msg::{ActiveWorkers, QueryMsg};
 
 use crate::error::ContractError;
 use crate::events::PollStarted;
+use crate::execute::VerificationStatus::{Unverified, Verified};
 use crate::msg::VerifyMessagesResponse;
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
+
+enum VerificationStatus {
+    Verified(Message),
+    Unverified(Message),
+}
 
 pub fn verify_messages(
     deps: DepsMut,
@@ -16,34 +22,39 @@ pub fn verify_messages(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // contract response, a vector of (message_id, is_verified) tuples
-    let verification_statuses = messages
-        .iter()
+    let messages = messages
+        .into_iter()
         .map(|message| {
-            Ok((
-                message.id.to_string(),
-                is_message_verified(deps.as_ref(), message)?,
-            ))
+            is_message_verified(deps.as_ref(), &message).map(|verified| {
+                if verified {
+                    Verified(message)
+                } else {
+                    Unverified(message)
+                }
+            })
         })
-        .collect::<Result<Vec<(String, bool)>, ContractError>>()?;
+        .collect::<Result<Vec<VerificationStatus>, ContractError>>()?;
 
-    let unverified_messages: Vec<&Message> = verification_statuses
+    let response = VerifyMessagesResponse {
+        verification_statuses: messages
+            .iter()
+            .map(|status| match status {
+                Verified(message) => (message.id.to_string(), true),
+                Unverified(message) => (message.id.to_string(), false),
+            })
+            .collect(),
+    };
+
+    let messages: Vec<&Message> = messages
         .iter()
-        .zip(&messages)
-        .filter_map(|(status, message)| {
-            // already verified
-            if status.1 {
-                None
-            } else {
-                Some(message)
-            }
+        .filter_map(|status| match status {
+            Unverified(message) => Some(message),
+            Verified(_) => None,
         })
         .collect();
 
-    if unverified_messages.is_empty() {
-        return Ok(Response::new().set_data(to_binary(&VerifyMessagesResponse {
-            verification_statuses,
-        })?));
+    if messages.is_empty() {
+        return Ok(Response::new().set_data(to_binary(&response)?));
     }
 
     let snapshot = take_snapshot(deps.as_ref(), &env)?;
@@ -54,30 +65,23 @@ pub fn verify_messages(
         id.into(),
         snapshot,
         env.block.height + config.block_expiry,
-        unverified_messages.len(),
+        messages.len(),
     );
     POLLS.save(deps.storage, id, &poll)?;
 
-    let unverified_message_hashes = unverified_messages
-        .iter()
-        .map(|message| message.hash())
-        .collect();
-    PENDING_MESSAGES.save(deps.storage, id, &unverified_message_hashes)?;
+    let hashes = messages.iter().map(|message| message.hash()).collect();
+    PENDING_MESSAGES.save(deps.storage, id, &hashes)?;
 
-    Ok(Response::new()
-        .set_data(to_binary(&VerifyMessagesResponse {
-            verification_statuses,
-        })?)
-        .add_event(
-            PollStarted {
-                poll_id: id.into(),
-                source_gateway_address: config.source_gateway_address,
-                confirmation_height: config.confirmation_height,
-                participants,
-                messages: unverified_messages,
-            }
-            .into(),
-        ))
+    Ok(Response::new().set_data(to_binary(&response)?).add_event(
+        PollStarted {
+            poll_id: id.into(),
+            source_gateway_address: config.source_gateway_address,
+            confirmation_height: config.confirmation_height,
+            participants,
+            messages,
+        }
+        .into(),
+    ))
 }
 
 pub fn vote(
