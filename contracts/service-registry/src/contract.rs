@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdResult, Uint128, Uint64,
+    StdResult, Uint128,
 };
 // use cw2::set_contract_version;
 
@@ -80,10 +80,10 @@ pub mod execute {
         deps: DepsMut,
         service_name: String,
         service_contract: Addr,
-        min_num_workers: Uint64,
-        max_num_workers: Option<Uint64>,
+        min_num_workers: u16,
+        max_num_workers: Option<u16>,
         min_worker_bond: Uint128,
-        unbonding_period_days: u64,
+        unbonding_period_days: u16,
         description: String,
     ) -> Result<Response, ContractError> {
         let key = &service_name.clone();
@@ -141,7 +141,6 @@ pub mod execute {
                             Ok(Worker {
                                 address: worker_address,
                                 stake: bond.unwrap().amount,
-                                deregistered_at: None,
                                 commission_rate,
                                 state: WorkerState::Active,
                                 service_name,
@@ -153,7 +152,6 @@ pub mod execute {
                     None => Ok(Worker {
                         address: worker_address,
                         stake: bond.unwrap().amount,
-                        deregistered_at: None,
                         commission_rate,
                         state: WorkerState::Active,
                         service_name,
@@ -179,12 +177,11 @@ pub mod execute {
                     Some(found) => {
                         if found.state == WorkerState::Active {
                             Ok(Worker {
-                                address: found.address,
-                                stake: found.stake,
-                                deregistered_at: Some(env.block.time),
-                                commission_rate: found.commission_rate,
-                                state: WorkerState::Deregistering,
+                                state: WorkerState::Deregistering {
+                                    deregistered_at: env.block.time,
+                                },
                                 service_name,
+                                ..found
                             })
                         } else {
                             Err(ContractError::InvalidWorkerState {})
@@ -212,21 +209,23 @@ pub mod execute {
             &worker_address,
             |sw| -> Result<Worker, ContractError> {
                 match sw {
-                    Some(found) if found.state == WorkerState::Deregistering => {
-                        let deregistered_at = found
-                            .deregistered_at
-                            .expect("missing deregistered_at on deregistering worker");
-                        if deregistered_at.plus_days(service.unbonding_period_days) > env.block.time
+                    Some(Worker {
+                        state: WorkerState::Deregistering { deregistered_at },
+                        address,
+                        stake,
+                        commission_rate,
+                        service_name,
+                    }) => {
+                        if deregistered_at.plus_days(service.unbonding_period_days as u64)
+                            > env.block.time
                         {
                             return Err(ContractError::UnbondTooEarly {});
                         }
-
                         Ok(Worker {
-                            address: found.address,
-                            stake: found.stake,
-                            deregistered_at: None,
-                            commission_rate: found.commission_rate,
                             state: WorkerState::Inactive,
+                            address,
+                            stake,
+                            commission_rate,
                             service_name,
                         })
                     }
