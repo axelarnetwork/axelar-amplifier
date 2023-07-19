@@ -1,12 +1,12 @@
 use core::panic;
 use std::fmt;
 
+use axelar_wasm_std::hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
+use serde_json;
 use sha3::{Digest, Sha3_256};
-
-use axelar_wasm_std::hash;
 
 use crate::{
     msg,
@@ -110,18 +110,7 @@ impl Message {
 
     pub fn hash(&self) -> hash::Hash {
         let mut hasher = Sha3_256::new();
-
-        let message_string = format!(
-            "{}_{}_{}_{}_{}_{}",
-            self.id,
-            self.destination_chain,
-            self.destination_address,
-            self.source_chain,
-            self.source_address,
-            self.payload_hash
-        );
-
-        hasher.update(message_string);
+        hasher.update(serde_json::to_string(self).expect("failed serializing message"));
 
         hash::Hash::new(hasher.finalize().into())
     }
