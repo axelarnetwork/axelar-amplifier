@@ -611,12 +611,15 @@ name = "multisig"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.0.1",
  "cw2 0.15.1",
+ "getrandom 0.2.6",
+ "rand",
  "schemars",
  "serde",
  "serde_json",
