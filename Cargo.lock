@@ -124,7 +124,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
