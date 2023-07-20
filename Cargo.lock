@@ -17,7 +17,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -125,7 +124,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -511,7 +509,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -623,7 +620,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -842,21 +838,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "service-interface"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "service-registry"
 version = "0.1.0"
 dependencies = [
@@ -868,7 +849,6 @@ dependencies = [
  "cw2 0.15.1",
  "schemars",
  "serde",
- "service-interface",
  "thiserror",
 ]
 
@@ -1016,7 +996,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
