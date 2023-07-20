@@ -4,9 +4,6 @@ use std::fmt;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
-use sha3::{Digest, Sha3_256};
-
-use axelar_wasm_std::hash;
 
 use crate::{
     msg,
@@ -107,24 +104,6 @@ impl Message {
             payload_hash,
         }
     }
-
-    pub fn hash(&self) -> hash::Hash {
-        let mut hasher = Sha3_256::new();
-
-        let message_string = format!(
-            "{}_{}_{}_{}_{}_{}",
-            self.id,
-            self.destination_chain,
-            self.destination_address,
-            self.source_chain,
-            self.source_address,
-            self.payload_hash
-        );
-
-        hasher.update(message_string);
-
-        hash::Hash::new(hasher.finalize().into())
-    }
 }
 
 impl TryFrom<msg::Message> for Message {
@@ -178,9 +157,32 @@ impl fmt::Display for Message {
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::to_vec;
+
     use super::Message;
+
     #[test]
-    fn can_serialize_message() {
+    // Any modifications to the Message struct fields or their types
+    // will cause this test to fail, indicating that a migration is needed.
+    fn test_message_struct_unchanged() {
+        let expected_message_bytes: Vec<u8> = vec![
+            123, 34, 105, 100, 34, 58, 123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 99, 104, 97,
+            105, 110, 58, 105, 100, 34, 125, 44, 34, 100, 101, 115, 116, 105, 110, 97, 116, 105,
+            111, 110, 95, 97, 100, 100, 114, 101, 115, 115, 34, 58, 34, 100, 101, 115, 116, 105,
+            110, 97, 116, 105, 111, 110, 95, 97, 100, 100, 114, 101, 115, 115, 34, 44, 34, 100,
+            101, 115, 116, 105, 110, 97, 116, 105, 111, 110, 95, 99, 104, 97, 105, 110, 34, 58,
+            123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 100, 101, 115, 116, 105, 110, 97, 116,
+            105, 111, 110, 95, 99, 104, 97, 105, 110, 34, 125, 44, 34, 115, 111, 117, 114, 99, 101,
+            95, 99, 104, 97, 105, 110, 34, 58, 123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 99,
+            104, 97, 105, 110, 34, 125, 44, 34, 115, 111, 117, 114, 99, 101, 95, 97, 100, 100, 114,
+            101, 115, 115, 34, 58, 34, 115, 111, 117, 114, 99, 101, 95, 97, 100, 100, 114, 101,
+            115, 115, 34, 44, 34, 112, 97, 121, 108, 111, 97, 100, 95, 104, 97, 115, 104, 34, 58,
+            34, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48,
+            49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48,
+            49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 34,
+            125,
+        ];
+
         let msg = Message {
             id: "chain:id".to_string().parse().unwrap(),
             source_chain: "chain".to_string().parse().unwrap(),
@@ -189,11 +191,6 @@ mod tests {
             destination_address: "destination_address".to_string(),
             payload_hash: [1; 32].into(),
         };
-        let str = msg.to_string();
-        let serialized = serde_json::to_string(&msg).unwrap();
-        let deserialized: Message = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(str, serialized);
-        assert_eq!(msg, deserialized);
+        assert_eq!(to_vec(&msg).unwrap(), expected_message_bytes);
     }
 }

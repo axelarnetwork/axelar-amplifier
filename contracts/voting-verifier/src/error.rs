@@ -25,6 +25,6 @@ pub enum ContractError {
     #[error("source chain mismatch")]
     SourceChainMismatch,
 
-    #[error("message {0} has mismatching hash with verified message")]
-    MessageHashMismatch(String),
+    #[error("message {0} mismatch with verified message")]
+    MessageMismatch(String),
 }

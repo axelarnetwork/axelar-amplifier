@@ -2,7 +2,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
-use axelar_wasm_std::{counter, hash, voting::WeightedPoll, Threshold};
+use axelar_wasm_std::{counter, voting::WeightedPoll, Threshold};
+use connection_router::state::Message;
 use connection_router::types::MessageID;
 
 #[cw_serde]
@@ -19,8 +20,8 @@ pub const POLL_ID: counter::Counter<u64> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<u64, WeightedPoll> = Map::new("polls");
 
-pub const PENDING_MESSAGES: Map<u64, Vec<hash::Hash>> = Map::new("pending_messages");
+pub const PENDING_MESSAGES: Map<u64, Vec<Message>> = Map::new("pending_messages");
 
-pub const VERIFIED_MESSAGES: Map<&MessageID, hash::Hash> = Map::new("verified_messages");
+pub const VERIFIED_MESSAGES: Map<&MessageID, Message> = Map::new("verified_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");

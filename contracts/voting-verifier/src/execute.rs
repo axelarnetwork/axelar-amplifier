@@ -47,8 +47,8 @@ pub fn verify_messages(
             .collect(),
     })?);
 
-    let pending_messages: Vec<&Message> = messages
-        .iter()
+    let pending_messages: Vec<Message> = messages
+        .into_iter()
         .filter_map(|status| match status {
             Pending(message) => Some(message),
             Verified(_) => None,
@@ -63,11 +63,7 @@ pub fn verify_messages(
     let participants = snapshot.get_participants();
     let id = create_poll(deps.storage, env, &config, snapshot, pending_messages.len())?;
 
-    let hashes = pending_messages
-        .iter()
-        .map(|message| message.hash())
-        .collect();
-    PENDING_MESSAGES.save(deps.storage, id, &hashes)?;
+    PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
 
     Ok(response.add_event(
         PollStarted {
@@ -124,8 +120,8 @@ fn take_snapshot(deps: Deps, env: &Env) -> Result<snapshot::Snapshot, ContractEr
 
 fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
     match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
-        Some(hash) if hash != message.hash() => {
-            Err(ContractError::MessageHashMismatch(message.id.to_string()))
+        Some(stored) if stored != *message => {
+            Err(ContractError::MessageMismatch(message.id.to_string()))
         }
         Some(_) => Ok(true),
         None => Ok(false),

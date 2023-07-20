@@ -17,15 +17,15 @@ impl From<Config> for Event {
     }
 }
 
-pub struct PollStarted<'a> {
+pub struct PollStarted {
     pub poll_id: PollID,
     pub source_gateway_address: String,
     pub confirmation_height: u64,
-    pub messages: Vec<&'a Message>,
+    pub messages: Vec<Message>,
     pub participants: Vec<Addr>,
 }
 
-impl From<PollStarted<'_>> for Event {
+impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
         Event::new("poll_started")
             .add_attribute("poll_id", other.poll_id)
