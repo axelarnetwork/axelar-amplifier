@@ -1,17 +1,17 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128, Uint64};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
     pub name: String,
     pub service_contract: Addr,
-    pub min_num_workers: Uint64,
-    pub max_num_workers: Option<Uint64>,
+    pub min_num_workers: u16,
+    pub max_num_workers: Option<u16>,
     pub min_worker_bond: Uint128,
-    pub unbonding_period: Uint128,
+    pub unbonding_period_days: u16,
     pub description: String,
 }
 
@@ -27,7 +27,7 @@ pub struct Worker {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub enum WorkerState {
     Active,
-    Deregistering,
+    Deregistering { deregistered_at: Timestamp },
     Inactive,
 }
 
