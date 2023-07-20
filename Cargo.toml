@@ -14,7 +14,6 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
-service-interface = { version = "0.1.0", path = "./contracts/service-interface" }
 service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
 gateway = { version = "0.1.0", path = "./contracts/gateway" }
 connection-router = { version = "0.1.0", path = "./contracts/connection-router" }

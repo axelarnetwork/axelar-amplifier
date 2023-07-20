@@ -17,7 +17,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -125,7 +124,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -150,9 +148,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-derive"
-version = "1.2.4"
+version = "1.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dd07af7736164d2d8126dc67fdb33b1b5c54fb5a3190395c47f46d24fc6d592"
+checksum = "a0fb2ce09f41a3dae1a234d56a9988f9aff4c76441cd50ef1ee9a4f20415b028"
 dependencies = [
  "syn 1.0.95",
 ]
@@ -183,9 +181,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-std"
-version = "1.2.4"
+version = "1.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d39f20967baeb94709123f7bba13a25ae2fa166bc5e7813f734914df3f8f6a1"
+checksum = "4337eef8dfaf8572fe6b6b415d6ec25f9308c7bb09f2da63789209fb131363be"
 dependencies = [
  "base64",
  "cosmwasm-crypto",
@@ -511,7 +509,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -623,7 +620,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
@@ -842,21 +838,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "service-interface"
-version = "0.1.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "service-registry"
 version = "0.1.0"
 dependencies = [
@@ -868,7 +849,6 @@ dependencies = [
  "cw2 0.15.1",
  "schemars",
  "serde",
- "service-interface",
  "thiserror",
 ]
 
@@ -1016,7 +996,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "service-interface",
  "thiserror",
 ]
 
