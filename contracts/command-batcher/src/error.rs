@@ -5,4 +5,7 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("Message is invalid: {reason}")]
+    InvalidMessage { reason: String },
 }

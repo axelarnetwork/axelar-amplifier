@@ -16,10 +16,13 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [features]
+default = ["evm"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+# use this feature to use EVM ABI encoding for command batch data
+evm = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -41,6 +44,12 @@ service-interface = { workspace = true, features = ["library"] }
 serde_json = "1.0.89"
 either = "1.8.1"
 hex = { version = "0.4.3", default-features = false, features = [] }
+connection-router = { workspace = true, features = ["library"] }
+ethabi = { version = "18.0.0", default-features = false, features = [] }
+sha3 = { version = "0.10", default-features = false, features = [] }
+multisig = { workspace = true, features = ["library"] }
+axelar-wasm-std = { workspace = true }
+k256 = { version = "0.11.1", features = ["ecdsa"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
