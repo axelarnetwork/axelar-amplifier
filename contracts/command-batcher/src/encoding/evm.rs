@@ -261,7 +261,7 @@ fn command_id(message_id: String) -> [u8; 32] {
 
 // TODO: This will make it incompatible with current version of destination chain gateways,
 // they rely on tx hash and event index as well, but just to emit events
-// https://github.com/axelarnetwork/axelar-cgp-solidity/blob/main/contracts/AxelarGateway.sol#L428
+// https://github.com/axelarnetwork/axelar-cgp-solidity/blob/main/contracts/AxelarGateway.sol#L466
 fn command_params(
     source_chain: String,
     source_address: String,
