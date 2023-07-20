@@ -17,7 +17,6 @@ fn initialize_contract(app: &mut App, service_registry_address: String) -> Addr 
     let msg = msg::InstantiateMsg {
         service_registry_address,
         service_name: "service_name".to_string(),
-        chain: "chain".to_string(),
         voting_threshold: Threshold::try_from((1u64, 2u64)).unwrap(),
         block_expiry: 100,
         confirmation_height: 100,

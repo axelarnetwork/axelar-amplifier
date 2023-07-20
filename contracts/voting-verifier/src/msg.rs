@@ -8,7 +8,6 @@ pub struct InstantiateMsg {
     // params to query register service
     pub service_registry_address: String,
     pub service_name: String,
-    pub chain: String,
 
     pub source_gateway_address: String,
     pub voting_threshold: Threshold,
