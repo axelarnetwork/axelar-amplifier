@@ -1,4 +1,5 @@
 use core::panic;
+use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
@@ -144,5 +145,52 @@ impl From<Message> for msg::Message {
             source_chain: value.source_chain.to_string(),
             payload_hash: value.payload_hash,
         }
+    }
+}
+
+impl fmt::Display for Message {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let serialized = serde_json::to_string(self).map_err(|_| fmt::Error)?;
+        write!(f, "{}", serialized)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::to_vec;
+
+    use super::Message;
+
+    #[test]
+    // Any modifications to the Message struct fields or their types
+    // will cause this test to fail, indicating that a migration is needed.
+    fn test_message_struct_unchanged() {
+        let expected_message_bytes: Vec<u8> = vec![
+            123, 34, 105, 100, 34, 58, 123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 99, 104, 97,
+            105, 110, 58, 105, 100, 34, 125, 44, 34, 100, 101, 115, 116, 105, 110, 97, 116, 105,
+            111, 110, 95, 97, 100, 100, 114, 101, 115, 115, 34, 58, 34, 100, 101, 115, 116, 105,
+            110, 97, 116, 105, 111, 110, 95, 97, 100, 100, 114, 101, 115, 115, 34, 44, 34, 100,
+            101, 115, 116, 105, 110, 97, 116, 105, 111, 110, 95, 99, 104, 97, 105, 110, 34, 58,
+            123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 100, 101, 115, 116, 105, 110, 97, 116,
+            105, 111, 110, 95, 99, 104, 97, 105, 110, 34, 125, 44, 34, 115, 111, 117, 114, 99, 101,
+            95, 99, 104, 97, 105, 110, 34, 58, 123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 99,
+            104, 97, 105, 110, 34, 125, 44, 34, 115, 111, 117, 114, 99, 101, 95, 97, 100, 100, 114,
+            101, 115, 115, 34, 58, 34, 115, 111, 117, 114, 99, 101, 95, 97, 100, 100, 114, 101,
+            115, 115, 34, 44, 34, 112, 97, 121, 108, 111, 97, 100, 95, 104, 97, 115, 104, 34, 58,
+            34, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48,
+            49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48,
+            49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 34,
+            125,
+        ];
+
+        let msg = Message {
+            id: "chain:id".to_string().parse().unwrap(),
+            source_chain: "chain".to_string().parse().unwrap(),
+            source_address: "source_address".to_string(),
+            destination_chain: "destination_chain".to_string().parse().unwrap(),
+            destination_address: "destination_address".to_string(),
+            payload_hash: [1; 32].into(),
+        };
+        assert_eq!(to_vec(&msg).unwrap(), expected_message_bytes);
     }
 }

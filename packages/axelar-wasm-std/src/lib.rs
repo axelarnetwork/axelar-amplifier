@@ -1,3 +1,4 @@
+pub mod counter;
 pub mod flagset;
 pub mod nonempty;
 pub mod snapshot;
