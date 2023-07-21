@@ -1,14 +1,14 @@
 #[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
-    QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
+    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, Uint128,
 };
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ActiveWorkers, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{service_workers, Service, Worker, WorkerState, SERVICES};
-use service_interface::msg::QueryMsg as ServiceQueryMsg;
 
 /*
 // version info for migration info
@@ -31,7 +31,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -42,7 +42,7 @@ pub fn execute(
             min_num_workers,
             max_num_workers,
             min_worker_bond,
-            unbonding_period,
+            unbonding_period_days,
             description,
         } => execute::register_service(
             deps,
@@ -51,7 +51,7 @@ pub fn execute(
             min_num_workers,
             max_num_workers,
             min_worker_bond,
-            unbonding_period,
+            unbonding_period_days,
             description,
         ),
         ExecuteMsg::RegisterWorker {
@@ -59,12 +59,11 @@ pub fn execute(
             commission_rate,
         } => execute::register_worker(deps, info, service_name, commission_rate),
         ExecuteMsg::DeregisterWorker { service_name } => {
-            execute::deregister_worker(deps, info, service_name)
+            execute::deregister_worker(deps, env, info, service_name)
         }
-        ExecuteMsg::UnbondWorker {
-            service_name,
-            worker_address,
-        } => execute::unbond_worker(deps, service_name, worker_address),
+        ExecuteMsg::UnbondWorker { service_name } => {
+            execute::unbond_worker(deps, env, info, service_name)
+        }
         ExecuteMsg::Delegate {
             service_name: _,
             worker_address: _,
@@ -81,10 +80,10 @@ pub mod execute {
         deps: DepsMut,
         service_name: String,
         service_contract: Addr,
-        min_num_workers: Uint64,
-        max_num_workers: Option<Uint64>,
+        min_num_workers: u16,
+        max_num_workers: Option<u16>,
         min_worker_bond: Uint128,
-        unbonding_period: Uint128, // TODO: pending definition if we want this. Use Duration data type
+        unbonding_period_days: u16,
         description: String,
     ) -> Result<Response, ContractError> {
         let key = &service_name.clone();
@@ -98,7 +97,7 @@ pub mod execute {
                     min_num_workers,
                     max_num_workers,
                     min_worker_bond,
-                    unbonding_period,
+                    unbonding_period_days,
                     description,
                 }),
             }
@@ -166,6 +165,7 @@ pub mod execute {
 
     pub fn deregister_worker(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
         service_name: String,
     ) -> Result<Response, ContractError> {
@@ -177,11 +177,11 @@ pub mod execute {
                     Some(found) => {
                         if found.state == WorkerState::Active {
                             Ok(Worker {
-                                address: found.address,
-                                stake: found.stake,
-                                commission_rate: found.commission_rate,
-                                state: WorkerState::Deregistering,
+                                state: WorkerState::Deregistering {
+                                    deregistered_at: env.block.time,
+                                },
                                 service_name,
+                                ..found
                             })
                         } else {
                             Err(ContractError::InvalidWorkerState {})
@@ -197,49 +197,46 @@ pub mod execute {
 
     pub fn unbond_worker(
         deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
         service_name: String,
-        worker_address: Addr,
     ) -> Result<Response, ContractError> {
         let service = SERVICES.load(deps.storage, &service_name)?;
-
-        let query_msg: ServiceQueryMsg = ServiceQueryMsg::GetUnbondAllowed {
-            worker_address: worker_address.clone(),
-        };
-        let query_response: Option<String> =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: service.service_contract.to_string(),
-                msg: to_binary(&query_msg)?,
-            }))?;
-
-        if let Some(error) = query_response {
-            return Err(ContractError::ServiceContractError { msg: error });
-        }
+        let worker_address = info.sender;
 
         let service_worker = service_workers().update(
             deps.storage,
             &worker_address,
             |sw| -> Result<Worker, ContractError> {
                 match sw {
-                    Some(found) => {
-                        if found.state == WorkerState::Deregistering {
-                            Ok(Worker {
-                                address: found.address,
-                                stake: found.stake,
-                                commission_rate: found.commission_rate,
-                                state: WorkerState::Inactive,
-                                service_name,
-                            })
-                        } else {
-                            Err(ContractError::InvalidWorkerState {})
+                    Some(Worker {
+                        state: WorkerState::Deregistering { deregistered_at },
+                        address,
+                        stake,
+                        commission_rate,
+                        service_name,
+                    }) => {
+                        if deregistered_at.plus_days(service.unbonding_period_days as u64)
+                            > env.block.time
+                        {
+                            return Err(ContractError::UnbondTooEarly {});
                         }
+                        Ok(Worker {
+                            state: WorkerState::Inactive,
+                            address,
+                            stake,
+                            commission_rate,
+                            service_name,
+                        })
                     }
+                    Some(_) => Err(ContractError::InvalidWorkerState {}),
                     None => Err(ContractError::UnregisteredWorker {}),
                 }
             },
         )?;
 
         let res = Response::new().add_message(BankMsg::Send {
-            to_address: service.service_contract.into(),
+            to_address: worker_address.into(),
             amount: [Coin {
                 denom: AXL_DENOMINATION.to_string(),
                 amount: service_worker.stake,

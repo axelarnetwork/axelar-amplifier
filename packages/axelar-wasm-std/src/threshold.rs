@@ -1,6 +1,7 @@
+use std::fmt;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Fraction, Uint64};
-use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::nonempty;
@@ -15,19 +16,25 @@ pub enum Error {
 
 #[cw_serde]
 #[derive(Copy)]
-pub struct Threshold(nonempty::Uint64, nonempty::Uint64);
+pub struct Threshold {
+    numerator: nonempty::Uint64,
+    denominator: nonempty::Uint64,
+}
 
 impl Fraction<Uint64> for Threshold {
     fn numerator(&self) -> Uint64 {
-        self.0.into()
+        self.numerator.into()
     }
 
     fn denominator(&self) -> Uint64 {
-        self.1.into()
+        self.denominator.into()
     }
 
     fn inv(&self) -> Option<Self> {
-        Some(Self(self.1, self.0))
+        Some(Threshold {
+            numerator: self.denominator,
+            denominator: self.numerator,
+        })
     }
 }
 
@@ -40,7 +47,10 @@ impl TryFrom<(nonempty::Uint64, nonempty::Uint64)> for Threshold {
         if numerator > denominator {
             Err(Error::OutOfInterval)
         } else {
-            Ok(Threshold(numerator, denominator))
+            Ok(Threshold {
+                numerator,
+                denominator,
+            })
         }
     }
 }
@@ -68,6 +78,12 @@ fn try_from<T: TryInto<nonempty::Uint64, Error = crate::nonempty::Error>>(
     let denominator: nonempty::Uint64 = value.1.try_into().map_err(Error::InvalidParameter)?;
 
     (numerator, denominator).try_into()
+}
+
+impl fmt::Display for Threshold {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Threshold({}, {})", self.numerator, self.denominator)
+    }
 }
 
 #[cfg(test)]

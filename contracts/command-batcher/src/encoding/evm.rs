@@ -10,7 +10,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     error::ContractError,
-    types::{CommandBatch, Proof},
+    types::{CommandBatch, Operator, Proof},
 };
 
 use super::traits;
@@ -122,47 +122,37 @@ impl Data {
 
 impl Proof {
     fn encode(&self) -> HexBinary {
-        let operators: Vec<Token> = self
-            .operators
-            .iter()
-            .map(|operator| {
-                Token::Address(ethereum_types::Address::from_slice(operator.as_slice()))
-            })
-            .collect();
-        let weights: Vec<Token> = self
-            .weights
-            .iter()
-            .map(|weight| {
-                Token::Uint(
-                    ethereum_types::U256::from_dec_str(&weight.to_string())
-                        .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-                )
-            })
-            .collect();
-        let quorum = Token::Uint(
-            ethereum_types::U256::from_dec_str(&self.quorum.to_string())
+        let mut addresses: Vec<Token> = Vec::new();
+        let mut weights: Vec<Token> = Vec::new();
+        let mut signatures: Vec<Token> = Vec::new();
+
+        self.operators.iter().for_each(|operator| {
+            addresses.push(Token::Address(ethereum_types::Address::from_slice(
+                operator.address.as_slice(),
+            )));
+            weights.push(Token::Uint(
+                ethereum_types::U256::from_dec_str(&operator.weight.to_string())
+                    .expect("violated invariant: Uint256 is not a valid EVM uint256"),
+            ));
+
+            if let Some(signature) = &operator.signature {
+                signatures.push(Token::Bytes(signature.into()));
+            }
+        });
+
+        let threshold = Token::Uint(
+            ethereum_types::U256::from_dec_str(&self.threshold.to_string())
                 .expect("violated invariant: Uint256 is not a valid EVM uint256"),
         );
-        let signatures: Vec<Token> = self
-            .signatures
-            .iter()
-            .map(|signature| Token::Bytes(signature.to_vec()))
-            .collect();
 
         ethabi::encode(&[
-            Token::Array(operators),
+            Token::Array(addresses),
             Token::Array(weights),
-            quorum,
+            threshold,
             Token::Array(signatures),
         ])
         .into()
     }
-}
-
-pub struct Operator {
-    pub address: HexBinary,
-    pub weight: Uint256,
-    pub signature: Option<Signature>,
 }
 
 fn evm_address(pub_key: &[u8]) -> HexBinary {
@@ -179,10 +169,6 @@ impl<'a> traits::Proof<'a> for Proof {
         signers: HashMap<String, Signature>,
         pub_keys: HashMap<String, multisig::types::PublicKey>,
     ) -> Self {
-        let mut addresses: Vec<HexBinary> = Vec::new();
-        let mut weights: Vec<Uint256> = Vec::new();
-        let mut signatures: Vec<HexBinary> = Vec::new();
-
         let mut operators = snapshot
             .participants
             .iter()
@@ -201,20 +187,9 @@ impl<'a> traits::Proof<'a> for Proof {
             .collect::<Vec<Operator>>();
         operators.sort_by(|a, b| a.address.cmp(&b.address));
 
-        for operator in operators {
-            addresses.push(operator.address);
-            weights.push(operator.weight);
-
-            if let Some(signature) = operator.signature {
-                signatures.push(signature.into());
-            }
-        }
-
         Proof {
-            operators: addresses,
-            weights,
-            quorum: snapshot.quorum.into(),
-            signatures,
+            operators,
+            threshold: snapshot.quorum.into(),
         }
     }
 

@@ -62,6 +62,12 @@ impl From<Signature> for HexBinary {
     }
 }
 
+impl From<&Signature> for Vec<u8> {
+    fn from(original: &Signature) -> Self {
+        original.0.to_vec()
+    }
+}
+
 impl<'a> From<&'a Signature> for &'a [u8] {
     fn from(original: &'a Signature) -> Self {
         original.0.as_slice()

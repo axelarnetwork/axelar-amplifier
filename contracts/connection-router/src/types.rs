@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 
 use axelar_wasm_std::flagset::FlagSet;
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::ContractError;
 
 pub const ID_SEPARATOR: char = ':';
+
 #[cw_serde]
 pub struct MessageID {
     value: String,
@@ -35,15 +37,35 @@ impl From<MessageID> for String {
     }
 }
 
-impl ToString for MessageID {
-    fn to_string(&self) -> String {
-        self.value.clone()
-    }
-}
-
 impl<'a> MessageID {
     pub fn as_str(&'a self) -> &'a str {
         self.value.as_str()
+    }
+}
+
+impl fmt::Display for MessageID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+impl<'a> PrimaryKey<'a> for MessageID {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.value.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for MessageID {
+    type Output = Self;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self> {
+        let value = String::from_utf8(value).map_err(StdError::invalid_utf8)?;
+        Ok(Self { value })
     }
 }
 
@@ -71,9 +93,9 @@ impl From<ChainName> for String {
     }
 }
 
-impl ToString for ChainName {
-    fn to_string(&self) -> String {
-        self.value.clone()
+impl fmt::Display for ChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
