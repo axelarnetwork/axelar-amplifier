@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128, Uint64};
+use cosmwasm_std::{Addr, Uint128};
 
 use crate::state::Worker;
 
@@ -11,10 +11,10 @@ pub enum ExecuteMsg {
     RegisterService {
         service_name: String,
         service_contract: Addr,
-        min_num_workers: Uint64,
-        max_num_workers: Option<Uint64>,
+        min_num_workers: u16,
+        max_num_workers: Option<u16>,
         min_worker_bond: Uint128,
-        unbonding_period: Uint128,
+        unbonding_period_days: u16, // number of days to wait after deregistering before allowing unbonding
         description: String,
     },
     RegisterWorker {
@@ -26,7 +26,6 @@ pub enum ExecuteMsg {
     },
     UnbondWorker {
         service_name: String,
-        worker_address: Addr,
     },
     Delegate {
         service_name: String,

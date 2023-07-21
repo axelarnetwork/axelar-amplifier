@@ -6,20 +6,23 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("unauthorized")]
     Unauthorized {},
-    #[error("Service name already exists")]
+    #[error("service name already exists")]
     ServiceAlreadyExists {},
-    #[error("Service does not exists")]
+    #[error("service does not exist")]
     ServiceNotExists {},
-    #[error("Service worker already registered")]
+    #[error("service worker already registered")]
     ServiceWorkerAlreadyRegistered {},
-    #[error("Funds don't meet minimum requirement for bonding")]
+    #[error("funds don't meet minimum requirement for bonding")]
     NotEnoughFunds {},
-    #[error("Worker not registered for this service")]
+    #[error("worker not registered for this service")]
     UnregisteredWorker {},
-    #[error("Invalid worker state for this operation")]
+    #[error("invalid worker state for this operation")]
     InvalidWorkerState {},
+    #[error("worker unbonding too early")]
+    UnbondTooEarly {},
+
     #[error("{msg}")]
     ServiceContractError { msg: String },
 }
