@@ -13,16 +13,26 @@
    The contract then processes the results and takes appropriate action for each transaction, depending
    on whether or not the transaction was successfully verified.
 */
-
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
+use thiserror::Error;
 
 use crate::Snapshot;
 
-use thiserror::Error;
-
 #[cw_serde]
-pub struct PollID(String);
+pub struct PollID(u64);
+
+impl From<PollID> for String {
+    fn from(val: PollID) -> Self {
+        val.0.to_string()
+    }
+}
+
+impl From<u64> for PollID {
+    fn from(value: u64) -> Self {
+        PollID(value)
+    }
+}
 
 pub trait Poll {
     // errors if the poll is not finished
@@ -51,10 +61,23 @@ pub enum Error {}
 pub struct WeightedPoll {
     pub poll_id: PollID,
     pub snapshot: Snapshot,
-    pub block_height_expiry: Option<u64>,
+    pub expires_at: u64,
     pub poll_size: usize,
     pub votes: Vec<Uint256>, // running tally of weighted votes
     pub status: PollStatus,
+}
+
+impl WeightedPoll {
+    pub fn new(poll_id: PollID, snapshot: Snapshot, expiry: u64, poll_size: usize) -> Self {
+        WeightedPoll {
+            poll_id,
+            snapshot,
+            expires_at: expiry,
+            poll_size,
+            votes: vec![Uint256::zero(); poll_size],
+            status: PollStatus::InProgress,
+        }
+    }
 }
 
 impl Poll for WeightedPoll {

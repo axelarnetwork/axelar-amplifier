@@ -1,10 +1,18 @@
-use connection_router::msg::Message;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+
+use axelar_wasm_std::Threshold;
+use connection_router::msg::Message;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    service_registry_address: String, // service registry to determine current worker stake
-    verifier_address: String,         // verifier to call back to when messages are verified
+    // params to query register service
+    pub service_registry_address: String,
+    pub service_name: String,
+
+    pub source_gateway_address: String,
+    pub voting_threshold: Threshold,
+    pub block_expiry: u64,
+    pub confirmation_height: u64,
 }
 
 #[cw_serde]
@@ -32,4 +40,9 @@ pub struct Poll {
 pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: String },
+}
+
+#[cw_serde]
+pub struct VerifyMessagesResponse {
+    pub verification_statuses: Vec<(String, bool)>,
 }

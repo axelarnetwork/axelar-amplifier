@@ -60,13 +60,22 @@ impl Snapshot {
             .get(participant.as_str())
             .map(|p| (&p.weight).into())
     }
+
+    pub fn get_participants(&self) -> Vec<Addr> {
+        self.participants
+            .keys()
+            .cloned()
+            .map(Addr::unchecked)
+            .collect()
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use cosmwasm_std::{from_binary, to_binary, Timestamp, Uint64};
     use rand::Rng;
+
+    use super::*;
 
     fn mock_participant(address: &str, weight: nonempty::Uint256) -> Participant {
         Participant {

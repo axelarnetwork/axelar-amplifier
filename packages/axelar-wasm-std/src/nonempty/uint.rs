@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
 
@@ -37,9 +39,15 @@ impl From<Uint64> for cosmwasm_std::Uint64 {
     }
 }
 
+impl fmt::Display for Uint64 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 // TODO: consider using macro for these types
 #[cw_serde]
-#[derive(Copy, PartialOrd)]
+#[derive(Copy, PartialOrd, Eq)]
 pub struct Uint256(cosmwasm_std::Uint256);
 
 impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
@@ -63,6 +71,18 @@ impl From<Uint256> for cosmwasm_std::Uint256 {
 impl<'a> From<&'a Uint256> for &'a cosmwasm_std::Uint256 {
     fn from(value: &'a Uint256) -> Self {
         &value.0
+    }
+}
+
+impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
+    type Error = Error;
+
+    fn try_from(value: cosmwasm_std::Uint128) -> Result<Self, Self::Error> {
+        if value == cosmwasm_std::Uint128::zero() {
+            Err(Error::InvalidValue(value.into()))
+        } else {
+            Ok(Uint256(value.into()))
+        }
     }
 }
 

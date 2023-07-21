@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 
+use axelar_wasm_std::{nonempty::Error, snapshot::Participant};
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
     pub name: String,
@@ -22,6 +24,17 @@ pub struct Worker {
     pub commission_rate: Uint128,
     pub state: WorkerState,
     pub service_name: String,
+}
+
+impl TryInto<Participant> for Worker {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Participant, Error> {
+        Ok(Participant {
+            address: self.address,
+            weight: self.stake.try_into()?,
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
