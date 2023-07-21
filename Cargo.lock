@@ -139,7 +139,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
- "cw-storage-plus 1.0.1",
+ "cw-storage-plus 1.1.0",
  "cw2 0.15.1",
  "either",
  "hex",
