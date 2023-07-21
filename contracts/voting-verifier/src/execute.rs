@@ -10,7 +10,7 @@ use crate::error::ContractError;
 use crate::events::PollStarted;
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::VerifyMessagesResponse;
-use crate::state::{Config, CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
+use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 enum VerificationStatus {
     Verified(Message),
@@ -61,7 +61,13 @@ pub fn verify_messages(
 
     let snapshot = take_snapshot(deps.as_ref(), &env)?;
     let participants = snapshot.get_participants();
-    let id = create_poll(deps.storage, env, &config, snapshot, pending_messages.len())?;
+    let id = create_poll(
+        deps.storage,
+        env.block.height,
+        config.block_expiry,
+        snapshot,
+        pending_messages.len(),
+    )?;
 
     PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
 
@@ -130,19 +136,14 @@ fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractEr
 
 fn create_poll(
     store: &mut dyn Storage,
-    env: Env,
-    config: &Config,
+    block_height: u64,
+    expiry: u64,
     snapshot: snapshot::Snapshot,
     poll_size: usize,
 ) -> Result<u64, ContractError> {
     let id = POLL_ID.incr(store)?;
 
-    let poll = voting::WeightedPoll::new(
-        id.into(),
-        snapshot,
-        env.block.height + config.block_expiry,
-        poll_size,
-    );
+    let poll = voting::WeightedPoll::new(id.into(), snapshot, block_height + expiry, poll_size);
     POLLS.save(store, id, &poll)?;
 
     Ok(id)
