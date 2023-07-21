@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
@@ -10,19 +10,14 @@ pub enum ContractError {
     Unauthorized {},
     #[error("service name already exists")]
     ServiceAlreadyExists {},
-    #[error("service does not exist")]
-    ServiceNotExists {},
-    #[error("service worker already registered")]
-    ServiceWorkerAlreadyRegistered {},
-    #[error("funds don't meet minimum requirement for bonding")]
-    NotEnoughFunds {},
-    #[error("worker not registered for this service")]
-    UnregisteredWorker {},
+    #[error("service not found")]
+    ServiceNotFound {},
+    #[error("service worker already authorized")]
+    ServiceWorkerAlreadyAuthorized {},
+    #[error("funds are in the wrong denomination")]
+    WrongDenom {},
+    #[error("worker not found")]
+    WorkerNotFound {},
     #[error("invalid worker state for this operation")]
     InvalidWorkerState {},
-    #[error("worker unbonding too early")]
-    UnbondTooEarly {},
-
-    #[error("{msg}")]
-    ServiceContractError { msg: String },
 }

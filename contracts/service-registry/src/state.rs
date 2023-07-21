@@ -1,8 +1,16 @@
+use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Timestamp, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
+use cw_storage_plus::{Item, Map};
+
+#[cw_serde]
+pub struct Config {
+    pub governance: Addr,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
@@ -19,38 +27,21 @@ pub struct Service {
 pub struct Worker {
     pub address: Addr,
     pub stake: Uint128, // TODO: correct size?
-    pub commission_rate: Uint128,
     pub state: WorkerState,
     pub service_name: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub enum WorkerState {
-    Active,
-    Deregistering { deregistered_at: Timestamp },
-    Inactive,
+    Pending, // not authorized via governance vote yet, but stake is bonded
+    Active,  // authorized and bonded
+    Unbonding { unbonded_at: Timestamp }, // authorized, but requested unbond. stake still held but unbonding countdown started
+    Inactive, // authorized, but not bonded, or bonded stake does not meet minimum
 }
 
-pub struct WorkerIndexes<'a> {
-    pub service_name: MultiIndex<'a, String, Worker, &'a Addr>,
-}
-
-impl<'a> IndexList<Worker> for WorkerIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Worker>> + '_> {
-        let v: Vec<&dyn Index<Worker>> = vec![&self.service_name];
-        Box::new(v.into_iter())
-    }
-}
-
-pub fn service_workers<'a>() -> IndexedMap<'a, &'a Addr, Worker, WorkerIndexes<'a>> {
-    let indexes = WorkerIndexes {
-        service_name: MultiIndex::new(
-            |_pk, d| d.service_name.clone(),
-            "worker_services",
-            "worker_services__service_name",
-        ),
-    };
-    IndexedMap::new("worker_services", indexes)
-}
-
+// maps service_name -> Service
 pub const SERVICES: Map<&str, Service> = Map::new("services");
+// maps (service_name, chain_name, worker_address) -> ()
+pub const WORKERS_PER_CHAIN: Map<(&str, &str, &Addr), ()> = Map::new("workers_per_chain");
+// maps (service_name, worker_address) -> Worker
+pub const WORKERS: Map<(&str, &Addr), Worker> = Map::new("workers");

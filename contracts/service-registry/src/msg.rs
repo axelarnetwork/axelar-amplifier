@@ -4,10 +4,13 @@ use cosmwasm_std::{Addr, Uint128};
 use crate::state::Worker;
 
 #[cw_serde]
-pub struct InstantiateMsg {}
+pub struct InstantiateMsg {
+    pub governance_account: String,
+}
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    // governance only
     RegisterService {
         service_name: String,
         service_contract: Addr,
@@ -17,20 +20,25 @@ pub enum ExecuteMsg {
         unbonding_period_days: u16, // number of days to wait after deregistering before allowing unbonding
         description: String,
     },
-    RegisterWorker {
-        service_name: String,
-        commission_rate: Uint128,
-    },
-    DeregisterWorker {
+    // governance only
+    AuthorizeWorker {
+        worker_addr: String,
         service_name: String,
     },
+
+    // permissionless
+    DeclareChainSupport {
+        service_name: String,
+        chain_name: String,
+    },
+    // permissionless
+    BondWorker {
+        service_name: String,
+    },
+    // permissionless
+    // Removes worker from the active set and starts unbonding countdown. Call again when countdown is over to receive the previously bonded stake
     UnbondWorker {
         service_name: String,
-    },
-    Delegate {
-        service_name: String,
-        worker_address: Addr,
-        amount: Uint128,
     },
 }
 
@@ -38,7 +46,10 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(ActiveWorkers)]
-    GetActiveWorkers { service_name: String },
+    GetActiveWorkers {
+        service_name: String,
+        chain_name: String,
+    },
 }
 
 #[cw_serde]
