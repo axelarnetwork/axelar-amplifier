@@ -72,7 +72,7 @@ Batcher-->>-Relayer: returns GetProofResponse
 11. Relayer queries Batcher for the proof, using the proof ID
 12. Batcher queries Multisig for the multisig session, using the session ID
 13. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
-14. If the Multisig state is `Completed`, the Batcher finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway.
+14. If the Multisig state is `Completed`, the Batcher finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Batcher returns the `GetProofResponse` struct with the `status` field set to `Pending`.
 
 ## Interface
 
@@ -91,12 +91,17 @@ pub enum QueryMsg {
     GetProof { proof_id: String },
 }
 
+pub enum ProofStatus {
+    Pending,
+    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
+}
+
 pub struct GetProofResponse {
     pub proof_id: HexBinary,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub proof: Proof,
-    pub execute_data: HexBinary, // encoded data and proof sent to destination gateway
+    pub status: ProofStatus,
 }
 
 pub struct Data {
