@@ -121,6 +121,8 @@ where
             }
         }
 
+        broadcast_all(&mut queue, &mut broadcaster).await?;
+
         Ok(())
     }
 
@@ -178,6 +180,28 @@ mod test {
                     ..Default::default()
                 }),
                 result: None,
+            })
+        });
+        broadcast_client.expect_simulate().once().returning(move |_| {
+            Ok(SimulateResponse {
+                gas_info: Some(GasInfo {
+                    gas_used: gas_used * (tx_count as u64),
+                    ..Default::default()
+                }),
+                result: None,
+            })
+        });
+        broadcast_client
+            .expect_broadcast_tx()
+            .once()
+            .returning(|_| Ok(TxResponse::default()));
+        broadcast_client.expect_get_tx().once().returning(|_| {
+            Ok(GetTxResponse {
+                tx_response: Some(TxResponse {
+                    code: 0,
+                    ..TxResponse::default()
+                }),
+                ..GetTxResponse::default()
             })
         });
 
@@ -265,7 +289,7 @@ mod test {
                 result: None,
             })
         });
-        broadcast_client.expect_simulate().once().returning(move |_| {
+        broadcast_client.expect_simulate().times(2).returning(move |_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
                     gas_used: gas_used * (tx_count as u64),
@@ -276,9 +300,9 @@ mod test {
         });
         broadcast_client
             .expect_broadcast_tx()
-            .once()
+            .times(2)
             .returning(|_| Ok(TxResponse::default()));
-        broadcast_client.expect_get_tx().once().returning(|_| {
+        broadcast_client.expect_get_tx().times(2).returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
                     code: 0,

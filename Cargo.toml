@@ -15,16 +15,19 @@ deref-derive = "0.1.0"
 ecdsa = {version = "0.16.6"}
 enum-display-derive = "0.1.1"
 error-stack = {version = "0.2.4", features = ["eyre"]}
+ethers = {version = "2.0.8", features = ["rustls"]}
 futures = "0.3.25"
+humantime-serde = "1.1.1"
 k256 = {version = "0.13.1", features = ["ecdsa"]}
 mockall = "0.11.3"
+prost = "0.11.9"
 serde = {version = "1.0.147", features = ["derive"]}
 serde_json = "1.0.89"
 subtle-encoding = "0.5.1"
 tendermint = "0.32.0"
 tendermint-rpc = {version = "0.32.0", features = ["http-client"]}
 thiserror = "1.0.37"
-tokio = "1.22.0"
+tokio = {version = "1.22.0", features = ["signal"]}
 tokio-stream = {version = "0.1.11", features = ["sync"]}
 toml = "0.5.9"
 tonic = "0.8.3"
@@ -33,9 +36,6 @@ tracing-core = {version = "0.1.30", features = ["valuable"]}
 tracing-subscriber = {version = "0.3.16", features = ["json", "valuable"]}
 url = "2.3.1"
 valuable = {version = "0.1.0", features = ["derive"]}
-prost = "0.11.9"
-humantime-serde = "1.1.1"
-ethers = { version = "2.0.8", features = ["rustls"] }
 
 [dev-dependencies]
 rand = "0.8.5"

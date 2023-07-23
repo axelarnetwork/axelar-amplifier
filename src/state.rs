@@ -55,7 +55,7 @@ impl<'a> State<'a> {
         self.state.insert(label, height);
     }
 
-    pub fn flush(self) -> Result<(), Error> {
+    fn flush(self) -> Result<(), Error> {
         let state = serde_json::to_string(&self.state)
             .into_report()
             .change_context(Error::SerializationFailure)?;
@@ -79,10 +79,14 @@ impl Updater {
             .insert(label.into(), ReceiverStream::new(height_changed));
     }
 
-    pub async fn run(mut self, state: &mut State<'_>) {
+    pub async fn run(mut self, mut state: State<'_>) -> Result<(), Error> {
         while let Some((label, height)) = self.update_stream.next().await {
             state.set(label, height);
         }
+
+        info!("persisting state to disk");
+
+        state.flush()
     }
 }
 

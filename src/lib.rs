@@ -6,9 +6,11 @@ use broadcaster::Broadcaster;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use error_stack::Result;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
+use tokio::signal::unix::{signal, SignalKind};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 use tonic::transport::Channel;
+use tracing::info;
 
 use crate::config::Config;
 use event_processor::EventProcessor;
@@ -45,13 +47,14 @@ pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
     )
     .build();
 
-    let mut app = App::new(tm_client, broadcaster, state);
-
-    app = app.configure(cfg).await?;
-    app.run().await
+    App::new(tm_client, broadcaster, state)
+        .configure(cfg)
+        .await?
+        .run()
+        .await
 }
 
-pub struct App<'a> {
+struct App<'a> {
     event_sub_client: event_sub::EventSubClient<tendermint_rpc::HttpClient>,
     event_sub_driver: event_sub::EventSubClientDriver,
     event_processor: EventProcessor,
@@ -63,7 +66,7 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn new(
+    fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: Broadcaster<ServiceClient<Channel>>,
         state: State<'a>,
@@ -90,7 +93,7 @@ impl<'a> App<'a> {
         }
     }
 
-    pub async fn configure(mut self, cfg: Config) -> Result<App<'a>, Error> {
+    async fn configure(mut self, cfg: Config) -> Result<App<'a>, Error> {
         for config in cfg.evm_chain_configs {
             let label = format!("{}-confirm-gateway-tx-handler", config.name);
             let handler = handlers::evm_confirm_gateway_tx::Handler::new(
@@ -116,25 +119,35 @@ impl<'a> App<'a> {
         Ok(self)
     }
 
-    pub async fn run(self) -> Result<(), Error> {
+    async fn run(self) -> Result<(), Error> {
         let client = self.event_sub_client;
         let processor = self.event_processor;
         let broadcaster = self.broadcaster;
-        let mut state = self.state;
+        let event_sub_driver = self.event_sub_driver;
 
         let event_sub_handle = tokio::spawn(async move { client.run().await });
         let event_processor_handle = tokio::spawn(async move { processor.run().await });
         let broadcaster_handler = tokio::spawn(async move { broadcaster.run().await });
 
-        self.state_updater.run(&mut state).await;
+        tokio::spawn(async move {
+            let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
+            let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");
 
-        // TODO: Make the teardown process more robust so that it is done however the program is terminated
-        self.event_sub_driver.close().map_err(Error::new)?;
-        state.flush().map_err(Error::new)?;
+            tokio::select! {
+                _ = sigint.recv() => {},
+                _ = sigterm.recv() => {},
+            }
 
-        let _ = event_sub_handle.await;
-        let _ = event_processor_handle.await;
-        let _ = broadcaster_handler.await;
+            info!("signal received, waiting for program to exit gracefully");
+
+            event_sub_driver.close()
+        });
+
+        self.state_updater.run(self.state).await.map_err(Error::new)?;
+
+        event_sub_handle.await.map_err(Error::new)?.map_err(Error::new)?;
+        event_processor_handle.await.map_err(Error::new)?.map_err(Error::new)?;
+        broadcaster_handler.await.map_err(Error::new)?.map_err(Error::new)?;
 
         Ok(())
     }
