@@ -31,12 +31,38 @@ impl From<PollStarted> for Event {
             .add_attribute("poll_id", other.poll_id)
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
-            .add_attribute("participants", display_vector(other.participants))
-            .add_attribute("message", display_vector(other.messages))
+            .add_attribute("participants", display_vector(&other.participants))
+            .add_attribute("message", display_vector(&other.messages))
     }
 }
 
-fn display_vector<T>(v: Vec<T>) -> String
+pub struct Voted {
+    pub poll_id: PollID,
+    pub voter: Addr,
+}
+
+impl From<Voted> for Event {
+    fn from(other: Voted) -> Self {
+        Event::new("voted")
+            .add_attribute("poll_id", other.poll_id)
+            .add_attribute("voter", other.voter)
+    }
+}
+
+pub struct PollEnded<'a> {
+    pub poll_id: PollID,
+    pub results: &'a Vec<bool>,
+}
+
+impl From<PollEnded<'_>> for Event {
+    fn from(other: PollEnded) -> Self {
+        Event::new("poll_ended")
+            .add_attribute("poll_id", other.poll_id)
+            .add_attribute("voter", display_vector(other.results))
+    }
+}
+
+fn display_vector<T>(v: &[T]) -> String
 where
     T: std::fmt::Display,
 {

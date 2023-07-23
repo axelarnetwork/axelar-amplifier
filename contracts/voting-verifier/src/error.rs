@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, voting};
 use connection_router;
 use service_registry;
 
@@ -27,4 +27,10 @@ pub enum ContractError {
 
     #[error("message {0} mismatch with verified message")]
     MessageMismatch(String),
+
+    #[error("poll not found")]
+    PollNotFound,
+
+    #[error("{0}")]
+    VoteError(#[from] voting::Error),
 }

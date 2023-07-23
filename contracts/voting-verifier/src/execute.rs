@@ -2,14 +2,18 @@ use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
 
-use axelar_wasm_std::{snapshot, voting};
+use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::{
+    snapshot,
+    voting::{Poll, WeightedPoll},
+};
 use connection_router::state::Message;
 use service_registry::msg::{ActiveWorkers, QueryMsg};
 
 use crate::error::ContractError;
-use crate::events::PollStarted;
+use crate::events::{PollEnded, PollStarted, Voted};
 use crate::execute::VerificationStatus::{Pending, Verified};
-use crate::msg::VerifyMessagesResponse;
+use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 enum VerificationStatus {
@@ -73,7 +77,7 @@ pub fn verify_messages(
 
     Ok(response.add_event(
         PollStarted {
-            poll_id: id.into(),
+            poll_id: id,
             source_gateway_address: config.source_gateway_address,
             confirmation_height: config.confirmation_height,
             participants,
@@ -84,16 +88,45 @@ pub fn verify_messages(
 }
 
 pub fn vote(
-    _deps: DepsMut,
-    _info: MessageInfo,
-    _poll_id: String,
-    _votes: Vec<bool>,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    poll_id: PollID,
+    votes: Vec<bool>,
 ) -> Result<Response, ContractError> {
-    todo!()
+    let mut poll = POLLS
+        .may_load(deps.storage, poll_id)?
+        .ok_or(ContractError::PollNotFound {})?;
+
+    poll.cast_vote(env.block.height, &info.sender, &votes)?;
+    POLLS.save(deps.storage, poll_id, &poll)?;
+
+    Ok(Response::new().add_event(
+        Voted {
+            poll_id,
+            voter: info.sender,
+        }
+        .into(),
+    ))
 }
 
-pub fn end_poll(_deps: DepsMut, _poll_id: String) -> Result<Response, ContractError> {
-    todo!()
+pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
+    let mut poll = POLLS
+        .may_load(deps.storage, poll_id)?
+        .ok_or(ContractError::PollNotFound {})?;
+
+    let poll_result = poll.tally(env.block.height)?;
+    POLLS.save(deps.storage, poll_id, &poll)?;
+
+    Ok(Response::new()
+        .add_event(
+            PollEnded {
+                poll_id: poll_result.poll_id,
+                results: &poll_result.results,
+            }
+            .into(),
+        )
+        .set_data(to_binary(&EndPollResponse { poll_result })?))
 }
 
 fn take_snapshot(deps: Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
@@ -140,10 +173,10 @@ fn create_poll(
     expiry: u64,
     snapshot: snapshot::Snapshot,
     poll_size: usize,
-) -> Result<u64, ContractError> {
+) -> Result<PollID, ContractError> {
     let id = POLL_ID.incr(store)?;
 
-    let poll = voting::WeightedPoll::new(id.into(), snapshot, block_height + expiry, poll_size);
+    let poll = WeightedPoll::new(id, snapshot, block_height + expiry, poll_size);
     POLLS.save(store, id, &poll)?;
 
     Ok(id)

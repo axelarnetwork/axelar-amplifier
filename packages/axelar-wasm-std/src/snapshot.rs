@@ -68,6 +68,10 @@ impl Snapshot {
             .map(Addr::unchecked)
             .collect()
     }
+
+    pub fn is_participant(&self, participant: &Addr) -> bool {
+        self.participants.contains_key(participant.as_str())
+    }
 }
 
 #[cfg(test)]
