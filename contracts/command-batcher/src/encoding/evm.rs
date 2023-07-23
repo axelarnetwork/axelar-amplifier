@@ -53,39 +53,40 @@ impl Display for Message {
 }
 
 #[cw_serde]
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands_ids: Vec<[u8; 32]>,
-    pub commands_types: Vec<String>,
-    pub commands_params: Vec<HexBinary>,
+pub struct Command {
+    pub id: [u8; 32],
+    pub command_type: String,
+    pub command_params: HexBinary,
 }
 
-impl Data {
-    fn new(destination_chain_id: Uint256, messages: Vec<Message>) -> Self {
-        let mut commands_ids: Vec<[u8; 32]> = Vec::new();
-        let mut commands_types: Vec<String> = Vec::new();
-        let mut commands_params: Vec<HexBinary> = Vec::new();
-
-        for message in messages {
-            let command_type = message.to_string();
-            let command_id = command_id(message.id);
-            let command_params = command_params(
+impl From<Message> for Command {
+    fn from(message: Message) -> Self {
+        Command {
+            command_type: message.to_string(),
+            command_params: command_params(
                 message.source_chain,
                 message.source_address,
                 message.destination_address,
                 message.payload_hash,
-            );
-
-            commands_ids.push(command_id);
-            commands_types.push(command_type);
-            commands_params.push(command_params);
+            ),
+            id: command_id(message.id),
         }
+    }
+}
+
+#[cw_serde]
+pub struct Data {
+    pub destination_chain_id: Uint256,
+    pub commands: Vec<Command>,
+}
+
+impl Data {
+    fn new(destination_chain_id: Uint256, messages: Vec<Message>) -> Self {
+        let commands = messages.into_iter().map(|msg| msg.into()).collect();
 
         Data {
             destination_chain_id,
-            commands_ids,
-            commands_types,
-            commands_params,
+            commands,
         }
     }
 
@@ -94,21 +95,16 @@ impl Data {
             ethereum_types::U256::from_dec_str(&self.destination_chain_id.to_string())
                 .expect("violated invariant: Uint256 is not a valid EVM uint256"),
         );
-        let commands_ids: Vec<Token> = self
-            .commands_ids
-            .iter()
-            .map(|id| Token::FixedBytes(id.to_vec()))
-            .collect();
-        let commands_types: Vec<Token> = self
-            .commands_types
-            .iter()
-            .map(|cmd| Token::String(cmd.into()))
-            .collect();
-        let commands_params: Vec<Token> = self
-            .commands_params
-            .iter()
-            .map(|params| Token::Bytes(params.to_vec()))
-            .collect();
+
+        let mut commands_ids: Vec<Token> = Vec::new();
+        let mut commands_types: Vec<Token> = Vec::new();
+        let mut commands_params: Vec<Token> = Vec::new();
+
+        self.commands.iter().for_each(|command| {
+            commands_ids.push(Token::FixedBytes(command.id.to_vec()));
+            commands_types.push(Token::String(command.command_type.clone()));
+            commands_params.push(Token::Bytes(command.command_params.to_vec()));
+        });
 
         ethabi::encode(&[
             destination_chain_id,
@@ -277,7 +273,7 @@ fn msg_to_sign(data: &HexBinary) -> HexBinary {
 mod test {
     use ethabi::ParamType;
 
-    use crate::test::common::test_data;
+    use crate::test::test_data;
 
     use super::*;
 
@@ -292,6 +288,66 @@ mod test {
             &encoded_params.into(),
         )
         .unwrap()
+    }
+
+    pub fn decode_data(encoded_data: &HexBinary) -> crate::encoding::Data {
+        let tokens_array = &ethabi::decode(
+            &[
+                ParamType::Uint(256),
+                ParamType::Array(Box::new(ParamType::FixedBytes(32))),
+                ParamType::Array(Box::new(ParamType::String)),
+                ParamType::Array(Box::new(ParamType::Bytes)),
+            ],
+            encoded_data,
+        )
+        .unwrap();
+
+        let destination_chain_id;
+        let mut commands = Vec::new();
+
+        match (
+            &tokens_array[0],
+            &tokens_array[1],
+            &tokens_array[2],
+            &tokens_array[3],
+        ) {
+            (
+                Token::Uint(chain_id),
+                Token::Array(commands_ids_tokens),
+                Token::Array(commands_types_tokens),
+                Token::Array(commands_params_tokens),
+            ) => {
+                destination_chain_id = Uint256::from_be_bytes(chain_id.to_owned().into());
+                commands_ids_tokens
+                    .iter()
+                    .zip(commands_types_tokens.iter())
+                    .zip(commands_params_tokens.iter())
+                    .for_each(|((id, command_type), command_params)| {
+                        match (id, command_type, command_params) {
+                            (
+                                Token::FixedBytes(id),
+                                Token::String(command_type),
+                                Token::Bytes(command_params),
+                            ) => {
+                                let command = Command {
+                                    id: id.to_owned().try_into().unwrap(),
+                                    command_type: command_type.to_owned(),
+                                    command_params: HexBinary::from(command_params.to_owned()),
+                                };
+
+                                commands.push(command);
+                            }
+                            _ => panic!("Invalid data"),
+                        }
+                    });
+            }
+            _ => panic!("Invalid data"),
+        }
+
+        Data {
+            destination_chain_id,
+            commands,
+        }
     }
 
     #[test]
@@ -353,7 +409,7 @@ mod test {
             .collect::<Result<Vec<Message>, ContractError>>()
             .unwrap();
         let destination_chain_id = test_data::destination_chain_id();
-        let test_data = test_data::decoded_data();
+        let test_data = decode_data(&test_data::encoded_data());
 
         let res: CommandBatch =
             traits::CommandBatch::new(block_height, messages, destination_chain_id);
@@ -369,27 +425,30 @@ mod test {
             res.data.destination_chain_id,
             test_data.destination_chain_id
         );
-        assert_eq!(res.data.commands_ids, test_data.commands_ids);
-        assert_eq!(res.data.commands_types, test_data.commands_types);
+
         test_data
-            .commands_params
-            .iter()
-            .enumerate()
-            .for_each(|(i, params)| {
+            .commands
+            .into_iter()
+            .zip(res.data.commands.into_iter())
+            .for_each(|(expected_command, command)| {
+                assert_eq!(command.id, expected_command.id);
+                assert_eq!(command.command_type, expected_command.command_type);
                 assert_eq!(
-                    decode_command_params(res.data.commands_params[i].to_owned()),
-                    decode_command_params(params.to_owned())
+                    decode_command_params(command.command_params),
+                    decode_command_params(expected_command.command_params)
                 );
             });
+
         assert_eq!(res.multisig_session_id, None);
     }
 
     #[test]
     fn test_data_encode() {
-        let data = test_data::decoded_data();
+        let encoded_data = test_data::encoded_data();
+        let data = decode_data(&encoded_data);
         let res = data.encode();
 
-        assert_eq!(res, test_data::encoded_data());
+        assert_eq!(res, encoded_data);
     }
 
     #[test]
@@ -415,7 +474,11 @@ mod test {
 
         assert_eq!(
             decode_command_params(res),
-            decode_command_params(test_data::decoded_data().commands_params[0].to_owned())
+            decode_command_params(
+                decode_data(&test_data::encoded_data()).commands[0]
+                    .command_params
+                    .to_owned()
+            )
         );
     }
 
