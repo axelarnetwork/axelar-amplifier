@@ -31,6 +31,12 @@ impl Display for Url {
     }
 }
 
+impl From<&Url> for url::Url {
+    fn from(value: &Url) -> Self {
+        value.0.clone()
+    }
+}
+
 struct UrlVisitor;
 impl<'a> Visitor<'a> for UrlVisitor {
     type Value = Url;

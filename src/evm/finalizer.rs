@@ -3,8 +3,8 @@ use crate::evm::json_rpc::EthereumClient;
 use super::error::Error;
 use async_trait::async_trait;
 use error_stack::{self, ResultExt};
+use ethers::types::U64;
 use mockall::automock;
-use web3::types::U64;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -57,8 +57,8 @@ where
 mod tests {
     use crate::evm::finalizer::{Finalizer, PoWFinalizer};
     use crate::evm::json_rpc::MockEthereumClient;
+    use ethers::types::U64;
     use tokio::test;
-    use web3::types::U64;
 
     #[test]
     async fn latest_finalized_block_height_should_work() {

@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use error_stack::{IntoReport, Report, Result, ResultExt};
+use ethers::types::U64;
 use serde::de::value::MapDeserializer;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::convert::{TryFrom, TryInto};
-use web3::types::U64;
 
 use crate::deserializers::{
     deserialize_evm_address, deserialize_hash, deserialize_str_to_from_str, deserialize_tm_addresses,

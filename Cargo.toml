@@ -16,7 +16,6 @@ ecdsa = {version = "0.16.6"}
 enum-display-derive = "0.1.1"
 error-stack = {version = "0.2.4", features = ["eyre"]}
 futures = "0.3.25"
-jsonrpsee = {version = "0.16.2", features = ["http-client"]}
 k256 = {version = "0.13.1", features = ["ecdsa"]}
 mockall = "0.11.3"
 serde = {version = "1.0.147", features = ["derive"]}
@@ -34,9 +33,9 @@ tracing-core = {version = "0.1.30", features = ["valuable"]}
 tracing-subscriber = {version = "0.3.16", features = ["json", "valuable"]}
 url = "2.3.1"
 valuable = {version = "0.1.0", features = ["derive"]}
-web3 = {version = "0.18.0", default-features = false}
 prost = "0.11.9"
 humantime-serde = "1.1.1"
+ethers = { version = "2.0.8", features = ["rustls"] }
 
 [dev-dependencies]
 rand = "0.8.5"
