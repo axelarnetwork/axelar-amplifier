@@ -52,13 +52,13 @@ impl TryFrom<PollStarted> for Event {
 }
 
 #[cw_serde]
-pub struct EvmMessage {
-    pub tx_id: String,
-    pub index: u64,
-    pub destination_address: String,
-    pub destination_chain: String,
-    pub source_address: String,
-    pub payload_hash: HexBinary,
+struct EvmMessage {
+    tx_id: String,
+    index: u64,
+    destination_address: String,
+    destination_chain: String,
+    source_address: String,
+    payload_hash: HexBinary,
 }
 
 impl TryFrom<Message> for EvmMessage {
