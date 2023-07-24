@@ -177,6 +177,7 @@ pub mod query {
             state: session.state,
             signatures: session.signatures,
             snapshot: key.snapshot,
+            pub_keys: key.pub_keys,
         })
     }
 }
