@@ -10,7 +10,7 @@ pub trait CommandBatch {
     fn new(block_height: u64, messages: Vec<Message>, destination_chain_id: Uint256) -> Self;
 }
 
-pub trait Proof<'a> {
+pub trait Proof {
     fn new(
         snapshot: Snapshot,
         signatures: HashMap<String, Signature>,

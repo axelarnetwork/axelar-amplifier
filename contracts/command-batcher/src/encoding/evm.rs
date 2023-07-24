@@ -159,7 +159,7 @@ fn evm_address(pub_key: &[u8]) -> HexBinary {
     Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into()
 }
 
-impl<'a> traits::Proof<'a> for Proof {
+impl traits::Proof for Proof {
     fn new(
         snapshot: Snapshot,
         signers: HashMap<String, Signature>,
