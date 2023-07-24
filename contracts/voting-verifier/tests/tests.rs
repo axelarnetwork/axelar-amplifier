@@ -41,10 +41,7 @@ fn initialize_contract(app: &mut App, service_registry_address: String) -> Addr 
 }
 
 fn message_id(source_chain: &str, id: &str, index: u64) -> String {
-    format!(
-        "{}{}{}{}{}",
-        source_chain, ID_SEPARATOR, id, ID_SEPARATOR, index
-    )
+    format!("{source_chain}{ID_SEPARATOR}{id}{ID_SEPARATOR}{index}")
 }
 
 #[test]

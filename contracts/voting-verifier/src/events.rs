@@ -1,8 +1,9 @@
 use std::fmt;
+use std::vec::Vec;
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
-use connection_router::types::ID_SEPARATOR;
+use connection_router::types::{ChainName, ID_SEPARATOR};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Event, HexBinary};
 
@@ -23,40 +24,12 @@ impl From<Config> for Event {
 
 pub struct PollStarted {
     pub poll_id: PollID,
-    pub source_chain: String,
+    pub source_chain: ChainName,
     pub source_gateway_address: String,
     pub confirmation_height: u64,
     pub expires_at: u64,
     pub messages: Vec<EvmMessage>,
     pub participants: Vec<Addr>,
-}
-
-impl PollStarted {
-    pub fn new(
-        poll_id: PollID,
-        source_gateway_address: String,
-        confirmation_height: u64,
-        expires_at: u64,
-        messages: Vec<Message>,
-        participants: Vec<Addr>,
-    ) -> Result<PollStarted, ContractError> {
-        let source_chain = messages[0].source_chain.to_string();
-
-        let messages = messages
-            .into_iter()
-            .map(EvmMessage::try_from)
-            .collect::<Result<Vec<_>, ContractError>>()?;
-
-        Ok(PollStarted {
-            poll_id,
-            source_chain,
-            source_gateway_address,
-            confirmation_height,
-            expires_at,
-            messages,
-            participants,
-        })
-    }
 }
 
 impl From<PollStarted> for Event {
@@ -72,12 +45,36 @@ impl From<PollStarted> for Event {
     }
 }
 
+pub struct EvmMessages(pub ChainName, pub Vec<EvmMessage>);
+
+impl TryFrom<Vec<Message>> for EvmMessages {
+    type Error = ContractError;
+
+    fn try_from(other: Vec<Message>) -> Result<Self, Self::Error> {
+        if other
+            .iter()
+            .any(|message| !message.source_chain.eq(&other[0].source_chain))
+        {
+            return Err(ContractError::SourceChainMismatch {});
+        }
+
+        let source_chain = other[0].source_chain.clone();
+
+        let messages = other
+            .into_iter()
+            .map(EvmMessage::try_from)
+            .collect::<Result<Vec<_>, ContractError>>()?;
+
+        Ok(EvmMessages(source_chain, messages))
+    }
+}
+
 #[cw_serde]
 pub struct EvmMessage {
     tx_id: String,
     log_index: u64,
     destination_address: String,
-    destination_chain: String,
+    destination_chain: ChainName,
     source_address: String,
     payload_hash: HexBinary,
 }
@@ -92,7 +89,7 @@ impl TryFrom<Message> for EvmMessage {
             tx_id,
             log_index,
             destination_address: other.destination_address,
-            destination_chain: other.destination_chain.to_string(),
+            destination_chain: other.destination_chain,
             source_address: other.source_address,
             payload_hash: other.payload_hash,
         })
