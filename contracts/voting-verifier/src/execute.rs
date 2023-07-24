@@ -76,6 +76,7 @@ pub fn verify_messages(
             id.into(),
             config.source_gateway_address,
             config.confirmation_height,
+            env.block.height + config.block_expiry,
             pending_messages,
             participants,
         )?

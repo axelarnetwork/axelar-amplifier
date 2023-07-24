@@ -26,6 +26,7 @@ pub struct PollStarted {
     pub source_chain: String,
     pub source_gateway_address: String,
     pub confirmation_height: u64,
+    pub expires_at: u64,
     pub messages: Vec<EvmMessage>,
     pub participants: Vec<Addr>,
 }
@@ -35,6 +36,7 @@ impl PollStarted {
         poll_id: PollID,
         source_gateway_address: String,
         confirmation_height: u64,
+        expires_at: u64,
         messages: Vec<Message>,
         participants: Vec<Addr>,
     ) -> Result<PollStarted, ContractError> {
@@ -50,6 +52,7 @@ impl PollStarted {
             source_chain,
             source_gateway_address,
             confirmation_height,
+            expires_at,
             messages,
             participants,
         })
@@ -63,6 +66,7 @@ impl From<PollStarted> for Event {
             .add_attribute("source_chain", other.source_chain)
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
+            .add_attribute("expires_at", other.expires_at.to_string())
             .add_attribute("participants", display_vector(other.participants))
             .add_attribute("messages", display_vector(other.messages))
     }
@@ -71,7 +75,7 @@ impl From<PollStarted> for Event {
 #[cw_serde]
 pub struct EvmMessage {
     tx_id: String,
-    index: u64,
+    log_index: u64,
     destination_address: String,
     destination_chain: String,
     source_address: String,
@@ -82,11 +86,11 @@ impl TryFrom<Message> for EvmMessage {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, index) = parse_message_id(other.id.to_string())?;
+        let (tx_id, log_index) = parse_message_id(other.id.to_string())?;
 
         Ok(EvmMessage {
             tx_id,
-            index,
+            log_index,
             destination_address: other.destination_address,
             destination_chain: other.destination_chain.to_string(),
             source_address: other.source_address,
@@ -120,7 +124,7 @@ impl fmt::Display for EvmMessage {
 
 fn display_vector<T>(v: Vec<T>) -> String
 where
-    T: std::fmt::Display,
+    T: fmt::Display,
 {
     format!(
         "[{}]",
