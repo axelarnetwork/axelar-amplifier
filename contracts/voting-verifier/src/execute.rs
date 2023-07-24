@@ -7,7 +7,7 @@ use connection_router::state::Message;
 use service_registry::msg::{ActiveWorkers, QueryMsg};
 
 use crate::error::ContractError;
-use crate::events::{EvmMessage, PollStarted};
+use crate::events::PollStarted;
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::VerifyMessagesResponse;
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
