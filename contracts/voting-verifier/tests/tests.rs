@@ -77,7 +77,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
         .execute_contract(Addr::unchecked(SENDER), contract_address, &msg, &[])
         .unwrap_err();
     assert_eq!(
-        ContractError::SourceChainMismatch {},
+        ContractError::SourceChainMismatch(SOURCE_CHAIN.parse().unwrap()),
         err.downcast().unwrap()
     );
 }

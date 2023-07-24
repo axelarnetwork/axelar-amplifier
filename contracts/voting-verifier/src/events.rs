@@ -51,14 +51,14 @@ impl TryFrom<Vec<Message>> for EvmMessages {
     type Error = ContractError;
 
     fn try_from(other: Vec<Message>) -> Result<Self, Self::Error> {
+        let source_chain = other[0].source_chain.clone();
+
         if other
             .iter()
-            .any(|message| !message.source_chain.eq(&other[0].source_chain))
+            .any(|message| !message.source_chain.eq(&source_chain))
         {
-            return Err(ContractError::SourceChainMismatch {});
+            return Err(ContractError::SourceChainMismatch(source_chain));
         }
-
-        let source_chain = other[0].source_chain.clone();
 
         let messages = other
             .into_iter()
@@ -71,12 +71,12 @@ impl TryFrom<Vec<Message>> for EvmMessages {
 
 #[cw_serde]
 pub struct EvmMessage {
-    tx_id: String,
-    log_index: u64,
-    destination_address: String,
-    destination_chain: ChainName,
-    source_address: String,
-    payload_hash: HexBinary,
+    pub tx_id: String,
+    pub log_index: u64,
+    pub destination_address: String,
+    pub destination_chain: ChainName,
+    pub source_address: String,
+    pub payload_hash: HexBinary,
 }
 
 impl TryFrom<Message> for EvmMessage {
