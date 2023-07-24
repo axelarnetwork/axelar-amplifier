@@ -4,7 +4,7 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_std::{HexBinary, Uint256};
 use multisig::types::{PublicKey, Signature};
 
-use super::{Data, Message};
+use super::{evm::Message, Data};
 
 pub trait CommandBatch {
     fn new(block_height: u64, messages: Vec<Message>, destination_chain_id: Uint256) -> Self;
