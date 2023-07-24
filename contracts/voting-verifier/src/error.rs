@@ -27,4 +27,7 @@ pub enum ContractError {
 
     #[error("message {0} mismatch with verified message")]
     MessageMismatch(String),
+
+    #[error("invalid message id {0}")]
+    InvalidMessageID(String),
 }

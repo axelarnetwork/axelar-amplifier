@@ -79,7 +79,7 @@ pub fn verify_messages(
             participants,
             messages: pending_messages,
         }
-        .into(),
+        .try_into()?,
     ))
 }
 
