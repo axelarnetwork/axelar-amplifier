@@ -7,7 +7,7 @@ use connection_router::state::Message;
 use service_registry::msg::{ActiveWorkers, QueryMsg};
 
 use crate::error::ContractError;
-use crate::events::PollStarted;
+use crate::events::{EvmMessage, PollStarted};
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::VerifyMessagesResponse;
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
@@ -72,14 +72,14 @@ pub fn verify_messages(
     PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
 
     Ok(response.add_event(
-        PollStarted {
-            poll_id: id.into(),
-            source_gateway_address: config.source_gateway_address,
-            confirmation_height: config.confirmation_height,
+        PollStarted::new(
+            id.into(),
+            config.source_gateway_address,
+            config.confirmation_height,
+            pending_messages,
             participants,
-            messages: pending_messages,
-        }
-        .try_into()?,
+        )?
+        .into(),
     ))
 }
 

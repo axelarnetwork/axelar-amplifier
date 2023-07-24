@@ -23,36 +23,53 @@ impl From<Config> for Event {
 
 pub struct PollStarted {
     pub poll_id: PollID,
+    pub source_chain: String,
     pub source_gateway_address: String,
     pub confirmation_height: u64,
-    pub messages: Vec<Message>,
+    pub messages: Vec<EvmMessage>,
     pub participants: Vec<Addr>,
 }
 
-impl TryFrom<PollStarted> for Event {
-    type Error = ContractError;
+impl PollStarted {
+    pub fn new(
+        poll_id: PollID,
+        source_gateway_address: String,
+        confirmation_height: u64,
+        messages: Vec<Message>,
+        participants: Vec<Addr>,
+    ) -> Result<PollStarted, ContractError> {
+        let source_chain = messages[0].source_chain.to_string();
 
-    fn try_from(other: PollStarted) -> Result<Self, Self::Error> {
-        let source_chain = other.messages[0].source_chain.to_string();
-
-        let evm_messages = other
-            .messages
+        let messages = messages
             .into_iter()
             .map(EvmMessage::try_from)
             .collect::<Result<Vec<_>, ContractError>>()?;
 
-        Ok(Event::new("poll_started")
+        Ok(PollStarted {
+            poll_id,
+            source_chain,
+            source_gateway_address,
+            confirmation_height,
+            messages,
+            participants,
+        })
+    }
+}
+
+impl From<PollStarted> for Event {
+    fn from(other: PollStarted) -> Self {
+        Event::new("poll_started")
             .add_attribute("poll_id", other.poll_id)
-            .add_attribute("source_chain", source_chain)
+            .add_attribute("source_chain", other.source_chain)
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
             .add_attribute("participants", display_vector(other.participants))
-            .add_attribute("messages", display_vector(evm_messages)))
+            .add_attribute("messages", display_vector(evm_messages))
     }
 }
 
 #[cw_serde]
-struct EvmMessage {
+pub struct EvmMessage {
     tx_id: String,
     index: u64,
     destination_address: String,
