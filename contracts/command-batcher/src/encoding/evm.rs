@@ -271,6 +271,8 @@ fn msg_to_sign(data: &HexBinary) -> HexBinary {
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::{nonempty, Participant};
+    use cosmwasm_std::Timestamp;
     use ethabi::ParamType;
 
     use crate::test::test_data;
@@ -440,6 +442,42 @@ mod test {
             });
 
         assert_eq!(res.multisig_session_id, None);
+    }
+
+    #[test]
+    fn test_proof() {
+        let operators = test_data::operators();
+
+        let timestamp: nonempty::Timestamp = Timestamp::from_nanos(1).try_into().unwrap();
+        let height = nonempty::Uint64::try_from(test_data::block_height()).unwrap();
+
+        let threshold = test_data::threshold();
+
+        let participants = operators
+            .iter()
+            .map(|op| Participant {
+                address: op.address.clone(),
+                weight: op.weight.try_into().unwrap(),
+            })
+            .collect::<Vec<Participant>>()
+            .try_into()
+            .unwrap();
+
+        let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
+
+        let signers = operators
+            .iter()
+            .filter(|op| op.signature.is_some())
+            .map(|op| (op.address.to_string(), op.signature.clone().unwrap()))
+            .collect();
+
+        let pub_keys = operators
+            .iter()
+            .map(|op| (op.address.to_string(), op.pub_key.clone()))
+            .collect();
+
+        let res: Proof = traits::Proof::new(snapshot, signers, pub_keys);
+        assert_eq!(res.encode(), test_data::encoded_proof());
     }
 
     #[test]

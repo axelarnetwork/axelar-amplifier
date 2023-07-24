@@ -6,6 +6,6 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Message is invalid: {reason}")]
+    #[error("message is invalid: {reason}")]
     InvalidMessage { reason: String },
 }
