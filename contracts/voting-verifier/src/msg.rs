@@ -1,6 +1,9 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use axelar_wasm_std::{voting::{PollResult, PollID}, Threshold};
+use axelar_wasm_std::{
+    voting::{PollID, PollResult},
+    Threshold,
+};
 use connection_router::msg::Message;
 
 #[cw_serde]

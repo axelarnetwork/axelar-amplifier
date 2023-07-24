@@ -32,7 +32,7 @@ impl From<PollStarted> for Event {
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
             .add_attribute("participants", display_vector(&other.participants))
-            .add_attribute("message", display_vector(&other.messages))
+            .add_attribute("messages", display_vector(&other.messages))
     }
 }
 
