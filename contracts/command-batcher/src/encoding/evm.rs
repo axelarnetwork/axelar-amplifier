@@ -453,15 +453,18 @@ mod test {
 
         let threshold = test_data::threshold();
 
-        let participants = operators
+        let mut participants = operators
             .iter()
             .map(|op| Participant {
                 address: op.address.clone(),
                 weight: op.weight.try_into().unwrap(),
             })
-            .collect::<Vec<Participant>>()
-            .try_into()
-            .unwrap();
+            .collect::<Vec<Participant>>();
+
+        // Make a different sorting to make sure it gives same encoding regardless
+        participants.sort_by(|a, b| Uint256::from(a.weight).cmp(&Uint256::from(b.weight)));
+
+        let participants: nonempty::Vec<Participant> = participants.try_into().unwrap();
 
         let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
 
