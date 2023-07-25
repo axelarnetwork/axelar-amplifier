@@ -21,11 +21,13 @@ subgraph Axelar
 	Vr{"Aggregate Verifier"}
 	Vo{"Voting verifier"}
 	R{"Router"}
+    S{"Service Registry"}
 end
 
 Relayer --"VerifyMessages([M1,M2])"-->G1
 G1 --"VerifyMessages([M1,M2])"--> Vr
 Vr --"VerifyMessages([M1,M2])"--> Vo
+Vo --"GetBondedWorkers"--> S
 Validators --"Vote(poll_id, votes)"--> Vo
 
 Relayer --"RouteMessages([M1,M2])"-->G1
@@ -39,11 +41,13 @@ subgraph Axelar
     G2{"Gateway"}
     P{"Prover"}
     M{"Multisig"}
+    S{"Service Registry"}
 end
 Signers
 
 Relayer --"ConstructProof([M1.id,M2.id])"-->P
 P --"GetMessages([M1.id,M2.id])"-->G2
+P --"GetBondedWorkers"-->S
 P --"StartSigningSession(key_id, batch_hash)"-->M
 Signers --"SubmitSignature(session_id, signature)"-->M
 Relayer --"GetProof(proof_id)" --> P
@@ -56,7 +60,7 @@ In the below diagram, the blue box represents the protocol. All messages flowing
 are part of the protocol. All components within the blue box are on chain. All components outside of the blue box are off chain.
 
 ## Voting Contract Flows
-Incoming Flow
+Incoming Message Flow
 ```mermaid
 sequenceDiagram
     participant Relayer
@@ -66,11 +70,13 @@ sequenceDiagram
     participant Verifier
     participant Prover
     participant Voting Verifier
+    participant Service Registry
     end
     participant OffChain Voting Worker
     Relayer->>IncomingGateway: VerifyMessages([M1,M2])
     IncomingGateway->>Verifier: VerifyMessages([M1,M2])
     Verifier->>Voting Verifier: VerifyMessages([M1,M2])
+    Voting Verifier->>Service Registry: GetBondedWorkers
     Voting Verifier->>OffChain Voting Worker: emit PollStarted
     Voting Verifier-->>Verifier: [(M1.id,false),(M2.id,false)]
     Verifier-->>IncomingGateway: [(M1.id,false),(M2.id, false)]
@@ -91,7 +97,7 @@ sequenceDiagram
 ```
 
 
-Outgoing Flow
+Outgoing Message Flow
 ```mermaid
 sequenceDiagram
     participant Relayer
@@ -109,7 +115,7 @@ sequenceDiagram
     Prover->>OutgoingGateway: GetMessages([M1,M2])
     OutgoingGateway-->>Prover: [M1,M2]
     Prover->>Prover: create batch of [M1,M2]
-    Prover->>Multisig: StartSigningSession(key_id, batch hash)
+    Prover->>Multisig: StartSigningSession(snapshot, batch hash)
     Multisig-->>Prover: session_id
     Prover-->>Relayer: proof_id
     Signer->>Multisig: SubmitSignature(session_id, signature)
@@ -120,3 +126,7 @@ sequenceDiagram
     Prover-->>Relayer: signed batch
 
 ```
+
+Prover stores the snapshot of the current signers and passes the snapshot to the multisig contract.
+Periodically, the stored snapshot is rotated by the prover controller, which triggers the prover to
+query the service registry for an updated snapshot.
