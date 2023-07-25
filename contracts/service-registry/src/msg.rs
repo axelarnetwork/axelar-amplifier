@@ -25,6 +25,11 @@ pub enum ExecuteMsg {
         workers: Vec<String>,
         service_name: String,
     },
+    // Revoke authorization for specified workers. Can only be called by governance account. Workers bond remains unchanged
+    UnauthorizeWorkers {
+        workers: Vec<String>,
+        service_name: String,
+    },
 
     // Declares support for the specified chains. Called by the worker.
     DeclareChainSupport {

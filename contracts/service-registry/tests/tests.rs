@@ -5,7 +5,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use service_registry::{
     contract::{execute, instantiate, query, AXL_DENOMINATION},
     msg::{BondedWorkers, ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{Worker, WorkerState},
+    state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
 
@@ -279,8 +279,10 @@ fn declare_chain_support() {
         BondedWorkers {
             workers: vec![Worker {
                 address: worker,
-                stake: min_worker_bond,
-                state: WorkerState::Bonded,
+                bonding_state: BondingState::Bonded {
+                    amount: min_worker_bond
+                },
+                authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             }]
         }
@@ -656,8 +658,10 @@ fn bond_before_authorize() {
         BondedWorkers {
             workers: vec![Worker {
                 address: worker,
-                stake: min_worker_bond,
-                state: WorkerState::Bonded,
+                bonding_state: BondingState::Bonded {
+                    amount: min_worker_bond
+                },
+                authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             }]
         }
@@ -775,8 +779,10 @@ fn unbond_then_rebond() {
         BondedWorkers {
             workers: vec![Worker {
                 address: worker,
-                stake: min_worker_bond,
-                state: WorkerState::Bonded,
+                bonding_state: BondingState::Bonded {
+                    amount: min_worker_bond
+                },
+                authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             }]
         }
@@ -890,8 +896,9 @@ fn unbonding_period() {
     );
     assert!(!res.is_ok());
     assert_eq!(
-        ContractError::InvalidWorkerState(WorkerState::Unbonding {
-            unbonded_at: app.block_info().time
+        ContractError::InvalidBondingState(BondingState::Unbonding {
+            unbonded_at: app.block_info().time,
+            amount: min_worker_bond,
         }),
         res.unwrap_err().downcast().unwrap()
     );

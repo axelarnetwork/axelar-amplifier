@@ -6,7 +6,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 
 use service_registry::{
     msg::{BondedWorkers, ExecuteMsg, InstantiateMsg},
-    state::{Worker, WorkerState},
+    state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
 
@@ -40,14 +40,18 @@ pub fn mock_service_registry_query(
                 workers: vec![
                     Worker {
                         address: Addr::unchecked("addr1"),
-                        stake: Uint128::from(100u128),
-                        state: WorkerState::Bonded,
+                        bonding_state: BondingState::Bonded {
+                            amount: Uint128::from(100u128),
+                        },
+                        authorization_state: AuthorizationState::Authorized,
                         service_name: service_name.clone(),
                     },
                     Worker {
                         address: Addr::unchecked("addr2"),
-                        stake: Uint128::from(100u128),
-                        state: WorkerState::Bonded,
+                        bonding_state: BondingState::Bonded {
+                            amount: Uint128::from(100u128),
+                        },
+                        authorization_state: AuthorizationState::Authorized,
                         service_name: service_name.clone(),
                     },
                 ],

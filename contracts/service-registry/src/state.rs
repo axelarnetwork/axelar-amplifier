@@ -12,7 +12,9 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-use axelar_wasm_std::{nonempty::Error, snapshot::Participant};
+use axelar_wasm_std::snapshot::Participant;
+
+use crate::ContractError;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
@@ -28,29 +30,44 @@ pub struct Service {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Worker {
     pub address: Addr,
-    pub stake: Uint128, // TODO: correct size?
-    pub state: WorkerState,
+    pub bonding_state: BondingState,
+    pub authorization_state: AuthorizationState,
     pub service_name: String,
 }
 
 impl TryInto<Participant> for Worker {
-    type Error = Error;
+    type Error = ContractError;
 
-    fn try_into(self) -> Result<Participant, Error> {
-        Ok(Participant {
-            address: self.address,
-            weight: self.stake.try_into()?,
-        })
+    fn try_into(self) -> Result<Participant, ContractError> {
+        match self.bonding_state {
+            BondingState::Bonded { amount } => Ok(Participant {
+                address: self.address,
+                weight: amount.try_into()?,
+            }),
+            _ => Err(ContractError::WorkerNotBonded {}),
+        }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub enum WorkerState {
-    NotAuthorized, // not authorized via governance vote yet, but stake is bonded
-    Bonded,        // authorized and bonded
-    RequestedUnbonding,
-    Unbonding { unbonded_at: Timestamp }, // authorized, but requested unbond. stake still held but unbonding countdown started
+pub enum BondingState {
+    Bonded {
+        amount: Uint128,
+    },
+    RequestedUnbonding {
+        amount: Uint128,
+    },
+    Unbonding {
+        amount: Uint128,
+        unbonded_at: Timestamp,
+    }, // authorized, but requested unbond. stake still held but unbonding countdown started
     Unbonded, // authorized, but not bonded, or bonded stake does not meet minimum
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub enum AuthorizationState {
+    NotAuthorized,
+    Authorized,
 }
 
 // maps service_name -> Service
