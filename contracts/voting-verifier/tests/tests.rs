@@ -40,6 +40,10 @@ fn initialize_contract(app: &mut App, service_registry_address: String) -> Addr 
     address
 }
 
+fn message_id(source_chain: &str, id: &str, index: u64) -> String {
+    format!("{source_chain}{ID_SEPARATOR}{id}{ID_SEPARATOR}{index}")
+}
+
 #[test]
 fn should_failed_if_messages_are_not_from_same_source() {
     let mut app = App::default();
@@ -51,7 +55,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: vec![
             Message {
-                id: format!("{}{}{}", SOURCE_CHAIN, ID_SEPARATOR, "id1"),
+                id: message_id(SOURCE_CHAIN, "id1", 0),
                 source_chain: SOURCE_CHAIN.to_string(),
                 source_address: "source_address1".to_string(),
                 destination_chain: "destination_chain1".to_string(),
@@ -59,7 +63,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
                 payload_hash: vec![0, 0, 0, 0].into(),
             },
             Message {
-                id: format!("{}{}{}", "other_chain", ID_SEPARATOR, "id2"),
+                id: message_id("other_chain", "id2", 0),
                 source_chain: "other_chain".to_string(),
                 source_address: "source_address2".to_string(),
                 destination_chain: "destination_chain2".to_string(),
@@ -73,7 +77,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
         .execute_contract(Addr::unchecked(SENDER), contract_address, &msg, &[])
         .unwrap_err();
     assert_eq!(
-        ContractError::SourceChainMismatch {},
+        ContractError::SourceChainMismatch(SOURCE_CHAIN.parse().unwrap()),
         err.downcast().unwrap()
     );
 }
@@ -89,7 +93,7 @@ fn should_verify_messages_if_not_verified() {
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: vec![
             Message {
-                id: format!("{}{}{}", SOURCE_CHAIN, ID_SEPARATOR, "id1"),
+                id: message_id(SOURCE_CHAIN, "id1", 0),
                 source_chain: SOURCE_CHAIN.to_string(),
                 source_address: "source_address1".to_string(),
                 destination_chain: "destination_chain1".to_string(),
@@ -97,7 +101,7 @@ fn should_verify_messages_if_not_verified() {
                 payload_hash: vec![0, 0, 0, 0].into(),
             },
             Message {
-                id: format!("{}{}{}", SOURCE_CHAIN, ID_SEPARATOR, "id2"),
+                id: message_id(SOURCE_CHAIN, "id2", 0),
                 source_chain: SOURCE_CHAIN.to_string(),
                 source_address: "source_address2".to_string(),
                 destination_chain: "destination_chain2".to_string(),
@@ -115,8 +119,8 @@ fn should_verify_messages_if_not_verified() {
     assert_eq!(
         reply.verification_statuses,
         vec![
-            ("source_chain:id1".to_string(), false),
-            ("source_chain:id2".to_string(), false)
+            ("source_chain:id1:0".to_string(), false),
+            ("source_chain:id2:0".to_string(), false)
         ]
     );
 }

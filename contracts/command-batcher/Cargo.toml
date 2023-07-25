@@ -16,13 +16,10 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["evm"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-# use this feature to use EVM ABI encoding for command batch data
-evm = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
