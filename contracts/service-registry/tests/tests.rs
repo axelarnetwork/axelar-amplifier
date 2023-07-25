@@ -4,7 +4,7 @@ use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use service_registry::{
     contract::{execute, instantiate, query, AXL_DENOMINATION},
-    msg::{ActiveWorkers, ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{BondedWorkers, ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{Worker, WorkerState},
     ContractError,
 };
@@ -103,8 +103,8 @@ fn authorize_worker() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: Addr::unchecked("worker").into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
         },
         &[],
@@ -113,8 +113,8 @@ fn authorize_worker() {
     let res = app.execute_contract(
         Addr::unchecked("some other address"),
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: Addr::unchecked("worker").into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
         },
         &[],
@@ -171,8 +171,8 @@ fn bond_worker() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -235,8 +235,8 @@ fn declare_chain_support() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -258,17 +258,17 @@ fn declare_chain_support() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
     assert!(res.is_ok());
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -276,27 +276,27 @@ fn declare_chain_support() {
         .unwrap();
     assert_eq!(
         workers,
-        ActiveWorkers {
+        BondedWorkers {
             workers: vec![Worker {
                 address: worker,
                 stake: min_worker_bond,
-                state: WorkerState::Active,
+                state: WorkerState::Bonded,
                 service_name: service_name.into()
             }]
         }
     );
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr,
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: "some other chain".into(),
             },
         )
         .unwrap();
-    assert_eq!(workers, ActiveWorkers { workers: vec![] })
+    assert_eq!(workers, BondedWorkers { workers: vec![] })
 }
 
 #[test]
@@ -345,8 +345,8 @@ fn unbond_worker() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -368,7 +368,7 @@ fn unbond_worker() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
@@ -385,17 +385,17 @@ fn unbond_worker() {
     );
     assert!(res.is_ok());
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr,
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
         )
         .unwrap();
-    assert_eq!(workers, ActiveWorkers { workers: vec![] })
+    assert_eq!(workers, BondedWorkers { workers: vec![] })
 }
 
 #[test]
@@ -457,23 +457,23 @@ fn bond_but_not_authorized() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
     assert!(res.is_ok());
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
         )
         .unwrap();
-    assert_eq!(workers, ActiveWorkers { workers: vec![] })
+    assert_eq!(workers, BondedWorkers { workers: vec![] })
 }
 
 #[test]
@@ -522,8 +522,8 @@ fn bond_but_not_enough() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -546,23 +546,23 @@ fn bond_but_not_enough() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
     assert!(res.is_ok());
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
         )
         .unwrap();
-    assert_eq!(workers, ActiveWorkers { workers: vec![] })
+    assert_eq!(workers, BondedWorkers { workers: vec![] })
 }
 
 #[test]
@@ -621,8 +621,8 @@ fn bond_before_authorize() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -635,17 +635,17 @@ fn bond_before_authorize() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
     assert!(res.is_ok());
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -653,11 +653,11 @@ fn bond_before_authorize() {
         .unwrap();
     assert_eq!(
         workers,
-        ActiveWorkers {
+        BondedWorkers {
             workers: vec![Worker {
                 address: worker,
                 stake: min_worker_bond,
-                state: WorkerState::Active,
+                state: WorkerState::Bonded,
                 service_name: service_name.into()
             }]
         }
@@ -710,8 +710,8 @@ fn unbond_then_rebond() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -733,7 +733,7 @@ fn unbond_then_rebond() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
@@ -760,11 +760,11 @@ fn unbond_then_rebond() {
     );
     assert!(res.is_ok());
 
-    let workers: ActiveWorkers = app
+    let workers: BondedWorkers = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
+            &QueryMsg::GetBondedWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -772,11 +772,11 @@ fn unbond_then_rebond() {
         .unwrap();
     assert_eq!(
         workers,
-        ActiveWorkers {
+        BondedWorkers {
             workers: vec![Worker {
                 address: worker,
                 stake: min_worker_bond,
-                state: WorkerState::Active,
+                state: WorkerState::Bonded,
                 service_name: service_name.into()
             }]
         }
@@ -831,8 +831,8 @@ fn unbonding_period() {
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
-        &ExecuteMsg::AuthorizeWorker {
-            worker_addr: worker.clone().into(),
+        &ExecuteMsg::AuthorizeWorkers {
+            workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
         &[],
@@ -854,7 +854,7 @@ fn unbonding_period() {
         contract_addr.clone(),
         &ExecuteMsg::DeclareChainSupport {
             service_name: service_name.into(),
-            chain_name: chain_name.into(),
+            chains: vec![chain_name.into()],
         },
         &[],
     );
@@ -883,12 +883,18 @@ fn unbonding_period() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::UnbondWorker {
+        &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
         &[],
     );
-    assert!(res.is_ok());
+    assert!(!res.is_ok());
+    assert_eq!(
+        ContractError::InvalidWorkerState(WorkerState::Unbonding {
+            unbonded_at: app.block_info().time
+        }),
+        res.unwrap_err().downcast().unwrap()
+    );
     assert_eq!(
         app.wrap()
             .query_balance(worker.clone(), AXL_DENOMINATION)
@@ -911,7 +917,7 @@ fn unbonding_period() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::UnbondWorker {
+        &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
         &[],

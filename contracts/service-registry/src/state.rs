@@ -33,10 +33,11 @@ pub struct Worker {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub enum WorkerState {
-    Pending, // not authorized via governance vote yet, but stake is bonded
-    Active,  // authorized and bonded
+    NotAuthorized, // not authorized via governance vote yet, but stake is bonded
+    Bonded,        // authorized and bonded
+    RequestedUnbonding,
     Unbonding { unbonded_at: Timestamp }, // authorized, but requested unbond. stake still held but unbonding countdown started
-    Inactive, // authorized, but not bonded, or bonded stake does not meet minimum
+    Unbonded, // authorized, but not bonded, or bonded stake does not meet minimum
 }
 
 // maps service_name -> Service

@@ -1,6 +1,8 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
+use crate::state::WorkerState;
+
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
@@ -18,6 +20,10 @@ pub enum ContractError {
     WrongDenom {},
     #[error("worker not found")]
     WorkerNotFound {},
-    #[error("invalid worker state for this operation")]
-    InvalidWorkerState {},
+    #[error("invalid worker state `{0:?}` for this operation")]
+    InvalidWorkerState(WorkerState),
+    #[error("worker is bonded")]
+    WorkerBonded {},
+    #[error("worker is unbonding")]
+    WorkerUnbonding {},
 }

@@ -7,7 +7,7 @@ use cosmwasm_std::{
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ActiveWorkers, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{BondedWorkers, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, Service, Worker, WorkerState, CONFIG, SERVICES};
 
 /*
@@ -63,21 +63,27 @@ pub fn execute(
                 description,
             )
         }
-        ExecuteMsg::AuthorizeWorker {
-            worker_addr,
+        ExecuteMsg::AuthorizeWorkers {
+            workers,
             service_name,
         } => {
             execute::require_governance(&deps, info)?;
-            let worker_addr = deps.api.addr_validate(&worker_addr)?;
-            execute::authorize_worker(deps, worker_addr, service_name)
+            let workers = workers
+                .into_iter()
+                .map(|w| deps.api.addr_validate(&w))
+                .collect::<Result<Vec<Addr>, _>>()?;
+            execute::authorize_worker(deps, workers, service_name)
         }
         ExecuteMsg::DeclareChainSupport {
             service_name,
-            chain_name,
-        } => execute::declare_chain_support(deps, info, service_name, chain_name),
+            chains,
+        } => execute::declare_chain_support(deps, info, service_name, chains),
         ExecuteMsg::BondWorker { service_name } => execute::bond_worker(deps, info, service_name),
         ExecuteMsg::UnbondWorker { service_name } => {
             execute::unbond_worker(deps, env, info, service_name)
+        }
+        ExecuteMsg::ClaimStake { service_name } => {
+            execute::claim_stake(deps, env, info, service_name)
         }
     }
 }
@@ -129,40 +135,42 @@ pub mod execute {
 
     pub fn authorize_worker(
         deps: DepsMut,
-        worker: Addr,
+        workers: Vec<Addr>,
         service_name: String,
     ) -> Result<Response, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound {})?;
 
-        WORKERS.update(
-            deps.storage,
-            (&service_name.clone(), &worker.clone()),
-            |sw| -> Result<Worker, ContractError> {
-                match sw {
-                    Some(found) => {
-                        if found.state != WorkerState::Pending {
-                            return Err(ContractError::ServiceWorkerAlreadyAuthorized {});
+        for worker in workers {
+            WORKERS.update(
+                deps.storage,
+                (&service_name.clone(), &worker.clone()),
+                |sw| -> Result<Worker, ContractError> {
+                    match sw {
+                        Some(found) => {
+                            if found.state != WorkerState::NotAuthorized {
+                                return Err(ContractError::ServiceWorkerAlreadyAuthorized {});
+                            }
+                            Ok(Worker {
+                                state: if found.stake >= service.min_worker_bond {
+                                    WorkerState::Bonded
+                                } else {
+                                    WorkerState::Unbonded
+                                },
+                                ..found
+                            })
                         }
-                        Ok(Worker {
-                            state: if found.stake >= service.min_worker_bond {
-                                WorkerState::Active
-                            } else {
-                                WorkerState::Inactive
-                            },
-                            ..found
-                        })
+                        None => Ok(Worker {
+                            address: worker,
+                            stake: Uint128::new(0),
+                            state: WorkerState::Unbonded,
+                            service_name: service_name.clone(),
+                        }),
                     }
-                    None => Ok(Worker {
-                        address: worker,
-                        stake: Uint128::new(0),
-                        state: WorkerState::Inactive,
-                        service_name,
-                    }),
-                }
-            },
-        )?;
+                },
+            )?;
+        }
 
         Ok(Response::new())
     }
@@ -195,10 +203,10 @@ pub mod execute {
                         let new_stake = found.stake + bond;
                         Ok(Worker {
                             stake: new_stake,
-                            state: if found.state != WorkerState::Pending
+                            state: if found.state != WorkerState::NotAuthorized
                                 && new_stake >= service.min_worker_bond
                             {
-                                WorkerState::Active
+                                WorkerState::Bonded
                             } else {
                                 found.state
                             },
@@ -208,7 +216,7 @@ pub mod execute {
                     None => Ok(Worker {
                         address: info.sender,
                         stake: bond,
-                        state: WorkerState::Pending,
+                        state: WorkerState::NotAuthorized,
                         service_name,
                     }),
                 }
@@ -222,7 +230,7 @@ pub mod execute {
         deps: DepsMut,
         info: MessageInfo,
         service_name: String,
-        chain_name: String,
+        chains: Vec<String>,
     ) -> Result<Response, ContractError> {
         SERVICES
             .may_load(deps.storage, &service_name)?
@@ -232,11 +240,9 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound {})?;
 
-        WORKERS_PER_CHAIN.save(
-            deps.storage,
-            (&service_name, &chain_name, &info.sender),
-            &(),
-        )?;
+        for chain in chains {
+            WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
+        }
 
         Ok(Response::new())
     }
@@ -247,49 +253,87 @@ pub mod execute {
         info: MessageInfo,
         service_name: String,
     ) -> Result<Response, ContractError> {
+        SERVICES
+            .may_load(deps.storage, &service_name)?
+            .ok_or(ContractError::ServiceNotFound {})?;
+        let can_unbond = true; // TODO: actually query the service to determine this value
+
+        WORKERS.update(
+            deps.storage,
+            (&service_name.clone(), &info.sender),
+            |sw| -> Result<Worker, ContractError> {
+                match sw {
+                    Some(found) => match found.state {
+                        WorkerState::Bonded if can_unbond => Ok(Worker {
+                            state: WorkerState::Unbonding {
+                                unbonded_at: env.block.time,
+                            },
+                            service_name,
+                            ..found
+                        }),
+                        WorkerState::Bonded if !can_unbond => Ok(Worker {
+                            state: WorkerState::RequestedUnbonding,
+                            ..found
+                        }),
+                        // If not enough time has passed, do nothing
+                        WorkerState::Unbonding { unbonded_at: _ }
+                        | WorkerState::RequestedUnbonding => {
+                            Err(ContractError::InvalidWorkerState(found.state))
+                        }
+                        // For any other states, the stake can be released immediately, but the state doesn't need to change.
+                        _ => Ok(Worker {
+                            stake: Uint128::zero(),
+                            ..found
+                        }),
+                    },
+                    None => Err(ContractError::WorkerNotFound {}),
+                }
+            },
+        )?;
+
+        Ok(Response::new())
+    }
+
+    pub fn claim_stake(
+        deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        service_name: String,
+    ) -> Result<Response, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound {})?;
 
         let old_stake = WORKERS
-            .load(deps.storage, (&service_name, &info.sender))?
+            .may_load(deps.storage, (&service_name, &info.sender))?
+            .ok_or(ContractError::WorkerNotFound {})?
             .stake;
 
         let new_stake = WORKERS
             .update(
                 deps.storage,
-                (&service_name.clone(), &info.sender),
+                (&service_name, &info.sender),
                 |sw| -> Result<Worker, ContractError> {
                     match sw {
                         Some(found) => match found.state {
-                            WorkerState::Active => Ok(Worker {
-                                state: WorkerState::Unbonding {
-                                    unbonded_at: env.block.time,
-                                },
-                                service_name,
-                                ..found
-                            }),
                             // If enough time has passed, release the stake
                             WorkerState::Unbonding { unbonded_at }
                                 if unbonded_at.plus_days(service.unbonding_period_days as u64)
                                     <= env.block.time =>
                             {
                                 Ok(Worker {
-                                    state: WorkerState::Inactive,
+                                    state: WorkerState::Unbonded,
                                     stake: Uint128::zero(),
-                                    service_name,
                                     ..found
                                 })
                             }
-                            // If not enough time has passed, do nothing
-                            WorkerState::Unbonding { unbonded_at }
-                                if unbonded_at.plus_days(service.unbonding_period_days as u64)
-                                    > env.block.time =>
-                            {
-                                Ok(found)
+                            WorkerState::Bonded
+                            | WorkerState::RequestedUnbonding
+                            | WorkerState::Unbonding { unbonded_at: _ } => {
+                                Err(ContractError::InvalidWorkerState(found.state))
                             }
                             // For any other states, the stake can be released immediately, but the state doesn't need to change.
-                            _ => Ok(Worker {
+                            WorkerState::NotAuthorized | WorkerState::Unbonded => Ok(Worker {
                                 stake: Uint128::zero(),
                                 ..found
                             }),
@@ -299,6 +343,8 @@ pub mod execute {
                 },
             )?
             .stake;
+
+        assert!(old_stake == new_stake || new_stake == Uint128::zero());
 
         if old_stake != new_stake {
             return Ok(Response::new().add_message(BankMsg::Send {
@@ -318,7 +364,7 @@ pub mod execute {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetActiveWorkers {
+        QueryMsg::GetBondedWorkers {
             service_name,
             chain_name,
         } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?),
@@ -334,14 +380,14 @@ pub mod query {
         deps: Deps,
         service_name: String,
         chain_name: String,
-    ) -> StdResult<ActiveWorkers> {
+    ) -> StdResult<BondedWorkers> {
         let workers = WORKERS_PER_CHAIN
             .prefix((&service_name, &chain_name))
             .range(deps.storage, None, None, Order::Ascending)
             .map(|res| res.and_then(|(addr, _)| WORKERS.load(deps.storage, (&service_name, &addr))))
-            .filter(|res| res.is_err() || res.as_ref().unwrap().state == WorkerState::Active)
+            .filter(|res| res.is_err() || res.as_ref().unwrap().state == WorkerState::Bonded)
             .collect::<Result<Vec<Worker>, _>>()?;
 
-        Ok(ActiveWorkers { workers })
+        Ok(BondedWorkers { workers })
     }
 }
