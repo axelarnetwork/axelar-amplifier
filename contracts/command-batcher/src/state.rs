@@ -12,7 +12,7 @@ pub struct Config {
     pub multisig: Addr,
     pub service_registry: Addr,
     pub destination_chain_id: Uint256,
-    pub quorum_threshold: Threshold,
+    pub signing_threshold: Threshold,
     pub service_name: String,
 }
 
