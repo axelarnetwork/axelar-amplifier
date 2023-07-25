@@ -46,6 +46,7 @@ sha3 = { version = "0.10", default-features = false, features = [] }
 multisig = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 k256 = { version = "0.11.1", features = ["ecdsa"] }
+service-registry = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

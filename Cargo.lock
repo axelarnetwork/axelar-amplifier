@@ -151,6 +151,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "service-registry",
  "sha3",
  "thiserror",
 ]
