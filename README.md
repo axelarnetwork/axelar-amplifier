@@ -12,38 +12,48 @@ Structure of a routing packet (`M` in the diagrams)
     }
 ```
 # High Level Architecture
+Incoming Flow:
 ```mermaid
 flowchart TD
 subgraph Axelar
-	G{"Gateway"}
-	Vr{"Verifier"}
+	G1{"Gateway"}
+    G2{"Gateway"}
+	Vr{"Aggregate Verifier"}
 	Vo{"Voting verifier"}
-	Lc{"Light Client verifier"}
 	R{"Router"}
 end
 
-Relayer --"ValidateMessage(M)"-->G
-G --"VerifyMessage(M)"--> Vr
-Vr --"VerifyMessage(M)"--> Vo
-Vo --"MessageVerified(M)"--> Vr
-Vr --"VerifyMessage(M)"--> Lc
-Lc --"MessageVerified(M)"--> Vr
-Vr --"MessageVerified(M)"--> G
+Relayer --"VerifyMessages([M1,M2])"-->G1
+G1 --"VerifyMessages([M1,M2])"--> Vr
+Vr --"VerifyMessages([M1,M2])"--> Vo
+Validators --"Vote(poll_id, votes)"--> Vo
 
-Relayer --"ExecuteMessage(M)"-->G
-G --"RouteMessage(M)"-->R
+Relayer --"RouteMessages([M1,M2])"-->G1
+G1 --"RouteMessages([M1,M2])"-->R
+R --"RouteMessages([M1,M2])"-->G2
 ```
-As an optimization `VerifyMessage(M)` can be replaced with `VerifyMessage(M.id, hash(M))`
+Outgoing Flow:
+```mermaid
+flowchart TD
+subgraph Axelar
+    G2{"Gateway"}
+    P{"Prover"}
+    M{"Multisig"}
+end
+Signers
+
+Relayer --"ConstructProof([M1.id,M2.id])"-->P
+P --"GetMessages([M1.id,M2.id])"-->G2
+P --"StartSigningSession(key_id, batch_hash)"-->M
+Signers --"SubmitSignature(session_id, signature)"-->M
+Relayer --"GetProof(proof_id)" --> P
+P --"GetSigningSession(session_id)"-->M
+```
 
 # Event Flow
 
-In all of the below flows, the specifics of how an individual verification method works (voting verifier or light client verifier)
-is not important and is not part of this design. They are merely shown as examples. Each specific verification method 
-just needs to accept `VerifyMessage` calls, and return true or false. Each specific verification method is free to
-add additional methods and queries to its interface, to be called by associated worker processes or contracts (that could be on or off chain). 
-
-In the below flows, the blue box represents the protocol. All messages flowing into, out of or within the blue box
-are part of the protocol.
+In the below diagram, the blue box represents the protocol. All messages flowing into, out of or within the blue box
+are part of the protocol. All components within the blue box are on chain. All components outside of the blue box are off chain.
 
 ## Voting Contract Flows
 ValidateMessage -> Poll -> ExecuteMessage
@@ -51,448 +61,43 @@ ValidateMessage -> Poll -> ExecuteMessage
 sequenceDiagram
     participant Relayer
     box Blue Protocol
-    participant Gateway
-    participant Verifier
+    participant IncomingGateway
+    participant OutgoingGateway
     participant Router
-    end
-    participant Voting Verifier
-    participant OffChain Voting Worker
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Voting Verifier: VerifyMessage(M)
-    Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-    Gateway-->>Relayer: false
-    OffChain Voting Worker->>Voting Verifier: StartPoll
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: EndPoll
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: mark message as validated
-    Gateway->>Relayer: emit message verified event
-
-
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-Poll -> ValidateMessage -> ExecuteMessage
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
     participant Verifier
-    participant Router
-    end
+    participant Prover
     participant Voting Verifier
-    participant OffChain Voting Worker
-    OffChain Voting Worker->>Voting Verifier: StartPoll
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: EndPoll
-
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-ExecuteMessage -> Poll -> ExecuteMessage
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
+    participant Multisig
     end
-    participant Voting Verifier
     participant OffChain Voting Worker
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Voting Verifier: VerifyMessage(M)
-    Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-    Gateway->>Relayer: false
-    OffChain Voting Worker->>Voting Verifier: StartPoll
+    participant Signer
+    Relayer->>IncomingGateway: VerifyMessages([M1,M2])
+    IncomingGateway->>Verifier: VerifyMessages([M1,M2])
+    Verifier->>Voting Verifier: VerifyMessages([M1,M2])
+    Voting Verifier->>OffChain Voting Worker: emit PollStarted
+    Voting Verifier-->>Verifier: [(M1.id,false),(M2.id,false)]
+    Verifier-->>IncomingGateway: [(M1.id,false),(M2.id, false)]
+    IncomingGateway-->>Relayer: [(M1.id,false),(M2.id, false)]
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: Vote
     OffChain Voting Worker->>Voting Verifier: EndPoll
 
 
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: mark message as validated
-    Gateway->>Relayer: emit message verified event
 
-
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-Poll -> ExecuteMessage
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Voting Verifier
-    participant OffChain Voting Worker
-
-    OffChain Voting Worker->>Voting Verifier: StartPoll
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: EndPoll
-
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-## Light client Flows
-
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Light Client Relayer
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier-->>Verifier: truet
-
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-
-    participant Light Client Verifier
-    participant Light Client Relayer
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway-->>Relayer: false
-
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Light Client Relayer
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Light Client Relayer
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Light Client Relayer
-
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Light Client Relayer
-
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: store message, mark as not validated
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: mark as validated
-    Gateway->>Relayer: emit message verified event
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-## Multiple validation methods
-Assume the security policy is both light client and rpc voting validations are needed for a message to be considered fully validated.
-
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Voting Verifier
-    participant Light Client Relayer
-    participant OffChain Voting Worker
-
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Verifier: store message as verified by light client
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Verifier: light client already verified
-    Verifier->>Voting Verifier: VerifyMessage(M)
-    Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-    Gateway-->>Relayer: false
-
-    OffChain Voting Worker->>Voting Verifier: StartPoll
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: EndPoll
-
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Verifier: security policy is met
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-
-```mermaid
-sequenceDiagram
-    participant Relayer
-    box Blue Protocol
-    participant Gateway
-    participant Verifier
-    participant Router
-    end
-    participant Light Client Verifier
-    participant Voting Verifier
-    participant Light Client Relayer
-    participant OffChain Voting Worker
-
-
-    Light Client Relayer->>Light Client Verifier: Relay block header
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Verifier: VerifyMessage(M)
-    Verifier->>Light Client Verifier: VerifyMessage(M)
-    Light Client Verifier->>Light Client Relayer: emit event
-    Light Client Verifier-->>Verifier: false
-    Verifier->>Voting Verifier: VerifyMessage(M)
-    Voting Verifier->>OffChain Voting Worker: emit event
-    Voting Verifier-->>Verifier: false
-    Verifier-->>Gateway: false
-    Gateway->>Gateway: Store message, mark as not validated
-
-    Light Client Relayer->>Light Client Verifier: Relay merkle tree inclusion proof for M
-    Light Client Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Verifier: store message as verified by light client
-
-    OffChain Voting Worker->>Voting Verifier: StartPoll
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: EndPoll
-
-    Voting Verifier->>Verifier: MessageVerified(M)
-    Verifier->>Verifier: security policy is met
-    Verifier->>Gateway: MessageVerified(M)
-    Gateway->>Gateway: store message, mark as validated
-    Gateway->>Relayer: emit message verified event
-
-
-    Relayer->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway-->>Relayer: true
-
-    Relayer->>Gateway: ExecuteMessage(M)
-    Gateway->>Gateway: ValidateMessage(M)
-    Gateway->>Gateway: message already stored as validated
-    Gateway->>Gateway: mark message as executed
-    Gateway->>Router: RouteMessage(M)
-```
-
-
+    Relayer->>IncomingGateway: RouteMessages([M1,M2])
+    IncomingGateway->>Verifier: IsVerified([M1,M2])
+    Verifier->>Voting Verifier: IsVerified([M1,M2])
+    Voting Verifier->>Verifier: [(M1.id,true),(M2.id,true)]
+    Verifier->>IncomingGateway: [(M1.id,true),(M2.id,true)]
+    IncomingGateway->>Router: RouteMessages([M1,M2])
+    Router->>OutgoingGateway: RouteMessages([M1,M2])
+    Relayer->>Prover: ConstructProof([M1.id,M2.id])
+    Prover->>Multisig: StartSigningSession(key_id, hash)
+    Multisig-->>Prover: session_id
+    Prover-->>Relayer: proof_id
+    Signer->>Multisig: SubmitSignature(session_id, signature)
+    Signer->>Multisig: SubmitSignature(session_id, signature)
+    Relayer->>Prover: GetProof(proof_id)
+    Prover->>Multisig: GetSigningSession(session_id)
+    Prover-->>Relayer: proof
 
