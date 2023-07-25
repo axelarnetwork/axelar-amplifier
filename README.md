@@ -56,21 +56,18 @@ In the below diagram, the blue box represents the protocol. All messages flowing
 are part of the protocol. All components within the blue box are on chain. All components outside of the blue box are off chain.
 
 ## Voting Contract Flows
-ValidateMessage -> Poll -> ExecuteMessage
+Incoming Flow
 ```mermaid
 sequenceDiagram
     participant Relayer
     box Blue Protocol
     participant IncomingGateway
-    participant OutgoingGateway
     participant Router
     participant Verifier
     participant Prover
     participant Voting Verifier
-    participant Multisig
     end
     participant OffChain Voting Worker
-    participant Signer
     Relayer->>IncomingGateway: VerifyMessages([M1,M2])
     IncomingGateway->>Verifier: VerifyMessages([M1,M2])
     Verifier->>Voting Verifier: VerifyMessages([M1,M2])
@@ -90,14 +87,36 @@ sequenceDiagram
     Voting Verifier->>Verifier: [(M1.id,true),(M2.id,true)]
     Verifier->>IncomingGateway: [(M1.id,true),(M2.id,true)]
     IncomingGateway->>Router: RouteMessages([M1,M2])
+
+```
+
+
+Outgoing Flow
+```mermaid
+sequenceDiagram
+    participant Relayer
+    box Blue Protocol
+    participant OutgoingGateway
+    participant Router
+    participant Prover
+    participant Multisig
+    end
+    participant Signer
+
+
     Router->>OutgoingGateway: RouteMessages([M1,M2])
     Relayer->>Prover: ConstructProof([M1.id,M2.id])
-    Prover->>Multisig: StartSigningSession(key_id, hash)
+    Prover->>OutgoingGateway: GetMessages([M1,M2])
+    OutgoingGateway-->>Prover: [M1,M2]
+    Prover->>Prover: create batch of [M1,M2]
+    Prover->>Multisig: StartSigningSession(key_id, batch hash)
     Multisig-->>Prover: session_id
     Prover-->>Relayer: proof_id
     Signer->>Multisig: SubmitSignature(session_id, signature)
     Signer->>Multisig: SubmitSignature(session_id, signature)
     Relayer->>Prover: GetProof(proof_id)
     Prover->>Multisig: GetSigningSession(session_id)
-    Prover-->>Relayer: proof
+    Multisig-->>Prover: signing session
+    Prover-->>Relayer: signed batch
 
+```
