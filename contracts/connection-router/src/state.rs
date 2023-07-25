@@ -1,5 +1,4 @@
 use core::panic;
-use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
@@ -145,13 +144,6 @@ impl From<Message> for msg::Message {
             source_chain: value.source_chain.to_string(),
             payload_hash: value.payload_hash,
         }
-    }
-}
-
-impl fmt::Display for Message {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let serialized = serde_json::to_string(self).map_err(|_| fmt::Error)?;
-        write!(f, "{}", serialized)
     }
 }
 
