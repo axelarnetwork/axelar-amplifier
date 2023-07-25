@@ -86,7 +86,9 @@ pub mod execute {
             msg,
         };
 
-        Ok(Response::new().add_event(event.into()))
+        Ok(Response::new()
+            .set_data(to_binary(&session_id)?)
+            .add_event(event.into()))
     }
 
     pub fn submit_signature(
@@ -343,6 +345,7 @@ mod tests {
         assert_eq!(session.state, MultisigState::Pending);
 
         let res = res.unwrap();
+        assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
         assert_eq!(res.events.len(), 1);
 
         let event = res.events.get(0).unwrap();

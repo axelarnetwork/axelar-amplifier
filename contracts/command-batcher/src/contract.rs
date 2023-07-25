@@ -1,9 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, BlockInfo, Deps, DepsMut, Env, HexBinary, MessageInfo, QuerierWrapper,
-    QueryRequest, Response, StdError, StdResult, WasmMsg, WasmQuery,
+    from_binary, to_binary, Binary, BlockInfo, Deps, DepsMut, Env, HexBinary, MessageInfo,
+    QuerierWrapper, QueryRequest, Reply, Response, StdError, StdResult, SubMsg, WasmMsg, WasmQuery,
 };
+use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use std::collections::HashMap;
 
@@ -11,10 +12,12 @@ use axelar_wasm_std::{Participant, Snapshot};
 use service_registry::msg::ActiveWorkers;
 
 use crate::{
+    encoding::{traits, Message},
     error::ContractError,
     msg::ExecuteMsg,
     msg::{GetProofResponse, InstantiateMsg, QueryMsg},
-    state::{Config, COMMANDS_BATCH, CONFIG},
+    state::{Config, COMMANDS_BATCH, CONFIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH},
+    types::CommandBatch,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -44,6 +47,7 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
+    REPLY_ID_COUNTER.save(deps.storage, &0)?;
 
     Ok(Response::default())
 }
@@ -56,7 +60,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(message_ids),
+        ExecuteMsg::ConstructProof { message_ids } => {
+            execute::construct_proof(deps, env, message_ids)
+        }
         ExecuteMsg::KeyGen { pub_keys } => execute::key_gen(deps, env, info, pub_keys),
     }
 }
@@ -64,8 +70,53 @@ pub fn execute(
 pub mod execute {
     use super::*;
 
-    pub fn construct_proof(_message_ids: Vec<String>) -> Result<Response, ContractError> {
-        todo!()
+    pub fn construct_proof(
+        deps: DepsMut,
+        env: Env,
+        message_ids: Vec<String>,
+    ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+
+        let query = gateway::msg::QueryMsg::GetMessages { message_ids };
+        let messages: Vec<connection_router::msg::Message> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: config.gateway.into(),
+                msg: to_binary(&query)?,
+            }))?;
+
+        if messages.is_empty() {
+            return Err(ContractError::NoMessagesFound {});
+        }
+
+        let messages: Vec<Message> = messages
+            .into_iter()
+            .map(|msg| msg.try_into())
+            .collect::<Result<Vec<Message>, ContractError>>()?;
+
+        let command_batch: CommandBatch =
+            traits::CommandBatch::new(env.block.height, messages, config.destination_chain_id);
+
+        COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
+
+        let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
+            key_id: config.service_name,
+            msg: command_batch.msg_to_sign,
+        };
+
+        let reply_id = REPLY_ID_COUNTER.update(deps.storage, |mut reply_id| -> StdResult<_> {
+            reply_id += 1;
+            Ok(reply_id)
+        })?;
+        REPLY_ID_TO_BATCH.save(deps.storage, reply_id, &command_batch.id)?;
+
+        Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+            WasmMsg::Execute {
+                contract_addr: config.multisig.into(),
+                msg: to_binary(&start_sig_msg)?,
+                funds: vec![],
+            },
+            reply_id,
+        )))
     }
 
     pub fn key_gen(
@@ -142,6 +193,45 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _: Env, reply: Reply) -> Result<Response, ContractError> {
+    let reply_id = reply.id;
+
+    match parse_reply_execute_data(reply) {
+        Ok(MsgExecuteContractResponse { data: Some(data) }) => {
+            let command_batch_id = REPLY_ID_TO_BATCH.load(deps.storage, reply_id)?;
+
+            COMMANDS_BATCH.update(
+                deps.storage,
+                &command_batch_id,
+                |batch| -> Result<CommandBatch, ContractError> {
+                    match batch {
+                        Some(mut batch) => {
+                            let session_id = from_binary(&data).map_err(|_| {
+                                ContractError::InvalidContractReply {
+                                    reason: "invalid multisig session ID".to_string(),
+                                }
+                            })?;
+
+                            batch.multisig_session_id = Some(session_id);
+                            Ok(batch)
+                        }
+                        None => unreachable!("violated invariant: no batch found for reply id"),
+                    }
+                },
+            )?;
+
+            Ok(Response::default())
+        }
+        Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
+            reason: "no data".to_string(),
+        }),
+        Err(_) => {
+            unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetProof { proof_id } => to_binary(&query::get_proof(deps, proof_id)?),
@@ -159,9 +249,9 @@ pub mod query {
     pub fn get_proof(deps: Deps, proof_id: String) -> StdResult<GetProofResponse> {
         let config = CONFIG.load(deps.storage)?;
 
-        let proof_id = HexBinary::from_hex(proof_id.as_str())?;
+        let proof_id = HexBinary::from_hex(proof_id.as_str())?.into();
 
-        let batch = COMMANDS_BATCH.load(deps.storage, proof_id.as_slice())?;
+        let batch = COMMANDS_BATCH.load(deps.storage, &proof_id)?;
 
         match batch.multisig_session_id {
             Some(session_id) => {

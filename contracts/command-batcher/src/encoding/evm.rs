@@ -10,7 +10,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     error::ContractError,
-    types::{CommandBatch, Operator, Proof},
+    types::{BatchID, CommandBatch, Operator, Proof},
 };
 
 use super::traits;
@@ -248,7 +248,7 @@ fn command_params(
     .into()
 }
 
-fn batch_id(block_height: u64, data: &HexBinary) -> HexBinary {
+fn batch_id(block_height: u64, data: &HexBinary) -> BatchID {
     let mut id_hasher = Keccak256::new();
 
     id_hasher.update(block_height.to_be_bytes());
