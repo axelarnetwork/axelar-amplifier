@@ -5,6 +5,8 @@ use connection_router::msg::Message;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::types::Signature;
 
+use crate::types::BatchID;
+
 fn legacy_cmd_id_input(
     source_transaction: HexBinary,
     source_event_index: Uint64,

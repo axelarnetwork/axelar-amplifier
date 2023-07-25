@@ -10,7 +10,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     error::ContractError,
-    types::{Command, CommandBatch, CommandType, Operator},
+    types::{BatchID, Command, CommandBatch, CommandType, Operator},
 };
 
 const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
@@ -55,6 +55,18 @@ impl TryFrom<Signer> for Operator {
     }
 }
 
+impl BatchID {
+    pub fn new(message_ids: &[String]) -> BatchID {
+        let mut message_ids = message_ids
+            .iter()
+            .map(|id| id.as_bytes())
+            .collect::<Vec<&[u8]>>();
+        message_ids.sort();
+
+        Keccak256::digest(message_ids.concat()).as_slice().into()
+    }
+}
+
 impl CommandBatch {
     pub fn new(
         messages: Vec<Message>,
@@ -70,7 +82,7 @@ impl CommandBatch {
                 .collect::<Result<Vec<Command>, ContractError>>()?,
         };
 
-        let id = batch_id(&message_ids);
+        let id = BatchID::new(&message_ids);
 
         Ok(Self {
             id,
@@ -221,13 +233,6 @@ fn command_params(
         Token::Uint(ethereum_types::U256::zero()),
     ])
     .into()
-}
-
-fn batch_id(message_ids: &[String]) -> HexBinary {
-    let mut message_ids = message_ids.to_vec();
-    message_ids.sort();
-
-    Keccak256::digest(message_ids.join(",")).as_slice().into()
 }
 
 #[cfg(test)]
@@ -477,7 +482,7 @@ mod test {
         let quorum = test_data::quorum();
 
         let batch = CommandBatch {
-            id: HexBinary::from_hex("00").unwrap(),
+            id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
         };
@@ -511,10 +516,10 @@ mod test {
         let mut message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
 
         message_ids.sort();
-        let res = batch_id(&message_ids);
+        let res = BatchID::new(&message_ids);
 
         message_ids.reverse();
-        let res2 = batch_id(&message_ids);
+        let res2 = BatchID::new(&message_ids);
 
         assert_eq!(res, res2);
     }
@@ -532,7 +537,7 @@ mod test {
     #[test]
     fn test_msg_to_sign() {
         let batch = CommandBatch {
-            id: HexBinary::from_hex("00").unwrap(),
+            id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
         };

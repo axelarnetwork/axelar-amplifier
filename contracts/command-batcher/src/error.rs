@@ -20,4 +20,10 @@ pub enum ContractError {
 
     #[error("invalid participants: {reason}")]
     InvalidParticipants { reason: String },
+
+    #[error("no messages found")]
+    NoMessagesFound {},
+
+    #[error("invalid contract reply: {reason}")]
+    InvalidContractReply { reason: String },
 }

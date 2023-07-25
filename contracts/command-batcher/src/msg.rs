@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
+use connection_router::types::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::encoding::Data;
+use crate::{encoding::Data, types::ProofID};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -13,6 +14,7 @@ pub struct InstantiateMsg {
     pub destination_chain_id: Uint256,
     pub signing_threshold: (Uint64, Uint64),
     pub service_name: String,
+    pub chain_name: ChainName,
 }
 
 #[cw_serde]
@@ -42,7 +44,7 @@ pub enum ProofStatus {
 
 #[cw_serde]
 pub struct GetProofResponse {
-    pub proof_id: HexBinary,
+    pub proof_id: ProofID,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub status: ProofStatus,
