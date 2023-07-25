@@ -12,6 +12,8 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
+use axelar_wasm_std::{nonempty::Error, snapshot::Participant};
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
     pub name: String,
@@ -29,6 +31,17 @@ pub struct Worker {
     pub stake: Uint128, // TODO: correct size?
     pub state: WorkerState,
     pub service_name: String,
+}
+
+impl TryInto<Participant> for Worker {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Participant, Error> {
+        Ok(Participant {
+            address: self.address,
+            weight: self.stake.try_into()?,
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]

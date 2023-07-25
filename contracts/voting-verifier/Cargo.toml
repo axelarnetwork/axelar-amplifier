@@ -32,13 +32,15 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 cosmwasm-schema = "1.1.3"
 cosmwasm-std = "1.1.3"
 cosmwasm-storage = "1.1.3"
-cw-storage-plus = "1.0.1"
+cw-storage-plus = "1.1.0"
 cw2 = "0.15.1"
 cw0 = "0.10.3"
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
 connection-router = { workspace = true, features = ["library"] }
+service-registry = { workspace = true, features = ["library"] }
+axelar-wasm-std = { workspace = true }
 serde_json = "1.0.89"
 either = "1.8.1"
 
