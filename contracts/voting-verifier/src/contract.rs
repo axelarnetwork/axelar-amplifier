@@ -48,11 +48,13 @@ pub fn execute(
                 .map(state::Message::try_from)
                 .collect::<Result<Vec<state::Message>, _>>()?;
 
+            let source_chain = messages[0].source_chain.clone();
+
             if messages
                 .iter()
-                .any(|message| !message.source_chain.eq(&messages[0].source_chain))
+                .any(|message| !message.source_chain.eq(&source_chain))
             {
-                return Err(ContractError::SourceChainMismatch {});
+                return Err(ContractError::SourceChainMismatch(source_chain));
             }
 
             execute::verify_messages(deps, env, messages)
