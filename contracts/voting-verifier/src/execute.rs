@@ -1,3 +1,5 @@
+use core::panic;
+
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
@@ -11,7 +13,7 @@ use connection_router::state::Message;
 use service_registry::msg::{ActiveWorkers, QueryMsg};
 
 use crate::error::ContractError;
-use crate::events::{EvmMessages, PollStarted,PollEnded,Voted };
+use crate::events::{EvmMessages, PollEnded, PollStarted, Voted};
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
@@ -122,6 +124,27 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let poll_result = poll.tally(env.block.height)?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
+    let messages = load_and_remove_pending_message(deps.storage, poll_id)?;
+    if messages.len() != poll_result.results.len() {
+        panic!(
+            "poll {} results and pending messages have different length",
+            poll_id
+        )
+    }
+
+    let messages = messages
+        .iter()
+        .zip(poll_result.results.iter())
+        .filter_map(|(message, verified)| match *verified {
+            true => Some(message),
+            false => None,
+        })
+        .collect::<Vec<&Message>>();
+
+    for message in messages {
+        VERIFIED_MESSAGES.save(deps.storage, &message.id, message)?;
+    }
+
     Ok(Response::new()
         .add_event(
             PollEnded {
@@ -184,4 +207,17 @@ fn create_poll(
     POLLS.save(store, id, &poll)?;
 
     Ok(id)
+}
+
+fn load_and_remove_pending_message(
+    store: &mut dyn Storage,
+    poll_id: PollID,
+) -> Result<Vec<Message>, ContractError> {
+    let pending_messages = PENDING_MESSAGES
+        .may_load(store, poll_id)?
+        .ok_or(ContractError::PollNotFound {})?;
+
+    PENDING_MESSAGES.remove(store, poll_id);
+
+    return Ok(pending_messages);
 }

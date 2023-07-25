@@ -15,6 +15,7 @@
 */
 use std::array::TryFromSliceError;
 use std::collections::HashSet;
+use std::fmt;
 use std::ops::AddAssign;
 use std::ops::Mul;
 
@@ -108,6 +109,12 @@ impl KeyDeserialize for PollID {
     }
 }
 
+impl fmt::Display for PollID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 pub trait Poll {
     // errors if the poll is not finished
     fn tally(&mut self, block_height: u64) -> Result<PollResult, Error>;
@@ -160,7 +167,7 @@ impl WeightedPoll {
 
 impl Poll for WeightedPoll {
     fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
-        if block_height < self.expires_at {
+        if block_height < self.expires_at && self.voted.len() != self.snapshot.participants.len() {
             return Err(Error::PollNotEnded {});
         }
 
