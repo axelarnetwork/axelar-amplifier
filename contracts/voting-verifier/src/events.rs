@@ -1,4 +1,4 @@
-use std::fmt;
+use std::str::FromStr;
 use std::vec::Vec;
 
 use axelar_wasm_std::voting::PollID;
@@ -40,8 +40,15 @@ impl From<PollStarted> for Event {
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
             .add_attribute("expires_at", other.expires_at.to_string())
-            .add_attribute("participants", display_vector(other.participants))
-            .add_attribute("messages", display_vector(other.messages))
+            .add_attribute(
+                "participants",
+                serde_json::to_string(&other.participants)
+                    .expect("failed to serialize participants"),
+            )
+            .add_attribute(
+                "messages",
+                serde_json::to_string(&other.messages).expect("failed to serialize messages"),
+            )
     }
 }
 
@@ -96,6 +103,14 @@ impl TryFrom<Message> for EvmMessage {
     }
 }
 
+impl FromStr for EvmMessage {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
+
 fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> {
     // expected format: <source_chain>:<tx_id>:<index>
     let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
@@ -110,24 +125,4 @@ fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> 
             .parse::<u64>()
             .map_err(|_| ContractError::InvalidMessageID(message_id))?,
     ))
-}
-
-impl fmt::Display for EvmMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let serialized = serde_json::to_string(self).map_err(|_| fmt::Error)?;
-        write!(f, "{}", serialized)
-    }
-}
-
-fn display_vector<T>(v: Vec<T>) -> String
-where
-    T: fmt::Display,
-{
-    format!(
-        "[{}]",
-        v.iter()
-            .map(|p| p.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-    )
 }
