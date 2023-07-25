@@ -96,7 +96,7 @@ impl<'a> App<'a> {
     async fn configure(mut self, cfg: Config) -> Result<App<'a>, Error> {
         for config in cfg.evm_chain_configs {
             let label = format!("{}-confirm-gateway-tx-handler", config.name);
-            let handler = handlers::evm_confirm_gateway_tx::Handler::new(
+            let handler = handlers::evm_verify_msg::Handler::new(
                 config.name,
                 evm::new_finalizer(&config).await.map_err(Error::new)?,
                 evm::json_rpc::Client::new_http(&config.rpc_url).map_err(Error::new)?,

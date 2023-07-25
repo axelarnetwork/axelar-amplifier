@@ -125,9 +125,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::EVENT_TYPE;
+    use super::{Event, EVENT_TYPE};
     use crate::event_sub;
-    use crate::handlers::evm_confirm_gateway_tx;
     use std::convert::TryInto;
     use tendermint::abci;
 
@@ -144,7 +143,7 @@ mod tests {
             ],
         );
         let event: event_sub::Event = event.into();
-        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
+        let event: Result<Event, _> = match event {
             event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -166,7 +165,7 @@ mod tests {
             ],
         );
         let event: event_sub::Event = event.into();
-        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
+        let event: Result<Event, _> = match event {
             event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -185,7 +184,7 @@ mod tests {
                 ],
             );
         let event: event_sub::Event = event.into();
-        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
+        let event: Result<Event, _> = match event {
             event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -204,7 +203,7 @@ mod tests {
                 ],
             );
         let event: event_sub::Event = event.into();
-        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
+        let event: Result<Event, _> = match event {
             event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
@@ -223,7 +222,7 @@ mod tests {
                 ],
         );
         let event: event_sub::Event = event.into();
-        let event: Result<evm_confirm_gateway_tx::Event, _> = match event {
+        let event: Result<Event, _> = match event {
             event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
                 attributes.try_into()
             }
