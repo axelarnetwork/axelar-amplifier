@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
-use crate::{encoding::Data, types::Proof};
+use crate::types::{Data, Proof};
 
 #[cw_serde]
 pub enum ExecuteMsg {

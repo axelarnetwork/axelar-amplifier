@@ -1,8 +1,34 @@
+use std::fmt::Display;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use multisig::types::Signature;
 
-use crate::encoding::Data;
+#[cw_serde]
+pub enum CommandType {
+    ApproveContractCall,
+}
+
+#[cw_serde]
+pub struct Command {
+    pub id: HexBinary,
+    pub command_type: CommandType,
+    pub command_params: HexBinary,
+}
+
+impl Display for CommandType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommandType::ApproveContractCall => write!(f, "approveContractCall"),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct Data {
+    pub destination_chain_id: Uint256,
+    pub commands: Vec<Command>,
+}
 
 #[cw_serde]
 pub struct CommandBatch {

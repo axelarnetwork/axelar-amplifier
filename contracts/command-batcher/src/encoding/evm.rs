@@ -1,7 +1,6 @@
-use std::{collections::HashMap, fmt::Display, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use axelar_wasm_std::Snapshot;
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
@@ -10,7 +9,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     error::ContractError,
-    types::{CommandBatch, Operator, Proof},
+    types::{Command, CommandBatch, CommandType, Data, Operator, Proof},
 };
 
 use super::traits;
@@ -45,30 +44,10 @@ impl TryFrom<connection_router::msg::Message> for Message {
     }
 }
 
-#[cw_serde]
-pub enum CommandType {
-    ApproveContractCall,
-}
-
-impl Display for CommandType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CommandType::ApproveContractCall => write!(f, "approveContractCall"),
-        }
-    }
-}
-
-#[cw_serde]
-pub struct Command {
-    pub id: [u8; 32],
-    pub command_type: CommandType,
-    pub command_params: HexBinary,
-}
-
 impl From<Message> for Command {
     fn from(message: Message) -> Self {
         Command {
-            command_type: CommandType::ApproveContractCall, // TODO: this would most likely change when other command types are supported
+            command_type: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
             command_params: command_params(
                 message.source_chain,
                 message.source_address,
@@ -78,12 +57,6 @@ impl From<Message> for Command {
             id: command_id(message.id),
         }
     }
-}
-
-#[cw_serde]
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands: Vec<Command>,
 }
 
 impl Data {
@@ -224,10 +197,9 @@ impl traits::CommandBatch for CommandBatch {
     }
 }
 
-fn command_id(message_id: String) -> [u8; 32] {
+fn command_id(message_id: String) -> HexBinary {
     // TODO: we might need to change the command id format to match the one in core for migration purposes
-
-    Keccak256::digest(message_id.as_bytes()).into()
+    Keccak256::digest(message_id.as_bytes()).as_slice().into()
 }
 
 // TODO: This will make it incompatible with current version of destination chain gateways,
@@ -292,7 +264,7 @@ mod test {
         .unwrap()
     }
 
-    pub fn decode_data(encoded_data: &HexBinary) -> crate::encoding::Data {
+    pub fn decode_data(encoded_data: &HexBinary) -> Data {
         let tokens_array = &ethabi::decode(
             &[
                 ParamType::Uint(256),
