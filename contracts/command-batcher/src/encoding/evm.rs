@@ -45,24 +45,30 @@ impl TryFrom<connection_router::msg::Message> for Message {
     }
 }
 
-// TODO: this would most likely change when other command types are supported
-impl Display for Message {
+#[cw_serde]
+pub enum CommandType {
+    ApproveContractCall,
+}
+
+impl Display for CommandType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "approveContractCall")
+        match self {
+            CommandType::ApproveContractCall => write!(f, "approveContractCall"),
+        }
     }
 }
 
 #[cw_serde]
 pub struct Command {
     pub id: [u8; 32],
-    pub command_type: String,
+    pub command_type: CommandType,
     pub command_params: HexBinary,
 }
 
 impl From<Message> for Command {
     fn from(message: Message) -> Self {
         Command {
-            command_type: message.to_string(),
+            command_type: CommandType::ApproveContractCall, // TODO: this would most likely change when other command types are supported
             command_params: command_params(
                 message.source_chain,
                 message.source_address,
@@ -91,10 +97,9 @@ impl Data {
     }
 
     fn encode(&self) -> HexBinary {
-        let destination_chain_id = Token::Uint(
-            ethereum_types::U256::from_dec_str(&self.destination_chain_id.to_string())
-                .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-        );
+        let destination_chain_id = Token::Uint(ethereum_types::U256::from_big_endian(
+            &self.destination_chain_id.to_be_bytes(),
+        ));
 
         let mut commands_ids: Vec<Token> = Vec::new();
         let mut commands_types: Vec<Token> = Vec::new();
@@ -102,7 +107,7 @@ impl Data {
 
         self.commands.iter().for_each(|command| {
             commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-            commands_types.push(Token::String(command.command_type.clone()));
+            commands_types.push(Token::String(command.command_type.to_string()));
             commands_params.push(Token::Bytes(command.command_params.to_vec()));
         });
 
@@ -126,20 +131,18 @@ impl Proof {
             addresses.push(Token::Address(ethereum_types::Address::from_slice(
                 operator.address.as_slice(),
             )));
-            weights.push(Token::Uint(
-                ethereum_types::U256::from_dec_str(&operator.weight.to_string())
-                    .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-            ));
+            weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
+                &operator.weight.to_be_bytes(),
+            )));
 
             if let Some(signature) = &operator.signature {
                 signatures.push(Token::Bytes(signature.into()));
             }
         });
 
-        let threshold = Token::Uint(
-            ethereum_types::U256::from_dec_str(&self.threshold.to_string())
-                .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-        );
+        let threshold = Token::Uint(ethereum_types::U256::from_big_endian(
+            &self.threshold.to_be_bytes(),
+        ));
 
         ethabi::encode(&[
             Token::Array(addresses),
@@ -333,7 +336,10 @@ mod test {
                             ) => {
                                 let command = Command {
                                     id: id.to_owned().try_into().unwrap(),
-                                    command_type: command_type.to_owned(),
+                                    command_type: match command_type.as_str() {
+                                        "approveContractCall" => CommandType::ApproveContractCall,
+                                        _ => panic!("undecodable command type"),
+                                    },
                                     command_params: HexBinary::from(command_params.to_owned()),
                                 };
 
