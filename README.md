@@ -1,4 +1,3 @@
-# axelar-service-registry
 # Message Semantics
 Structure of a routing packet (`M` in the diagrams)
 ```rust
