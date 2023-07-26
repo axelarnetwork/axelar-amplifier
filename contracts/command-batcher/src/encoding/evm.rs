@@ -227,10 +227,7 @@ impl traits::CommandBatch for CommandBatch {
 fn command_id(message_id: String) -> [u8; 32] {
     // TODO: we might need to change the command id format to match the one in core for migration purposes
 
-    Keccak256::digest(message_id.as_bytes())
-        .as_slice()
-        .try_into()
-        .expect("violated invariant: Keccak256 length is not 32 bytes")
+    Keccak256::digest(message_id.as_bytes()).into()
 }
 
 // TODO: This will make it incompatible with current version of destination chain gateways,
