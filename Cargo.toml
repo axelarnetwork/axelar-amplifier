@@ -8,6 +8,7 @@ version = "0.1.0"
 async-trait = "0.1.59"
 clap = {version = "4.2.7", features = ["derive", "cargo"]}
 config = "0.13.2"
+connection-router = {git = "https://github.com/axelarnetwork/axelar-amplifier.git", version = "0.1.0"}
 cosmos-sdk-proto = "0.16.0"
 cosmrs = {version = "0.14.0", features = ["cosmwasm"]}
 cosmwasm-std = {version = "1.2.1", features = ["stargate"]}
@@ -36,10 +37,12 @@ tracing-core = {version = "0.1.30", features = ["valuable"]}
 tracing-subscriber = {version = "0.3.16", features = ["json", "valuable"]}
 url = "2.3.1"
 valuable = {version = "0.1.0", features = ["derive"]}
+voting-verifier = {git = "https://github.com/axelarnetwork/axelar-amplifier.git", version = "0.1.0"}
 
 [dev-dependencies]
 rand = "0.8.5"
 random-string = "1.0.0"
 
 [build-dependencies]
+ethers = "2.0.8"
 tonic-build = "0.8.3"

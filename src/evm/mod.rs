@@ -13,6 +13,7 @@ use crate::url::Url;
 pub mod error;
 pub mod finalizer;
 pub mod json_rpc;
+pub mod message_verifier;
 
 #[derive(Debug, Deserialize, PartialEq, Hash, Eq, Copy, Clone, Display)]
 pub enum ChainName {
