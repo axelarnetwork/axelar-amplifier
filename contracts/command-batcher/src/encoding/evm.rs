@@ -212,6 +212,7 @@ fn batch_id(block_height: u64, data: &HexBinary) -> HexBinary {
 fn msg_to_sign(data: &HexBinary) -> HexBinary {
     let msg = Keccak256::digest(data.as_slice());
 
+    // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
         "\x19Ethereum Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
         msg.as_slice(),
