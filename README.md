@@ -146,6 +146,7 @@ The verifier contracts are responsible for verifying whether a given message or 
 
 ### Prover
 The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most common example of this is the [`multisig-prover`](./contracts/command-batcher) that constructs signed batches of routed messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the messages from the gateway, and interacts with the multisig contract to conduct the signing,
+The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most common example of this is the [`multisig-prover`](./contracts/multisig-prover) that constructs signed batches of routed messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the messages from the gateway, and interacts with the multisig contract to conduct the signing,
 
 ### Multisig Contract
  [`multisig`](./contracts/multisig) is responsible for signing arbitrary blobs of data. Contracts register with the multisig contract to generate a key id, and then use that key id to initiate signing sessions. Off chain participants associated with the key id sign messages when new signing sessions are created.
