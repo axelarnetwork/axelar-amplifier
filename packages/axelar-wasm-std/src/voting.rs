@@ -124,7 +124,7 @@ pub trait Poll {
         &mut self,
         block_height: u64,
         sender: &Addr,
-        votes: &[bool],
+        votes: Vec<bool>,
     ) -> Result<PollStatus, Error>;
 }
 
@@ -191,7 +191,7 @@ impl Poll for WeightedPoll {
         &mut self,
         block_height: u64,
         sender: &Addr,
-        votes: &[bool],
+        votes: Vec<bool>,
     ) -> Result<PollStatus, Error> {
         if !self.snapshot.is_participant(sender) {
             return Err(Error::NotParticipant {});
@@ -217,7 +217,10 @@ impl Poll for WeightedPoll {
 
         for (tally, vote) in self.votes.iter_mut().zip(votes.iter()) {
             if *vote {
-                *tally += self.snapshot.get_participant_weight(sender).unwrap();
+                *tally += self
+                    .snapshot
+                    .get_participant_weight(sender)
+                    .expect("violated invariant: vote submitted by non-participant");
             }
         }
 
@@ -250,7 +253,7 @@ mod tests {
             .collect();
 
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked(rand_addr.as_str()), &votes),
+            poll.cast_vote(1, &Addr::unchecked(rand_addr.as_str()), votes),
             Err(Error::NotParticipant {})
         );
     }
@@ -264,7 +267,7 @@ mod tests {
         );
         let votes = vec![true, true];
         assert_eq!(
-            poll.cast_vote(2, &Addr::unchecked("addr1"), &votes),
+            poll.cast_vote(2, &Addr::unchecked("addr1"), votes),
             Err(Error::PollExpired {})
         );
     }
@@ -274,7 +277,7 @@ mod tests {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
         let votes = vec![true];
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), &votes),
+            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::InvalidVoteSize {})
         );
     }
@@ -284,9 +287,11 @@ mod tests {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
 
-        assert!(poll.cast_vote(1, &Addr::unchecked("addr1"), &votes).is_ok());
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), &votes),
+            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::AlreadyVoted {})
         );
     }
@@ -297,7 +302,7 @@ mod tests {
         let votes = vec![true, true];
         poll.status = PollStatus::Finished;
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), &votes),
+            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::PollNotInProgress {})
         );
     }
@@ -320,8 +325,10 @@ mod tests {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
 
-        assert!(poll.cast_vote(1, &Addr::unchecked("addr1"), &votes).is_ok());
-        assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), &votes).is_ok());
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+        assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
 
         let result = poll.tally(1).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);

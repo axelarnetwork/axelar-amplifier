@@ -104,7 +104,7 @@ pub fn vote(
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound {})?;
 
-    poll.cast_vote(env.block.height, &info.sender, &votes)?;
+    poll.cast_vote(env.block.height, &info.sender, votes)?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     Ok(Response::new().add_event(
@@ -123,8 +123,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = poll.tally(env.block.height)?;
     POLLS.save(deps.storage, poll_id, &poll)?;
-
-    let messages = load_and_remove_pending_message(deps.storage, poll_id)?;
+    let messages = clear_pending_message(deps.storage, poll_id)?;
     if messages.len() != poll_result.results.len() {
         panic!(
             "poll {} results and pending messages have different length",
@@ -142,7 +141,9 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         .collect::<Vec<&Message>>();
 
     for message in messages {
-        VERIFIED_MESSAGES.save(deps.storage, &message.id, message)?;
+        if !is_message_verified(deps.as_ref(), message)? {
+            VERIFIED_MESSAGES.save(deps.storage, &message.id, message)?;
+        }
     }
 
     Ok(Response::new()
@@ -209,7 +210,7 @@ fn create_poll(
     Ok(id)
 }
 
-fn load_and_remove_pending_message(
+fn clear_pending_message(
     store: &mut dyn Storage,
     poll_id: PollID,
 ) -> Result<Vec<Message>, ContractError> {
@@ -219,5 +220,5 @@ fn load_and_remove_pending_message(
 
     PENDING_MESSAGES.remove(store, poll_id);
 
-    return Ok(pending_messages);
+    Ok(pending_messages)
 }
