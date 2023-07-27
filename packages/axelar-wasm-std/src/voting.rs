@@ -18,6 +18,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::ops::AddAssign;
 use std::ops::Mul;
+use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256};
@@ -61,6 +62,14 @@ impl From<PollID> for String {
 impl From<u64> for PollID {
     fn from(value: u64) -> Self {
         PollID(value)
+    }
+}
+
+impl FromStr for PollID {
+    type Err = <u64 as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(u64::from_str(s)?))
     }
 }
 
