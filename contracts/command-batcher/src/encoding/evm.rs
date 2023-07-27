@@ -81,16 +81,18 @@ impl traits::Builder for Builder {
             .map(|(_, participant)| {
                 let pub_key = pub_keys
                     .get(&participant.address.to_string())
-                    .expect("violated invariant: participant address not found in pub_keys")
+                    .ok_or(ContractError::PublicKeyNotFound {
+                        participant: participant.address.to_string(),
+                    })?
                     .into();
 
-                Operator {
-                    address: evm_address(pub_key),
+                Ok(Operator {
+                    address: evm_address(pub_key)?,
                     weight: participant.weight.into(),
                     signature: signers.get(participant.address.as_str()).cloned(),
-                }
+                })
             })
-            .collect::<Vec<Operator>>();
+            .collect::<Result<Vec<Operator>, ContractError>>()?;
         operators.sort_by(|a, b| a.address.cmp(&b.address));
 
         Ok(Proof {
@@ -169,12 +171,14 @@ impl Encoder {
     }
 }
 
-fn evm_address(pub_key: &[u8]) -> HexBinary {
-    let pub_key = PublicKey::from_sec1_bytes(pub_key)
-        .expect("violated invariant: pub_key is not a valid secp256k1 public key");
+fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
+    let pub_key =
+        PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidMessage {
+            reason: e.to_string(),
+        })?;
     let pub_key = pub_key.to_encoded_point(false);
 
-    Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into()
+    Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
 fn command_id(message_id: String) -> HexBinary {
@@ -467,7 +471,7 @@ mod test {
         let pub_key = test_data::pub_key();
         let expected_address = test_data::evm_address();
 
-        let operator = evm_address(pub_key.as_slice());
+        let operator = evm_address(pub_key.as_slice()).unwrap();
 
         assert_eq!(operator, expected_address);
     }

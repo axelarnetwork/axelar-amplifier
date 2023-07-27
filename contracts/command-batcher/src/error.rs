@@ -8,4 +8,10 @@ pub enum ContractError {
 
     #[error("message is invalid: {reason}")]
     InvalidMessage { reason: String },
+
+    #[error("invalid public key: {reason}")]
+    InvalidPublicKey { reason: String },
+
+    #[error("public key not found for participant {participant}")]
+    PublicKeyNotFound { participant: String },
 }
