@@ -46,7 +46,7 @@ ethabi = { version = "18.0.0", default-features = false, features = [] }
 sha3 = { version = "0.10", default-features = false, features = [] }
 multisig = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
-k256 = { version = "0.11.1", features = ["ecdsa"] }
+k256 = { version = "0.13.1", features = ["ecdsa"] }
 service-registry = { workspace = true, features = ["library"] }
 gateway = { workspace = true, features = ["library"]}
 

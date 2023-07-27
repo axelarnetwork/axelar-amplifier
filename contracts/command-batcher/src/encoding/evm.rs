@@ -1,7 +1,7 @@
-use std::{collections::HashMap, fmt::Display, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use axelar_wasm_std::Snapshot;
-use cosmwasm_schema::cw_serde;
+use connection_router::msg::Message;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
@@ -10,99 +10,121 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     error::ContractError,
-    types::{BatchID, CommandBatch, Operator, Proof},
+    types::{BatchID, Command, CommandBatch, CommandType, Data, Operator, Proof},
 };
 
 use super::traits;
 
-#[derive(Debug)]
-pub struct Message {
-    pub id: String,
-    pub source_address: String,
-    pub source_chain: String,
-    pub destination_address: ethereum_types::Address,
-    pub payload_hash: [u8; 32],
-}
-
-impl TryFrom<connection_router::msg::Message> for Message {
+impl TryFrom<Message> for Command {
     type Error = ContractError;
 
-    fn try_from(msg: connection_router::msg::Message) -> Result<Self, Self::Error> {
-        Ok(Message {
-            id: msg.id,
-            source_address: msg.source_address,
-            source_chain: msg.source_chain,
-            destination_address: ethereum_types::Address::from_str(&msg.destination_address)
-                .map_err(|_| ContractError::InvalidMessage {
-                    reason: "destination_address is not a valid EVM address".into(),
+    fn try_from(msg: Message) -> Result<Self, Self::Error> {
+        Ok(Command {
+            command_type: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
+            command_params: command_params(
+                msg.source_chain,
+                msg.source_address,
+                ethereum_types::Address::from_str(&msg.destination_address).map_err(|_| {
+                    ContractError::InvalidMessage {
+                        reason: "destination_address is not a valid EVM address".into(),
+                    }
                 })?,
-            payload_hash: msg.payload_hash.as_slice().try_into().map_err(|_| {
-                ContractError::InvalidMessage {
-                    reason: "payload_hash is not a valid keccak256 hash".into(),
-                }
-            })?,
+                msg.payload_hash.as_slice().try_into().map_err(|_| {
+                    ContractError::InvalidMessage {
+                        reason: "payload_hash is not a valid keccak256 hash".into(),
+                    }
+                })?,
+            ),
+            id: command_id(msg.id),
         })
     }
 }
 
-// TODO: this would most likely change when other command types are supported
-impl Display for Message {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "approveContractCall")
-    }
-}
+pub struct Builder;
+impl traits::Builder for Builder {
+    fn build_batch(
+        block_height: u64,
+        messages: Vec<Message>,
+        destination_chain_id: Uint256,
+    ) -> Result<CommandBatch, ContractError> {
+        let message_ids = messages.iter().map(|msg| msg.id.clone()).collect();
 
-#[cw_serde]
-pub struct Command {
-    pub id: [u8; 32],
-    pub command_type: String,
-    pub command_params: HexBinary,
-}
-
-impl From<Message> for Command {
-    fn from(message: Message) -> Self {
-        Command {
-            command_type: message.to_string(),
-            command_params: command_params(
-                message.source_chain,
-                message.source_address,
-                message.destination_address,
-                message.payload_hash,
-            ),
-            id: command_id(message.id),
-        }
-    }
-}
-
-#[cw_serde]
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands: Vec<Command>,
-}
-
-impl Data {
-    fn new(destination_chain_id: Uint256, messages: Vec<Message>) -> Self {
-        let commands = messages.into_iter().map(|msg| msg.into()).collect();
-
-        Data {
+        let data = Data {
             destination_chain_id,
-            commands,
-        }
+            commands: messages
+                .into_iter()
+                .map(|msg| msg.try_into())
+                .collect::<Result<Vec<Command>, ContractError>>()?,
+        };
+        let encoded_data = Encoder::encode_data(&data);
+
+        let id = batch_id(block_height, &encoded_data);
+        let msg_to_sign = msg_to_sign(&encoded_data);
+
+        Ok(CommandBatch {
+            id,
+            message_ids,
+            data,
+            msg_to_sign,
+            multisig_session_id: None,
+        })
     }
 
-    fn encode(&self) -> HexBinary {
-        let destination_chain_id = Token::Uint(
-            ethereum_types::U256::from_dec_str(&self.destination_chain_id.to_string())
-                .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-        );
+    fn build_proof(
+        snapshot: Snapshot,
+        signers: HashMap<String, Signature>,
+        pub_keys: HashMap<String, multisig::types::PublicKey>,
+    ) -> Result<Proof, ContractError> {
+        let mut operators = snapshot
+            .participants
+            .iter()
+            .map(|(_, participant)| {
+                let pub_key = pub_keys
+                    .get(&participant.address.to_string())
+                    .expect("violated invariant: participant address not found in pub_keys")
+                    .into();
+
+                Operator {
+                    address: evm_address(pub_key),
+                    weight: participant.weight.into(),
+                    signature: signers.get(participant.address.as_str()).cloned(),
+                }
+            })
+            .collect::<Vec<Operator>>();
+        operators.sort_by(|a, b| a.address.cmp(&b.address));
+
+        Ok(Proof {
+            operators,
+            threshold: snapshot.quorum.into(),
+        })
+    }
+}
+
+pub struct Encoder;
+
+impl traits::Encoder for Encoder {
+    fn encode_execute_data(data: &Data, proof: &Proof) -> HexBinary {
+        ethabi::encode(&[
+            Token::Bytes(Encoder::encode_data(data).into()),
+            Token::Bytes(Encoder::encode_proof(proof).into()),
+        ])
+        .into()
+    }
+}
+
+impl Encoder {
+    pub fn encode_data(data: &Data) -> HexBinary {
+        let destination_chain_id = Token::Uint(ethereum_types::U256::from_big_endian(
+            &data.destination_chain_id.to_be_bytes(),
+        ));
 
         let mut commands_ids: Vec<Token> = Vec::new();
         let mut commands_types: Vec<Token> = Vec::new();
         let mut commands_params: Vec<Token> = Vec::new();
 
-        self.commands.iter().for_each(|command| {
+        data.commands.iter().for_each(|command| {
             commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-            commands_types.push(Token::String(command.command_type.clone()));
+            commands_types.push(Token::String(command.command_type.to_string()));
             commands_params.push(Token::Bytes(command.command_params.to_vec()));
         });
 
@@ -114,32 +136,28 @@ impl Data {
         ])
         .into()
     }
-}
 
-impl Proof {
-    fn encode(&self) -> HexBinary {
+    pub fn encode_proof(proof: &Proof) -> HexBinary {
         let mut addresses: Vec<Token> = Vec::new();
         let mut weights: Vec<Token> = Vec::new();
         let mut signatures: Vec<Token> = Vec::new();
 
-        self.operators.iter().for_each(|operator| {
+        proof.operators.iter().for_each(|operator| {
             addresses.push(Token::Address(ethereum_types::Address::from_slice(
                 operator.address.as_slice(),
             )));
-            weights.push(Token::Uint(
-                ethereum_types::U256::from_dec_str(&operator.weight.to_string())
-                    .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-            ));
+            weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
+                &operator.weight.to_be_bytes(),
+            )));
 
             if let Some(signature) = &operator.signature {
                 signatures.push(Token::Bytes(signature.into()));
             }
         });
 
-        let threshold = Token::Uint(
-            ethereum_types::U256::from_dec_str(&self.threshold.to_string())
-                .expect("violated invariant: Uint256 is not a valid EVM uint256"),
-        );
+        let threshold = Token::Uint(ethereum_types::U256::from_big_endian(
+            &proof.threshold.to_be_bytes(),
+        ));
 
         ethabi::encode(&[
             Token::Array(addresses),
@@ -159,75 +177,9 @@ fn evm_address(pub_key: &[u8]) -> HexBinary {
     Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into()
 }
 
-impl traits::Proof for Proof {
-    fn new(
-        snapshot: Snapshot,
-        signers: HashMap<String, Signature>,
-        pub_keys: HashMap<String, multisig::types::PublicKey>,
-    ) -> Self {
-        let mut operators = snapshot
-            .participants
-            .iter()
-            .map(|(_, participant)| {
-                let pub_key = pub_keys
-                    .get(&participant.address.to_string())
-                    .expect("violated invariant: participant address not found in pub_keys")
-                    .into();
-
-                Operator {
-                    address: evm_address(pub_key),
-                    weight: participant.weight.into(),
-                    signature: signers.get(participant.address.as_str()).cloned(),
-                }
-            })
-            .collect::<Vec<Operator>>();
-        operators.sort_by(|a, b| a.address.cmp(&b.address));
-
-        Proof {
-            operators,
-            threshold: snapshot.quorum.into(),
-        }
-    }
-
-    fn encode_execute_data(&self, data: &Data) -> HexBinary {
-        let data_encoded = data.encode();
-        let proof_encoded = self.encode();
-
-        ethabi::encode(&[
-            Token::Bytes(data_encoded.into()),
-            Token::Bytes(proof_encoded.into()),
-        ])
-        .into()
-    }
-}
-
-impl traits::CommandBatch for CommandBatch {
-    fn new(block_height: u64, messages: Vec<Message>, destination_chain_id: Uint256) -> Self {
-        let message_ids = messages.iter().map(|msg| msg.id.clone()).collect();
-
-        let data = Data::new(destination_chain_id, messages);
-        let encoded_data = data.encode();
-
-        let id = batch_id(block_height, &encoded_data);
-        let msg_to_sign = msg_to_sign(&encoded_data);
-
-        Self {
-            id,
-            message_ids,
-            data,
-            msg_to_sign,
-            multisig_session_id: None,
-        }
-    }
-}
-
-fn command_id(message_id: String) -> [u8; 32] {
+fn command_id(message_id: String) -> HexBinary {
     // TODO: we might need to change the command id format to match the one in core for migration purposes
-
-    Keccak256::digest(message_id.as_bytes())
-        .as_slice()
-        .try_into()
-        .expect("violated invariant: Keccak256 length is not 32 bytes")
+    Keccak256::digest(message_id.as_bytes()).as_slice().into()
 }
 
 // TODO: This will make it incompatible with current version of destination chain gateways,
@@ -260,6 +212,7 @@ fn batch_id(block_height: u64, data: &HexBinary) -> BatchID {
 fn msg_to_sign(data: &HexBinary) -> HexBinary {
     let msg = Keccak256::digest(data.as_slice());
 
+    // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
         "\x19Ethereum Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
         msg.as_slice(),
@@ -292,7 +245,7 @@ mod test {
         .unwrap()
     }
 
-    pub fn decode_data(encoded_data: &HexBinary) -> crate::encoding::Data {
+    pub fn decode_data(encoded_data: &HexBinary) -> Data {
         let tokens_array = &ethabi::decode(
             &[
                 ParamType::Uint(256),
@@ -333,7 +286,10 @@ mod test {
                             ) => {
                                 let command = Command {
                                     id: id.to_owned().try_into().unwrap(),
-                                    command_type: command_type.to_owned(),
+                                    command_type: match command_type.as_str() {
+                                        "approveContractCall" => CommandType::ApproveContractCall,
+                                        _ => panic!("undecodable command type"),
+                                    },
                                     command_params: HexBinary::from(command_params.to_owned()),
                                 };
 
@@ -353,31 +309,37 @@ mod test {
     }
 
     #[test]
-    fn test_message_from_router_message() {
+    fn test_command_from_router_message() {
         let messages = test_data::messages();
         let router_message = messages.first().unwrap();
 
-        let res = Message::try_from(router_message.to_owned());
+        let res = Command::try_from(router_message.to_owned());
         assert!(res.is_ok());
 
         let res = res.unwrap();
 
-        assert_eq!(res.id, router_message.id);
-        assert_eq!(res.source_chain, router_message.source_chain);
-        assert_eq!(res.source_address, router_message.source_address);
         assert_eq!(
-            res.destination_address,
-            ethereum_types::Address::from_str(&router_message.destination_address).unwrap()
+            res.id,
+            HexBinary::from_hex("cdf61b5aa2024f5a27383b0785fc393c566eef69569cf5abec945794b097bb73")
+                .unwrap() // https://axelarscan.io/gmp/0xc8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f
         );
-        assert_eq!(res.payload_hash, router_message.payload_hash);
+        assert_eq!(res.command_type, CommandType::ApproveContractCall);
+        assert_eq!(
+            decode_command_params(res.command_params),
+            decode_command_params(
+                decode_data(&test_data::encoded_data()).commands[0]
+                    .command_params
+                    .to_owned()
+            )
+        );
     }
 
     #[test]
-    fn test_message_from_router_message_invalid_dest_addr() {
+    fn test_command_from_router_message_invalid_dest_addr() {
         let mut router_message = test_data::messages().first().unwrap().clone();
         router_message.destination_address = "invalid".into();
 
-        let res = Message::try_from(router_message.to_owned());
+        let res = Command::try_from(router_message.to_owned());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
@@ -387,13 +349,13 @@ mod test {
     }
 
     #[test]
-    fn test_message_from_router_message_invalid_payload_hash() {
+    fn test_command_from_router_message_invalid_payload_hash() {
         let mut router_message = test_data::messages().first().unwrap().clone();
         router_message.payload_hash =
             HexBinary::from_hex("df0e679e57348329e51e4337b7839882c29f21a3095a718c239f147b143ff8")
                 .unwrap();
 
-        let res = Message::try_from(router_message.to_owned());
+        let res = Command::try_from(router_message.to_owned());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
@@ -405,16 +367,13 @@ mod test {
     #[test]
     fn test_new_command_batch() {
         let block_height = test_data::block_height();
-        let messages = test_data::messages()
-            .into_iter()
-            .map(|msg| msg.try_into())
-            .collect::<Result<Vec<Message>, ContractError>>()
-            .unwrap();
+        let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
 
-        let res: CommandBatch =
-            traits::CommandBatch::new(block_height, messages, destination_chain_id);
+        let res =
+            <Builder as traits::Builder>::build_batch(block_height, messages, destination_chain_id)
+                .unwrap();
 
         assert_eq!(
             res.message_ids,
@@ -479,48 +438,17 @@ mod test {
             .map(|op| (op.address.to_string(), op.pub_key.clone()))
             .collect();
 
-        let res: Proof = traits::Proof::new(snapshot, signers, pub_keys);
-        assert_eq!(res.encode(), test_data::encoded_proof());
+        let res = <Builder as traits::Builder>::build_proof(snapshot, signers, pub_keys).unwrap();
+        assert_eq!(Encoder::encode_proof(&res), test_data::encoded_proof());
     }
 
     #[test]
     fn test_data_encode() {
         let encoded_data = test_data::encoded_data();
         let data = decode_data(&encoded_data);
-        let res = data.encode();
+        let res = Encoder::encode_data(&data);
 
         assert_eq!(res, encoded_data);
-    }
-
-    #[test]
-    fn test_command_id() {
-        let res = command_id(test_data::messages()[0].id.clone());
-
-        assert_eq!(
-            HexBinary::from(res).to_hex(),
-            "cdf61b5aa2024f5a27383b0785fc393c566eef69569cf5abec945794b097bb73" // https://axelarscan.io/gmp/0xc8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f
-        );
-    }
-
-    #[test]
-    fn test_command_params() {
-        let message: Message = test_data::messages()[0].clone().try_into().unwrap();
-
-        let res = command_params(
-            message.source_chain.clone(),
-            message.source_address.clone(),
-            message.destination_address,
-            message.payload_hash,
-        );
-
-        assert_eq!(
-            decode_command_params(res),
-            decode_command_params(
-                decode_data(&test_data::encoded_data()).commands[0]
-                    .command_params
-                    .to_owned()
-            )
-        );
     }
 
     #[test]

@@ -13,6 +13,8 @@
    The contract then processes the results and takes appropriate action for each transaction, depending
    on whether or not the transaction was successfully verified.
 */
+use std::str::FromStr;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use thiserror::Error;
@@ -31,6 +33,14 @@ impl From<PollID> for String {
 impl From<u64> for PollID {
     fn from(value: u64) -> Self {
         PollID(value)
+    }
+}
+
+impl FromStr for PollID {
+    type Err = <u64 as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(u64::from_str(s)?))
     }
 }
 

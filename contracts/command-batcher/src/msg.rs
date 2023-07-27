@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::{
-    encoding::Data,
-    types::{BatchID, Proof},
-};
+use crate::types::{BatchID, Data, Proof};
 
 #[cw_serde]
 pub struct InstantiateMsg {

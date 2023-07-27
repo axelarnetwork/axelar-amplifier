@@ -9,10 +9,11 @@ use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 use std::collections::HashMap;
 
 use axelar_wasm_std::{Participant, Snapshot};
+use connection_router::msg::Message;
 use service_registry::msg::ActiveWorkers;
 
 use crate::{
-    encoding::{traits, Message},
+    encoding::{traits, Builder, Encoder},
     error::ContractError,
     msg::ExecuteMsg,
     msg::{GetProofResponse, InstantiateMsg, QueryMsg},
@@ -78,23 +79,20 @@ pub mod execute {
         let config = CONFIG.load(deps.storage)?;
 
         let query = gateway::msg::QueryMsg::GetMessages { message_ids };
-        let messages: Vec<connection_router::msg::Message> =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: config.gateway.into(),
-                msg: to_binary(&query)?,
-            }))?;
+        let messages: Vec<Message> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.gateway.into(),
+            msg: to_binary(&query)?,
+        }))?;
 
         if messages.is_empty() {
             return Err(ContractError::NoMessagesFound {});
         }
 
-        let messages: Vec<Message> = messages
-            .into_iter()
-            .map(|msg| msg.try_into())
-            .collect::<Result<Vec<Message>, ContractError>>()?;
-
-        let command_batch: CommandBatch =
-            traits::CommandBatch::new(env.block.height, messages, config.destination_chain_id);
+        let command_batch = <Builder as traits::Builder>::build_batch(
+            env.block.height,
+            messages,
+            config.destination_chain_id,
+        )?;
 
         COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
 
@@ -263,13 +261,18 @@ pub mod query {
                         msg: to_binary(&query_msg)?,
                     }))?;
 
-                let proof =
-                    traits::Proof::new(session.snapshot, session.signatures, session.pub_keys);
+                let proof = <Builder as traits::Builder>::build_proof(
+                    session.snapshot,
+                    session.signatures,
+                    session.pub_keys,
+                )
+                .map_err(|e| StdError::generic_err(e.to_string()))?;
 
                 let status = match session.state {
                     MultisigState::Pending => ProofStatus::Pending,
                     MultisigState::Completed => {
-                        let execute_data = traits::Proof::encode_execute_data(&proof, &batch.data);
+                        let execute_data =
+                            <Encoder as traits::Encoder>::encode_execute_data(&batch.data, &proof);
 
                         ProofStatus::Completed { execute_data }
                     }

@@ -2,4 +2,4 @@ pub mod traits;
 
 // Adding more encoding modules will require using feature flags in here to switch between them
 mod evm;
-pub use crate::encoding::evm::{Data, Message};
+pub use crate::encoding::evm::{Builder, Encoder};
