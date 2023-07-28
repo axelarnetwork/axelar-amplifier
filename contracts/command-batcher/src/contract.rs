@@ -267,6 +267,4 @@ pub mod query {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-}
+mod test {}
