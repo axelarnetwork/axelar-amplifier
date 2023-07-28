@@ -1,7 +1,7 @@
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, voting};
 use connection_router;
 use connection_router::types::ChainName;
 use service_registry;
@@ -31,4 +31,10 @@ pub enum ContractError {
 
     #[error("invalid message id {0}")]
     InvalidMessageID(String),
+
+    #[error("poll not found")]
+    PollNotFound,
+
+    #[error("{0}")]
+    VoteError(#[from] voting::Error),
 }
