@@ -43,11 +43,10 @@ impl TryFrom<Message> for Command {
 pub struct Builder;
 impl traits::Builder for Builder {
     fn build_batch(
-        block_height: u64,
         messages: Vec<Message>,
         destination_chain_id: Uint256,
     ) -> Result<CommandBatch, ContractError> {
-        let message_ids = messages.iter().map(|msg| msg.id.clone()).collect();
+        let message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
 
         let data = Data {
             destination_chain_id,
@@ -58,7 +57,7 @@ impl traits::Builder for Builder {
         };
         let encoded_data = Encoder::encode_data(&data);
 
-        let id = batch_id(block_height, &encoded_data);
+        let id = batch_id(&message_ids);
         let msg_to_sign = msg_to_sign(&encoded_data);
 
         Ok(CommandBatch {
@@ -66,7 +65,6 @@ impl traits::Builder for Builder {
             message_ids,
             data,
             msg_to_sign,
-            multisig_session_id: None,
         })
     }
 
@@ -81,16 +79,18 @@ impl traits::Builder for Builder {
             .map(|(_, participant)| {
                 let pub_key = pub_keys
                     .get(&participant.address.to_string())
-                    .expect("violated invariant: participant address not found in pub_keys")
+                    .ok_or(ContractError::PublicKeyNotFound {
+                        participant: participant.address.to_string(),
+                    })?
                     .into();
 
-                Operator {
-                    address: evm_address(pub_key),
+                Ok(Operator {
+                    address: evm_address(pub_key)?,
                     weight: participant.weight.into(),
                     signature: signers.get(participant.address.as_str()).cloned(),
-                }
+                })
             })
-            .collect::<Vec<Operator>>();
+            .collect::<Result<Vec<Operator>, ContractError>>()?;
         operators.sort_by(|a, b| a.address.cmp(&b.address));
 
         Ok(Proof {
@@ -169,12 +169,14 @@ impl Encoder {
     }
 }
 
-fn evm_address(pub_key: &[u8]) -> HexBinary {
-    let pub_key = PublicKey::from_sec1_bytes(pub_key)
-        .expect("violated invariant: pub_key is not a valid secp256k1 public key");
+fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
+    let pub_key =
+        PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidMessage {
+            reason: e.to_string(),
+        })?;
     let pub_key = pub_key.to_encoded_point(false);
 
-    Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into()
+    Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
 fn command_id(message_id: String) -> HexBinary {
@@ -200,13 +202,14 @@ fn command_params(
     .into()
 }
 
-fn batch_id(block_height: u64, data: &HexBinary) -> BatchID {
-    let mut id_hasher = Keccak256::new();
+fn batch_id(message_ids: &[String]) -> BatchID {
+    let mut message_ids = message_ids
+        .iter()
+        .map(|id| id.as_bytes())
+        .collect::<Vec<&[u8]>>();
+    message_ids.sort();
 
-    id_hasher.update(block_height.to_be_bytes());
-    id_hasher.update(data.as_slice());
-
-    id_hasher.finalize().as_slice().into()
+    Keccak256::digest(message_ids.concat()).as_slice().into()
 }
 
 fn msg_to_sign(data: &HexBinary) -> HexBinary {
@@ -366,14 +369,12 @@ mod test {
 
     #[test]
     fn test_new_command_batch() {
-        let block_height = test_data::block_height();
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
 
         let res =
-            <Builder as traits::Builder>::build_batch(block_height, messages, destination_chain_id)
-                .unwrap();
+            <Builder as traits::Builder>::build_batch(messages, destination_chain_id).unwrap();
 
         assert_eq!(
             res.message_ids,
@@ -399,8 +400,6 @@ mod test {
                     decode_command_params(expected_command.command_params)
                 );
             });
-
-        assert_eq!(res.multisig_session_id, None);
     }
 
     #[test]
@@ -453,13 +452,16 @@ mod test {
 
     #[test]
     fn test_batch_id() {
-        let block_height = test_data::block_height();
-        let data = test_data::encoded_data();
+        let messages = test_data::messages();
+        let mut message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
 
-        let res = batch_id(block_height, &data);
-        let expected_id = test_data::batch_id();
+        message_ids.sort();
+        let res = batch_id(&message_ids);
 
-        assert_eq!(res, expected_id);
+        message_ids.reverse();
+        let res2 = batch_id(&message_ids);
+
+        assert_eq!(res, res2);
     }
 
     #[test]
@@ -467,7 +469,7 @@ mod test {
         let pub_key = test_data::pub_key();
         let expected_address = test_data::evm_address();
 
-        let operator = evm_address(pub_key.as_slice());
+        let operator = evm_address(pub_key.as_slice()).unwrap();
 
         assert_eq!(operator, expected_address);
     }

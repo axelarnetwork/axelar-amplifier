@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256, Uint64};
+use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::types::Signature;
 
@@ -71,7 +71,6 @@ pub struct CommandBatch {
     pub message_ids: Vec<String>,
     pub data: Data,
     pub msg_to_sign: HexBinary,
-    pub multisig_session_id: Option<Uint64>,
 }
 
 #[cw_serde]

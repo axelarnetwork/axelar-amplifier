@@ -61,9 +61,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ConstructProof { message_ids } => {
-            execute::construct_proof(deps, env, message_ids)
-        }
+        ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::KeyGen { pub_keys } => execute::key_gen(deps, env, info, pub_keys),
     }
 }
@@ -73,7 +71,6 @@ pub mod execute {
 
     pub fn construct_proof(
         deps: DepsMut,
-        env: Env,
         message_ids: Vec<String>,
     ) -> Result<Response, ContractError> {
         let config = CONFIG.load(deps.storage)?;
@@ -88,11 +85,8 @@ pub mod execute {
             return Err(ContractError::NoMessagesFound {});
         }
 
-        let command_batch = <Builder as traits::Builder>::build_batch(
-            env.block.height,
-            messages,
-            config.destination_chain_id,
-        )?;
+        let command_batch =
+            <Builder as traits::Builder>::build_batch(messages, config.destination_chain_id)?;
 
         COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
 

@@ -6,8 +6,6 @@ use connection_router::msg::Message;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::types::Signature;
 
-use crate::types::BatchID;
-
 fn legacy_cmd_id_input(
     source_transaction: HexBinary,
     source_event_index: Uint64,
@@ -80,12 +78,6 @@ pub fn block_height() -> u64 {
 
 pub fn destination_chain_id() -> Uint256 {
     Uint256::one()
-}
-
-pub fn batch_id() -> BatchID {
-    HexBinary::from_hex("0304b99223f238f417cd015b724d32081a19cee49a41a839b73cd16ccaa538ab")
-        .unwrap()
-        .into()
 }
 
 pub fn pub_key() -> HexBinary {
