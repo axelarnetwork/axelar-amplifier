@@ -70,9 +70,7 @@ impl KeyDeserialize for MessageID {
 }
 
 #[cw_serde]
-pub struct ChainName {
-    value: String,
-}
+pub struct ChainName(String);
 
 impl FromStr for ChainName {
     type Err = ContractError;
@@ -81,21 +79,20 @@ impl FromStr for ChainName {
         if s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidChainName {});
         }
-        Ok(ChainName {
-            value: s.to_lowercase(),
-        })
+
+        Ok(ChainName(s.to_lowercase()))
     }
 }
 
 impl From<ChainName> for String {
     fn from(d: ChainName) -> Self {
-        d.value
+        d.0
     }
 }
 
 impl fmt::Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -106,13 +103,13 @@ impl<'a> PrimaryKey<'a> for ChainName {
     type SuperSuffix = Self;
 
     fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(self.value.as_bytes())]
+        vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
 impl<'a> Prefixer<'a> for ChainName {
     fn prefix(&self) -> Vec<Key> {
-        vec![Key::Ref(self.value.as_bytes())]
+        vec![Key::Ref(self.0.as_bytes())]
     }
 }
 

@@ -139,9 +139,9 @@ impl From<Message> for msg::Message {
         msg::Message {
             id: value.id.to_string(),
             destination_address: value.destination_address,
-            destination_chain: value.destination_chain.to_string(),
+            destination_chain: value.destination_chain.into(),
             source_address: value.source_address,
-            source_chain: value.source_chain.to_string(),
+            source_chain: value.source_chain.into(),
             payload_hash: value.payload_hash,
         }
     }
