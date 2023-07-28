@@ -86,12 +86,12 @@ impl Proof {
     ) -> Result<Proof, ContractError> {
         let mut operators = snapshot
             .participants
-            .iter()
-            .map(|(_, participant)| {
+            .into_iter()
+            .map(|(address, participant)| {
                 let pub_key = pub_keys
-                    .get(&participant.address.to_string())
+                    .get(&address)
                     .ok_or(ContractError::PublicKeyNotFound {
-                        participant: participant.address.to_string(),
+                        participant: address,
                     })?
                     .into();
 
