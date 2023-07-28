@@ -228,8 +228,8 @@ impl Poll for WeightedPoll {
 
         self.votes
             .iter_mut()
-            .zip(votes.iter())
-            .filter(|(_, vote)| **vote)
+            .zip(votes.into_iter())
+            .filter(|(_, vote)| *vote)
             .for_each(|(tally, _)| {
                 *tally += Uint256::from(participant.weight);
             });
