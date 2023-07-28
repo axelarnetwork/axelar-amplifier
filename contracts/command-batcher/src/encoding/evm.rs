@@ -13,8 +13,6 @@ use crate::{
     types::{BatchID, Command, CommandBatch, CommandType, Data, Operator, Proof},
 };
 
-use super::traits;
-
 impl TryFrom<Message> for Command {
     type Error = ContractError;
 
@@ -40,12 +38,11 @@ impl TryFrom<Message> for Command {
     }
 }
 
-pub struct Builder;
-impl traits::Builder for Builder {
-    fn build_batch(
+impl CommandBatch {
+    pub fn new(
         messages: Vec<Message>,
         destination_chain_id: Uint256,
-    ) -> Result<CommandBatch, ContractError> {
+    ) -> Result<Self, ContractError> {
         let message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
 
         let data = Data {
@@ -55,20 +52,22 @@ impl traits::Builder for Builder {
                 .map(|msg| msg.try_into())
                 .collect::<Result<Vec<Command>, ContractError>>()?,
         };
-        let encoded_data = Encoder::encode_data(&data);
+        let encoded_data = data.encode();
 
         let id = batch_id(&message_ids);
         let msg_to_sign = msg_to_sign(&encoded_data);
 
-        Ok(CommandBatch {
+        Ok(Self {
             id,
             message_ids,
             data,
             msg_to_sign,
         })
     }
+}
 
-    fn build_proof(
+impl Proof {
+    pub fn new(
         snapshot: Snapshot,
         signers: HashMap<String, Signature>,
         pub_keys: HashMap<String, multisig::types::PublicKey>,
@@ -98,51 +97,13 @@ impl traits::Builder for Builder {
             threshold: snapshot.quorum.into(),
         })
     }
-}
 
-pub struct Encoder;
-
-impl traits::Encoder for Encoder {
-    fn encode_execute_data(data: &Data, proof: &Proof) -> HexBinary {
-        ethabi::encode(&[
-            Token::Bytes(Encoder::encode_data(data).into()),
-            Token::Bytes(Encoder::encode_proof(proof).into()),
-        ])
-        .into()
-    }
-}
-
-impl Encoder {
-    pub fn encode_data(data: &Data) -> HexBinary {
-        let destination_chain_id = Token::Uint(ethereum_types::U256::from_big_endian(
-            &data.destination_chain_id.to_be_bytes(),
-        ));
-
-        let mut commands_ids: Vec<Token> = Vec::new();
-        let mut commands_types: Vec<Token> = Vec::new();
-        let mut commands_params: Vec<Token> = Vec::new();
-
-        data.commands.iter().for_each(|command| {
-            commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-            commands_types.push(Token::String(command.command_type.to_string()));
-            commands_params.push(Token::Bytes(command.command_params.to_vec()));
-        });
-
-        ethabi::encode(&[
-            destination_chain_id,
-            Token::Array(commands_ids),
-            Token::Array(commands_types),
-            Token::Array(commands_params),
-        ])
-        .into()
-    }
-
-    pub fn encode_proof(proof: &Proof) -> HexBinary {
+    pub fn encode(&self) -> HexBinary {
         let mut addresses: Vec<Token> = Vec::new();
         let mut weights: Vec<Token> = Vec::new();
         let mut signatures: Vec<Token> = Vec::new();
 
-        proof.operators.iter().for_each(|operator| {
+        self.operators.iter().for_each(|operator| {
             addresses.push(Token::Address(ethereum_types::Address::from_slice(
                 operator.address.as_slice(),
             )));
@@ -156,7 +117,7 @@ impl Encoder {
         });
 
         let threshold = Token::Uint(ethereum_types::U256::from_big_endian(
-            &proof.threshold.to_be_bytes(),
+            &self.threshold.to_be_bytes(),
         ));
 
         ethabi::encode(&[
@@ -164,6 +125,40 @@ impl Encoder {
             Token::Array(weights),
             threshold,
             Token::Array(signatures),
+        ])
+        .into()
+    }
+
+    pub fn encode_execute_data(&self, data: &Data) -> HexBinary {
+        ethabi::encode(&[
+            Token::Bytes(data.encode().into()),
+            Token::Bytes(self.encode().into()),
+        ])
+        .into()
+    }
+}
+
+impl Data {
+    pub fn encode(&self) -> HexBinary {
+        let destination_chain_id = Token::Uint(ethereum_types::U256::from_big_endian(
+            &self.destination_chain_id.to_be_bytes(),
+        ));
+
+        let mut commands_ids: Vec<Token> = Vec::new();
+        let mut commands_types: Vec<Token> = Vec::new();
+        let mut commands_params: Vec<Token> = Vec::new();
+
+        self.commands.iter().for_each(|command| {
+            commands_ids.push(Token::FixedBytes(command.id.to_vec()));
+            commands_types.push(Token::String(command.command_type.to_string()));
+            commands_params.push(Token::Bytes(command.command_params.to_vec()));
+        });
+
+        ethabi::encode(&[
+            destination_chain_id,
+            Token::Array(commands_ids),
+            Token::Array(commands_types),
+            Token::Array(commands_params),
         ])
         .into()
     }
@@ -372,8 +367,7 @@ mod test {
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
 
-        let res =
-            <Builder as traits::Builder>::build_batch(messages, destination_chain_id).unwrap();
+        let res = CommandBatch::new(messages, destination_chain_id).unwrap();
 
         assert_eq!(
             res.message_ids,
@@ -436,15 +430,15 @@ mod test {
             .map(|op| (op.address.to_string(), op.pub_key.clone()))
             .collect();
 
-        let res = <Builder as traits::Builder>::build_proof(snapshot, signers, pub_keys).unwrap();
-        assert_eq!(Encoder::encode_proof(&res), test_data::encoded_proof());
+        let res = Proof::new(snapshot, signers, pub_keys).unwrap();
+        assert_eq!(res.encode(), test_data::encoded_proof());
     }
 
     #[test]
     fn test_data_encode() {
         let encoded_data = test_data::encoded_data();
         let data = decode_data(&encoded_data);
-        let res = Encoder::encode_data(&data);
+        let res = data.encode();
 
         assert_eq!(res, encoded_data);
     }
