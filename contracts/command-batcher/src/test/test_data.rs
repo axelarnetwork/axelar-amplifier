@@ -80,10 +80,6 @@ pub fn destination_chain_id() -> Uint256 {
     Uint256::one()
 }
 
-pub fn batch_id() -> HexBinary {
-    HexBinary::from_hex("0304b99223f238f417cd015b724d32081a19cee49a41a839b73cd16ccaa538ab").unwrap()
-}
-
 pub fn pub_key() -> HexBinary {
     HexBinary::from_hex("03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d")
         .unwrap()

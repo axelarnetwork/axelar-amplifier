@@ -12,7 +12,6 @@ use crate::{
 
 pub trait Builder {
     fn build_batch(
-        block_height: u64,
         messages: Vec<Message>,
         destination_chain_id: Uint256,
     ) -> Result<CommandBatch, ContractError>;
