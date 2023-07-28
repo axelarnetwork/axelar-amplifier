@@ -34,10 +34,12 @@ impl From<abci::Event> for Event {
             attributes: event
                 .attributes
                 .into_iter()
-                .map(|tag| match serde_json::from_str(&tag.value) {
-                    Ok(v) => (tag.key, v),
-                    Err(_) => (tag.key, tag.value.into()),
-                })
+                .map(
+                    |abci::EventAttribute { key, value, .. }| match serde_json::from_str(&value) {
+                        Ok(v) => (key, v),
+                        Err(_) => (key, value.into()),
+                    },
+                )
                 .collect(),
         }
     }

@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use ethers::contract::EthLogDecode;
 use ethers::prelude::abigen;
 use ethers::types::{Log, TransactionReceipt};
@@ -14,11 +12,11 @@ struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarGatewayEvents);
 impl PartialEq<&EvmMessage> for IAxelarGatewayEventsWithLog<'_> {
     fn eq(&self, msg: &&EvmMessage) -> bool {
         let IAxelarGatewayEventsWithLog(log, event) = self;
-        let msg_transaction_hash = match Hash::from_str(&msg.tx_id) {
+        let msg_transaction_hash: Hash = match msg.tx_id.parse() {
             Ok(hash) => hash,
             Err(_) => return false,
         };
-        let msg_source_address = match EVMAddress::from_str(&msg.source_address) {
+        let msg_source_address: EVMAddress = match msg.source_address.parse() {
             Ok(address) => address,
             Err(_) => return false,
         };
@@ -38,13 +36,13 @@ impl PartialEq<&EvmMessage> for IAxelarGatewayEventsWithLog<'_> {
 }
 
 #[allow(dead_code)]
-pub fn verify_message(gateway_address: EVMAddress, tx_receipt: &TransactionReceipt, msg: &EvmMessage) -> bool {
-    let msg_transaction_hash = match Hash::from_str(&msg.tx_id) {
+pub fn verify_message(gateway_address: &EVMAddress, tx_receipt: &TransactionReceipt, msg: &EvmMessage) -> bool {
+    let msg_transaction_hash: Hash = match msg.tx_id.parse() {
         Ok(hash) => hash,
         Err(_) => return false,
     };
     let log = match tx_receipt.logs.get(msg.log_index as usize) {
-        Some(log) if log.address == gateway_address => log,
+        Some(log) if log.address == *gateway_address => log,
         _ => return false,
     };
     let event = match IAxelarGatewayEvents::decode_log(&log.clone().into()) {
@@ -73,7 +71,7 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
 
         msg.tx_id = format!("0x{:x}", Hash::random());
-        assert!(!verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
     #[test]
@@ -81,7 +79,7 @@ mod tests {
         let (_, tx_receipt, msg) = get_matching_msg_and_tx_receipt();
 
         let gateway_address = EVMAddress::random();
-        assert!(!verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
     #[test]
@@ -89,11 +87,11 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
 
         msg.log_index = 0;
-        assert!(!verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
         msg.log_index = 2;
-        assert!(!verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
         msg.log_index = 3;
-        assert!(!verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
     #[test]
@@ -101,14 +99,14 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
 
         msg.source_address = format!("0x{:x}", EVMAddress::random());
-        assert!(!verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
     #[test]
     fn should_verify_the_correct_msg() {
         let (gateway_address, tx_receipt, msg) = get_matching_msg_and_tx_receipt();
 
-        assert!(verify_message(gateway_address, &tx_receipt, &msg));
+        assert!(verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
     fn get_matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, EvmMessage) {

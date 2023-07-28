@@ -63,6 +63,7 @@ name = "ampd"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axelar-wasm-std",
  "clap",
  "config",
  "connection-router",
@@ -83,7 +84,6 @@ dependencies = [
  "random-string",
  "serde",
  "serde_json",
- "subtle-encoding",
  "tendermint",
  "tendermint-rpc",
  "thiserror",
@@ -251,7 +251,7 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 [[package]]
 name = "axelar-wasm-std"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#4961368c9c1bed10b5b23563cd52ac005480589b"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#c4f9a8823b3e0dd2090a8f44dcdf1498e13db06b"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -706,7 +706,7 @@ dependencies = [
 [[package]]
 name = "connection-router"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#4961368c9c1bed10b5b23563cd52ac005480589b"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#c4f9a8823b3e0dd2090a8f44dcdf1498e13db06b"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
@@ -3978,7 +3978,7 @@ dependencies = [
 [[package]]
 name = "service-registry"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#4961368c9c1bed10b5b23563cd52ac005480589b"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#c4f9a8823b3e0dd2090a8f44dcdf1498e13db06b"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-schema",
@@ -4995,7 +4995,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "voting-verifier"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#4961368c9c1bed10b5b23563cd52ac005480589b"
+source = "git+https://github.com/axelarnetwork/axelar-amplifier.git#c4f9a8823b3e0dd2090a8f44dcdf1498e13db06b"
 dependencies = [
  "axelar-wasm-std",
  "connection-router",

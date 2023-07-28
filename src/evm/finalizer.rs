@@ -1,10 +1,10 @@
-use crate::evm::json_rpc::EthereumClient;
-
-use super::error::Error;
 use async_trait::async_trait;
-use error_stack::{self, ResultExt};
+use error_stack::{self, Report, ResultExt};
 use ethers::types::U64;
 use mockall::automock;
+
+use super::error::Error;
+use crate::evm::json_rpc::EthereumClient;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -12,6 +12,37 @@ type Result<T> = error_stack::Result<T, Error>;
 #[async_trait]
 pub trait Finalizer {
     async fn latest_finalized_block_height(&self) -> Result<U64>;
+}
+
+pub struct EthereumFinalizer<C>
+where
+    C: EthereumClient,
+{
+    rpc_client: C,
+}
+
+impl<C> EthereumFinalizer<C>
+where
+    C: EthereumClient,
+{
+    pub fn new(rpc_client: C) -> Self {
+        EthereumFinalizer { rpc_client }
+    }
+}
+
+#[async_trait]
+impl<C> Finalizer for EthereumFinalizer<C>
+where
+    C: EthereumClient + Send + Sync,
+{
+    async fn latest_finalized_block_height(&self) -> Result<U64> {
+        self.rpc_client
+            .finalized_block()
+            .await
+            .change_context(Error::JsonRPC)?
+            .number
+            .ok_or_else(|| Report::new(Error::MissBlockNumber))
+    }
 }
 
 pub struct PoWFinalizer<C>
@@ -26,6 +57,7 @@ impl<C> PoWFinalizer<C>
 where
     C: EthereumClient,
 {
+    #[allow(dead_code)]
     pub fn new<H>(rpc_client: C, confirmation_height: H) -> Self
     where
         H: Into<U64>,
@@ -43,11 +75,7 @@ where
     C: EthereumClient + Send + Sync,
 {
     async fn latest_finalized_block_height(&self) -> Result<U64> {
-        let block_number = self
-            .rpc_client
-            .block_number()
-            .await
-            .change_context(Error::JSONRPCError)?;
+        let block_number = self.rpc_client.block_number().await.change_context(Error::JsonRPC)?;
 
         Ok(block_number - self.confirmation_height + 1)
     }

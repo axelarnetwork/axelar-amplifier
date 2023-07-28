@@ -73,10 +73,9 @@ where
 
 pub async fn new_finalizer(config: &EvmChainConfig) -> Result<impl Finalizer, error::Error> {
     let finalizer = match config.name {
-        ChainName::Ethereum => finalizer::PoWFinalizer::new(
-            Client::new_http(&config.rpc_url).change_context(error::Error::JSONRPCError)?,
-            20,
-        ),
+        ChainName::Ethereum => {
+            finalizer::EthereumFinalizer::new(Client::new_http(&config.rpc_url).change_context(error::Error::JsonRPC)?)
+        }
     };
     let _ = finalizer.latest_finalized_block_height().await?;
 
