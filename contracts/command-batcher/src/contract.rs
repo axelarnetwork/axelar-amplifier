@@ -132,6 +132,14 @@ pub mod execute {
 
         let snapshot = snapshot(deps.querier, env.block, &config)?;
 
+        for participant in snapshot.participants.keys() {
+            if !pub_keys.contains_key(participant) {
+                return Err(ContractError::PublicKeyNotFound {
+                    participant: participant.to_owned(),
+                });
+            }
+        }
+
         let keygen_msg = multisig::msg::ExecuteMsg::KeyGen {
             key_id: config.service_name,
             snapshot,
