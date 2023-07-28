@@ -90,6 +90,12 @@ pub struct Operator {
 #[cw_serde]
 pub struct ProofID(HexBinary);
 
+impl Display for ProofID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.to_hex())
+    }
+}
+
 impl<'a> PrimaryKey<'a> for ProofID {
     type Prefix = ();
     type SubPrefix = ();

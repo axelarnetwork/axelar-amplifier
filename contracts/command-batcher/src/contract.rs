@@ -15,6 +15,7 @@ use service_registry::msg::ActiveWorkers;
 
 use crate::{
     error::ContractError,
+    events::Event,
     msg::ExecuteMsg,
     msg::{GetProofResponse, InstantiateMsg, ProofStatus, QueryMsg},
     state::{
@@ -69,6 +70,8 @@ pub fn execute(
 }
 
 pub mod execute {
+    use crate::types::BatchID;
+
     use super::*;
 
     pub fn construct_proof(
@@ -87,9 +90,19 @@ pub mod execute {
             return Err(ContractError::NoMessagesFound {});
         }
 
-        let command_batch = CommandBatch::new(messages, config.destination_chain_id)?;
+        let message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
+        let batch_id = BatchID::new(&message_ids);
 
-        COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
+        let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
+            Some(batch) => batch,
+            None => {
+                let batch = CommandBatch::new(messages, config.destination_chain_id)?;
+
+                COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
+
+                batch
+            }
+        };
 
         let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
             key_id: config.service_name,
@@ -198,13 +211,11 @@ pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, Contrac
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
-            PROOF_BATCH_MULTISIG.save(
-                deps.storage,
-                &ProofID::new(&command_batch_id, &session_id),
-                &(command_batch_id, session_id),
-            )?;
+            let proof_id = ProofID::new(&command_batch_id, &session_id);
 
-            Ok(Response::default())
+            PROOF_BATCH_MULTISIG.save(deps.storage, &proof_id, &(command_batch_id, session_id))?;
+
+            Ok(Response::new().add_event(Event::ProofUnderConstruction { proof_id }.into()))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),

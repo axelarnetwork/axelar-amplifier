@@ -1,7 +1,7 @@
-use cosmwasm_std::HexBinary;
+use crate::types::ProofID;
 
 pub enum Event {
-    ProofUnderConstruction { proof_id: HexBinary },
+    ProofUnderConstruction { proof_id: ProofID },
 }
 
 impl From<Event> for cosmwasm_std::Event {
@@ -9,7 +9,7 @@ impl From<Event> for cosmwasm_std::Event {
         match other {
             Event::ProofUnderConstruction { proof_id } => {
                 cosmwasm_std::Event::new("proof_under_construction")
-                    .add_attribute("proof_id", proof_id.to_hex())
+                    .add_attribute("proof_id", proof_id.to_string())
             }
         }
     }
