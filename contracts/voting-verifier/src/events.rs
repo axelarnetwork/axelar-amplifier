@@ -141,12 +141,12 @@ impl From<Voted> for Event {
     }
 }
 
-pub struct PollEnded<'a> {
+pub struct PollEnded {
     pub poll_id: PollID,
-    pub results: &'a Vec<bool>,
+    pub results: Vec<bool>,
 }
 
-impl From<PollEnded<'_>> for Event {
+impl From<PollEnded> for Event {
     fn from(other: PollEnded) -> Self {
         Event::new("poll_ended")
             .add_attribute("poll_id", other.poll_id)

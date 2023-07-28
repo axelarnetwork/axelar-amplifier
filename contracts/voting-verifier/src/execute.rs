@@ -1,5 +1,3 @@
-use core::panic;
-
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
@@ -123,13 +121,15 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = poll.tally(env.block.height)?;
     POLLS.save(deps.storage, poll_id, &poll)?;
-    let messages = clear_pending_message(deps.storage, poll_id)?;
-    if messages.len() != poll_result.results.len() {
-        panic!(
-            "poll {} results and pending messages have different length",
-            poll_id
-        )
-    }
+
+    let messages = remove_pending_message(deps.storage, poll_id)?;
+
+    assert_eq!(
+        messages.len(),
+        poll_result.results.len(),
+        "poll {} results and pending messages have different length",
+        poll_id
+    );
 
     let messages = messages
         .iter()
@@ -150,7 +150,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         .add_event(
             PollEnded {
                 poll_id: poll_result.poll_id,
-                results: &poll_result.results,
+                results: poll_result.results.clone(),
             }
             .into(),
         )
@@ -210,7 +210,7 @@ fn create_poll(
     Ok(id)
 }
 
-fn clear_pending_message(
+fn remove_pending_message(
     store: &mut dyn Storage,
     poll_id: PollID,
 ) -> Result<Vec<Message>, ContractError> {

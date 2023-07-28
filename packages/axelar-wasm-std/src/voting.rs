@@ -21,7 +21,7 @@ use std::ops::Mul;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, StdResult, Uint256};
+use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
 use thiserror::Error;
@@ -51,7 +51,7 @@ pub enum Error {
 
 #[cw_serde]
 #[derive(Copy, Default)]
-pub struct PollID(u64);
+pub struct PollID(Uint64);
 
 impl From<PollID> for String {
     fn from(val: PollID) -> Self {
@@ -59,17 +59,17 @@ impl From<PollID> for String {
     }
 }
 
-impl From<u64> for PollID {
-    fn from(value: u64) -> Self {
+impl From<Uint64> for PollID {
+    fn from(value: Uint64) -> Self {
         PollID(value)
     }
 }
 
 impl FromStr for PollID {
-    type Err = <u64 as FromStr>::Err;
+    type Err = StdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(u64::from_str(s)?))
+        Ok(Self(Uint64::try_from(s)?))
     }
 }
 
@@ -83,7 +83,7 @@ impl Mul for PollID {
 
 impl One for PollID {
     fn one() -> Self {
-        PollID(1)
+        PollID(Uint64::one())
     }
 }
 
@@ -100,7 +100,7 @@ impl<'a> PrimaryKey<'a> for PollID {
     type SuperSuffix = Self;
 
     fn key(&self) -> Vec<Key> {
-        vec![Key::Val64(self.0.to_cw_bytes())]
+        vec![Key::Val64(self.0.to_be_bytes())]
     }
 }
 
@@ -108,12 +108,10 @@ impl KeyDeserialize for PollID {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let id = u64::from_cw_bytes(
-            value
-                .as_slice()
-                .try_into()
-                .map_err(|err: TryFromSliceError| StdError::generic_err(err.to_string()))?,
-        );
+        let id =
+            Uint64::new(u64::from_cw_bytes(value.as_slice().try_into().map_err(
+                |err: TryFromSliceError| StdError::generic_err(err.to_string()),
+            )?));
         Ok(Self(id))
     }
 }
@@ -154,7 +152,7 @@ pub struct WeightedPoll {
     poll_id: PollID,
     snapshot: Snapshot,
     expires_at: u64,
-    poll_size: usize,
+    poll_size: u64,
     votes: Vec<Uint256>, // running tally of weighted votes
     status: PollStatus,
     voted: HashSet<Addr>,
@@ -166,7 +164,7 @@ impl WeightedPoll {
             poll_id,
             snapshot,
             expires_at: expiry,
-            poll_size,
+            poll_size: poll_size as u64,
             votes: vec![Uint256::zero(); poll_size],
             status: PollStatus::InProgress,
             voted: HashSet::new(),
@@ -176,7 +174,10 @@ impl WeightedPoll {
 
 impl Poll for WeightedPoll {
     fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
-        if block_height < self.expires_at && self.voted.len() != self.snapshot.participants.len() {
+        if block_height < self.expires_at
+            // can tally early if all participants voted
+            && self.voted.len() < self.snapshot.get_participants().len()
+        {
             return Err(Error::PollNotEnded {});
         }
 
@@ -202,15 +203,16 @@ impl Poll for WeightedPoll {
         sender: &Addr,
         votes: Vec<bool>,
     ) -> Result<PollStatus, Error> {
-        if !self.snapshot.is_participant(sender) {
-            return Err(Error::NotParticipant {});
-        }
+        let participant = self
+            .snapshot
+            .get_participant(sender)
+            .ok_or(Error::NotParticipant {})?;
 
-        if block_height > self.expires_at {
+        if block_height >= self.expires_at {
             return Err(Error::PollExpired {});
         }
 
-        if votes.len() != self.poll_size {
+        if votes.len() != self.poll_size as usize {
             return Err(Error::InvalidVoteSize {});
         }
 
@@ -224,14 +226,13 @@ impl Poll for WeightedPoll {
 
         self.voted.insert(sender.clone());
 
-        for (tally, vote) in self.votes.iter_mut().zip(votes.iter()) {
-            if *vote {
-                *tally += self
-                    .snapshot
-                    .get_participant_weight(sender)
-                    .expect("violated invariant: vote submitted by non-participant");
-            }
-        }
+        self.votes
+            .iter_mut()
+            .zip(votes.iter())
+            .filter(|(_, vote)| **vote)
+            .for_each(|(tally, _)| {
+                *tally += Uint256::from(participant.weight);
+            });
 
         Ok(PollStatus::InProgress)
     }
@@ -239,15 +240,17 @@ impl Poll for WeightedPoll {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{nonempty, Participant, Threshold};
     use cosmwasm_std::{Addr, Timestamp, Uint256, Uint64};
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
 
+    use crate::{nonempty, Participant, Threshold};
+
+    use super::*;
+
     #[test]
     fn voter_not_a_participant() {
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
         let mut poll = new_poll(
             rng.gen::<u64>(),
             rng.gen_range(1..50),
@@ -283,7 +286,7 @@ mod tests {
 
     #[test]
     fn vote_size_is_invalid() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true];
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
@@ -293,7 +296,7 @@ mod tests {
 
     #[test]
     fn voter_already_voted() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
 
         assert!(poll
@@ -307,7 +310,7 @@ mod tests {
 
     #[test]
     fn poll_is_not_in_progress() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
         poll.status = PollStatus::Finished;
         assert_eq!(
@@ -324,14 +327,14 @@ mod tests {
 
     #[test]
     fn tally_after_poll_conclude() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         poll.status = PollStatus::Finished;
-        assert_eq!(poll.tally(1), Err(Error::PollNotInProgress {}));
+        assert_eq!(poll.tally(2), Err(Error::PollNotInProgress {}));
     }
 
     #[test]
     fn should_conclude_poll() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
 
         assert!(poll
@@ -339,13 +342,13 @@ mod tests {
             .is_ok());
         assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
 
-        let result = poll.tally(1).unwrap();
+        let result = poll.tally(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
 
         assert_eq!(
             result,
             PollResult {
-                poll_id: PollID::from(1),
+                poll_id: PollID::from(Uint64::one()),
                 results: vec![true, true],
             }
         );
@@ -371,6 +374,6 @@ mod tests {
 
         let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
 
-        WeightedPoll::new(PollID::from(1), snapshot, expires_at, poll_size)
+        WeightedPoll::new(PollID::from(Uint64::one()), snapshot, expires_at, poll_size)
     }
 }

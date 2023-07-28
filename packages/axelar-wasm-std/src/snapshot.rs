@@ -69,8 +69,8 @@ impl Snapshot {
             .collect()
     }
 
-    pub fn is_participant(&self, participant: &Addr) -> bool {
-        self.participants.contains_key(participant.as_str())
+    pub fn get_participant(&self, participant: &Addr) -> Option<&Participant> {
+        self.participants.get(&participant.to_string())
     }
 }
 
