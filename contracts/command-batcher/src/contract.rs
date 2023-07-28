@@ -17,8 +17,10 @@ use crate::{
     error::ContractError,
     msg::ExecuteMsg,
     msg::{GetProofResponse, InstantiateMsg, QueryMsg},
-    state::{Config, COMMANDS_BATCH, CONFIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH},
-    types::CommandBatch,
+    state::{
+        Config, COMMANDS_BATCH, CONFIG, PROOF_BATCH_MULTISIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH,
+    },
+    types::ProofID,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -185,31 +187,22 @@ pub mod execute {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _: Env, reply: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
     let reply_id = reply.id;
 
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             let command_batch_id = REPLY_ID_TO_BATCH.load(deps.storage, reply_id)?;
 
-            COMMANDS_BATCH.update(
-                deps.storage,
-                &command_batch_id,
-                |batch| -> Result<CommandBatch, ContractError> {
-                    match batch {
-                        Some(mut batch) => {
-                            let session_id = from_binary(&data).map_err(|_| {
-                                ContractError::InvalidContractReply {
-                                    reason: "invalid multisig session ID".to_string(),
-                                }
-                            })?;
+            let session_id =
+                from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
+                    reason: "invalid multisig session ID".to_string(),
+                })?;
 
-                            batch.multisig_session_id = Some(session_id);
-                            Ok(batch)
-                        }
-                        None => unreachable!("violated invariant: no batch found for reply id"),
-                    }
-                },
+            PROOF_BATCH_MULTISIG.save(
+                deps.storage,
+                &ProofID::new(&command_batch_id, &session_id),
+                &(command_batch_id, session_id),
             )?;
 
             Ok(Response::default())
@@ -242,50 +235,44 @@ pub mod query {
         let config = CONFIG.load(deps.storage)?;
 
         let proof_id = HexBinary::from_hex(proof_id.as_str())?.into();
+        let (batch_id, session_id) = PROOF_BATCH_MULTISIG.load(deps.storage, &proof_id)?;
 
-        let batch = COMMANDS_BATCH.load(deps.storage, &proof_id)?;
+        let batch = COMMANDS_BATCH.load(deps.storage, &batch_id)?;
 
-        match batch.multisig_session_id {
-            Some(session_id) => {
-                let query_msg = multisig::msg::QueryMsg::GetSigningSession { session_id };
+        let query_msg = multisig::msg::QueryMsg::GetSigningSession { session_id };
 
-                let session: GetSigningSessionResponse =
-                    deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                        contract_addr: config.multisig.to_string(),
-                        msg: to_binary(&query_msg)?,
-                    }))?;
+        let session: GetSigningSessionResponse =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: config.multisig.to_string(),
+                msg: to_binary(&query_msg)?,
+            }))?;
 
-                let proof = <Builder as traits::Builder>::build_proof(
-                    session.snapshot,
-                    session.signatures,
-                    session.pub_keys,
-                )
-                .map_err(|e| StdError::generic_err(e.to_string()))?;
+        let proof = <Builder as traits::Builder>::build_proof(
+            session.snapshot,
+            session.signatures,
+            session.pub_keys,
+        )
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
 
-                let status = match session.state {
-                    MultisigState::Pending => ProofStatus::Pending,
-                    MultisigState::Completed => {
-                        let execute_data =
-                            <Encoder as traits::Encoder>::encode_execute_data(&batch.data, &proof);
+        let status = match session.state {
+            MultisigState::Pending => ProofStatus::Pending,
+            MultisigState::Completed => {
+                let execute_data =
+                    <Encoder as traits::Encoder>::encode_execute_data(&batch.data, &proof);
 
-                        ProofStatus::Completed { execute_data }
-                    }
-                };
-
-                Ok(GetProofResponse {
-                    proof_id,
-                    message_ids: batch.message_ids,
-                    data: batch.data,
-                    proof,
-                    status,
-                })
+                ProofStatus::Completed { execute_data }
             }
-            None => Err(StdError::not_found("multisig session ID")),
-        }
+        };
+
+        Ok(GetProofResponse {
+            proof_id,
+            message_ids: batch.message_ids,
+            data: batch.data,
+            proof,
+            status,
+        })
     }
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-}
+mod test {}

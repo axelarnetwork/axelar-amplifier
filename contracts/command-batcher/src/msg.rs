@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::types::{BatchID, Data, Proof};
+use crate::types::{Data, Proof, ProofID};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -42,7 +42,7 @@ pub enum ProofStatus {
 
 #[cw_serde]
 pub struct GetProofResponse {
-    pub proof_id: BatchID,
+    pub proof_id: ProofID,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub proof: Proof,
