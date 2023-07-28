@@ -184,9 +184,6 @@ fn command_id(message_id: String) -> HexBinary {
     Keccak256::digest(message_id.as_bytes()).as_slice().into()
 }
 
-// TODO: This will make it incompatible with current version of destination chain gateways,
-// they rely on tx hash and event index as well, but just to emit events
-// https://github.com/axelarnetwork/axelar-cgp-solidity/blob/main/contracts/AxelarGateway.sol#L466
 fn command_params(
     source_chain: String,
     source_address: String,
@@ -198,6 +195,8 @@ fn command_params(
         Token::String(source_address),
         Token::Address(destination_address),
         Token::FixedBytes(payload_hash.into()),
+        Token::FixedBytes(vec![]), // TODO: Dummy data for now while Gateway is updated to not require these fields
+        Token::Uint(ethereum_types::U256::zero()),
     ])
     .into()
 }
