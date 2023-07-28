@@ -68,6 +68,10 @@ impl Snapshot {
             .map(Addr::unchecked)
             .collect()
     }
+
+    pub fn get_participant(&self, participant: &Addr) -> Option<&Participant> {
+        self.participants.get(&participant.to_string())
+    }
 }
 
 #[cfg(test)]
