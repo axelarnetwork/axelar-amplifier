@@ -10,17 +10,17 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{Participant, Snapshot};
 use connection_router::msg::Message;
+use multisig::{msg::GetSigningSessionResponse, types::MultisigState};
 use service_registry::msg::ActiveWorkers;
 
 use crate::{
-    encoding::{traits, Builder, Encoder},
     error::ContractError,
     msg::ExecuteMsg,
-    msg::{GetProofResponse, InstantiateMsg, QueryMsg},
+    msg::{GetProofResponse, InstantiateMsg, ProofStatus, QueryMsg},
     state::{
         Config, COMMANDS_BATCH, CONFIG, PROOF_BATCH_MULTISIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH,
     },
-    types::ProofID,
+    types::{CommandBatch, Proof, ProofID},
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -87,8 +87,7 @@ pub mod execute {
             return Err(ContractError::NoMessagesFound {});
         }
 
-        let command_batch =
-            <Builder as traits::Builder>::build_batch(messages, config.destination_chain_id)?;
+        let command_batch = CommandBatch::new(messages, config.destination_chain_id)?;
 
         COMMANDS_BATCH.save(deps.storage, &command_batch.id, &command_batch)?;
 
@@ -224,11 +223,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub mod query {
-    use cosmwasm_std::{QueryRequest, WasmQuery};
-    use multisig::{msg::GetSigningSessionResponse, types::MultisigState};
-
-    use crate::{encoding::traits, msg::ProofStatus};
-
     use super::*;
 
     pub fn get_proof(deps: Deps, proof_id: String) -> StdResult<GetProofResponse> {
@@ -247,18 +241,13 @@ pub mod query {
                 msg: to_binary(&query_msg)?,
             }))?;
 
-        let proof = <Builder as traits::Builder>::build_proof(
-            session.snapshot,
-            session.signatures,
-            session.pub_keys,
-        )
-        .map_err(|e| StdError::generic_err(e.to_string()))?;
+        let proof = Proof::new(session.snapshot, session.signatures, session.pub_keys)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
 
         let status = match session.state {
             MultisigState::Pending => ProofStatus::Pending,
             MultisigState::Completed => {
-                let execute_data =
-                    <Encoder as traits::Encoder>::encode_execute_data(&batch.data, &proof);
+                let execute_data = proof.encode_execute_data(&batch.data);
 
                 ProofStatus::Completed { execute_data }
             }

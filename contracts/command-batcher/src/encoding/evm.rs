@@ -38,6 +38,18 @@ impl TryFrom<Message> for Command {
     }
 }
 
+impl BatchID {
+    pub fn new(message_ids: &[String]) -> BatchID {
+        let mut message_ids = message_ids
+            .iter()
+            .map(|id| id.as_bytes())
+            .collect::<Vec<&[u8]>>();
+        message_ids.sort();
+
+        Keccak256::digest(message_ids.concat()).as_slice().into()
+    }
+}
+
 impl CommandBatch {
     pub fn new(
         messages: Vec<Message>,
@@ -54,7 +66,7 @@ impl CommandBatch {
         };
         let encoded_data = data.encode();
 
-        let id = batch_id(&message_ids);
+        let id = BatchID::new(&message_ids);
         let msg_to_sign = msg_to_sign(&encoded_data);
 
         Ok(Self {
@@ -194,16 +206,6 @@ fn command_params(
         Token::Uint(ethereum_types::U256::zero()),
     ])
     .into()
-}
-
-fn batch_id(message_ids: &[String]) -> BatchID {
-    let mut message_ids = message_ids
-        .iter()
-        .map(|id| id.as_bytes())
-        .collect::<Vec<&[u8]>>();
-    message_ids.sort();
-
-    Keccak256::digest(message_ids.concat()).as_slice().into()
 }
 
 fn msg_to_sign(data: &HexBinary) -> HexBinary {
@@ -449,10 +451,10 @@ mod test {
         let mut message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
 
         message_ids.sort();
-        let res = batch_id(&message_ids);
+        let res = BatchID::new(&message_ids);
 
         message_ids.reverse();
-        let res2 = batch_id(&message_ids);
+        let res2 = BatchID::new(&message_ids);
 
         assert_eq!(res, res2);
     }
