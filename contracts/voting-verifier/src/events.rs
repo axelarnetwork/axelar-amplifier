@@ -1,11 +1,12 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Event, HexBinary};
+
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
 use connection_router::types::{ChainName, ID_SEPARATOR};
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Event, HexBinary};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -125,4 +126,33 @@ fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> 
             .parse::<u64>()
             .map_err(|_| ContractError::InvalidMessageID(message_id))?,
     ))
+}
+
+pub struct Voted {
+    pub poll_id: PollID,
+    pub voter: Addr,
+}
+
+impl From<Voted> for Event {
+    fn from(other: Voted) -> Self {
+        Event::new("voted")
+            .add_attribute("poll_id", other.poll_id)
+            .add_attribute("voter", other.voter)
+    }
+}
+
+pub struct PollEnded {
+    pub poll_id: PollID,
+    pub results: Vec<bool>,
+}
+
+impl From<PollEnded> for Event {
+    fn from(other: PollEnded) -> Self {
+        Event::new("poll_ended")
+            .add_attribute("poll_id", other.poll_id)
+            .add_attribute(
+                "results",
+                serde_json::to_string(&other.results).expect("failed to serialize results"),
+            )
+    }
 }
