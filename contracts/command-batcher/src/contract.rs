@@ -1,8 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, BlockInfo, Deps, DepsMut, Env, HexBinary, MessageInfo,
-    QuerierWrapper, QueryRequest, Reply, Response, StdError, StdResult, SubMsg, WasmMsg, WasmQuery,
+    from_binary, to_binary, wasm_execute, Binary, BlockInfo, Deps, DepsMut, Env, HexBinary,
+    MessageInfo, QuerierWrapper, QueryRequest, Reply, Response, StdError, StdResult, SubMsg,
+    WasmMsg, WasmQuery,
 };
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
@@ -21,7 +22,7 @@ use crate::{
     state::{
         Config, COMMANDS_BATCH, CONFIG, PROOF_BATCH_MULTISIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH,
     },
-    types::{CommandBatch, Proof, ProofID},
+    types::{BatchID, CommandBatch, Proof, ProofID},
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -70,8 +71,6 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::types::BatchID;
-
     use super::*;
 
     pub fn construct_proof(
@@ -104,25 +103,20 @@ pub mod execute {
             }
         };
 
-        let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-            key_id: config.service_name,
-            msg: command_batch.msg_to_sign,
-        };
-
         let reply_id = REPLY_ID_COUNTER.update(deps.storage, |mut reply_id| -> StdResult<_> {
             reply_id += 1;
             Ok(reply_id)
         })?;
         REPLY_ID_TO_BATCH.save(deps.storage, reply_id, &command_batch.id)?;
 
-        Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-            WasmMsg::Execute {
-                contract_addr: config.multisig.into(),
-                msg: to_binary(&start_sig_msg)?,
-                funds: vec![],
-            },
-            reply_id,
-        )))
+        let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
+            key_id: config.service_name,
+            msg: command_batch.msg_to_sign,
+        };
+
+        let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
+
+        Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, reply_id)))
     }
 
     pub fn key_gen(
@@ -283,4 +277,57 @@ pub mod query {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_info},
+        Uint256, Uint64,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_instantiation() {
+        let instantiator = "instantiator";
+        let gateway_address = "gateway_address";
+        let multisig_address = "multisig_address";
+        let service_registry_address = "service_registry_address";
+        let destination_chain_id = Uint256::one();
+        let signing_threshold = (Uint64::from(3u64), Uint64::from(5u64));
+        let service_name = "service_name";
+
+        let mut deps = mock_dependencies();
+        let info = mock_info(&instantiator, &[]);
+        let env = mock_env();
+
+        let msg = InstantiateMsg {
+            gateway_address: gateway_address.to_string(),
+            multisig_address: multisig_address.to_string(),
+            service_registry_address: service_registry_address.to_string(),
+            destination_chain_id,
+            signing_threshold,
+            service_name: service_name.to_string(),
+        };
+
+        let res = instantiate(deps.as_mut(), env, info, msg);
+
+        assert!(res.is_ok());
+        let res = res.unwrap();
+
+        assert_eq!(res.messages.len(), 0);
+
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        assert_eq!(config.admin, instantiator);
+        assert_eq!(config.gateway, gateway_address);
+        assert_eq!(config.multisig, multisig_address);
+        assert_eq!(config.service_registry, service_registry_address);
+        assert_eq!(config.destination_chain_id, destination_chain_id);
+        assert_eq!(
+            config.signing_threshold,
+            signing_threshold.try_into().unwrap()
+        );
+        assert_eq!(config.service_name, service_name);
+
+        let reply_id_counter = REPLY_ID_COUNTER.load(deps.as_ref().storage).unwrap();
+        assert_eq!(reply_id_counter, 0);
+    }
+}

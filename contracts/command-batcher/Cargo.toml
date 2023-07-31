@@ -52,3 +52,4 @@ gateway = { workspace = true, features = ["library"]}
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+anyhow = "1.0"
