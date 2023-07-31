@@ -94,6 +94,21 @@ impl BondingState {
             _ => Err(ContractError::InvalidBondingState(self)),
         }
     }
+    pub fn claim_stake(
+        self,
+        time: Timestamp,
+        unbonding_period_days: u64,
+    ) -> Result<(Self, Uint128), ContractError> {
+        match self {
+            BondingState::Unbonding {
+                amount,
+                unbonded_at,
+            } if unbonded_at.plus_days(unbonding_period_days) <= time => {
+                Ok((BondingState::Unbonded, amount))
+            }
+            _ => Err(ContractError::InvalidBondingState(self)),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -259,5 +274,89 @@ mod tests {
         let res = state.clone().unbond(false, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), ContractError::InvalidBondingState(state));
+    }
+
+    #[test]
+    fn test_bonded_claim_stake() {
+        let state = BondingState::Bonded {
+            amount: Uint128::from(100u32),
+        };
+        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
+        let res = state
+            .clone()
+            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
+    }
+
+    #[test]
+    fn test_requested_unbonding_claim_stake() {
+        let state = BondingState::RequestedUnbonding {
+            amount: Uint128::from(100u32),
+        };
+        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
+        let res = state
+            .clone()
+            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
+    }
+
+    #[test]
+    fn test_unbonding_claim_stake() {
+        let unbonded_at = Timestamp::from_nanos(0);
+        let state = BondingState::Unbonding {
+            amount: Uint128::from(100u32),
+            unbonded_at,
+        };
+        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
+        let res = state
+            .clone()
+            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        assert!(res.is_ok());
+        assert_eq!(
+            res.unwrap(),
+            (BondingState::Unbonded {}, Uint128::from(100u32))
+        );
+    }
+
+    #[test]
+    fn test_unbonded_claim_stake() {
+        let state = BondingState::Unbonded {};
+        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
+        let res = state
+            .clone()
+            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(state.clone())
+        );
     }
 }

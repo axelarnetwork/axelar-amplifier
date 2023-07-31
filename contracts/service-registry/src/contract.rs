@@ -294,21 +294,15 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound {})?;
 
-        let bond = match worker.bonding_state {
-            BondingState::Unbonding {
-                amount,
-                unbonded_at,
-            } if unbonded_at.plus_days(service.unbonding_period_days as u64) <= env.block.time => {
-                Ok(amount)
-            }
-            _ => Err(ContractError::InvalidBondingState(worker.bonding_state)),
-        }?;
+        let (bonding_state, released_bond) = worker
+            .bonding_state
+            .claim_stake(env.block.time, service.unbonding_period_days as u64)?;
 
         WORKERS.save(
             deps.storage,
             (&service_name, &info.sender),
             &Worker {
-                bonding_state: BondingState::Unbonded,
+                bonding_state,
                 ..worker
             },
         )?;
@@ -317,7 +311,7 @@ pub mod execute {
             to_address: info.sender.into(),
             amount: [Coin {
                 denom: AXL_DENOMINATION.to_string(),
-                amount: bond,
+                amount: released_bond,
             }]
             .to_vec(), // TODO: isolate coins
         }))
