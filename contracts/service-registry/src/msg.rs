@@ -53,14 +53,9 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(BondedWorkers)]
+    #[returns(Vec<Worker>)]
     GetBondedWorkers {
         service_name: String,
         chain_name: String,
     },
-}
-
-#[cw_serde]
-pub struct BondedWorkers {
-    pub workers: Vec<Worker>,
 }

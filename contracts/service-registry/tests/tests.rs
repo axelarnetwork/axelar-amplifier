@@ -4,7 +4,7 @@ use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use service_registry::{
     contract::{execute, instantiate, query, AXL_DENOMINATION},
-    msg::{BondedWorkers, ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
@@ -264,7 +264,7 @@ fn declare_chain_support() {
     );
     assert!(res.is_ok());
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
@@ -276,19 +276,17 @@ fn declare_chain_support() {
         .unwrap();
     assert_eq!(
         workers,
-        BondedWorkers {
-            workers: vec![Worker {
-                address: worker,
-                bonding_state: BondingState::Bonded {
-                    amount: min_worker_bond
-                },
-                authorization_state: AuthorizationState::Authorized,
-                service_name: service_name.into()
-            }]
-        }
+        vec![Worker {
+            address: worker,
+            bonding_state: BondingState::Bonded {
+                amount: min_worker_bond
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: service_name.into()
+        }]
     );
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr,
@@ -298,7 +296,7 @@ fn declare_chain_support() {
             },
         )
         .unwrap();
-    assert_eq!(workers, BondedWorkers { workers: vec![] })
+    assert_eq!(workers, vec![])
 }
 
 #[test]
@@ -387,7 +385,7 @@ fn unbond_worker() {
     );
     assert!(res.is_ok());
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr,
@@ -397,7 +395,7 @@ fn unbond_worker() {
             },
         )
         .unwrap();
-    assert_eq!(workers, BondedWorkers { workers: vec![] })
+    assert_eq!(workers, vec![])
 }
 
 #[test]
@@ -465,7 +463,7 @@ fn bond_but_not_authorized() {
     );
     assert!(res.is_ok());
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
@@ -475,7 +473,7 @@ fn bond_but_not_authorized() {
             },
         )
         .unwrap();
-    assert_eq!(workers, BondedWorkers { workers: vec![] })
+    assert_eq!(workers, vec![])
 }
 
 #[test]
@@ -554,7 +552,7 @@ fn bond_but_not_enough() {
     );
     assert!(res.is_ok());
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
@@ -564,7 +562,7 @@ fn bond_but_not_enough() {
             },
         )
         .unwrap();
-    assert_eq!(workers, BondedWorkers { workers: vec![] })
+    assert_eq!(workers, vec![])
 }
 
 #[test]
@@ -643,7 +641,7 @@ fn bond_before_authorize() {
     );
     assert!(res.is_ok());
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
@@ -655,16 +653,14 @@ fn bond_before_authorize() {
         .unwrap();
     assert_eq!(
         workers,
-        BondedWorkers {
-            workers: vec![Worker {
-                address: worker,
-                bonding_state: BondingState::Bonded {
-                    amount: min_worker_bond
-                },
-                authorization_state: AuthorizationState::Authorized,
-                service_name: service_name.into()
-            }]
-        }
+        vec![Worker {
+            address: worker,
+            bonding_state: BondingState::Bonded {
+                amount: min_worker_bond
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: service_name.into()
+        }]
     );
 }
 
@@ -764,7 +760,7 @@ fn unbond_then_rebond() {
     );
     assert!(res.is_ok());
 
-    let workers: BondedWorkers = app
+    let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
@@ -776,16 +772,14 @@ fn unbond_then_rebond() {
         .unwrap();
     assert_eq!(
         workers,
-        BondedWorkers {
-            workers: vec![Worker {
-                address: worker,
-                bonding_state: BondingState::Bonded {
-                    amount: min_worker_bond
-                },
-                authorization_state: AuthorizationState::Authorized,
-                service_name: service_name.into()
-            }]
-        }
+        vec![Worker {
+            address: worker,
+            bonding_state: BondingState::Bonded {
+                amount: min_worker_bond
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: service_name.into()
+        }]
     );
 }
 

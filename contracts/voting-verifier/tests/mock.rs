@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use service_registry::{
-    msg::{BondedWorkers, ExecuteMsg, InstantiateMsg},
+    msg::{ExecuteMsg, InstantiateMsg},
     state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
@@ -36,26 +36,24 @@ pub fn mock_service_registry_query(
             service_name,
             chain_name: _,
         } => {
-            let res = BondedWorkers {
-                workers: vec![
-                    Worker {
-                        address: Addr::unchecked("addr1"),
-                        bonding_state: BondingState::Bonded {
-                            amount: Uint128::from(100u128),
-                        },
-                        authorization_state: AuthorizationState::Authorized,
-                        service_name: service_name.clone(),
+            let res = vec![
+                Worker {
+                    address: Addr::unchecked("addr1"),
+                    bonding_state: BondingState::Bonded {
+                        amount: Uint128::from(100u128),
                     },
-                    Worker {
-                        address: Addr::unchecked("addr2"),
-                        bonding_state: BondingState::Bonded {
-                            amount: Uint128::from(100u128),
-                        },
-                        authorization_state: AuthorizationState::Authorized,
-                        service_name: service_name.clone(),
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.clone(),
+                },
+                Worker {
+                    address: Addr::unchecked("addr2"),
+                    bonding_state: BondingState::Bonded {
+                        amount: Uint128::from(100u128),
                     },
-                ],
-            };
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.clone(),
+                },
+            ];
             Ok(to_binary(&res)?)
         }
     }

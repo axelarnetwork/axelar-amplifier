@@ -5,7 +5,8 @@ use cosmwasm_std::{
 
 use axelar_wasm_std::{snapshot, voting};
 use connection_router::state::Message;
-use service_registry::msg::{BondedWorkers, QueryMsg};
+use service_registry::msg::QueryMsg;
+use service_registry::state::Worker;
 
 use crate::error::ContractError;
 use crate::events::{EvmMessages, PollStarted};
@@ -115,13 +116,12 @@ fn take_snapshot(
         chain_name: chain.clone().into(),
     };
 
-    let res: BondedWorkers = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.service_registry.to_string(),
         msg: to_binary(&active_workers_query)?,
     }))?;
 
-    let participants = res
-        .workers
+    let participants = workers
         .into_iter()
         .map(service_registry::state::Worker::try_into)
         .collect::<Result<Vec<snapshot::Participant>, _>>()?;

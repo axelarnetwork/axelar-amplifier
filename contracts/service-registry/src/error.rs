@@ -26,6 +26,4 @@ pub enum ContractError {
     WorkerNotFound {},
     #[error("invalid bonding state `{0:?}` for this operation")]
     InvalidBondingState(BondingState),
-    #[error("worker is not bonded")]
-    WorkerNotBonded {},
 }

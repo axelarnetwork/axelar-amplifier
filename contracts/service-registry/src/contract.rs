@@ -7,8 +7,8 @@ use cosmwasm_std::{
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{BondedWorkers, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{BondingState, Config, Service, Worker, CONFIG, SERVICES};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{AuthorizationState, BondingState, Config, Service, Worker, CONFIG, SERVICES};
 
 /*
 // version info for migration info
@@ -71,8 +71,13 @@ pub fn execute(
             let workers = workers
                 .into_iter()
                 .map(|w| deps.api.addr_validate(&w))
-                .collect::<Result<Vec<Addr>, _>>()?;
-            execute::authorize_workers(deps, workers, service_name)
+                .collect::<Result<Vec<_>, _>>()?;
+            execute::update_worker_authorization_status(
+                deps,
+                workers,
+                service_name,
+                AuthorizationState::Authorized,
+            )
         }
         ExecuteMsg::UnauthorizeWorkers {
             workers,
@@ -82,8 +87,13 @@ pub fn execute(
             let workers = workers
                 .into_iter()
                 .map(|w| deps.api.addr_validate(&w))
-                .collect::<Result<Vec<Addr>, _>>()?;
-            execute::unauthorize_workers(deps, workers, service_name)
+                .collect::<Result<Vec<_>, _>>()?;
+            execute::update_worker_authorization_status(
+                deps,
+                workers,
+                service_name,
+                AuthorizationState::NotAuthorized,
+            )
         }
         ExecuteMsg::DeclareChainSupport {
             service_name,
@@ -144,10 +154,11 @@ pub mod execute {
         Ok(Response::new())
     }
 
-    pub fn authorize_workers(
+    pub fn update_worker_authorization_status(
         deps: DepsMut,
         workers: Vec<Addr>,
         service_name: String,
+        auth_state: AuthorizationState,
     ) -> Result<Response, ContractError> {
         SERVICES
             .may_load(deps.storage, &service_name)?
@@ -156,50 +167,17 @@ pub mod execute {
         for worker in workers {
             WORKERS.update(
                 deps.storage,
-                (&service_name.clone(), &worker.clone()),
+                (&service_name, &worker.clone()),
                 |sw| -> Result<Worker, ContractError> {
                     match sw {
-                        Some(worker) => Ok(Worker {
-                            authorization_state: AuthorizationState::Authorized,
-                            ..worker
-                        }),
+                        Some(mut worker) => {
+                            worker.authorization_state = auth_state.clone();
+                            Ok(worker)
+                        }
                         None => Ok(Worker {
                             address: worker,
                             bonding_state: BondingState::Unbonded,
-                            authorization_state: AuthorizationState::Authorized,
-                            service_name: service_name.clone(),
-                        }),
-                    }
-                },
-            )?;
-        }
-
-        Ok(Response::new())
-    }
-
-    pub fn unauthorize_workers(
-        deps: DepsMut,
-        workers: Vec<Addr>,
-        service_name: String,
-    ) -> Result<Response, ContractError> {
-        SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
-
-        for worker in workers {
-            WORKERS.update(
-                deps.storage,
-                (&service_name.clone(), &worker.clone()),
-                |sw| -> Result<Worker, ContractError> {
-                    match sw {
-                        Some(worker) => Ok(Worker {
-                            authorization_state: AuthorizationState::NotAuthorized,
-                            ..worker
-                        }),
-                        None => Ok(Worker {
-                            address: worker,
-                            bonding_state: BondingState::Unbonded,
-                            authorization_state: AuthorizationState::NotAuthorized,
+                            authorization_state: auth_state.clone(),
                             service_name: service_name.clone(),
                         }),
                     }
@@ -234,23 +212,10 @@ pub mod execute {
             (&service_name.clone(), &info.sender.clone()),
             |sw| -> Result<Worker, ContractError> {
                 match sw {
-                    Some(worker) => {
-                        let bonding_state = match worker.bonding_state {
-                            BondingState::Bonded { amount }
-                            | BondingState::RequestedUnbonding { amount }
-                            | BondingState::Unbonding {
-                                amount,
-                                unbonded_at: _,
-                            } => BondingState::Bonded {
-                                amount: amount + bond,
-                            },
-                            BondingState::Unbonded {} => BondingState::Bonded { amount: bond },
-                        };
-                        Ok(Worker {
-                            bonding_state,
-                            ..worker
-                        })
-                    }
+                    Some(worker) => Ok(Worker {
+                        bonding_state: worker.bonding_state.add_bond(bond),
+                        ..worker
+                    }),
                     None => Ok(Worker {
                         address: info.sender,
                         bonding_state: BondingState::Bonded { amount: bond },
@@ -301,20 +266,7 @@ pub mod execute {
 
         let can_unbond = true; // TODO: actually query the service to determine this value
 
-        let bonding_state = match worker.bonding_state {
-            BondingState::Bonded { amount } | BondingState::RequestedUnbonding { amount }
-                if can_unbond =>
-            {
-                Ok(BondingState::Unbonding {
-                    unbonded_at: env.block.time,
-                    amount,
-                })
-            }
-            BondingState::Bonded { amount } if !can_unbond => {
-                Ok(BondingState::RequestedUnbonding { amount })
-            }
-            _ => Err(ContractError::InvalidBondingState(worker.bonding_state)),
-        }?;
+        let bonding_state = worker.bonding_state.unbond(can_unbond, env.block.time)?;
 
         WORKERS.save(
             deps.storage,
@@ -392,7 +344,7 @@ pub mod query {
         deps: Deps,
         service_name: String,
         chain_name: String,
-    ) -> Result<BondedWorkers, ContractError> {
+    ) -> Result<Vec<Worker>, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound {})?;
@@ -410,6 +362,6 @@ pub mod query {
             .filter(|worker| worker.authorization_state == AuthorizationState::Authorized)
             .collect();
 
-        Ok(BondedWorkers { workers })
+        Ok(workers)
     }
 }
