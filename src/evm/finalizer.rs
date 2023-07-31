@@ -10,28 +10,28 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[automock]
 #[async_trait]
-pub trait Finalizer {
+pub trait Finalizer: Send + Sync {
     async fn latest_finalized_block_height(&self) -> Result<U64>;
 }
 
-pub struct EthereumFinalizer<C>
+pub struct EthereumFinalizer<'a, C>
 where
     C: EthereumClient,
 {
-    rpc_client: C,
+    rpc_client: &'a C,
 }
 
-impl<C> EthereumFinalizer<C>
+impl<'a, C> EthereumFinalizer<'a, C>
 where
     C: EthereumClient,
 {
-    pub fn new(rpc_client: C) -> Self {
+    pub fn new(rpc_client: &'a C) -> Self {
         EthereumFinalizer { rpc_client }
     }
 }
 
 #[async_trait]
-impl<C> Finalizer for EthereumFinalizer<C>
+impl<'a, C> Finalizer for EthereumFinalizer<'a, C>
 where
     C: EthereumClient + Send + Sync,
 {
@@ -45,20 +45,19 @@ where
     }
 }
 
-pub struct PoWFinalizer<C>
+pub struct PoWFinalizer<'a, C>
 where
     C: EthereumClient,
 {
-    rpc_client: C,
+    rpc_client: &'a C,
     confirmation_height: U64,
 }
 
-impl<C> PoWFinalizer<C>
+impl<'a, C> PoWFinalizer<'a, C>
 where
     C: EthereumClient,
 {
-    #[allow(dead_code)]
-    pub fn new<H>(rpc_client: C, confirmation_height: H) -> Self
+    pub fn new<H>(rpc_client: &'a C, confirmation_height: H) -> Self
     where
         H: Into<U64>,
     {
@@ -70,7 +69,7 @@ where
 }
 
 #[async_trait]
-impl<C> Finalizer for PoWFinalizer<C>
+impl<'a, C> Finalizer for PoWFinalizer<'a, C>
 where
     C: EthereumClient + Send + Sync,
 {
@@ -95,7 +94,7 @@ mod tests {
         rpc_client.expect_block_number().returning(move || Ok(block_number));
         assert_eq!(
             block_number,
-            PoWFinalizer::new(rpc_client, 1)
+            PoWFinalizer::new(&rpc_client, 1)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -106,7 +105,7 @@ mod tests {
         rpc_client.expect_block_number().returning(move || Ok(block_number));
         assert_eq!(
             block_number + 1,
-            PoWFinalizer::new(rpc_client, 0)
+            PoWFinalizer::new(&rpc_client, 0)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -117,7 +116,7 @@ mod tests {
         rpc_client.expect_block_number().returning(move || Ok(block_number));
         assert_eq!(
             block_number - 1,
-            PoWFinalizer::new(rpc_client, 2)
+            PoWFinalizer::new(&rpc_client, 2)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -128,7 +127,7 @@ mod tests {
         rpc_client.expect_block_number().returning(move || Ok(block_number));
         assert_eq!(
             U64::from(1),
-            PoWFinalizer::new(rpc_client, block_number)
+            PoWFinalizer::new(&rpc_client, block_number)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()

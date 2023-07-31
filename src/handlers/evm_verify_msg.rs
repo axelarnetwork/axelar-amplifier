@@ -12,7 +12,6 @@ use crate::deserializers::from_str;
 use crate::event_processor::EventHandler;
 use crate::event_sub;
 use crate::evm::error::Error;
-use crate::evm::finalizer::Finalizer;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::message_verifier::verify_message;
 use crate::evm::ChainName;
@@ -30,7 +29,6 @@ struct Event {
     #[serde(deserialize_with = "from_str")]
     source_chain: connection_router::types::ChainName,
     source_gateway_address: EVMAddress,
-    #[allow(dead_code)]
     confirmation_height: u64,
     messages: Vec<EvmMessage>,
     #[allow(dead_code)]
@@ -48,39 +46,43 @@ impl From<&event_sub::Event> for Option<Event> {
     }
 }
 
-pub struct Handler<F, C, B>
+pub struct Handler<C, B>
 where
-    F: Finalizer,
     C: EthereumClient,
     B: BroadcasterClient,
 {
     chain: ChainName,
     rpc_client: C,
-    finalizer: F,
     #[allow(dead_code)]
     broadcast_client: B,
 }
 
-impl<F, C, B> Handler<F, C, B>
+impl<C, B> Handler<C, B>
 where
-    F: Finalizer,
-    C: EthereumClient,
+    C: EthereumClient + Send + Sync,
     B: BroadcasterClient,
 {
-    pub fn new(chain: ChainName, finalizer: F, rpc_client: C, broadcast_client: B) -> Self {
+    pub fn new(chain: ChainName, rpc_client: C, broadcast_client: B) -> Self {
         Self {
             chain,
-            finalizer,
             rpc_client,
             broadcast_client,
         }
     }
 
-    async fn finalized_tx_receipts<T>(&self, tx_hashes: T) -> Result<HashMap<Hash, TransactionReceipt>>
+    async fn finalized_tx_receipts<T>(
+        &self,
+        tx_hashes: T,
+        confirmation_height: u64,
+    ) -> Result<HashMap<Hash, TransactionReceipt>>
     where
         T: IntoIterator<Item = Hash>,
     {
-        let latest_finalized_block_height = self.finalizer.latest_finalized_block_height().await?;
+        let latest_finalized_block_height = self
+            .chain
+            .finalizer(&self.rpc_client, confirmation_height)
+            .latest_finalized_block_height()
+            .await?;
 
         Ok(join_all(
             tx_hashes
@@ -106,9 +108,8 @@ where
 }
 
 #[async_trait]
-impl<F, C, B> EventHandler for Handler<F, C, B>
+impl<C, B> EventHandler for Handler<C, B>
 where
-    F: Finalizer + Send + Sync,
     C: EthereumClient + Send + Sync,
     B: BroadcasterClient + Send + Sync,
 {
@@ -119,13 +120,14 @@ where
             source_chain,
             source_gateway_address,
             messages,
+            confirmation_height,
             ..
         } = match event.into() {
             Some(event) => event,
             None => return Ok(()),
         };
 
-        if !self.chain.matches(source_chain) {
+        if self.chain != source_chain {
             return Ok(());
         }
 
@@ -133,7 +135,7 @@ where
             .iter()
             .filter_map(|message| message.tx_id.parse().ok())
             .collect::<HashSet<Hash>>();
-        let finalized_tx_receipts = self.finalized_tx_receipts(tx_hashes).await?;
+        let finalized_tx_receipts = self.finalized_tx_receipts(tx_hashes, confirmation_height).await?;
 
         let _votes: Vec<_> = messages
             .iter()
