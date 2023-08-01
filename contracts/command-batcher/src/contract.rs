@@ -111,7 +111,7 @@ pub mod execute {
 
         let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
             key_id: config.service_name,
-            msg: command_batch.msg_to_sign,
+            msg: command_batch.msg_to_sign(),
         };
 
         let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;

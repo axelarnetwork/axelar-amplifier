@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 
 use anyhow::Error;
-use command_batcher::{
-    msg::{ExecuteMsg, GetProofResponse, ProofStatus, QueryMsg},
-    types::{Command, CommandType, Data, ProofID},
-};
-use cosmwasm_std::{Addr, HexBinary, StdResult, Uint256};
+use command_batcher::msg::{ExecuteMsg, GetProofResponse, ProofStatus, QueryMsg};
+use cosmwasm_std::{Addr, HexBinary, StdResult};
 use cw_multi_test::{AppResponse, Executor};
 use ethabi::{ParamType, Token};
 use setup::{setup_test_case, TestCaseConfig};

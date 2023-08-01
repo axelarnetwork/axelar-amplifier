@@ -2,6 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use axelar_wasm_std::Snapshot;
 use connection_router::msg::Message;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
@@ -10,7 +11,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{
     error::ContractError,
-    types::{BatchID, Command, CommandBatch, CommandType, Data, Operator, Proof},
+    types::{BatchID, Command, CommandBatch, CommandType, Operator, Proof},
 };
 
 impl TryFrom<Message> for Command {
@@ -18,18 +19,21 @@ impl TryFrom<Message> for Command {
 
     fn try_from(msg: Message) -> Result<Self, Self::Error> {
         Ok(Command {
-            command_type: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
-            command_params: command_params(
+            ty: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
+            params: command_params(
                 msg.source_chain,
                 msg.source_address,
-                ethereum_types::Address::from_str(&msg.destination_address).map_err(|_| {
+                ethereum_types::Address::from_str(&msg.destination_address).map_err(|e| {
                     ContractError::InvalidMessage {
-                        reason: "destination_address is not a valid EVM address".into(),
+                        reason: format!("destination_address is not a valid EVM address: {}", e),
                     }
                 })?,
-                msg.payload_hash.as_slice().try_into().map_err(|_| {
+                msg.payload_hash.as_slice().try_into().map_err(|e| {
                     ContractError::InvalidMessage {
-                        reason: "payload_hash is not a valid keccak256 hash".into(),
+                        reason: format!(
+                            "payload_hash length is not a valid keccak256 hash length: {}",
+                            e
+                        ),
                     }
                 })?,
             ),
@@ -64,17 +68,27 @@ impl CommandBatch {
                 .map(|msg| msg.try_into())
                 .collect::<Result<Vec<Command>, ContractError>>()?,
         };
-        let encoded_data = data.encode();
 
         let id = BatchID::new(&message_ids);
-        let msg_to_sign = msg_to_sign(&encoded_data);
 
         Ok(Self {
             id,
             message_ids,
             data,
-            msg_to_sign,
         })
+    }
+
+    pub fn msg_to_sign(&self) -> HexBinary {
+        let msg = Keccak256::digest(self.data.encode().as_slice());
+
+        // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
+        let unsigned = [
+            "\x19Ethereum Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
+            msg.as_slice(),
+        ]
+        .concat();
+
+        Keccak256::digest(unsigned).as_slice().into()
     }
 }
 
@@ -111,22 +125,23 @@ impl Proof {
     }
 
     pub fn encode(&self) -> HexBinary {
-        let mut addresses: Vec<Token> = Vec::new();
-        let mut weights: Vec<Token> = Vec::new();
-        let mut signatures: Vec<Token> = Vec::new();
+        let (addresses, weights, signatures) = self.operators.iter().fold(
+            (vec![], vec![], vec![]),
+            |(mut addresses, mut weights, mut signatures), operator| {
+                addresses.push(Token::Address(ethereum_types::Address::from_slice(
+                    operator.address.as_slice(),
+                )));
+                weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
+                    &operator.weight.to_be_bytes(),
+                )));
 
-        self.operators.iter().for_each(|operator| {
-            addresses.push(Token::Address(ethereum_types::Address::from_slice(
-                operator.address.as_slice(),
-            )));
-            weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
-                &operator.weight.to_be_bytes(),
-            )));
+                if let Some(signature) = &operator.signature {
+                    signatures.push(Token::Bytes(signature.into()));
+                }
 
-            if let Some(signature) = &operator.signature {
-                signatures.push(Token::Bytes(signature.into()));
-            }
-        });
+                (addresses, weights, signatures)
+            },
+        );
 
         let threshold = Token::Uint(ethereum_types::U256::from_big_endian(
             &self.threshold.to_be_bytes(),
@@ -150,21 +165,27 @@ impl Proof {
     }
 }
 
+#[cw_serde]
+pub struct Data {
+    pub destination_chain_id: Uint256,
+    pub commands: Vec<Command>,
+}
+
 impl Data {
     pub fn encode(&self) -> HexBinary {
         let destination_chain_id = Token::Uint(ethereum_types::U256::from_big_endian(
             &self.destination_chain_id.to_be_bytes(),
         ));
 
-        let mut commands_ids: Vec<Token> = Vec::new();
-        let mut commands_types: Vec<Token> = Vec::new();
-        let mut commands_params: Vec<Token> = Vec::new();
-
-        self.commands.iter().for_each(|command| {
-            commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-            commands_types.push(Token::String(command.command_type.to_string()));
-            commands_params.push(Token::Bytes(command.command_params.to_vec()));
-        });
+        let (commands_ids, commands_types, commands_params) = self.commands.iter().fold(
+            (vec![], vec![], vec![]),
+            |(mut commands_ids, mut commands_types, mut commands_params), command| {
+                commands_ids.push(Token::FixedBytes(command.id.to_vec()));
+                commands_types.push(Token::String(command.ty.to_string()));
+                commands_params.push(Token::Bytes(command.params.to_vec()));
+                (commands_ids, commands_types, commands_params)
+            },
+        );
 
         ethabi::encode(&[
             destination_chain_id,
@@ -206,19 +227,6 @@ fn command_params(
         Token::Uint(ethereum_types::U256::zero()),
     ])
     .into()
-}
-
-fn msg_to_sign(data: &HexBinary) -> HexBinary {
-    let msg = Keccak256::digest(data.as_slice());
-
-    // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
-    let unsigned = [
-        "\x19Ethereum Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
-        msg.as_slice(),
-    ]
-    .concat();
-
-    Keccak256::digest(unsigned).as_slice().into()
 }
 
 #[cfg(test)]
@@ -276,26 +284,20 @@ mod test {
                     .iter()
                     .zip(commands_types_tokens.iter())
                     .zip(commands_params_tokens.iter())
-                    .for_each(|((id, command_type), command_params)| {
-                        match (id, command_type, command_params) {
-                            (
-                                Token::FixedBytes(id),
-                                Token::String(command_type),
-                                Token::Bytes(command_params),
-                            ) => {
-                                let command = Command {
-                                    id: id.to_owned().try_into().unwrap(),
-                                    command_type: match command_type.as_str() {
-                                        "approveContractCall" => CommandType::ApproveContractCall,
-                                        _ => panic!("undecodable command type"),
-                                    },
-                                    command_params: HexBinary::from(command_params.to_owned()),
-                                };
+                    .for_each(|((id, ty), params)| match (id, ty, params) {
+                        (Token::FixedBytes(id), Token::String(ty), Token::Bytes(params)) => {
+                            let command = Command {
+                                id: id.to_owned().try_into().unwrap(),
+                                ty: match ty.as_str() {
+                                    "approveContractCall" => CommandType::ApproveContractCall,
+                                    _ => panic!("undecodable command type"),
+                                },
+                                params: HexBinary::from(params.to_owned()),
+                            };
 
-                                commands.push(command);
-                            }
-                            _ => panic!("Invalid data"),
+                            commands.push(command);
                         }
+                        _ => panic!("Invalid data"),
                     });
             }
             _ => panic!("Invalid data"),
@@ -322,12 +324,12 @@ mod test {
             HexBinary::from_hex("cdf61b5aa2024f5a27383b0785fc393c566eef69569cf5abec945794b097bb73")
                 .unwrap() // https://axelarscan.io/gmp/0xc8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f
         );
-        assert_eq!(res.command_type, CommandType::ApproveContractCall);
+        assert_eq!(res.ty, CommandType::ApproveContractCall);
         assert_eq!(
-            decode_command_params(res.command_params),
+            decode_command_params(res.params),
             decode_command_params(
                 decode_data(&test_data::encoded_data()).commands[0]
-                    .command_params
+                    .params
                     .to_owned()
             )
         );
@@ -342,7 +344,7 @@ mod test {
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
-                reason: "destination_address is not a valid EVM address".into()
+                reason: "destination_address is not a valid EVM address: invalid character: i at index 0".into()
             }
         );
     }
@@ -358,7 +360,9 @@ mod test {
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
-                reason: "payload_hash is not a valid keccak256 hash".into()
+                reason:
+                    "payload_hash length is not a valid keccak256 hash length: could not convert slice to array"
+                        .into()
             }
         );
     }
@@ -389,10 +393,10 @@ mod test {
             .zip(res.data.commands.into_iter())
             .for_each(|(expected_command, command)| {
                 assert_eq!(command.id, expected_command.id);
-                assert_eq!(command.command_type, expected_command.command_type);
+                assert_eq!(command.ty, expected_command.ty);
                 assert_eq!(
-                    decode_command_params(command.command_params),
-                    decode_command_params(expected_command.command_params)
+                    decode_command_params(command.params),
+                    decode_command_params(expected_command.params)
                 );
             });
     }
@@ -471,7 +475,13 @@ mod test {
 
     #[test]
     fn test_msg_to_sign() {
-        let res = msg_to_sign(&test_data::encoded_data());
+        let batch = CommandBatch {
+            id: HexBinary::from_hex("00").unwrap().into(),
+            message_ids: vec![],
+            data: decode_data(&test_data::encoded_data()),
+        };
+
+        let res = batch.msg_to_sign();
         let expected_msg = test_data::msg_to_sign();
 
         assert_eq!(res, expected_msg);

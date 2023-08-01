@@ -6,16 +6,11 @@ use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::types::Signature;
 use sha3::{Digest, Keccak256};
 
+use crate::encoding::Data;
+
 #[cw_serde]
 pub enum CommandType {
     ApproveContractCall,
-}
-
-#[cw_serde]
-pub struct Command {
-    pub id: HexBinary,
-    pub command_type: CommandType,
-    pub command_params: HexBinary,
 }
 
 impl Display for CommandType {
@@ -27,9 +22,10 @@ impl Display for CommandType {
 }
 
 #[cw_serde]
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands: Vec<Command>,
+pub struct Command {
+    pub id: HexBinary,
+    pub ty: CommandType,
+    pub params: HexBinary,
 }
 
 #[cw_serde]
@@ -77,7 +73,6 @@ pub struct CommandBatch {
     pub id: BatchID,
     pub message_ids: Vec<String>,
     pub data: Data,
-    pub msg_to_sign: HexBinary,
 }
 
 #[cw_serde]
