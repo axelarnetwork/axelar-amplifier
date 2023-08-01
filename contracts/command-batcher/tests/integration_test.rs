@@ -29,7 +29,7 @@ fn execute_key_gen(
             .collect::<HashMap<String, HexBinary>>(),
     };
 
-    let msg = ExecuteMsg::KeyGen { pub_keys };
+    let msg = ExecuteMsg::RotateSnapshot { pub_keys };
     test_case.app.execute_contract(
         test_case.admin.clone(),
         test_case.prover_address.clone(),

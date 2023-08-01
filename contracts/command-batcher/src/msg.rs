@@ -24,7 +24,7 @@ pub enum ExecuteMsg {
     ConstructProof {
         message_ids: Vec<String>,
     },
-    KeyGen {
+    RotateSnapshot {
         pub_keys: HashMap<String, HexBinary>,
     },
 }
