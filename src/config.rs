@@ -4,6 +4,7 @@ use crate::broadcaster;
 use crate::evm::{deserialize_evm_chain_configs, EvmChainConfig};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
+use crate::ECDSASigningKey;
 
 #[derive(Deserialize, Debug)]
 #[serde(default)]
@@ -13,6 +14,8 @@ pub struct Config {
     #[serde(deserialize_with = "deserialize_evm_chain_configs")]
     pub evm_chain_configs: Vec<EvmChainConfig>,
     pub tofnd_config: TofndConfig,
+    #[serde(with = "hex")]
+    pub private_key: ECDSASigningKey,
 }
 
 impl Default for Config {
@@ -22,12 +25,15 @@ impl Default for Config {
             broadcast: broadcaster::Config::default(),
             evm_chain_configs: vec![],
             tofnd_config: TofndConfig::default(),
+            private_key: ECDSASigningKey::random(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::OsRng;
+
     use crate::evm::ChainName;
 
     use super::Config;
@@ -93,5 +99,22 @@ mod tests {
             ";
 
         assert!(toml::from_str::<Config>(invalid_timeout).is_err());
+    }
+
+    #[test]
+    fn deserialize_private_key() {
+        let random_key = ecdsa::SigningKey::random(&mut OsRng);
+        let hex_private_key = hex::encode(random_key.to_bytes());
+        let cfg: Config = toml::from_str(format!("private_key = '{hex_private_key}'").as_str()).unwrap();
+
+        assert_eq!(
+            cfg.private_key.public_key(),
+            cosmrs::crypto::PublicKey::from(random_key.verifying_key())
+        )
+    }
+
+    #[test]
+    fn fail_deserialize_private_key() {
+        assert!(toml::from_str::<Config>("private_key = 'a invalid key'").is_err());
     }
 }

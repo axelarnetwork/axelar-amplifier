@@ -1,22 +1,23 @@
 use std::pin::Pin;
 use std::time::Duration;
 
-use broadcaster::key::ECDSASigningKey;
-use broadcaster::Broadcaster;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use error_stack::Result;
-use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 use tonic::transport::Channel;
 use tracing::info;
 
-use crate::config::Config;
+use broadcaster::key::ECDSASigningKey;
+use broadcaster::Broadcaster;
 use event_processor::EventProcessor;
 use event_sub::Event;
+use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::State;
+
+use crate::config::Config;
 
 mod broadcaster;
 pub mod config;
@@ -42,7 +43,7 @@ pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
             .await
             .map_err(Error::new)?,
         // TODO: load the private key properly
-        ECDSASigningKey::random(),
+        cfg.private_key.clone(),
         cfg.broadcast.clone(),
     )
     .build();
