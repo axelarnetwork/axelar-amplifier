@@ -6,7 +6,6 @@ use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::de::value::MapDeserializer;
 use serde::Deserialize;
-use voting_verifier::events::EvmMessage;
 
 use crate::deserializers::from_str;
 use crate::event_processor::EventHandler;
@@ -23,6 +22,16 @@ const EVENT_TYPE: &str = "wasm-poll_started";
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
+pub struct Message {
+    pub tx_id: Hash,
+    pub log_index: usize,
+    pub destination_address: String,
+    pub destination_chain: connection_router::types::ChainName,
+    pub source_address: EVMAddress,
+    pub payload_hash: Hash,
+}
+
+#[derive(Deserialize, Debug)]
 struct Event {
     #[allow(dead_code)]
     poll_id: PollID,
@@ -30,7 +39,7 @@ struct Event {
     source_chain: connection_router::types::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
-    messages: Vec<EvmMessage>,
+    messages: Vec<Message>,
     #[allow(dead_code)]
     participants: Vec<TMAddress>,
 }
@@ -131,38 +140,26 @@ where
             return Ok(());
         }
 
-        let tx_hashes = messages
-            .iter()
-            .filter_map(|message| message.tx_id.parse().ok())
-            .collect::<HashSet<Hash>>();
+        let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let finalized_tx_receipts = self.finalized_tx_receipts(tx_hashes, confirmation_height).await?;
 
         let _votes: Vec<_> = messages
             .iter()
             .map(|msg| {
-                let tx_hash: Hash = match msg.tx_id.parse() {
-                    Ok(tx_hash) => tx_hash,
-                    Err(_) => return false,
-                };
-                let tx_receipt = match finalized_tx_receipts.get(&tx_hash) {
-                    Some(tx_receipt) => tx_receipt,
-                    None => return false,
-                };
-
-                verify_message(&source_gateway_address, tx_receipt, msg)
+                finalized_tx_receipts.get(&msg.tx_id).map_or(false, |tx_receipt| {
+                    verify_message(&source_gateway_address, tx_receipt, msg)
+                })
             })
             .collect();
 
-        unimplemented!()
+        todo!()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use connection_router::types::ChainName;
     use cosmwasm_std;
     use cosmwasm_std::HexBinary;
-    use std::str::FromStr;
     use tendermint::abci;
     use voting_verifier::events::{EvmMessage, PollStarted};
 
@@ -175,33 +172,33 @@ mod tests {
     fn get_poll_started_event() -> event_sub::Event {
         let poll_started = PollStarted {
             poll_id: 100.into(),
-            source_chain: ChainName::from_str("ethereum").unwrap(),
+            source_chain: "ethereum".parse().unwrap(),
             source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
             confirmation_height: 15,
             expires_at: 100,
             messages: vec![
                 EvmMessage {
-                    tx_id: format!("0x{}", Hash::random()),
+                    tx_id: format!("0x{:x}", Hash::random()),
                     log_index: 0,
-                    source_address: format!("0x{}", EVMAddress::random()),
-                    destination_chain: connection_router::types::ChainName::from_str("ethereum").unwrap(),
-                    destination_address: format!("0x{}", EVMAddress::random()),
+                    source_address: format!("0x{:x}", EVMAddress::random()),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_address: format!("0x{:x}", EVMAddress::random()),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
                 EvmMessage {
-                    tx_id: format!("0x{}", Hash::random()),
+                    tx_id: format!("0x{:x}", Hash::random()),
                     log_index: 1,
-                    source_address: format!("0x{}", EVMAddress::random()),
-                    destination_chain: connection_router::types::ChainName::from_str("ethereum").unwrap(),
-                    destination_address: format!("0x{}", EVMAddress::random()),
+                    source_address: format!("0x{:x}", EVMAddress::random()),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_address: format!("0x{:x}", EVMAddress::random()),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
                 EvmMessage {
-                    tx_id: format!("0x{}", Hash::random()),
+                    tx_id: format!("0x{:x}", Hash::random()),
                     log_index: 10,
-                    source_address: format!("0x{}", EVMAddress::random()),
-                    destination_chain: connection_router::types::ChainName::from_str("ethereum").unwrap(),
-                    destination_address: format!("0x{}", EVMAddress::random()),
+                    source_address: format!("0x{:x}", EVMAddress::random()),
+                    destination_chain: "ethereum".parse().unwrap(),
+                    destination_address: format!("0x{:x}", EVMAddress::random()),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
             ],
