@@ -39,9 +39,3 @@ pub struct Operator {
     pub weight: Uint256,
     pub signature: Option<Signature>,
 }
-
-#[cw_serde]
-pub struct Proof {
-    pub operators: Vec<Operator>,
-    pub threshold: Uint256,
-}

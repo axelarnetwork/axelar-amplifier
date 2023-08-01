@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::{
     events::Event,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, GetSigningSessionResponse, InstantiateMsg, Multisig, QueryMsg},
     state::{get_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
     types::{Key, KeyID, MsgToSign, MultisigState, PublicKey, Signature},
     ContractError,
@@ -161,8 +161,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub mod query {
-    use crate::msg::GetSigningSessionResponse;
-
     use super::*;
 
     pub fn get_signing_session(
@@ -173,10 +171,15 @@ pub mod query {
 
         let key = KEYS.load(deps.storage, &session.key_id)?;
 
+        let multisig = Multisig {
+            snapshot: key.snapshot,
+            pub_keys: key.pub_keys,
+            signatures: session.signatures,
+        };
+
         Ok(GetSigningSessionResponse {
             state: session.state,
-            signatures: session.signatures,
-            snapshot: key.snapshot,
+            signature: multisig,
         })
     }
 }
@@ -498,7 +501,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(query_res.state, session.state);
-        assert_eq!(query_res.signatures, session.signatures);
-        assert_eq!(query_res.snapshot, key.snapshot);
+        assert_eq!(query_res.signature.signatures, session.signatures);
+        assert_eq!(query_res.signature.snapshot, key.snapshot);
     }
 }
