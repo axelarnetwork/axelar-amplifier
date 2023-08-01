@@ -19,7 +19,7 @@ impl TryFrom<Message> for Command {
 
     fn try_from(msg: Message) -> Result<Self, Self::Error> {
         Ok(Command {
-            command_type: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
+            ty: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
             params: command_params(
                 msg.source_chain,
                 msg.source_address,
@@ -169,7 +169,7 @@ impl Data {
             (vec![], vec![], vec![]),
             |(mut commands_ids, mut commands_types, mut commands_params), command| {
                 commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-                commands_types.push(Token::String(command.command_type.to_string()));
+                commands_types.push(Token::String(command.ty.to_string()));
                 commands_params.push(Token::Bytes(command.params.to_vec()));
                 (commands_ids, commands_types, commands_params)
             },
@@ -279,26 +279,20 @@ mod test {
                     .iter()
                     .zip(commands_types_tokens.iter())
                     .zip(commands_params_tokens.iter())
-                    .for_each(|((id, command_type), command_params)| {
-                        match (id, command_type, command_params) {
-                            (
-                                Token::FixedBytes(id),
-                                Token::String(command_type),
-                                Token::Bytes(command_params),
-                            ) => {
-                                let command = Command {
-                                    id: id.to_owned().try_into().unwrap(),
-                                    command_type: match command_type.as_str() {
-                                        "approveContractCall" => CommandType::ApproveContractCall,
-                                        _ => panic!("undecodable command type"),
-                                    },
-                                    params: HexBinary::from(command_params.to_owned()),
-                                };
+                    .for_each(|((id, ty), params)| match (id, ty, params) {
+                        (Token::FixedBytes(id), Token::String(ty), Token::Bytes(params)) => {
+                            let command = Command {
+                                id: id.to_owned().try_into().unwrap(),
+                                ty: match ty.as_str() {
+                                    "approveContractCall" => CommandType::ApproveContractCall,
+                                    _ => panic!("undecodable command type"),
+                                },
+                                params: HexBinary::from(params.to_owned()),
+                            };
 
-                                commands.push(command);
-                            }
-                            _ => panic!("Invalid data"),
+                            commands.push(command);
                         }
+                        _ => panic!("Invalid data"),
                     });
             }
             _ => panic!("Invalid data"),
@@ -325,7 +319,7 @@ mod test {
             HexBinary::from_hex("cdf61b5aa2024f5a27383b0785fc393c566eef69569cf5abec945794b097bb73")
                 .unwrap() // https://axelarscan.io/gmp/0xc8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f
         );
-        assert_eq!(res.command_type, CommandType::ApproveContractCall);
+        assert_eq!(res.ty, CommandType::ApproveContractCall);
         assert_eq!(
             decode_command_params(res.params),
             decode_command_params(
@@ -394,7 +388,7 @@ mod test {
             .zip(res.data.commands.into_iter())
             .for_each(|(expected_command, command)| {
                 assert_eq!(command.id, expected_command.id);
-                assert_eq!(command.command_type, expected_command.command_type);
+                assert_eq!(command.ty, expected_command.ty);
                 assert_eq!(
                     decode_command_params(command.params),
                     decode_command_params(expected_command.params)

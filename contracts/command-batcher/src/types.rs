@@ -22,7 +22,7 @@ impl Display for CommandType {
 #[cw_serde]
 pub struct Command {
     pub id: HexBinary,
-    pub command_type: CommandType,
+    pub ty: CommandType,
     pub params: HexBinary,
 }
 
