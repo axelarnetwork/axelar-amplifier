@@ -4,16 +4,11 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use multisig::types::Signature;
 
+use crate::encoding::Data;
+
 #[cw_serde]
 pub enum CommandType {
     ApproveContractCall,
-}
-
-#[cw_serde]
-pub struct Command {
-    pub id: HexBinary,
-    pub command_type: CommandType,
-    pub command_params: HexBinary,
 }
 
 impl Display for CommandType {
@@ -25,9 +20,10 @@ impl Display for CommandType {
 }
 
 #[cw_serde]
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands: Vec<Command>,
+pub struct Command {
+    pub id: HexBinary,
+    pub command_type: CommandType,
+    pub params: HexBinary,
 }
 
 #[cw_serde]
@@ -35,7 +31,6 @@ pub struct CommandBatch {
     pub id: HexBinary,
     pub message_ids: Vec<String>,
     pub data: Data,
-    pub msg_to_sign: HexBinary,
 }
 
 #[cw_serde]
