@@ -66,7 +66,9 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
-        ExecuteMsg::KeyGen { pub_keys } => execute::key_gen(deps, env, info, pub_keys),
+        ExecuteMsg::RotateSnapshot { pub_keys } => {
+            execute::rotate_snapshot(deps, env, info, pub_keys)
+        }
     }
 }
 
@@ -119,7 +121,7 @@ pub mod execute {
         Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, reply_id)))
     }
 
-    pub fn key_gen(
+    pub fn rotate_snapshot(
         deps: DepsMut,
         env: Env,
         info: MessageInfo,
