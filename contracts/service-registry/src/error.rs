@@ -1,28 +1,29 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::StdError;
 use thiserror::Error;
+
+use crate::state::BondingState;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("{0}")]
+    NonEmpty(#[from] nonempty::Error),
+
     #[error("unauthorized")]
     Unauthorized {},
     #[error("service name already exists")]
     ServiceAlreadyExists {},
-    #[error("service does not exist")]
-    ServiceNotExists {},
-    #[error("service worker already registered")]
-    ServiceWorkerAlreadyRegistered {},
-    #[error("funds don't meet minimum requirement for bonding")]
-    NotEnoughFunds {},
-    #[error("worker not registered for this service")]
-    UnregisteredWorker {},
-    #[error("invalid worker state for this operation")]
-    InvalidWorkerState {},
-    #[error("worker unbonding too early")]
-    UnbondTooEarly {},
-
-    #[error("{msg}")]
-    ServiceContractError { msg: String },
+    #[error("service not found")]
+    ServiceNotFound {},
+    #[error("worker already authorized")]
+    WorkerAlreadyAuthorized {},
+    #[error("funds are in the wrong denomination")]
+    WrongDenom {},
+    #[error("worker not found")]
+    WorkerNotFound {},
+    #[error("invalid bonding state `{0:?}` for this operation")]
+    InvalidBondingState(BondingState),
 }
