@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
 use crate::types::{MultisigState, PublicKey, Signature};
 
@@ -29,19 +29,21 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(GetSigningSessionResponse)]
-    GetSigningSession { session_id: Uint64 },
+    #[returns(Multisig)]
+    GetMultisig { session_id: Uint64 },
+}
+
+#[cw_serde]
+pub struct Signer {
+    pub address: Addr,
+    pub weight: Uint256,
+    pub pub_key: PublicKey,
+    pub signature: Option<Signature>,
 }
 
 #[cw_serde]
 pub struct Multisig {
-    pub snapshot: Snapshot,
-    pub pub_keys: HashMap<String, PublicKey>,
-    pub signatures: HashMap<String, Signature>,
-}
-
-#[cw_serde]
-pub struct GetSigningSessionResponse {
     pub state: MultisigState,
-    pub signature: Multisig,
+    pub quorum: Uint256,
+    pub signers: Vec<Signer>,
 }

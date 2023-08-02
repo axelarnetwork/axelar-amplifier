@@ -5,7 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
-use multisig::msg::Multisig;
+use multisig::msg::{Multisig, Signer};
 use sha3::{Digest, Keccak256};
 
 use crate::{
@@ -87,7 +87,7 @@ impl CommandBatch {
     }
 
     fn encode_proof(&self, multisig: Multisig) -> Result<HexBinary, ContractError> {
-        let operators = sorted_operators(&multisig)?;
+        let operators = sorted_operators(multisig.signers)?;
 
         let (addresses, weights, signatures) = operators.iter().fold(
             (vec![], vec![], vec![]),
@@ -108,7 +108,7 @@ impl CommandBatch {
         );
 
         let threshold = Token::Uint(ethereum_types::U256::from_big_endian(
-            &Uint256::from(multisig.snapshot.quorum).to_be_bytes(),
+            &multisig.quorum.to_be_bytes(),
         ));
 
         Ok(ethabi::encode(&[
@@ -163,27 +163,14 @@ fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
-fn sorted_operators(multisig: &Multisig) -> Result<Vec<Operator>, ContractError> {
-    let mut operators = multisig
-        .snapshot
-        .participants
-        .iter()
-        .map(|(_, participant)| {
-            let pub_key = multisig
-                .pub_keys
-                .get(&participant.address.to_string())
-                .ok_or(ContractError::PublicKeyNotFound {
-                    participant: participant.address.to_string(),
-                })?
-                .into();
-
+fn sorted_operators(signers: Vec<Signer>) -> Result<Vec<Operator>, ContractError> {
+    let mut operators = signers
+        .into_iter()
+        .map(|signer| {
             Ok(Operator {
-                address: evm_address(pub_key)?,
-                weight: participant.weight.into(),
-                signature: multisig
-                    .signatures
-                    .get(participant.address.as_str())
-                    .cloned(),
+                address: evm_address((&signer.pub_key).into())?,
+                weight: signer.weight,
+                signature: signer.signature,
             })
         })
         .collect::<Result<Vec<Operator>, ContractError>>()?;
@@ -223,9 +210,8 @@ fn batch_id(message_ids: &[String]) -> HexBinary {
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::{nonempty, Participant, Snapshot};
-    use cosmwasm_std::Timestamp;
     use ethabi::ParamType;
+    use multisig::types::MultisigState;
 
     use crate::test::test_data;
 
@@ -397,46 +383,24 @@ mod test {
     fn test_proof() {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
+        let operators = test_data::operators();
 
         let batch = CommandBatch::new(messages, destination_chain_id).unwrap();
 
-        let operators = test_data::operators();
-
-        let timestamp: nonempty::Timestamp = Timestamp::from_nanos(1).try_into().unwrap();
-        let height = nonempty::Uint64::try_from(test_data::block_height()).unwrap();
-
-        let threshold = test_data::threshold();
-
-        let mut participants = operators
-            .iter()
-            .map(|op| Participant {
-                address: op.address.clone(),
-                weight: op.weight.try_into().unwrap(),
+        let signers = operators
+            .into_iter()
+            .map(|op| Signer {
+                address: op.address,
+                weight: op.weight.into(),
+                pub_key: op.pub_key,
+                signature: op.signature,
             })
-            .collect::<Vec<Participant>>();
-
-        // Make a different sorting to make sure it gives same encoding regardless
-        participants.sort_by(|a, b| Uint256::from(a.weight).cmp(&Uint256::from(b.weight)));
-
-        let participants: nonempty::Vec<Participant> = participants.try_into().unwrap();
-
-        let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
-
-        let signatures = operators
-            .iter()
-            .filter(|op| op.signature.is_some())
-            .map(|op| (op.address.to_string(), op.signature.clone().unwrap()))
-            .collect();
-
-        let pub_keys = operators
-            .iter()
-            .map(|op| (op.address.to_string(), op.pub_key.clone()))
-            .collect();
+            .collect::<Vec<Signer>>();
 
         let multisig = Multisig {
-            snapshot,
-            pub_keys,
-            signatures,
+            state: MultisigState::Completed,
+            quorum: Uint256::from(124679u128),
+            signers,
         };
 
         let execute_data = batch.encode_execute_data(multisig).unwrap();
@@ -448,7 +412,7 @@ mod test {
 
         match tokens[1].clone() {
             Token::Bytes(res) => {
-                assert_eq!(res, test_data::encoded_proof());
+                assert_eq!(HexBinary::from(res), test_data::encoded_proof());
             }
             _ => panic!("Invalid proof"),
         }
