@@ -268,7 +268,7 @@ fn declare_chain_support() {
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -290,7 +290,7 @@ fn declare_chain_support() {
         .wrap()
         .query_wasm_smart(
             contract_addr,
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: "some other chain".into(),
             },
@@ -389,7 +389,7 @@ fn unbond_worker() {
         .wrap()
         .query_wasm_smart(
             contract_addr,
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -467,7 +467,7 @@ fn bond_but_not_authorized() {
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -556,7 +556,7 @@ fn bond_but_not_enough() {
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -645,7 +645,7 @@ fn bond_before_authorize() {
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },
@@ -764,7 +764,7 @@ fn unbond_then_rebond() {
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
-            &QueryMsg::GetBondedWorkers {
+            &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
                 chain_name: chain_name.into(),
             },

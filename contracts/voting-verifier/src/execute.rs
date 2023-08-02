@@ -111,7 +111,7 @@ fn take_snapshot(
 
     // todo: add chain param to query after service registry updated
     // query service registry for active workers
-    let active_workers_query = QueryMsg::GetBondedWorkers {
+    let active_workers_query = QueryMsg::GetActiveWorkers {
         service_name: config.service_name,
         chain_name: chain.clone().into(),
     };

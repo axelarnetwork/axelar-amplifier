@@ -54,7 +54,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Vec<Worker>)]
-    GetBondedWorkers {
+    GetActiveWorkers {
         service_name: String,
         chain_name: String,
     },

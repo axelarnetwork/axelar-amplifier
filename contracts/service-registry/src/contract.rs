@@ -98,7 +98,7 @@ pub fn execute(
         ExecuteMsg::DeclareChainSupport {
             service_name,
             chains,
-        } => execute::declare_chain_support(deps, info, service_name, chains),
+        } => execute::declare_chains_support(deps, info, service_name, chains),
         ExecuteMsg::BondWorker { service_name } => execute::bond_worker(deps, info, service_name),
         ExecuteMsg::UnbondWorker { service_name } => {
             execute::unbond_worker(deps, env, info, service_name)
@@ -213,7 +213,7 @@ pub mod execute {
             |sw| -> Result<Worker, ContractError> {
                 match sw {
                     Some(worker) => Ok(Worker {
-                        bonding_state: worker.bonding_state.add_bond(bond),
+                        bonding_state: worker.bonding_state.add_bond(bond)?,
                         ..worker
                     }),
                     None => Ok(Worker {
@@ -229,7 +229,7 @@ pub mod execute {
         Ok(Response::new())
     }
 
-    pub fn declare_chain_support(
+    pub fn declare_chains_support(
         deps: DepsMut,
         info: MessageInfo,
         service_name: String,
@@ -321,10 +321,10 @@ pub mod execute {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::GetBondedWorkers {
+        QueryMsg::GetActiveWorkers {
             service_name,
             chain_name,
-        } => to_binary(&query::get_bonded_workers(deps, service_name, chain_name)?)
+        } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|e| e.into()),
     }
 }
@@ -334,7 +334,7 @@ pub mod query {
 
     use super::*;
 
-    pub fn get_bonded_workers(
+    pub fn get_active_workers(
         deps: Deps,
         service_name: String,
         chain_name: String,

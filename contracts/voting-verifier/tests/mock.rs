@@ -21,7 +21,7 @@ pub fn mock_service_registry_execute(
 
 #[cw_serde]
 pub enum MockServiceRegistryQueryMsg {
-    GetBondedWorkers {
+    GetActiveWorkers {
         service_name: String,
         chain_name: String,
     },
@@ -32,7 +32,7 @@ pub fn mock_service_registry_query(
     msg: MockServiceRegistryQueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        MockServiceRegistryQueryMsg::GetBondedWorkers {
+        MockServiceRegistryQueryMsg::GetActiveWorkers {
             service_name,
             chain_name: _,
         } => {

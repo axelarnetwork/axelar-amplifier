@@ -65,17 +65,20 @@ pub enum BondingState {
 }
 
 impl BondingState {
-    pub fn add_bond(self, bond: Uint128) -> Self {
-        match self {
+    pub fn add_bond(self, to_add: Uint128) -> Result<Self, ContractError> {
+        let amount = match self {
             BondingState::Bonded { amount }
             | BondingState::RequestedUnbonding { amount }
             | BondingState::Unbonding {
                 amount,
                 unbonded_at: _,
-            } => BondingState::Bonded {
-                amount: amount + bond,
-            },
-            BondingState::Unbonded {} => BondingState::Bonded { amount: bond },
+            } => amount + to_add,
+            BondingState::Unbonded {} => to_add,
+        };
+        if amount.is_zero() {
+            Err(ContractError::InvalidBondingState(self))
+        } else {
+            Ok(BondingState::Bonded { amount })
         }
     }
 
@@ -133,20 +136,25 @@ mod tests {
         let state = BondingState::Bonded {
             amount: Uint128::from(100u32),
         };
+        let res = state.add_bond(Uint128::from(200u32));
+        assert!(res.is_ok());
         assert_eq!(
-            state.add_bond(Uint128::from(200u32)),
+            res.unwrap(),
             BondingState::Bonded {
                 amount: Uint128::from(300u32)
             }
         );
     }
+
     #[test]
     fn test_requested_unbonding_add_bond() {
         let state = BondingState::RequestedUnbonding {
             amount: Uint128::from(100u32),
         };
+        let res = state.add_bond(Uint128::from(200u32));
+        assert!(res.is_ok());
         assert_eq!(
-            state.add_bond(Uint128::from(200u32)),
+            res.unwrap(),
             BondingState::Bonded {
                 amount: Uint128::from(300u32)
             }
@@ -159,8 +167,10 @@ mod tests {
             amount: Uint128::from(100u32),
             unbonded_at: Timestamp::from_nanos(0),
         };
+        let res = state.add_bond(Uint128::from(200u32));
+        assert!(res.is_ok());
         assert_eq!(
-            state.add_bond(Uint128::from(200u32)),
+            res.unwrap(),
             BondingState::Bonded {
                 amount: Uint128::from(300u32)
             }
@@ -170,12 +180,22 @@ mod tests {
     #[test]
     fn test_unbonded_add_bond() {
         let state = BondingState::Unbonded {};
+        let res = state.add_bond(Uint128::from(200u32));
+        assert!(res.is_ok());
         assert_eq!(
-            state.add_bond(Uint128::from(200u32)),
+            res.unwrap(),
             BondingState::Bonded {
                 amount: Uint128::from(200u32)
             }
         );
+    }
+
+    #[test]
+    fn test_zero_bond() {
+        let state = BondingState::Unbonded {};
+        let res = state.clone().add_bond(Uint128::from(0u32));
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::InvalidBondingState(state));
     }
 
     #[test]
