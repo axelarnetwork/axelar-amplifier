@@ -185,7 +185,7 @@ fn take_snapshot(deps: Deps, env: &Env) -> Result<snapshot::Snapshot, ContractEr
     ))
 }
 
-fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
+pub fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
     match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
         Some(stored) if stored != *message => {
             Err(ContractError::MessageMismatch(message.id.to_string()))
