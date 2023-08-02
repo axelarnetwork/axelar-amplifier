@@ -1,11 +1,12 @@
-use std::fmt;
+use std::str::FromStr;
 use std::vec::Vec;
+
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Event, HexBinary};
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
 use connection_router::types::{ChainName, ID_SEPARATOR};
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Event, HexBinary};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -40,8 +41,15 @@ impl From<PollStarted> for Event {
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
             .add_attribute("expires_at", other.expires_at.to_string())
-            .add_attribute("participants", display_vector(other.participants))
-            .add_attribute("messages", display_vector(other.messages))
+            .add_attribute(
+                "participants",
+                serde_json::to_string(&other.participants)
+                    .expect("failed to serialize participants"),
+            )
+            .add_attribute(
+                "messages",
+                serde_json::to_string(&other.messages).expect("failed to serialize messages"),
+            )
     }
 }
 
@@ -96,6 +104,14 @@ impl TryFrom<Message> for EvmMessage {
     }
 }
 
+impl FromStr for EvmMessage {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
+
 fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> {
     // expected format: <source_chain>:<tx_id>:<index>
     let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
@@ -112,22 +128,31 @@ fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> 
     ))
 }
 
-impl fmt::Display for EvmMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let serialized = serde_json::to_string(self).map_err(|_| fmt::Error)?;
-        write!(f, "{}", serialized)
+pub struct Voted {
+    pub poll_id: PollID,
+    pub voter: Addr,
+}
+
+impl From<Voted> for Event {
+    fn from(other: Voted) -> Self {
+        Event::new("voted")
+            .add_attribute("poll_id", other.poll_id)
+            .add_attribute("voter", other.voter)
     }
 }
 
-fn display_vector<T>(v: Vec<T>) -> String
-where
-    T: fmt::Display,
-{
-    format!(
-        "[{}]",
-        v.iter()
-            .map(|p| p.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-    )
+pub struct PollEnded {
+    pub poll_id: PollID,
+    pub results: Vec<bool>,
+}
+
+impl From<PollEnded> for Event {
+    fn from(other: PollEnded) -> Self {
+        Event::new("poll_ended")
+            .add_attribute("poll_id", other.poll_id)
+            .add_attribute(
+                "results",
+                serde_json::to_string(&other.results).expect("failed to serialize results"),
+            )
+    }
 }

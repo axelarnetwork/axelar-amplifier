@@ -1,6 +1,9 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use axelar_wasm_std::Threshold;
+use axelar_wasm_std::{
+    voting::{PollID, PollResult},
+    Threshold,
+};
 use connection_router::msg::Message;
 
 #[cw_serde]
@@ -19,10 +22,10 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier
-    EndPoll { poll_id: String },
+    EndPoll { poll_id: PollID },
 
     // Casts votes for specified poll
-    Vote { poll_id: String, votes: Vec<bool> },
+    Vote { poll_id: PollID, votes: Vec<bool> },
 
     // returns a vector of true/false values, indicating current verification status for each message
     // starts a poll for any not yet verified messages
@@ -31,7 +34,7 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct Poll {
-    poll_id: String,
+    poll_id: PollID,
     messages: Vec<Message>,
 }
 
@@ -39,10 +42,15 @@ pub struct Poll {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Poll)]
-    GetPoll { poll_id: String },
+    GetPoll { poll_id: PollID },
 }
 
 #[cw_serde]
 pub struct VerifyMessagesResponse {
     pub verification_statuses: Vec<(String, bool)>,
+}
+
+#[cw_serde]
+pub struct EndPollResponse {
+    pub poll_result: PollResult,
 }
