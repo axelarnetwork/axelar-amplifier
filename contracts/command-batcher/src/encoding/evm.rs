@@ -3,7 +3,7 @@ use std::str::FromStr;
 use connection_router::msg::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
-use ethabi::{ethereum_types, Token};
+use ethabi::{ethereum_types, short_signature, ParamType, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use multisig::msg::{Multisig, Signer};
 use sha3::{Digest, Keccak256};
@@ -12,6 +12,8 @@ use crate::{
     error::ContractError,
     types::{Command, CommandBatch, CommandType, Operator},
 };
+
+const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
 
 impl TryFrom<Message> for Command {
     type Error = ContractError;
@@ -79,11 +81,15 @@ impl CommandBatch {
     }
 
     pub fn encode_execute_data(&self, multisig: Multisig) -> Result<HexBinary, ContractError> {
-        Ok(ethabi::encode(&[
+        let mut calldata =
+            short_signature(GATEWAY_EXECUTE_FUNCTION_NAME, &[ParamType::Bytes]).to_vec();
+
+        calldata.extend(ethabi::encode(&[
             Token::Bytes(self.data.encode().into()),
             Token::Bytes(self.encode_proof(multisig)?.into()),
-        ])
-        .into())
+        ]));
+
+        Ok(calldata.into())
     }
 
     fn encode_proof(&self, multisig: Multisig) -> Result<HexBinary, ContractError> {
@@ -380,7 +386,7 @@ mod test {
     }
 
     #[test]
-    fn test_proof() {
+    fn test_execute_data() {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let operators = test_data::operators();
@@ -403,12 +409,42 @@ mod test {
             signers,
         };
 
-        let execute_data = batch.encode_execute_data(multisig).unwrap();
+        let execute_data = &batch.encode_execute_data(multisig).unwrap();
+
         let tokens = ethabi::decode(
             &[ParamType::Bytes, ParamType::Bytes],
-            execute_data.as_slice(),
+            &execute_data.as_slice()[4..], // Remove the function signature
         )
         .unwrap();
+
+        assert_eq!(
+            execute_data.as_slice()[0..4],
+            short_signature(GATEWAY_EXECUTE_FUNCTION_NAME, &[ParamType::Bytes])
+        );
+
+        match tokens[0].clone() {
+            Token::Bytes(res) => {
+                let res = decode_data(&res.into());
+                let expected_data = decode_data(&test_data::encoded_data());
+
+                assert_eq!(res.destination_chain_id, expected_data.destination_chain_id);
+                assert_eq!(res.commands.len(), expected_data.commands.len());
+
+                expected_data
+                    .commands
+                    .into_iter()
+                    .zip(res.commands.into_iter())
+                    .for_each(|(expected_command, command)| {
+                        assert_eq!(command.id, expected_command.id);
+                        assert_eq!(command.ty, expected_command.ty);
+                        assert_eq!(
+                            decode_command_params(command.params),
+                            decode_command_params(expected_command.params)
+                        );
+                    });
+            }
+            _ => panic!("Invalid proof"),
+        }
 
         match tokens[1].clone() {
             Token::Bytes(res) => {
