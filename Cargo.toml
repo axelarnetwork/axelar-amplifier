@@ -26,8 +26,11 @@ mockall = "0.11.3"
 prost = "0.11.9"
 serde = {version = "1.0.147", features = ["derive"]}
 serde_json = "1.0.89"
-tendermint = "0.32.0"
-tendermint-rpc = {version = "0.32.0", features = ["http-client"]}
+# Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
+# Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
+# The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
+tendermint = {git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x"}
+tendermint-rpc = {git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = ["http-client"]}
 thiserror = "1.0.37"
 tokio = {version = "1.22.0", features = ["signal"]}
 tokio-stream = {version = "0.1.11", features = ["sync"]}

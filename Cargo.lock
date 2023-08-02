@@ -85,7 +85,7 @@ dependencies = [
  "random-string",
  "serde",
  "serde_json",
- "tendermint",
+ "tendermint 0.33.0",
  "tendermint-rpc",
  "thiserror",
  "tokio",
@@ -789,7 +789,7 @@ dependencies = [
  "serde",
  "serde_json",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.32.0",
  "thiserror",
 ]
 
@@ -4338,15 +4338,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint"
+version = "0.33.0"
+source = "git+https://github.com/axelarnetwork/tendermint-rs.git?branch=v0.33.x#e97033e20e660a7e707ea86db174ec047bbba50d"
+dependencies = [
+ "bytes",
+ "digest 0.10.6",
+ "ed25519",
+ "ed25519-consensus",
+ "flex-error",
+ "futures",
+ "num-traits",
+ "once_cell",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "serde_repr",
+ "sha2 0.10.6",
+ "signature 2.1.0",
+ "subtle",
+ "subtle-encoding",
+ "tendermint-proto 0.33.0",
+ "time",
+ "zeroize",
+]
+
+[[package]]
 name = "tendermint-config"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dbb7610ef8422d5886116868e48ab6a9ea72859b3bf9021c6d87318e5600225"
+version = "0.33.0"
+source = "git+https://github.com/axelarnetwork/tendermint-rs.git?branch=v0.33.x#e97033e20e660a7e707ea86db174ec047bbba50d"
 dependencies = [
  "flex-error",
  "serde",
  "serde_json",
- "tendermint",
+ "tendermint 0.33.0",
  "toml 0.5.11",
  "url",
 ]
@@ -4388,10 +4415,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint-proto"
+version = "0.33.0"
+source = "git+https://github.com/axelarnetwork/tendermint-rs.git?branch=v0.33.x#e97033e20e660a7e707ea86db174ec047bbba50d"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "num-derive",
+ "num-traits",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_bytes",
+ "subtle-encoding",
+ "time",
+]
+
+[[package]]
 name = "tendermint-rpc"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd2cc789170db5a35d4e0bb2490035c03ef96df08f119bee25fd8dab5a09aa25"
+version = "0.33.0"
+source = "git+https://github.com/axelarnetwork/tendermint-rs.git?branch=v0.33.x#e97033e20e660a7e707ea86db174ec047bbba50d"
 dependencies = [
  "async-trait",
  "bytes",
@@ -4410,9 +4453,9 @@ dependencies = [
  "serde_json",
  "subtle",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.33.0",
  "tendermint-config",
- "tendermint-proto 0.32.0",
+ "tendermint-proto 0.33.0",
  "thiserror",
  "time",
  "tokio",

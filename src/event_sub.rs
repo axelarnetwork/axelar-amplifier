@@ -207,7 +207,7 @@ mod tests {
     use futures::stream::StreamExt;
     use rand::Rng;
     use random_string::generate;
-    use tendermint::abci;
+    use tendermint::{abci, AppHash};
     use tokio::test;
 
     use crate::event_sub::{Event, EventSubClient, EventSubError};
@@ -248,6 +248,8 @@ mod tests {
                     consensus_param_updates: None,
                     txs_results: None,
                     validator_updates: vec![],
+                    app_hash: AppHash::default(),
+                    finalize_block_events: vec![],
                 })
             });
 
@@ -286,6 +288,8 @@ mod tests {
                 consensus_param_updates: None,
                 txs_results: None,
                 validator_updates: vec![],
+                app_hash: AppHash::default(),
+                finalize_block_events: vec![],
             })
         });
 
@@ -321,7 +325,7 @@ mod tests {
             txs_results: Some(
                 vec![0; rng.gen_range(0..20)]
                     .into_iter()
-                    .map(|_| abci::response::DeliverTx {
+                    .map(|_| abci::types::ExecTxResult {
                         events: vec![0; rng.gen_range(0..20)]
                             .into_iter()
                             .map(|_| random_event())
@@ -331,6 +335,8 @@ mod tests {
                     .collect(),
             ),
             validator_updates: vec![],
+            app_hash: AppHash::default(),
+            finalize_block_events: vec![],
         };
         let begin_block_events_count = block_results.begin_block_events.iter().flatten().count();
         let tx_events_count: usize = block_results

@@ -8,12 +8,12 @@ use cosmos_sdk_proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, TxRaw,
 };
 use cosmos_sdk_proto::traits::MessageExt;
+use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
 use cosmrs::Coin;
 use error_stack::{FutureExt, IntoReport, IntoReportCompat, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use serde::Deserialize;
-use tendermint::chain::Id;
 use thiserror::Error;
 use tonic::Status;
 use tracing::debug;
