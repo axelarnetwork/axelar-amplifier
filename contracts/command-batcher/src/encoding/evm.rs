@@ -81,13 +81,17 @@ impl CommandBatch {
     }
 
     pub fn encode_execute_data(&self, multisig: Multisig) -> Result<HexBinary, ContractError> {
+        let param = ethabi::encode(&[
+            Token::Bytes(self.data.encode().into()),
+            Token::Bytes(self.encode_proof(multisig)?.into()),
+        ]);
+
+        let input = ethabi::encode(&[Token::Bytes(param)]);
+
         let mut calldata =
             short_signature(GATEWAY_EXECUTE_FUNCTION_NAME, &[ParamType::Bytes]).to_vec();
 
-        calldata.extend(ethabi::encode(&[
-            Token::Bytes(self.data.encode().into()),
-            Token::Bytes(self.encode_proof(multisig)?.into()),
-        ]));
+        calldata.extend(input);
 
         Ok(calldata.into())
     }
@@ -386,7 +390,7 @@ mod test {
     }
 
     #[test]
-    fn test_execute_data() {
+    fn test_batch_with_proof() {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let operators = test_data::operators();
@@ -412,10 +416,18 @@ mod test {
         let execute_data = &batch.encode_execute_data(multisig).unwrap();
 
         let tokens = ethabi::decode(
-            &[ParamType::Bytes, ParamType::Bytes],
+            &[ParamType::Bytes],
             &execute_data.as_slice()[4..], // Remove the function signature
         )
         .unwrap();
+
+        let input = match tokens[0].clone() {
+            Token::Bytes(input) => input,
+            _ => panic!("Invalid proof"),
+        };
+
+        let tokens =
+            ethabi::decode(&[ParamType::Bytes, ParamType::Bytes], &input.as_slice()).unwrap();
 
         assert_eq!(
             execute_data.as_slice()[0..4],
@@ -452,6 +464,36 @@ mod test {
             }
             _ => panic!("Invalid proof"),
         }
+    }
+
+    #[test]
+    fn test_execute_data() {
+        let operators = test_data::operators();
+
+        let batch = CommandBatch {
+            id: HexBinary::from_hex("00").unwrap(),
+            message_ids: vec![],
+            data: decode_data(&test_data::encoded_data()),
+        };
+
+        let signers = operators
+            .into_iter()
+            .map(|op| Signer {
+                address: op.address,
+                weight: op.weight.into(),
+                pub_key: op.pub_key,
+                signature: op.signature,
+            })
+            .collect::<Vec<Signer>>();
+
+        let multisig = Multisig {
+            state: MultisigState::Completed,
+            quorum: Uint256::from(124679u128),
+            signers,
+        };
+
+        let res = batch.encode_execute_data(multisig).unwrap();
+        assert_eq!(res, test_data::execute_data());
     }
 
     #[test]
