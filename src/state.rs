@@ -80,8 +80,9 @@ impl Updater {
     }
 
     pub async fn run(mut self, mut state: State<'_>) -> Result<(), Error> {
-        while let Some((label, height)) = self.update_stream.next().await {
-            state.set(label, height);
+        while let Some((handler, height)) = self.update_stream.next().await {
+            info!(handler, height = height.value(), "state updated");
+            state.set(handler, height);
         }
 
         info!("persisting state to disk");

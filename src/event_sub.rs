@@ -1,5 +1,8 @@
+use std::convert::{TryFrom, TryInto};
 use std::time::Duration;
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use error_stack::{FutureExt, Report, Result};
 use error_stack::{IntoReport, ResultExt};
 use tendermint::abci;
@@ -15,7 +18,6 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
 
-use crate::event_sub::EventSubError::*;
 use crate::tm_client::TmClient;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -27,21 +29,42 @@ pub enum Event {
     },
 }
 
-impl From<abci::Event> for Event {
-    fn from(event: abci::Event) -> Self {
-        Self::Abci {
-            event_type: event.kind,
-            attributes: event
-                .attributes
-                .into_iter()
-                .map(
-                    |abci::EventAttribute { key, value, .. }| match serde_json::from_str(&value) {
-                        Ok(v) => (key, v),
-                        Err(_) => (key, value.into()),
-                    },
-                )
-                .collect(),
-        }
+fn decode_event_attribute(attribute: &abci::EventAttribute) -> Result<(String, String), EventSubError> {
+    Ok((
+        base64_to_utf8(&attribute.key).into_report()?,
+        base64_to_utf8(&attribute.value).into_report()?,
+    ))
+}
+
+fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, EventSubError> {
+    Ok(String::from_utf8(STANDARD.decode(base64_str)?)?)
+}
+
+impl TryFrom<abci::Event> for Event {
+    type Error = Report<EventSubError>;
+
+    fn try_from(event: abci::Event) -> Result<Self, EventSubError> {
+        let abci::Event {
+            kind: event_type,
+            attributes,
+        } = event;
+
+        let attributes = attributes
+            .iter()
+            .map(decode_event_attribute)
+            .map(|decoded| {
+                let (key, value) = decoded.change_context_lazy(|| EventSubError::DecodeEvent {
+                    kind: event_type.clone(),
+                })?;
+
+                match serde_json::from_str(&value) {
+                    Ok(v) => Ok((key, v)),
+                    Err(_) => Ok((key, value.into())),
+                }
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self::Abci { event_type, attributes })
     }
 }
 
@@ -51,7 +74,9 @@ pub struct EventSubClientDriver {
 
 impl EventSubClientDriver {
     pub fn close(self) -> Result<(), EventSubError> {
-        self.close_tx.send(()).map_err(|_| Report::new(CloseFailed))
+        self.close_tx
+            .send(())
+            .map_err(|_| Report::new(EventSubError::CloseFailed))
     }
 }
 
@@ -106,7 +131,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
 
     pub async fn run(mut self) -> Result<(), EventSubError> {
         match &self.tx {
-            None => Err(Report::new(NoSubscriber)),
+            None => Err(Report::new(EventSubError::NoSubscriber)),
             Some(tx) => {
                 let mut curr_block_height = match self.start_from {
                     Some(start_from) => start_from,
@@ -129,7 +154,11 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 
     async fn get_latest_block_height(&self) -> Result<block::Height, EventSubError> {
-        let res = self.client.latest_block().change_context(RPCFailed).await?;
+        let res = self
+            .client
+            .latest_block()
+            .change_context(EventSubError::RPCFailed)
+            .await?;
 
         Ok(res.block.header().height)
     }
@@ -154,11 +183,13 @@ impl<T: TmClient + Sync> EventSubClient<T> {
 
     async fn process_block(&self, tx: &Sender<Event>, height: block::Height) -> Result<(), EventSubError> {
         for event in self.query_events(height).await? {
-            tx.send(event.into()).into_report().change_context(PublishFailed)?;
+            tx.send(event.try_into()?)
+                .into_report()
+                .change_context(EventSubError::PublishFailed)?;
         }
         tx.send(Event::BlockEnd(height))
             .into_report()
-            .change_context(PublishFailed)?;
+            .change_context(EventSubError::PublishFailed)?;
 
         Ok(())
     }
@@ -167,7 +198,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
         let block_results = self
             .client
             .block_results(block_height)
-            .change_context(EventQueryFailed { block: block_height })
+            .change_context(EventSubError::EventQueryFailed { block: block_height })
             .await?;
 
         let begin_block_events = block_results.begin_block_events.into_iter().flatten();
@@ -197,6 +228,12 @@ pub enum EventSubError {
     RPCFailed,
     #[error("failed closing client")]
     CloseFailed,
+    #[error("failed decoding event {kind}")]
+    DecodeEvent { kind: String },
+    #[error("{0}")]
+    Base64(#[from] base64::DecodeError),
+    #[error("{0}")]
+    UTF8(#[from] std::string::FromUtf8Error),
 }
 
 #[cfg(test)]
@@ -204,6 +241,8 @@ mod tests {
     use std::convert::TryInto;
     use std::time::Duration;
 
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
     use futures::stream::StreamExt;
     use rand::Rng;
     use random_string::generate;
@@ -400,8 +439,8 @@ mod tests {
         abci::Event::new(
             generate(10, charset),
             vec![abci::EventAttribute {
-                key: generate(10, charset),
-                value: generate(10, charset),
+                key: STANDARD.encode(generate(10, charset)),
+                value: STANDARD.encode(generate(10, charset)),
                 index: false,
             }],
         )

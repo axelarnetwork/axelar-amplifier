@@ -158,6 +158,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryInto;
+
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
     use cosmwasm_std;
     use cosmwasm_std::HexBinary;
     use tendermint::abci;
@@ -216,9 +220,10 @@ mod tests {
             event
                 .attributes
                 .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| (key, value)),
+                .map(|cosmwasm_std::Attribute { key, value }| (STANDARD.encode(key), STANDARD.encode(value))),
         )
-        .into()
+        .try_into()
+        .unwrap()
     }
 
     #[test]

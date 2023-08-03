@@ -7,6 +7,7 @@ version = "0.1.0"
 [dependencies]
 async-trait = "0.1.59"
 axelar-wasm-std = {git = "https://github.com/axelarnetwork/axelar-amplifier.git", version = "0.1.0"}
+base64 = "0.21.2"
 clap = {version = "4.2.7", features = ["derive", "cargo"]}
 config = "0.13.2"
 connection-router = {git = "https://github.com/axelarnetwork/axelar-amplifier.git", version = "0.1.0"}
