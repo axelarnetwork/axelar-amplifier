@@ -437,7 +437,7 @@ mod test {
         };
 
         let tokens =
-            ethabi::decode(&[ParamType::Bytes, ParamType::Bytes], &input.as_slice()).unwrap();
+            ethabi::decode(&[ParamType::Bytes, ParamType::Bytes], input.as_slice()).unwrap();
 
         assert_eq!(
             execute_data.as_slice()[0..4],

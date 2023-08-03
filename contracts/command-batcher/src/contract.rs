@@ -17,7 +17,8 @@ use service_registry::state::Worker;
 use crate::{
     error::ContractError,
     events::Event,
-    msg::{ExecuteMsg, GetProofResponse, InstantiateMsg, ProofStatus, QueryMsg},
+    msg::ExecuteMsg,
+    msg::{GetProofResponse, InstantiateMsg, ProofStatus, QueryMsg},
     state::{
         Config, COMMANDS_BATCH, CONFIG, PROOF_BATCH_MULTISIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH,
     },
