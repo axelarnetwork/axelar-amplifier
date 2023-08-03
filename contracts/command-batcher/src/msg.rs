@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
-use crate::types::{Data, Proof};
+use crate::encoding::Data;
 
 #[cw_serde]
 pub enum ExecuteMsg {
@@ -28,6 +28,5 @@ pub struct GetProofResponse {
     pub proof_id: HexBinary,
     pub message_ids: Vec<String>,
     pub data: Data,
-    pub proof: Proof,
     pub status: ProofStatus,
 }
