@@ -11,8 +11,8 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{Participant, Snapshot};
 use connection_router::msg::Message;
-use multisig::{msg::GetSigningSessionResponse, types::MultisigState};
-use service_registry::msg::ActiveWorkers;
+use multisig::{msg::Multisig, types::MultisigState};
+use service_registry::state::Worker;
 
 use crate::{
     error::ContractError,
@@ -22,7 +22,7 @@ use crate::{
     state::{
         Config, COMMANDS_BATCH, CONFIG, PROOF_BATCH_MULTISIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH,
     },
-    types::{BatchID, CommandBatch, Proof, ProofID},
+    types::{BatchID, CommandBatch, ProofID},
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -49,6 +49,7 @@ pub fn instantiate(
             },
         )?,
         service_name: msg.service_name,
+        chain_name: msg.chain_name,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -162,21 +163,20 @@ pub mod execute {
     ) -> Result<Snapshot, ContractError> {
         let query_msg = service_registry::msg::QueryMsg::GetActiveWorkers {
             service_name: config.service_name.clone(),
+            chain_name: config.chain_name.to_string(),
         };
 
-        let active_workers: ActiveWorkers =
-            querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: config.service_registry.to_string(),
-                msg: to_binary(&query_msg)?,
-            }))?;
+        let active_workers: Vec<Worker> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.service_registry.to_string(),
+            msg: to_binary(&query_msg)?,
+        }))?;
 
         let participants = active_workers
-            .workers
             .into_iter()
-            .map(service_registry::state::Worker::try_into)
-            .collect::<Result<Vec<Participant>, axelar_wasm_std::nonempty::Error>>()
+            .map(Worker::try_into)
+            .collect::<Result<Vec<Participant>, service_registry::ContractError>>()
             .map_err(
-                |err: axelar_wasm_std::nonempty::Error| ContractError::InvalidParticipants {
+                |err: service_registry::ContractError| ContractError::InvalidParticipants {
                     reason: err.to_string(),
                 },
             )?
@@ -248,21 +248,21 @@ pub mod query {
 
         let batch = COMMANDS_BATCH.load(deps.storage, &batch_id)?;
 
-        let query_msg = multisig::msg::QueryMsg::GetSigningSession { session_id };
+        let query_msg = multisig::msg::QueryMsg::GetMultisig { session_id };
 
-        let session: GetSigningSessionResponse =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: config.multisig.to_string(),
-                msg: to_binary(&query_msg)?,
-            }))?;
+        let multisig: Multisig = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.multisig.to_string(),
+            msg: to_binary(&query_msg)?,
+        }))?;
 
-        let proof = Proof::new(session.snapshot, session.signatures, session.pub_keys)
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-
-        let status = match session.state {
+        let status = match multisig.state {
             MultisigState::Pending => ProofStatus::Pending,
             MultisigState::Completed => {
-                let execute_data = proof.encode_execute_data(&batch.data);
+                let execute_data = batch
+                    .encode_execute_data(multisig.quorum, multisig.signers)
+                    .map_err(|e| {
+                        StdError::generic_err(format!("failed to encode execute data: {}", e))
+                    })?;
 
                 ProofStatus::Completed { execute_data }
             }
@@ -272,7 +272,6 @@ pub mod query {
             proof_id,
             message_ids: batch.message_ids,
             data: batch.data,
-            proof,
             status,
         })
     }
@@ -280,10 +279,15 @@ pub mod query {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
+    use connection_router::types::ChainName;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        Uint256, Uint64,
+        Fraction, Uint256,
     };
+
+    use crate::test::test_data;
 
     use super::*;
 
@@ -294,7 +298,10 @@ mod test {
         let multisig_address = "multisig_address";
         let service_registry_address = "service_registry_address";
         let destination_chain_id = Uint256::one();
-        let signing_threshold = (Uint64::from(3u64), Uint64::from(5u64));
+        let signing_threshold = (
+            test_data::threshold().numerator(),
+            test_data::threshold().denominator(),
+        );
         let service_name = "service_name";
 
         let mut deps = mock_dependencies();
@@ -308,6 +315,7 @@ mod test {
             destination_chain_id,
             signing_threshold,
             service_name: service_name.to_string(),
+            chain_name: ChainName::from_str("ethereum").unwrap(),
         };
 
         let res = instantiate(deps.as_mut(), env, info, msg);

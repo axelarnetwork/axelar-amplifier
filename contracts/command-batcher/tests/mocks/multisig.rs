@@ -2,7 +2,7 @@ use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint64,
 };
 use multisig::{
-    msg::{ExecuteMsg, GetSigningSessionResponse, InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     types::MultisigState,
 };
 
@@ -41,52 +41,33 @@ pub fn execute(
 
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetSigningSession { session_id: _ } => to_binary(&query::query_success()),
+        QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
     }
 }
 
 mod query {
-    use axelar_wasm_std::{nonempty, Participant, Snapshot};
-    use cosmwasm_std::Timestamp;
+    use multisig::msg::{Multisig, Signer};
 
     use super::*;
 
-    pub fn query_success() -> GetSigningSessionResponse {
+    pub fn query_success() -> Multisig {
         let operators = test_data::operators();
+        let quorum = test_data::quorum();
 
-        let timestamp: nonempty::Timestamp = Timestamp::from_nanos(1).try_into().unwrap();
-        let height = nonempty::Uint64::try_from(test_data::block_height()).unwrap();
-
-        let threshold = test_data::threshold();
-
-        let participants = operators
-            .iter()
-            .map(|op| Participant {
-                address: op.address.clone(),
-                weight: op.weight.try_into().unwrap(),
+        let signers = operators
+            .into_iter()
+            .map(|op| Signer {
+                address: op.address,
+                weight: op.weight.into(),
+                pub_key: op.pub_key,
+                signature: op.signature,
             })
-            .collect::<Vec<Participant>>()
-            .try_into()
-            .unwrap();
+            .collect::<Vec<Signer>>();
 
-        let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
-
-        let signatures = operators
-            .iter()
-            .filter(|op| op.signature.is_some())
-            .map(|op| (op.address.to_string(), op.signature.clone().unwrap()))
-            .collect();
-
-        let pub_keys = operators
-            .iter()
-            .map(|op| (op.address.to_string(), op.pub_key.clone()))
-            .collect();
-
-        GetSigningSessionResponse {
+        Multisig {
             state: MultisigState::Completed,
-            signatures,
-            snapshot,
-            pub_keys,
+            quorum,
+            signers,
         }
     }
 }

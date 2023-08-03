@@ -107,20 +107,24 @@ fn test_query_proof() {
 
     assert_eq!(res.proof_id.to_string(), PROOF_ID);
     assert_eq!(res.message_ids.len(), 2);
-    assert_eq!(res.proof.encode(), test_data::encoded_proof());
     match res.status {
         ProofStatus::Completed { execute_data } => {
-            let tokens = ethabi::decode(
-                &[ParamType::Bytes, ParamType::Bytes],
-                execute_data.as_slice(),
-            )
-            .unwrap();
+            let tokens =
+                ethabi::decode(&[ParamType::Bytes], &execute_data.as_slice()[4..]).unwrap();
+
+            let input = match tokens[0].clone() {
+                Token::Bytes(input) => input,
+                _ => panic!("Invalid proof"),
+            };
+
+            let tokens =
+                ethabi::decode(&[ParamType::Bytes, ParamType::Bytes], input.as_slice()).unwrap();
 
             assert_eq!(
                 tokens,
                 vec![
                     Token::Bytes(res.data.encode().to_vec()),
-                    Token::Bytes(res.proof.encode().to_vec())
+                    Token::Bytes(test_data::encoded_proof().to_vec())
                 ]
             );
         } // TODO: Check execute data

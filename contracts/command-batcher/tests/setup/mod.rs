@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use connection_router::types::ChainName;
 use cosmwasm_std::{Addr, Coin, Empty, Fraction, Uint128};
 use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
@@ -93,7 +96,9 @@ fn contract_service_registry() -> Box<dyn Contract<Empty>> {
 
 fn instantiate_mock_service_registry(app: &mut App) -> Addr {
     let code_id = app.store_code(contract_service_registry());
-    let msg = service_registry::msg::InstantiateMsg {};
+    let msg = service_registry::msg::InstantiateMsg {
+        governance_account: "governance".to_string(),
+    };
 
     app.instantiate_contract(
         code_id,
@@ -133,6 +138,7 @@ fn instantiate_prover(
             test_data::threshold().denominator(),
         ),
         service_name: "service-name".to_string(),
+        chain_name: ChainName::from_str("Ethereum").unwrap(),
     };
 
     app.instantiate_contract(

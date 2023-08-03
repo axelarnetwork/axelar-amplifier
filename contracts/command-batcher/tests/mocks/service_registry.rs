@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use service_registry::{
-    msg::{ActiveWorkers, ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{Worker, WorkerState},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    state::{AuthorizationState, BondingState, Worker},
 };
 
 use super::test_data;
@@ -28,19 +28,23 @@ pub fn execute(
 
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetActiveWorkers { service_name } => {
+        QueryMsg::GetActiveWorkers {
+            service_name,
+            chain_name: _,
+        } => {
             let workers = test_data::operators()
                 .into_iter()
                 .map(|op| Worker {
                     address: op.address,
-                    stake: op.weight.try_into().unwrap(),
-                    commission_rate: Uint128::zero(),
-                    state: WorkerState::Active,
+                    bonding_state: BondingState::Bonded {
+                        amount: op.weight.try_into().unwrap(),
+                    },
+                    authorization_state: AuthorizationState::Authorized,
                     service_name: service_name.clone(),
                 })
-                .collect();
+                .collect::<Vec<Worker>>();
 
-            to_binary(&ActiveWorkers { workers })
+            to_binary(&workers)
         }
     }
 }

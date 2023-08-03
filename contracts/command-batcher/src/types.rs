@@ -76,6 +76,7 @@ pub struct CommandBatch {
 }
 
 #[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
 pub struct Operator {
     pub address: HexBinary,
     pub weight: Uint256,
@@ -131,10 +132,4 @@ impl ProofID {
 
         hasher.finalize().as_slice().into()
     }
-}
-
-#[cw_serde]
-pub struct Proof {
-    pub operators: Vec<Operator>,
-    pub threshold: Uint256,
 }

@@ -1,4 +1,5 @@
 use axelar_wasm_std::Threshold;
+use connection_router::types::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
 use cw_storage_plus::{Item, Map};
@@ -14,6 +15,7 @@ pub struct Config {
     pub destination_chain_id: Uint256,
     pub signing_threshold: Threshold,
     pub service_name: String,
+    pub chain_name: ChainName,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

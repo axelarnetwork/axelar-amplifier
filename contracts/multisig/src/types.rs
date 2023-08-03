@@ -54,6 +54,7 @@ impl MsgToSign {
 }
 
 #[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
 pub struct Signature(HexBinary);
 
 impl From<Signature> for HexBinary {
