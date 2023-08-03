@@ -1,21 +1,23 @@
 use std::pin::Pin;
 use std::time::Duration;
 
-use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmos_sdk_proto::cosmos::{auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient};
 use error_stack::Result;
+use evm::EvmChainConfig;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 use tonic::transport::Channel;
 use tracing::info;
 
-use broadcaster::key::ECDSASigningKey;
 use broadcaster::Broadcaster;
+use broadcaster::{accounts::account, key::ECDSASigningKey};
 use event_processor::EventProcessor;
 use event_sub::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::State;
+use types::TMAddress;
 
 use crate::config::Config;
 
@@ -37,19 +39,27 @@ mod url;
 type HandlerStream = Pin<Box<dyn Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send>>;
 
 pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
-    let tm_client = tendermint_rpc::HttpClient::new(cfg.tm_url.to_string().as_str()).map_err(Error::new)?;
-    let broadcaster = broadcaster::BroadcasterBuilder::new(
-        ServiceClient::connect(cfg.tm_url.to_string())
-            .await
-            .map_err(Error::new)?,
-        // TODO: load the private key properly
-        cfg.private_key.clone(),
-        cfg.broadcast.clone(),
-    )
-    .build();
+    let Config {
+        tm_url,
+        broadcast,
+        evm_chains,
+        tofnd_config: _tofnd_config,
+        private_key,
+    } = cfg;
+
+    let tm_client = tendermint_rpc::HttpClient::new(tm_url.to_string().as_str()).map_err(Error::new)?;
+    let service_client = ServiceClient::connect(tm_url.to_string()).await.map_err(Error::new)?;
+    let query_client = QueryClient::connect(tm_url.to_string()).await.map_err(Error::new)?;
+
+    let worker = private_key.address();
+    let account = account(query_client, &worker).await.map_err(Error::new)?;
+    let broadcaster = broadcaster::BroadcasterBuilder::new(service_client, private_key, broadcast)
+        .acc_number(account.account_number)
+        .acc_sequence(account.sequence)
+        .build();
 
     App::new(tm_client, broadcaster, state)
-        .configure(cfg)
+        .configure_evm_chains(worker, evm_chains)
         .await?
         .run()
         .await
@@ -94,10 +104,16 @@ impl<'a> App<'a> {
         }
     }
 
-    async fn configure(mut self, cfg: Config) -> Result<App<'a>, Error> {
-        for config in cfg.evm_chain_configs {
+    async fn configure_evm_chains(
+        mut self,
+        worker: TMAddress,
+        evm_chains: Vec<EvmChainConfig>,
+    ) -> Result<App<'a>, Error> {
+        for config in evm_chains {
             let label = format!("{}-confirm-gateway-tx-handler", config.name);
             let handler = handlers::evm_verify_msg::Handler::new(
+                worker.clone(),
+                config.voting_verifier,
                 config.name,
                 evm::json_rpc::Client::new_http(&config.rpc_url).map_err(Error::new)?,
                 self.broadcaster.client(),
@@ -120,16 +136,21 @@ impl<'a> App<'a> {
     }
 
     async fn run(self) -> Result<(), Error> {
-        let client = self.event_sub_client;
-        let processor = self.event_processor;
-        let broadcaster = self.broadcaster;
-        let event_sub_driver = self.event_sub_driver;
+        let Self {
+            event_sub_client,
+            event_processor,
+            broadcaster,
+            event_sub_driver,
+            state_updater,
+            state,
+            ..
+        } = self;
 
-        let event_sub_handle = tokio::spawn(async move { client.run().await });
-        let event_processor_handle = tokio::spawn(async move { processor.run().await });
-        let broadcaster_handler = tokio::spawn(async move { broadcaster.run().await });
+        let event_sub_handle = tokio::spawn(event_sub_client.run());
+        let event_processor_handle = tokio::spawn(event_processor.run());
+        let broadcaster_handler = tokio::spawn(broadcaster.run());
 
-        tokio::spawn(async move {
+        tokio::spawn(async {
             let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
             let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");
 
@@ -143,7 +164,7 @@ impl<'a> App<'a> {
             event_sub_driver.close()
         });
 
-        self.state_updater.run(self.state).await.map_err(Error::new)?;
+        state_updater.run(state).await.map_err(Error::new)?;
 
         event_sub_handle.await.map_err(Error::new)?.map_err(Error::new)?;
         event_processor_handle.await.map_err(Error::new)?.map_err(Error::new)?;

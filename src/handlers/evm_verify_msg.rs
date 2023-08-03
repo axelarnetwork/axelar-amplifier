@@ -2,10 +2,13 @@ use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use axelar_wasm_std::voting::PollID;
+use cosmrs::cosmwasm::MsgExecuteContract;
+use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::de::value::MapDeserializer;
 use serde::Deserialize;
+use voting_verifier::msg::ExecuteMsg;
 
 use crate::deserializers::from_str;
 use crate::event_processor::EventHandler;
@@ -33,14 +36,14 @@ pub struct Message {
 
 #[derive(Deserialize, Debug)]
 struct Event {
-    #[allow(dead_code)]
+    #[serde(rename = "_contract_address")]
+    contract_address: TMAddress,
     poll_id: PollID,
     #[serde(deserialize_with = "from_str")]
     source_chain: connection_router::types::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     messages: Vec<Message>,
-    #[allow(dead_code)]
     participants: Vec<TMAddress>,
 }
 
@@ -60,9 +63,10 @@ where
     C: EthereumClient,
     B: BroadcasterClient,
 {
+    worker: TMAddress,
+    voting_verifier: TMAddress,
     chain: ChainName,
     rpc_client: C,
-    #[allow(dead_code)]
     broadcast_client: B,
 }
 
@@ -71,8 +75,16 @@ where
     C: EthereumClient + Send + Sync,
     B: BroadcasterClient,
 {
-    pub fn new(chain: ChainName, rpc_client: C, broadcast_client: B) -> Self {
+    pub fn new(
+        worker: TMAddress,
+        voting_verifier: TMAddress,
+        chain: ChainName,
+        rpc_client: C,
+        broadcast_client: B,
+    ) -> Self {
         Self {
+            worker,
+            voting_verifier,
             chain,
             rpc_client,
             broadcast_client,
@@ -114,6 +126,25 @@ where
         })
         .collect())
     }
+
+    async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
+        let msg = serde_json::to_vec(&ExecuteMsg::Vote {
+            poll_id: poll_id.into(),
+            votes,
+        })
+        .expect("vote msg should serialize");
+        let tx = MsgExecuteContract {
+            sender: self.worker.clone(),
+            contract: self.voting_verifier.clone(),
+            msg,
+            funds: vec![],
+        };
+
+        self.broadcast_client
+            .broadcast(tx)
+            .await
+            .change_context(Error::Broadcaster)
+    }
 }
 
 #[async_trait]
@@ -126,24 +157,34 @@ where
 
     async fn handle(&self, event: &event_sub::Event) -> Result<()> {
         let Event {
+            contract_address,
+            poll_id,
             source_chain,
             source_gateway_address,
             messages,
             confirmation_height,
-            ..
+            participants,
         } = match event.into() {
             Some(event) => event,
             None => return Ok(()),
         };
 
+        if self.voting_verifier != contract_address {
+            return Ok(());
+        }
+
         if self.chain != source_chain {
+            return Ok(());
+        }
+
+        if !participants.contains(&self.worker) {
             return Ok(());
         }
 
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let finalized_tx_receipts = self.finalized_tx_receipts(tx_hashes, confirmation_height).await?;
 
-        let _votes: Vec<_> = messages
+        let votes: Vec<_> = messages
             .iter()
             .map(|msg| {
                 finalized_tx_receipts.get(&msg.tx_id).map_or(false, |tx_receipt| {
@@ -152,7 +193,7 @@ where
             })
             .collect();
 
-        todo!()
+        self.broadcast_votes(poll_id, votes).await
     }
 }
 
@@ -214,6 +255,10 @@ mod tests {
         };
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
+        event = event.add_attribute(
+            "_contract_address",
+            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
+        );
 
         abci::Event::new(
             event.ty,

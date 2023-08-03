@@ -6,6 +6,7 @@ use ethers::types::U64;
 use serde::de::{self, Deserializer};
 use serde::Deserialize;
 
+use crate::types::TMAddress;
 use crate::url::Url;
 
 pub mod error;
@@ -47,6 +48,7 @@ pub struct EvmChainConfig {
     pub name: ChainName,
     pub rpc_url: Url,
     pub l1_chain_name: Option<ChainName>,
+    pub voting_verifier: TMAddress,
 }
 
 pub fn deserialize_evm_chain_configs<'de, D>(deserializer: D) -> core::result::Result<Vec<EvmChainConfig>, D::Error>

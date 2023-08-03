@@ -1,4 +1,5 @@
 use crate::broadcaster::clients::AccountQueryClient;
+use crate::types::TMAddress;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
 use cosmos_sdk_proto::traits::Message;
 use error_stack::{FutureExt, IntoReport, Result, ResultExt};
@@ -7,20 +8,20 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to retrieve the account information for address {address}")]
-    ResponseFailed { address: String },
+    ResponseFailed { address: TMAddress },
     #[error("address {address} is unknown")]
-    AccountNotFound { address: String },
+    AccountNotFound { address: TMAddress },
     #[error("received response could not be decoded")]
     MalformedResponse,
 }
 
-pub async fn account<T>(mut client: T, address: String) -> Result<BaseAccount, Error>
+pub async fn account<T>(mut client: T, address: &TMAddress) -> Result<BaseAccount, Error>
 where
     T: AccountQueryClient,
 {
     let response = client
         .account(QueryAccountRequest {
-            address: address.clone(),
+            address: address.to_string(),
         })
         .change_context_lazy(|| Error::ResponseFailed {
             address: address.clone(),
@@ -29,7 +30,7 @@ where
 
     let account = response
         .account
-        .ok_or(Error::AccountNotFound {
+        .ok_or_else(|| Error::AccountNotFound {
             address: address.clone(),
         })
         .into_report()
@@ -49,6 +50,7 @@ mod tests {
     use crate::broadcaster::accounts::Error::*;
 
     use crate::broadcaster::clients::MockAccountQueryClient;
+    use crate::broadcaster::key::ECDSASigningKey;
     use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
     use cosmos_sdk_proto::cosmos::auth::v1beta1::QueryAccountResponse;
     use cosmos_sdk_proto::traits::MessageExt;
@@ -64,10 +66,10 @@ mod tests {
             .expect_account()
             .returning(|_| Err(Status::aborted("aborted")).into_report());
 
-        let address = String::from("some_address");
+        let address = ECDSASigningKey::random().address();
 
         assert!(matches!(
-            account(client, address).await.unwrap_err().current_context(),
+            account(client, &address).await.unwrap_err().current_context(),
             ResponseFailed { address: _ }
         ));
     }
@@ -79,10 +81,10 @@ mod tests {
             .expect_account()
             .returning(|_| Ok(QueryAccountResponse { account: None }));
 
-        let address = String::from("some_address");
+        let address = ECDSASigningKey::random().address();
 
         assert!(matches!(
-            account(client, address).await.unwrap_err().current_context(),
+            account(client, &address).await.unwrap_err().current_context(),
             AccountNotFound { address: _ }
         ));
     }
@@ -99,19 +101,19 @@ mod tests {
             })
         });
 
-        let address = String::from("some_address");
+        let address = ECDSASigningKey::random().address();
 
         assert!(matches!(
-            account(client, address).await.unwrap_err().current_context(),
+            account(client, &address).await.unwrap_err().current_context(),
             MalformedResponse
         ));
     }
 
     #[test]
     async fn get_existing_account() {
-        let address = String::from("some_address");
+        let address = ECDSASigningKey::random().address();
         let acc = BaseAccount {
-            address: address.clone(),
+            address: address.to_string(),
             pub_key: None,
             account_number: 7,
             sequence: 20,
@@ -125,6 +127,6 @@ mod tests {
             })
         });
 
-        assert_eq!(account(client, address.clone()).await.unwrap(), acc);
+        assert_eq!(account(client, &address).await.unwrap(), acc);
     }
 }

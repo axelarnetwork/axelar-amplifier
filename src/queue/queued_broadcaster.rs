@@ -2,7 +2,7 @@ use std::iter;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use cosmrs::{Any, Gas};
+use cosmrs::{tx::Msg, Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use thiserror::Error;
 use tokio::time;
@@ -19,6 +19,8 @@ pub enum Error {
     EstimateFee,
     #[error("failed broadcasting messages in queue")]
     Broadcast,
+    #[error("failed encoding message to Protobuf Any {0}")]
+    Proto(String),
 }
 
 pub struct QueuedBroadcasterDriver {
@@ -38,7 +40,9 @@ impl QueuedBroadcasterDriver {
 
 #[async_trait]
 pub trait BroadcasterClient {
-    async fn broadcast(&self, tx: Any) -> Result;
+    async fn broadcast<T>(&self, tx: T) -> Result
+    where
+        T: Msg + Send + Sync;
 }
 
 pub struct QueuedBroadcasterClient {
@@ -47,8 +51,17 @@ pub struct QueuedBroadcasterClient {
 
 #[async_trait]
 impl BroadcasterClient for QueuedBroadcasterClient {
-    async fn broadcast(&self, tx: Any) -> Result {
-        self.sender.send(tx).await.map_err(|_| Report::new(Error::Broadcast))
+    async fn broadcast<T>(&self, tx: T) -> Result
+    where
+        T: Msg + Send + Sync,
+    {
+        self.sender
+            .send(
+                tx.into_any()
+                    .map_err(|err| Report::new(Error::Proto(err.to_string())))?,
+            )
+            .await
+            .map_err(|_| Report::new(Error::Broadcast))
     }
 }
 
@@ -154,7 +167,6 @@ mod test {
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
-    use cosmos_sdk_proto::Any;
     use cosmrs::bank::MsgSend;
     use cosmrs::tx::Msg;
     use tokio::test;
@@ -382,13 +394,11 @@ mod test {
         assert!(handler.await.is_ok());
     }
 
-    fn dummy_msg() -> Any {
+    fn dummy_msg() -> impl Msg {
         MsgSend {
             from_address: TMAddress::new("", &[1, 2, 3]).unwrap(),
             to_address: TMAddress::new("", &[4, 5, 6]).unwrap(),
             amount: vec![],
         }
-        .to_any()
-        .unwrap()
     }
 }

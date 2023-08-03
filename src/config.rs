@@ -12,7 +12,7 @@ pub struct Config {
     pub tm_url: Url,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_evm_chain_configs")]
-    pub evm_chain_configs: Vec<EvmChainConfig>,
+    pub evm_chains: Vec<EvmChainConfig>,
     pub tofnd_config: TofndConfig,
     #[serde(with = "hex")]
     pub private_key: ECDSASigningKey,
@@ -23,7 +23,7 @@ impl Default for Config {
         Self {
             tm_url: "tcp://localhost:26657".parse().unwrap(),
             broadcast: broadcaster::Config::default(),
-            evm_chain_configs: vec![],
+            evm_chains: vec![],
             tofnd_config: TofndConfig::default(),
             private_key: ECDSASigningKey::random(),
         }
@@ -34,28 +34,31 @@ impl Default for Config {
 mod tests {
     use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::OsRng;
 
-    use crate::evm::ChainName;
+    use crate::{broadcaster::key::ECDSASigningKey, evm::ChainName};
 
     use super::Config;
 
     #[test]
     fn deserialize_evm_configs() {
         let rpc_url = "http://localhost:7545/";
+        let voting_verifier = ECDSASigningKey::random().address();
+
         let config_str = format!(
             "
-            [[evm_chain_configs]]
+            [[evm_chains]]
             name = 'Ethereum'
-            rpc_url = '{}'
+            rpc_url = '{rpc_url}'
+            voting_verifier = '{voting_verifier}'
             ",
-            rpc_url
         );
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
 
-        assert_eq!(cfg.evm_chain_configs.len(), 1);
-        let actual = cfg.evm_chain_configs.get(0).unwrap();
+        assert_eq!(cfg.evm_chains.len(), 1);
+        let actual = cfg.evm_chains.get(0).unwrap();
         assert_eq!(actual.name, ChainName::Ethereum);
         assert_eq!(actual.rpc_url.as_str(), rpc_url);
         assert_eq!(actual.l1_chain_name, None);
+        assert_eq!(actual.voting_verifier, voting_verifier);
     }
 
     #[test]
