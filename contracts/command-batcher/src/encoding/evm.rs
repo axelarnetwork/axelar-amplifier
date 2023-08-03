@@ -66,7 +66,7 @@ impl CommandBatch {
             destination_chain_id,
             commands: messages
                 .into_iter()
-                .map(|msg| msg.try_into())
+                .map(TryInto::try_into)
                 .collect::<Result<Vec<Command>, ContractError>>()?,
         };
 
@@ -194,7 +194,7 @@ fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
 fn sorted_operators(signers: Vec<Signer>) -> Result<Vec<Operator>, ContractError> {
     let mut operators = signers
         .into_iter()
-        .map(|signer| signer.try_into())
+        .map(TryInto::try_into)
         .collect::<Result<Vec<Operator>, ContractError>>()?;
     operators.sort();
 
