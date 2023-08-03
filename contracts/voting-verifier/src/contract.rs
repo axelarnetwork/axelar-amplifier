@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 use connection_router::state;
@@ -72,8 +72,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let messages = messages
                 .into_iter()
                 .map(state::Message::try_from)
-                .collect::<Result<Vec<state::Message>, connection_router::ContractError>>()
-                .map_err(|e| StdError::generic_err(e.to_string()))?;
+                .collect::<Result<Vec<state::Message>, _>>()?;
 
             to_binary(&query::verification_statuses(deps, messages)?)
         }

@@ -38,3 +38,9 @@ pub enum ContractError {
     #[error("source chain does not match registered gateway")]
     WrongSourceChain {},
 }
+
+impl From<ContractError> for StdError {
+    fn from(value: ContractError) -> Self {
+        Self::generic_err(value.to_string())
+    }
+}
