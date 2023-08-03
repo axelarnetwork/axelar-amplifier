@@ -18,3 +18,4 @@ gateway = { version = "0.1.0", path = "./contracts/gateway" }
 connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
 aggregate-verifier = { version = "0.1.0", path = "./contracts/aggregate-verifier"}
 axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
+multisig = { version = "0.1.0", path = "./contracts/multisig"}
