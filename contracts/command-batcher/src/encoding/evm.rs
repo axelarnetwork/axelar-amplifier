@@ -5,7 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, short_signature, ParamType, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
-use multisig::msg::{Multisig, Signer};
+use multisig::msg::Signer;
 use sha3::{Digest, Keccak256};
 
 use crate::{
@@ -39,6 +39,18 @@ impl TryFrom<Message> for Command {
                 })?,
             ),
             id: command_id(msg.id),
+        })
+    }
+}
+
+impl TryFrom<Signer> for Operator {
+    type Error = ContractError;
+
+    fn try_from(signer: Signer) -> Result<Self, Self::Error> {
+        Ok(Self {
+            address: evm_address((&signer.pub_key).into())?,
+            weight: signer.weight,
+            signature: signer.signature,
         })
     }
 }
@@ -80,10 +92,14 @@ impl CommandBatch {
         Keccak256::digest(unsigned).as_slice().into()
     }
 
-    pub fn encode_execute_data(&self, multisig: Multisig) -> Result<HexBinary, ContractError> {
+    pub fn encode_execute_data(
+        &self,
+        quorum: Uint256,
+        signers: Vec<Signer>,
+    ) -> Result<HexBinary, ContractError> {
         let param = ethabi::encode(&[
             Token::Bytes(self.data.encode().into()),
-            Token::Bytes(self.encode_proof(multisig)?.into()),
+            Token::Bytes(self.encode_proof(quorum, signers)?.into()),
         ]);
 
         let input = ethabi::encode(&[Token::Bytes(param)]);
@@ -96,8 +112,12 @@ impl CommandBatch {
         Ok(calldata.into())
     }
 
-    fn encode_proof(&self, multisig: Multisig) -> Result<HexBinary, ContractError> {
-        let operators = sorted_operators(multisig.signers)?;
+    fn encode_proof(
+        &self,
+        quorum: Uint256,
+        signers: Vec<Signer>,
+    ) -> Result<HexBinary, ContractError> {
+        let operators = sorted_operators(signers)?;
 
         let (addresses, weights, signatures) = operators.iter().fold(
             (vec![], vec![], vec![]),
@@ -117,14 +137,12 @@ impl CommandBatch {
             },
         );
 
-        let threshold = Token::Uint(ethereum_types::U256::from_big_endian(
-            &multisig.quorum.to_be_bytes(),
-        ));
+        let quorum = Token::Uint(ethereum_types::U256::from_big_endian(&quorum.to_be_bytes()));
 
         Ok(ethabi::encode(&[
             Token::Array(addresses),
             Token::Array(weights),
-            threshold,
+            quorum,
             Token::Array(signatures),
         ])
         .into())
@@ -176,15 +194,9 @@ fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
 fn sorted_operators(signers: Vec<Signer>) -> Result<Vec<Operator>, ContractError> {
     let mut operators = signers
         .into_iter()
-        .map(|signer| {
-            Ok(Operator {
-                address: evm_address((&signer.pub_key).into())?,
-                weight: signer.weight,
-                signature: signer.signature,
-            })
-        })
+        .map(|signer| signer.try_into())
         .collect::<Result<Vec<Operator>, ContractError>>()?;
-    operators.sort_by(|a, b| a.address.cmp(&b.address));
+    operators.sort();
 
     Ok(operators)
 }
@@ -220,10 +232,8 @@ fn batch_id(message_ids: &[String]) -> HexBinary {
 
 #[cfg(test)]
 mod test {
-    use ethabi::ParamType;
-    use multisig::types::MultisigState;
-
     use crate::test::test_data;
+    use ethabi::ParamType;
 
     use super::*;
 
@@ -394,6 +404,7 @@ mod test {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let operators = test_data::operators();
+        let quorum = test_data::quorum();
 
         let batch = CommandBatch::new(messages, destination_chain_id).unwrap();
 
@@ -407,13 +418,7 @@ mod test {
             })
             .collect::<Vec<Signer>>();
 
-        let multisig = Multisig {
-            state: MultisigState::Completed,
-            quorum: Uint256::from(124679u128),
-            signers,
-        };
-
-        let execute_data = &batch.encode_execute_data(multisig).unwrap();
+        let execute_data = &batch.encode_execute_data(quorum, signers).unwrap();
 
         let tokens = ethabi::decode(
             &[ParamType::Bytes],
@@ -469,6 +474,7 @@ mod test {
     #[test]
     fn test_execute_data() {
         let operators = test_data::operators();
+        let quorum = test_data::quorum();
 
         let batch = CommandBatch {
             id: HexBinary::from_hex("00").unwrap(),
@@ -486,13 +492,7 @@ mod test {
             })
             .collect::<Vec<Signer>>();
 
-        let multisig = Multisig {
-            state: MultisigState::Completed,
-            quorum: Uint256::from(124679u128),
-            signers,
-        };
-
-        let res = batch.encode_execute_data(multisig).unwrap();
+        let res = batch.encode_execute_data(quorum, signers).unwrap();
         assert_eq!(res, test_data::execute_data());
     }
 
@@ -541,5 +541,48 @@ mod test {
         let expected_msg = test_data::msg_to_sign();
 
         assert_eq!(res, expected_msg);
+    }
+
+    #[test]
+    fn test_sorted_operators() {
+        let mut operators = test_data::operators();
+
+        let (operator1, operator2, operator3) = (
+            operators.remove(0),
+            operators.remove(0),
+            operators.remove(0),
+        );
+
+        let signers = vec![
+            Signer {
+                address: operator2.address,
+                weight: operator2.weight,
+                pub_key: operator2.pub_key,
+                signature: operator2.signature,
+            },
+            Signer {
+                address: operator1.address,
+                weight: operator1.weight,
+                pub_key: operator1.pub_key,
+                signature: operator1.signature,
+            },
+            Signer {
+                address: operator3.address,
+                weight: operator3.weight,
+                pub_key: operator3.pub_key,
+                signature: operator3.signature,
+            },
+        ];
+
+        let operators = sorted_operators(signers).unwrap();
+
+        assert_eq!(
+            operators[0].address.cmp(&operators[1].address),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            operators[1].address.cmp(&operators[2].address),
+            std::cmp::Ordering::Less
+        );
     }
 }

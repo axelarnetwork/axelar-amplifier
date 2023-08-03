@@ -34,6 +34,7 @@ pub struct CommandBatch {
 }
 
 #[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
 pub struct Operator {
     pub address: HexBinary,
     pub weight: Uint256,

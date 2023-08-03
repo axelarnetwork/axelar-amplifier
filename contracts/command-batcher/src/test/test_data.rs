@@ -194,3 +194,7 @@ pub fn operators() -> Vec<TestOperator> {
     })
     .collect()
 }
+
+pub fn quorum() -> Uint256 {
+    124679u128.into()
+}
