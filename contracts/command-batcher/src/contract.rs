@@ -67,19 +67,23 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
-        ExecuteMsg::RotateSnapshot { pub_keys } => {
-            execute::rotate_snapshot(deps, env, info, pub_keys)
+        ExecuteMsg::RotateSnapshot { pub_keys, key_id } => {
+            execute::rotate_snapshot(deps, env, info, pub_keys, key_id)
         }
     }
 }
 
 pub mod execute {
+    use crate::state::KEY_ID;
+
     use super::*;
 
     pub fn construct_proof(
         deps: DepsMut,
         message_ids: Vec<String>,
     ) -> Result<Response, ContractError> {
+        let key_id = KEY_ID.load(deps.storage)?;
+
         let config = CONFIG.load(deps.storage)?;
 
         let query = gateway::msg::QueryMsg::GetMessages { message_ids };
@@ -113,7 +117,7 @@ pub mod execute {
         REPLY_ID_TO_BATCH.save(deps.storage, reply_id, &command_batch.id)?;
 
         let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-            key_id: config.service_name,
+            key_id,
             msg: command_batch.msg_to_sign(),
         };
 
@@ -127,7 +131,10 @@ pub mod execute {
         env: Env,
         info: MessageInfo,
         pub_keys: HashMap<String, HexBinary>,
+        key_id: String,
     ) -> Result<Response, ContractError> {
+        KEY_ID.save(deps.storage, &key_id)?;
+
         let config = CONFIG.load(deps.storage)?;
         if config.admin != info.sender {
             return Err(ContractError::Unauthorized {});
@@ -144,7 +151,7 @@ pub mod execute {
         }
 
         let keygen_msg = multisig::msg::ExecuteMsg::KeyGen {
-            key_id: config.service_name,
+            key_id,
             snapshot,
             pub_keys,
         };

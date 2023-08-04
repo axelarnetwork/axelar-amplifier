@@ -19,6 +19,7 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
+pub const KEY_ID: Item<String> = Item::new("key_id");
 pub const COMMANDS_BATCH: Map<&BatchID, CommandBatch> = Map::new("command_batch");
 pub const PROOF_BATCH_MULTISIG: Map<&ProofID, (BatchID, Uint64)> =
     Map::new("batch_multisig_session");

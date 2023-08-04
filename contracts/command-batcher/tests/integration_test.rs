@@ -20,6 +20,7 @@ const PROOF_ID: &str = "95eff19658ffef7099536bbff91d83e7fb17aa16aabaeb32b905417a
 fn execute_key_gen(
     test_case: &mut TestCaseConfig,
     pub_keys: Option<HashMap<String, HexBinary>>,
+    key_id: Option<String>,
 ) -> Result<AppResponse, Error> {
     let pub_keys = match pub_keys {
         Some(keys) => keys,
@@ -29,7 +30,12 @@ fn execute_key_gen(
             .collect::<HashMap<String, HexBinary>>(),
     };
 
-    let msg = ExecuteMsg::RotateSnapshot { pub_keys };
+    let key_id = match key_id {
+        Some(id) => id,
+        None => "key_id".to_string(),
+    };
+
+    let msg = ExecuteMsg::RotateSnapshot { pub_keys, key_id };
     test_case.app.execute_contract(
         test_case.admin.clone(),
         test_case.prover_address.clone(),
@@ -77,7 +83,7 @@ fn query_get_proof(
 #[test]
 fn test_key_gen() {
     let mut test_case = setup_test_case();
-    let res = execute_key_gen(&mut test_case, None);
+    let res = execute_key_gen(&mut test_case, None, None);
 
     assert!(res.is_ok());
 }
@@ -85,7 +91,7 @@ fn test_key_gen() {
 #[test]
 fn test_construct_proof() {
     let mut test_case = setup_test_case();
-    execute_key_gen(&mut test_case, None).unwrap();
+    execute_key_gen(&mut test_case, None, None).unwrap();
 
     let res = execute_construct_proof(&mut test_case, None).unwrap();
 
@@ -100,7 +106,7 @@ fn test_construct_proof() {
 #[test]
 fn test_query_proof() {
     let mut test_case = setup_test_case();
-    execute_key_gen(&mut test_case, None).unwrap();
+    execute_key_gen(&mut test_case, None, None).unwrap();
     execute_construct_proof(&mut test_case, None).unwrap();
 
     let res = query_get_proof(&mut test_case, None).unwrap();

@@ -26,6 +26,7 @@ pub enum ExecuteMsg {
     },
     RotateSnapshot {
         pub_keys: HashMap<String, HexBinary>,
+        key_id: String,
     },
 }
 
