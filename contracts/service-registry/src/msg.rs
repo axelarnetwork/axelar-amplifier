@@ -17,6 +17,7 @@ pub enum ExecuteMsg {
         min_num_workers: u16,
         max_num_workers: Option<u16>,
         min_worker_bond: Uint128,
+        bond_denom: String,
         unbonding_period_days: u16, // number of days to wait after starting unbonding before allowed to claim stake
         description: String,
     },

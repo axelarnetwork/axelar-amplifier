@@ -16,8 +16,6 @@ const CONTRACT_NAME: &str = "crates.io:service-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 */
 
-pub const AXL_DENOMINATION: &str = "uaxl";
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -48,6 +46,7 @@ pub fn execute(
             min_num_workers,
             max_num_workers,
             min_worker_bond,
+            bond_denom,
             unbonding_period_days,
             description,
         } => {
@@ -59,6 +58,7 @@ pub fn execute(
                 min_num_workers,
                 max_num_workers,
                 min_worker_bond,
+                bond_denom,
                 unbonding_period_days,
                 description,
             )
@@ -130,6 +130,7 @@ pub mod execute {
         min_num_workers: u16,
         max_num_workers: Option<u16>,
         min_worker_bond: Uint128,
+        bond_denom: String,
         unbonding_period_days: u16,
         description: String,
     ) -> Result<Response, ContractError> {
@@ -143,6 +144,7 @@ pub mod execute {
                     min_num_workers,
                     max_num_workers,
                     min_worker_bond,
+                    bond_denom,
                     unbonding_period_days,
                     description,
                 }),
@@ -193,14 +195,14 @@ pub mod execute {
         info: MessageInfo,
         service_name: String,
     ) -> Result<Response, ContractError> {
-        SERVICES
+        let service = SERVICES
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound {})?;
 
         let bond = if !info.funds.is_empty() {
             info.funds
                 .iter()
-                .find(|coin| coin.denom == AXL_DENOMINATION)
+                .find(|coin| coin.denom == service.bond_denom)
                 .ok_or(ContractError::WrongDenom {})?
                 .amount
         } else {
@@ -310,7 +312,7 @@ pub mod execute {
         Ok(Response::new().add_message(BankMsg::Send {
             to_address: info.sender.into(),
             amount: [Coin {
-                denom: AXL_DENOMINATION.to_string(),
+                denom: service.bond_denom,
                 amount: released_bond,
             }]
             .to_vec(), // TODO: isolate coins
