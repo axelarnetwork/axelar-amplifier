@@ -6,6 +6,4 @@ pub enum Error {
     JsonRPC,
     #[error("block number missing in JSON-RPC response for finalized block")]
     MissBlockNumber,
-    #[error("failed to broadcast transaction")]
-    Broadcaster,
 }

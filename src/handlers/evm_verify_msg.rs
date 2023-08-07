@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
+use std::convert::{TryFrom, TryInto};
 
 use async_trait::async_trait;
 use axelar_wasm_std::voting::PollID;
 use cosmrs::cosmwasm::MsgExecuteContract;
-use error_stack::ResultExt;
+use error_stack::{IntoReport, ResultExt};
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::de::value::MapDeserializer;
@@ -13,10 +14,10 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::deserializers::from_str;
 use crate::event_processor::EventHandler;
 use crate::event_sub;
-use crate::evm::error::Error;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::message_verifier::verify_message;
 use crate::evm::ChainName;
+use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
@@ -47,13 +48,15 @@ struct Event {
     participants: Vec<TMAddress>,
 }
 
-impl From<&event_sub::Event> for Option<Event> {
-    fn from(event: &event_sub::Event) -> Self {
+impl TryFrom<&event_sub::Event> for Option<Event> {
+    type Error = Error;
+
+    fn try_from(event: &event_sub::Event) -> std::result::Result<Self, Self::Error> {
         match event {
-            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => {
-                Event::deserialize(MapDeserializer::new(attributes.clone().into_iter())).ok()
-            }
-            _ => None,
+            event_sub::Event::Abci { event_type, attributes } if event_type.as_str() == EVENT_TYPE => Ok(Some(
+                Event::deserialize(MapDeserializer::new(attributes.clone().into_iter()))?,
+            )),
+            _ => Ok(None),
         }
     }
 }
@@ -103,7 +106,8 @@ where
             .chain
             .finalizer(&self.rpc_client, confirmation_height)
             .latest_finalized_block_height()
-            .await?;
+            .await
+            .change_context(Error::Finalizer)?;
 
         Ok(join_all(
             tx_hashes
@@ -164,7 +168,7 @@ where
             messages,
             confirmation_height,
             participants,
-        } = match event.into() {
+        } = match event.try_into().into_report()? {
             Some(event) => event,
             None => return Ok(()),
         };
@@ -281,7 +285,7 @@ mod tests {
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Option<Event> = (&event).into();
+        let event: Option<Event> = (&event).try_into().unwrap();
 
         assert!(event.is_none());
 
@@ -293,14 +297,12 @@ mod tests {
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Option<Event> = (&event).into();
-
-        assert!(event.is_none());
+        assert!(<&event_sub::Event as TryInto<Option<Event>>>::try_into(&event).is_err());
     }
 
     #[test]
     fn should_deserialize_correct_event() {
-        let event: Option<Event> = (&get_poll_started_event()).into();
+        let event: Option<Event> = (&get_poll_started_event()).try_into().unwrap();
 
         assert!(event.is_some());
     }
