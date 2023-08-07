@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use connection_router::types::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
@@ -8,13 +7,14 @@ use crate::{encoding::Data, types::ProofID};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    pub admin_address: String,
     pub gateway_address: String,
     pub multisig_address: String,
     pub service_registry_address: String,
     pub destination_chain_id: Uint256,
     pub signing_threshold: (Uint64, Uint64),
     pub service_name: String,
-    pub chain_name: ChainName,
+    pub chain_name: String,
 }
 
 #[cw_serde]

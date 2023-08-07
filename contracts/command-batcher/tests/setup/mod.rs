@@ -1,6 +1,3 @@
-use std::str::FromStr;
-
-use connection_router::types::ChainName;
 use cosmwasm_std::{Addr, Coin, Empty, Fraction, Uint128};
 use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
@@ -129,6 +126,7 @@ fn instantiate_prover(
 ) -> Addr {
     let code_id = app.store_code(contract_prover());
     let msg = command_batcher::msg::InstantiateMsg {
+        admin_address: INSTANTIATOR.to_string(),
         gateway_address,
         multisig_address,
         service_registry_address,
@@ -138,7 +136,7 @@ fn instantiate_prover(
             test_data::threshold().denominator(),
         ),
         service_name: "service-name".to_string(),
-        chain_name: ChainName::from_str("Ethereum").unwrap(),
+        chain_name: "Ethereum".to_string(),
     };
 
     app.instantiate_contract(

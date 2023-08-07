@@ -7,10 +7,10 @@ use cosmwasm_std::{
 };
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use axelar_wasm_std::{Participant, Snapshot};
-use connection_router::msg::Message;
+use connection_router::{msg::Message, types::ChainName};
 use multisig::{msg::Multisig, types::MultisigState};
 use service_registry::state::Worker;
 
@@ -19,20 +19,20 @@ use crate::{
     events::Event,
     msg::ExecuteMsg,
     msg::{GetProofResponse, InstantiateMsg, ProofStatus, QueryMsg},
-    state::{
-        Config, COMMANDS_BATCH, CONFIG, PROOF_BATCH_MULTISIG, REPLY_ID_COUNTER, REPLY_ID_TO_BATCH,
-    },
+    state::{Config, COMMANDS_BATCH, CONFIG, KEY_ID, PROOF_BATCH_MULTISIG, REPLY_TRACKER},
     types::{BatchID, CommandBatch, ProofID},
 };
+
+const START_MULTISIG_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let admin = deps.api.addr_validate(info.sender.as_str())?;
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
     let gateway = deps.api.addr_validate(&msg.gateway_address)?;
     let multisig = deps.api.addr_validate(&msg.multisig_address)?;
     let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
@@ -49,11 +49,14 @@ pub fn instantiate(
             },
         )?,
         service_name: msg.service_name,
-        chain_name: msg.chain_name,
+        chain_name: ChainName::from_str(&msg.chain_name).map_err(
+            |e: connection_router::ContractError| ContractError::InvalidInput {
+                reason: e.to_string(),
+            },
+        )?,
     };
 
     CONFIG.save(deps.storage, &config)?;
-    REPLY_ID_COUNTER.save(deps.storage, &0)?;
 
     Ok(Response::default())
 }
@@ -74,8 +77,6 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::state::KEY_ID;
-
     use super::*;
 
     pub fn construct_proof(
@@ -110,11 +111,7 @@ pub mod execute {
             }
         };
 
-        let reply_id = REPLY_ID_COUNTER.update(deps.storage, |mut reply_id| -> StdResult<_> {
-            reply_id += 1;
-            Ok(reply_id)
-        })?;
-        REPLY_ID_TO_BATCH.save(deps.storage, reply_id, &command_batch.id)?;
+        REPLY_TRACKER.save(deps.storage, &command_batch.id)?;
 
         let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
             key_id,
@@ -123,7 +120,8 @@ pub mod execute {
 
         let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
 
-        Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, reply_id)))
+        Ok(Response::new()
+            .add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
     }
 
     pub fn rotate_snapshot(
@@ -211,11 +209,9 @@ pub mod execute {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
-    let reply_id = reply.id;
-
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let command_batch_id = REPLY_ID_TO_BATCH.load(deps.storage, reply_id)?;
+            let command_batch_id = REPLY_TRACKER.load(deps.storage)?;
 
             let session_id =
                 from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
@@ -286,9 +282,6 @@ pub mod query {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
-    use connection_router::types::ChainName;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         Fraction, Uint256,
@@ -301,6 +294,7 @@ mod test {
     #[test]
     fn test_instantiation() {
         let instantiator = "instantiator";
+        let admin = "admin";
         let gateway_address = "gateway_address";
         let multisig_address = "multisig_address";
         let service_registry_address = "service_registry_address";
@@ -316,13 +310,14 @@ mod test {
         let env = mock_env();
 
         let msg = InstantiateMsg {
+            admin_address: admin.to_string(),
             gateway_address: gateway_address.to_string(),
             multisig_address: multisig_address.to_string(),
             service_registry_address: service_registry_address.to_string(),
             destination_chain_id,
             signing_threshold,
             service_name: service_name.to_string(),
-            chain_name: ChainName::from_str("ethereum").unwrap(),
+            chain_name: "Ethereum".to_string(),
         };
 
         let res = instantiate(deps.as_mut(), env, info, msg);
@@ -333,7 +328,7 @@ mod test {
         assert_eq!(res.messages.len(), 0);
 
         let config = CONFIG.load(deps.as_ref().storage).unwrap();
-        assert_eq!(config.admin, instantiator);
+        assert_eq!(config.admin, admin);
         assert_eq!(config.gateway, gateway_address);
         assert_eq!(config.multisig, multisig_address);
         assert_eq!(config.service_registry, service_registry_address);
@@ -343,8 +338,5 @@ mod test {
             signing_threshold.try_into().unwrap()
         );
         assert_eq!(config.service_name, service_name);
-
-        let reply_id_counter = REPLY_ID_COUNTER.load(deps.as_ref().storage).unwrap();
-        assert_eq!(reply_id_counter, 0);
     }
 }

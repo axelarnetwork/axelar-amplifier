@@ -24,5 +24,4 @@ pub const COMMANDS_BATCH: Map<&BatchID, CommandBatch> = Map::new("command_batch"
 pub const PROOF_BATCH_MULTISIG: Map<&ProofID, (BatchID, Uint64)> =
     Map::new("batch_multisig_session");
 
-pub const REPLY_ID_COUNTER: Item<u64> = Item::new("reply_id_counter");
-pub const REPLY_ID_TO_BATCH: Map<u64, BatchID> = Map::new("reply_id_to_batch");
+pub const REPLY_TRACKER: Item<BatchID> = Item::new("reply_tracker");
