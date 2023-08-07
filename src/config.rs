@@ -9,7 +9,8 @@ use crate::ECDSASigningKey;
 #[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
-    pub tm_url: Url,
+    pub tm_jsonrpc: Url,
+    pub tm_grpc: Url,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_evm_chain_configs")]
     pub evm_chains: Vec<EvmChainConfig>,
@@ -21,7 +22,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            tm_url: "tcp://localhost:26657".parse().unwrap(),
+            tm_jsonrpc: "http://localhost:26657".parse().unwrap(),
+            tm_grpc: "tcp://localhost:9090".parse().unwrap(),
             broadcast: broadcaster::Config::default(),
             evm_chains: vec![],
             tofnd_config: TofndConfig::default(),
@@ -64,14 +66,18 @@ mod tests {
     #[test]
     fn deserialize_url() {
         let expected_url = "tcp://localhost:26657";
-        let cfg: Config = toml::from_str(format!("tm_url = '{expected_url}'").as_str()).unwrap();
-        assert_eq!(cfg.tm_url.as_str(), expected_url)
+        let cfg: Config = toml::from_str(format!("tm_jsonrpc = '{expected_url}'").as_str()).unwrap();
+        assert_eq!(cfg.tm_jsonrpc.as_str(), expected_url);
+
+        let expected_url = "tcp://localhost:9090";
+        let cfg: Config = toml::from_str(format!("tm_grpc = '{expected_url}'").as_str()).unwrap();
+        assert_eq!(cfg.tm_grpc.as_str(), expected_url);
     }
 
     #[test]
     fn fail_deserialization() {
-        assert!(toml::from_str::<Config>("tm_url = 'some other string'").is_err());
-        assert!(toml::from_str::<Config>("tm_url = 5").is_err());
+        assert!(toml::from_str::<Config>("tm_jsonrpc = 'some other string'").is_err());
+        assert!(toml::from_str::<Config>("tm_jsonrpc = 5").is_err());
     }
 
     #[test]

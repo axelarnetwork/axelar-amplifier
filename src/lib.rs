@@ -40,16 +40,17 @@ type HandlerStream = Pin<Box<dyn Stream<Item = Result<Event, BroadcastStreamRecv
 
 pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
     let Config {
-        tm_url,
+        tm_jsonrpc,
+        tm_grpc,
         broadcast,
         evm_chains,
         tofnd_config: _tofnd_config,
         private_key,
     } = cfg;
 
-    let tm_client = tendermint_rpc::HttpClient::new(tm_url.to_string().as_str()).map_err(Error::new)?;
-    let service_client = ServiceClient::connect(tm_url.to_string()).await.map_err(Error::new)?;
-    let query_client = QueryClient::connect(tm_url.to_string()).await.map_err(Error::new)?;
+    let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str()).map_err(Error::new)?;
+    let service_client = ServiceClient::connect(tm_grpc.to_string()).await.map_err(Error::new)?;
+    let query_client = QueryClient::connect(tm_grpc.to_string()).await.map_err(Error::new)?;
 
     let worker = private_key.address();
     let account = account(query_client, &worker).await.map_err(Error::new)?;
