@@ -7,9 +7,6 @@ use tokio::sync::mpsc::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{StreamExt, StreamMap};
 use tracing::info;
-use valuable::Valuable;
-
-use crate::report::LoggableError;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -28,9 +25,8 @@ pub struct State<'a> {
 
 impl<'a> State<'a> {
     pub fn new(path: &'a PathBuf) -> Result<Self, Error> {
-        let state = fs::read_to_string(path.as_path()).into_report().unwrap_or_else(|err| {
-            let err = LoggableError::from(&err);
-            info!(err = err.as_value(), "state does not exist, falling back to default");
+        let state = fs::read_to_string(path.as_path()).into_report().unwrap_or_else(|_| {
+            info!("state does not exist, falling back to default");
 
             "{}".into()
         });

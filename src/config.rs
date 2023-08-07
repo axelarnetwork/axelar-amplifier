@@ -51,15 +51,38 @@ mod tests {
             name = 'Ethereum'
             rpc_url = '{rpc_url}'
             voting_verifier = '{voting_verifier}'
+
+            [[evm_chains]]
+            name = 'Polygon'
+            rpc_url = '{rpc_url}'
+            voting_verifier = '{voting_verifier}'
+
+            [[evm_chains]]
+            name = 'Optimism'
+            rpc_url = '{rpc_url}'
+            voting_verifier = '{voting_verifier}'
+            l1_chain_name = 'Ethereum'
             ",
         );
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
+        assert_eq!(cfg.evm_chains.len(), 3);
 
-        assert_eq!(cfg.evm_chains.len(), 1);
         let actual = cfg.evm_chains.get(0).unwrap();
         assert_eq!(actual.name, ChainName::Ethereum);
         assert_eq!(actual.rpc_url.as_str(), rpc_url);
         assert_eq!(actual.l1_chain_name, None);
+        assert_eq!(actual.voting_verifier, voting_verifier);
+
+        let actual = cfg.evm_chains.get(1).unwrap();
+        assert_eq!(actual.name, ChainName::Other("Polygon".into()));
+        assert_eq!(actual.rpc_url.as_str(), rpc_url);
+        assert_eq!(actual.l1_chain_name, None);
+        assert_eq!(actual.voting_verifier, voting_verifier);
+
+        let actual = cfg.evm_chains.get(2).unwrap();
+        assert_eq!(actual.name, ChainName::Other("Optimism".into()));
+        assert_eq!(actual.rpc_url.as_str(), rpc_url);
+        assert_eq!(actual.l1_chain_name, Some(ChainName::Ethereum));
         assert_eq!(actual.voting_verifier, voting_verifier);
     }
 

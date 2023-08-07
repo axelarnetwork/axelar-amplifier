@@ -17,6 +17,7 @@ pub mod message_verifier;
 #[derive(Debug, Deserialize, PartialEq, Hash, Eq, Clone, Display)]
 pub enum ChainName {
     Ethereum,
+    #[serde(untagged)]
     Other(String),
 }
 
