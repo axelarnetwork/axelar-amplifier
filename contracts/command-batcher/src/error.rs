@@ -26,4 +26,7 @@ pub enum ContractError {
 
     #[error("invalid contract reply: {reason}")]
     InvalidContractReply { reason: String },
+
+    #[error("wrong chain")]
+    WrongChain {},
 }

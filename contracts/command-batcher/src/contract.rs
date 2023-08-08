@@ -102,11 +102,9 @@ pub mod execute {
         let chain_name: String = config.chain_name.into();
         if messages
             .iter()
-            .any(|msg| msg.destination_chain != chain_name)
+            .any(|msg| !msg.destination_chain.eq_ignore_ascii_case(&chain_name))
         {
-            return Err(ContractError::InvalidMessage {
-                reason: "wrong chain".to_string(),
-            });
+            return Err(ContractError::WrongChain {});
         }
 
         let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
