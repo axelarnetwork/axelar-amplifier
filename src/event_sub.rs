@@ -82,10 +82,9 @@ impl EventSubClientDriver {
 
 pub struct EventSubClient<T: TmClient + Sync> {
     client: T,
-    capacity: usize,
     start_from: Option<block::Height>,
     poll_interval: Duration,
-    tx: Option<Sender<Event>>,
+    tx: Sender<Event>,
     close_rx: oneshot::Receiver<()>,
 }
 
@@ -93,12 +92,12 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     pub fn new(client: T, capacity: usize) -> (Self, EventSubClientDriver) {
         let (close_tx, close_rx) = oneshot::channel();
         let client_driver = EventSubClientDriver { close_tx };
+        let (tx, _) = broadcast::channel::<Event>(capacity);
         let client = EventSubClient {
             client,
-            capacity,
             start_from: None,
             poll_interval: Duration::new(5, 0),
-            tx: None,
+            tx,
             close_rx,
         };
 
@@ -117,43 +116,35 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 
     pub fn sub(&mut self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
-        let rx = match &self.tx {
-            None => {
-                let (tx, rx) = broadcast::channel::<Event>(self.capacity);
-                self.tx = Some(tx);
-                rx
-            }
-            Some(tx) => tx.subscribe(),
-        };
-
-        BroadcastStream::new(rx).map(IntoReport::into_report)
+        BroadcastStream::new(self.tx.subscribe()).map(IntoReport::into_report)
     }
 
     pub async fn run(mut self) -> Result<(), EventSubError> {
-        match &self.tx {
-            None => Err(Report::new(EventSubError::NoSubscriber)),
-            Some(tx) => {
-                let mut curr_block_height = match self.start_from {
-                    Some(start_from) => start_from,
-                    None => self.get_latest_block_height().await?,
-                };
-                let mut interval = time::interval(self.poll_interval);
+        let mut curr_block_height = match self.start_from {
+            Some(start_from) => start_from,
+            None => self.latest_block_height().await?,
+        };
+        let mut interval = time::interval(self.poll_interval);
 
-                loop {
-                    select! {
-                        _ = interval.tick() => {
-                            let latest_block_height = self.get_latest_block_height().await?;
-                            self.process_blocks(tx, curr_block_height, latest_block_height).await?;
-                            curr_block_height = latest_block_height.increment();
-                        },
-                        _ = &mut self.close_rx => return Ok(()),
+        loop {
+            select! {
+                _ = interval.tick() => {
+                    curr_block_height = self.process_blocks_from(curr_block_height).await?.increment();
+
+                    if self.closed() {
+                        return Ok(());
                     }
-                }
+                },
+                _ = &mut self.close_rx => return Ok(()),
             }
         }
     }
 
-    async fn get_latest_block_height(&self) -> Result<block::Height, EventSubError> {
+    fn closed(&mut self) -> bool {
+        !matches!(self.close_rx.try_recv(), Err(oneshot::error::TryRecvError::Empty))
+    }
+
+    async fn latest_block_height(&self) -> Result<block::Height, EventSubError> {
         let res = self
             .client
             .latest_block()
@@ -164,37 +155,41 @@ impl<T: TmClient + Sync> EventSubClient<T> {
     }
 
     // this is extracted into a function so the block height attachment can be added no matter which call fails
-    async fn process_blocks(
-        &self,
-        tx: &Sender<Event>,
-        from: block::Height,
-        to: block::Height,
-    ) -> Result<(), EventSubError> {
+    async fn process_blocks_from(&mut self, from: block::Height) -> Result<block::Height, EventSubError> {
         let mut height = from;
+        let to = self.latest_block_height().await?;
+
         while height <= to {
-            self.process_block(tx, height)
+            self.process_block(height)
                 .attach_printable(format!("{{ block_height = {height} }}"))
                 .await?;
+
+            if self.closed() {
+                return Ok(height);
+            }
+
             height = height.increment();
         }
 
-        Ok(())
+        Ok(to)
     }
 
-    async fn process_block(&self, tx: &Sender<Event>, height: block::Height) -> Result<(), EventSubError> {
-        for event in self.query_events(height).await? {
-            tx.send(event.try_into()?)
+    async fn process_block(&self, height: block::Height) -> Result<(), EventSubError> {
+        for event in self.events(height).await? {
+            self.tx
+                .send(event.try_into()?)
                 .into_report()
                 .change_context(EventSubError::PublishFailed)?;
         }
-        tx.send(Event::BlockEnd(height))
+        self.tx
+            .send(Event::BlockEnd(height))
             .into_report()
             .change_context(EventSubError::PublishFailed)?;
 
         Ok(())
     }
 
-    async fn query_events(&self, block_height: block::Height) -> Result<Vec<abci::Event>, EventSubError> {
+    async fn events(&self, block_height: block::Height) -> Result<Vec<abci::Event>, EventSubError> {
         let block_results = self
             .client
             .block_results(block_height)
@@ -218,8 +213,6 @@ pub fn skip_to_block(
 
 #[derive(Error, Debug)]
 pub enum EventSubError {
-    #[error("no subscriber")]
-    NoSubscriber,
     #[error("querying events for block {block} failed")]
     EventQueryFailed { block: block::Height },
     #[error("failed to send events to subscribers")]
@@ -249,18 +242,8 @@ mod tests {
     use tendermint::{abci, AppHash};
     use tokio::test;
 
-    use crate::event_sub::{Event, EventSubClient, EventSubError};
+    use crate::event_sub::{Event, EventSubClient};
     use crate::tm_client;
-
-    #[test]
-    async fn no_subscriber() {
-        let (client, _) = EventSubClient::new(tm_client::MockTmClient::new(), 10);
-
-        assert!(matches!(
-            client.run().await.unwrap_err().current_context(),
-            EventSubError::NoSubscriber
-        ));
-    }
 
     #[test]
     async fn start_from_should_work() {
