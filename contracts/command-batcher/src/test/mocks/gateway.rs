@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 use gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
-use super::test_data;
+use crate::test::test_data;
 
 pub fn instantiate(
     _deps: DepsMut,

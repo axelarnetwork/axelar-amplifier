@@ -1,10 +1,7 @@
 use cosmwasm_std::{Addr, Coin, Empty, Fraction, Uint128};
 use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
-use crate::mocks;
-
-#[path = "../../src/test/test_data.rs"]
-mod test_data;
+use super::{mocks, test_data};
 
 pub const INSTANTIATOR: &str = "instantiator";
 pub const RELAYER: &str = "relayer";
@@ -110,11 +107,11 @@ fn instantiate_mock_service_registry(app: &mut App) -> Addr {
 
 fn contract_prover() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
-        command_batcher::contract::execute,
-        command_batcher::contract::instantiate,
-        command_batcher::contract::query,
+        crate::contract::execute,
+        crate::contract::instantiate,
+        crate::contract::query,
     )
-    .with_reply(command_batcher::contract::reply);
+    .with_reply(crate::contract::reply);
     Box::new(contract)
 }
 
@@ -125,7 +122,7 @@ fn instantiate_prover(
     service_registry_address: String,
 ) -> Addr {
     let code_id = app.store_code(contract_prover());
-    let msg = command_batcher::msg::InstantiateMsg {
+    let msg = crate::msg::InstantiateMsg {
         admin_address: INSTANTIATOR.to_string(),
         gateway_address,
         multisig_address,

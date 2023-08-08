@@ -6,8 +6,6 @@ use multisig::{
     types::MultisigState,
 };
 
-use super::test_data;
-
 pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
@@ -47,6 +45,8 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 mod query {
     use multisig::msg::{Multisig, Signer};
+
+    use crate::test::test_data;
 
     use super::*;
 

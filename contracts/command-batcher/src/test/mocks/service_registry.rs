@@ -6,7 +6,7 @@ use service_registry::{
     state::{AuthorizationState, BondingState, Worker},
 };
 
-use super::test_data;
+use crate::test::test_data;
 
 pub fn instantiate(
     _deps: DepsMut,
