@@ -195,7 +195,7 @@ impl Data {
 
 fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     let pub_key =
-        PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidMessage {
+        PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidPublicKey {
             reason: e.to_string(),
         })?;
     let pub_key = pub_key.to_encoded_point(false);

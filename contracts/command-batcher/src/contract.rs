@@ -87,6 +87,8 @@ pub mod execute {
 
         let config = CONFIG.load(deps.storage)?;
 
+        let batch_id = BatchID::new(&message_ids);
+
         let query = gateway::msg::QueryMsg::GetMessages { message_ids };
         let messages: Vec<Message> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.gateway.into(),
@@ -97,8 +99,15 @@ pub mod execute {
             return Err(ContractError::NoMessagesFound {});
         }
 
-        let message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
-        let batch_id = BatchID::new(&message_ids);
+        let chain_name: String = config.chain_name.into();
+        if messages
+            .iter()
+            .any(|msg| msg.destination_chain != chain_name)
+        {
+            return Err(ContractError::InvalidMessage {
+                reason: "wrong chain".to_string(),
+            });
+        }
 
         let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
             Some(batch) => batch,
