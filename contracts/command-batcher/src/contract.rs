@@ -140,25 +140,25 @@ pub mod execute {
 
         let snapshot = snapshot(deps.querier, env.block, &config)?;
 
-        for participant in snapshot.participants.keys() {
-            if !pub_keys.contains_key(participant) {
-                return Err(ContractError::PublicKeyNotFound {
-                    participant: participant.to_owned(),
-                });
-            }
-        }
+        let keygen_msg = WasmMsg::Execute {
+            contract_addr: config.multisig.into(),
+            msg: to_binary(&multisig::msg::ExecuteMsg::KeyGen {
+                key_id: key_id.clone(),
+                snapshot: snapshot.clone(),
+                pub_keys: pub_keys.clone(),
+            })?,
+            funds: vec![],
+        };
 
-        let keygen_msg = multisig::msg::ExecuteMsg::KeyGen {
+        let event = Event::SnapshotRotated {
             key_id,
             snapshot,
             pub_keys,
         };
 
-        Ok(Response::new().add_message(WasmMsg::Execute {
-            contract_addr: config.multisig.into(),
-            msg: to_binary(&keygen_msg)?,
-            funds: vec![],
-        }))
+        Ok(Response::new()
+            .add_message(keygen_msg)
+            .add_event(event.into()))
     }
 
     fn snapshot(
