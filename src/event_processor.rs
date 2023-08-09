@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use error_stack::{Context, IntoReport, Result, ResultExt};
 use futures::{future::try_join_all, StreamExt};
 use thiserror::Error;
-use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 
@@ -38,10 +37,10 @@ pub enum EventProcessorError {
     EventStreamError,
 }
 
-fn consume_events<H, S>(event_stream: S, handler: H, token: CancellationToken) -> Task
+fn consume_events<H, S, E>(event_stream: S, handler: H, token: CancellationToken) -> Task
 where
     H: EventHandler + Send + Sync + 'static,
-    S: Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static,
+    S: Stream<Item = Result<Event, E>> + Send + 'static,
 {
     let task = async move {
         let mut event_stream = Box::pin(event_stream);
@@ -74,10 +73,10 @@ impl EventProcessor {
         EventProcessor { tasks: vec![], token }
     }
 
-    pub fn add_handler<H, S>(&mut self, handler: H, event_stream: S) -> &mut Self
+    pub fn add_handler<H, S, E>(&mut self, handler: H, event_stream: S) -> &mut Self
     where
         H: EventHandler + Send + Sync + 'static,
-        S: Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static,
+        S: Stream<Item = Result<Event, E>> + Send + 'static,
     {
         self.tasks
             .push(consume_events(event_stream, handler, self.token.child_token()).into());

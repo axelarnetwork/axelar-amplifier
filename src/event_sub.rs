@@ -21,6 +21,7 @@ use crate::tm_client::TmClient;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
+    BlockBegin(block::Height),
     BlockEnd(block::Height),
     Abci {
         event_type: String,
@@ -155,12 +156,18 @@ impl<T: TmClient + Sync> EventSub<T> {
     }
 
     async fn process_block(&self, height: block::Height) -> Result<(), EventSubError> {
+        self.tx
+            .send(Event::BlockBegin(height))
+            .into_report()
+            .change_context(EventSubError::PublishFailed)?;
+
         for event in self.events(height).await? {
             self.tx
                 .send(event.try_into()?)
                 .into_report()
                 .change_context(EventSubError::PublishFailed)?;
         }
+
         self.tx
             .send(Event::BlockEnd(height))
             .into_report()
@@ -184,11 +191,11 @@ impl<T: TmClient + Sync> EventSub<T> {
     }
 }
 
-pub fn skip_to_block(
-    stream: impl Stream<Item = Result<Event, BroadcastStreamRecvError>>,
+pub fn skip_to_block<E>(
+    stream: impl Stream<Item = Result<Event, E>>,
     height: block::Height,
-) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
-    stream.skip_while(move |event| !matches!(event, Ok(Event::BlockEnd(h)) if h.increment() >= height))
+) -> impl Stream<Item = Result<Event, E>> {
+    stream.skip_while(move |event| !matches!(event, Ok(Event::BlockBegin(h)) if *h >= height))
 }
 
 #[derive(Error, Debug)]
@@ -217,12 +224,39 @@ mod tests {
     use futures::stream::StreamExt;
     use rand::Rng;
     use random_string::generate;
+    use tendermint::block;
     use tendermint::{abci, AppHash};
+    use tokio::sync::mpsc;
     use tokio::test;
+    use tokio_stream::wrappers::ReceiverStream;
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_sub::{Event, EventSub};
+    use crate::event_sub::{skip_to_block, Event, EventSub};
     use crate::tm_client;
+
+    #[test]
+    async fn skip_to_block_should_work() {
+        let (tx, rx) = mpsc::channel(100);
+        let skip_to: block::Height = 5u32.into();
+
+        for i in 1u32..10 {
+            tx.send(Event::BlockBegin(i.into())).await.unwrap();
+            tx.send(Event::BlockEnd(i.into())).await.unwrap();
+        }
+
+        let mut stream = skip_to_block::<()>(ReceiverStream::new(rx).map(Ok), skip_to);
+
+        assert_eq!(stream.next().await.unwrap().unwrap(), Event::BlockBegin(skip_to));
+        assert_eq!(stream.next().await.unwrap().unwrap(), Event::BlockEnd(skip_to));
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            Event::BlockBegin(skip_to.increment())
+        );
+        assert_eq!(
+            stream.next().await.unwrap().unwrap(),
+            Event::BlockEnd(skip_to.increment())
+        );
+    }
 
     #[test]
     async fn start_from_should_work() {
@@ -262,6 +296,9 @@ mod tests {
         let handle = tokio::spawn(async move { client.run().await });
 
         for height in from_height.value()..to_height.value() {
+            let event = stream.next().await;
+            assert_eq!(event.unwrap().unwrap(), Event::BlockBegin(height.try_into().unwrap()));
+
             let event = stream.next().await;
             assert_eq!(event.unwrap().unwrap(), Event::BlockEnd(height.try_into().unwrap()));
         }
@@ -303,7 +340,7 @@ mod tests {
         let handle = tokio::spawn(async move { event_sub.run().await });
 
         let event = stream.next().await;
-        assert_eq!(event.unwrap().unwrap(), Event::BlockEnd(height));
+        assert_eq!(event.unwrap().unwrap(), Event::BlockBegin(height));
 
         token.cancel();
 
@@ -351,7 +388,7 @@ mod tests {
             .map(|tx| tx.events.len())
             .sum();
         let end_block_events = block_results.end_block_events.iter().flatten().count();
-        let event_count_per_block = begin_block_events_count + tx_events_count + end_block_events + 1;
+        let event_count_per_block = begin_block_events_count + tx_events_count + end_block_events + 2;
 
         let mut mock_client = tm_client::MockTmClient::new();
         let mut latest_block_call_count = 0;
@@ -386,9 +423,13 @@ mod tests {
 
         for i in 1..(block_count * event_count_per_block + 1) {
             let event = stream.next().await;
+
             match i % event_count_per_block {
                 0 => {
                     assert!(matches!(event, Some(Ok(Event::BlockEnd(..)))));
+                }
+                1 => {
+                    assert!(matches!(event, Some(Ok(Event::BlockBegin(..)))));
                 }
                 _ => {
                     assert!(matches!(event, Some(Ok(Event::Abci { .. }))));
