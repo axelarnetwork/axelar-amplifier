@@ -19,7 +19,7 @@ use crate::{
     events::Event,
     msg::ExecuteMsg,
     msg::{GetProofResponse, InstantiateMsg, ProofStatus, QueryMsg},
-    state::{Config, COMMANDS_BATCH, CONFIG, KEY_ID, PROOF_BATCH_MULTISIG, REPLY_TRACKER},
+    state::{Config, COMMANDS_BATCH, CONFIG, KEY_ID, PROOF_BATCH_MULTISIG, REPLY_BATCH},
     types::{BatchID, CommandBatch, ProofID},
 };
 
@@ -118,7 +118,8 @@ pub mod execute {
             }
         };
 
-        REPLY_TRACKER.save(deps.storage, &command_batch.id)?;
+        // keep track of the batch id to use during submessage reply
+        REPLY_BATCH.save(deps.storage, &command_batch.id)?;
 
         let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
             key_id,
@@ -203,11 +204,11 @@ pub mod execute {
             block
                 .time
                 .try_into()
-                .expect("violated invariant: block time is zero"),
+                .expect("violated invariant: block time cannot be invalid"),
             block
                 .height
                 .try_into()
-                .expect("violated invariant: block height is zero"),
+                .expect("violated invariant: block height cannot be invalid"),
             config.signing_threshold,
             participants,
         ))
@@ -218,7 +219,7 @@ pub mod execute {
 pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let command_batch_id = REPLY_TRACKER.load(deps.storage)?;
+            let command_batch_id = REPLY_BATCH.load(deps.storage)?;
 
             let session_id =
                 from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
