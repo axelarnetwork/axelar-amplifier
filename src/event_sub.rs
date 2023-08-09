@@ -9,14 +9,13 @@ use tendermint::abci;
 use tendermint::block;
 use thiserror::Error;
 use tokio::select;
-use tokio::sync::{
-    broadcast::{self, Sender},
-    oneshot,
-};
+use tokio::sync::broadcast::{self, Sender};
 use tokio::time;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{Stream, StreamExt};
+use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::tm_client::TmClient;
 
@@ -68,40 +67,25 @@ impl TryFrom<abci::Event> for Event {
     }
 }
 
-pub struct EventSubClientDriver {
-    close_tx: oneshot::Sender<()>,
-}
-
-impl EventSubClientDriver {
-    pub fn close(self) -> Result<(), EventSubError> {
-        self.close_tx
-            .send(())
-            .map_err(|_| Report::new(EventSubError::CloseFailed))
-    }
-}
-
-pub struct EventSubClient<T: TmClient + Sync> {
+pub struct EventSub<T: TmClient + Sync> {
     client: T,
     start_from: Option<block::Height>,
     poll_interval: Duration,
     tx: Sender<Event>,
-    close_rx: oneshot::Receiver<()>,
+    token: CancellationToken,
 }
 
-impl<T: TmClient + Sync> EventSubClient<T> {
-    pub fn new(client: T, capacity: usize) -> (Self, EventSubClientDriver) {
-        let (close_tx, close_rx) = oneshot::channel();
-        let client_driver = EventSubClientDriver { close_tx };
+impl<T: TmClient + Sync> EventSub<T> {
+    pub fn new(client: T, capacity: usize, token: CancellationToken) -> Self {
         let (tx, _) = broadcast::channel::<Event>(capacity);
-        let client = EventSubClient {
+
+        EventSub {
             client,
             start_from: None,
             poll_interval: Duration::new(5, 0),
             tx,
-            close_rx,
-        };
-
-        (client, client_driver)
+            token,
+        }
     }
 
     pub fn start_from(mut self, height: block::Height) -> Self {
@@ -130,18 +114,14 @@ impl<T: TmClient + Sync> EventSubClient<T> {
             select! {
                 _ = interval.tick() => {
                     curr_block_height = self.process_blocks_from(curr_block_height).await?.increment();
-
-                    if self.closed() {
-                        return Ok(());
-                    }
                 },
-                _ = &mut self.close_rx => return Ok(()),
+                _ = self.token.cancelled() => {
+                    info!("event sub exiting");
+
+                    return Ok(())
+                },
             }
         }
-    }
-
-    fn closed(&mut self) -> bool {
-        !matches!(self.close_rx.try_recv(), Err(oneshot::error::TryRecvError::Empty))
     }
 
     async fn latest_block_height(&self) -> Result<block::Height, EventSubError> {
@@ -164,7 +144,7 @@ impl<T: TmClient + Sync> EventSubClient<T> {
                 .attach_printable(format!("{{ block_height = {height} }}"))
                 .await?;
 
-            if self.closed() {
+            if self.token.is_cancelled() {
                 return Ok(height);
             }
 
@@ -219,8 +199,6 @@ pub enum EventSubError {
     PublishFailed,
     #[error("failed calling RPC method")]
     RPCFailed,
-    #[error("failed closing client")]
-    CloseFailed,
     #[error("failed decoding event {kind}")]
     DecodeEvent { kind: String },
     #[error("{0}")]
@@ -241,8 +219,9 @@ mod tests {
     use random_string::generate;
     use tendermint::{abci, AppHash};
     use tokio::test;
+    use tokio_util::sync::CancellationToken;
 
-    use crate::event_sub::{Event, EventSubClient};
+    use crate::event_sub::{Event, EventSub};
     use crate::tm_client;
 
     #[test]
@@ -275,8 +254,9 @@ mod tests {
                 })
             });
 
-        let (client, driver) = EventSubClient::new(mock_client, 2 * block_count as usize);
-        let mut client = client.start_from(from_height);
+        let token = CancellationToken::new();
+        let event_sub = EventSub::new(mock_client, 2 * block_count as usize, token.child_token());
+        let mut client = event_sub.start_from(from_height);
         let mut stream = client.sub();
 
         let handle = tokio::spawn(async move { client.run().await });
@@ -286,7 +266,8 @@ mod tests {
             assert_eq!(event.unwrap().unwrap(), Event::BlockEnd(height.try_into().unwrap()));
         }
 
-        assert!(driver.close().is_ok());
+        token.cancel();
+
         assert!(handle.await.is_ok());
     }
 
@@ -315,15 +296,17 @@ mod tests {
             })
         });
 
-        let (mut client, driver) = EventSubClient::new(mock_client, 10);
-        let mut stream = client.sub();
+        let token = CancellationToken::new();
+        let mut event_sub = EventSub::new(mock_client, 10, token.child_token());
+        let mut stream = event_sub.sub();
 
-        let handle = tokio::spawn(async move { client.run().await });
+        let handle = tokio::spawn(async move { event_sub.run().await });
 
         let event = stream.next().await;
         assert_eq!(event.unwrap().unwrap(), Event::BlockEnd(height));
 
-        assert!(driver.close().is_ok());
+        token.cancel();
+
         assert!(handle.await.is_ok());
     }
 
@@ -392,8 +375,9 @@ mod tests {
                 Ok(block_results)
             });
 
-        let (client, driver) = EventSubClient::new(mock_client, block_count * event_count_per_block);
-        let mut client = client
+        let token = CancellationToken::new();
+        let event_sub = EventSub::new(mock_client, block_count * event_count_per_block, token.child_token());
+        let mut client = event_sub
             .start_from(block_height)
             .poll_interval(Duration::new(0, 1e8 as u32));
         let mut stream = client.sub();
@@ -412,7 +396,8 @@ mod tests {
             }
         }
 
-        assert!(driver.close().is_ok());
+        token.cancel();
+
         assert!(handle.await.is_ok());
     }
 

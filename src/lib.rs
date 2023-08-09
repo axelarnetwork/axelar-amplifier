@@ -7,6 +7,7 @@ use evm::EvmChainConfig;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
+use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
 
@@ -67,14 +68,14 @@ pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
 }
 
 struct App<'a> {
-    event_sub_client: event_sub::EventSubClient<tendermint_rpc::HttpClient>,
-    event_sub_driver: event_sub::EventSubClientDriver,
+    event_sub: event_sub::EventSub<tendermint_rpc::HttpClient>,
     event_processor: EventProcessor,
     broadcaster: QueuedBroadcaster<ServiceClient<Channel>>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: state::Updater,
     state: State<'a>,
+    token: CancellationToken,
 }
 
 impl<'a> App<'a> {
@@ -83,25 +84,27 @@ impl<'a> App<'a> {
         broadcaster: Broadcaster<ServiceClient<Channel>>,
         state: State<'a>,
     ) -> Self {
-        let (event_sub_client, event_sub_driver) = event_sub::EventSubClient::new(tm_client, 100000);
-        let event_sub_client = match state.min() {
-            Some(min_height) => event_sub_client.start_from(min_height.increment()),
-            None => event_sub_client,
+        let token = CancellationToken::new();
+
+        let event_sub = event_sub::EventSub::new(tm_client, 100000, token.child_token());
+        let event_sub = match state.min() {
+            Some(min_height) => event_sub.start_from(min_height.increment()),
+            None => event_sub,
         };
 
-        let event_processor = EventProcessor::new();
+        let event_processor = EventProcessor::new(token.child_token());
         // TODO: make these parameters configurable
         let (broadcaster, broadcaster_driver) =
             QueuedBroadcaster::new(broadcaster, 1000000, 1000, Duration::from_secs(5));
 
         Self {
-            event_sub_client,
-            event_sub_driver,
+            event_sub,
             event_processor,
             broadcaster,
             broadcaster_driver,
             state_updater: state::Updater::default(),
             state,
+            token,
         }
     }
 
@@ -124,9 +127,9 @@ impl<'a> App<'a> {
             self.state_updater.register_event(&label, rx);
 
             let sub: HandlerStream = match self.state.get(&label) {
-                None => Box::pin(self.event_sub_client.sub()),
+                None => Box::pin(self.event_sub.sub()),
                 Some(&completed_height) => Box::pin(event_sub::skip_to_block(
-                    self.event_sub_client.sub(),
+                    self.event_sub.sub(),
                     completed_height.increment(),
                 )),
             };
@@ -138,20 +141,20 @@ impl<'a> App<'a> {
 
     async fn run(self) -> Result<(), Error> {
         let Self {
-            event_sub_client,
+            event_sub,
             event_processor,
             broadcaster,
-            event_sub_driver,
             state_updater,
             state,
+            token,
             ..
         } = self;
 
-        let event_sub_handle = tokio::spawn(event_sub_client.run());
+        let event_sub_handle = tokio::spawn(event_sub.run());
         let event_processor_handle = tokio::spawn(event_processor.run());
         let broadcaster_handler = tokio::spawn(broadcaster.run());
 
-        tokio::spawn(async {
+        tokio::spawn(async move {
             let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
             let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");
 
@@ -162,7 +165,7 @@ impl<'a> App<'a> {
 
             info!("signal received, waiting for program to exit gracefully");
 
-            event_sub_driver.close()
+            token.cancel();
         });
 
         state_updater.run(state).await.map_err(Error::new)?;

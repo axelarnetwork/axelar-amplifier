@@ -1,14 +1,17 @@
-use crate::event_sub::Event;
-use crate::handlers::chain;
-use async_trait::async_trait;
 use core::future::Future;
 use core::pin::Pin;
+use std::vec;
+
+use async_trait::async_trait;
 use error_stack::{Context, IntoReport, Result, ResultExt};
 use futures::{future::try_join_all, StreamExt};
-use std::vec;
 use thiserror::Error;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
+use tokio_util::sync::CancellationToken;
+
+use crate::event_sub::Event;
+use crate::handlers::chain;
 
 type Task = Box<dyn Future<Output = Result<(), EventProcessorError>> + Send>;
 
@@ -35,7 +38,7 @@ pub enum EventProcessorError {
     EventStreamError,
 }
 
-fn consume_events<H, S>(event_stream: S, handler: H) -> Task
+fn consume_events<H, S>(event_stream: S, handler: H, token: CancellationToken) -> Task
 where
     H: EventHandler + Send + Sync + 'static,
     S: Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static,
@@ -49,6 +52,10 @@ where
                 .handle(&event)
                 .await
                 .change_context(EventProcessorError::EventHandlerError)?;
+
+            if matches!(event, Event::BlockEnd(_)) && token.is_cancelled() {
+                break;
+            }
         }
 
         Ok(())
@@ -59,11 +66,12 @@ where
 
 pub struct EventProcessor {
     tasks: Vec<Pin<Task>>,
+    token: CancellationToken,
 }
 
 impl EventProcessor {
-    pub fn new() -> Self {
-        EventProcessor { tasks: vec![] }
+    pub fn new(token: CancellationToken) -> Self {
+        EventProcessor { tasks: vec![], token }
     }
 
     pub fn add_handler<H, S>(&mut self, handler: H, event_stream: S) -> &mut Self
@@ -71,7 +79,8 @@ impl EventProcessor {
         H: EventHandler + Send + Sync + 'static,
         S: Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static,
     {
-        self.tasks.push(consume_events(event_stream, handler).into());
+        self.tasks
+            .push(consume_events(event_stream, handler, self.token.child_token()).into());
         self
     }
 
@@ -99,12 +108,14 @@ mod tests {
     use tokio::{self, sync::broadcast};
     use tokio_stream::wrappers::BroadcastStream;
     use tokio_stream::StreamExt;
+    use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
     async fn should_handle_events() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let mut processor = EventProcessor::new();
+        let token = CancellationToken::new();
+        let mut processor = EventProcessor::new(token.child_token());
 
         let mut handler = MockEventHandler::new();
         handler.expect_handle().returning(|_| Ok(())).times(event_count);
@@ -122,7 +133,8 @@ mod tests {
     #[tokio::test]
     async fn should_return_error_if_handler_fails() {
         let (tx, rx) = broadcast::channel::<event_sub::Event>(10);
-        let mut processor = EventProcessor::new();
+        let token = CancellationToken::new();
+        let mut processor = EventProcessor::new(token.child_token());
 
         let mut handler = MockEventHandler::new();
         handler
@@ -142,7 +154,8 @@ mod tests {
     async fn should_support_multiple_types_of_handlers() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
-        let mut processor = EventProcessor::new();
+        let token = CancellationToken::new();
+        let mut processor = EventProcessor::new(token.child_token());
         let stream = BroadcastStream::new(rx).map(IntoReport::into_report);
         let another_stream = BroadcastStream::new(tx.subscribe()).map(IntoReport::into_report);
 
