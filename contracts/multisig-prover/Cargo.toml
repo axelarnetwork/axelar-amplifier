@@ -1,8 +1,8 @@
 [package]
-name = "command-batcher"
+name = "multisig-prover"
 version = "0.1.0"
 edition = "2021"
-description = "Command batcher contract"
+description = "Multisig prover contract"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
