@@ -5,8 +5,8 @@ use cosmwasm_std::{
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use service_registry::{
-    msg::{ActiveWorkers, ExecuteMsg, InstantiateMsg},
-    state::{Worker, WorkerState},
+    msg::{ExecuteMsg, InstantiateMsg},
+    state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
 
@@ -21,7 +21,10 @@ pub fn mock_service_registry_execute(
 
 #[cw_serde]
 pub enum MockServiceRegistryQueryMsg {
-    GetActiveWorkers { service_name: String },
+    GetActiveWorkers {
+        service_name: String,
+        chain_name: String,
+    },
 }
 pub fn mock_service_registry_query(
     _deps: Deps,
@@ -29,25 +32,28 @@ pub fn mock_service_registry_query(
     msg: MockServiceRegistryQueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        MockServiceRegistryQueryMsg::GetActiveWorkers { service_name } => {
-            let res = ActiveWorkers {
-                workers: vec![
-                    Worker {
-                        address: Addr::unchecked("addr1"),
-                        stake: Uint128::from(100u128),
-                        commission_rate: Uint128::from(1u128),
-                        state: WorkerState::Active,
-                        service_name: service_name.clone(),
+        MockServiceRegistryQueryMsg::GetActiveWorkers {
+            service_name,
+            chain_name: _,
+        } => {
+            let res = vec![
+                Worker {
+                    address: Addr::unchecked("addr1"),
+                    bonding_state: BondingState::Bonded {
+                        amount: Uint128::from(100u128),
                     },
-                    Worker {
-                        address: Addr::unchecked("addr2"),
-                        stake: Uint128::from(100u128),
-                        commission_rate: Uint128::from(1u128),
-                        state: WorkerState::Active,
-                        service_name: service_name.clone(),
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.clone(),
+                },
+                Worker {
+                    address: Addr::unchecked("addr2"),
+                    bonding_state: BondingState::Bonded {
+                        amount: Uint128::from(100u128),
                     },
-                ],
-            };
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.clone(),
+                },
+            ];
             Ok(to_binary(&res)?)
         }
     }
@@ -65,7 +71,9 @@ pub fn make_mock_service_registry(app: &mut App) -> Addr {
         .instantiate_contract(
             code_id,
             Addr::unchecked("sender"),
-            &InstantiateMsg {},
+            &InstantiateMsg {
+                governance_account: Addr::unchecked("governance").into(),
+            },
             &[],
             "Contract",
             None,

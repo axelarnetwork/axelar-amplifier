@@ -40,6 +40,12 @@ thiserror = { version = "1.0.31" }
 serde_json = "1.0.89"
 either = "1.8.1"
 hex = { version = "0.4.3", default-features = false, features = [] }
+connection-router = { workspace = true, features = ["library"] }
+ethabi = { version = "18.0.0", default-features = false, features = [] }
+sha3 = { version = "0.10", default-features = false, features = [] }
+multisig = { workspace = true, features = ["library"] }
+axelar-wasm-std = { workspace = true }
+k256 = { version = "0.13.1", features = ["ecdsa"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
