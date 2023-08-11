@@ -228,7 +228,7 @@ mod tests {
     use serde_json::from_str;
 
     const INSTANTIATOR: &str = "inst";
-    const BATCHER: &str = "batcher";
+    const PROVER: &str = "prover";
 
     fn do_instantiate(deps: DepsMut) -> Result<Response, ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
@@ -240,7 +240,7 @@ mod tests {
     }
 
     fn do_key_gen(deps: DepsMut) -> Result<Response, ContractError> {
-        let info = mock_info(BATCHER, &[]);
+        let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
         let signers = test_data::signers();
@@ -296,7 +296,7 @@ mod tests {
 
     fn setup_with_session_started() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = setup();
-        do_start_signing_session(deps.as_mut(), BATCHER).unwrap();
+        do_start_signing_session(deps.as_mut(), PROVER).unwrap();
         deps
     }
 
@@ -338,7 +338,7 @@ mod tests {
             res.unwrap_err(),
             ContractError::DuplicateKeyID {
                 key_id: KeyID {
-                    owner: Addr::unchecked(BATCHER),
+                    owner: Addr::unchecked(PROVER),
                     subkey: "key".to_string(),
                 }
                 .to_string()
@@ -350,14 +350,14 @@ mod tests {
     fn test_start_signing_session() {
         let mut deps = setup();
 
-        let res = do_start_signing_session(deps.as_mut(), BATCHER);
+        let res = do_start_signing_session(deps.as_mut(), PROVER);
 
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
 
         let key_id: KeyID = KeyID {
-            owner: Addr::unchecked(BATCHER),
+            owner: Addr::unchecked(PROVER),
             subkey: "key".to_string(),
         };
         let key = get_key(deps.as_ref().storage, &key_id).unwrap();

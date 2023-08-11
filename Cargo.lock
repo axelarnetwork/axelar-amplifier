@@ -138,34 +138,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "command-batcher"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axelar-wasm-std",
- "connection-router",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "cw-utils 1.0.1",
- "cw2 0.15.1",
- "either",
- "ethabi",
- "gateway",
- "hex",
- "k256 0.13.1",
- "multisig",
- "schemars",
- "serde",
- "serde_json",
- "service-registry",
- "sha3",
- "thiserror",
-]
-
-[[package]]
 name = "connection-router"
 version = "0.1.0"
 dependencies = [
@@ -809,6 +781,34 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "multisig-prover"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axelar-wasm-std",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "cw-utils 1.0.1",
+ "cw2 0.15.1",
+ "either",
+ "ethabi",
+ "gateway",
+ "hex",
+ "k256 0.13.1",
+ "multisig",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-registry",
+ "sha3",
  "thiserror",
 ]
 
