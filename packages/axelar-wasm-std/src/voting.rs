@@ -22,6 +22,7 @@ use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
+use cw_storage_plus::Prefixer;
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
 use thiserror::Error;
@@ -104,6 +105,12 @@ impl<'a> PrimaryKey<'a> for PollID {
     }
 }
 
+impl<'a> Prefixer<'a> for PollID {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Val64(self.0.to_be_bytes())]
+    }
+}
+
 impl KeyDeserialize for PollID {
     type Output = Self;
 
@@ -123,8 +130,6 @@ impl fmt::Display for PollID {
 }
 
 pub trait Poll {
-    // errors if the poll is not finished
-    fn tally(&mut self, block_height: u64) -> Result<PollResult, Error>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
     fn cast_vote(
@@ -133,6 +138,12 @@ pub trait Poll {
         sender: &Addr,
         votes: Vec<bool>,
     ) -> Result<PollStatus, Error>;
+
+    fn has_quorum(&self, idx: u32) -> Result<bool, StdError>;
+
+    fn poll_finished(&self, block_height: u64) -> bool;
+
+    fn poll_size(&self) -> usize;
 }
 
 #[cw_serde]
@@ -154,7 +165,6 @@ pub struct WeightedPoll {
     expires_at: u64,
     poll_size: u64,
     votes: Vec<Uint256>, // running tally of weighted votes
-    status: PollStatus,
     voted: HashSet<Addr>,
 }
 
@@ -166,37 +176,12 @@ impl WeightedPoll {
             expires_at: expiry,
             poll_size: poll_size as u64,
             votes: vec![Uint256::zero(); poll_size],
-            status: PollStatus::InProgress,
             voted: HashSet::new(),
         }
     }
 }
 
 impl Poll for WeightedPoll {
-    fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
-        if block_height < self.expires_at
-            // can tally early if all participants voted
-            && self.voted.len() < self.snapshot.get_participants().len()
-        {
-            return Err(Error::PollNotEnded {});
-        }
-
-        if self.status == PollStatus::Finished {
-            return Err(Error::PollNotInProgress {});
-        }
-
-        self.status = PollStatus::Finished;
-
-        Ok(PollResult {
-            poll_id: self.poll_id,
-            results: self
-                .votes
-                .iter()
-                .map(|v| *v >= self.snapshot.quorum.into())
-                .collect(),
-        })
-    }
-
     fn cast_vote(
         &mut self,
         block_height: u64,
@@ -220,10 +205,6 @@ impl Poll for WeightedPoll {
             return Err(Error::AlreadyVoted {});
         }
 
-        if self.status != PollStatus::InProgress {
-            return Err(Error::PollNotInProgress {});
-        }
-
         self.voted.insert(sender.clone());
 
         self.votes
@@ -235,6 +216,26 @@ impl Poll for WeightedPoll {
             });
 
         Ok(PollStatus::InProgress)
+    }
+
+    fn has_quorum(&self, idx: u32) -> Result<bool, StdError> {
+        match self
+            .votes
+            .get(usize::try_from(idx).expect("couldn't convert u32 to usize"))
+        {
+            Some(tally) => Ok(*tally > self.snapshot.quorum.into()),
+            None => Err(StdError::NotFound {
+                kind: "index out of bounds".to_string(),
+            }),
+        }
+    }
+
+    fn poll_finished(&self, block_height: u64) -> bool {
+        block_height >= self.expires_at
+            || self.voted.len() == self.snapshot.get_participants().len()
+    }
+    fn poll_size(&self) -> usize {
+        self.poll_size as usize
     }
 }
 
@@ -309,27 +310,38 @@ mod tests {
     }
 
     #[test]
-    fn poll_is_not_in_progress() {
+    fn has_quorum() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![true, true];
-        poll.status = PollStatus::Finished;
-        assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
-            Err(Error::PollNotInProgress {})
-        );
+        assert!(poll.has_quorum(0).is_ok());
+        assert!(poll.has_quorum(2).is_err());
+        assert!(!poll.has_quorum(0).unwrap());
+        assert!(!poll.has_quorum(1).unwrap());
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), vec![true, true])
+            .is_ok());
+        assert!(!poll.has_quorum(0).unwrap());
+        assert!(!poll.has_quorum(1).unwrap());
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr2"), vec![true, false])
+            .is_ok());
+        assert!(poll.has_quorum(0).unwrap());
+        assert!(!poll.has_quorum(1).unwrap());
     }
 
     #[test]
-    fn tally_before_poll_end() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
-        assert_eq!(poll.tally(0), Err(Error::PollNotEnded {}));
-    }
-
-    #[test]
-    fn tally_after_poll_conclude() {
+    fn poll_finished() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        poll.status = PollStatus::Finished;
-        assert_eq!(poll.tally(2), Err(Error::PollNotInProgress {}));
+        assert!(!poll.poll_finished(1));
+        assert!(poll.poll_finished(2));
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), vec![true, true])
+            .is_ok());
+        assert!(!poll.poll_finished(1));
+        assert!(poll.poll_finished(2));
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr2"), vec![true, true])
+            .is_ok());
+        assert!(poll.poll_finished(1));
     }
 
     #[test]
@@ -341,17 +353,6 @@ mod tests {
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
             .is_ok());
         assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
-
-        let result = poll.tally(2).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
-
-        assert_eq!(
-            result,
-            PollResult {
-                poll_id: PollID::from(Uint64::one()),
-                results: vec![true, true],
-            }
-        );
     }
 
     fn new_poll(expires_at: u64, poll_size: usize, participants: Vec<&str>) -> WeightedPoll {

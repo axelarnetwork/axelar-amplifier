@@ -20,10 +20,6 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    // Computes the results of a poll
-    // For all verified messages, calls MessagesVerified on the verifier
-    EndPoll { poll_id: PollID },
-
     // Casts votes for specified poll
     Vote { poll_id: PollID, votes: Vec<bool> },
 

@@ -156,3 +156,14 @@ impl From<PollEnded> for Event {
             )
     }
 }
+
+pub struct MessageVerified(pub Message);
+
+impl From<MessageVerified> for Event {
+    fn from(other: MessageVerified) -> Self {
+        Event::new("message_verified").add_attribute(
+            "message",
+            serde_json::to_string(&other.0).expect("failed to serialize messages"),
+        )
+    }
+}

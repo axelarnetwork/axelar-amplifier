@@ -60,7 +60,6 @@ pub fn execute(
             execute::verify_messages(deps, env, messages)
         }
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
-        ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
     }
 }
 #[cfg_attr(not(feature = "library"), entry_point)]

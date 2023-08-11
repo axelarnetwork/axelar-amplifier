@@ -1,10 +1,10 @@
-use cosmwasm_std::{from_binary, Addr};
+use cosmwasm_std::{from_binary, Addr, Event, Uint64};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use axelar_wasm_std::Threshold;
 use connection_router::msg::Message;
 use connection_router::types::ID_SEPARATOR;
-use voting_verifier::{contract, error::ContractError, msg};
+use voting_verifier::{contract, error::ContractError, events::MessageVerified, msg};
 
 use crate::mock::make_mock_service_registry;
 
@@ -121,6 +121,240 @@ fn should_verify_messages_if_not_verified() {
         vec![
             ("source_chain:id1:0".to_string(), false),
             ("source_chain:id2:0".to_string(), false)
+        ]
+    );
+}
+
+#[test]
+fn should_process_votes() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address = initialize_contract(&mut app, service_registry_address.into_string());
+
+    let messages = vec![
+        Message {
+            id: message_id(SOURCE_CHAIN, "id1", 0),
+            source_chain: SOURCE_CHAIN.to_string(),
+            source_address: "source_address1".to_string(),
+            destination_chain: "destination_chain1".to_string(),
+            destination_address: "destination_address1".to_string(),
+            payload_hash: vec![0, 0, 0, 0].into(),
+        },
+        Message {
+            id: message_id(SOURCE_CHAIN, "id2", 0),
+            source_chain: SOURCE_CHAIN.to_string(),
+            source_address: "source_address2".to_string(),
+            destination_chain: "destination_chain2".to_string(),
+            destination_address: "destination_address2".to_string(),
+            payload_hash: vec![0, 0, 0, 0].into(),
+        },
+    ];
+    let msg = msg::ExecuteMsg::VerifyMessages {
+        messages: messages.clone(),
+    };
+
+    let res = app
+        .execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
+        .unwrap();
+    let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(reply.verification_statuses.len(), 2);
+    assert_eq!(
+        reply.verification_statuses,
+        vec![
+            ("source_chain:id1:0".to_string(), false),
+            ("source_chain:id2:0".to_string(), false)
+        ]
+    );
+
+    let poll_id = Uint64::from(1u64).try_into().unwrap();
+    let res = app.execute_contract(
+        Addr::unchecked("addr1"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![true, true],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    let mut event: Event = MessageVerified(messages[0].clone().try_into().unwrap()).into();
+    event.ty = "wasm-message_verified".to_string();
+    assert!(!res.unwrap().has_event(&event));
+    let res = app.execute_contract(
+        Addr::unchecked("addr2"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![true, true],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    assert!(res.unwrap().has_event(&event));
+
+    let msg = msg::ExecuteMsg::VerifyMessages {
+        messages: messages.clone(),
+    };
+
+    let res = app
+        .execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
+        .unwrap();
+    let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(reply.verification_statuses.len(), 2);
+    assert_eq!(
+        reply.verification_statuses,
+        vec![
+            ("source_chain:id1:0".to_string(), true),
+            ("source_chain:id2:0".to_string(), true)
+        ]
+    );
+
+    let poll_id = Uint64::from(2u64).try_into().unwrap();
+    let res = app.execute_contract(
+        Addr::unchecked("addr1"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![true, true],
+        },
+        &[],
+    );
+    assert!(res.is_err());
+    assert_eq!(
+        ContractError::PollNotFound {},
+        res.unwrap_err().downcast().unwrap()
+    );
+}
+
+#[test]
+fn should_vote_again_on_failed() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address = initialize_contract(&mut app, service_registry_address.into_string());
+
+    let messages = vec![
+        Message {
+            id: message_id(SOURCE_CHAIN, "id1", 0),
+            source_chain: SOURCE_CHAIN.to_string(),
+            source_address: "source_address1".to_string(),
+            destination_chain: "destination_chain1".to_string(),
+            destination_address: "destination_address1".to_string(),
+            payload_hash: vec![0, 0, 0, 0].into(),
+        },
+        Message {
+            id: message_id(SOURCE_CHAIN, "id2", 0),
+            source_chain: SOURCE_CHAIN.to_string(),
+            source_address: "source_address2".to_string(),
+            destination_chain: "destination_chain2".to_string(),
+            destination_address: "destination_address2".to_string(),
+            payload_hash: vec![0, 0, 0, 0].into(),
+        },
+    ];
+    let msg = msg::ExecuteMsg::VerifyMessages {
+        messages: messages.clone(),
+    };
+
+    let res = app
+        .execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
+        .unwrap();
+    let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(reply.verification_statuses.len(), 2);
+    assert_eq!(
+        reply.verification_statuses,
+        vec![
+            ("source_chain:id1:0".to_string(), false),
+            ("source_chain:id2:0".to_string(), false)
+        ]
+    );
+
+    let poll_id = Uint64::from(1u64).try_into().unwrap();
+    let res = app.execute_contract(
+        Addr::unchecked("addr1"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![false, false],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    let mut event: Event = MessageVerified(messages[0].clone().try_into().unwrap()).into();
+    event.ty = "wasm-message_verified".to_string();
+    assert!(!res.unwrap().has_event(&event));
+    let res = app.execute_contract(
+        Addr::unchecked("addr2"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![false, false],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    assert!(!res.unwrap().has_event(&event));
+
+    let msg = msg::ExecuteMsg::VerifyMessages {
+        messages: messages.clone(),
+    };
+
+    let res = app
+        .execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
+        .unwrap();
+    let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(reply.verification_statuses.len(), 2);
+    assert_eq!(
+        reply.verification_statuses,
+        vec![
+            ("source_chain:id1:0".to_string(), false),
+            ("source_chain:id2:0".to_string(), false)
+        ]
+    );
+
+    // start a new poll with same messages
+    let poll_id = Uint64::from(2u64).try_into().unwrap();
+    let res = app.execute_contract(
+        Addr::unchecked("addr1"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![true, true],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    let mut event: Event = MessageVerified(messages[0].clone().try_into().unwrap()).into();
+    event.ty = "wasm-message_verified".to_string();
+    assert!(!res.unwrap().has_event(&event));
+    let res = app.execute_contract(
+        Addr::unchecked("addr2"),
+        contract_address.clone(),
+        &msg::ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![true, true],
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+    assert!(res.unwrap().has_event(&event));
+
+    let msg = msg::ExecuteMsg::VerifyMessages {
+        messages: messages.clone(),
+    };
+
+    let res = app
+        .execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
+        .unwrap();
+    let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+    assert_eq!(reply.verification_statuses.len(), 2);
+    assert_eq!(
+        reply.verification_statuses,
+        vec![
+            ("source_chain:id1:0".to_string(), true),
+            ("source_chain:id2:0".to_string(), true)
         ]
     );
 }

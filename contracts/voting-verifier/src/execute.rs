@@ -13,15 +13,9 @@ use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
 use crate::error::ContractError;
-use crate::events::{EvmMessages, PollEnded, PollStarted, Voted};
-use crate::execute::VerificationStatus::{Pending, Verified};
-use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
-
-enum VerificationStatus {
-    Verified(Message),
-    Pending(Message),
-}
+use crate::events::{EvmMessages, MessageVerified, PollStarted, Voted};
+use crate::msg::VerifyMessagesResponse;
+use crate::state::{self, messages, TaggedMessage, CONFIG, POLLS, POLL_ID};
 
 pub fn verify_messages(
     deps: DepsMut,
@@ -33,51 +27,51 @@ pub fn verify_messages(
     let messages = messages
         .into_iter()
         .map(|message| {
-            is_message_verified(deps.as_ref(), &message).map(|verified| {
-                if verified {
-                    Verified(message)
-                } else {
-                    Pending(message)
-                }
-            })
+            is_message_verified(deps.as_ref(), &env, &message).map(|status| (status, message))
         })
-        .collect::<Result<Vec<VerificationStatus>, ContractError>>()?;
+        .collect::<Result<Vec<(MessageStatus, Message)>, ContractError>>()?;
 
     let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
         verification_statuses: messages
             .iter()
-            .map(|status| match status {
-                Verified(message) => (message.id.to_string(), true),
-                Pending(message) => (message.id.to_string(), false),
+            .map(|(status, message)| match status {
+                MessageStatus::Verified => (message.id.to_string(), true),
+                _ => (message.id.to_string(), false),
             })
             .collect(),
     })?);
 
-    let pending_messages: Vec<Message> = messages
+    let to_verify: Vec<Message> = messages
         .into_iter()
-        .filter_map(|status| match status {
-            Pending(message) => Some(message),
-            Verified(_) => None,
+        .filter_map(|(status, message)| match status {
+            MessageStatus::NotVerified => Some(message),
+            _ => None,
         })
         .collect();
 
-    if pending_messages.is_empty() {
+    if to_verify.is_empty() {
         return Ok(response);
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &env, &pending_messages[0].source_chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &env, &to_verify[0].source_chain)?;
     let participants = snapshot.get_participants();
     let id = create_poll(
         deps.storage,
         env.block.height,
         config.block_expiry,
         snapshot,
-        pending_messages.len(),
+        to_verify.len(),
     )?;
 
-    PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
+    for (idx, m) in to_verify.iter().enumerate() {
+        state::messages().save(
+            deps.storage,
+            m.id.clone(),
+            &TaggedMessage::new(m.clone(), id, idx as u32),
+        )?;
+    }
 
-    let EvmMessages(source_chain, messages) = pending_messages.try_into()?;
+    let EvmMessages(source_chain, messages) = to_verify.try_into()?;
 
     Ok(response.add_event(
         PollStarted {
@@ -107,56 +101,27 @@ pub fn vote(
     poll.cast_vote(env.block.height, &info.sender, votes)?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    Ok(Response::new().add_event(
-        Voted {
-            poll_id,
-            voter: info.sender,
-        }
-        .into(),
-    ))
-}
-
-pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
-    let mut poll = POLLS
-        .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound {})?;
-
-    let poll_result = poll.tally(env.block.height)?;
-    POLLS.save(deps.storage, poll_id, &poll)?;
-
-    let messages = remove_pending_message(deps.storage, poll_id)?;
-
-    assert_eq!(
-        messages.len(),
-        poll_result.results.len(),
-        "poll {} results and pending messages have different length",
-        poll_id
-    );
-
-    let messages = messages
-        .iter()
-        .zip(poll_result.results.iter())
-        .filter_map(|(message, verified)| match *verified {
-            true => Some(message),
-            false => None,
-        })
-        .collect::<Vec<&Message>>();
-
-    for message in messages {
-        if !is_message_verified(deps.as_ref(), message)? {
-            VERIFIED_MESSAGES.save(deps.storage, &message.id, message)?;
+    let mut evs = vec![];
+    for idx in 0..poll.poll_size() {
+        if poll.has_quorum(idx as u32)? {
+            let msg = messages()
+                .idx
+                .polls
+                .find_message(&deps, &poll_id, idx as u32)?
+                .expect("could not find message matching poll and idx");
+            evs.push(MessageVerified(msg).into());
         }
     }
 
     Ok(Response::new()
         .add_event(
-            PollEnded {
-                poll_id: poll_result.poll_id,
-                results: poll_result.results.clone(),
+            Voted {
+                poll_id,
+                voter: info.sender,
             }
             .into(),
         )
-        .set_data(to_binary(&EndPollResponse { poll_result })?))
+        .add_events(evs))
 }
 
 fn take_snapshot(
@@ -166,8 +131,6 @@ fn take_snapshot(
 ) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // todo: add chain param to query after service registry updated
-    // query service registry for active workers
     let active_workers_query = QueryMsg::GetActiveWorkers {
         service_name: config.service_name,
         chain_name: chain.clone().into(),
@@ -191,13 +154,32 @@ fn take_snapshot(
     ))
 }
 
-fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
-    match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
-        Some(stored) if stored != *message => {
-            Err(ContractError::MessageMismatch(message.id.to_string()))
+enum MessageStatus {
+    Verified,
+    NotVerified,
+    Pending, // still in an open poll
+}
+
+fn is_message_verified(
+    deps: Deps,
+    env: &Env,
+    message: &Message,
+) -> Result<MessageStatus, ContractError> {
+    match messages().may_load(deps.storage, message.id.clone())? {
+        Some(tagged_msg) => {
+            let poll = POLLS.load(deps.storage, tagged_msg.poll_id())?;
+            if poll.has_quorum(tagged_msg.index_in_poll())? {
+                if tagged_msg.message() != *message {
+                    return Err(ContractError::MessageMismatch(message.id.to_string()));
+                }
+                Ok(MessageStatus::Verified)
+            } else if poll.poll_finished(env.block.height) {
+                Ok(MessageStatus::NotVerified)
+            } else {
+                Ok(MessageStatus::Pending)
+            }
         }
-        Some(_) => Ok(true),
-        None => Ok(false),
+        None => Ok(MessageStatus::NotVerified),
     }
 }
 
@@ -214,17 +196,4 @@ fn create_poll(
     POLLS.save(store, id, &poll)?;
 
     Ok(id)
-}
-
-fn remove_pending_message(
-    store: &mut dyn Storage,
-    poll_id: PollID,
-) -> Result<Vec<Message>, ContractError> {
-    let pending_messages = PENDING_MESSAGES
-        .may_load(store, poll_id)?
-        .ok_or(ContractError::PollNotFound {})?;
-
-    PENDING_MESSAGES.remove(store, poll_id);
-
-    Ok(pending_messages)
 }
