@@ -16,7 +16,7 @@ impl PartialEq<&Message> for IAxelarGatewayEventsWithLog<'_> {
         match event {
             IAxelarGatewayEvents::ContractCallFilter(event) => {
                 log.transaction_hash == Some(msg.tx_id)
-                    && log.transaction_log_index == Some(msg.log_index.into())
+                    && log.log_index == Some(msg.log_index.into())
                     && event.sender == msg.source_address
                     && event.destination_chain == msg.destination_chain.to_string()
                     && event.destination_contract_address == msg.destination_address
@@ -29,7 +29,11 @@ impl PartialEq<&Message> for IAxelarGatewayEventsWithLog<'_> {
 
 #[allow(dead_code)]
 pub fn verify_message(gateway_address: &EVMAddress, tx_receipt: &TransactionReceipt, msg: &Message) -> bool {
-    let log = match tx_receipt.logs.get(msg.log_index) {
+    let log = match tx_receipt
+        .logs
+        .iter()
+        .find(|log| log.log_index == Some(msg.log_index.into()))
+    {
         Some(log) if log.address == *gateway_address => log,
         _ => return false,
     };
@@ -96,7 +100,7 @@ mod tests {
 
     fn get_matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
         let tx_id = Hash::random();
-        let log_index = 1;
+        let log_index = 999;
         let gateway_address = EVMAddress::random();
 
         let msg = Message {
@@ -111,7 +115,7 @@ mod tests {
         };
         let log = Log{
             transaction_hash: Some(tx_id),
-            transaction_log_index: Some(log_index.into()),
+            log_index: Some(log_index.into()),
             address: gateway_address,
             topics: vec![
                 ContractCallFilter::signature(),

@@ -28,7 +28,7 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: Hash,
-    pub log_index: usize,
+    pub log_index: u64,
     pub destination_address: String,
     pub destination_chain: connection_router::types::ChainName,
     pub source_address: EVMAddress,
