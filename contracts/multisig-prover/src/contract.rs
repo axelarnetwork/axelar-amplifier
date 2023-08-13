@@ -43,11 +43,7 @@ pub fn instantiate(
         multisig,
         service_registry,
         destination_chain_id: msg.destination_chain_id,
-        signing_threshold: msg.signing_threshold.try_into().map_err(
-            |e: axelar_wasm_std::threshold::Error| ContractError::InvalidInput {
-                reason: e.to_string(),
-            },
-        )?,
+        signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: ChainName::from_str(&msg.chain_name).map_err(
             |e: connection_router::ContractError| ContractError::InvalidInput {
@@ -382,7 +378,9 @@ mod test {
         let signing_threshold = (
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
-        );
+        )
+            .try_into()
+            .unwrap();
         let service_name = "service_name";
 
         let mut deps = mock_dependencies();

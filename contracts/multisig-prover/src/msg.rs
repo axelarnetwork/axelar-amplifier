@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::Threshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint256, Uint64};
+use cosmwasm_std::{HexBinary, Uint256};
 
 use crate::{encoding::Data, types::ProofID};
 
@@ -12,7 +13,7 @@ pub struct InstantiateMsg {
     pub multisig_address: String,
     pub service_registry_address: String,
     pub destination_chain_id: Uint256,
-    pub signing_threshold: (Uint64, Uint64),
+    pub signing_threshold: Threshold,
     pub service_name: String,
     pub chain_name: String,
 }

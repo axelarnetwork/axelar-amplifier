@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, Empty, Fraction, Uint128};
+use cosmwasm_std::{Addr, Coin, Empty, Uint128};
 use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Executor};
 
 use super::{mocks, test_data};
@@ -128,10 +128,7 @@ fn instantiate_prover(
         multisig_address,
         service_registry_address,
         destination_chain_id: test_data::destination_chain_id(),
-        signing_threshold: (
-            test_data::threshold().numerator(),
-            test_data::threshold().denominator(),
-        ),
+        signing_threshold: test_data::threshold(),
         service_name: "service-name".to_string(),
         chain_name: "Ethereum".to_string(),
     };
