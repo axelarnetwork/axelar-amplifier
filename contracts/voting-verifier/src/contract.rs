@@ -70,7 +70,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let messages = messages
                 .into_iter()
                 .map(state::Message::try_from)
-                .collect::<Result<Vec<state::Message>, _>>()?;
+                .collect::<Result<Vec<_>, _>>()?;
 
             to_binary(&query::verification_statuses(deps, messages)?)
         }
