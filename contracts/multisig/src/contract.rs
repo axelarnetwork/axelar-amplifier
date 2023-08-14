@@ -219,7 +219,7 @@ mod tests {
         Addr, Empty, OwnedDeps, Uint256,
     };
 
-    use serde_json::from_str;
+    use serde_json::{from_str, to_string};
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
@@ -374,7 +374,7 @@ mod tests {
         );
         assert_eq!(
             get_event_attribute(event, "key_id").unwrap(),
-            session.key_id.to_string()
+            to_string(&session.key_id).unwrap()
         );
         assert_eq!(
             key.pub_keys,
