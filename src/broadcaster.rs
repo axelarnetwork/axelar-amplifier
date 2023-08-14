@@ -187,7 +187,8 @@ impl<T: BroadcastClient> Broadcaster<T> {
         let raw = TxRaw {
             body_bytes,
             auth_info_bytes,
-            signatures: vec![],
+            // empty signature to pass validation
+            signatures: vec![vec![0; 64]],
         };
 
         raw.to_bytes()
