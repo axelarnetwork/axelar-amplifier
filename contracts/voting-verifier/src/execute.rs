@@ -16,6 +16,7 @@ use crate::error::ContractError;
 use crate::events::{EvmMessages, PollEnded, PollStarted, Voted};
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
+use crate::query::is_message_verified;
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 enum VerificationStatus {
@@ -189,16 +190,6 @@ fn take_snapshot(
         config.voting_threshold,
         participants.try_into()?,
     ))
-}
-
-fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
-    match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
-        Some(stored) if stored != *message => {
-            Err(ContractError::MessageMismatch(message.id.to_string()))
-        }
-        Some(_) => Ok(true),
-        None => Ok(false),
-    }
 }
 
 fn create_poll(
