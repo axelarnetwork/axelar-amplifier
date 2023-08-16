@@ -2,9 +2,9 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use cosmos_sdk_proto::cosmos::{auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient};
-use error_stack::Result;
-use evm::EvmChainConfig;
+use error_stack::{FutureExt, IntoReport, Result};
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::task::JoinSet;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
@@ -15,6 +15,7 @@ use broadcaster::Broadcaster;
 use broadcaster::{accounts::account, key::ECDSASigningKey};
 use event_processor::EventProcessor;
 use event_sub::Event;
+use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::State;
@@ -39,7 +40,7 @@ mod url;
 
 type HandlerStream = Pin<Box<dyn Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send>>;
 
-pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
+pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -67,22 +68,22 @@ pub async fn run(cfg: Config, state: State<'_>) -> Result<(), Error> {
         .await
 }
 
-struct App<'a> {
+struct App {
     event_sub: event_sub::EventSub<tendermint_rpc::HttpClient>,
     event_processor: EventProcessor,
     broadcaster: QueuedBroadcaster<ServiceClient<Channel>>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: state::Updater,
-    state: State<'a>,
+    state: State,
     token: CancellationToken,
 }
 
-impl<'a> App<'a> {
+impl App {
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: Broadcaster<ServiceClient<Channel>>,
-        state: State<'a>,
+        state: State,
     ) -> Self {
         let token = CancellationToken::new();
 
@@ -108,11 +109,7 @@ impl<'a> App<'a> {
         }
     }
 
-    async fn configure_evm_chains(
-        mut self,
-        worker: TMAddress,
-        evm_chains: Vec<EvmChainConfig>,
-    ) -> Result<App<'a>, Error> {
+    async fn configure_evm_chains(mut self, worker: TMAddress, evm_chains: Vec<EvmChainConfig>) -> Result<App, Error> {
         for config in evm_chains {
             let label = format!("{}-confirm-gateway-tx-handler", config.name);
             let handler = handlers::evm_verify_msg::Handler::new(
@@ -150,10 +147,7 @@ impl<'a> App<'a> {
             ..
         } = self;
 
-        let event_sub_handle = tokio::spawn(event_sub.run());
-        let event_processor_handle = tokio::spawn(event_processor.run());
-        let broadcaster_handler = tokio::spawn(broadcaster.run());
-
+        let exit_token = token.clone();
         tokio::spawn(async move {
             let mut sigint = signal(SignalKind::interrupt()).expect("failed to capture SIGINT");
             let mut sigterm = signal(SignalKind::terminate()).expect("failed to capture SIGTERM");
@@ -165,15 +159,26 @@ impl<'a> App<'a> {
 
             info!("signal received, waiting for program to exit gracefully");
 
-            token.cancel();
+            exit_token.cancel();
         });
 
-        state_updater.run(state).await.map_err(Error::new)?;
+        let mut set = JoinSet::new();
+        set.spawn(event_sub.run().change_context(Error::EventSub));
+        set.spawn(event_processor.run().change_context(Error::EventProcessor));
+        set.spawn(broadcaster.run().change_context(Error::Broadcaster));
+        set.spawn(state_updater.run(state).change_context(Error::StateUpdater));
 
-        event_sub_handle.await.map_err(Error::new)?.map_err(Error::new)?;
-        event_processor_handle.await.map_err(Error::new)?.map_err(Error::new)?;
-        broadcaster_handler.await.map_err(Error::new)?.map_err(Error::new)?;
+        let res = match (set.join_next().await, token.is_cancelled()) {
+            (Some(result), false) => {
+                token.cancel();
+                result.map_err(Error::new).into_report().and_then(|result| result)
+            }
+            (Some(_), true) => Ok(()),
+            (None, _) => panic!("all tasks exited unexpectedly"),
+        };
 
-        Ok(())
+        while (set.join_next().await).is_some() {}
+
+        res
     }
 }

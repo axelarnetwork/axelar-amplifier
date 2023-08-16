@@ -7,16 +7,26 @@ use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use thiserror::Error;
 use valuable::Valuable;
 
-#[derive(Debug, Error)]
-#[error("{0}")]
-pub struct Error(String);
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("event sub failed")]
+    EventSub,
+    #[error("event processor failed")]
+    EventProcessor,
+    #[error("broadcaster failed")]
+    Broadcaster,
+    #[error("state updater failed")]
+    StateUpdater,
+    #[error("{0}")]
+    Error(String),
+}
 
 impl Error {
     pub fn new<T>(msg: T) -> Error
     where
         T: Display,
     {
-        Error(msg.to_string())
+        Error::Error(msg.to_string())
     }
 }
 
