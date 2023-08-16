@@ -23,6 +23,10 @@ impl MsgQueue {
     pub fn gas_cost(&self) -> Gas {
         self.gas_cost
     }
+
+    pub fn len(&self) -> usize {
+        self.msgs.len()
+    }
 }
 
 #[cfg(test)]

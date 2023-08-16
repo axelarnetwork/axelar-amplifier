@@ -3,12 +3,15 @@ use std::convert::{TryFrom, TryInto};
 
 use async_trait::async_trait;
 use axelar_wasm_std::voting::PollID;
+use connection_router::types::ID_SEPARATOR;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::{IntoReport, ResultExt};
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::de::value::MapDeserializer;
 use serde::Deserialize;
+use tracing::{info, info_span};
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::deserializers::from_str;
@@ -188,14 +191,33 @@ where
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let finalized_tx_receipts = self.finalized_tx_receipts(tx_hashes, confirmation_height).await?;
 
-        let votes: Vec<_> = messages
+        let poll_id_str: String = poll_id.clone().into();
+        let source_chain_str: String = source_chain.into();
+        let message_ids = messages
             .iter()
-            .map(|msg| {
-                finalized_tx_receipts.get(&msg.tx_id).map_or(false, |tx_receipt| {
-                    verify_message(&source_gateway_address, tx_receipt, msg)
+            .map(|message| format!("0x{:x}{}{}", message.tx_id, ID_SEPARATOR, message.log_index))
+            .collect::<Vec<_>>();
+        let votes = info_span!(
+            "verify messages from an EVM chain",
+            poll_id = poll_id_str,
+            source_chain = source_chain_str,
+            message_ids = message_ids.as_value()
+        )
+        .in_scope(|| {
+            info!("ready to verify messages in poll",);
+
+            let votes: Vec<_> = messages
+                .iter()
+                .map(|msg| {
+                    finalized_tx_receipts.get(&msg.tx_id).map_or(false, |tx_receipt| {
+                        verify_message(&source_gateway_address, tx_receipt, msg)
+                    })
                 })
-            })
-            .collect();
+                .collect();
+            info!(votes = votes.as_value(), "ready to vote for messages in poll");
+
+            votes
+        });
 
         self.broadcast_votes(poll_id, votes).await
     }

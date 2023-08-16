@@ -7,6 +7,7 @@ use error_stack::{self, Report, ResultExt};
 use thiserror::Error;
 use tokio::time;
 use tokio::{select, sync::mpsc};
+use tracing::info;
 
 use super::msg_queue::MsgQueue;
 use crate::broadcaster::{clients::BroadcastClient, Broadcaster};
@@ -123,7 +124,14 @@ where
                     broadcast_all(&mut queue, &mut broadcaster).await?;
                   }
 
+                  let message_type = msg.type_url.clone();
                   queue.push(msg, fee.gas_limit);
+                  info!(
+                    message_type,
+                    queue_size = queue.len(),
+                    queue_gas_cost = queue.gas_cost(),
+                    "pushed a new message into the queue"
+                  );
                 }
               },
               _ = interval.tick() => broadcast_all(&mut queue, &mut broadcaster).await?,
@@ -154,11 +162,15 @@ where
 
     match msgs.len() {
         0 => Ok(()),
-        _ => broadcaster
-            .broadcast(msgs)
-            .await
-            .map(|_| ())
-            .change_context(Error::Broadcast),
+        n => {
+            info!(message_count = n, "ready to broadcast messages");
+
+            broadcaster
+                .broadcast(msgs)
+                .await
+                .map(|_| ())
+                .change_context(Error::Broadcast)
+        }
     }
 }
 

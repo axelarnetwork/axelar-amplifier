@@ -17,6 +17,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use tonic::Status;
 use tracing::debug;
+use tracing::info;
 use valuable::Valuable;
 
 use crate::broadcaster::clients::BroadcastClient;
@@ -126,8 +127,17 @@ impl<T: BroadcastClient> Broadcaster<T> {
             .broadcast_tx(tx_bytes)
             .change_context(BroadcasterError::Broadcast)
             .await?;
+        let TxResponse {
+            height,
+            txhash: tx_hash,
+            ..
+        } = &response;
 
-        self.confirm_tx(&response.txhash).await?;
+        info!(height, tx_hash, "broadcasted transaction");
+
+        self.confirm_tx(tx_hash).await?;
+
+        info!(height, tx_hash, "confirmed transaction");
 
         self.acc_sequence += 1;
         Ok(response)
