@@ -10,7 +10,7 @@ use cosmos_sdk_proto::cosmos::tx::v1beta1::{
 use cosmos_sdk_proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
-use cosmrs::Coin;
+use cosmrs::{Coin, Gas};
 use error_stack::{FutureExt, IntoReport, IntoReportCompat, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use serde::Deserialize;
@@ -54,6 +54,9 @@ pub struct Config {
     pub tx_fetch_max_retries: u32,
     pub gas_adjustment: f64,
     pub gas_price: DecCoin,
+    pub batch_gas_limit: Gas,
+    pub queue_cap: usize,
+    pub broadcast_interval: Duration,
 }
 
 impl Default for Config {
@@ -64,6 +67,9 @@ impl Default for Config {
             tx_fetch_max_retries: 10,
             gas_adjustment: 1.0,
             gas_price: DecCoin::new(0.00005, "uaxl").unwrap(),
+            batch_gas_limit: 1000000,
+            queue_cap: 1000,
+            broadcast_interval: Duration::from_secs(5),
         }
     }
 }

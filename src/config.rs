@@ -17,6 +17,7 @@ pub struct Config {
     pub tofnd_config: TofndConfig,
     #[serde(with = "hex")]
     pub private_key: ECDSASigningKey,
+    pub event_buffer_cap: usize,
 }
 
 impl Default for Config {
@@ -28,6 +29,7 @@ impl Default for Config {
             evm_chains: vec![],
             tofnd_config: TofndConfig::default(),
             private_key: ECDSASigningKey::random(),
+            event_buffer_cap: 100000,
         }
     }
 }

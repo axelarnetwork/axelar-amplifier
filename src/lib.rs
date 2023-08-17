@@ -1,5 +1,4 @@
 use std::pin::Pin;
-use std::time::Duration;
 
 use cosmos_sdk_proto::cosmos::{auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient};
 use error_stack::{FutureExt, IntoReport, Result};
@@ -48,6 +47,7 @@ pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
         evm_chains,
         tofnd_config: _tofnd_config,
         private_key,
+        event_buffer_cap,
     } = cfg;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str()).map_err(Error::new)?;
@@ -56,12 +56,12 @@ pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
 
     let worker = private_key.address();
     let account = account(query_client, &worker).await.map_err(Error::new)?;
-    let broadcaster = broadcaster::BroadcasterBuilder::new(service_client, private_key, broadcast)
+    let broadcaster = broadcaster::BroadcasterBuilder::new(service_client, private_key, broadcast.clone())
         .acc_number(account.account_number)
         .acc_sequence(account.sequence)
         .build();
 
-    App::new(tm_client, broadcaster, state)
+    App::new(tm_client, broadcaster, state, broadcast, event_buffer_cap)
         .configure_evm_chains(worker, evm_chains)
         .await?
         .run()
@@ -84,19 +84,24 @@ impl App {
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: Broadcaster<ServiceClient<Channel>>,
         state: State,
+        broadcast_cfg: broadcaster::Config,
+        event_buffer_cap: usize,
     ) -> Self {
         let token = CancellationToken::new();
 
-        let event_sub = event_sub::EventSub::new(tm_client, 100000, token.child_token());
+        let event_sub = event_sub::EventSub::new(tm_client, event_buffer_cap, token.child_token());
         let event_sub = match state.min() {
             Some(min_height) => event_sub.start_from(min_height.increment()),
             None => event_sub,
         };
 
         let event_processor = EventProcessor::new(token.child_token());
-        // TODO: make these parameters configurable
-        let (broadcaster, broadcaster_driver) =
-            QueuedBroadcaster::new(broadcaster, 1000000, 1000, Duration::from_secs(5));
+        let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
+            broadcaster,
+            broadcast_cfg.batch_gas_limit,
+            broadcast_cfg.queue_cap,
+            broadcast_cfg.broadcast_interval,
+        );
 
         Self {
             event_sub,
