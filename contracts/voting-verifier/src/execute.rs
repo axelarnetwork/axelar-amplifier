@@ -1,3 +1,4 @@
+use connection_router::types::ChainName;
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
@@ -8,12 +9,14 @@ use axelar_wasm_std::{
     voting::{Poll, WeightedPoll},
 };
 use connection_router::state::Message;
-use service_registry::msg::{ActiveWorkers, QueryMsg};
+use service_registry::msg::QueryMsg;
+use service_registry::state::Worker;
 
 use crate::error::ContractError;
 use crate::events::{EvmMessages, PollEnded, PollStarted, Voted};
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
+use crate::query::is_message_verified;
 use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
 
 enum VerificationStatus {
@@ -63,7 +66,7 @@ pub fn verify_messages(
         return Ok(response);
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &env)?;
+    let snapshot = take_snapshot(deps.as_ref(), &env, &pending_messages[0].source_chain)?;
     let participants = snapshot.get_participants();
     let id = create_poll(
         deps.storage,
@@ -157,22 +160,26 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         .set_data(to_binary(&EndPollResponse { poll_result })?))
 }
 
-fn take_snapshot(deps: Deps, env: &Env) -> Result<snapshot::Snapshot, ContractError> {
+fn take_snapshot(
+    deps: Deps,
+    env: &Env,
+    chain: &ChainName,
+) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // todo: add chain param to query after service registry updated
     // query service registry for active workers
     let active_workers_query = QueryMsg::GetActiveWorkers {
         service_name: config.service_name,
+        chain_name: chain.clone().into(),
     };
 
-    let res: ActiveWorkers = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.service_registry.to_string(),
         msg: to_binary(&active_workers_query)?,
     }))?;
 
-    let participants = res
-        .workers
+    let participants = workers
         .into_iter()
         .map(service_registry::state::Worker::try_into)
         .collect::<Result<Vec<snapshot::Participant>, _>>()?;
@@ -183,16 +190,6 @@ fn take_snapshot(deps: Deps, env: &Env) -> Result<snapshot::Snapshot, ContractEr
         config.voting_threshold,
         participants.try_into()?,
     ))
-}
-
-fn is_message_verified(deps: Deps, message: &Message) -> Result<bool, ContractError> {
-    match VERIFIED_MESSAGES.may_load(deps.storage, &message.id)? {
-        Some(stored) if stored != *message => {
-            Err(ContractError::MessageMismatch(message.id.to_string()))
-        }
-        Some(_) => Ok(true),
-        None => Ok(false),
-    }
 }
 
 fn create_poll(

@@ -54,11 +54,18 @@ impl MsgToSign {
 }
 
 #[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
 pub struct Signature(HexBinary);
 
 impl From<Signature> for HexBinary {
     fn from(original: Signature) -> Self {
         original.0
+    }
+}
+
+impl From<&Signature> for Vec<u8> {
+    fn from(original: &Signature) -> Self {
+        original.0.to_vec()
     }
 }
 

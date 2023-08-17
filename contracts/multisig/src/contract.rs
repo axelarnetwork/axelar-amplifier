@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::{
     events::Event,
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, Multisig, QueryMsg},
     state::{get_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
     types::{Key, KeyID, MsgToSign, MultisigState, PublicKey, Signature},
     ContractError,
@@ -127,6 +127,14 @@ pub mod execute {
         snapshot: Snapshot,
         pub_keys: HashMap<String, HexBinary>,
     ) -> Result<Response, ContractError> {
+        for participant in snapshot.participants.keys() {
+            if !pub_keys.contains_key(participant) {
+                return Err(ContractError::MissingPublicKey {
+                    participant: participant.to_owned(),
+                });
+            }
+        }
+
         let key_id = KeyID {
             owner: info.sender,
             subkey: key_id,
@@ -154,29 +162,43 @@ pub mod execute {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetSigningSession { session_id } => {
-            to_binary(&query::get_signing_session(deps, session_id)?)
-        }
+        QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
     }
 }
 
 pub mod query {
-    use crate::msg::GetSigningSessionResponse;
+    use crate::msg::Signer;
 
     use super::*;
 
-    pub fn get_signing_session(
-        deps: Deps,
-        session_id: Uint64,
-    ) -> StdResult<GetSigningSessionResponse> {
+    pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
         let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
 
-        let key = KEYS.load(deps.storage, &session.key_id)?;
+        let mut key = KEYS.load(deps.storage, &session.key_id)?;
 
-        Ok(GetSigningSessionResponse {
+        let signers = key
+            .snapshot
+            .participants
+            .into_iter()
+            .map(|(address, participant)| {
+                let pub_key = key
+                    .pub_keys
+                    .remove(&address)
+                    .expect("violated invariant: pub_key not found");
+
+                Signer {
+                    address: participant.address,
+                    weight: participant.weight.into(),
+                    pub_key,
+                    signature: session.signatures.get(&address).cloned(),
+                }
+            })
+            .collect::<Vec<Signer>>();
+
+        Ok(Multisig {
             state: session.state,
-            signatures: session.signatures,
-            snapshot: key.snapshot,
+            quorum: key.snapshot.quorum.into(),
+            signers,
         })
     }
 }
@@ -184,7 +206,7 @@ pub mod query {
 #[cfg(test)]
 mod tests {
     use crate::{
-        msg::GetSigningSessionResponse,
+        msg::Multisig,
         test::common::test_data,
         test::common::{build_snapshot, TestSigner},
         types::MultisigState,
@@ -194,13 +216,13 @@ mod tests {
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps,
+        Addr, Empty, OwnedDeps, Uint256,
     };
 
-    use serde_json::from_str;
+    use serde_json::{from_str, to_string};
 
     const INSTANTIATOR: &str = "inst";
-    const BATCHER: &str = "batcher";
+    const PROVER: &str = "prover";
 
     fn do_instantiate(deps: DepsMut) -> Result<Response, ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
@@ -212,7 +234,7 @@ mod tests {
     }
 
     fn do_key_gen(deps: DepsMut) -> Result<Response, ContractError> {
-        let info = mock_info(BATCHER, &[]);
+        let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
         let signers = test_data::signers();
@@ -268,7 +290,7 @@ mod tests {
 
     fn setup_with_session_started() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = setup();
-        do_start_signing_session(deps.as_mut(), BATCHER).unwrap();
+        do_start_signing_session(deps.as_mut(), PROVER).unwrap();
         deps
     }
 
@@ -310,7 +332,7 @@ mod tests {
             res.unwrap_err(),
             ContractError::DuplicateKeyID {
                 key_id: KeyID {
-                    owner: Addr::unchecked(BATCHER),
+                    owner: Addr::unchecked(PROVER),
                     subkey: "key".to_string(),
                 }
                 .to_string()
@@ -322,14 +344,14 @@ mod tests {
     fn test_start_signing_session() {
         let mut deps = setup();
 
-        let res = do_start_signing_session(deps.as_mut(), BATCHER);
+        let res = do_start_signing_session(deps.as_mut(), PROVER);
 
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
 
         let key_id: KeyID = KeyID {
-            owner: Addr::unchecked(BATCHER),
+            owner: Addr::unchecked(PROVER),
             subkey: "key".to_string(),
         };
         let key = get_key(deps.as_ref().storage, &key_id).unwrap();
@@ -352,7 +374,7 @@ mod tests {
         );
         assert_eq!(
             get_event_attribute(event, "key_id").unwrap(),
-            session.key_id.to_string()
+            to_string(&session.key_id).unwrap()
         );
         assert_eq!(
             key.pub_keys,
@@ -486,19 +508,32 @@ mod tests {
         let signer = test_data::signers().get(0).unwrap().to_owned();
         do_sign(deps.as_mut(), session_id, &signer).unwrap();
 
-        let msg = QueryMsg::GetSigningSession { session_id };
+        let msg = QueryMsg::GetMultisig { session_id };
 
         let res = query(deps.as_ref(), mock_env(), msg);
         assert!(res.is_ok());
 
-        let query_res: GetSigningSessionResponse = from_binary(&res.unwrap()).unwrap();
+        let query_res: Multisig = from_binary(&res.unwrap()).unwrap();
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
         let key = KEYS
             .load(deps.as_ref().storage, (&session.key_id).into())
             .unwrap();
 
         assert_eq!(query_res.state, session.state);
-        assert_eq!(query_res.signatures, session.signatures);
-        assert_eq!(query_res.snapshot, key.snapshot);
+        assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
+        key.snapshot
+            .participants
+            .iter()
+            .for_each(|(address, participant)| {
+                let signer = query_res
+                    .signers
+                    .iter()
+                    .find(|signer| signer.address == participant.address)
+                    .unwrap();
+
+                assert_eq!(signer.weight, Uint256::from(participant.weight));
+                assert_eq!(signer.pub_key, key.pub_keys.get(address).unwrap().clone());
+                assert_eq!(signer.signature, session.signatures.get(address).cloned());
+            });
     }
 }
