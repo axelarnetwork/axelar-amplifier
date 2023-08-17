@@ -45,11 +45,8 @@ pub fn instantiate(
         destination_chain_id: msg.destination_chain_id,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
-        chain_name: ChainName::from_str(&msg.chain_name).map_err(
-            |e: connection_router::ContractError| ContractError::InvalidInput {
-                reason: e.to_string(),
-            },
-        )?,
+        chain_name: ChainName::from_str(&msg.chain_name)
+            .map_err(|_| ContractError::InvalidChainName {})?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -67,7 +64,12 @@ pub fn execute(
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::RotateSnapshot { pub_keys, key_id } => {
-            execute::rotate_snapshot(deps, env, info, pub_keys, key_id)
+            let config = CONFIG.load(deps.storage)?;
+            if config.admin != info.sender {
+                return Err(ContractError::Unauthorized {});
+            }
+
+            execute::rotate_snapshot(deps, env, config, pub_keys, key_id)
         }
     }
 }
@@ -131,16 +133,11 @@ pub mod execute {
     pub fn rotate_snapshot(
         deps: DepsMut,
         env: Env,
-        info: MessageInfo,
+        config: Config,
         pub_keys: HashMap<String, HexBinary>,
         key_id: String,
     ) -> Result<Response, ContractError> {
         KEY_ID.save(deps.storage, &key_id)?;
-
-        let config = CONFIG.load(deps.storage)?;
-        if config.admin != info.sender {
-            return Err(ContractError::Unauthorized {});
-        }
 
         let snapshot = snapshot(deps.querier, env.block, &config)?;
 
@@ -302,7 +299,7 @@ mod test {
     use super::*;
 
     const RELAYER: &str = "relayer";
-    const PROOF_ID: &str = "95eff19658ffef7099536bbff91d83e7fb17aa16aabaeb32b905417a259074ce";
+    const PROOF_ID: &str = "40215bda4c6ddb9de1c994835dfa1699bcd7eff681ba754c4466c80dfa1d3678";
 
     fn execute_key_gen(
         test_case: &mut TestCaseConfig,

@@ -15,8 +15,8 @@ pub enum ContractError {
     #[error("public key is invalid: {reason}")]
     InvalidPublicKey { reason: String },
 
-    #[error("invalid input: {reason}")]
-    InvalidInput { reason: String },
+    #[error("chain name is invalid")]
+    InvalidChainName {},
 
     #[error("invalid participants: {reason}")]
     InvalidParticipants { reason: String },

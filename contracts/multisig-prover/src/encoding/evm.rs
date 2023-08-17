@@ -55,18 +55,6 @@ impl TryFrom<Signer> for Operator {
     }
 }
 
-impl BatchID {
-    pub fn new(message_ids: &[String]) -> BatchID {
-        let mut message_ids = message_ids
-            .iter()
-            .map(|id| id.as_bytes())
-            .collect::<Vec<&[u8]>>();
-        message_ids.sort();
-
-        Keccak256::digest(message_ids.concat()).as_slice().into()
-    }
-}
-
 impl CommandBatch {
     pub fn new(
         messages: Vec<Message>,

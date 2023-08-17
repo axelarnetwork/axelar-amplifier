@@ -68,6 +68,15 @@ impl KeyDeserialize for BatchID {
     }
 }
 
+impl BatchID {
+    pub fn new(message_ids: &[String]) -> BatchID {
+        let mut message_ids = message_ids.to_vec();
+        message_ids.sort();
+
+        Keccak256::digest(message_ids.join(",")).as_slice().into()
+    }
+}
+
 #[cw_serde]
 pub struct CommandBatch {
     pub id: BatchID,
