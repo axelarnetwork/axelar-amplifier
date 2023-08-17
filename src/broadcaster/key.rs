@@ -33,6 +33,7 @@ impl ECDSASigningKey {
         self.public_key()
             .account_id(PREFIX)
             .expect("failed to convert to account identifier")
+            .into()
     }
 }
 

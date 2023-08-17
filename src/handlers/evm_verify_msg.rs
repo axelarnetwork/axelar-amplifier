@@ -42,6 +42,7 @@ pub struct Message {
 struct Event {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
+    #[serde(deserialize_with = "from_str")]
     poll_id: PollID,
     #[serde(deserialize_with = "from_str")]
     source_chain: connection_router::types::ChainName,
@@ -135,14 +136,10 @@ where
     }
 
     async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
-        let msg = serde_json::to_vec(&ExecuteMsg::Vote {
-            poll_id: poll_id.into(),
-            votes,
-        })
-        .expect("vote msg should serialize");
+        let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes }).expect("vote msg should serialize");
         let tx = MsgExecuteContract {
-            sender: self.worker.clone(),
-            contract: self.voting_verifier.clone(),
+            sender: (&self.worker).into(),
+            contract: (&self.voting_verifier).into(),
             msg,
             funds: vec![],
         };
@@ -191,7 +188,7 @@ where
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
         let finalized_tx_receipts = self.finalized_tx_receipts(tx_hashes, confirmation_height).await?;
 
-        let poll_id_str: String = poll_id.clone().into();
+        let poll_id_str: String = poll_id.into();
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
@@ -242,7 +239,7 @@ mod tests {
 
     fn get_poll_started_event() -> event_sub::Event {
         let poll_started = PollStarted {
-            poll_id: 100.into(),
+            poll_id: "100".parse().unwrap(),
             source_chain: "ethereum".parse().unwrap(),
             source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
             confirmation_height: 15,

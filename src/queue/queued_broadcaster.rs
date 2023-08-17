@@ -179,8 +179,7 @@ mod test {
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
-    use cosmrs::bank::MsgSend;
-    use cosmrs::tx::Msg;
+    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use tokio::test;
     use tokio::time::{sleep, Duration};
 
@@ -189,7 +188,6 @@ mod test {
     use crate::broadcaster::key::ECDSASigningKey;
     use crate::broadcaster::{BroadcasterBuilder, Config};
     use crate::queue::queued_broadcaster::BroadcasterClient;
-    use crate::types::TMAddress;
 
     #[test]
     async fn should_not_broadcast_when_gas_limit_has_not_been_reached() {
@@ -408,8 +406,8 @@ mod test {
 
     fn dummy_msg() -> impl Msg {
         MsgSend {
-            from_address: TMAddress::new("", &[1, 2, 3]).unwrap(),
-            to_address: TMAddress::new("", &[4, 5, 6]).unwrap(),
+            from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
+            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
             amount: vec![],
         }
     }

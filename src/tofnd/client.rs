@@ -130,6 +130,7 @@ mod tests {
     use crate::tofnd::client::{Client, MockMultisigClient};
     use crate::tofnd::error::Error;
     use crate::tofnd::proto::{key_presence_response, keygen_response, sign_response};
+    use crate::tofnd::PublicKey;
 
     #[test]
     async fn keygen_empty_response() {
@@ -187,7 +188,7 @@ mod tests {
 
         let mut client = Client::new(client, "party_uid".to_string());
 
-        assert_eq!(client.keygen("key".to_string()).await.unwrap(), rand_pub_key);
+        assert_eq!(client.keygen("key".to_string()).await.unwrap(), PublicKey(rand_pub_key));
     }
 
     #[test]
@@ -201,7 +202,7 @@ mod tests {
         let digest: [u8; 32] = rand::random();
         assert!(matches!(
             client
-                .sign("key".to_string(), digest.to_vec(), [0u8; 33])
+                .sign("key".to_string(), digest.to_vec(), PublicKey([0u8; 33]))
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -221,7 +222,7 @@ mod tests {
         let digest: [u8; 32] = rand::random();
         assert!(matches!(
             client
-                .sign("key".to_string(), digest.to_vec(), [0u8; 33])
+                .sign("key".to_string(), digest.to_vec(), PublicKey([0u8; 33]))
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -240,7 +241,7 @@ mod tests {
         let digest: [u8; 32] = rand::random();
         assert_eq!(
             client
-                .sign("key".to_string(), digest.to_vec(), [0u8; 33])
+                .sign("key".to_string(), digest.to_vec(), PublicKey([0u8; 33]))
                 .await
                 .unwrap(),
             vec![0, 1, 2, 3]
@@ -257,7 +258,10 @@ mod tests {
         let mut client = Client::new(client, "party_uid".to_string());
 
         assert_eq!(
-            client.key_presence("key".to_string(), [0u8; 33]).await.unwrap(),
+            client
+                .key_presence("key".to_string(), PublicKey([0u8; 33]))
+                .await
+                .unwrap(),
             key_presence_response::Response::Present
         );
     }

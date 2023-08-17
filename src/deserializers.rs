@@ -5,6 +5,7 @@ use core::result::Result;
 
 use serde::de::{self, Deserializer};
 use serde::Deserialize;
+use serde_json::Value;
 
 pub fn from_str<'de, D, I>(deserializer: D) -> Result<I, D::Error>
 where
@@ -12,6 +13,6 @@ where
     I: FromStr,
     <I as FromStr>::Err: Display,
 {
-    let value: String = Deserialize::deserialize(deserializer)?;
-    value.parse::<I>().map_err(de::Error::custom)
+    let value: Value = Deserialize::deserialize(deserializer)?;
+    value.to_string().parse::<I>().map_err(de::Error::custom)
 }

@@ -2,12 +2,16 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("grpc_filed")]
+    #[error("grpc failed")]
     Grpc,
-    #[error("keygen_filed")]
+    #[error("keygen failed")]
     KeygenFailed,
-    #[error("sign_filed")]
+    #[error("sign failed")]
     SignFailed,
+    #[error("{0}")]
+    FromHex(#[from] hex::FromHexError),
+    #[error("parsing failed")]
+    ParsingFailed,
 }
 
 #[derive(Error, Debug)]

@@ -32,12 +32,9 @@ impl MsgQueue {
 #[cfg(test)]
 mod test {
     use cosmos_sdk_proto::Any;
-    use cosmrs::bank::MsgSend;
-    use cosmrs::tx::Msg;
+    use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
 
     use super::MsgQueue;
-
-    use crate::types::TMAddress;
 
     #[test]
     fn msg_queue_push_should_work() {
@@ -64,8 +61,8 @@ mod test {
 
     fn dummy_msg() -> Any {
         MsgSend {
-            from_address: TMAddress::new("", &[1, 2, 3]).unwrap(),
-            to_address: TMAddress::new("", &[4, 5, 6]).unwrap(),
+            from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
+            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
             amount: vec![],
         }
         .to_any()
