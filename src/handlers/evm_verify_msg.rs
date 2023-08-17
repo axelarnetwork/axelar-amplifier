@@ -138,8 +138,8 @@ where
     async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes }).expect("vote msg should serialize");
         let tx = MsgExecuteContract {
-            sender: (&self.worker).into(),
-            contract: (&self.voting_verifier).into(),
+            sender: self.worker.as_ref().clone(),
+            contract: self.voting_verifier.as_ref().clone(),
             msg,
             funds: vec![],
         };

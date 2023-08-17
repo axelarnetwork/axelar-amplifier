@@ -23,9 +23,9 @@ impl From<AccountId> for TMAddress {
     }
 }
 
-impl From<&TMAddress> for AccountId {
-    fn from(tm_address: &TMAddress) -> Self {
-        tm_address.clone().0
+impl AsRef<AccountId> for TMAddress {
+    fn as_ref(&self) -> &AccountId {
+        &self.0
     }
 }
 
