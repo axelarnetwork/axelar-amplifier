@@ -1,6 +1,7 @@
 pub mod counter;
 pub mod flagset;
 pub mod nonempty;
+pub mod operators;
 pub mod snapshot;
 pub mod threshold;
 pub mod voting;

@@ -1,12 +1,13 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Event, HexBinary};
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
-use connection_router::types::{ChainName, ID_SEPARATOR};
+use connection_router::types::{ChainName, MessageID, ID_SEPARATOR};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -29,12 +30,32 @@ pub struct PollStarted {
     pub source_gateway_address: String,
     pub confirmation_height: u64,
     pub expires_at: u64,
-    pub messages: Vec<EvmMessage>,
+    pub data: PollData,
     pub participants: Vec<Addr>,
+}
+
+pub enum PollData {
+    Messages(Vec<EvmMessage>),
+    WorkerSet(WorkerSetConfirmation),
+}
+
+fn get_data_attribute(data: PollData) -> (String, String) {
+    match data {
+        PollData::Messages(msgs) => (
+            "messages".into(),
+            serde_json::to_string(&msgs).expect("failed to serialize messages"),
+        ),
+        PollData::WorkerSet(worker_set_confirmation) => (
+            "worker_set_confirmation".into(),
+            serde_json::to_string(&worker_set_confirmation)
+                .expect("failed to serialize worker set confirmation"),
+        ),
+    }
 }
 
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
+        let (data_attr_name, data_val) = get_data_attribute(other.data);
         Event::new("poll_started")
             .add_attribute("poll_id", other.poll_id)
             .add_attribute("source_chain", other.source_chain)
@@ -46,10 +67,7 @@ impl From<PollStarted> for Event {
                 serde_json::to_string(&other.participants)
                     .expect("failed to serialize participants"),
             )
-            .add_attribute(
-                "messages",
-                serde_json::to_string(&other.messages).expect("failed to serialize messages"),
-            )
+            .add_attribute(data_attr_name, data_val)
     }
 }
 
@@ -74,6 +92,24 @@ impl TryFrom<Vec<Message>> for EvmMessages {
             .collect::<Result<Vec<_>, ContractError>>()?;
 
         Ok(EvmMessages(source_chain, messages))
+    }
+}
+
+#[cw_serde]
+pub struct WorkerSetConfirmation {
+    pub tx_id: String,
+    pub log_index: u64,
+    pub operators: Operators,
+}
+
+impl WorkerSetConfirmation {
+    pub fn new(message_id: MessageID, operators: Operators) -> Result<Self, ContractError> {
+        let (tx_id, log_index) = parse_message_id(message_id.to_string())?;
+        Ok(Self {
+            tx_id,
+            log_index,
+            operators,
+        })
     }
 }
 

@@ -37,6 +37,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     VoteError(#[from] voting::Error),
+
+    #[error("worker set already confirmed")]
+    WorkerSetAlreadyConfirmed {},
 }
 
 impl From<ContractError> for StdError {

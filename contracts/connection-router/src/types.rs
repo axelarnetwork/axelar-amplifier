@@ -14,6 +14,8 @@ use crate::ContractError;
 pub const ID_SEPARATOR: char = ':';
 
 #[cw_serde]
+#[serde(try_from = "String")]
+#[serde(into = "String")]
 pub struct MessageID {
     value: String,
 }
@@ -28,6 +30,13 @@ impl FromStr for MessageID {
         Ok(MessageID {
             value: s.to_lowercase(),
         })
+    }
+}
+
+impl TryFrom<String> for MessageID {
+    type Error = ContractError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        MessageID::from_str(value.as_str())
     }
 }
 
@@ -71,6 +80,7 @@ impl KeyDeserialize for MessageID {
 
 #[cw_serde]
 #[serde(try_from = "String")]
+#[serde(into = "String")]
 pub struct ChainName(String);
 
 impl FromStr for ChainName {

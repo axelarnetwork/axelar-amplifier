@@ -59,6 +59,11 @@ impl From<PollID> for String {
     }
 }
 
+impl From<u64> for PollID {
+    fn from(value: u64) -> Self {
+        PollID(value.into())
+    }
+}
 impl From<Uint64> for PollID {
     fn from(value: Uint64) -> Self {
         PollID(value)
