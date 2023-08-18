@@ -104,6 +104,7 @@ mod tests {
         state::{KEYS, SIGNING_SESSIONS},
         test::common::test_data,
         test::common::{build_key, build_snapshot, TestSigner},
+        types::{ECDSASignature, KeyType},
     };
 
     use super::*;
@@ -150,7 +151,11 @@ mod tests {
         let res = session.add_signature(
             key,
             signer.address.clone().into_string(),
-            Signature::try_from(signer.signature.clone()).unwrap(),
+            Signature::try_from((
+                (KeyType::ECDSA, signer.pub_key).try_into().unwrap(),
+                signer.signature.clone(),
+            ))
+            .unwrap(),
         );
 
         SIGNING_SESSIONS.save(&mut config.store, session.id.u64(), &session)?;
@@ -220,7 +225,7 @@ mod tests {
         let mut session =
             SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
-        let invalid_sig: Signature = HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e035111c")
+        let invalid_sig: ECDSASignature = HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e035111c")
                 .unwrap().try_into().unwrap();
 
         let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
@@ -228,7 +233,7 @@ mod tests {
         let result = session.add_signature(
             key,
             config.signers[0].address.clone().into_string(),
-            invalid_sig,
+            Signature::ECDSA(invalid_sig),
         );
 
         assert_eq!(
@@ -254,7 +259,9 @@ mod tests {
         let result = session.add_signature(
             key,
             invalid_participant.clone(),
-            Signature::try_from(config.signers[0].signature.clone()).unwrap(),
+            Signature::ECDSA(
+                ECDSASignature::try_from(config.signers[0].signature.clone()).unwrap(),
+            ),
         );
 
         assert_eq!(

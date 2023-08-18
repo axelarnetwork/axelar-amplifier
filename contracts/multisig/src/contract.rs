@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult, Uint64,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    Uint64,
 };
 
 use axelar_wasm_std::Snapshot;
@@ -11,7 +12,7 @@ use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, Multisig, QueryMsg},
     state::{get_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Key, KeyID, MsgToSign, MultisigState, PublicKey, Signature},
+    types::{Key, KeyID, MsgToSign, MultisigState},
     ContractError,
 };
 
@@ -41,17 +42,25 @@ pub fn execute(
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
-        } => execute::submit_signature(deps, info, session_id, signature.try_into()?),
+        } => execute::submit_signature(deps, info, session_id, signature),
         ExecuteMsg::KeyGen {
             key_id,
             snapshot,
             pub_keys,
         } => execute::key_gen(deps, info, key_id, snapshot, pub_keys),
+        ExecuteMsg::RegisterPublicKey {
+            public_key,
+            key_type,
+        } => execute::register_pub_key(deps, info, public_key, key_type),
     }
 }
 
 pub mod execute {
-    use crate::signing::SigningSession;
+    use crate::{
+        signing::SigningSession,
+        state::PUB_KEYS,
+        types::{KeyType, PublicKey, Signature},
+    };
 
     use super::*;
 
@@ -93,13 +102,26 @@ pub mod execute {
         deps: DepsMut,
         info: MessageInfo,
         session_id: Uint64,
-        signature: Signature,
+        signature: HexBinary,
     ) -> Result<Response, ContractError> {
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
         let key = KEYS.load(deps.storage, &session.key_id)?;
+        let signature: Signature = match key
+            .pub_keys
+            .iter()
+            .find(|pk| pk.0 == &info.sender.to_string())
+        {
+            None => {
+                return Err(ContractError::NotAParticipant {
+                    session_id,
+                    signer: info.sender.into(),
+                })
+            }
+            Some((_, pk)) => (pk.clone(), signature).try_into()?,
+        };
 
         session.add_signature(key, info.sender.clone().into(), signature.clone())?;
 
@@ -125,7 +147,7 @@ pub mod execute {
         info: MessageInfo,
         key_id: String,
         snapshot: Snapshot,
-        pub_keys: HashMap<String, HexBinary>,
+        pub_keys: HashMap<String, (KeyType, HexBinary)>,
     ) -> Result<Response, ContractError> {
         for participant in snapshot.participants.keys() {
             if !pub_keys.contains_key(participant) {
@@ -144,7 +166,12 @@ pub mod execute {
             snapshot,
             pub_keys: pub_keys
                 .into_iter()
-                .map(|(k, v)| (k, PublicKey::try_from(v).unwrap()))
+                .map(|(k, v)| {
+                    (
+                        k,
+                        PublicKey::try_from(v).expect("failed to decode public key"),
+                    )
+                })
                 .collect(),
         };
 
@@ -157,6 +184,29 @@ pub mod execute {
 
         Ok(Response::default())
     }
+
+    pub fn register_pub_key(
+        deps: DepsMut,
+        info: MessageInfo,
+        public_key: HexBinary,
+        key_type: KeyType,
+    ) -> Result<Response, ContractError> {
+        let pub_key: PublicKey = (key_type.clone(), public_key).try_into()?;
+        PUB_KEYS.save(
+            deps.storage,
+            (info.sender.clone(), key_type.clone()),
+            &pub_key.clone(),
+        )?;
+
+        Ok(Response::new().add_event(
+            Event::PublicKeyRegistered {
+                worker: info.sender,
+                public_key: pub_key,
+                key_type,
+            }
+            .into(),
+        ))
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -164,11 +214,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
         QueryMsg::GetKey { key_id } => to_binary(&query::get_key(deps, key_id)?),
+        QueryMsg::GetPublicKeys {
+            worker_addresses,
+            key_type,
+        } => to_binary(&query::get_keys(
+            deps,
+            worker_addresses
+                .iter()
+                .map(|addr| deps.api.addr_validate(addr))
+                .collect::<Result<Vec<Addr>, _>>()?,
+            key_type,
+        )?),
     }
 }
 
 pub mod query {
-    use crate::msg::Signer;
+    use crate::{msg::Signer, state::PUB_KEYS, types::KeyType, types::PublicKey};
 
     use super::*;
 
@@ -206,15 +267,28 @@ pub mod query {
     pub fn get_key(deps: Deps, key_id: KeyID) -> StdResult<Key> {
         KEYS.load(deps.storage, &key_id)
     }
+
+    pub fn get_keys(
+        deps: Deps,
+        workers: Vec<Addr>,
+        key_type: KeyType,
+    ) -> StdResult<Vec<PublicKey>> {
+        workers
+            .into_iter()
+            .map(|worker| PUB_KEYS.load(deps.storage, (worker, key_type.clone())))
+            .collect::<Result<Vec<PublicKey>, _>>()
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use crate::{
         msg::Multisig,
         test::common::test_data,
         test::common::{build_snapshot, TestSigner},
-        types::MultisigState,
+        types::{ECDSASignature, KeyType, MultisigState, PublicKey, Signature},
     };
 
     use super::*;
@@ -245,8 +319,13 @@ mod tests {
         let signers = test_data::signers();
         let pub_keys = signers
             .iter()
-            .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
-            .collect::<HashMap<String, HexBinary>>();
+            .map(|signer| {
+                (
+                    signer.address.clone().to_string(),
+                    (KeyType::ECDSA, signer.pub_key.clone()),
+                )
+            })
+            .collect::<HashMap<String, (KeyType, HexBinary)>>();
         let subkey = "key".to_string();
 
         let snapshot = build_snapshot(&signers);
@@ -315,6 +394,35 @@ mod tests {
             mock_env(),
             mock_info(signer.address.as_str(), &[]),
             msg,
+        )
+    }
+
+    fn do_register_key(
+        deps: DepsMut,
+        worker: Addr,
+        public_key: HexBinary,
+        key_type: KeyType,
+    ) -> Result<Response, ContractError> {
+        let msg = ExecuteMsg::RegisterPublicKey {
+            public_key,
+            key_type,
+        };
+        execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
+    }
+
+    fn query_registered_keys(
+        deps: Deps,
+        workers: Vec<Addr>,
+        key_type: KeyType,
+    ) -> StdResult<Binary> {
+        let env = mock_env();
+        query(
+            deps,
+            env,
+            QueryMsg::GetPublicKeys {
+                worker_addresses: workers.into_iter().map(|w| w.to_string()).collect(),
+                key_type,
+            },
         )
     }
 
@@ -464,7 +572,7 @@ mod tests {
                 .signatures
                 .get(&signer.address.clone().into_string())
                 .unwrap(),
-            &Signature::try_from(signer.signature.clone()).unwrap()
+            &Signature::ECDSA(ECDSASignature::try_from(signer.signature.clone()).unwrap())
         );
         assert_eq!(session.state, MultisigState::Pending);
 
@@ -511,7 +619,7 @@ mod tests {
                 .signatures
                 .get(&signer.address.into_string())
                 .unwrap(),
-            &Signature::try_from(signer.signature).unwrap()
+            &Signature::ECDSA(ECDSASignature::try_from(signer.signature).unwrap())
         );
         assert_eq!(session.state, MultisigState::Completed);
 
@@ -577,5 +685,69 @@ mod tests {
                 assert_eq!(signer.pub_key, key.pub_keys.get(address).unwrap().clone());
                 assert_eq!(signer.signature, session.signatures.get(address).cloned());
             });
+    }
+    #[test]
+    fn test_register_key() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        let signers = test_data::signers();
+        let pub_keys = signers
+            .iter()
+            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
+            .collect::<Vec<(Addr, HexBinary)>>();
+
+        for (addr, pub_key) in &pub_keys {
+            let res = do_register_key(deps.as_mut(), addr.clone(), pub_key.clone(), KeyType::ECDSA);
+            assert!(res.is_ok());
+        }
+
+        let res = query_registered_keys(
+            deps.as_ref(),
+            pub_keys.clone().into_iter().map(|(addr, _)| addr).collect(),
+            KeyType::ECDSA,
+        );
+        assert!(res.is_ok());
+        assert_eq!(
+            pub_keys
+                .into_iter()
+                .map(|(_, pk)| PublicKey::try_from((KeyType::ECDSA, pk)).unwrap())
+                .collect::<Vec<PublicKey>>(),
+            from_binary::<Vec<PublicKey>>(&res.unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_update_key() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        let signers = test_data::signers();
+        let pub_keys = signers
+            .iter()
+            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
+            .collect::<Vec<(Addr, HexBinary)>>();
+
+        for (addr, pub_key) in &pub_keys {
+            let res = do_register_key(deps.as_mut(), addr.clone(), pub_key.clone(), KeyType::ECDSA);
+            assert!(res.is_ok());
+        }
+
+        let new_pub_key = HexBinary::from_hex(
+            "021a381b3e07347d3a05495347e1fb2fe04764afcea5a74084fa957947b59f9026",
+        )
+        .unwrap();
+        let res = do_register_key(
+            deps.as_mut(),
+            pub_keys[0].0.clone(),
+            new_pub_key.clone(),
+            KeyType::ECDSA,
+        );
+        assert!(res.is_ok());
+
+        let res = query_registered_keys(deps.as_ref(), vec![pub_keys[0].0.clone()], KeyType::ECDSA);
+        assert!(res.is_ok());
+        assert_eq!(
+            vec![PublicKey::try_from((KeyType::ECDSA, new_pub_key)).unwrap()],
+            from_binary::<Vec<PublicKey>>(&res.unwrap()).unwrap()
+        );
     }
 }

@@ -7,7 +7,7 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use connection_router::msg::Message;
-use multisig::msg::Signer;
+use multisig::{msg::Signer, types::Signature};
 
 use crate::{
     error::ContractError,
@@ -51,7 +51,7 @@ impl TryFrom<Signer> for Operator {
         Ok(Self {
             address: evm_address((&signer.pub_key).into())?,
             weight: signer.weight,
-            signature: signer.signature,
+            signature: signer.signature.map(|Signature::ECDSA(sig)| sig),
         })
     }
 }
@@ -234,6 +234,7 @@ fn batch_id(message_ids: &[String]) -> HexBinary {
 #[cfg(test)]
 mod test {
     use ethabi::ParamType;
+    use multisig::types::PublicKey;
 
     use crate::test::test_data;
 
@@ -414,8 +415,8 @@ mod test {
             .map(|op| Signer {
                 address: op.address,
                 weight: op.weight.into(),
-                pub_key: op.pub_key,
-                signature: op.signature,
+                pub_key: PublicKey::ECDSA(op.pub_key),
+                signature: op.signature.map(Signature::ECDSA),
             })
             .collect::<Vec<Signer>>();
 
@@ -488,8 +489,8 @@ mod test {
             .map(|op| Signer {
                 address: op.address,
                 weight: op.weight.into(),
-                pub_key: op.pub_key,
-                signature: op.signature,
+                pub_key: PublicKey::ECDSA(op.pub_key),
+                signature: op.signature.map(Signature::ECDSA),
             })
             .collect::<Vec<Signer>>();
 
@@ -558,20 +559,20 @@ mod test {
             Signer {
                 address: operator2.address,
                 weight: operator2.weight,
-                pub_key: operator2.pub_key,
-                signature: operator2.signature,
+                pub_key: PublicKey::ECDSA(operator2.pub_key),
+                signature: operator2.signature.map(Signature::ECDSA),
             },
             Signer {
                 address: operator1.address,
                 weight: operator1.weight,
-                pub_key: operator1.pub_key,
-                signature: operator1.signature,
+                pub_key: PublicKey::ECDSA(operator1.pub_key),
+                signature: operator1.signature.map(Signature::ECDSA),
             },
             Signer {
                 address: operator3.address,
                 weight: operator3.weight,
-                pub_key: operator3.pub_key,
-                signature: operator3.signature,
+                pub_key: PublicKey::ECDSA(operator3.pub_key),
+                signature: operator3.signature.map(Signature::ECDSA),
             },
         ];
 

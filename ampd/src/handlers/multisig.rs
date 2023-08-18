@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use ecdsa::VerifyingKey;
-use hex::FromHex;
 use multisig::types::KeyID;
 use serde::de::value::MapDeserializer;
 use serde::de::Error as DeserializeError;
@@ -35,21 +34,18 @@ fn deserialize_public_keys<'de, D>(
 where
     D: Deserializer<'de>,
 {
-    let keys_by_address: HashMap<TMAddress, String> = HashMap::deserialize(deserializer)?;
+    let keys_by_address: HashMap<TMAddress, multisig::types::PublicKey> =
+        HashMap::deserialize(deserializer)?;
 
     keys_by_address
         .into_iter()
-        .map(|(address, hex)| {
-            Ok((
+        .map(|(address, pk)| match pk {
+            multisig::types::PublicKey::ECDSA(hex) => Ok((
                 address,
-                VerifyingKey::from_sec1_bytes(
-                    <Vec<u8>>::from_hex(hex)
-                        .map_err(D::Error::custom)?
-                        .as_slice(),
-                )
-                .map_err(D::Error::custom)?
-                .into(),
-            ))
+                VerifyingKey::from_sec1_bytes((&hex).into())
+                    .map_err(D::Error::custom)?
+                    .into(),
+            )),
         })
         .collect()
 }
@@ -81,7 +77,7 @@ mod test {
 
     use cosmwasm_std::{Addr, HexBinary, Uint64};
     use multisig::events::Event::SigningStarted;
-    use multisig::types::{MsgToSign, PublicKey};
+    use multisig::types::{ECDSAPublicKey, MsgToSign};
     use tendermint::abci;
 
     use crate::broadcaster::key::ECDSASigningKey;
@@ -92,10 +88,10 @@ mod test {
         ECDSASigningKey::random().address().to_string()
     }
 
-    fn rand_public_key() -> PublicKey {
-        PublicKey::unchecked(HexBinary::from(
+    fn rand_public_key() -> multisig::types::PublicKey {
+        multisig::types::PublicKey::ECDSA(ECDSAPublicKey::unchecked(HexBinary::from(
             ECDSASigningKey::random().public_key().to_bytes(),
-        ))
+        )))
     }
 
     fn rand_message() -> HexBinary {
@@ -106,7 +102,7 @@ mod test {
     fn signing_started_event() -> event_sub::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account(), rand_public_key()))
-            .collect::<HashMap<String, PublicKey>>();
+            .collect::<HashMap<String, multisig::types::PublicKey>>();
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
@@ -160,10 +156,10 @@ mod test {
         let mut event = signing_started_event();
 
         let invalid_pub_key: [u8; 32] = rand::random();
-        let mut map: HashMap<String, PublicKey> = HashMap::new();
+        let mut map: HashMap<String, ECDSAPublicKey> = HashMap::new();
         map.insert(
             rand_account(),
-            PublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
+            ECDSAPublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
             event_sub::Event::Abci {

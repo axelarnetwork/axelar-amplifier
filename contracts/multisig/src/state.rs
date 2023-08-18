@@ -1,9 +1,10 @@
-use cosmwasm_std::{Storage, Uint64};
+use cosmwasm_std::{Addr, Storage, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use crate::{
     signing::SigningSession,
-    types::{Key, KeyID},
+    types::KeyType,
+    types::{Key, KeyID, PublicKey},
     ContractError,
 };
 
@@ -19,3 +20,5 @@ pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError
             key_id: key_id.to_string(),
         })
 }
+
+pub const PUB_KEYS: Map<(Addr, KeyType), PublicKey> = Map::new("registered_pub_keys");

@@ -3,7 +3,7 @@
 
 use connection_router::msg::Message;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
-use multisig::types::Signature;
+use multisig::types::ECDSASignature;
 
 fn legacy_cmd_id_input(
     source_transaction: HexBinary,
@@ -104,10 +104,10 @@ pub fn execute_data() -> HexBinary {
 #[derive(Debug)]
 pub struct TestOperator {
     pub address: Addr,
-    pub pub_key: multisig::types::PublicKey,
+    pub pub_key: multisig::types::ECDSAPublicKey,
     pub operator: HexBinary,
     pub weight: Uint256,
-    pub signature: Option<Signature>,
+    pub signature: Option<ECDSASignature>,
 }
 
 pub fn operators() -> Vec<TestOperator> {
