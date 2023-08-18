@@ -2,7 +2,7 @@
 Structure of a routing packet (`M` in the diagrams)
 ```rust
     struct Message {
-        id: String,
+        id: String, //should be formatted as [source_chain]:[unique identifier], i.e. Ethereum:0x74ac0205b1f8f51023942856145182f0e6fdd41ccb2c8058bf2d89fc67564d56:0
         source_address: String,
         source_chain: String,
         destination_address: String,
@@ -26,8 +26,8 @@ end
 Relayer --"VerifyMessages([M1,M2])"-->G1
 G1 --"VerifyMessages([M1,M2])"--> Vr
 Vr --"VerifyMessages([M1,M2])"--> Vo
-Vo --"GetBondedWorkers"--> S
-Validators --"Vote(poll_id, votes)"--> Vo
+Vo --"GetActiveWorkers"--> S
+Workers --"Vote(poll_id, votes)"--> Vo
 
 Relayer --"RouteMessages([M1,M2])"-->G1
 G1 --"RouteMessages([M1,M2])"-->R
@@ -42,13 +42,12 @@ subgraph Axelar
     M{"Multisig"}
     S{"Service Registry"}
 end
-Signers
 
 Relayer --"ConstructProof([M1.id,M2.id])"-->P
 P --"GetMessages([M1.id,M2.id])"-->G2
-P --"GetBondedWorkers"-->S
+P --"GetActiveWorkers"-->S
 P --"StartSigningSession(key_id, batch_hash)"-->M
-Signers --"SubmitSignature(session_id, signature)"-->M
+Workers --"SubmitSignature(session_id, signature)"-->M
 Relayer --"GetProof(proof_id)" --> P
 P --"GetSigningSession(session_id)"-->M
 ```
@@ -71,18 +70,18 @@ sequenceDiagram
     participant Voting Verifier
     participant Service Registry
     end
-    participant OffChain Voting Worker
+    participant Worker
     Relayer->>IncomingGateway: VerifyMessages([M1,M2])
     IncomingGateway->>Verifier: VerifyMessages([M1,M2])
     Verifier->>Voting Verifier: VerifyMessages([M1,M2])
-    Voting Verifier->>Service Registry: GetBondedWorkers
-    Voting Verifier->>OffChain Voting Worker: emit PollStarted
+    Voting Verifier->>Service Registry: GetActiveWorkers
+    Voting Verifier->>Worker: emit PollStarted
     Voting Verifier-->>Verifier: [(M1.id,false),(M2.id,false)]
     Verifier-->>IncomingGateway: [(M1.id,false),(M2.id, false)]
     IncomingGateway-->>Relayer: [(M1.id,false),(M2.id, false)]
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: Vote
-    OffChain Voting Worker->>Voting Verifier: EndPoll
+    Worker->>Voting Verifier: Vote
+    Worker->>Voting Verifier: Vote
+    Worker->>Voting Verifier: EndPoll
 
 
 
@@ -106,7 +105,7 @@ sequenceDiagram
     participant Prover
     participant Multisig
     end
-    participant Signer
+    participant Worker
 
 
     Router->>OutgoingGateway: RouteMessages([M1,M2])
@@ -117,8 +116,8 @@ sequenceDiagram
     Prover->>Multisig: StartSigningSession(snapshot, batch hash)
     Multisig-->>Prover: session_id
     Prover-->>Relayer: proof_id
-    Signer->>Multisig: SubmitSignature(session_id, signature)
-    Signer->>Multisig: SubmitSignature(session_id, signature)
+    Worker->>Multisig: SubmitSignature(session_id, signature)
+    Worker->>Multisig: SubmitSignature(session_id, signature)
     Relayer->>Prover: GetProof(proof_id)
     Prover->>Multisig: GetSigningSession(session_id)
     Multisig-->>Prover: signing session
@@ -149,7 +148,7 @@ The prover contract is responsible for constructing proofs of routed messages, t
 The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most common example of this is the [`multisig-prover`](./contracts/multisig-prover) that constructs signed batches of routed messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the messages from the gateway, and interacts with the multisig contract to conduct the signing,
 
 ### Multisig Contract
- [`multisig`](./contracts/multisig) is responsible for signing arbitrary blobs of data. Contracts register with the multisig contract to generate a key id, and then use that key id to initiate signing sessions. Off chain participants associated with the key id sign messages when new signing sessions are created.
+ [`multisig`](./contracts/multisig) is responsible for signing arbitrary blobs of data. Contracts register with the multisig contract to generate a key id, and then use that key id to initiate signing sessions. Off chain workers associated with the key id sign messages when new signing sessions are created.
 
 ### Service Registry
  [`service-registry`](./contracts/service-registry) is responsible for tracking workers associated with specific services. Two example services are voting and sigining. Workers must be authorized to join a service via governance vote. Once authorized, workers must also bond a sufficient amount of stake before becoming active in the service. Services query the service registry to create weighted snapshots of the active worker set.
