@@ -16,3 +16,6 @@
 *.iml
 .idea
 .vscode
+
+/ampd/state.json
+/ampd/config.toml

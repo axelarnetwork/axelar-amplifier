@@ -1,6 +1,6 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 
-on: [push, pull_request]
+on: pull_request
 
 name: Basic
 
@@ -16,9 +16,15 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.65.0
+          toolchain: 1.71.1
           target: wasm32-unknown-unknown
           override: true
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -32,7 +38,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: wasm
-          args: --locked
+          args: --locked --workspace --exclude ampd
         env:
           RUSTFLAGS: "-C link-arg=-s"
 
@@ -47,9 +53,15 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.65.0
+          toolchain: 1.71.1
           override: true
           components: rustfmt, clippy
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
