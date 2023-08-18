@@ -4,7 +4,7 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
-use crate::types::{MultisigState, PublicKey, Signature};
+use crate::types::{Key, KeyID, MultisigState, PublicKey, Signature};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -31,6 +31,9 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(Multisig)]
     GetMultisig { session_id: Uint64 },
+
+    #[returns(Key)]
+    GetKey { key_id: KeyID },
 }
 
 #[cw_serde]
