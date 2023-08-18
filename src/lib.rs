@@ -1,15 +1,16 @@
+use std::path::PathBuf;
 use std::pin::Pin;
 
 use cosmos_sdk_proto::cosmos::{auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient};
 use error_stack::{FutureExt, IntoReport, Result};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinSet;
-use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
 
+use crate::config::Config;
 use broadcaster::Broadcaster;
 use broadcaster::{accounts::account, key::ECDSASigningKey};
 use event_processor::EventProcessor;
@@ -17,10 +18,8 @@ use event_sub::Event;
 use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
-use state::State;
+use state::StateUpdater;
 use types::TMAddress;
-
-use crate::config::Config;
 
 mod broadcaster;
 pub mod config;
@@ -37,9 +36,9 @@ mod tofnd;
 mod types;
 mod url;
 
-type HandlerStream = Pin<Box<dyn Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send>>;
+type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
-pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
+pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -60,8 +59,9 @@ pub async fn run(cfg: Config, state: State) -> Result<(), Error> {
         .acc_number(account.account_number)
         .acc_sequence(account.sequence)
         .build();
+    let state_updater = StateUpdater::new(state_path).map_err(Error::new)?;
 
-    App::new(tm_client, broadcaster, state, broadcast, event_buffer_cap)
+    App::new(tm_client, broadcaster, state_updater, broadcast, event_buffer_cap)
         .configure_evm_chains(worker, evm_chains)
         .await?
         .run()
@@ -74,8 +74,7 @@ struct App {
     broadcaster: QueuedBroadcaster<ServiceClient<Channel>>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
-    state_updater: state::Updater,
-    state: State,
+    state_updater: StateUpdater,
     token: CancellationToken,
 }
 
@@ -83,14 +82,14 @@ impl App {
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: Broadcaster<ServiceClient<Channel>>,
-        state: State,
+        state_updater: StateUpdater,
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
     ) -> Self {
         let token = CancellationToken::new();
 
         let event_sub = event_sub::EventSub::new(tm_client, event_buffer_cap, token.child_token());
-        let event_sub = match state.min() {
+        let event_sub = match state_updater.state().min_handler_block_height() {
             Some(min_height) => event_sub.start_from(min_height.increment()),
             None => event_sub,
         };
@@ -108,8 +107,7 @@ impl App {
             event_processor,
             broadcaster,
             broadcaster_driver,
-            state_updater: state::Updater::default(),
-            state,
+            state_updater,
             token,
         }
     }
@@ -128,7 +126,7 @@ impl App {
             let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
             self.state_updater.register_event(&label, rx);
 
-            let sub: HandlerStream = match self.state.get(&label) {
+            let sub: HandlerStream<_> = match self.state_updater.state().handler_block_height(&label) {
                 None => Box::pin(self.event_sub.sub()),
                 Some(&completed_height) => Box::pin(event_sub::skip_to_block(
                     self.event_sub.sub(),
@@ -147,7 +145,6 @@ impl App {
             event_processor,
             broadcaster,
             state_updater,
-            state,
             token,
             ..
         } = self;
@@ -171,7 +168,7 @@ impl App {
         set.spawn(event_sub.run().change_context(Error::EventSub));
         set.spawn(event_processor.run().change_context(Error::EventProcessor));
         set.spawn(broadcaster.run().change_context(Error::Broadcaster));
-        set.spawn(state_updater.run(state).change_context(Error::StateUpdater));
+        set.spawn(state_updater.run().change_context(Error::StateUpdater));
 
         let res = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {

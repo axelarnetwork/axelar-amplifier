@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs, path::PathBuf};
 
 use error_stack::{IntoReport, Result, ResultExt};
+use serde::{Deserialize, Serialize};
 use tendermint::block;
 use thiserror::Error;
 use tokio::sync::mpsc::Receiver;
@@ -18,72 +19,81 @@ pub enum Error {
     WriteFailure,
 }
 
+#[derive(Serialize, Deserialize, Default)]
 pub struct State {
-    state: HashMap<String, block::Height>,
-    path: PathBuf,
+    handlers: HashMap<String, block::Height>,
 }
 
 impl State {
-    pub fn new(path: PathBuf) -> Result<Self, Error> {
-        let state = fs::read_to_string(path.as_path()).into_report().unwrap_or_else(|_| {
-            info!("state does not exist, falling back to default");
+    pub fn min_handler_block_height(&self) -> Option<&block::Height> {
+        self.handlers.values().min()
+    }
 
-            "{}".into()
-        });
+    pub fn handler_block_height(&self, handler_name: &str) -> Option<&block::Height> {
+        self.handlers.get(handler_name)
+    }
 
-        Ok(Self {
-            state: serde_json::from_str(&state)
+    fn set_handler_block_height(&mut self, handler_name: String, height: block::Height) {
+        self.handlers.insert(handler_name, height);
+    }
+}
+
+pub struct StateUpdater {
+    update_stream: StreamMap<String, ReceiverStream<block::Height>>,
+    state_path: PathBuf,
+    state: State,
+}
+
+impl StateUpdater {
+    pub fn new(state_path: PathBuf) -> Result<Self, Error> {
+        let state = match fs::read_to_string(state_path.as_path()) {
+            Ok(state) => serde_json::from_str(&state)
                 .into_report()
                 .change_context(Error::InvalidState)?,
-            path,
+            Err(_) => {
+                info!("state does not exist, falling back to default");
+
+                State::default()
+            }
+        };
+
+        Ok(Self {
+            update_stream: StreamMap::new(),
+            state_path,
+            state,
         })
     }
 
-    pub fn min(&self) -> Option<&block::Height> {
-        self.state.values().min()
+    pub fn state(&self) -> &State {
+        &self.state
     }
 
-    pub fn get(&self, label: &str) -> Option<&block::Height> {
-        self.state.get(label)
-    }
-
-    pub fn set(&mut self, label: String, height: block::Height) {
-        self.state.insert(label, height);
-    }
-
-    fn flush(self) -> Result<(), Error> {
-        let state = serde_json::to_string(&self.state)
-            .into_report()
-            .change_context(Error::SerializationFailure)?;
-
-        fs::write(self.path, state)
-            .into_report()
-            .change_context(Error::WriteFailure)?;
-
-        Ok(())
-    }
-}
-
-#[derive(Default)]
-pub struct Updater {
-    update_stream: StreamMap<String, ReceiverStream<block::Height>>,
-}
-
-impl Updater {
     pub fn register_event(&mut self, label: impl Into<String>, height_changed: Receiver<block::Height>) {
         self.update_stream
             .insert(label.into(), ReceiverStream::new(height_changed));
     }
 
-    pub async fn run(mut self, mut state: State) -> Result<(), Error> {
+    pub async fn run(mut self) -> Result<(), Error> {
         while let Some((handler, height)) = self.update_stream.next().await {
             info!(handler, height = height.value(), "state updated");
-            state.set(handler, height);
+            self.state.set_handler_block_height(handler, height);
         }
 
+        self.flush()
+    }
+
+    fn flush(self) -> Result<(), Error> {
         info!("persisting state to disk");
 
-        state.flush()
+        let state = serde_json::to_string(&self.state)
+            .into_report()
+            .change_context(Error::SerializationFailure)?;
+
+        fs::write(self.state_path, state)
+            .into_report()
+            .change_context(Error::WriteFailure)?;
+
+        Ok(())
     }
 }
 
@@ -92,7 +102,9 @@ mod tests {
     use std::path::PathBuf;
     use std::{fs, panic};
 
-    use super::State;
+    use tokio::sync::mpsc;
+
+    use super::{State, StateUpdater};
 
     fn run_test<T>(state_path: &PathBuf, test: T)
     where
@@ -104,56 +116,58 @@ mod tests {
     }
 
     #[test]
-    fn new_state_should_read_from_the_file() {
-        let state_path = PathBuf::from("./new_state_should_read_from_the_file.json");
+    fn new_state_updater_should_read_from_the_file() {
+        let state_path = PathBuf::from("./new_state_updater_should_read_from_the_file.json");
 
         run_test(&state_path, || {
-            let state = State::new(state_path.clone()).unwrap();
-            assert_eq!(state.state.len(), 0);
+            let state_updater = StateUpdater::new(state_path.clone()).unwrap();
+            let state = state_updater.state();
+            assert_eq!(state.handlers.len(), 0);
 
-            fs::write(state_path.clone(), String::from("{\"a\": \"2\", \"b\": \"3\"}")).unwrap();
-            let state = State::new(state_path.clone()).unwrap();
-            assert_eq!(state.state.len(), 2);
-            assert_eq!(state.get("a"), Some(&2_u32.into()));
-            assert_eq!(state.get("b"), Some(&3_u32.into()));
-            assert_eq!(state.get("c"), None);
+            fs::write(
+                state_path.clone(),
+                String::from("{\"handlers\":{\"a\":\"2\",\"b\":\"3\"}}"),
+            )
+            .unwrap();
+            let state_updater = StateUpdater::new(state_path.clone()).unwrap();
+            let state = state_updater.state();
+            assert_eq!(state.handlers.len(), 2);
+            assert_eq!(state.handler_block_height("a"), Some(&2_u32.into()));
+            assert_eq!(state.handler_block_height("b"), Some(&3_u32.into()));
+            assert_eq!(state.handler_block_height("c"), None);
         });
     }
 
-    #[test]
-    fn get_set_should_work() {
-        let state_path = PathBuf::from("./get_set_should_work.json");
+    #[tokio::test]
+    async fn state_updater_run_should_write_to_the_file() {
+        let state_path = PathBuf::from("./state_updater_run_should_write_to_the_file.json");
+        let (a_tx, a_rx) = mpsc::channel(5);
+        let (b_tx, b_rx) = mpsc::channel(5);
+
+        let mut state_updater = StateUpdater::new(state_path.clone()).unwrap();
+        state_updater.register_event("a", a_rx);
+        state_updater.register_event("b", b_rx);
+
+        let handle = tokio::spawn(state_updater.run());
+
+        a_tx.send(5_u32.into()).await.unwrap();
+        a_tx.send(6_u32.into()).await.unwrap();
+        a_tx.send(7_u32.into()).await.unwrap();
+        b_tx.send(10_u32.into()).await.unwrap();
+
+        drop(a_tx);
+        drop(b_tx);
+
+        let _ = handle.await;
 
         run_test(&state_path, || {
-            let mut state = State::new(state_path.clone()).unwrap();
-            assert_eq!(state.state.len(), 0);
+            let state = fs::read_to_string(state_path.as_path()).unwrap();
+            let state: State = serde_json::from_str(&state).unwrap();
 
-            state.set("a".into(), 2_u32.into());
-            assert_eq!(state.state.len(), 1);
-            assert_eq!(state.get("a"), Some(&2_u32.into()));
-
-            state.set("b".into(), 3_u32.into());
-            assert_eq!(state.state.len(), 2);
-            assert_eq!(state.get("b"), Some(&3_u32.into()));
-        });
-    }
-
-    #[test]
-    fn flush_should_work() {
-        let state_path = PathBuf::from("./flush_should_work.json");
-
-        run_test(&state_path, || {
-            let mut state = State::new(state_path.clone()).unwrap();
-            assert_eq!(state.state.len(), 0);
-
-            state.set("a".into(), 2_u32.into());
-            state.set("b".into(), 3_u32.into());
-            state.flush().unwrap();
-
-            let state = State::new(state_path.clone()).unwrap();
-            assert_eq!(state.state.len(), 2);
-            assert_eq!(state.get("a"), Some(&2_u32.into()));
-            assert_eq!(state.get("b"), Some(&3_u32.into()));
+            assert_eq!(state.handlers.len(), 2);
+            assert_eq!(state.handler_block_height("a"), Some(&7_u32.into()));
+            assert_eq!(state.handler_block_height("b"), Some(&10_u32.into()));
+            assert_eq!(state.handler_block_height("c"), None);
         });
     }
 }

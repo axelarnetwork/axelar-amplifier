@@ -12,7 +12,6 @@ use tracing::{error, info};
 use ampd::config::Config;
 use ampd::report::LoggableError;
 use ampd::run;
-use ampd::state;
 use valuable::Valuable;
 
 #[derive(Debug, Parser)]
@@ -45,17 +44,7 @@ async fn main() -> ExitCode {
     info!("starting daemon");
 
     let cfg = init_config(&args);
-    let state = match state::State::new(args.state) {
-        Ok(state) => state,
-        Err(err) => {
-            let err = LoggableError::from(&err);
-            error!(err = err.as_value(), "failed to load state");
-
-            return ExitCode::FAILURE;
-        }
-    };
-
-    let code = match run(cfg, state).await {
+    let code = match run(cfg, args.state).await {
         Ok(_) => ExitCode::SUCCESS,
         Err(report) => {
             let err = LoggableError::from(&report);
