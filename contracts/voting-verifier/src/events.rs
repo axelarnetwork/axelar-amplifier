@@ -3,6 +3,7 @@ use std::vec::Vec;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Event, HexBinary};
+use serde_json::to_string;
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
@@ -36,19 +37,24 @@ pub struct PollStarted {
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
         Event::new("poll_started")
-            .add_attribute("poll_id", other.poll_id)
-            .add_attribute("source_chain", other.source_chain)
+            .add_attribute(
+                "poll_id",
+                to_string(&other.poll_id).expect("failed to serialize poll_id"),
+            )
+            .add_attribute(
+                "source_chain",
+                to_string(&other.source_chain).expect("failed to serialize source_chain"),
+            )
             .add_attribute("source_gateway_address", other.source_gateway_address)
             .add_attribute("confirmation_height", other.confirmation_height.to_string())
             .add_attribute("expires_at", other.expires_at.to_string())
             .add_attribute(
                 "participants",
-                serde_json::to_string(&other.participants)
-                    .expect("failed to serialize participants"),
+                to_string(&other.participants).expect("failed to serialize participants"),
             )
             .add_attribute(
                 "messages",
-                serde_json::to_string(&other.messages).expect("failed to serialize messages"),
+                to_string(&other.messages).expect("failed to serialize messages"),
             )
     }
 }
@@ -136,7 +142,10 @@ pub struct Voted {
 impl From<Voted> for Event {
     fn from(other: Voted) -> Self {
         Event::new("voted")
-            .add_attribute("poll_id", other.poll_id)
+            .add_attribute(
+                "poll_id",
+                to_string(&other.poll_id).expect("failed to serialize poll_id"),
+            )
             .add_attribute("voter", other.voter)
     }
 }
@@ -149,10 +158,13 @@ pub struct PollEnded {
 impl From<PollEnded> for Event {
     fn from(other: PollEnded) -> Self {
         Event::new("poll_ended")
-            .add_attribute("poll_id", other.poll_id)
+            .add_attribute(
+                "poll_id",
+                to_string(&other.poll_id).expect("failed to serialize poll_id"),
+            )
             .add_attribute(
                 "results",
-                serde_json::to_string(&other.results).expect("failed to serialize results"),
+                to_string(&other.results).expect("failed to serialize results"),
             )
     }
 }
