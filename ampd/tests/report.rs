@@ -25,15 +25,15 @@ fn correct_error_log() {
     let expected_err = LoggableError {
         msg: "error3".to_string(),
         attachments: vec!["opaque attachment".to_string()],
-        location: "tests/report.rs:13:10".to_string(),
+        location: "ampd/tests/report.rs:13:10".to_string(),
         cause: Some(Box::new(LoggableError {
             msg: "error2".to_string(),
             attachments: vec!["test1".to_string(), "test2".to_string()],
-            location: "tests/report.rs:10:10".to_string(),
+            location: "ampd/tests/report.rs:10:10".to_string(),
             cause: Some(Box::new(LoggableError {
                 msg: "error1".to_string(),
                 attachments: vec!["foo1".to_string()],
-                location: "tests/report.rs:8:18".to_string(),
+                location: "ampd/tests/report.rs:8:18".to_string(),
                 cause: None,
                 backtrace: None,
             })),

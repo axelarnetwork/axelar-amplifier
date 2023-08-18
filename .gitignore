@@ -1,5 +1,5 @@
-/target
 /.idea/
 .DS_Store
-/state.json
-/config.toml
+/target
+/ampd/state.json
+/ampd/config.toml
