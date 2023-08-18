@@ -70,9 +70,8 @@ impl KeyDeserialize for MessageID {
 }
 
 #[cw_serde]
-pub struct ChainName {
-    value: String,
-}
+#[serde(try_from = "String")]
+pub struct ChainName(String);
 
 impl FromStr for ChainName {
     type Err = ContractError;
@@ -81,21 +80,28 @@ impl FromStr for ChainName {
         if s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidChainName {});
         }
-        Ok(ChainName {
-            value: s.to_lowercase(),
-        })
+
+        Ok(ChainName(s.to_lowercase()))
     }
 }
 
 impl From<ChainName> for String {
     fn from(d: ChainName) -> Self {
-        d.value
+        d.0
+    }
+}
+
+impl TryFrom<String> for ChainName {
+    type Error = ContractError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 
 impl fmt::Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -106,13 +112,13 @@ impl<'a> PrimaryKey<'a> for ChainName {
     type SuperSuffix = Self;
 
     fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(self.value.as_bytes())]
+        vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
 impl<'a> Prefixer<'a> for ChainName {
     fn prefix(&self) -> Vec<Key> {
-        vec![Key::Ref(self.value.as_bytes())]
+        vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
@@ -145,5 +151,67 @@ flags! {
         Incoming = 1,
         Outgoing = 2,
         Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+
+    use super::*;
+
+    #[test]
+    fn should_fail_to_parse_invalid_chain_name() {
+        // empty
+        assert_eq!(
+            "".parse::<ChainName>().unwrap_err(),
+            ContractError::InvalidChainName {}
+        );
+
+        // name contains id separator
+        assert_eq!(
+            format!("chain {ID_SEPARATOR}")
+                .parse::<ChainName>()
+                .unwrap_err(),
+            ContractError::InvalidChainName {}
+        );
+    }
+
+    #[test]
+    fn should_parse_to_case_insensitive_chain_name() {
+        let rand_str: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect();
+
+        let chain_name: ChainName = rand_str.parse().unwrap();
+
+        assert_eq!(
+            chain_name,
+            rand_str.to_lowercase().parse::<ChainName>().unwrap()
+        );
+        assert_eq!(
+            chain_name,
+            rand_str.to_uppercase().parse::<ChainName>().unwrap()
+        );
+    }
+
+    #[test]
+    fn should_not_deserialize_invalid_chain_name() {
+        assert_eq!(
+            "chain name is invalid",
+            serde_json::from_str::<ChainName>(format!("\"\"").as_str())
+                .unwrap_err()
+                .to_string()
+        );
+
+        assert_eq!(
+            "chain name is invalid",
+            serde_json::from_str::<ChainName>(format!("\"chain{ID_SEPARATOR}\"").as_str())
+                .unwrap_err()
+                .to_string()
+        );
     }
 }

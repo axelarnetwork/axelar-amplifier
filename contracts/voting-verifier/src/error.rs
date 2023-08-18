@@ -38,3 +38,9 @@ pub enum ContractError {
     #[error("{0}")]
     VoteError(#[from] voting::Error),
 }
+
+impl From<ContractError> for StdError {
+    fn from(value: ContractError) -> Self {
+        Self::generic_err(value.to_string())
+    }
+}

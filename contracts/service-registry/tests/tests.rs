@@ -3,11 +3,13 @@ use std::vec;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use service_registry::{
-    contract::{execute, instantiate, query, AXL_DENOMINATION},
+    contract::{execute, instantiate, query},
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
+
+const AXL_DENOMINATION: &str = "uaxl";
 
 #[test]
 fn register_service() {
@@ -37,6 +39,7 @@ fn register_service() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond: Uint128::zero(),
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -52,6 +55,7 @@ fn register_service() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond: Uint128::zero(),
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -93,6 +97,7 @@ fn authorize_worker() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond: Uint128::zero(),
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -161,6 +166,7 @@ fn bond_worker() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -225,6 +231,7 @@ fn declare_chain_support() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -335,6 +342,7 @@ fn unbond_worker() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -399,6 +407,65 @@ fn unbond_worker() {
 }
 
 #[test]
+fn bond_wrong_denom() {
+    let worker = Addr::unchecked("worker");
+    let mut app = App::new(|router, _, storage| {
+        router
+            .bank
+            .init_balance(storage, &worker, coins(100000, "funnydenom"))
+            .unwrap()
+    });
+    let code = ContractWrapper::new(execute, instantiate, query);
+    let code_id = app.store_code(Box::new(code));
+    let governance = Addr::unchecked("gov");
+
+    let contract_addr = app
+        .instantiate_contract(
+            code_id,
+            Addr::unchecked("anyone"),
+            &InstantiateMsg {
+                governance_account: governance.clone().into(),
+            },
+            &[],
+            "service_registry",
+            None,
+        )
+        .unwrap();
+    let service_name = "validators";
+    let min_worker_bond = Uint128::new(100);
+    let res = app.execute_contract(
+        governance.clone(),
+        contract_addr.clone(),
+        &ExecuteMsg::RegisterService {
+            service_name: service_name.into(),
+            service_contract: Addr::unchecked("nowhere"),
+            min_num_workers: 0,
+            max_num_workers: Some(100),
+            min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days: 10,
+            description: "Some service".into(),
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let res = app.execute_contract(
+        worker.clone(),
+        contract_addr.clone(),
+        &ExecuteMsg::BondWorker {
+            service_name: service_name.into(),
+        },
+        &coins(min_worker_bond.u128(), "funnydenom"),
+    );
+    assert!(res.is_err());
+    assert_eq!(
+        ContractError::WrongDenom {},
+        res.unwrap_err().downcast().unwrap()
+    );
+}
+
+#[test]
 fn bond_but_not_authorized() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
@@ -434,6 +501,7 @@ fn bond_but_not_authorized() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -512,6 +580,7 @@ fn bond_but_not_enough() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -601,6 +670,7 @@ fn bond_before_authorize() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -700,6 +770,7 @@ fn unbond_then_rebond() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
@@ -821,6 +892,7 @@ fn unbonding_period() {
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: unbonding_period_days.clone(),
             description: "Some service".into(),
         },

@@ -23,6 +23,7 @@ pub struct Service {
     pub min_num_workers: u16,
     pub max_num_workers: Option<u16>,
     pub min_worker_bond: Uint128,
+    pub bond_denom: String,
     pub unbonding_period_days: u16,
     pub description: String,
 }

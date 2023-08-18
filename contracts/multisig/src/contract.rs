@@ -224,10 +224,10 @@ mod tests {
         Addr, Empty, OwnedDeps, Uint256,
     };
 
-    use serde_json::from_str;
+    use serde_json::{from_str, to_string};
 
     const INSTANTIATOR: &str = "inst";
-    const BATCHER: &str = "batcher";
+    const PROVER: &str = "prover";
 
     fn do_instantiate(deps: DepsMut) -> Result<Response, ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
@@ -239,7 +239,7 @@ mod tests {
     }
 
     fn do_key_gen(deps: DepsMut) -> Result<(Response, Key), ContractError> {
-        let info = mock_info(BATCHER, &[]);
+        let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
         let signers = test_data::signers();
@@ -275,7 +275,7 @@ mod tests {
     }
 
     fn query_key(deps: Deps) -> StdResult<Binary> {
-        let info = mock_info(BATCHER, &[]);
+        let info = mock_info(PROVER, &[]);
         let env = mock_env();
         query(
             deps,
@@ -327,7 +327,7 @@ mod tests {
 
     fn setup_with_session_started() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = setup();
-        do_start_signing_session(deps.as_mut(), BATCHER).unwrap();
+        do_start_signing_session(deps.as_mut(), PROVER).unwrap();
         deps
     }
 
@@ -374,7 +374,7 @@ mod tests {
             res.unwrap_err(),
             ContractError::DuplicateKeyID {
                 key_id: KeyID {
-                    owner: Addr::unchecked(BATCHER),
+                    owner: Addr::unchecked(PROVER),
                     subkey: "key".to_string(),
                 }
                 .to_string()
@@ -386,14 +386,14 @@ mod tests {
     fn test_start_signing_session() {
         let mut deps = setup();
 
-        let res = do_start_signing_session(deps.as_mut(), BATCHER);
+        let res = do_start_signing_session(deps.as_mut(), PROVER);
 
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
 
         let key_id: KeyID = KeyID {
-            owner: Addr::unchecked(BATCHER),
+            owner: Addr::unchecked(PROVER),
             subkey: "key".to_string(),
         };
         let key = get_key(deps.as_ref().storage, &key_id).unwrap();
@@ -416,7 +416,7 @@ mod tests {
         );
         assert_eq!(
             get_event_attribute(event, "key_id").unwrap(),
-            session.key_id.to_string()
+            to_string(&session.key_id).unwrap()
         );
         assert_eq!(
             key.pub_keys,

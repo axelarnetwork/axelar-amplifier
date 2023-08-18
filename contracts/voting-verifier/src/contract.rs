@@ -1,13 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use connection_router::state;
 
 use crate::error::ContractError;
-use crate::execute;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
+use crate::{execute, query};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -64,6 +64,19 @@ pub fn execute(
     }
 }
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    todo!()
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::IsVerified { messages } => {
+            let messages = messages
+                .into_iter()
+                .map(state::Message::try_from)
+                .collect::<Result<Vec<_>, _>>()?;
+
+            to_binary(&query::verification_statuses(deps, messages)?)
+        }
+
+        QueryMsg::GetPoll { poll_id: _ } => {
+            todo!()
+        }
+    }
 }

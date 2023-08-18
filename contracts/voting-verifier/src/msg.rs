@@ -43,6 +43,9 @@ pub struct Poll {
 pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollID },
+
+    #[returns(Vec<(String, bool)>)]
+    IsVerified { messages: Vec<Message> },
 }
 
 #[cw_serde]
