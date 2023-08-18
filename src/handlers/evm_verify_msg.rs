@@ -14,7 +14,6 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
-use crate::deserializers::from_str;
 use crate::event_processor::EventHandler;
 use crate::event_sub;
 use crate::evm::json_rpc::EthereumClient;
@@ -42,9 +41,7 @@ pub struct Message {
 struct Event {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
-    #[serde(deserialize_with = "from_str")]
     poll_id: PollID,
-    #[serde(deserialize_with = "from_str")]
     source_chain: connection_router::types::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,

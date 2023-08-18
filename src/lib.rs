@@ -23,7 +23,6 @@ use types::TMAddress;
 
 mod broadcaster;
 pub mod config;
-mod deserializers;
 mod event_processor;
 mod event_sub;
 mod evm;
