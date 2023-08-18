@@ -1,9 +1,9 @@
-use proc_macro::{TokenStream};
+use proc_macro::TokenStream;
 use quote::quote;
 
 #[proc_macro_attribute]
-pub fn derive_tryfrom(arg:TokenStream, input:TokenStream) -> TokenStream {
-    let event_type =syn::parse_macro_input!(arg as syn::LitStr);
+pub fn derive_tryfrom(arg: TokenStream, input: TokenStream) -> TokenStream {
+    let event_type = syn::parse_macro_input!(arg as syn::LitStr);
     let input = syn::parse_macro_input!(input as syn::ItemStruct);
 
     let event_struct = input.ident.clone();

@@ -21,14 +21,20 @@ fn fail_to_convert_incompatible_event() {
     };
 
     let res: Result<TestEvent, tryfrom_utils::Error> = incompatible_event.try_into();
-    assert!(res.is_err_and(|err| matches!(err.current_context(), tryfrom_utils::Error::DeserializationFailed(_, _))));
+    assert!(res.is_err_and(|err| matches!(
+        err.current_context(),
+        tryfrom_utils::Error::DeserializationFailed(_, _)
+    )));
 }
 
 #[test]
 fn fail_to_convert_event_with_type_mismatch() {
     let mut complete_attributes = serde_json::Map::new();
     complete_attributes.insert("number".to_string(), serde_json::to_value(5).unwrap());
-    complete_attributes.insert("text".to_string(), serde_json::to_value("some text").unwrap());
+    complete_attributes.insert(
+        "text".to_string(),
+        serde_json::to_value("some text").unwrap(),
+    );
 
     let mismatched_event = tryfrom_utils::Event::Abci {
         event_type: "some_other_event".to_string(),
@@ -36,14 +42,20 @@ fn fail_to_convert_event_with_type_mismatch() {
     };
 
     let res: Result<TestEvent, tryfrom_utils::Error> = mismatched_event.try_into();
-    assert!(res.is_err_and(|err| matches!(err.current_context(), tryfrom_utils::Error::EventTypeMismatch(_))));
+    assert!(res.is_err_and(|err| matches!(
+        err.current_context(),
+        tryfrom_utils::Error::EventTypeMismatch(_)
+    )));
 }
 
 #[test]
 fn convert_matching_event() {
     let mut complete_attributes = serde_json::Map::new();
     complete_attributes.insert("number".to_string(), serde_json::to_value(5).unwrap());
-    complete_attributes.insert("text".to_string(), serde_json::to_value("some text").unwrap());
+    complete_attributes.insert(
+        "text".to_string(),
+        serde_json::to_value("some text").unwrap(),
+    );
 
     let correct_event = tryfrom_utils::Event::Abci {
         event_type: "test_event".to_string(),
