@@ -70,6 +70,7 @@ impl KeyDeserialize for MessageID {
 }
 
 #[cw_serde]
+#[serde(try_from = "String")]
 pub struct ChainName(String);
 
 impl FromStr for ChainName {
@@ -87,6 +88,16 @@ impl FromStr for ChainName {
 impl From<ChainName> for String {
     fn from(d: ChainName) -> Self {
         d.0
+    }
+}
+
+impl TryFrom<String> for ChainName {
+    type Error = ContractError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value
+            .parse()
+            .map_err(|_| ContractError::InvalidChainName {})
     }
 }
 
@@ -186,6 +197,23 @@ mod tests {
         assert_eq!(
             chain_name,
             rand_str.to_uppercase().parse::<ChainName>().unwrap()
+        );
+    }
+
+    #[test]
+    fn should_not_deserialize_invalid_chain_name() {
+        assert_eq!(
+            "chain name is invalid",
+            serde_json::from_str::<ChainName>(format!("\"\"").as_str())
+                .unwrap_err()
+                .to_string()
+        );
+
+        assert_eq!(
+            "chain name is invalid",
+            serde_json::from_str::<ChainName>(format!("\"chain{ID_SEPARATOR}\"").as_str())
+                .unwrap_err()
+                .to_string()
         );
     }
 }
