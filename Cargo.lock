@@ -150,6 +150,7 @@ dependencies = [
  "cw2 0.15.1",
  "flagset",
  "hex",
+ "rand",
  "schemars",
  "serde",
  "serde_json",

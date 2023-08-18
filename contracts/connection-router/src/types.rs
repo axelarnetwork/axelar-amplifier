@@ -144,3 +144,48 @@ flags! {
         Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+
+    use super::*;
+
+    #[test]
+    fn should_fail_to_parse_invalid_chain_name() {
+        // empty
+        assert_eq!(
+            "".parse::<ChainName>().unwrap_err(),
+            ContractError::InvalidChainName {}
+        );
+
+        // name contains id separator
+        assert_eq!(
+            format!("chain {ID_SEPARATOR}")
+                .parse::<ChainName>()
+                .unwrap_err(),
+            ContractError::InvalidChainName {}
+        );
+    }
+
+    #[test]
+    fn should_parse_to_case_insensitive_chain_name() {
+        let rand_str: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect();
+
+        let chain_name: ChainName = rand_str.parse().unwrap();
+
+        assert_eq!(
+            chain_name,
+            rand_str.to_lowercase().parse::<ChainName>().unwrap()
+        );
+        assert_eq!(
+            chain_name,
+            rand_str.to_uppercase().parse::<ChainName>().unwrap()
+        );
+    }
+}
