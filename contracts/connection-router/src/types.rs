@@ -95,9 +95,7 @@ impl TryFrom<String> for ChainName {
     type Error = ContractError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        value
-            .parse()
-            .map_err(|_| ContractError::InvalidChainName {})
+        value.parse()
     }
 }
 
