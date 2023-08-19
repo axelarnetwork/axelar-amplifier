@@ -634,6 +634,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "events"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tendermint",
+ "thiserror",
+]
+
+[[package]]
+name = "events_derive"
+version = "0.1.0"
+dependencies = [
+ "error-stack",
+ "events",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 2.0.29",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1548,27 +1569,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb71511c991639bb078fd5bf97757e03914361c48100d52878b8e52b46fb92cd"
 dependencies = [
  "time-core",
-]
-
-[[package]]
-name = "tryfrom_derive"
-version = "0.1.0"
-dependencies = [
- "error-stack",
- "quote",
- "serde",
- "serde_json",
- "syn 2.0.29",
- "tryfrom_utils",
-]
-
-[[package]]
-name = "tryfrom_utils"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tendermint",
- "thiserror",
 ]
 
 [[package]]
