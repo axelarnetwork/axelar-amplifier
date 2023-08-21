@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
-use connection_router::msg::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, short_signature, ParamType, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
-use multisig::msg::Signer;
 use sha3::{Digest, Keccak256};
+
+use connection_router::msg::Message;
+use multisig::msg::Signer;
 
 use crate::{
     error::ContractError,
@@ -232,8 +233,9 @@ fn batch_id(message_ids: &[String]) -> HexBinary {
 
 #[cfg(test)]
 mod test {
-    use crate::test::test_data;
     use ethabi::ParamType;
+
+    use crate::test::test_data;
 
     use super::*;
 
@@ -342,7 +344,7 @@ mod test {
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
-                reason: "destination_address is not a valid EVM address: invalid character: i at index 0".into()
+                reason: "destination_address is not a valid EVM address: Invalid character 'i' at position 0".into()
             }
         );
     }
@@ -358,9 +360,8 @@ mod test {
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
-                reason:
-                    "payload_hash length is not a valid keccak256 hash length: could not convert slice to array"
-                        .into()
+                reason: "payload_hash length is not a valid keccak256 hash length: could not convert slice to array"
+                    .into()
             }
         );
     }
