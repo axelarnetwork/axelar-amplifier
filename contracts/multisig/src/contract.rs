@@ -169,6 +169,7 @@ pub mod execute {
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
+        QueryMsg::GetKey { key_id } => to_binary(&query::get_key(deps, key_id)?),
     }
 }
 
@@ -207,6 +208,10 @@ pub mod query {
             signers,
         })
     }
+
+    pub fn get_key(deps: Deps, key_id: KeyID) -> StdResult<Key> {
+        KEYS.load(deps.storage, &key_id)
+    }
 }
 
 #[cfg(test)]
@@ -225,7 +230,7 @@ mod tests {
         Addr, Empty, OwnedDeps, Uint256,
     };
 
-    use serde_json::from_str;
+    use serde_json::{from_str, to_string};
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
@@ -239,7 +244,7 @@ mod tests {
         instantiate(deps, env, info, msg)
     }
 
-    fn do_key_gen(deps: DepsMut) -> Result<Response, ContractError> {
+    fn do_key_gen(deps: DepsMut) -> Result<(Response, Key), ContractError> {
         let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
@@ -248,14 +253,46 @@ mod tests {
             .iter()
             .map(|signer| (signer.address.clone().to_string(), signer.pub_key.clone()))
             .collect::<HashMap<String, HexBinary>>();
+        let subkey = "key".to_string();
 
+        let snapshot = build_snapshot(&signers);
         let msg = ExecuteMsg::KeyGen {
-            key_id: "key".to_string(),
-            snapshot: build_snapshot(&signers),
-            pub_keys,
+            key_id: subkey.clone(),
+            snapshot: snapshot.clone(),
+            pub_keys: pub_keys.clone(),
         };
 
-        execute(deps, env, info, msg)
+        execute(deps, env, info.clone(), msg).map(|res| {
+            (
+                res,
+                Key {
+                    id: KeyID {
+                        owner: info.sender,
+                        subkey,
+                    },
+                    snapshot,
+                    pub_keys: pub_keys
+                        .iter()
+                        .map(|(k, v)| (k.clone(), PublicKey::try_from(v.clone()).unwrap()))
+                        .collect(),
+                },
+            )
+        })
+    }
+
+    fn query_key(deps: Deps) -> StdResult<Binary> {
+        let info = mock_info(PROVER, &[]);
+        let env = mock_env();
+        query(
+            deps,
+            env,
+            QueryMsg::GetKey {
+                key_id: KeyID {
+                    owner: info.sender,
+                    subkey: "key".to_string(),
+                },
+            },
+        )
     }
 
     fn do_start_signing_session(deps: DepsMut, sender: &str) -> Result<Response, ContractError> {
@@ -332,6 +369,11 @@ mod tests {
 
         let res = do_key_gen(deps.as_mut());
         assert!(res.is_ok());
+        let key = res.unwrap().1;
+
+        let res = query_key(deps.as_ref());
+        assert!(res.is_ok());
+        assert_eq!(key, from_binary(&res.unwrap()).unwrap());
 
         let res = do_key_gen(deps.as_mut());
         assert_eq!(
@@ -381,7 +423,7 @@ mod tests {
         );
         assert_eq!(
             get_event_attribute(event, "key_id").unwrap(),
-            session.key_id.to_string()
+            to_string(&session.key_id).unwrap()
         );
         assert_eq!(
             key.pub_keys,

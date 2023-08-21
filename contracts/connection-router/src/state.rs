@@ -139,9 +139,9 @@ impl From<Message> for msg::Message {
         msg::Message {
             id: value.id.to_string(),
             destination_address: value.destination_address,
-            destination_chain: value.destination_chain.to_string(),
+            destination_chain: value.destination_chain.into(),
             source_address: value.source_address,
-            source_chain: value.source_chain.to_string(),
+            source_chain: value.source_chain.into(),
             payload_hash: value.payload_hash,
         }
     }
@@ -150,6 +150,8 @@ impl From<Message> for msg::Message {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::to_vec;
+    use hex;
+    use sha3::{Digest, Sha3_256};
 
     use super::Message;
 
@@ -157,23 +159,8 @@ mod tests {
     // Any modifications to the Message struct fields or their types
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
-        let expected_message_bytes: Vec<u8> = vec![
-            123, 34, 105, 100, 34, 58, 123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 99, 104, 97,
-            105, 110, 58, 105, 100, 34, 125, 44, 34, 100, 101, 115, 116, 105, 110, 97, 116, 105,
-            111, 110, 95, 97, 100, 100, 114, 101, 115, 115, 34, 58, 34, 100, 101, 115, 116, 105,
-            110, 97, 116, 105, 111, 110, 95, 97, 100, 100, 114, 101, 115, 115, 34, 44, 34, 100,
-            101, 115, 116, 105, 110, 97, 116, 105, 111, 110, 95, 99, 104, 97, 105, 110, 34, 58,
-            123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 100, 101, 115, 116, 105, 110, 97, 116,
-            105, 111, 110, 95, 99, 104, 97, 105, 110, 34, 125, 44, 34, 115, 111, 117, 114, 99, 101,
-            95, 99, 104, 97, 105, 110, 34, 58, 123, 34, 118, 97, 108, 117, 101, 34, 58, 34, 99,
-            104, 97, 105, 110, 34, 125, 44, 34, 115, 111, 117, 114, 99, 101, 95, 97, 100, 100, 114,
-            101, 115, 115, 34, 58, 34, 115, 111, 117, 114, 99, 101, 95, 97, 100, 100, 114, 101,
-            115, 115, 34, 44, 34, 112, 97, 121, 108, 111, 97, 100, 95, 104, 97, 115, 104, 34, 58,
-            34, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48,
-            49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48,
-            49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 48, 49, 34,
-            125,
-        ];
+        let expected_message_hash =
+            "61d6a123064a82476fd3752da462dc39d6663a0c26bc13277c4f68dc09604474";
 
         let msg = Message {
             id: "chain:id".to_string().parse().unwrap(),
@@ -183,6 +170,10 @@ mod tests {
             destination_address: "destination_address".to_string(),
             payload_hash: [1; 32].into(),
         };
-        assert_eq!(to_vec(&msg).unwrap(), expected_message_bytes);
+
+        assert_eq!(
+            hex::encode(Sha3_256::digest(&to_vec(&msg).unwrap())),
+            expected_message_hash
+        );
     }
 }

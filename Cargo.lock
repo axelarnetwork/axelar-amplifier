@@ -149,9 +149,12 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw2 0.15.1",
  "flagset",
+ "hex",
+ "rand",
  "schemars",
  "serde",
  "serde_json",
+ "sha3",
  "thiserror",
 ]
 

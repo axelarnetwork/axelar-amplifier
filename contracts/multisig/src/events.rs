@@ -35,7 +35,10 @@ impl From<Event> for cosmwasm_std::Event {
                 msg,
             } => cosmwasm_std::Event::new("signing_started")
                 .add_attribute("session_id", session_id)
-                .add_attribute("key_id", key_id.to_string())
+                .add_attribute(
+                    "key_id",
+                    to_string(&key_id).expect("violated invariant: key id is not serializable"),
+                )
                 .add_attribute(
                     "pub_keys",
                     to_string(&pub_keys)
