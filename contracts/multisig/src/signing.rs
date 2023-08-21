@@ -82,8 +82,8 @@ impl SigningSession {
 
     fn signers_weight(&self, snapshot: &Snapshot) -> Uint256 {
         self.signatures
-            .iter()
-            .map(|(addr, _)| -> Uint256 {
+            .keys()
+            .map(|addr| -> Uint256 {
                 snapshot
                     .participants
                     .get(addr)
