@@ -16,6 +16,6 @@ impl Event {
     }
 
     pub fn block_end(height: impl Into<block::Height>) -> Self {
-        Event::BlockBegin(height.into())
+        Event::BlockEnd(height.into())
     }
 }
