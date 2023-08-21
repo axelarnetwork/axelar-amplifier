@@ -1,5 +1,9 @@
 [workspace]
-members = ["contracts/*", "packages/*"]
+members = [
+  "ampd",
+  "contracts/*",
+  "packages/*"
+]
 
 [profile.release]
 opt-level = 3
@@ -17,5 +21,7 @@ service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
 gateway = { version = "0.1.0", path = "./contracts/gateway" }
 connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
 aggregate-verifier = { version = "0.1.0", path = "./contracts/aggregate-verifier"}
-axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
+voting-verifier = { version = "0.1.0", path = "./contracts/voting-verifier"}
 multisig = { version = "0.1.0", path = "./contracts/multisig"}
+axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
+
