@@ -21,8 +21,10 @@ impl From<Event> for cosmwasm_std::Event {
     fn from(other: Event) -> Self {
         match other {
             Event::ProofUnderConstruction { proof_id } => {
-                cosmwasm_std::Event::new("proof_under_construction")
-                    .add_attribute("proof_id", proof_id.to_string())
+                cosmwasm_std::Event::new("proof_under_construction").add_attribute(
+                    "proof_id",
+                    to_string(&proof_id).expect("violated invariant: proof_id is not serializable"),
+                )
             }
             Event::SnapshotRotated {
                 key_id,

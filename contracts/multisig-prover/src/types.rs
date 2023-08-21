@@ -137,6 +137,7 @@ impl ProofID {
         let mut hasher = Keccak256::new();
 
         hasher.update(Into::<&[u8]>::into(batch_id));
+        hasher.update(b":");
         hasher.update(session_id.to_be_bytes());
 
         hasher.finalize().as_slice().into()

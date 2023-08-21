@@ -210,26 +210,43 @@ pub mod execute {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
-    match parse_reply_execute_data(reply) {
-        Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let command_batch_id = REPLY_BATCH.load(deps.storage)?;
+    match reply.id {
+        START_MULTISIG_REPLY_ID => reply::start_multisig_reply(deps, reply),
+        _ => unreachable!("unknown reply ID"),
+    }
+}
 
-            let session_id =
-                from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
-                    reason: "invalid multisig session ID".to_string(),
-                })?;
+pub mod reply {
+    use super::*;
 
-            let proof_id = ProofID::new(&command_batch_id, &session_id);
+    pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
+        match parse_reply_execute_data(reply) {
+            Ok(MsgExecuteContractResponse { data: Some(data) }) => {
+                let command_batch_id = REPLY_BATCH.load(deps.storage)?;
 
-            PROOF_BATCH_MULTISIG.save(deps.storage, &proof_id, &(command_batch_id, session_id))?;
+                let session_id =
+                    from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
+                        reason: "invalid multisig session ID".to_string(),
+                    })?;
 
-            Ok(Response::new().add_event(Event::ProofUnderConstruction { proof_id }.into()))
-        }
-        Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
-            reason: "no data".to_string(),
-        }),
-        Err(_) => {
-            unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")
+                let proof_id = ProofID::new(&command_batch_id, &session_id);
+
+                PROOF_BATCH_MULTISIG.save(
+                    deps.storage,
+                    &proof_id,
+                    &(command_batch_id, session_id),
+                )?;
+
+                Ok(Response::new().add_event(Event::ProofUnderConstruction { proof_id }.into()))
+            }
+            Ok(MsgExecuteContractResponse { data: None }) => {
+                Err(ContractError::InvalidContractReply {
+                    reason: "no data".to_string(),
+                })
+            }
+            Err(_) => {
+                unreachable!("violated invariant: replied failed submessage with ReplyOn::Success")
+            }
         }
     }
 }
@@ -299,7 +316,7 @@ mod test {
     use super::*;
 
     const RELAYER: &str = "relayer";
-    const PROOF_ID: &str = "40215bda4c6ddb9de1c994835dfa1699bcd7eff681ba754c4466c80dfa1d3678";
+    const PROOF_ID: &str = "cee4e2f00382604c3c4d5639d8f61e27d5fb39a1fa6b99cfec72493f5f679b58";
 
     fn execute_key_gen(
         test_case: &mut TestCaseConfig,

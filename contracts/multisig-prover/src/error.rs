@@ -7,7 +7,7 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error("caller is not authorized")]
-    Unauthorized {},
+    Unauthorized,
 
     #[error("message is invalid: {reason}")]
     InvalidMessage { reason: String },
@@ -16,17 +16,17 @@ pub enum ContractError {
     InvalidPublicKey { reason: String },
 
     #[error("chain name is invalid")]
-    InvalidChainName {},
+    InvalidChainName,
 
     #[error("invalid participants: {reason}")]
     InvalidParticipants { reason: String },
 
     #[error("no messages found")]
-    NoMessagesFound {},
+    NoMessagesFound,
 
     #[error("invalid contract reply: {reason}")]
     InvalidContractReply { reason: String },
 
     #[error("wrong chain")]
-    WrongChain {},
+    WrongChain,
 }
