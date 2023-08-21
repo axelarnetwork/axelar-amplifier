@@ -3,7 +3,7 @@ use std::vec::Vec;
 
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Event, HexBinary};
+use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
@@ -24,50 +24,60 @@ impl From<Config> for Event {
     }
 }
 
-pub struct PollStarted {
+pub struct PollMetadata {
     pub poll_id: PollID,
     pub source_chain: ChainName,
     pub source_gateway_address: String,
     pub confirmation_height: u64,
     pub expires_at: u64,
-    pub data: PollData,
     pub participants: Vec<Addr>,
 }
 
-pub enum PollData {
-    Messages(Vec<EvmMessage>),
-    WorkerSet(WorkerSetConfirmation),
+pub enum PollStarted {
+    Messages {
+        data: Vec<EvmMessage>,
+        metadata: PollMetadata,
+    },
+    WorkerSet {
+        data: WorkerSetConfirmation,
+        metadata: PollMetadata,
+    },
 }
 
-fn get_data_attribute(data: PollData) -> (String, String) {
-    match data {
-        PollData::Messages(msgs) => (
-            "messages".into(),
-            serde_json::to_string(&msgs).expect("failed to serialize messages"),
-        ),
-        PollData::WorkerSet(worker_set_confirmation) => (
-            "worker_set_confirmation".into(),
-            serde_json::to_string(&worker_set_confirmation)
-                .expect("failed to serialize worker set confirmation"),
-        ),
+impl From<PollMetadata> for Vec<Attribute> {
+    fn from(value: PollMetadata) -> Self {
+        vec![
+            ("poll_id", value.poll_id).into(),
+            ("source_chain", value.source_chain).into(),
+            ("source_gateway_address", value.source_gateway_address).into(),
+            ("confirmation_height", value.confirmation_height.to_string()).into(),
+            ("expires_at", value.expires_at.to_string()).into(),
+            (
+                "participants",
+                serde_json::to_string(&value.participants)
+                    .expect("failed to serialize participants"),
+            )
+                .into(),
+        ]
     }
 }
 
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
-        let (data_attr_name, data_val) = get_data_attribute(other.data);
-        Event::new("poll_started")
-            .add_attribute("poll_id", other.poll_id)
-            .add_attribute("source_chain", other.source_chain)
-            .add_attribute("source_gateway_address", other.source_gateway_address)
-            .add_attribute("confirmation_height", other.confirmation_height.to_string())
-            .add_attribute("expires_at", other.expires_at.to_string())
-            .add_attribute(
-                "participants",
-                serde_json::to_string(&other.participants)
-                    .expect("failed to serialize participants"),
-            )
-            .add_attribute(data_attr_name, data_val)
+        match other {
+            PollStarted::Messages { data, metadata } => Event::new("messages_poll_started")
+                .add_attribute(
+                    "data",
+                    serde_json::to_string(&data).expect("failed to serialize messages"),
+                )
+                .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
+            PollStarted::WorkerSet { data, metadata } => Event::new("worker_set_poll_started")
+                .add_attribute(
+                    "data",
+                    serde_json::to_string(&data).expect("failed to serialize worker set"),
+                )
+                .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
+        }
     }
 }
 
@@ -104,7 +114,7 @@ pub struct WorkerSetConfirmation {
 
 impl WorkerSetConfirmation {
     pub fn new(message_id: MessageID, operators: Operators) -> Result<Self, ContractError> {
-        let (tx_id, log_index) = parse_message_id(message_id.to_string())?;
+        let (tx_id, log_index) = parse_message_id(message_id)?;
         Ok(Self {
             tx_id,
             log_index,
@@ -127,7 +137,7 @@ impl TryFrom<Message> for EvmMessage {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, log_index) = parse_message_id(other.id.to_string())?;
+        let (tx_id, log_index) = parse_message_id(other.id)?;
 
         Ok(EvmMessage {
             tx_id,
@@ -148,9 +158,9 @@ impl FromStr for EvmMessage {
     }
 }
 
-fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> {
+fn parse_message_id(message_id: MessageID) -> Result<(String, u64), ContractError> {
     // expected format: <source_chain>:<tx_id>:<index>
-    let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
+    let components = message_id.as_str().split(ID_SEPARATOR).collect::<Vec<_>>();
 
     if components.len() != 3 {
         return Err(ContractError::InvalidMessageID(message_id));

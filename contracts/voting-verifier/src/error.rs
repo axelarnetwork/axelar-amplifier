@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use axelar_wasm_std::{nonempty, voting};
 use connection_router;
-use connection_router::types::ChainName;
+use connection_router::types::{ChainName, MessageID};
 use service_registry;
 
 #[derive(Error, Debug, PartialEq)]
@@ -30,7 +30,7 @@ pub enum ContractError {
     MessageMismatch(String),
 
     #[error("invalid message id {0}")]
-    InvalidMessageID(String),
+    InvalidMessageID(MessageID),
 
     #[error("poll not found")]
     PollNotFound,
@@ -39,7 +39,7 @@ pub enum ContractError {
     VoteError(#[from] voting::Error),
 
     #[error("worker set already confirmed")]
-    WorkerSetAlreadyConfirmed {},
+    WorkerSetAlreadyConfirmed,
 }
 
 impl From<ContractError> for StdError {

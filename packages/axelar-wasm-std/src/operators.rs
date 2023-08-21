@@ -2,10 +2,10 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_vec, HexBinary, Uint256};
 
 use sha3::{Digest, Keccak256};
+
 #[cw_serde]
 pub struct Operators {
-    pub addresses: Vec<HexBinary>, // TODO, switch to evm address
-    pub weights: Vec<Uint256>,
+    pub weights: Vec<(HexBinary, Uint256)>,
     pub threshold: Uint256,
 }
 

@@ -23,14 +23,14 @@ pub struct Config {
 }
 
 #[cw_serde]
-pub enum PollType {
-    Messages,
-    ConfirmWorkerSet,
+pub enum Poll {
+    Messages(WeightedPoll),
+    ConfirmWorkerSet(WeightedPoll),
 }
 
 pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
-pub const POLLS: Map<PollID, (WeightedPoll, PollType)> = Map::new("polls");
+pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 
 pub const PENDING_MESSAGES: Map<PollID, Vec<Message>> = Map::new("pending_messages");
 

@@ -49,7 +49,7 @@ pub fn execute(
                 .map(state::Message::try_from)
                 .collect::<Result<Vec<state::Message>, _>>()?;
 
-            let source_chain = messages[0].source_chain.clone();
+            let source_chain = CONFIG.load(deps.storage)?.source_chain;
 
             if messages
                 .iter()
