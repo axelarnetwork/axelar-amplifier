@@ -27,7 +27,6 @@ impl PartialEq<&Message> for IAxelarGatewayEventsWithLog<'_> {
     }
 }
 
-#[allow(dead_code)]
 pub fn verify_message(
     gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
