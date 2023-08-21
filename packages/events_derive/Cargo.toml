@@ -1,0 +1,16 @@
+[package]
+name = "events_derive"
+version = "0.1.0"
+edition = "2021"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+error-stack = "0.3.1"
+events = { version = "0.1.0", path = "../events" }
+quote = "1.0.33"
+serde = "1.0.183"
+serde_json = "1.0.105"
+syn = "2.0.29"

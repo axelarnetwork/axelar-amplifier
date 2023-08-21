@@ -4,6 +4,7 @@ use std::vec::Vec;
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
+use serde_json::to_string;
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
@@ -47,18 +48,25 @@ pub enum PollStarted {
 impl From<PollMetadata> for Vec<Attribute> {
     fn from(value: PollMetadata) -> Self {
         vec![
-            ("poll_id", value.poll_id).into(),
-            ("source_chain", value.source_chain).into(),
-            ("source_gateway_address", value.source_gateway_address).into(),
-            ("confirmation_height", value.confirmation_height.to_string()).into(),
-            ("expires_at", value.expires_at.to_string()).into(),
+            (
+                "poll_id",
+                to_string(&value.poll_id).expect("failed to serialize poll_id"),
+            ),
+            (
+                "source_chain",
+                to_string(&value.source_chain).expect("failed to serialize source_chain"),
+            ),
+            ("source_gateway_address", value.source_gateway_address),
+            ("confirmation_height", value.confirmation_height.to_string()),
+            ("expires_at", value.expires_at.to_string()),
             (
                 "participants",
-                serde_json::to_string(&value.participants)
-                    .expect("failed to serialize participants"),
-            )
-                .into(),
+                to_string(&value.participants).expect("failed to serialize participants"),
+            ),
         ]
+        .into_iter()
+        .map(Into::into)
+        .collect()
     }
 }
 
@@ -68,13 +76,13 @@ impl From<PollStarted> for Event {
             PollStarted::Messages { data, metadata } => Event::new("messages_poll_started")
                 .add_attribute(
                     "data",
-                    serde_json::to_string(&data).expect("failed to serialize messages"),
+                    to_string(&data).expect("failed to serialize messages"),
                 )
                 .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
             PollStarted::WorkerSet { data, metadata } => Event::new("worker_set_poll_started")
                 .add_attribute(
                     "data",
-                    serde_json::to_string(&data).expect("failed to serialize worker set"),
+                    to_string(&data).expect("failed to serialize worker set"),
                 )
                 .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
         }
@@ -182,7 +190,10 @@ pub struct Voted {
 impl From<Voted> for Event {
     fn from(other: Voted) -> Self {
         Event::new("voted")
-            .add_attribute("poll_id", other.poll_id)
+            .add_attribute(
+                "poll_id",
+                to_string(&other.poll_id).expect("failed to serialize poll_id"),
+            )
             .add_attribute("voter", other.voter)
     }
 }
@@ -195,10 +206,13 @@ pub struct PollEnded {
 impl From<PollEnded> for Event {
     fn from(other: PollEnded) -> Self {
         Event::new("poll_ended")
-            .add_attribute("poll_id", other.poll_id)
+            .add_attribute(
+                "poll_id",
+                to_string(&other.poll_id).expect("failed to serialize poll_id"),
+            )
             .add_attribute(
                 "results",
-                serde_json::to_string(&other.results).expect("failed to serialize results"),
+                to_string(&other.results).expect("failed to serialize results"),
             )
     }
 }
