@@ -41,7 +41,6 @@ fn fail_to_convert_event_with_type_mismatch() {
     };
 
     let res: Result<TestEvent, events::Error> = mismatched_event.try_into();
-    let res = res.attach_printable(format!("{{ event = {mismatched_event:?} }}"));
     assert!(
         res.is_err_and(|err| matches!(err.current_context(), events::Error::EventTypeMismatch(_)))
     );
