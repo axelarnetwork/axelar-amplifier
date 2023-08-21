@@ -1,9 +1,9 @@
-use error_stack::Result;
+use error_stack::{Result, ResultExt};
 use serde::Deserialize;
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-#[events_derive::tryfrom("test_event")]
+#[events_derive::try_from("test_event")]
 struct TestEvent {
     pub number: usize,
     pub text: String,
@@ -41,9 +41,11 @@ fn fail_to_convert_event_with_type_mismatch() {
     };
 
     let res: Result<TestEvent, events::Error> = mismatched_event.try_into();
-    assert!(
-        res.is_err_and(|err| matches!(err.current_context(), events::Error::EventTypeMismatch(_)))
-    );
+    let res = res.attach_printable(format!("{{ event = {mismatched_event:?} }}"));
+    assert!(res.is_err_and(|err| matches!(
+        err.current_context(),
+        events::Error::EventTypeMismatch(_, _)
+    )));
 }
 
 #[test]

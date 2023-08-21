@@ -9,3 +9,13 @@ pub enum Event {
         attributes: serde_json::Map<String, serde_json::Value>,
     },
 }
+
+impl Event {
+    pub fn block_begin(height: impl Into<block::Height>) -> Self {
+        Event::BlockBegin(height.into())
+    }
+
+    pub fn block_end(height: impl Into<block::Height>) -> Self {
+        Event::BlockBegin(height.into())
+    }
+}
