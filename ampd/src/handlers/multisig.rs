@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
+use ecdsa::VerifyingKey;
 use hex::FromHex;
 use multisig::types::KeyID;
 use serde::de::value::MapDeserializer;
@@ -9,7 +10,8 @@ use serde::{Deserialize, Deserializer};
 
 use crate::event_sub;
 use crate::handlers::errors::Error;
-use crate::tofnd::{MessageDigest, PublicKey};
+use crate::tofnd::MessageDigest;
+use crate::types::PublicKey;
 use crate::types::TMAddress;
 
 const EVENT_SIGNING_STARTED: &str = "wasm-signing_started";
@@ -40,7 +42,13 @@ where
         .map(|(address, hex)| {
             Ok((
                 address,
-                PublicKey::from_hex(hex).map_err(|err| D::Error::custom(err.to_string()))?,
+                VerifyingKey::from_sec1_bytes(
+                    <Vec<u8>>::from_hex(hex)
+                        .map_err(D::Error::custom)?
+                        .as_slice(),
+                )
+                .map_err(D::Error::custom)?
+                .into(),
             ))
         })
         .collect()
@@ -68,7 +76,6 @@ impl TryFrom<&event_sub::Event> for Option<SigningStartedEvent> {
 mod test {
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use rand::Rng;
     use std::collections::HashMap;
     use std::convert::TryInto;
 
@@ -86,9 +93,9 @@ mod test {
     }
 
     fn rand_public_key() -> PublicKey {
-        let mut public_key = [0u8; 33];
-        rand::thread_rng().fill(&mut public_key[..]);
-        PublicKey::unchecked(HexBinary::from(public_key.as_slice()))
+        PublicKey::unchecked(HexBinary::from(
+            ECDSASigningKey::random().public_key().to_bytes(),
+        ))
     }
 
     fn rand_message() -> HexBinary {

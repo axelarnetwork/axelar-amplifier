@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
-use std::convert::TryInto;
-
 use async_trait::async_trait;
-use error_stack::{FutureExt, IntoReport, Report, Result, ResultExt};
+use ecdsa::VerifyingKey;
+use error_stack::{FutureExt, IntoReport, Result, ResultExt};
 use mockall::automock;
 use tonic::transport::Channel;
 use tonic::{Response, Status};
@@ -12,7 +11,8 @@ use super::proto::{
     key_presence_response::Response as KeyPresenceEnum, keygen_response::KeygenResponse,
     multisig_client, sign_response::SignResponse, KeyPresenceRequest, KeygenRequest, SignRequest,
 };
-use super::{error::Error, error::TofndError, PublicKey, Signature};
+use super::{error::Error, error::TofndError, Signature};
+use crate::types::PublicKey;
 
 #[automock]
 #[async_trait]
@@ -87,10 +87,13 @@ impl<T: MultisigClient> Client<T> {
             .change_context(Error::Grpc)
             .await
             .and_then(|response| match response {
-                KeygenResponse::PubKey(pub_key) => pub_key.try_into().map_err(|val| {
-                    Report::from(Error::KeygenFailed)
-                        .attach_printable(format!("{{ invalid_value = {:?} }}", val))
-                }),
+                KeygenResponse::PubKey(pub_key) => {
+                    VerifyingKey::from_sec1_bytes(pub_key.as_slice())
+                        .into_report()
+                        .change_context(Error::ParsingFailed)
+                        .attach_printable(format!("{{ invalid_value = {:?} }}", pub_key))
+                        .map(Into::into)
+                }
                 KeygenResponse::Error(error_msg) => Err(TofndError::ExecutionFailed(error_msg))
                     .into_report()
                     .change_context(Error::KeygenFailed),
@@ -107,7 +110,7 @@ impl<T: MultisigClient> Client<T> {
             key_uid,
             msg_to_sign: data,
             party_uid: self.party_uid.clone(),
-            pub_key: pub_key.to_vec(),
+            pub_key: pub_key.to_bytes(),
         };
 
         self.client
@@ -129,7 +132,7 @@ impl<T: MultisigClient> Client<T> {
     ) -> Result<KeyPresenceEnum, Error> {
         let req = KeyPresenceRequest {
             key_uid,
-            pub_key: pub_key.to_vec(),
+            pub_key: pub_key.to_bytes(),
         };
 
         self.client
@@ -142,14 +145,13 @@ impl<T: MultisigClient> Client<T> {
 #[cfg(test)]
 mod tests {
     use error_stack::IntoReport;
-    use rand::Rng;
     use tokio::test;
     use tonic::Status;
 
+    use crate::broadcaster::key::ECDSASigningKey;
     use crate::tofnd::client::{Client, MockMultisigClient};
     use crate::tofnd::error::Error;
     use crate::tofnd::proto::{key_presence_response, keygen_response, sign_response};
-    use crate::tofnd::PublicKey;
 
     #[test]
     async fn keygen_empty_response() {
@@ -183,7 +185,7 @@ mod tests {
                 .await
                 .unwrap_err()
                 .current_context(),
-            Error::KeygenFailed
+            Error::ParsingFailed
         ));
     }
 
@@ -209,13 +211,12 @@ mod tests {
 
     #[test]
     async fn keygen_succeeded() {
-        let mut rand_pub_key = [0u8; 33];
-        rand::thread_rng().fill(&mut rand_pub_key[..]);
+        let rand_pub_key = ECDSASigningKey::random().public_key();
 
         let mut client = MockMultisigClient::new();
         client.expect_keygen().returning(move |_| {
             Ok(keygen_response::KeygenResponse::PubKey(
-                rand_pub_key.to_vec(),
+                rand_pub_key.to_bytes(),
             ))
         });
 
@@ -223,7 +224,7 @@ mod tests {
 
         assert_eq!(
             client.keygen("key".to_string()).await.unwrap(),
-            PublicKey(rand_pub_key)
+            rand_pub_key
         );
     }
 
@@ -238,7 +239,11 @@ mod tests {
         let digest: [u8; 32] = rand::random();
         assert!(matches!(
             client
-                .sign("key".to_string(), digest.to_vec(), PublicKey([0u8; 33]))
+                .sign(
+                    "key".to_string(),
+                    digest.to_vec(),
+                    ECDSASigningKey::random().public_key()
+                )
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -258,7 +263,11 @@ mod tests {
         let digest: [u8; 32] = rand::random();
         assert!(matches!(
             client
-                .sign("key".to_string(), digest.to_vec(), PublicKey([0u8; 33]))
+                .sign(
+                    "key".to_string(),
+                    digest.to_vec(),
+                    ECDSASigningKey::random().public_key()
+                )
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -277,7 +286,11 @@ mod tests {
         let digest: [u8; 32] = rand::random();
         assert_eq!(
             client
-                .sign("key".to_string(), digest.to_vec(), PublicKey([0u8; 33]))
+                .sign(
+                    "key".to_string(),
+                    digest.to_vec(),
+                    ECDSASigningKey::random().public_key()
+                )
                 .await
                 .unwrap(),
             vec![0, 1, 2, 3]
@@ -295,7 +308,7 @@ mod tests {
 
         assert_eq!(
             client
-                .key_presence("key".to_string(), PublicKey([0u8; 33]))
+                .key_presence("key".to_string(), ECDSASigningKey::random().public_key())
                 .await
                 .unwrap(),
             key_presence_response::Response::Present
