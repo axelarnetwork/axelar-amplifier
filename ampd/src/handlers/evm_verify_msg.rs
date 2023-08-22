@@ -23,7 +23,7 @@ use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
-const EVENT_TYPE: &str = "wasm-poll_started";
+const EVENT_TYPE: &str = "wasm-messages_poll_started";
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -237,7 +237,7 @@ mod tests {
     use cosmwasm_std;
     use cosmwasm_std::HexBinary;
     use tendermint::abci;
-    use voting_verifier::events::{EvmMessage, PollStarted};
+    use voting_verifier::events::{EvmMessage, PollMetadata, PollStarted};
 
     use super::Event;
     use crate::{
@@ -246,12 +246,25 @@ mod tests {
     };
 
     fn get_poll_started_event() -> event_sub::Event {
-        let poll_started = PollStarted {
-            poll_id: "100".parse().unwrap(),
-            source_chain: "ethereum".parse().unwrap(),
-            source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
-            confirmation_height: 15,
-            expires_at: 100,
+        let poll_started = PollStarted::Messages {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: "ethereum".parse().unwrap(),
+                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
+                confirmation_height: 15,
+                expires_at: 100,
+                participants: vec![
+                    cosmwasm_std::Addr::unchecked(
+                        "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
+                    ),
+                    cosmwasm_std::Addr::unchecked(
+                        "axelarvaloper1tee73c83k2vqky9gt59jd3ztwxhqjm27l588q6",
+                    ),
+                    cosmwasm_std::Addr::unchecked(
+                        "axelarvaloper1ds9z59d9szmxlzt6f8f6l6sgaenxdyd6095gcg",
+                    ),
+                ],
+            },
             messages: vec![
                 EvmMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
@@ -277,17 +290,6 @@ mod tests {
                     destination_address: format!("0x{:x}", EVMAddress::random()),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
-            ],
-            participants: vec![
-                cosmwasm_std::Addr::unchecked(
-                    "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
-                ),
-                cosmwasm_std::Addr::unchecked(
-                    "axelarvaloper1tee73c83k2vqky9gt59jd3ztwxhqjm27l588q6",
-                ),
-                cosmwasm_std::Addr::unchecked(
-                    "axelarvaloper1ds9z59d9szmxlzt6f8f6l6sgaenxdyd6095gcg",
-                ),
             ],
         };
         let mut event: cosmwasm_std::Event = poll_started.into();

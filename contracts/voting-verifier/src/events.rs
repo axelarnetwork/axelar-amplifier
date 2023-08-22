@@ -36,11 +36,11 @@ pub struct PollMetadata {
 
 pub enum PollStarted {
     Messages {
-        data: Vec<EvmMessage>,
+        messages: Vec<EvmMessage>,
         metadata: PollMetadata,
     },
     WorkerSet {
-        data: WorkerSetConfirmation,
+        worker_set: WorkerSetConfirmation,
         metadata: PollMetadata,
     },
 }
@@ -73,16 +73,22 @@ impl From<PollMetadata> for Vec<Attribute> {
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
         match other {
-            PollStarted::Messages { data, metadata } => Event::new("messages_poll_started")
+            PollStarted::Messages {
+                messages: data,
+                metadata,
+            } => Event::new("messages_poll_started")
                 .add_attribute(
-                    "data",
+                    "messages",
                     to_string(&data).expect("failed to serialize messages"),
                 )
                 .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
-            PollStarted::WorkerSet { data, metadata } => Event::new("worker_set_poll_started")
+            PollStarted::WorkerSet {
+                worker_set: data,
+                metadata,
+            } => Event::new("worker_set_poll_started")
                 .add_attribute(
-                    "data",
-                    to_string(&data).expect("failed to serialize worker set"),
+                    "worker_set",
+                    to_string(&data).expect("failed to serialize worker set confirmation"),
                 )
                 .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
         }

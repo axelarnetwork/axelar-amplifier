@@ -59,7 +59,7 @@ pub fn confirm_worker_set(
 
     Ok(Response::new().add_event(
         PollStarted::WorkerSet {
-            data: WorkerSetConfirmation::new(message_id, new_operators)?,
+            worker_set: WorkerSetConfirmation::new(message_id, new_operators)?,
             metadata: PollMetadata {
                 poll_id: id,
                 source_chain: config.source_chain,
@@ -134,7 +134,7 @@ pub fn verify_messages(
 
     Ok(response.add_event(
         PollStarted::Messages {
-            data: messages,
+            messages,
             metadata: PollMetadata {
                 poll_id: id,
                 source_chain,
