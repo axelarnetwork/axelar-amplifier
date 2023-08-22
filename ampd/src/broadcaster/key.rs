@@ -2,7 +2,7 @@ use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::OsRng;
 use hex::{self, FromHex};
 use thiserror::Error;
 
-use crate::types::TMAddress;
+use crate::types::{PublicKey, TMAddress};
 
 const PREFIX: &str = "axelar";
 
@@ -13,7 +13,7 @@ pub struct ECDSASigningKey {
 }
 
 impl ECDSASigningKey {
-    pub fn public_key(&self) -> cosmrs::crypto::PublicKey {
+    pub fn public_key(&self) -> PublicKey {
         self.inner.verifying_key().into()
     }
 

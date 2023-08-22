@@ -38,9 +38,9 @@ impl Default for Config {
 mod tests {
     use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::OsRng;
 
-    use crate::{broadcaster::key::ECDSASigningKey, evm::ChainName};
-
     use super::Config;
+    use crate::types::PublicKey;
+    use crate::{broadcaster::key::ECDSASigningKey, evm::ChainName};
 
     #[test]
     fn deserialize_evm_configs() {
@@ -145,7 +145,7 @@ mod tests {
 
         assert_eq!(
             cfg.private_key.public_key(),
-            cosmrs::crypto::PublicKey::from(random_key.verifying_key())
+            PublicKey::from(random_key.verifying_key())
         )
     }
 
