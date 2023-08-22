@@ -15,7 +15,7 @@ use service_registry::state::Worker;
 
 use crate::error::ContractError;
 use crate::events::{
-    EvmMessages, PollEnded, PollMetadata, PollStarted, Voted, WorkerSetConfirmation,
+    EvmMessage, PollEnded, PollMetadata, PollStarted, Voted, WorkerSetConfirmation,
 };
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
@@ -127,17 +127,17 @@ pub fn verify_messages(
 
     PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
 
-    let EvmMessages(source_chain, messages) = pending_messages.try_into()?;
-    if source_chain != config.source_chain {
-        return Err(ContractError::SourceChainMismatch(source_chain));
-    }
+    let evm_messages = pending_messages
+        .into_iter()
+        .map(TryInto::try_into)
+        .collect::<Result<Vec<EvmMessage>, _>>()?;
 
     Ok(response.add_event(
         PollStarted::Messages {
-            messages,
+            messages: evm_messages,
             metadata: PollMetadata {
                 poll_id: id,
-                source_chain,
+                source_chain: config.source_chain,
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
                 expires_at: env.block.height + config.block_expiry,

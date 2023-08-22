@@ -81,7 +81,7 @@ impl From<PollStarted> for Event {
                     "messages",
                     to_string(&data).expect("failed to serialize messages"),
                 )
-                .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
+                .add_attributes(Vec::<_>::from(metadata)),
             PollStarted::WorkerSet {
                 worker_set: data,
                 metadata,
@@ -90,32 +90,8 @@ impl From<PollStarted> for Event {
                     "worker_set",
                     to_string(&data).expect("failed to serialize worker set confirmation"),
                 )
-                .add_attributes(<PollMetadata as Into<Vec<Attribute>>>::into(metadata)),
+                .add_attributes(Vec::<_>::from(metadata)),
         }
-    }
-}
-
-pub struct EvmMessages(pub ChainName, pub Vec<EvmMessage>);
-
-impl TryFrom<Vec<Message>> for EvmMessages {
-    type Error = ContractError;
-
-    fn try_from(other: Vec<Message>) -> Result<Self, Self::Error> {
-        let source_chain = other[0].source_chain.clone();
-
-        if other
-            .iter()
-            .any(|message| !message.source_chain.eq(&source_chain))
-        {
-            return Err(ContractError::SourceChainMismatch(source_chain));
-        }
-
-        let messages = other
-            .into_iter()
-            .map(EvmMessage::try_from)
-            .collect::<Result<Vec<_>, ContractError>>()?;
-
-        Ok(EvmMessages(source_chain, messages))
     }
 }
 
@@ -128,7 +104,7 @@ pub struct WorkerSetConfirmation {
 
 impl WorkerSetConfirmation {
     pub fn new(message_id: MessageID, operators: Operators) -> Result<Self, ContractError> {
-        let (tx_id, log_index) = parse_message_id(message_id)?;
+        let (tx_id, log_index) = parse_message_id(&message_id)?;
         Ok(Self {
             tx_id,
             log_index,
@@ -151,7 +127,7 @@ impl TryFrom<Message> for EvmMessage {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, log_index) = parse_message_id(other.id)?;
+        let (tx_id, log_index) = parse_message_id(&other.id)?;
 
         Ok(EvmMessage {
             tx_id,
@@ -172,19 +148,19 @@ impl FromStr for EvmMessage {
     }
 }
 
-fn parse_message_id(message_id: MessageID) -> Result<(String, u64), ContractError> {
+fn parse_message_id(message_id: &MessageID) -> Result<(String, u64), ContractError> {
     // expected format: <source_chain>:<tx_id>:<index>
     let components = message_id.as_str().split(ID_SEPARATOR).collect::<Vec<_>>();
 
     if components.len() != 3 {
-        return Err(ContractError::InvalidMessageID(message_id));
+        return Err(ContractError::InvalidMessageID(message_id.clone()));
     }
 
     Ok((
         components[1].to_string(),
         components[2]
             .parse::<u64>()
-            .map_err(|_| ContractError::InvalidMessageID(message_id))?,
+            .map_err(|_| ContractError::InvalidMessageID(message_id.clone()))?,
     ))
 }
 
