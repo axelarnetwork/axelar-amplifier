@@ -14,9 +14,8 @@ use crate::ContractError;
 pub const ID_SEPARATOR: char = ':';
 
 #[cw_serde]
-pub struct MessageID {
-    value: String,
-}
+#[serde(try_from = "String")]
+pub struct MessageID(String);
 
 impl FromStr for MessageID {
     type Err = ContractError;
@@ -25,27 +24,32 @@ impl FromStr for MessageID {
         if !s.contains(ID_SEPARATOR) || s.is_empty() {
             return Err(ContractError::InvalidMessageID {});
         }
-        Ok(MessageID {
-            value: s.to_lowercase(),
-        })
+        Ok(MessageID(s.to_lowercase()))
+    }
+}
+
+impl TryFrom<String> for MessageID {
+    type Error = ContractError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.as_str().parse()
     }
 }
 
 impl From<MessageID> for String {
     fn from(d: MessageID) -> Self {
-        d.value
+        d.0
     }
 }
 
 impl<'a> MessageID {
     pub fn as_str(&'a self) -> &'a str {
-        self.value.as_str()
+        self.0.as_str()
     }
 }
 
 impl fmt::Display for MessageID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -56,7 +60,7 @@ impl<'a> PrimaryKey<'a> for MessageID {
     type SuperSuffix = Self;
 
     fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(self.value.as_bytes())]
+        vec![Key::Ref(self.0.as_bytes())]
     }
 }
 
@@ -65,7 +69,7 @@ impl KeyDeserialize for MessageID {
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self> {
         let value = String::from_utf8(value).map_err(StdError::invalid_utf8)?;
-        Ok(Self { value })
+        Ok(Self(value))
     }
 }
 

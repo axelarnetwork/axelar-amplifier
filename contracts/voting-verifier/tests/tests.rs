@@ -1,9 +1,11 @@
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{from_binary, Addr, Uint64};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use axelar_wasm_std::Threshold;
 use connection_router::msg::Message;
-use connection_router::types::ID_SEPARATOR;
+use connection_router::types::{MessageID, ID_SEPARATOR};
+use service_registry::state::Worker;
 use voting_verifier::{contract, error::ContractError, msg};
 
 use crate::mock::make_mock_service_registry;
@@ -21,6 +23,7 @@ fn initialize_contract(app: &mut App, service_registry_address: String) -> Addr 
         block_expiry: 100,
         confirmation_height: 100,
         source_gateway_address: "gateway_address".to_string(),
+        source_chain: SOURCE_CHAIN.to_string().try_into().unwrap(),
     };
 
     let code = ContractWrapper::new(contract::execute, contract::instantiate, contract::query);
@@ -224,5 +227,285 @@ fn should_query_message_statuses() {
             .enumerate()
             .map(|(i, message)| (message.id.to_string(), i % 2 == 0))
             .collect::<Vec<(String, bool)>>()
+    );
+}
+
+#[test]
+fn should_start_worker_set_confirmation() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address = initialize_contract(&mut app, service_registry_address.into_string());
+
+    let operators = Operators {
+        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        threshold: 1u64.into(),
+    };
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+        new_operators: operators,
+    };
+    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), false);
+}
+
+#[test]
+fn should_confirm_worker_set() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.clone().into_string());
+
+    let workers: Vec<Worker> = app
+        .wrap()
+        .query_wasm_smart(
+            service_registry_address,
+            &service_registry::msg::QueryMsg::GetActiveWorkers {
+                service_name: "service_name".to_string(),
+                chain_name: SOURCE_CHAIN.into(),
+            },
+        )
+        .unwrap();
+
+    let operators = Operators {
+        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        threshold: 1u64.into(),
+    };
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let msg = msg::ExecuteMsg::Vote {
+        poll_id: 1u64.into(),
+        votes: vec![true],
+    };
+    for worker in workers {
+        let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
+        assert!(res.is_ok());
+    }
+
+    let msg = msg::ExecuteMsg::EndPoll {
+        poll_id: 1u64.into(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+        new_operators: operators,
+    };
+    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), true);
+}
+
+#[test]
+fn should_not_confirm_worker_set() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.clone().into_string());
+
+    let workers: Vec<Worker> = app
+        .wrap()
+        .query_wasm_smart(
+            service_registry_address,
+            &service_registry::msg::QueryMsg::GetActiveWorkers {
+                service_name: "service_name".to_string(),
+                chain_name: SOURCE_CHAIN.into(),
+            },
+        )
+        .unwrap();
+
+    let operators = Operators {
+        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        threshold: 1u64.into(),
+    };
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let msg = msg::ExecuteMsg::Vote {
+        poll_id: 1u64.into(),
+        votes: vec![false],
+    };
+    for worker in workers {
+        let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
+        assert!(res.is_ok());
+    }
+
+    let msg = msg::ExecuteMsg::EndPoll {
+        poll_id: 1u64.into(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+        new_operators: operators,
+    };
+    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), false);
+}
+
+#[test]
+fn should_confirm_worker_set_after_failed() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.clone().into_string());
+
+    let workers: Vec<Worker> = app
+        .wrap()
+        .query_wasm_smart(
+            service_registry_address,
+            &service_registry::msg::QueryMsg::GetActiveWorkers {
+                service_name: "service_name".to_string(),
+                chain_name: SOURCE_CHAIN.into(),
+            },
+        )
+        .unwrap();
+
+    let operators = Operators {
+        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        threshold: 1u64.into(),
+    };
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let msg = msg::ExecuteMsg::Vote {
+        poll_id: 1u64.into(),
+        votes: vec![false],
+    };
+    for worker in &workers {
+        let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
+        assert!(res.is_ok());
+    }
+
+    let msg = msg::ExecuteMsg::EndPoll {
+        poll_id: 1u64.into(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+        new_operators: operators.clone(),
+    };
+    let res: Result<bool, _> = app
+        .wrap()
+        .query_wasm_smart(contract_address.clone(), &query);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), false);
+
+    // try again, and this time vote true
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let msg = msg::ExecuteMsg::Vote {
+        poll_id: 2u64.into(),
+        votes: vec![true],
+    };
+    for worker in workers {
+        let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
+        assert!(res.is_ok());
+    }
+
+    let msg = msg::ExecuteMsg::EndPoll {
+        poll_id: 2u64.into(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+        new_operators: operators,
+    };
+    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap(), true);
+}
+
+#[test]
+fn should_not_confirm_twice() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.clone().into_string());
+
+    let workers: Vec<Worker> = app
+        .wrap()
+        .query_wasm_smart(
+            service_registry_address,
+            &service_registry::msg::QueryMsg::GetActiveWorkers {
+                service_name: "service_name".to_string(),
+                chain_name: SOURCE_CHAIN.into(),
+            },
+        )
+        .unwrap();
+
+    let operators = Operators {
+        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        threshold: 1u64.into(),
+    };
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let msg = msg::ExecuteMsg::Vote {
+        poll_id: 1u64.into(),
+        votes: vec![true],
+    };
+    for worker in workers {
+        let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
+        assert!(res.is_ok());
+    }
+
+    let msg = msg::ExecuteMsg::EndPoll {
+        poll_id: 1u64.into(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    // try again, should fail
+    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+        message_id: MessageID::try_from(message_id(SOURCE_CHAIN, "id", 0)).unwrap(),
+        new_operators: operators.clone(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_err());
+    assert_eq!(
+        ContractError::WorkerSetAlreadyConfirmed {},
+        res.unwrap_err().downcast().unwrap()
     );
 }

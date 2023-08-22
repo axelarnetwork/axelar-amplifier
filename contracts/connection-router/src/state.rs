@@ -160,7 +160,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "61d6a123064a82476fd3752da462dc39d6663a0c26bc13277c4f68dc09604474";
+            "d11ab98e76d9a14741e2c179bcafd06f1941018ec8a44e60a35701761f4fa8a9";
 
         let msg = Message {
             id: "chain:id".to_string().parse().unwrap(),

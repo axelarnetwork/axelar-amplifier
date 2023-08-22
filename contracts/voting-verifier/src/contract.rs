@@ -6,7 +6,7 @@ use connection_router::state;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, CONFIG, CONFIRMED_WORKER_SETS};
 use crate::{execute, query};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -23,6 +23,7 @@ pub fn instantiate(
         voting_threshold: msg.voting_threshold,
         block_expiry: msg.block_expiry,
         confirmation_height: msg.confirmation_height,
+        source_chain: msg.source_chain,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -48,7 +49,7 @@ pub fn execute(
                 .map(state::Message::try_from)
                 .collect::<Result<Vec<state::Message>, _>>()?;
 
-            let source_chain = messages[0].source_chain.clone();
+            let source_chain = CONFIG.load(deps.storage)?.source_chain;
 
             if messages
                 .iter()
@@ -61,6 +62,10 @@ pub fn execute(
         }
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
+        ExecuteMsg::ConfirmWorkerSet {
+            message_id,
+            new_operators,
+        } => execute::confirm_worker_set(deps, env, message_id, new_operators),
     }
 }
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -78,5 +83,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetPoll { poll_id: _ } => {
             todo!()
         }
+        QueryMsg::IsWorkerSetConfirmed { new_operators } => to_binary(
+            &CONFIRMED_WORKER_SETS
+                .may_load(deps.storage, new_operators.hash())?
+                .is_some(),
+        ),
     }
 }
