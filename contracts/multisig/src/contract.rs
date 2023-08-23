@@ -232,7 +232,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub mod query {
-    use crate::{msg::Signer, state::PUB_KEYS, types::KeyType, types::PublicKey};
+    use crate::{
+        msg::Signer,
+        state::PUB_KEYS,
+        types::PublicKey,
+        types::{KeyType, Signature},
+    };
 
     use super::*;
 
@@ -251,14 +256,16 @@ pub mod query {
                     .remove(&address)
                     .expect("violated invariant: pub_key not found");
 
-                Signer {
-                    address: participant.address,
-                    weight: participant.weight.into(),
-                    pub_key,
-                    signature: session.signatures.get(&address).cloned(),
-                }
+                (
+                    Signer {
+                        address: participant.address,
+                        weight: participant.weight.into(),
+                        pub_key,
+                    },
+                    session.signatures.get(&address).cloned(),
+                )
             })
-            .collect::<Vec<Signer>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         Ok(Multisig {
             state: session.state,
@@ -675,12 +682,12 @@ mod tests {
                 let signer = query_res
                     .signers
                     .iter()
-                    .find(|signer| signer.address == participant.address)
+                    .find(|signer| signer.0.address == participant.address)
                     .unwrap();
 
-                assert_eq!(signer.weight, Uint256::from(participant.weight));
-                assert_eq!(signer.pub_key, key.pub_keys.get(address).unwrap().clone());
-                assert_eq!(signer.signature, session.signatures.get(address).cloned());
+                assert_eq!(signer.0.weight, Uint256::from(participant.weight));
+                assert_eq!(signer.0.pub_key, key.pub_keys.get(address).unwrap().clone());
+                assert_eq!(signer.1, session.signatures.get(address).cloned());
             });
     }
     #[test]

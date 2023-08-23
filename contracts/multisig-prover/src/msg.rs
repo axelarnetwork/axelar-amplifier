@@ -16,6 +16,7 @@ pub struct InstantiateMsg {
     pub signing_threshold: Threshold,
     pub service_name: String,
     pub chain_name: String,
+    pub worker_set_diff_threshold: u32,
 }
 
 #[cw_serde]
@@ -29,6 +30,7 @@ pub enum ExecuteMsg {
         pub_keys: HashMap<String, HexBinary>,
         key_id: String,
     },
+    UpdateWorkerSet {},
 }
 
 #[cw_serde]

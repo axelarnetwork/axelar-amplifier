@@ -51,12 +51,11 @@ pub struct Signer {
     pub address: Addr,
     pub weight: Uint256,
     pub pub_key: PublicKey,
-    pub signature: Option<Signature>,
 }
 
 #[cw_serde]
 pub struct Multisig {
     pub state: MultisigState,
     pub quorum: Uint256,
-    pub signers: Vec<Signer>,
+    pub signers: Vec<(Signer, Option<Signature>)>,
 }

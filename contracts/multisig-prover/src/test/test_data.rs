@@ -4,7 +4,12 @@
 use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::msg::Message;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
-use multisig::types::ECDSASignature;
+use multisig::{
+    msg::Signer,
+    types::{ECDSAPublicKey, ECDSASignature, PublicKey},
+};
+
+use crate::state::WorkerSet;
 
 fn legacy_cmd_id_input(
     source_transaction: HexBinary,
@@ -25,6 +30,65 @@ fn legacy_cmd_id_input(
     .concat();
 
     unsafe { String::from_utf8_unchecked(data) }
+}
+
+pub fn new_worker_set() -> WorkerSet {
+    WorkerSet {
+        signers: vec![
+            Signer {
+                address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+                weight: Uint256::from(10u128),
+                pub_key: PublicKey::ECDSA(ECDSAPublicKey::unchecked(
+                    HexBinary::from_hex(
+                        "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
+                    )
+                    .unwrap(),
+                )),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
+                weight: Uint256::from(10u128),
+                pub_key: PublicKey::ECDSA(ECDSAPublicKey::unchecked(
+                    HexBinary::from_hex(
+                        "03c6ddb0fcee7b528da1ef3c9eed8d51eeacd7cc28a8baa25c33037c5562faa6e4",
+                    )
+                    .unwrap(),
+                )),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
+                weight: Uint256::from(10u128),
+                pub_key: PublicKey::ECDSA(ECDSAPublicKey::unchecked(
+                    HexBinary::from_hex(
+                        "0274b5d2a4c55d7edbbf9cc210c4d25adbb6194d6b444816235c82984bee518255",
+                    )
+                    .unwrap(),
+                )),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
+                weight: Uint256::from(10u128),
+                pub_key: PublicKey::ECDSA(ECDSAPublicKey::unchecked(
+                    HexBinary::from_hex(
+                        "02a670f57de55b8b39b4cb051e178ca8fb3fe3a78cdde7f8238baf5e6ce1893185",
+                    )
+                    .unwrap(),
+                )),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
+                weight: Uint256::from(10u128),
+                pub_key: PublicKey::ECDSA(ECDSAPublicKey::unchecked(
+                    HexBinary::from_hex(
+                        "028584592624e742ba154c02df4c0b06e4e8a957ba081083ea9fe5309492aa6c7b",
+                    )
+                    .unwrap(),
+                )),
+            },
+        ],
+        threshold: Uint256::from(30u128),
+        id: 1,
+    }
 }
 
 pub fn messages() -> Vec<Message> {
@@ -83,6 +147,14 @@ pub fn pub_key() -> HexBinary {
 
 pub fn evm_address() -> HexBinary {
     HexBinary::from_hex("01212E8f3996651D6978147E76aA1f36C34b6556").unwrap()
+}
+
+pub fn encoded_data_with_operator_transfer() -> HexBinary {
+    HexBinary::from_hex("0000000000000000000000000000000000000000000000000000000000000539000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000134e64bdf8c193ec13ccab8272cb202f77da188598236de9b6a3b6b8793af9b650000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000147472616e736665724f70657261746f72736869700000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000001e000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000000001e00000000000000000000000000000000000000000000000000000000000000050000000000000000000000000249c31dd0eacb2d73bbe5a0513416cd3888cb5b0000000000000000000000001ae3758c032ae8ebf6f075bb5b6ff6129b56e632000000000000000000000000adb32b50b13f962d302619111de6a1020fbd55f7000000000000000000000000defab04334a82fdea683bca3617c33bc469d4cc9000000000000000000000000e6857cf86038ba741e64ce0d3c883a26a7d3cb460000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000a").unwrap()
+}
+
+pub fn chain_id_operator_transfer() -> Uint256 {
+    Uint256::from(1337u128)
 }
 
 pub fn encoded_data() -> HexBinary {
