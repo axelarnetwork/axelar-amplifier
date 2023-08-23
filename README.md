@@ -49,7 +49,7 @@ P --"GetMessages([M1.id,M2.id])"-->G2
 P --"GetBondedWorkers"-->S
 P --"StartSigningSession(key_id, batch_hash)"-->M
 Signers --"SubmitSignature(session_id, signature)"-->M
-Relayer --"GetProof(proof_id)" --> P
+Relayer --"GetProof(multisig_session_id)" --> P
 P --"GetSigningSession(session_id)"-->M
 ```
 
@@ -115,11 +115,11 @@ sequenceDiagram
     OutgoingGateway-->>Prover: [M1,M2]
     Prover->>Prover: create batch of [M1,M2]
     Prover->>Multisig: StartSigningSession(snapshot, batch hash)
-    Multisig-->>Prover: session_id
-    Prover-->>Relayer: proof_id
+    Multisig-->>Prover: multisig_session_id
+    Prover-->>Relayer: multisig_session_id
     Signer->>Multisig: SubmitSignature(session_id, signature)
     Signer->>Multisig: SubmitSignature(session_id, signature)
-    Relayer->>Prover: GetProof(proof_id)
+    Relayer->>Prover: GetProof(multisig_session_id)
     Prover->>Multisig: GetSigningSession(session_id)
     Multisig-->>Prover: signing session
     Prover-->>Relayer: signed batch
