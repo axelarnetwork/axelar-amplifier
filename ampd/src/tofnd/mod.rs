@@ -7,9 +7,10 @@ use crate::url::Url;
 
 pub mod client;
 pub mod error;
+pub mod grpc;
 
 #[allow(non_snake_case)]
-mod proto {
+pub mod proto {
     tonic::include_proto!("tofnd");
 }
 

@@ -12,6 +12,10 @@ pub enum Error {
     FromHex(#[from] hex::FromHexError),
     #[error("parsing failed")]
     ParsingFailed,
+    #[error("send failed")]
+    SendFailed,
+    #[error("receive failed")]
+    RecvFailed,
 }
 
 #[derive(Error, Debug)]
