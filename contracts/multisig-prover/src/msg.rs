@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::Threshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::{encoding::Data, types::ProofID};
+use crate::encoding::Data;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -35,7 +35,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetProofResponse)]
-    GetProof { proof_id: String },
+    GetProof { multisig_session_id: Uint64 },
 }
 
 #[cw_serde]
@@ -46,7 +46,7 @@ pub enum ProofStatus {
 
 #[cw_serde]
 pub struct GetProofResponse {
-    pub proof_id: ProofID,
+    pub multisig_session_id: Uint64,
     pub message_ids: Vec<String>,
     pub data: Data,
     pub status: ProofStatus,

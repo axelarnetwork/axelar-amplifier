@@ -79,7 +79,9 @@ pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, Contrac
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetProof { proof_id } => to_binary(&query::get_proof(deps, proof_id)?),
+        QueryMsg::GetProof {
+            multisig_session_id,
+        } => to_binary(&query::get_proof(deps, multisig_session_id)?),
     }
 }
 
@@ -90,7 +92,7 @@ mod test {
     use anyhow::Error;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        Addr, Fraction, HexBinary, Uint256,
+        Addr, Fraction, HexBinary, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
     use ethabi::{ParamType, Token};
@@ -106,7 +108,7 @@ mod test {
     use super::*;
 
     const RELAYER: &str = "relayer";
-    const PROOF_ID: &str = "cee4e2f00382604c3c4d5639d8f61e27d5fb39a1fa6b99cfec72493f5f679b58";
+    const MULTISIG_SESSION_ID: Uint64 = Uint64::one();
 
     fn execute_key_gen(
         test_case: &mut TestCaseConfig,
@@ -158,16 +160,18 @@ mod test {
 
     fn query_get_proof(
         test_case: &mut TestCaseConfig,
-        proof_id: Option<String>,
+        multisig_session_id: Option<Uint64>,
     ) -> StdResult<GetProofResponse> {
-        let proof_id = match proof_id {
+        let multisig_session_id = match multisig_session_id {
             Some(id) => id,
-            None => PROOF_ID.to_string(),
+            None => MULTISIG_SESSION_ID,
         };
 
         test_case.app.wrap().query_wasm_smart(
             test_case.prover_address.clone(),
-            &QueryMsg::GetProof { proof_id },
+            &QueryMsg::GetProof {
+                multisig_session_id,
+            },
         )
     }
 
@@ -253,7 +257,7 @@ mod test {
 
         let res = query_get_proof(&mut test_case, None).unwrap();
 
-        assert_eq!(res.proof_id.to_string(), PROOF_ID);
+        assert_eq!(res.multisig_session_id, MULTISIG_SESSION_ID);
         assert_eq!(res.message_ids.len(), 2);
         match res.status {
             ProofStatus::Completed { execute_data } => {

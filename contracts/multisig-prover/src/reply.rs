@@ -1,11 +1,10 @@
-use cosmwasm_std::{from_binary, DepsMut, Reply, Response};
+use cosmwasm_std::{from_binary, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
     error::ContractError,
     events::Event,
-    state::{PROOF_BATCH_MULTISIG, REPLY_BATCH},
-    types::ProofID,
+    state::{MULTISIG_SESSION_BATCH, REPLY_BATCH},
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -13,16 +12,23 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             let command_batch_id = REPLY_BATCH.load(deps.storage)?;
 
-            let session_id =
+            let multisig_session_id: Uint64 =
                 from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
-            let proof_id = ProofID::new(&command_batch_id, &session_id);
+            MULTISIG_SESSION_BATCH.save(
+                deps.storage,
+                multisig_session_id.u64(),
+                &command_batch_id,
+            )?;
 
-            PROOF_BATCH_MULTISIG.save(deps.storage, &proof_id, &(command_batch_id, session_id))?;
-
-            Ok(Response::new().add_event(Event::ProofUnderConstruction { proof_id }.into()))
+            Ok(Response::new().add_event(
+                Event::ProofUnderConstruction {
+                    multisig_session_id,
+                }
+                .into(),
+            ))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),

@@ -1,10 +1,10 @@
 use axelar_wasm_std::Threshold;
 use connection_router::types::ChainName;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256, Uint64};
+use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
 
-use crate::types::{BatchID, CommandBatch, ProofID};
+use crate::types::{BatchID, CommandBatch};
 
 #[cw_serde]
 pub struct Config {
@@ -21,7 +21,6 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const KEY_ID: Item<String> = Item::new("key_id");
 pub const COMMANDS_BATCH: Map<&BatchID, CommandBatch> = Map::new("command_batch");
-pub const PROOF_BATCH_MULTISIG: Map<&ProofID, (BatchID, Uint64)> =
-    Map::new("batch_multisig_session");
+pub const MULTISIG_SESSION_BATCH: Map<u64, BatchID> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");

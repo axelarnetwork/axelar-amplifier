@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::Snapshot;
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{HexBinary, Uint64};
 use serde_json::to_string;
-
-use crate::types::ProofID;
 
 pub enum Event {
     ProofUnderConstruction {
-        proof_id: ProofID,
+        multisig_session_id: Uint64,
     },
     SnapshotRotated {
         key_id: String,
@@ -20,12 +18,12 @@ pub enum Event {
 impl From<Event> for cosmwasm_std::Event {
     fn from(other: Event) -> Self {
         match other {
-            Event::ProofUnderConstruction { proof_id } => {
-                cosmwasm_std::Event::new("proof_under_construction").add_attribute(
-                    "proof_id",
-                    to_string(&proof_id).expect("violated invariant: proof_id is not serializable"),
-                )
-            }
+            Event::ProofUnderConstruction {
+                multisig_session_id: proof_id,
+            } => cosmwasm_std::Event::new("proof_under_construction").add_attribute(
+                "proof_id",
+                to_string(&proof_id).expect("violated invariant: proof_id is not serializable"),
+            ),
             Event::SnapshotRotated {
                 key_id,
                 snapshot,
