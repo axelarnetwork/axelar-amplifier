@@ -21,12 +21,9 @@ pub enum ContractError {
     #[error("invalid participants: {reason}")]
     InvalidParticipants { reason: String },
 
-    #[error("no messages found")]
-    NoMessagesFound,
+    #[error("returned gateway messages count mismatch")]
+    MessagesCountMismatch,
 
     #[error("invalid contract reply: {reason}")]
     InvalidContractReply { reason: String },
-
-    #[error("wrong chain")]
-    WrongChain,
 }

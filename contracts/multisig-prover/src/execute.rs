@@ -19,28 +19,16 @@ use crate::{
 
 pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Response, ContractError> {
     let key_id = KEY_ID.load(deps.storage)?;
-
     let config = CONFIG.load(deps.storage)?;
 
     let batch_id = BatchID::new(&message_ids);
 
-    let query = gateway::msg::QueryMsg::GetMessages { message_ids };
-    let messages: Vec<Message> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.gateway.into(),
-        msg: to_binary(&query)?,
-    }))?;
-
-    if messages.is_empty() {
-        return Err(ContractError::NoMessagesFound);
-    }
-
-    let chain_name = Some(config.chain_name);
-    if messages
-        .iter()
-        .any(|msg| ChainName::from_str(&msg.destination_chain).ok() != chain_name)
-    {
-        return Err(ContractError::WrongChain);
-    }
+    let messages = get_messages(
+        deps.querier,
+        message_ids,
+        config.gateway.into(),
+        config.chain_name,
+    )?;
 
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
@@ -64,6 +52,35 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
     let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
+}
+
+fn get_messages(
+    querier: QuerierWrapper,
+    message_ids: Vec<String>,
+    gateway: String,
+    chain_name: ChainName,
+) -> Result<Vec<Message>, ContractError> {
+    let length = message_ids.len();
+
+    let query = gateway::msg::QueryMsg::GetMessages { message_ids };
+    let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: gateway,
+        msg: to_binary(&query)?,
+    }))?;
+
+    if messages.len() != length {
+        return Err(ContractError::MessagesCountMismatch);
+    }
+
+    let chain_name = Some(chain_name);
+    if messages
+        .iter()
+        .any(|msg| ChainName::from_str(&msg.destination_chain).ok() != chain_name)
+    {
+        panic!("violated invariant: messages from different chain found");
+    }
+
+    Ok(messages)
 }
 
 pub fn rotate_snapshot(
