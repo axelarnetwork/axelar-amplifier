@@ -1,13 +1,14 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Event, HexBinary};
+use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 use serde_json::to_string;
 
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::Message;
-use connection_router::types::{ChainName, ID_SEPARATOR};
+use connection_router::types::{ChainName, MessageID, ID_SEPARATOR};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -24,62 +25,91 @@ impl From<Config> for Event {
     }
 }
 
-pub struct PollStarted {
+pub struct PollMetadata {
     pub poll_id: PollID,
     pub source_chain: ChainName,
     pub source_gateway_address: String,
     pub confirmation_height: u64,
     pub expires_at: u64,
-    pub messages: Vec<EvmMessage>,
     pub participants: Vec<Addr>,
+}
+
+pub enum PollStarted {
+    Messages {
+        messages: Vec<EvmMessage>,
+        metadata: PollMetadata,
+    },
+    WorkerSet {
+        worker_set: WorkerSetConfirmation,
+        metadata: PollMetadata,
+    },
+}
+
+impl From<PollMetadata> for Vec<Attribute> {
+    fn from(value: PollMetadata) -> Self {
+        vec![
+            (
+                "poll_id",
+                to_string(&value.poll_id).expect("failed to serialize poll_id"),
+            ),
+            (
+                "source_chain",
+                to_string(&value.source_chain).expect("failed to serialize source_chain"),
+            ),
+            ("source_gateway_address", value.source_gateway_address),
+            ("confirmation_height", value.confirmation_height.to_string()),
+            ("expires_at", value.expires_at.to_string()),
+            (
+                "participants",
+                to_string(&value.participants).expect("failed to serialize participants"),
+            ),
+        ]
+        .into_iter()
+        .map(Into::into)
+        .collect()
+    }
 }
 
 impl From<PollStarted> for Event {
     fn from(other: PollStarted) -> Self {
-        Event::new("poll_started")
-            .add_attribute(
-                "poll_id",
-                to_string(&other.poll_id).expect("failed to serialize poll_id"),
-            )
-            .add_attribute(
-                "source_chain",
-                to_string(&other.source_chain).expect("failed to serialize source_chain"),
-            )
-            .add_attribute("source_gateway_address", other.source_gateway_address)
-            .add_attribute("confirmation_height", other.confirmation_height.to_string())
-            .add_attribute("expires_at", other.expires_at.to_string())
-            .add_attribute(
-                "participants",
-                to_string(&other.participants).expect("failed to serialize participants"),
-            )
-            .add_attribute(
-                "messages",
-                to_string(&other.messages).expect("failed to serialize messages"),
-            )
+        match other {
+            PollStarted::Messages {
+                messages: data,
+                metadata,
+            } => Event::new("messages_poll_started")
+                .add_attribute(
+                    "messages",
+                    to_string(&data).expect("failed to serialize messages"),
+                )
+                .add_attributes(Vec::<_>::from(metadata)),
+            PollStarted::WorkerSet {
+                worker_set: data,
+                metadata,
+            } => Event::new("worker_set_poll_started")
+                .add_attribute(
+                    "worker_set",
+                    to_string(&data).expect("failed to serialize worker set confirmation"),
+                )
+                .add_attributes(Vec::<_>::from(metadata)),
+        }
     }
 }
 
-pub struct EvmMessages(pub ChainName, pub Vec<EvmMessage>);
+#[cw_serde]
+pub struct WorkerSetConfirmation {
+    pub tx_id: String,
+    pub log_index: u64,
+    pub operators: Operators,
+}
 
-impl TryFrom<Vec<Message>> for EvmMessages {
-    type Error = ContractError;
-
-    fn try_from(other: Vec<Message>) -> Result<Self, Self::Error> {
-        let source_chain = other[0].source_chain.clone();
-
-        if other
-            .iter()
-            .any(|message| !message.source_chain.eq(&source_chain))
-        {
-            return Err(ContractError::SourceChainMismatch(source_chain));
-        }
-
-        let messages = other
-            .into_iter()
-            .map(EvmMessage::try_from)
-            .collect::<Result<Vec<_>, ContractError>>()?;
-
-        Ok(EvmMessages(source_chain, messages))
+impl WorkerSetConfirmation {
+    pub fn new(message_id: MessageID, operators: Operators) -> Result<Self, ContractError> {
+        let (tx_id, log_index) = parse_message_id(&message_id)?;
+        Ok(Self {
+            tx_id,
+            log_index,
+            operators,
+        })
     }
 }
 
@@ -97,7 +127,7 @@ impl TryFrom<Message> for EvmMessage {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, log_index) = parse_message_id(other.id.to_string())?;
+        let (tx_id, log_index) = parse_message_id(&other.id)?;
 
         Ok(EvmMessage {
             tx_id,
@@ -118,19 +148,19 @@ impl FromStr for EvmMessage {
     }
 }
 
-fn parse_message_id(message_id: String) -> Result<(String, u64), ContractError> {
+fn parse_message_id(message_id: &MessageID) -> Result<(String, u64), ContractError> {
     // expected format: <source_chain>:<tx_id>:<index>
-    let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
+    let components = message_id.as_str().split(ID_SEPARATOR).collect::<Vec<_>>();
 
     if components.len() != 3 {
-        return Err(ContractError::InvalidMessageID(message_id));
+        return Err(ContractError::InvalidMessageID(message_id.clone()));
     }
 
     Ok((
         components[1].to_string(),
         components[2]
             .parse::<u64>()
-            .map_err(|_| ContractError::InvalidMessageID(message_id))?,
+            .map_err(|_| ContractError::InvalidMessageID(message_id.clone()))?,
     ))
 }
 

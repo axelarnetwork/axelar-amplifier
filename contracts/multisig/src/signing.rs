@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Uint256, Uint64};
+
+use axelar_wasm_std::Snapshot;
 
 use crate::{
     types::{Key, KeyID, MsgToSign, MultisigState, Signature, VerifiableSignature},
@@ -82,8 +83,8 @@ impl SigningSession {
 
     fn signers_weight(&self, snapshot: &Snapshot) -> Uint256 {
         self.signatures
-            .iter()
-            .map(|(addr, _)| -> Uint256 {
+            .keys()
+            .map(|addr| -> Uint256 {
                 snapshot
                     .participants
                     .get(addr)
@@ -97,14 +98,15 @@ impl SigningSession {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use cosmwasm_std::{testing::MockStorage, Addr, HexBinary};
 
     use crate::{
         state::{KEYS, SIGNING_SESSIONS},
         test::common::test_data,
         test::common::{build_key, build_snapshot, TestSigner},
     };
-    use cosmwasm_std::{testing::MockStorage, Addr, HexBinary};
+
+    use super::*;
 
     pub struct TestConfig {
         pub store: MockStorage,
