@@ -21,7 +21,7 @@ use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::StateUpdater;
-use tofnd::{client::TofndClient, proto::multisig_client::MultisigClient};
+use tofnd::{client::TofndClient, grpc::MultisigClient};
 use types::TMAddress;
 
 mod broadcaster;
@@ -59,7 +59,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
         .map_err(Error::new)?;
-    let multisig_client = MultisigClient::connect(tofnd_config.url.to_string())
+    let multisig_client = MultisigClient::connect(tofnd_config.url)
         .await
         .map_err(Error::new)?;
 
@@ -95,7 +95,7 @@ struct App {
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
     #[allow(dead_code)]
-    tofnd_client: TofndClient<MultisigClient<Channel>>,
+    tofnd_client: TofndClient<MultisigClient>,
     token: CancellationToken,
 }
 
@@ -104,7 +104,7 @@ impl App {
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: Broadcaster<ServiceClient<Channel>>,
         state_updater: StateUpdater,
-        tofnd_client: TofndClient<MultisigClient<Channel>>,
+        tofnd_client: TofndClient<MultisigClient>,
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
     ) -> Self {

@@ -7,10 +7,10 @@ use crate::url::Url;
 
 pub mod client;
 pub mod error;
-mod grpc;
+pub mod grpc;
 
 #[allow(non_snake_case)]
-pub mod proto {
+mod proto {
     tonic::include_proto!("tofnd");
 }
 
@@ -41,5 +41,17 @@ impl FromHex for MessageDigest {
 
     fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
         Ok(MessageDigest(<[u8; 32]>::from_hex(hex)?))
+    }
+}
+
+impl MessageDigest {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.into()
+    }
+}
+
+impl From<[u8; 32]> for MessageDigest {
+    fn from(digest: [u8; 32]) -> Self {
+        MessageDigest(digest)
     }
 }

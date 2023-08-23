@@ -1,13 +1,9 @@
 #![allow(dead_code)]
 
-use ecdsa::VerifyingKey;
-use error_stack::{FutureExt, IntoReport, ResultExt};
+use error_stack::{IntoReport, ResultExt};
 use tokio::{sync::mpsc, sync::oneshot};
 
-use super::proto::{
-    keygen_response::KeygenResponse, sign_response::SignResponse, KeygenRequest, SignRequest,
-};
-use super::{error::Error, error::TofndError, grpc::MultisigClient, Signature};
+use super::{error::Error, grpc::MultisigClientExt, MessageDigest, Signature};
 use crate::types::PublicKey;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -16,11 +12,11 @@ type Handle<T> = oneshot::Sender<Result<T>>;
 
 enum Request {
     Keygen {
-        request: KeygenRequest,
+        params: (String, String),
         handle: Handle<PublicKey>,
     },
     Sign {
-        request: SignRequest,
+        params: (String, String, MessageDigest, PublicKey),
         handle: Handle<Signature>,
     },
 }
@@ -33,10 +29,7 @@ pub struct Client {
 impl Client {
     pub async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
         self.send(|handle| Request::Keygen {
-            request: KeygenRequest {
-                key_uid: key_uid.to_string(),
-                party_uid: self.party_uid.clone(),
-            },
+            params: (key_uid.to_string(), self.party_uid.to_string()),
             handle,
         })
         .await
@@ -45,16 +38,16 @@ impl Client {
     pub async fn sign(
         &self,
         key_uid: &str,
-        data: Vec<u8>,
+        data: MessageDigest,
         pub_key: &PublicKey,
     ) -> Result<Signature> {
         self.send(|handle| Request::Sign {
-            request: SignRequest {
-                key_uid: key_uid.to_string(),
-                msg_to_sign: data,
-                party_uid: self.party_uid.clone(),
-                pub_key: pub_key.to_bytes(),
-            },
+            params: (
+                key_uid.to_string(),
+                self.party_uid.to_string(),
+                data,
+                *pub_key,
+            ),
             handle,
         })
         .await
@@ -73,13 +66,13 @@ impl Client {
     }
 }
 
-pub struct TofndClient<T: MultisigClient> {
+pub struct TofndClient<T: MultisigClientExt> {
     party_uid: String,
     client: T,
     channel: (mpsc::Sender<Request>, mpsc::Receiver<Request>),
 }
 
-impl<T: MultisigClient> TofndClient<T> {
+impl<T: MultisigClientExt> TofndClient<T> {
     pub fn new(client: T, party_uid: String, capacity: usize) -> Self {
         Self {
             party_uid,
@@ -96,11 +89,17 @@ impl<T: MultisigClient> TofndClient<T> {
 
         while let Some(request) = rx.recv().await {
             match request {
-                Request::Sign { request, handle } => handle
-                    .send(sign(&mut client, request).await)
+                Request::Sign {
+                    params: (key_uid, party_uid, data, pub_key),
+                    handle,
+                } => handle
+                    .send(client.sign(&key_uid, &party_uid, data, &pub_key).await)
                     .map_err(|_| Error::SendFailed)?,
-                Request::Keygen { request, handle } => handle
-                    .send(keygen(&mut client, request).await)
+                Request::Keygen {
+                    params: (key_uid, party_uid),
+                    handle,
+                } => handle
+                    .send(client.keygen(&key_uid, &party_uid).await)
                     .map_err(|_| Error::SendFailed)?,
             }
         }
@@ -116,57 +115,21 @@ impl<T: MultisigClient> TofndClient<T> {
     }
 }
 
-async fn sign<T>(client: &mut T, request: SignRequest) -> Result<Signature>
-where
-    T: MultisigClient,
-{
-    client
-        .sign(request)
-        .change_context(Error::Grpc)
-        .await
-        .and_then(|response| match response {
-            SignResponse::Signature(signature) => Ok(signature),
-            SignResponse::Error(error_msg) => Err(TofndError::ExecutionFailed(error_msg))
-                .into_report()
-                .change_context(Error::SignFailed),
-        })
-}
-
-async fn keygen<T>(client: &mut T, request: KeygenRequest) -> Result<PublicKey>
-where
-    T: MultisigClient,
-{
-    client
-        .keygen(request)
-        .change_context(Error::Grpc)
-        .await
-        .and_then(|response| match response {
-            KeygenResponse::PubKey(pub_key) => VerifyingKey::from_sec1_bytes(pub_key.as_slice())
-                .into_report()
-                .change_context(Error::ParsingFailed)
-                .attach_printable(format!("{{ invalid_value = {:?} }}", pub_key))
-                .map(Into::into),
-            KeygenResponse::Error(error_msg) => Err(TofndError::ExecutionFailed(error_msg))
-                .into_report()
-                .change_context(Error::KeygenFailed),
-        })
-}
-
 #[cfg(test)]
 mod tests {
-    use error_stack::IntoReport;
+    use error_stack::Report;
+    use rand::{thread_rng, RngCore};
     use tokio::{task::JoinHandle, test};
-    use tonic::Status;
 
     use crate::broadcaster::key::ECDSASigningKey;
     use crate::tofnd::{
         client::{Client, TofndClient},
         error::Error,
-        grpc::{MockMultisigClient, MultisigClient},
-        proto::{keygen_response, sign_response},
+        grpc::{MockMultisigClientExt, MultisigClientExt},
+        MessageDigest,
     };
 
-    fn init_client<T: MultisigClient + Send + 'static>(client: T) -> (Client, JoinHandle<()>) {
+    fn init_client<T: MultisigClientExt + Send + 'static>(client: T) -> (Client, JoinHandle<()>) {
         let tofnd_client = TofndClient::new(client, "party_uid".to_string(), 1000);
         let client = tofnd_client.client();
 
@@ -179,10 +142,10 @@ mod tests {
 
     #[test]
     async fn keygen_empty_response() {
-        let mut client = MockMultisigClient::new();
+        let mut client = MockMultisigClientExt::new();
         client
             .expect_keygen()
-            .returning(|_| Err(Status::internal("keygen response is empty")).into_report());
+            .returning(|_, _| Err(Report::from(Error::Grpc)));
 
         let (client, handler) = init_client(client);
 
@@ -197,10 +160,10 @@ mod tests {
 
     #[test]
     async fn keygen_invalid_pubkey() {
-        let mut client = MockMultisigClient::new();
+        let mut client = MockMultisigClientExt::new();
         client
             .expect_keygen()
-            .returning(|_| Ok(keygen_response::KeygenResponse::PubKey(vec![0, 1, 2, 3])));
+            .returning(|_, _| Err(Report::from(Error::ParsingFailed)));
 
         let (client, handler) = init_client(client);
 
@@ -215,12 +178,10 @@ mod tests {
 
     #[test]
     async fn keygen_error_response() {
-        let mut client = MockMultisigClient::new();
-        client.expect_keygen().returning(|_| {
-            Ok(keygen_response::KeygenResponse::Error(String::from(
-                "failed to generate key",
-            )))
-        });
+        let mut client = MockMultisigClientExt::new();
+        client
+            .expect_keygen()
+            .returning(|_, _| Err(Report::from(Error::KeygenFailed)));
 
         let (client, handler) = init_client(client);
 
@@ -237,12 +198,10 @@ mod tests {
     async fn keygen_succeeded() {
         let rand_pub_key = ECDSASigningKey::random().public_key();
 
-        let mut client = MockMultisigClient::new();
-        client.expect_keygen().returning(move |_| {
-            Ok(keygen_response::KeygenResponse::PubKey(
-                rand_pub_key.to_bytes(),
-            ))
-        });
+        let mut client = MockMultisigClientExt::new();
+        client
+            .expect_keygen()
+            .returning(move |_, _| Ok(rand_pub_key));
 
         let (client, handler) = init_client(client);
 
@@ -254,21 +213,17 @@ mod tests {
 
     #[test]
     async fn sign_empty_response() {
-        let mut client = MockMultisigClient::new();
+        let mut client = MockMultisigClientExt::new();
         client
             .expect_sign()
-            .returning(|_| Err(Status::internal("sign response is empty")).into_report());
+            .returning(|_, _, _, _| Err(Report::from(Error::Grpc)));
 
         let (client, handler) = init_client(client);
 
-        let digest: [u8; 32] = rand::random();
+        let digest: MessageDigest = rand::random::<[u8; 32]>().into();
         assert!(matches!(
             client
-                .sign(
-                    "key",
-                    digest.to_vec(),
-                    &ECDSASigningKey::random().public_key()
-                )
+                .sign("key", digest, &ECDSASigningKey::random().public_key())
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -281,22 +236,17 @@ mod tests {
 
     #[test]
     async fn sign_error_response() {
-        let err_str = "failed to sign";
-        let mut client = MockMultisigClient::new();
+        let mut client = MockMultisigClientExt::new();
         client
             .expect_sign()
-            .returning(move |_| Ok(sign_response::SignResponse::Error(String::from(err_str))));
+            .returning(move |_, _, _, _| Err(Report::from(Error::SignFailed)));
 
         let (client, handler) = init_client(client);
 
-        let digest: [u8; 32] = rand::random();
+        let digest: MessageDigest = rand::random::<[u8; 32]>().into();
         assert!(matches!(
             client
-                .sign(
-                    "key",
-                    digest.to_vec(),
-                    &ECDSASigningKey::random().public_key()
-                )
+                .sign("key", digest, &ECDSASigningKey::random().public_key())
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -309,24 +259,23 @@ mod tests {
 
     #[test]
     async fn sign_succeeded() {
-        let mut client = MockMultisigClient::new();
+        let mut sig = [0u8; 64];
+        thread_rng().fill_bytes(&mut sig);
+
+        let mut client = MockMultisigClientExt::new();
         client
             .expect_sign()
-            .returning(move |_| Ok(sign_response::SignResponse::Signature(vec![0, 1, 2, 3])));
+            .returning(move |_, _, _, _| Ok(Vec::from(sig)));
 
         let (client, handler) = init_client(client);
 
-        let digest: [u8; 32] = rand::random();
+        let digest: MessageDigest = rand::random::<[u8; 32]>().into();
         assert_eq!(
             client
-                .sign(
-                    "key",
-                    digest.to_vec(),
-                    &ECDSASigningKey::random().public_key(),
-                )
+                .sign("key", digest, &ECDSASigningKey::random().public_key(),)
                 .await
                 .unwrap(),
-            vec![0, 1, 2, 3]
+            Vec::from(sig)
         );
 
         drop(client);
