@@ -1,10 +1,14 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use axelar_wasm_std::{
+    operators::Operators,
     voting::{PollID, PollResult},
     Threshold,
 };
-use connection_router::msg::Message;
+use connection_router::{
+    msg::Message,
+    types::{ChainName, MessageID},
+};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -16,20 +20,34 @@ pub struct InstantiateMsg {
     pub voting_threshold: Threshold,
     pub block_expiry: u64,
     pub confirmation_height: u64,
+    pub source_chain: ChainName,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier
-    EndPoll { poll_id: PollID },
+    EndPoll {
+        poll_id: PollID,
+    },
 
     // Casts votes for specified poll
-    Vote { poll_id: PollID, votes: Vec<bool> },
+    Vote {
+        poll_id: PollID,
+        votes: Vec<bool>,
+    },
 
     // returns a vector of true/false values, indicating current verification status for each message
     // starts a poll for any not yet verified messages
-    VerifyMessages { messages: Vec<Message> },
+    VerifyMessages {
+        messages: Vec<Message>,
+    },
+
+    // Starts a poll to confirm a worker set update on the external evm gateway
+    ConfirmWorkerSet {
+        message_id: MessageID,
+        new_operators: Operators,
+    },
 }
 
 #[cw_serde]
@@ -46,6 +64,9 @@ pub enum QueryMsg {
 
     #[returns(Vec<(String, bool)>)]
     IsVerified { messages: Vec<Message> },
+
+    #[returns(bool)]
+    IsWorkerSetConfirmed { new_operators: Operators },
 }
 
 #[cw_serde]

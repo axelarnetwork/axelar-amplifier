@@ -1,9 +1,10 @@
-use connection_router::types::ChainName;
+use axelar_wasm_std::operators::Operators;
+use connection_router::types::{ChainName, MessageID};
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
 
-use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::voting::{PollID, PollResult};
 use axelar_wasm_std::{
     snapshot,
     voting::{Poll, WeightedPoll},
@@ -13,15 +14,63 @@ use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
 use crate::error::ContractError;
-use crate::events::{EvmMessages, PollEnded, PollStarted, Voted};
+use crate::events::{
+    EvmMessage, PollEnded, PollMetadata, PollStarted, Voted, WorkerSetConfirmation,
+};
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::is_message_verified;
-use crate::state::{CONFIG, PENDING_MESSAGES, POLLS, POLL_ID, VERIFIED_MESSAGES};
+use crate::state;
+use crate::state::{
+    CONFIG, CONFIRMED_WORKER_SETS, PENDING_MESSAGES, PENDING_WORKER_SETS, POLLS, POLL_ID,
+    VERIFIED_MESSAGES,
+};
 
 enum VerificationStatus {
     Verified(Message),
     Pending(Message),
+}
+
+pub fn confirm_worker_set(
+    deps: DepsMut,
+    env: Env,
+    message_id: MessageID,
+    new_operators: Operators,
+) -> Result<Response, ContractError> {
+    if CONFIRMED_WORKER_SETS
+        .may_load(deps.storage, new_operators.hash())?
+        .is_some()
+    {
+        return Err(ContractError::WorkerSetAlreadyConfirmed {});
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+    let snapshot = take_snapshot(deps.as_ref(), &env, &config.source_chain)?;
+    let participants = snapshot.get_participants();
+
+    let id = create_worker_set_poll(
+        deps.storage,
+        env.block.height,
+        config.block_expiry,
+        snapshot,
+    )?;
+
+    PENDING_WORKER_SETS.save(deps.storage, id, &new_operators)?;
+
+    Ok(Response::new().add_event(
+        PollStarted::WorkerSet {
+            worker_set: WorkerSetConfirmation::new(message_id, new_operators)?,
+            metadata: PollMetadata {
+                poll_id: id,
+                source_chain: config.source_chain,
+                source_gateway_address: config.source_gateway_address,
+                confirmation_height: config.confirmation_height,
+                expires_at: env.block.height + config.block_expiry,
+                participants,
+            },
+        }
+        .into(),
+    ))
 }
 
 pub fn verify_messages(
@@ -68,7 +117,7 @@ pub fn verify_messages(
 
     let snapshot = take_snapshot(deps.as_ref(), &env, &pending_messages[0].source_chain)?;
     let participants = snapshot.get_participants();
-    let id = create_poll(
+    let id = create_messages_poll(
         deps.storage,
         env.block.height,
         config.block_expiry,
@@ -78,17 +127,22 @@ pub fn verify_messages(
 
     PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
 
-    let EvmMessages(source_chain, messages) = pending_messages.try_into()?;
+    let evm_messages = pending_messages
+        .into_iter()
+        .map(TryInto::try_into)
+        .collect::<Result<Vec<EvmMessage>, _>>()?;
 
     Ok(response.add_event(
-        PollStarted {
-            poll_id: id,
-            source_chain,
-            source_gateway_address: config.source_gateway_address,
-            confirmation_height: config.confirmation_height,
-            expires_at: env.block.height + config.block_expiry,
-            messages,
-            participants,
+        PollStarted::Messages {
+            messages: evm_messages,
+            metadata: PollMetadata {
+                poll_id: id,
+                source_chain: config.source_chain,
+                source_gateway_address: config.source_gateway_address,
+                confirmation_height: config.confirmation_height,
+                expires_at: env.block.height + config.block_expiry,
+                participants,
+            },
         }
         .into(),
     ))
@@ -104,8 +158,12 @@ pub fn vote(
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound {})?;
+    match &mut poll {
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+            poll.cast_vote(env.block.height, &info.sender, votes)?
+        }
+    };
 
-    poll.cast_vote(env.block.height, &info.sender, votes)?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     Ok(Response::new().add_event(
@@ -117,14 +175,11 @@ pub fn vote(
     ))
 }
 
-pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
-    let mut poll = POLLS
-        .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound {})?;
-
-    let poll_result = poll.tally(env.block.height)?;
-    POLLS.save(deps.storage, poll_id, &poll)?;
-
+fn end_poll_messages(
+    deps: DepsMut,
+    poll_id: PollID,
+    poll_result: &PollResult,
+) -> Result<(), ContractError> {
     let messages = remove_pending_message(deps.storage, poll_id)?;
 
     assert_eq!(
@@ -148,6 +203,50 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
             VERIFIED_MESSAGES.save(deps.storage, &message.id, message)?;
         }
     }
+
+    Ok(())
+}
+
+fn end_poll_worker_set(
+    deps: DepsMut,
+    poll_id: PollID,
+    poll_result: &PollResult,
+) -> Result<(), ContractError> {
+    assert_eq!(
+        poll_result.results.len(),
+        1,
+        "poll {} results for worker set is not length 1",
+        poll_id
+    );
+
+    let worker_set = PENDING_WORKER_SETS.load(deps.storage, poll_id)?;
+    if poll_result.results[0] {
+        CONFIRMED_WORKER_SETS.save(deps.storage, worker_set.hash(), &())?;
+    }
+
+    PENDING_WORKER_SETS.remove(deps.storage, poll_id);
+
+    Ok(())
+}
+
+pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
+    let mut poll = POLLS
+        .may_load(deps.storage, poll_id)?
+        .ok_or(ContractError::PollNotFound {})?;
+
+    let poll_result = match &mut poll {
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+            poll.tally(env.block.height)?
+        }
+    };
+    POLLS.save(deps.storage, poll_id, &poll)?;
+
+    match poll {
+        state::Poll::Messages(_) => {
+            end_poll_messages(deps, poll_id, &poll_result)?;
+        }
+        state::Poll::ConfirmWorkerSet(_) => end_poll_worker_set(deps, poll_id, &poll_result)?,
+    };
 
     Ok(Response::new()
         .add_event(
@@ -192,7 +291,21 @@ fn take_snapshot(
     ))
 }
 
-fn create_poll(
+fn create_worker_set_poll(
+    store: &mut dyn Storage,
+    block_height: u64,
+    expiry: u64,
+    snapshot: snapshot::Snapshot,
+) -> Result<PollID, ContractError> {
+    let id = POLL_ID.incr(store)?;
+
+    let poll = WeightedPoll::new(id, snapshot, block_height + expiry, 1);
+    POLLS.save(store, id, &state::Poll::ConfirmWorkerSet(poll))?;
+
+    Ok(id)
+}
+
+fn create_messages_poll(
     store: &mut dyn Storage,
     block_height: u64,
     expiry: u64,
@@ -202,7 +315,7 @@ fn create_poll(
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, block_height + expiry, poll_size);
-    POLLS.save(store, id, &poll)?;
+    POLLS.save(store, id, &state::Poll::Messages(poll))?;
 
     Ok(id)
 }
