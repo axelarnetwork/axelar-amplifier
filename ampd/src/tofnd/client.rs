@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use async_trait::async_trait;
 use ecdsa::VerifyingKey;
 use error_stack::{FutureExt, IntoReport, ResultExt};
 use tokio::{sync::mpsc, sync::oneshot};
@@ -15,7 +14,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 type Handle<T> = oneshot::Sender<Result<T>>;
 
-pub enum Request {
+enum Request {
     Keygen {
         request: KeygenRequest,
         handle: Handle<PublicKey>,
@@ -26,20 +25,13 @@ pub enum Request {
     },
 }
 
-#[async_trait]
-pub trait Multisig {
-    async fn keygen(&self, key_uid: &str) -> Result<PublicKey>;
-    async fn sign(&self, key_uid: &str, data: Vec<u8>, pub_key: &PublicKey) -> Result<Signature>;
-}
-
 pub struct Client {
     party_uid: String,
     sender: mpsc::Sender<Request>,
 }
 
-#[async_trait]
-impl Multisig for Client {
-    async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
+impl Client {
+    pub async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
         self.send(|handle| Request::Keygen {
             request: KeygenRequest {
                 key_uid: key_uid.to_string(),
@@ -50,7 +42,12 @@ impl Multisig for Client {
         .await
     }
 
-    async fn sign(&self, key_uid: &str, data: Vec<u8>, pub_key: &PublicKey) -> Result<Signature> {
+    pub async fn sign(
+        &self,
+        key_uid: &str,
+        data: Vec<u8>,
+        pub_key: &PublicKey,
+    ) -> Result<Signature> {
         self.send(|handle| Request::Sign {
             request: SignRequest {
                 key_uid: key_uid.to_string(),
@@ -62,9 +59,7 @@ impl Multisig for Client {
         })
         .await
     }
-}
 
-impl Client {
     async fn send<T>(&self, with_handle: impl FnOnce(Handle<T>) -> Request) -> Result<T> {
         let (tx, rx) = oneshot::channel();
 
@@ -121,7 +116,7 @@ impl<T: MultisigClient> TofndClient<T> {
     }
 }
 
-async fn sign<T>(client: &mut T, request: SignRequest) -> error_stack::Result<Signature, Error>
+async fn sign<T>(client: &mut T, request: SignRequest) -> Result<Signature>
 where
     T: MultisigClient,
 {
@@ -137,7 +132,7 @@ where
         })
 }
 
-async fn keygen<T>(client: &mut T, request: KeygenRequest) -> error_stack::Result<PublicKey, Error>
+async fn keygen<T>(client: &mut T, request: KeygenRequest) -> Result<PublicKey>
 where
     T: MultisigClient,
 {
@@ -165,7 +160,7 @@ mod tests {
 
     use crate::broadcaster::key::ECDSASigningKey;
     use crate::tofnd::{
-        client::{Client, Multisig, TofndClient},
+        client::{Client, TofndClient},
         error::Error,
         grpc::{MockMultisigClient, MultisigClient},
         proto::{keygen_response, sign_response},

@@ -7,7 +7,7 @@ use crate::url::Url;
 
 pub mod client;
 pub mod error;
-pub mod grpc;
+mod grpc;
 
 #[allow(non_snake_case)]
 pub mod proto {
