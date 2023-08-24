@@ -17,7 +17,7 @@ type StatusResult<T> = error_stack::Result<T, Status>;
 
 #[automock]
 #[async_trait]
-pub trait MultisigClientExt {
+pub trait EcdsaClient {
     async fn keygen(&mut self, key_uid: &str, party_uid: &str) -> Result<PublicKey>;
     async fn sign(
         &mut self,
@@ -68,7 +68,7 @@ impl MultisigClient {
 }
 
 #[async_trait]
-impl MultisigClientExt for MultisigClient {
+impl EcdsaClient for MultisigClient {
     async fn keygen(&mut self, key_uid: &str, party_uid: &str) -> Result<PublicKey> {
         let request = KeygenRequest {
             key_uid: key_uid.to_string(),
