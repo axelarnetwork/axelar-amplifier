@@ -15,6 +15,7 @@ mod proto {
 pub struct Config {
     pub url: Url,
     pub party_uid: String,
+    pub key_uid: String,
 }
 
 impl Default for Config {
@@ -22,6 +23,7 @@ impl Default for Config {
         Self {
             url: "http://localhost:50051/".parse().unwrap(),
             party_uid: "ampd".into(),
+            key_uid: "axelar".into(),
         }
     }
 }

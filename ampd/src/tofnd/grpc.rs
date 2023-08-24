@@ -145,7 +145,7 @@ mod tests {
     use crate::broadcaster::key::ECDSASigningKey;
     use crate::tofnd::{
         error::Error,
-        grpc::{EcdsaClient, MockEcdsaClient, SharableEcdsaClient},
+        grpc::{MockEcdsaClient, SharableEcdsaClient},
         MessageDigest,
     };
 
