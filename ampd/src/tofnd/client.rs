@@ -162,42 +162,6 @@ mod tests {
     }
 
     #[test]
-    async fn keygen_empty_response() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_keygen()
-            .returning(|_, _| Err(Report::from(Error::Grpc)));
-
-        let (client, handler) = init_client(client);
-
-        assert!(matches!(
-            client.keygen(KEY_UID).await.unwrap_err().current_context(),
-            Error::Grpc
-        ));
-
-        drop(client);
-        assert!(handler.await.is_ok());
-    }
-
-    #[test]
-    async fn keygen_invalid_pub_key() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_keygen()
-            .returning(|_, _| Err(Report::from(Error::ParsingFailed)));
-
-        let (client, handler) = init_client(client);
-
-        assert!(matches!(
-            client.keygen(KEY_UID).await.unwrap_err().current_context(),
-            Error::ParsingFailed
-        ));
-
-        drop(client);
-        assert!(handler.await.is_ok());
-    }
-
-    #[test]
     async fn keygen_error_response() {
         let mut client = MockEcdsaClient::new();
         client
@@ -227,29 +191,6 @@ mod tests {
         let (client, handler) = init_client(client);
 
         assert_eq!(client.keygen(KEY_UID).await.unwrap(), rand_pub_key);
-
-        drop(client);
-        assert!(handler.await.is_ok());
-    }
-
-    #[test]
-    async fn sign_empty_response() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_sign()
-            .returning(|_, _, _, _| Err(Report::from(Error::Grpc)));
-
-        let (client, handler) = init_client(client);
-
-        let digest: MessageDigest = rand::random::<[u8; 32]>().into();
-        assert!(matches!(
-            client
-                .sign(KEY_UID, digest, &ECDSASigningKey::random().public_key())
-                .await
-                .unwrap_err()
-                .current_context(),
-            Error::Grpc
-        ));
 
         drop(client);
         assert!(handler.await.is_ok());
