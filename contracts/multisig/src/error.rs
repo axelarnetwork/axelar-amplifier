@@ -40,7 +40,7 @@ pub enum ContractError {
     DuplicateKeyID { key_id: String },
 
     #[error("number of participants does not match number of public keys")]
-    PublicKeysMismatchParticipants {},
+    PublicKeysMismatchParticipants,
 
     #[error("missing public key for participant {participant}")]
     MissingPublicKey { participant: String },

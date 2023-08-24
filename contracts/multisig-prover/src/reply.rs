@@ -25,6 +25,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             Ok(Response::new().add_event(
                 Event::ProofUnderConstruction {
+                    command_batch_id,
                     multisig_session_id,
                 }
                 .into(),

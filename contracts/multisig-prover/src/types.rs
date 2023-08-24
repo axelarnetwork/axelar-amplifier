@@ -43,12 +43,6 @@ impl From<&[u8]> for BatchID {
     }
 }
 
-impl<'a> From<&'a BatchID> for &'a [u8] {
-    fn from(id: &'a BatchID) -> Self {
-        id.0.as_slice()
-    }
-}
-
 impl<'a> PrimaryKey<'a> for BatchID {
     type Prefix = ();
     type SubPrefix = ();

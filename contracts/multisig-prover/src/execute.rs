@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper, QueryRequest,
-    Response, SubMsg, WasmMsg, WasmQuery,
+    to_binary, wasm_execute, Addr, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper,
+    QueryRequest, Response, SubMsg, WasmMsg, WasmQuery,
 };
 
 use std::{collections::HashMap, str::FromStr};
@@ -23,12 +23,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
 
     let batch_id = BatchID::new(&message_ids);
 
-    let messages = get_messages(
-        deps.querier,
-        message_ids,
-        config.gateway.into(),
-        config.chain_name,
-    )?;
+    let messages = get_messages(deps.querier, message_ids, config.gateway, config.chain_name)?;
 
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
@@ -57,14 +52,14 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
 fn get_messages(
     querier: QuerierWrapper,
     message_ids: Vec<String>,
-    gateway: String,
+    gateway: Addr,
     chain_name: ChainName,
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
     let query = gateway::msg::QueryMsg::GetMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: gateway,
+        contract_addr: gateway.into(),
         msg: to_binary(&query)?,
     }))?;
 
@@ -72,11 +67,11 @@ fn get_messages(
         return Err(ContractError::MessagesCountMismatch);
     }
 
-    let chain_name = Some(chain_name);
-    if messages
-        .iter()
-        .any(|msg| ChainName::from_str(&msg.destination_chain).ok() != chain_name)
-    {
+    if messages.iter().any(|msg| {
+        ChainName::from_str(&msg.destination_chain)
+            .expect("violated invariant: message with invalid chain found")
+            != chain_name
+    }) {
         panic!("violated invariant: messages from different chain found");
     }
 
@@ -133,7 +128,7 @@ fn snapshot(
     let participants = active_workers
         .into_iter()
         .map(Worker::try_into)
-        .collect::<Result<Vec<Participant>, service_registry::ContractError>>()
+        .collect::<Result<Vec<Participant>, _>>()
         .map_err(
             |err: service_registry::ContractError| ContractError::InvalidParticipants {
                 reason: err.to_string(),
