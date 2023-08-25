@@ -1,11 +1,8 @@
-use std::time::Duration;
-
 use hex::{self, FromHex};
 use serde::Deserialize;
 
 use crate::url::Url;
 
-pub mod client;
 pub mod error;
 pub mod grpc;
 
@@ -17,15 +14,14 @@ mod proto {
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub url: Url,
-    #[serde(with = "humantime_serde")]
-    pub dail_timeout: Duration,
+    pub party_uid: String,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             url: "http://localhost:50051/".parse().unwrap(),
-            dail_timeout: Duration::from_secs(5),
+            party_uid: "ampd".into(),
         }
     }
 }
