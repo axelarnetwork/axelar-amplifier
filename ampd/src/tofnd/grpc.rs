@@ -111,18 +111,20 @@ impl EcdsaClient for MultisigClient {
     }
 }
 
+#[derive(Clone)]
 pub struct SharableEcdsaClient(Arc<Mutex<dyn EcdsaClient>>);
 
-#[allow(dead_code)]
 impl SharableEcdsaClient {
     pub fn new(client: impl EcdsaClient + 'static) -> Self {
         Self(Arc::new(Mutex::new(client)))
     }
 
+    #[allow(dead_code)]
     pub async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
         self.0.lock().await.keygen(key_uid).await
     }
 
+    #[allow(dead_code)]
     pub async fn sign(
         &self,
         key_uid: &str,
@@ -130,12 +132,6 @@ impl SharableEcdsaClient {
         pub_key: &PublicKey,
     ) -> Result<Signature> {
         self.0.lock().await.sign(key_uid, data, pub_key).await
-    }
-}
-
-impl Clone for SharableEcdsaClient {
-    fn clone(&self) -> Self {
-        SharableEcdsaClient(self.0.clone())
     }
 }
 
