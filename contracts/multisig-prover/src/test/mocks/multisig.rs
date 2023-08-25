@@ -1,10 +1,16 @@
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint64,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint64,
 };
+use cw_multi_test::{App, Executor};
+use cw_storage_plus::Map;
 use multisig::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    types::MultisigState,
+    types::{KeyType, MultisigState, PublicKey},
 };
+
+use crate::test::test_data::TestOperator;
+
+use self::query::get_public_key_query_success;
 
 pub fn instantiate(
     _deps: DepsMut,
@@ -15,10 +21,11 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+pub const PUB_KEYS: Map<(String, KeyType), PublicKey> = Map::new("registered_pub_keys");
 pub fn execute(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
@@ -34,18 +41,48 @@ pub fn execute(
             snapshot: _,
             pub_keys: _,
         } => Ok(Response::default()),
-        ExecuteMsg::RegisterPublicKey { public_key: _ } => unimplemented!(),
+        ExecuteMsg::RegisterPublicKey {
+            public_key,
+            key_type,
+        } => {
+            let pub_key: PublicKey = (key_type.clone(), public_key).try_into().unwrap();
+            PUB_KEYS.save(
+                deps.storage,
+                (info.sender.to_string(), key_type.clone()),
+                &pub_key.clone(),
+            )?;
+            Ok(Response::default())
+        }
     }
 }
 
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<TestOperator>) {
+    for worker in workers {
+        app.execute_contract(
+            worker.address,
+            multisig_address.clone(),
+            &ExecuteMsg::RegisterPublicKey {
+                public_key: worker.pub_key.into(),
+                key_type: KeyType::ECDSA,
+            },
+            &[],
+        )
+        .unwrap();
+    }
+}
+
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
         QueryMsg::GetKey { key_id: _ } => unimplemented!(),
         QueryMsg::GetPublicKey {
-            worker_address: _,
-            key_type: _,
-        } => unimplemented!(),
+            worker_address,
+            key_type,
+        } => to_binary(&get_public_key_query_success(
+            deps,
+            worker_address,
+            key_type,
+        )),
     }
 }
 
@@ -82,5 +119,14 @@ mod query {
             quorum,
             signers,
         }
+    }
+    pub fn get_public_key_query_success(
+        deps: Deps,
+        worker: String,
+        key_type: KeyType,
+    ) -> PublicKey {
+        PUB_KEYS
+            .load(deps.storage, (worker, key_type.clone()))
+            .unwrap()
     }
 }

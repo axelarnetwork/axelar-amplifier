@@ -36,4 +36,7 @@ pub enum ContractError {
 
     #[error("worker set has not changed sufficiently since last update")]
     WorkerSetUnchanged,
+
+    #[error("worker set not confirmed")]
+    WorkerSetNotConfirmed,
 }

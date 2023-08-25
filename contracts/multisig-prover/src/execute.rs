@@ -1,10 +1,10 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper,
-    QueryRequest, Response, SubMsg, WasmMsg, WasmQuery,
+    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, SubMsg,
+    WasmQuery,
 };
 use multisig::key::{KeyType, PublicKey};
 
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use axelar_wasm_std::{snapshot, Participant, Snapshot};
 use connection_router::{msg::Message, types::ChainName};
@@ -14,10 +14,8 @@ use crate::{
     contract::START_MULTISIG_REPLY_ID,
     encoding::evm::CommandBatchBuilder,
     error::ContractError,
-    events::Event,
     state::{
-        Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
-        REPLY_BATCH,
+        WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET, REPLY_BATCH,
     },
     types::BatchID,
 };
@@ -88,13 +86,17 @@ fn get_messages(
     Ok(messages)
 }
 
-pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+fn get_workers_info(
+    deps: &DepsMut,
+    env: &Env,
+) -> Result<(Snapshot, Vec<(Participant, PublicKey)>), ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
         service_name: config.service_name,
         chain_name: config.chain_name.into(),
     };
+
     let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.service_registry.to_string(),
         msg: to_binary(&active_workers_query)?,
@@ -110,7 +112,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
         env.block.time.try_into()?,
         env.block.height.try_into()?,
         config.signing_threshold,
-        participants.try_into()?,
+        participants.clone().try_into()?,
     );
 
     let mut pub_keys = vec![];
@@ -126,31 +128,111 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
         pub_keys.push(pub_key);
     }
 
+    Ok((snapshot, participants.into_iter().zip(pub_keys).collect()))
+}
+
+pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let (snapshot, participants) = get_workers_info(&deps, &env)?;
+
+
     let new_worker_set = WorkerSet::new(snapshot, pub_keys, env.block.height)?;
 
-    let cur_worker_set = CURRENT_WORKER_SET.load(deps.storage)?;
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
+
+    // if no worker set, just store it and return
+    if cur_worker_set.is_none() {
+        CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
+
+        KEY_ID.save(deps.storage, &new_worker_set.hash().to_hex())?;
+
+        let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
+            key_id: new_worker_set.id(),
+            snapshot,
+            pub_keys: participants
+                .into_iter()
+                .map(|(participant, pub_key)| {
+                    (
+                        participant.address.to_string(),
+                        (KeyType::ECDSA, <&[u8]>::from(&pub_key).into()),
+                    )
+                })
+                .collect(),
+        };
+
+        return Ok(Response::new().add_message(wasm_execute(
+            config.multisig,
+            &key_gen_msg,
+            vec![],
+        )?));
+    }
 
     if !should_update_worker_set(
         &new_worker_set,
-        &cur_worker_set,
+        &cur_worker_set.clone().unwrap(),
         config.worker_set_diff_threshold as usize,
     ) {
         return Err(ContractError::WorkerSetUnchanged);
     }
 
-    NEXT_WORKER_SET.save(deps.storage, &new_worker_set)?;
+    NEXT_WORKER_SET.save(deps.storage, &(new_worker_set.clone(), snapshot))?;
     let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
     builder.add_new_worker_set(new_worker_set)?;
 
     let batch = builder.build()?;
+
+    COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
+    REPLY_BATCH.save(deps.storage, &batch.id)?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id: "static".to_string(), // TODO remove the key_id
         msg: batch.msg_to_sign(),
     };
 
-    // TODO handle the reply
-    Ok(Response::new().add_message(wasm_execute(config.multisig, &start_sig_msg, vec![])?))
+    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+        wasm_execute(config.multisig, &start_sig_msg, vec![])?,
+        START_MULTISIG_REPLY_ID,
+    )))
+}
+
+pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let (worker_set, snapshot) = NEXT_WORKER_SET.load(deps.storage)?;
+
+    let query = voting_verifier::msg::QueryMsg::IsWorkerSetConfirmed {
+        new_operators: worker_set.clone().try_into()?,
+    };
+    let is_confirmed: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.voting_verifier.to_string(),
+        msg: to_binary(&query)?,
+    }))?;
+
+    if !is_confirmed {
+        return Err(ContractError::WorkerSetNotConfirmed);
+    }
+
+    CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
+    NEXT_WORKER_SET.remove(deps.storage);
+    KEY_ID.save(deps.storage, &worker_set.hash().to_hex())?;
+
+    let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
+        key_id: worker_set.id(), // TODO: replace key id with worker set id
+        snapshot,                // TODO: refactor this to just pass the WorkerSet struct
+        pub_keys: worker_set
+            .signers
+            .into_iter()
+            .map(|s| {
+                (
+                    s.address.to_string(),
+                    (KeyType::ECDSA, <&[u8]>::from(&s.pub_key).into()),
+                )
+            })
+            .collect(),
+    };
+
+    Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
 }
 
 pub fn should_update_worker_set(
@@ -163,83 +245,46 @@ pub fn should_update_worker_set(
         > max_diff
 }
 
-pub fn rotate_snapshot(
-    deps: DepsMut,
-    env: Env,
-    config: Config,
-    pub_keys: HashMap<String, HexBinary>,
-    key_id: String,
-) -> Result<Response, ContractError> {
-    KEY_ID.save(deps.storage, &key_id)?;
+#[cfg(test)]
+mod tests {
+    use crate::{execute::should_update_worker_set, test::test_data};
 
-    let snapshot = snapshot(deps.querier, env.block, &config)?;
+    #[test]
+    fn should_update_worker_set_no_change() {
+        let worker_set = test_data::new_worker_set();
+        assert!(!should_update_worker_set(&worker_set, &worker_set, 0));
+    }
 
-    let keygen_msg = WasmMsg::Execute {
-        contract_addr: config.multisig.into(),
-        msg: to_binary(&multisig::msg::ExecuteMsg::KeyGen {
-            key_id: key_id.clone(),
-            snapshot: snapshot.clone(),
-            pub_keys: pub_keys
-                .clone()
-                .into_iter()
-                .map(|(k, v)| (k, (KeyType::Ecdsa, v)))
-                .collect(),
-        })?,
-        funds: vec![],
-    };
+    #[test]
+    fn should_update_worker_set_one_more() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers.pop();
+        assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+    }
 
-    let event = Event::SnapshotRotated {
-        key_id,
-        snapshot,
-        pub_keys,
-    };
+    #[test]
+    fn should_update_worker_set_one_less() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers.pop();
+        assert!(should_update_worker_set(&new_worker_set, &worker_set, 0));
+    }
 
-    Ok(Response::new()
-        .add_message(keygen_msg)
-        .add_event(event.into()))
-}
+    #[test]
+    fn should_update_worker_set_one_more_higher_threshold() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers.pop();
+        assert!(!should_update_worker_set(&worker_set, &new_worker_set, 1));
+    }
 
-fn snapshot(
-    querier: QuerierWrapper,
-    block: BlockInfo,
-    config: &Config,
-) -> Result<Snapshot, ContractError> {
-    let query_msg = service_registry::msg::QueryMsg::GetActiveWorkers {
-        service_name: config.service_name.clone(),
-        chain_name: config.chain_name.to_string(),
-    };
-
-    let active_workers: Vec<Worker> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.service_registry.to_string(),
-        msg: to_binary(&query_msg)?,
-    }))?;
-
-    let participants = active_workers
-        .into_iter()
-        .map(Worker::try_into)
-        .collect::<Result<Vec<Participant>, _>>()
-        .map_err(
-            |err: service_registry::ContractError| ContractError::InvalidParticipants {
-                reason: err.to_string(),
-            },
-        )?
-        .try_into()
-        .map_err(
-            |err: axelar_wasm_std::nonempty::Error| ContractError::InvalidParticipants {
-                reason: err.to_string(),
-            },
-        )?;
-
-    Ok(Snapshot::new(
-        block
-            .time
-            .try_into()
-            .expect("violated invariant: block time cannot be zero"),
-        block
-            .height
-            .try_into()
-            .expect("violated invariant: block height cannot be zero"),
-        config.signing_threshold,
-        participants,
-    ))
+    #[test]
+    fn should_update_worker_set_diff_pub_key() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers[0].pub_key = worker_set.signers[1].pub_key.clone();
+        new_worker_set.signers[1].pub_key = worker_set.signers[0].pub_key.clone();
+        assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+    }
 }

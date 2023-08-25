@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, short_signature, ParamType, Token};
@@ -52,6 +53,28 @@ fn make_transfer_operatorship(worker_set: WorkerSet) -> Result<Command, Contract
         params,
         id: worker_set.hash(),
     })
+}
+
+impl TryInto<Operators> for WorkerSet {
+    type Error = ContractError;
+    fn try_into(self) -> Result<Operators, Self::Error> {
+        let mut operators: Vec<(HexBinary, Uint256)> = self
+            .signers
+            .iter()
+            .map(|s| {
+                (
+                    evm_address((&s.pub_key).into())
+                        .expect("couldn't convert pubkey to evm address"),
+                    s.weight,
+                )
+            })
+            .collect();
+        operators.sort_by_key(|op| op.0.clone());
+        Ok(Operators {
+            weights: operators,
+            threshold: self.threshold,
+        })
+    }
 }
 
 impl TryFrom<Signer> for Operator {
@@ -246,7 +269,7 @@ impl Data {
     }
 }
 
-fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
+pub fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     let pub_key =
         PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidPublicKey {
             reason: e.to_string(),

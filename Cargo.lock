@@ -3030,6 +3030,7 @@ dependencies = [
  "service-registry",
  "sha3",
  "thiserror",
+ "voting-verifier",
 ]
 
 [[package]]
