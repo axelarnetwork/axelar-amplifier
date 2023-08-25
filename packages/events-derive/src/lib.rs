@@ -1,5 +1,4 @@
 use proc_macro::TokenStream;
-
 use quote::quote;
 
 /// Annotate a struct with this attribute to automatically implement [`TryFrom`][]`<&`[`events::Event`][]`>` and [`TryFrom`][]`<`[`events::Event`][]`>` for it.
@@ -41,32 +40,34 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
         #input
 
         use error_stack::{IntoReport as _, ResultExt as _};
+        use events as _internal_events;
+        use core::convert::TryFrom as _internal_TryFrom;
 
-        impl TryFrom<&events::Event> for #event_struct {
-            type Error = error_stack::Report<events::Error>;
+        impl _internal_TryFrom<&_internal_events::Event> for #event_struct {
+            type Error = error_stack::Report<_internal_events::Error>;
 
-            fn try_from(event: &events::Event) -> core::result::Result<Self, Self::Error> {
+            fn try_from(event: &_internal_events::Event) -> core::result::Result<Self, Self::Error> {
                 match event {
-                    events::Event::Abci { event_type, attributes } if event_type == #event_type => {
+                    _internal_events::Event::Abci { event_type, attributes } if event_type == #event_type => {
                         let event =
                             #event_struct::deserialize(serde::de::value::MapDeserializer::new(attributes.clone().into_iter()))
                                 .into_report()
-                                .change_context(events::Error::DeserializationFailed(
+                                .change_context(_internal_events::Error::DeserializationFailed(
                                     #event_type.to_string(),
                                     #event_struct_name.to_string()),
                                 )?;
                         Ok(event)
                     }
-                    event => Err(events::Error::EventTypeMismatch(#event_type.to_string())).into_report()
+                    event => Err(_internal_events::Error::EventTypeMismatch(#event_type.to_string())).into_report()
                         .attach_printable(format!("{{ event = {event:?} }}")),
                 }
             }
         }
 
-        impl TryFrom<events::Event> for #event_struct {
-            type Error = error_stack::Report<events::Error>;
+        impl _internal_TryFrom<_internal_events::Event> for #event_struct {
+            type Error = error_stack::Report<_internal_events::Error>;
 
-            fn try_from(event: events::Event) -> core::result::Result<Self, Self::Error> {
+            fn try_from(event: _internal_events::Event) -> core::result::Result<Self, Self::Error> {
                 Self::try_from(&event)
             }
         }
