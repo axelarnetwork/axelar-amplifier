@@ -81,7 +81,7 @@ impl<T: TmClient + Sync> EventSub<T> {
         let res = self
             .client
             .latest_block()
-            .change_context(EventSubError::RPC)
+            .change_context(EventSubError::Rpc)
             .await?;
 
         Ok(res.block.header().height)
@@ -170,7 +170,7 @@ pub enum EventSubError {
     #[error("failed to send events to subscribers")]
     Publish,
     #[error("failed calling RPC method")]
-    RPC,
+    Rpc,
 }
 
 #[cfg(test)]
