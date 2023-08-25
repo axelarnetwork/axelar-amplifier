@@ -88,7 +88,7 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetProofResponse)]
-    GetProof { proof_id: String },
+    GetProof { multisig_session_id: Uint64 },
 }
 
 pub enum ProofStatus {
@@ -97,32 +97,24 @@ pub enum ProofStatus {
 }
 
 pub struct GetProofResponse {
-    pub proof_id: HexBinary,
+    pub multisig_session_id: Uint64,
     pub message_ids: Vec<String>,
     pub data: Data,
-    pub proof: Proof,
     pub status: ProofStatus,
-}
-
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands_ids: Vec<[u8; 32]>,
-    pub commands_types: Vec<String>,
-    pub commands_params: Vec<HexBinary>
-}
-
-pub struct Proof {
-    pub operators: Vec<Addr>,
-    pub weights: Vec<Uint256>,
-    pub threshold: Uint256,
-    pub signatures: Vec<HexBinary>,
 }
 ```
 
 ## Events
 
 ```Rust
-pub struct ProofUnderConstruction {
-    pub proof_id: HexBinary, // Unique hash derived from the message ids
+pub enum Event {
+    ProofUnderConstruction {
+        multisig_session_id: Uint64,
+    },
+    SnapshotRotated {
+        key_id: String,
+        snapshot: Snapshot,
+        pub_keys: HashMap<String, HexBinary>,
+    },
 }
 ```

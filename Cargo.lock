@@ -2928,6 +2928,7 @@ dependencies = [
 name = "multisig-prover"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axelar-wasm-std",
  "connection-router",
  "cosmwasm-schema",
@@ -2935,15 +2936,18 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "either",
  "ethabi",
+ "gateway",
  "hex",
  "k256 0.13.1",
  "multisig",
  "schemars",
  "serde",
  "serde_json",
+ "service-registry",
  "sha3",
  "thiserror",
 ]
