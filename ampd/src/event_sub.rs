@@ -81,7 +81,7 @@ impl<T: TmClient + Sync> EventSub<T> {
         let res = self
             .client
             .latest_block()
-            .change_context(EventSubError::RPCFailed)
+            .change_context(EventSubError::RPC)
             .await?;
 
         Ok(res.block.header().height)
@@ -118,7 +118,7 @@ impl<T: TmClient + Sync> EventSub<T> {
                     .into_iter()
                     .map(|event| event.try_into())
                     .collect::<Result<Vec<_>, _>>()
-                    .change_context(EventSubError::PublishFailed)?,
+                    .change_context(EventSubError::Publish)?,
             )
             .chain(iter::once(Event::BlockEnd(height)));
 
@@ -126,7 +126,7 @@ impl<T: TmClient + Sync> EventSub<T> {
             self.tx
                 .send(event)
                 .into_report()
-                .change_context(EventSubError::PublishFailed)?;
+                .change_context(EventSubError::Publish)?;
         }
 
         Ok(())
@@ -136,7 +136,7 @@ impl<T: TmClient + Sync> EventSub<T> {
         let block_results = self
             .client
             .block_results(block_height)
-            .change_context(EventSubError::EventQueryFailed {
+            .change_context(EventSubError::EventQuery {
                 block: block_height,
             })
             .await?;
@@ -166,11 +166,11 @@ pub fn skip_to_block<E>(
 #[derive(Error, Debug)]
 pub enum EventSubError {
     #[error("querying events for block {block} failed")]
-    EventQueryFailed { block: block::Height },
+    EventQuery { block: block::Height },
     #[error("failed to send events to subscribers")]
-    PublishFailed,
+    Publish,
     #[error("failed calling RPC method")]
-    RPCFailed,
+    RPC,
 }
 
 #[cfg(test)]
