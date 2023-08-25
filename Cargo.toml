@@ -7,12 +7,12 @@ members = [
 
 [workspace.dependencies]
 connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
-error-stack = {version = "0.2.4", features = ["eyre"]}
+error-stack = { version = "0.2.4", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
-multisig = { version = "^0.1.0", path = "contracts/multisig" }
 voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
+multisig = { version = "^0.1.0", path = "contracts/multisig" }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 
