@@ -63,9 +63,10 @@ fn get_messages(
         msg: to_binary(&query)?,
     }))?;
 
-    if messages.len() != length {
-        return Err(ContractError::MessagesCountMismatch);
-    }
+    assert!(
+        messages.len() == length,
+        "violated invariant: returned gateway messages count mismatch"
+    );
 
     if messages.iter().any(|msg| {
         ChainName::from_str(&msg.destination_chain)
