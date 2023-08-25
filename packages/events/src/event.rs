@@ -51,7 +51,7 @@ impl TryFrom<abci::Event> for Event {
 
 fn try_into_kv_pair(attr: &EventAttribute) -> Result<(String, Value), Error> {
     decode_event_attribute(attr)
-        .change_context(Error::DecodingFailed)
+        .change_context(Error::DecodingAttributesFailed)
         .map(|(key, value)| {
             (
                 key,

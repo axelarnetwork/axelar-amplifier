@@ -7,7 +7,7 @@ pub enum Error {
     #[error("event does not match event type `{0}`")]
     EventTypeMismatch(String),
     #[error("failed to decode event attribute")]
-    DecodingFailed,
+    DecodingAttributesFailed,
 }
 
 #[derive(thiserror::Error, Debug)]
