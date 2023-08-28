@@ -1,4 +1,3 @@
-use std::iter;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -10,7 +9,7 @@ use tokio::{select, sync::mpsc};
 use tracing::info;
 
 use super::msg_queue::MsgQueue;
-use crate::broadcaster::{clients::BroadcastClient, Broadcaster};
+use crate::broadcaster::Broadcaster;
 
 type Result<T = ()> = error_stack::Result<T, Error>;
 
@@ -68,9 +67,9 @@ impl BroadcasterClient for QueuedBroadcasterClient {
 
 pub struct QueuedBroadcaster<T>
 where
-    T: BroadcastClient,
+    T: Broadcaster,
 {
-    broadcaster: Broadcaster<T>,
+    broadcaster: T,
     queue: MsgQueue,
     batch_gas_limit: Gas,
     broadcast_interval: Duration,
@@ -80,10 +79,10 @@ where
 
 impl<T> QueuedBroadcaster<T>
 where
-    T: BroadcastClient,
+    T: Broadcaster,
 {
     pub fn new(
-        broadcaster: Broadcaster<T>,
+        broadcaster: T,
         batch_gas_limit: Gas,
         capacity: usize,
         broadcast_interval: Duration,
@@ -117,7 +116,7 @@ where
               msg = rx.recv() => match msg {
                 None => break,
                 Some(msg) => {
-                  let fee = broadcaster.estimate_fee(iter::once(msg.clone())).await.change_context(Error::EstimateFee)?;
+                  let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
 
                   if fee.gas_limit + queue.gas_cost() >= self.batch_gas_limit {
                     interval.reset();
@@ -154,9 +153,9 @@ where
     }
 }
 
-async fn broadcast_all<T>(queue: &mut MsgQueue, broadcaster: &mut Broadcaster<T>) -> Result
+async fn broadcast_all<T>(queue: &mut MsgQueue, broadcaster: &mut T) -> Result
 where
-    T: BroadcastClient,
+    T: Broadcaster,
 {
     let msgs = queue.pop_all();
 
@@ -176,71 +175,49 @@ where
 
 #[cfg(test)]
 mod test {
-    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::GasInfo;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
-    use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
+    use cosmrs::tx::Fee;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use tokio::test;
     use tokio::time::{sleep, Duration};
 
     use super::QueuedBroadcaster;
-    use crate::broadcaster::clients::MockBroadcastClient;
-    use crate::broadcaster::key::ECDSASigningKey;
-    use crate::broadcaster::{BroadcasterBuilder, Config};
+    use crate::broadcaster::MockBroadcaster;
     use crate::queue::queued_broadcaster::BroadcasterClient;
 
     #[test]
     async fn should_not_broadcast_when_gas_limit_has_not_been_reached() {
         let tx_count = 9;
-        let gas_limit = 100;
-        let gas_used = 10;
-        let mut broadcast_client = MockBroadcastClient::new();
-        broadcast_client
-            .expect_simulate()
+        let batch_gas_limit = 100;
+        let gas_limit = 10;
+
+        let mut broadcaster = MockBroadcaster::new();
+        broadcaster
+            .expect_estimate_fee()
             .times(tx_count)
             .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used,
-                        ..Default::default()
-                    }),
-                    result: None,
+                Ok(Fee {
+                    gas_limit,
+                    amount: vec![],
+                    granter: None,
+                    payer: None,
                 })
             });
-        broadcast_client
-            .expect_simulate()
+        broadcaster
+            .expect_broadcast()
             .once()
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used: gas_used * (tx_count as u64),
-                        ..Default::default()
-                    }),
-                    result: None,
-                })
-            });
-        broadcast_client
-            .expect_broadcast_tx()
-            .once()
-            .returning(|_| Ok(TxResponse::default()));
-        broadcast_client.expect_get_tx().once().returning(|_| {
-            Ok(GetTxResponse {
-                tx_response: Some(TxResponse {
-                    code: 0,
-                    ..TxResponse::default()
-                }),
-                ..GetTxResponse::default()
-            })
-        });
+            .returning(move |msgs| {
+                assert!(msgs.len() == tx_count);
 
-        let broadcaster = BroadcasterBuilder::new(
-            broadcast_client,
-            ECDSASigningKey::random(),
-            Config::default(),
-        )
-        .build();
-        let (client, _driver) =
-            QueuedBroadcaster::new(broadcaster, gas_limit, tx_count, Duration::from_secs(5));
+                Ok(TxResponse::default())
+            });
+
+        let (client, _driver) = QueuedBroadcaster::new(
+            broadcaster,
+            batch_gas_limit,
+            tx_count,
+            Duration::from_secs(5),
+        );
 
         let tx = client.client();
         for _ in 0..tx_count {
@@ -254,56 +231,33 @@ mod test {
     #[test]
     async fn should_broadcast_when_broadcast_interval_has_been_reached() {
         let tx_count = 9;
-        let gas_limit = 100;
+        let batch_gas_limit = 100;
         let broadcast_interval = Duration::from_secs(1);
-        let gas_used = 10;
-        let mut broadcast_client = MockBroadcastClient::new();
-        broadcast_client
-            .expect_simulate()
+        let gas_limit = 10;
+
+        let mut broadcaster = MockBroadcaster::new();
+        broadcaster
+            .expect_estimate_fee()
             .times(tx_count)
             .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used,
-                        ..Default::default()
-                    }),
-                    result: None,
+                Ok(Fee {
+                    gas_limit,
+                    amount: vec![],
+                    granter: None,
+                    payer: None,
                 })
             });
-        broadcast_client
-            .expect_simulate()
+        broadcaster
+            .expect_broadcast()
             .once()
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used: gas_used * (tx_count as u64),
-                        ..Default::default()
-                    }),
-                    result: None,
-                })
-            });
-        broadcast_client
-            .expect_broadcast_tx()
-            .once()
-            .returning(|_| Ok(TxResponse::default()));
-        broadcast_client.expect_get_tx().once().returning(|_| {
-            Ok(GetTxResponse {
-                tx_response: Some(TxResponse {
-                    code: 0,
-                    ..TxResponse::default()
-                }),
-                ..GetTxResponse::default()
-            })
-        });
+            .returning(move |msgs| {
+                assert!(msgs.len() == tx_count);
 
-        let broadcaster = BroadcasterBuilder::new(
-            broadcast_client,
-            ECDSASigningKey::random(),
-            Config::default(),
-        )
-        .build();
+                Ok(TxResponse::default())
+            });
+
         let (client, _driver) =
-            QueuedBroadcaster::new(broadcaster, gas_limit, tx_count, broadcast_interval);
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let tx = client.client();
 
         let handler = tokio::spawn(async move {
@@ -321,55 +275,44 @@ mod test {
     #[test]
     async fn should_broadcast_when_gas_limit_has_been_reached() {
         let tx_count = 10;
-        let gas_limit = 100;
-        let gas_used = 10;
-        let mut broadcast_client = MockBroadcastClient::new();
-        broadcast_client
-            .expect_simulate()
+        let batch_gas_limit = 100;
+        let gas_limit = 11;
+
+        let mut broadcaster = MockBroadcaster::new();
+        broadcaster
+            .expect_estimate_fee()
             .times(tx_count)
             .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used,
-                        ..Default::default()
-                    }),
-                    result: None,
+                Ok(Fee {
+                    gas_limit,
+                    amount: vec![],
+                    granter: None,
+                    payer: None,
                 })
             });
-        broadcast_client
-            .expect_simulate()
-            .times(2)
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used: gas_used * (tx_count as u64),
-                        ..Default::default()
-                    }),
-                    result: None,
-                })
-            });
-        broadcast_client
-            .expect_broadcast_tx()
-            .times(2)
-            .returning(|_| Ok(TxResponse::default()));
-        broadcast_client.expect_get_tx().times(2).returning(|_| {
-            Ok(GetTxResponse {
-                tx_response: Some(TxResponse {
-                    code: 0,
-                    ..TxResponse::default()
-                }),
-                ..GetTxResponse::default()
-            })
-        });
+        broadcaster
+            .expect_broadcast()
+            .once()
+            .returning(move |msgs| {
+                assert!(msgs.len() == tx_count - 1);
 
-        let broadcaster = BroadcasterBuilder::new(
-            broadcast_client,
-            ECDSASigningKey::random(),
-            Config::default(),
-        )
-        .build();
-        let (client, _driver) =
-            QueuedBroadcaster::new(broadcaster, gas_limit, tx_count, Duration::from_secs(5));
+                Ok(TxResponse::default())
+            });
+        broadcaster
+            .expect_broadcast()
+            .once()
+            .returning(move |msgs| {
+                assert!(msgs.len() == 1);
+
+                Ok(TxResponse::default())
+            });
+
+        let (client, _driver) = QueuedBroadcaster::new(
+            broadcaster,
+            batch_gas_limit,
+            tx_count,
+            Duration::from_secs(5),
+        );
 
         let tx = client.client();
         for _ in 0..tx_count {
@@ -383,55 +326,36 @@ mod test {
     #[test]
     async fn should_broadcast_when_forced_to() {
         let tx_count = 10;
-        let gas_limit = 100;
-        let gas_used = 2;
-        let mut broadcast_client = MockBroadcastClient::new();
-        broadcast_client
-            .expect_simulate()
+        let batch_gas_limit = 100;
+        let gas_limit = 2;
+
+        let mut broadcaster = MockBroadcaster::new();
+        broadcaster
+            .expect_estimate_fee()
             .times(tx_count)
             .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used,
-                        ..Default::default()
-                    }),
-                    result: None,
+                Ok(Fee {
+                    gas_limit,
+                    amount: vec![],
+                    granter: None,
+                    payer: None,
                 })
             });
-        broadcast_client
-            .expect_simulate()
+        broadcaster
+            .expect_broadcast()
             .once()
-            .returning(move |_| {
-                Ok(SimulateResponse {
-                    gas_info: Some(GasInfo {
-                        gas_used: gas_used * (tx_count as u64),
-                        ..Default::default()
-                    }),
-                    result: None,
-                })
-            });
-        broadcast_client
-            .expect_broadcast_tx()
-            .once()
-            .returning(|_| Ok(TxResponse::default()));
-        broadcast_client.expect_get_tx().once().returning(|_| {
-            Ok(GetTxResponse {
-                tx_response: Some(TxResponse {
-                    code: 0,
-                    ..TxResponse::default()
-                }),
-                ..GetTxResponse::default()
-            })
-        });
+            .returning(move |msgs| {
+                assert!(msgs.len() == tx_count);
 
-        let broadcaster = BroadcasterBuilder::new(
-            broadcast_client,
-            ECDSASigningKey::random(),
-            Config::default(),
-        )
-        .build();
-        let (client, driver) =
-            QueuedBroadcaster::new(broadcaster, gas_limit, tx_count, Duration::from_secs(5));
+                Ok(TxResponse::default())
+            });
+
+        let (client, driver) = QueuedBroadcaster::new(
+            broadcaster,
+            batch_gas_limit,
+            tx_count,
+            Duration::from_secs(5),
+        );
 
         let tx = client.client();
         for _ in 0..tx_count {

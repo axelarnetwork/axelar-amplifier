@@ -4,17 +4,15 @@ use std::pin::Pin;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{FutureExt, IntoReport, Result};
+use error_stack::{FutureExt, IntoReport, Result, ResultExt};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinSet;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tonic::transport::Channel;
 use tracing::info;
 
 use crate::config::Config;
-use broadcaster::Broadcaster;
-use broadcaster::{accounts::account, key::ECDSASigningKey};
+use broadcaster::{accounts::account, key::ECDSASigningKey, Broadcaster};
 use event_processor::EventProcessor;
 use event_sub::Event;
 use evm::EvmChainConfig;
@@ -62,16 +60,36 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     let multisig_client = MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
         .await
         .map_err(Error::new)?;
+    let ecdsa_client = SharableEcdsaClient::new(multisig_client);
+
+    let mut state_updater = StateUpdater::new(state_path).map_err(Error::new)?;
+    let pub_key = match state_updater.state().pub_key {
+        Some(pub_key) => pub_key,
+        None => {
+            let pub_key = ecdsa_client
+                .keygen(&tofnd_config.key_uid)
+                .await
+                .change_context(Error::Tofnd)?;
+            state_updater.as_mut().pub_key = Some(pub_key);
+
+            pub_key
+        }
+    };
 
     let worker = private_key.address();
     let account = account(query_client, &worker).await.map_err(Error::new)?;
-    let broadcaster =
-        broadcaster::BroadcasterBuilder::new(service_client, private_key, broadcast.clone())
-            .acc_number(account.account_number)
-            .acc_sequence(account.sequence)
-            .build();
-    let state_updater = StateUpdater::new(state_path).map_err(Error::new)?;
-    let ecdsa_client = SharableEcdsaClient::new(multisig_client);
+
+    let broadcaster = broadcaster::BroadcastClientBuilder::default()
+        .client(service_client)
+        .signer(ecdsa_client.clone())
+        .acc_number(account.account_number)
+        .acc_sequence(account.sequence)
+        .priv_key(private_key)
+        .pub_key((tofnd_config.key_uid, pub_key))
+        .config(broadcast.clone())
+        .build()
+        .into_report()
+        .change_context(Error::Broadcaster)?;
 
     App::new(
         tm_client,
@@ -87,10 +105,13 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     .await
 }
 
-struct App {
+struct App<T>
+where
+    T: Broadcaster,
+{
     event_sub: event_sub::EventSub<tendermint_rpc::HttpClient>,
     event_processor: EventProcessor,
-    broadcaster: QueuedBroadcaster<ServiceClient<Channel>>,
+    broadcaster: QueuedBroadcaster<T>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
@@ -99,10 +120,13 @@ struct App {
     token: CancellationToken,
 }
 
-impl App {
+impl<T> App<T>
+where
+    T: Broadcaster + Send + Sync + 'static,
+{
     fn new(
         tm_client: tendermint_rpc::HttpClient,
-        broadcaster: Broadcaster<ServiceClient<Channel>>,
+        broadcaster: T,
         state_updater: StateUpdater,
         ecdsa_client: SharableEcdsaClient,
         broadcast_cfg: broadcaster::Config,
@@ -139,7 +163,7 @@ impl App {
         mut self,
         worker: TMAddress,
         evm_chains: Vec<EvmChainConfig>,
-    ) -> Result<App, Error> {
+    ) -> Result<App<T>, Error> {
         for config in evm_chains {
             let label = format!("{}-confirm-gateway-tx-handler", config.name);
             let handler = handlers::evm_verify_msg::Handler::new(
