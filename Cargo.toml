@@ -27,13 +27,3 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
-
-[workspace.dependencies]
-service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
-gateway = { version = "0.1.0", path = "./contracts/gateway" }
-connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
-aggregate-verifier = { version = "0.1.0", path = "./contracts/aggregate-verifier"}
-voting-verifier = { version = "0.1.0", path = "./contracts/voting-verifier"}
-multisig = { version = "0.1.0", path = "./contracts/multisig"}
-axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
-

@@ -10,7 +10,7 @@ pub enum Error {
     DecodingAttributesFailed,
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum DecodingError {
     #[error(transparent)]
     Base64(#[from] base64::DecodeError),

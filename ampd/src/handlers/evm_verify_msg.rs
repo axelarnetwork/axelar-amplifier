@@ -154,11 +154,14 @@ where
             messages,
             confirmation_height,
             participants,
-        } = match event.try_into() as error_stack::Result<PollStartedEvent, events::Error> {
-            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(())
+        } = match event.try_into() as error_stack::Result<_, _> {
+            Err(report) => {
+                return match report.current_context() {
+                    EventTypeMismatch(_) => Ok(()),
+                    _ => Err(report).change_context(DeserializeEvent),
+                }
             }
-            event => event.change_context(DeserializeEvent)?,
+            Ok(event) => event,
         };
 
         if self.voting_verifier != contract_address {

@@ -1,3 +1,4 @@
+use axelar_wasm_std::FnExt;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use error_stack::{IntoReport, Report, Result, ResultExt};
@@ -55,22 +56,18 @@ fn try_into_kv_pair(attr: &EventAttribute) -> Result<(String, Value), Error> {
         .map(|(key, value)| {
             (
                 key,
-                serde_json::from_str(&value).unwrap_or(Value::from(value)),
+                serde_json::from_str(&value).unwrap_or_else(|_| value.into()),
             )
         })
 }
 
 fn decode_event_attribute(attribute: &EventAttribute) -> Result<(String, String), DecodingError> {
     Ok((
-        base64_to_utf8(&attribute.key)?,
-        base64_to_utf8(&attribute.value)?,
+        base64_to_utf8(&attribute.key).into_report()?,
+        base64_to_utf8(&attribute.value).into_report()?,
     ))
 }
 
-fn base64_to_utf8(base64_str: &str) -> Result<String, DecodingError> {
-    STANDARD
-        .decode(base64_str)
-        .map_err(DecodingError::from)
-        .and_then(|bytes| String::from_utf8(bytes).map_err(DecodingError::from))
-        .into_report()
+fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError> {
+    Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
 }
