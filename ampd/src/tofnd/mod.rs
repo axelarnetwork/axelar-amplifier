@@ -1,12 +1,10 @@
-use std::time::Duration;
-
 use hex::{self, FromHex};
 use serde::Deserialize;
 
 use crate::url::Url;
 
-pub mod client;
 pub mod error;
+pub mod grpc;
 
 #[allow(non_snake_case)]
 mod proto {
@@ -16,15 +14,14 @@ mod proto {
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub url: Url,
-    #[serde(with = "humantime_serde")]
-    pub dail_timeout: Duration,
+    pub party_uid: String,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             url: "http://localhost:50051/".parse().unwrap(),
-            dail_timeout: Duration::from_secs(5),
+            party_uid: "ampd".into(),
         }
     }
 }
@@ -40,5 +37,17 @@ impl FromHex for MessageDigest {
 
     fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
         Ok(MessageDigest(<[u8; 32]>::from_hex(hex)?))
+    }
+}
+
+impl From<MessageDigest> for Vec<u8> {
+    fn from(val: MessageDigest) -> Vec<u8> {
+        val.0.into()
+    }
+}
+
+impl From<[u8; 32]> for MessageDigest {
+    fn from(digest: [u8; 32]) -> Self {
+        MessageDigest(digest)
     }
 }

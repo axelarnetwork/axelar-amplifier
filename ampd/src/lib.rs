@@ -21,6 +21,7 @@ use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::StateUpdater;
+use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
 
 mod broadcaster;
@@ -45,7 +46,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         tm_grpc,
         broadcast,
         evm_chains,
-        tofnd_config: _tofnd_config,
+        tofnd_config,
         private_key,
         event_buffer_cap,
     } = cfg;
@@ -58,6 +59,9 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
         .map_err(Error::new)?;
+    let multisig_client = MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
+        .await
+        .map_err(Error::new)?;
 
     let worker = private_key.address();
     let account = account(query_client, &worker).await.map_err(Error::new)?;
@@ -67,11 +71,13 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
             .acc_sequence(account.sequence)
             .build();
     let state_updater = StateUpdater::new(state_path).map_err(Error::new)?;
+    let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
     App::new(
         tm_client,
         broadcaster,
         state_updater,
+        ecdsa_client,
         broadcast,
         event_buffer_cap,
     )
@@ -88,6 +94,8 @@ struct App {
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
+    #[allow(dead_code)]
+    ecdsa_client: SharableEcdsaClient,
     token: CancellationToken,
 }
 
@@ -96,6 +104,7 @@ impl App {
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: Broadcaster<ServiceClient<Channel>>,
         state_updater: StateUpdater,
+        ecdsa_client: SharableEcdsaClient,
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
     ) -> Self {
@@ -121,6 +130,7 @@ impl App {
             broadcaster,
             broadcaster_driver,
             state_updater,
+            ecdsa_client,
             token,
         }
     }

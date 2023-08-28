@@ -16,6 +16,8 @@ pub enum Error {
 
 #[cw_serde]
 #[derive(Copy)]
+#[serde(try_from = "(Uint64, Uint64)")]
+#[serde(into = "(Uint64, Uint64)")]
 pub struct Threshold {
     numerator: nonempty::Uint64,
     denominator: nonempty::Uint64,
@@ -35,6 +37,12 @@ impl Fraction<Uint64> for Threshold {
             numerator: self.denominator,
             denominator: self.numerator,
         })
+    }
+}
+
+impl From<Threshold> for (Uint64, Uint64) {
+    fn from(value: Threshold) -> Self {
+        (value.numerator.into(), value.denominator.into())
     }
 }
 

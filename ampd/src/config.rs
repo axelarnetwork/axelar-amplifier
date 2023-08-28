@@ -109,20 +109,20 @@ mod tests {
     #[test]
     fn deserialize_tofnd_config() {
         let url = "http://localhost:50051/";
+        let party_uid = "party_uid";
 
         let config_str = format!(
             "
             [tofnd_config]
-            url = '{}'
-            dail_timeout = '5s'
+            url = '{url}'
+            party_uid = '{party_uid}'
             ",
-            url
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
 
         assert_eq!(cfg.tofnd_config.url.as_str(), url);
-        assert_eq!(cfg.tofnd_config.dail_timeout.as_secs(), 5);
+        assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
     }
 
     #[test]
