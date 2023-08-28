@@ -118,16 +118,15 @@ impl SharableEcdsaClient {
     pub fn new(client: impl EcdsaClient + 'static) -> Self {
         Self(Arc::new(Mutex::new(client)))
     }
-}
 
-#[async_trait]
-impl EcdsaClient for SharableEcdsaClient {
-    async fn keygen(&mut self, key_uid: &str) -> Result<PublicKey> {
+    #[allow(dead_code)]
+    pub async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
         self.0.lock().await.keygen(key_uid).await
     }
 
-    async fn sign(
-        &mut self,
+    #[allow(dead_code)]
+    pub async fn sign(
+        &self,
         key_uid: &str,
         data: MessageDigest,
         pub_key: &PublicKey,
@@ -237,7 +236,7 @@ mod tests {
 
         let mut handles = Vec::new();
         for _ in 0..5 {
-            let mut cloned = client.clone();
+            let cloned = client.clone();
             let handle = tokio::spawn(async move {
                 let digest: MessageDigest = rand::random::<[u8; 32]>().into();
                 assert_eq!(
