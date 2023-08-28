@@ -48,7 +48,7 @@ P --"GetMessages([M1.id,M2.id])"-->G2
 P --"GetActiveWorkers"-->S
 P --"StartSigningSession(key_id, batch_hash)"-->M
 Workers --"SubmitSignature(session_id, signature)"-->M
-Relayer --"GetProof(proof_id)" --> P
+Relayer --"GetProof(multisig_session_id)" --> P
 P --"GetSigningSession(session_id)"-->M
 ```
 
@@ -114,11 +114,11 @@ sequenceDiagram
     OutgoingGateway-->>Prover: [M1,M2]
     Prover->>Prover: create batch of [M1,M2]
     Prover->>Multisig: StartSigningSession(snapshot, batch hash)
-    Multisig-->>Prover: session_id
-    Prover-->>Relayer: proof_id
+    Multisig-->>Prover: multisig_session_id
+    Prover-->>Relayer: multisig_session_id
     Worker->>Multisig: SubmitSignature(session_id, signature)
     Worker->>Multisig: SubmitSignature(session_id, signature)
-    Relayer->>Prover: GetProof(proof_id)
+    Relayer->>Prover: GetProof(multisig_session_id)
     Prover->>Multisig: GetSigningSession(session_id)
     Multisig-->>Prover: signing session
     Prover-->>Relayer: signed batch
@@ -144,8 +144,7 @@ The gateway also accepts messages from the router. These are messages sent from 
 The verifier contracts are responsible for verifying whether a given message or batch of messages has occurred on a connected external chain. The verifier can take many different forms, such as a [`voting-verifier`](./contracts/voting-verifier) that conducts stake weighted polls for batches of messages, a light client that accepts block headers and merkle tree proofs, a zk proof verifier, etc. The verifier can also be an [`aggregate-verifier`](./contracts/aggregate-verifier), that is linked to 1 or more other verifiers, and defines a security policy such as 2 out of 3 linked verification methods need to report a message as verified.
 
 ### Prover
-The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most common example of this is the [`multisig-prover`](./contracts/command-batcher) that constructs signed batches of routed messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the messages from the gateway, and interacts with the multisig contract to conduct the signing,
-The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most common example of this is the [`multisig-prover`](./contracts/multisig-prover) that constructs signed batches of routed messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the messages from the gateway, and interacts with the multisig contract to conduct the signing,
+The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most common example of this is the [`multisig-prover`](./contracts/multisig-prover) that constructs signed batches of routed messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the messages from the gateway, and interacts with the multisig contract to conduct the signing.
 
 ### Multisig Contract
  [`multisig`](./contracts/multisig) is responsible for signing arbitrary blobs of data. Contracts register with the multisig contract to generate a key id, and then use that key id to initiate signing sessions. Off chain workers associated with the key id sign messages when new signing sessions are created.
