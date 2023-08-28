@@ -176,12 +176,11 @@ where
             .into_report()
             .change_context(Error::TxMarshaling)?;
 
-        let auth_info_bytes =
-            SignerInfo::single_direct(Some(self.priv_key.public_key()), self.acc_sequence)
-                .auth_info(zero_fee())
-                .into_bytes()
-                .into_report()
-                .change_context(Error::TxMarshaling)?;
+        let auth_info_bytes = SignerInfo::single_direct(Some(self.pub_key.1), self.acc_sequence)
+            .auth_info(zero_fee())
+            .into_bytes()
+            .into_report()
+            .change_context(Error::TxMarshaling)?;
 
         let raw = TxRaw {
             body_bytes,
@@ -201,8 +200,7 @@ where
     {
         let body = BodyBuilder::new().msgs(msgs).finish();
         let auth_info =
-            SignerInfo::single_direct(Some(self.priv_key.public_key()), self.acc_sequence)
-                .auth_info(fee);
+            SignerInfo::single_direct(Some(self.pub_key.1), self.acc_sequence).auth_info(fee);
 
         SignDoc::new(&body, &auth_info, &self.config.chain_id, self.acc_number)
             .and_then(|sign_doc| sign_doc.sign(&((&self.priv_key).into())))
