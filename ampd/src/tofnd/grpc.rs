@@ -86,7 +86,7 @@ impl EcdsaClient for MultisigClient {
     ) -> Result<Signature> {
         let request = SignRequest {
             key_uid: key_uid.to_string(),
-            msg_to_sign: data.to_bytes(),
+            msg_to_sign: data.into(),
             party_uid: self.party_uid.to_string(),
             pub_key: pub_key.to_bytes(),
         };

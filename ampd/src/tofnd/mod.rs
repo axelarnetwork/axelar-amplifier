@@ -40,9 +40,9 @@ impl FromHex for MessageDigest {
     }
 }
 
-impl MessageDigest {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.into()
+impl From<MessageDigest> for Vec<u8> {
+    fn from(val: MessageDigest) -> Vec<u8> {
+        val.0.into()
     }
 }
 
