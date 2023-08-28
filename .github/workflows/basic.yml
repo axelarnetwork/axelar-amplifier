@@ -55,7 +55,7 @@ jobs:
           profile: minimal
           toolchain: 1.71.1
           override: true
-          components: rustfmt, clippy
+          components: rustfmt, clippy, sort
 
       - name: Install protoc
         uses: arduino/setup-protoc@v1
