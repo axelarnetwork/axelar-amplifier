@@ -5,6 +5,18 @@ members = [
   "packages/*"
 ]
 
+[workspace.dependencies]
+connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
+error-stack = { version = "0.2.4", features = ["eyre"] }
+events = { version = "^0.1.0", path = "packages/events" }
+events-derive = { version = "^0.1.0", path = "packages/events-derive" }
+axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
+voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
+multisig = { version = "^0.1.0", path = "contracts/multisig" }
+service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
+aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
+gateway = { version = "^0.1.0", path = "contracts/gateway" }
+
 [profile.release]
 opt-level = 3
 debug = false
@@ -15,13 +27,4 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
-
-[workspace.dependencies]
-service-registry = { version = "0.1.0", path = "./contracts/service-registry" }
-gateway = { version = "0.1.0", path = "./contracts/gateway" }
-connection-router = { version = "0.1.0", path = "./contracts/connection-router" }
-aggregate-verifier = { version = "0.1.0", path = "./contracts/aggregate-verifier"}
-voting-verifier = { version = "0.1.0", path = "./contracts/voting-verifier"}
-multisig = { version = "0.1.0", path = "./contracts/multisig"}
-axelar-wasm-std = { version = "0.1.0", path = "./packages/axelar-wasm-std" }
 

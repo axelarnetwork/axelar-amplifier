@@ -8,43 +8,45 @@ version = "0.1.0"
 async-trait = "0.1.59"
 axelar-wasm-std = { workspace = true }
 base64 = "0.21.2"
-clap = {version = "4.2.7", features = ["derive", "cargo"]}
+clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 connection-router = { workspace = true }
 cosmos-sdk-proto = "0.16.0"
-cosmrs = {version = "0.14.0", features = ["cosmwasm"]}
-cosmwasm-std = {version = "1.2.1", features = ["stargate"]}
+cosmrs = { version = "0.14.0", features = ["cosmwasm"] }
+cosmwasm-std = { version = "1.2.1", features = ["stargate"] }
 deref-derive = "0.1.0"
-ecdsa = {version = "0.16.6"}
+ecdsa = { version = "0.16.6" }
 enum-display-derive = "0.1.1"
-error-stack = {version = "0.2.4", features = ["eyre"]}
-ethers = {version = "2.0.8", features = ["rustls"]}
+error-stack = { workspace = true }
+ethers = { version = "2.0.8", features = ["rustls"] }
+events = { workspace = true }
+events-derive = { workspace = true }
 futures = "0.3.25"
-hex = {version = "0.4.3", features = ["serde"]}
+hex = { version = "0.4.3", features = ["serde"] }
 humantime-serde = "1.1.1"
-k256 = {version = "0.13.1", features = ["ecdsa"]}
+k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.11.3"
 multisig = { workspace = true }
 prost = "0.11.9"
-serde = {version = "1.0.147", features = ["derive"]}
+serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 serde_with = "3.2.0"
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
 # Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
-tendermint = {git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x"}
-tendermint-rpc = {git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = ["http-client"]}
+tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
+tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = ["http-client"] }
 thiserror = "1.0.37"
-tokio = {version = "1.22.0", features = ["signal"]}
-tokio-stream = {version = "0.1.11", features = ["sync"]}
+tokio = { version = "1.22.0", features = ["signal"] }
+tokio-stream = { version = "0.1.11", features = ["sync"] }
 tokio-util = "0.7.8"
 toml = "0.5.9"
 tonic = "0.8.3"
-tracing = {version = "0.1.37", features = ["valuable", "log"]}
-tracing-core = {version = "0.1.30", features = ["valuable"]}
-tracing-subscriber = {version = "0.3.16", features = ["json", "valuable"]}
+tracing = { version = "0.1.37", features = ["valuable", "log"] }
+tracing-core = { version = "0.1.30", features = ["valuable"] }
+tracing-subscriber = { version = "0.3.16", features = ["json", "valuable"] }
 url = "2.3.1"
-valuable = {version = "0.1.0", features = ["derive"]}
+valuable = { version = "0.1.0", features = ["derive"] }
 voting-verifier = { workspace = true }
 
 [dev-dependencies]
