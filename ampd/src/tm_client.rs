@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use error_stack::{IntoReport, Result};
+use error_stack::{Report, Result};
 use mockall::automock;
 use tendermint::block::Height;
 use tendermint_rpc::{Client, HttpClient};
@@ -18,10 +18,12 @@ pub trait TmClient {
 #[async_trait]
 impl TmClient for HttpClient {
     async fn latest_block(&self) -> Result<BlockResponse, Error> {
-        Client::latest_block(self).await.into_report()
+        Client::latest_block(self).await.map_err(Report::from)
     }
 
     async fn block_results(&self, height: Height) -> Result<BlockResultsResponse, Error> {
-        Client::block_results(self, height).await.into_report()
+        Client::block_results(self, height)
+            .await
+            .map_err(Report::from)
     }
 }

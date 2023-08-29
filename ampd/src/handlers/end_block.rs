@@ -1,6 +1,6 @@
 use crate::event_processor::EventHandler;
 use async_trait::async_trait;
-use error_stack::{IntoReport, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use events::Event;
 use tendermint::block;
 use thiserror::Error;
@@ -36,12 +36,7 @@ impl EventHandler for Handler {
 
     async fn handle(&self, event: &Event) -> Result<(), Error> {
         match event {
-            Event::BlockEnd(height) => self
-                .tx
-                .send(*height)
-                .await
-                .into_report()
-                .change_context(Error::SendError),
+            Event::BlockEnd(height) => self.tx.send(*height).await.change_context(Error::SendError),
             _ => Ok(()),
         }
     }

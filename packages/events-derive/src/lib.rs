@@ -39,7 +39,7 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
     TokenStream::from(quote! {
         #input
 
-        use error_stack::{IntoReport as _, ResultExt as _};
+        use error_stack::{ResultExt as _};
         use events as _internal_events;
         use core::convert::TryFrom as _internal_TryFrom;
 
@@ -51,14 +51,13 @@ pub fn try_from(arg: TokenStream, input: TokenStream) -> TokenStream {
                     _internal_events::Event::Abci { event_type, attributes } if event_type == #event_type => {
                         let event =
                             #event_struct::deserialize(serde::de::value::MapDeserializer::new(attributes.clone().into_iter()))
-                                .into_report()
                                 .change_context(_internal_events::Error::DeserializationFailed(
                                     #event_type.to_string(),
                                     #event_struct_name.to_string()),
                                 )?;
                         Ok(event)
                     }
-                    event => Err(_internal_events::Error::EventTypeMismatch(#event_type.to_string())).into_report()
+                    event => Err(_internal_events::Error::EventTypeMismatch(#event_type.to_string()))
                         .attach_printable(format!("{{ event = {event:?} }}")),
                 }
             }

@@ -6,7 +6,7 @@ use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::{
     BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, SimulateResponse,
 };
-use error_stack::{IntoReport, Result};
+use error_stack::{Report, Result};
 use mockall::automock;
 use tonic::transport::Channel;
 
@@ -31,21 +31,21 @@ impl BroadcastClient for ServiceClient<Channel> {
                     .tx_response
                     .ok_or_else(|| Status::not_found("tx not found"))
             })
-            .into_report()
+            .map_err(Report::from)
     }
 
     async fn simulate(&mut self, request: SimulateRequest) -> Result<SimulateResponse, Status> {
         self.simulate(request)
             .await
             .map(Response::into_inner)
-            .into_report()
+            .map_err(Report::from)
     }
 
     async fn get_tx(&mut self, request: GetTxRequest) -> Result<GetTxResponse, Status> {
         self.get_tx(request)
             .await
             .map(Response::into_inner)
-            .into_report()
+            .map_err(Report::from)
     }
 }
 
@@ -67,6 +67,6 @@ impl AccountQueryClient for QueryClient<Channel> {
         self.account(request)
             .await
             .map(Response::into_inner)
-            .into_report()
+            .map_err(Report::from)
     }
 }

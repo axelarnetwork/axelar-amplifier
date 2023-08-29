@@ -2,6 +2,7 @@ use std::thread;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use axelar_wasm_std::ResultCompatExt;
 use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, TxRaw,
@@ -11,7 +12,7 @@ use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
 use cosmrs::{Coin, Gas};
 use derive_builder::Builder;
-use error_stack::{FutureExt, IntoReport, IntoReportCompat, Report, Result, ResultExt};
+use error_stack::{FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use mockall::automock;
 use serde::Deserialize;
@@ -159,8 +160,7 @@ where
                 response
                     .gas_info
                     .map(|info| info.gas_used)
-                    .ok_or(Error::GasEstimation)
-                    .into_report()
+                    .ok_or(Error::GasEstimation.into())
             })
             .await
     }
@@ -173,14 +173,12 @@ where
             .msgs(msgs)
             .finish()
             .into_bytes()
-            .into_report()
             .change_context(Error::TxMarshaling)?;
 
         let auth_info_bytes =
             SignerInfo::single_direct(Some(self.priv_key.public_key()), self.acc_sequence)
                 .auth_info(zero_fee())
                 .into_bytes()
-                .into_report()
                 .change_context(Error::TxMarshaling)?;
 
         let raw = TxRaw {
@@ -190,9 +188,7 @@ where
             signatures: vec![vec![0; 64]],
         };
 
-        raw.to_bytes()
-            .into_report()
-            .change_context(Error::TxMarshaling)
+        raw.to_bytes().change_context(Error::TxMarshaling)
     }
 
     pub fn create_tx<M>(&self, msgs: M, fee: Fee) -> Result<BroadcastTxRequest, Error>
@@ -211,7 +207,6 @@ where
                 tx_bytes: tx,
                 mode: BroadcastMode::Sync as i32,
             })
-            .into_report()
             .change_context(Error::TxMarshaling)
     }
 
@@ -241,7 +236,7 @@ where
 
                     return Ok(());
                 }
-                ConfirmationResult::Critical(err) => return Err(err).into_report(),
+                ConfirmationResult::Critical(err) => return Err(err.into()),
                 ConfirmationResult::Retriable(err) => {
                     if let Err(result) = result.as_mut() {
                         result.extend_one(err);
@@ -284,7 +279,6 @@ mod tests {
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
     use cosmos_sdk_proto::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
-    use error_stack::IntoReport;
     use tokio::test;
     use tonic::Status;
 
@@ -298,7 +292,7 @@ mod tests {
         let mut client = MockBroadcastClient::new();
         client
             .expect_simulate()
-            .returning(|_| Err(Status::unavailable("unavailable service")).into_report());
+            .returning(|_| Err(Status::unavailable("unavailable service").into()));
         let signer = MockEcdsaClient::new();
 
         let priv_key = ECDSASigningKey::random();
@@ -375,7 +369,7 @@ mod tests {
 
         client
             .expect_broadcast_tx()
-            .returning(|_| Err(Status::aborted("failed")).into_report());
+            .returning(|_| Err(Status::aborted("failed").into()));
         let signer = MockEcdsaClient::new();
 
         let priv_key = ECDSASigningKey::random();
@@ -422,7 +416,7 @@ mod tests {
         client
             .expect_get_tx()
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
-            .returning(|_| Err(Status::deadline_exceeded("time out")).into_report());
+            .returning(|_| Err(Status::deadline_exceeded("time out").into()));
         let signer = MockEcdsaClient::new();
 
         let priv_key = ECDSASigningKey::random();

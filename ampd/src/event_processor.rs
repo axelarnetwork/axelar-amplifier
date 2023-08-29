@@ -3,7 +3,7 @@ use core::pin::Pin;
 use std::vec;
 
 use async_trait::async_trait;
-use error_stack::{Context, IntoReport, Result, ResultExt};
+use error_stack::{Context, Result, ResultExt};
 use events::Event;
 use futures::{future::try_join_all, StreamExt};
 use thiserror::Error;
@@ -41,6 +41,7 @@ fn consume_events<H, S, E>(event_stream: S, handler: H, token: CancellationToken
 where
     H: EventHandler + Send + Sync + 'static,
     S: Stream<Item = Result<Event, E>> + Send + 'static,
+    E: Context,
 {
     let task = async move {
         let mut event_stream = Box::pin(event_stream);
@@ -80,6 +81,7 @@ impl EventProcessor {
     where
         H: EventHandler + Send + Sync + 'static,
         S: Stream<Item = Result<Event, E>> + Send + 'static,
+        E: Context,
     {
         self.tasks
             .push(consume_events(event_stream, handler, self.token.child_token()).into());
@@ -91,7 +93,6 @@ impl EventProcessor {
 
         try_join_all(handles)
             .await
-            .into_report()
             .change_context(EventProcessorError::EventHandlerError)?
             .into_iter()
             .find(Result::is_err)
@@ -103,12 +104,12 @@ impl EventProcessor {
 mod tests {
     use crate::event_processor::{EventHandler, EventProcessor};
     use async_trait::async_trait;
-    use error_stack::{IntoReport, Result};
+    use error_stack::{Report, Result};
+    use futures::TryStreamExt;
     use mockall::mock;
     use thiserror::Error;
     use tokio::{self, sync::broadcast};
     use tokio_stream::wrappers::BroadcastStream;
-    use tokio_stream::StreamExt;
     use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
@@ -130,10 +131,7 @@ mod tests {
             }
         });
 
-        processor.add_handler(
-            handler,
-            BroadcastStream::new(rx).map(IntoReport::into_report),
-        );
+        processor.add_handler(handler, BroadcastStream::new(rx).map_err(Report::from));
         assert!(processor.run().await.is_ok());
     }
 
@@ -146,17 +144,14 @@ mod tests {
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
-            .returning(|_| Err(EventHandlerError::Unknown).into_report())
+            .returning(|_| Err(EventHandlerError::Unknown.into()))
             .once();
 
         tokio::spawn(async move {
             assert!(tx.send(events::Event::BlockEnd((10_u32).into())).is_ok());
         });
 
-        processor.add_handler(
-            handler,
-            BroadcastStream::new(rx).map(IntoReport::into_report),
-        );
+        processor.add_handler(handler, BroadcastStream::new(rx).map_err(Report::from));
         assert!(processor.run().await.is_err());
     }
 
@@ -166,8 +161,8 @@ mod tests {
         let (tx, rx) = broadcast::channel::<events::Event>(event_count);
         let token = CancellationToken::new();
         let mut processor = EventProcessor::new(token.child_token());
-        let stream = BroadcastStream::new(rx).map(IntoReport::into_report);
-        let another_stream = BroadcastStream::new(tx.subscribe()).map(IntoReport::into_report);
+        let stream = BroadcastStream::new(rx).map_err(Report::from);
+        let another_stream = BroadcastStream::new(tx.subscribe()).map_err(Report::from);
 
         let mut handler = MockEventHandler::new();
         handler

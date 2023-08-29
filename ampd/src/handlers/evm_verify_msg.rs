@@ -3,7 +3,7 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
-use error_stack::{IntoReport, ResultExt};
+use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::Deserialize;
@@ -105,7 +105,7 @@ where
         )
         .await
         .into_iter()
-        .filter_map(std::result::Result::unwrap_or_default)
+        .filter_map(Result::unwrap_or_default)
         .filter_map(|tx_receipt| {
             if tx_receipt
                 .block_number
