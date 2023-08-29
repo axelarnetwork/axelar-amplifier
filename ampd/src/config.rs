@@ -4,7 +4,6 @@ use crate::broadcaster;
 use crate::evm::{deserialize_evm_chain_configs, EvmChainConfig};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::ECDSASigningKey;
 
 #[derive(Deserialize, Debug)]
 #[serde(default)]
@@ -15,8 +14,6 @@ pub struct Config {
     #[serde(deserialize_with = "deserialize_evm_chain_configs")]
     pub evm_chains: Vec<EvmChainConfig>,
     pub tofnd_config: TofndConfig,
-    #[serde(with = "hex")]
-    pub private_key: ECDSASigningKey,
     pub event_buffer_cap: usize,
 }
 
@@ -28,7 +25,6 @@ impl Default for Config {
             broadcast: broadcaster::Config::default(),
             evm_chains: vec![],
             tofnd_config: TofndConfig::default(),
-            private_key: ECDSASigningKey::random(),
             event_buffer_cap: 100000,
         }
     }
@@ -36,10 +32,7 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::bip32::secp256k1::elliptic_curve::rand_core::OsRng;
-
     use super::Config;
-    use crate::types::PublicKey;
     use crate::{broadcaster::key::ECDSASigningKey, evm::ChainName};
 
     #[test]
@@ -126,23 +119,5 @@ mod tests {
         assert_eq!(cfg.tofnd_config.url.as_str(), url);
         assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
         assert_eq!(cfg.tofnd_config.key_uid.as_str(), key_uid);
-    }
-
-    #[test]
-    fn deserialize_private_key() {
-        let random_key = ecdsa::SigningKey::random(&mut OsRng);
-        let hex_private_key = hex::encode(random_key.to_bytes());
-        let cfg: Config =
-            toml::from_str(format!("private_key = '{hex_private_key}'").as_str()).unwrap();
-
-        assert_eq!(
-            cfg.private_key.public_key(),
-            PublicKey::from(random_key.verifying_key())
-        )
-    }
-
-    #[test]
-    fn fail_deserialize_private_key() {
-        assert!(toml::from_str::<Config>("private_key = 'a invalid key'").is_err());
     }
 }
