@@ -1,7 +1,7 @@
 use crate::event_processor::EventHandler;
-use crate::event_sub::Event;
 use async_trait::async_trait;
 use error_stack::{IntoReport, Result, ResultExt};
+use events::Event;
 use tendermint::block;
 use thiserror::Error;
 use tokio::sync::mpsc::{self, Receiver};
@@ -50,8 +50,8 @@ impl EventHandler for Handler {
 #[cfg(test)]
 mod tests {
     use crate::event_processor::EventHandler;
-    use crate::event_sub;
     use crate::handlers::end_block::Handler;
+    use events::Event;
     use tendermint::block;
 
     #[tokio::test]
@@ -61,10 +61,7 @@ mod tests {
         let mut height = block::Height::default();
 
         for _ in 0..count {
-            assert!(handler
-                .handle(&event_sub::Event::BlockEnd(height))
-                .await
-                .is_ok());
+            assert!(handler.handle(&Event::BlockEnd(height)).await.is_ok());
             height = height.increment();
         }
 

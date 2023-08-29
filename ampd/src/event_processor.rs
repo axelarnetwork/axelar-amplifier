@@ -4,12 +4,12 @@ use std::vec;
 
 use async_trait::async_trait;
 use error_stack::{Context, IntoReport, Result, ResultExt};
+use events::Event;
 use futures::{future::try_join_all, StreamExt};
 use thiserror::Error;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 
-use crate::event_sub::Event;
 use crate::handlers::chain;
 
 type Task = Box<dyn Future<Output = Result<(), EventProcessorError>> + Send>;
@@ -102,7 +102,6 @@ impl EventProcessor {
 #[cfg(test)]
 mod tests {
     use crate::event_processor::{EventHandler, EventProcessor};
-    use crate::event_sub;
     use async_trait::async_trait;
     use error_stack::{IntoReport, Result};
     use mockall::mock;
@@ -115,7 +114,7 @@ mod tests {
     #[tokio::test]
     async fn should_handle_events() {
         let event_count = 10;
-        let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
+        let (tx, rx) = broadcast::channel::<events::Event>(event_count);
         let token = CancellationToken::new();
         let mut processor = EventProcessor::new(token.child_token());
 
@@ -127,9 +126,7 @@ mod tests {
 
         tokio::spawn(async move {
             for i in 0..event_count {
-                assert!(tx
-                    .send(event_sub::Event::BlockEnd((i as u32).into()))
-                    .is_ok());
+                assert!(tx.send(events::Event::BlockEnd((i as u32).into())).is_ok());
             }
         });
 
@@ -142,7 +139,7 @@ mod tests {
 
     #[tokio::test]
     async fn should_return_error_if_handler_fails() {
-        let (tx, rx) = broadcast::channel::<event_sub::Event>(10);
+        let (tx, rx) = broadcast::channel::<events::Event>(10);
         let token = CancellationToken::new();
         let mut processor = EventProcessor::new(token.child_token());
 
@@ -153,7 +150,7 @@ mod tests {
             .once();
 
         tokio::spawn(async move {
-            assert!(tx.send(event_sub::Event::BlockEnd((10_u32).into())).is_ok());
+            assert!(tx.send(events::Event::BlockEnd((10_u32).into())).is_ok());
         });
 
         processor.add_handler(
@@ -166,7 +163,7 @@ mod tests {
     #[tokio::test]
     async fn should_support_multiple_types_of_handlers() {
         let event_count = 10;
-        let (tx, rx) = broadcast::channel::<event_sub::Event>(event_count);
+        let (tx, rx) = broadcast::channel::<events::Event>(event_count);
         let token = CancellationToken::new();
         let mut processor = EventProcessor::new(token.child_token());
         let stream = BroadcastStream::new(rx).map(IntoReport::into_report);
@@ -186,9 +183,7 @@ mod tests {
 
         tokio::spawn(async move {
             for i in 0..event_count {
-                assert!(tx
-                    .send(event_sub::Event::BlockEnd((i as u32).into()))
-                    .is_ok());
+                assert!(tx.send(events::Event::BlockEnd((i as u32).into())).is_ok());
             }
         });
 
@@ -211,7 +206,7 @@ mod tests {
             impl EventHandler for EventHandler {
                 type Err = EventHandlerError;
 
-                async fn handle(&self, event: &event_sub::Event) -> Result<(), EventHandlerError>;
+                async fn handle(&self, event: &events::Event) -> Result<(), EventHandlerError>;
             }
     }
 
@@ -225,7 +220,7 @@ mod tests {
             impl EventHandler for AnotherEventHandler {
                 type Err = AnotherEventHandlerError;
 
-                async fn handle(&self, event: &event_sub::Event) -> Result<(), AnotherEventHandlerError>;
+                async fn handle(&self, event: &events::Event) -> Result<(), AnotherEventHandlerError>;
             }
     }
 }

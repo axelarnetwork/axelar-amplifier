@@ -1,29 +1,29 @@
 use std::collections::{HashMap, HashSet};
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::voting::PollID;
-use connection_router::types::ID_SEPARATOR;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::{IntoReport, ResultExt};
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
-use serde::de::value::MapDeserializer;
 use serde::Deserialize;
 use tracing::{info, info_span};
 use valuable::Valuable;
+
+use axelar_wasm_std::voting::PollID;
+use connection_router::types::ID_SEPARATOR;
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
-use crate::event_sub;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::message_verifier::verify_message;
 use crate::evm::ChainName;
 use crate::handlers::errors::Error;
+use crate::handlers::errors::Error::DeserializeEvent;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress};
-
-const EVENT_TYPE: &str = "wasm-messages_poll_started";
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -38,7 +38,8 @@ pub struct Message {
 }
 
 #[derive(Deserialize, Debug)]
-struct Event {
+#[try_from("wasm-messages_poll_started")]
+struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
     poll_id: PollID,
@@ -47,22 +48,6 @@ struct Event {
     confirmation_height: u64,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
-}
-
-impl TryFrom<&event_sub::Event> for Option<Event> {
-    type Error = Error;
-
-    fn try_from(event: &event_sub::Event) -> std::result::Result<Self, Self::Error> {
-        match event {
-            event_sub::Event::Abci {
-                event_type,
-                attributes,
-            } if event_type.as_str() == EVENT_TYPE => Ok(Some(Event::deserialize(
-                MapDeserializer::new(attributes.clone().into_iter()),
-            )?)),
-            _ => Ok(None),
-        }
-    }
 }
 
 pub struct Handler<C, B>
@@ -160,8 +145,8 @@ where
 {
     type Err = Error;
 
-    async fn handle(&self, event: &event_sub::Event) -> Result<()> {
-        let Event {
+    async fn handle(&self, event: &events::Event) -> Result<()> {
+        let PollStartedEvent {
             contract_address,
             poll_id,
             source_chain,
@@ -169,9 +154,11 @@ where
             messages,
             confirmation_height,
             participants,
-        } = match event.try_into().into_report()? {
-            Some(event) => event,
-            None => return Ok(()),
+        } = match event.try_into() as error_stack::Result<_, _> {
+            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
+                return Ok(())
+            }
+            event => event.change_context(DeserializeEvent)?,
         };
 
         if self.voting_verifier != contract_address {
@@ -236,16 +223,18 @@ mod tests {
     use base64::Engine;
     use cosmwasm_std;
     use cosmwasm_std::HexBinary;
+    use error_stack::Result;
     use tendermint::abci;
+
+    use events::Error::{DeserializationFailed, EventTypeMismatch};
+    use events::Event;
     use voting_verifier::events::{EvmMessage, PollMetadata, PollStarted};
 
-    use super::Event;
-    use crate::{
-        event_sub,
-        types::{EVMAddress, Hash},
-    };
+    use crate::types::{EVMAddress, Hash};
 
-    fn get_poll_started_event() -> event_sub::Event {
+    use super::PollStartedEvent;
+
+    fn get_poll_started_event() -> Event {
         let poll_started = PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -315,36 +304,45 @@ mod tests {
     #[test]
     fn should_not_deserialize_incorrect_event() {
         // incorrect event type
-        let mut event: event_sub::Event = get_poll_started_event();
+        let mut event: Event = get_poll_started_event();
         match event {
-            event_sub::Event::Abci {
+            Event::Abci {
                 ref mut event_type, ..
             } => {
                 *event_type = "incorrect".into();
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Option<Event> = (&event).try_into().unwrap();
+        let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
 
-        assert!(event.is_none());
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            EventTypeMismatch(_)
+        ));
 
         // invalid field
         let mut event = get_poll_started_event();
         match event {
-            event_sub::Event::Abci {
+            Event::Abci {
                 ref mut attributes, ..
             } => {
                 attributes.insert("source_gateway_address".into(), "invalid".into());
             }
             _ => panic!("incorrect event type"),
         }
-        assert!(<&event_sub::Event as TryInto<Option<Event>>>::try_into(&event).is_err());
+
+        let event: Result<PollStartedEvent, events::Error> = (&event).try_into();
+
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            DeserializationFailed(_, _)
+        ));
     }
 
     #[test]
     fn should_deserialize_correct_event() {
-        let event: Option<Event> = (&get_poll_started_event()).try_into().unwrap();
+        let event: Result<PollStartedEvent, events::Error> = (&get_poll_started_event()).try_into();
 
-        assert!(event.is_some());
+        assert!(event.is_ok());
     }
 }
