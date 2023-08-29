@@ -155,13 +155,10 @@ where
             confirmation_height,
             participants,
         } = match event.try_into() as error_stack::Result<_, _> {
-            Err(report) => {
-                return match report.current_context() {
-                    EventTypeMismatch(_) => Ok(()),
-                    _ => Err(report).change_context(DeserializeEvent),
-                }
+            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
+                return Ok(())
             }
-            Ok(event) => event,
+            event => event.change_context(DeserializeEvent)?,
         };
 
         if self.voting_verifier != contract_address {
