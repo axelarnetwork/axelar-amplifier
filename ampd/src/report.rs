@@ -17,6 +17,8 @@ pub enum Error {
     Broadcaster,
     #[error("state updater failed")]
     StateUpdater,
+    #[error("tofnd failed")]
+    Tofnd,
     #[error("{0}")]
     Error(String),
 }
