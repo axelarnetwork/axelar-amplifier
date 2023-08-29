@@ -3,9 +3,9 @@ use std::fmt::{Debug, Display, Formatter};
 use std::str::FromStr;
 use std::{fmt, ops};
 
-use axelar_wasm_std::ResultCompatExt;
 use cosmrs::proto;
 use error_stack::{ensure, Report, Result, ResultExt};
+use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::error;

@@ -2,7 +2,6 @@ use std::thread;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use axelar_wasm_std::ResultCompatExt;
 use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, TxRaw,
@@ -15,6 +14,7 @@ use derive_builder::Builder;
 use error_stack::{FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use mockall::automock;
+use report::ResultCompatExt;
 use serde::Deserialize;
 use thiserror::Error;
 use tonic::Status;

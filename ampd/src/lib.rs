@@ -12,12 +12,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::config::Config;
+use crate::report::Error;
 use broadcaster::{accounts::account, key::ECDSASigningKey, Broadcaster};
 use event_processor::EventProcessor;
 use events::Event;
 use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
-use report::Error;
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;

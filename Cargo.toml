@@ -16,6 +16,7 @@ multisig = { version = "^0.1.0", path = "contracts/multisig" }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
+report = { version = "^0.1.0", path = "packages/report" }
 
 [profile.release]
 opt-level = 3
