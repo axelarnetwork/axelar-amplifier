@@ -1,15 +1,23 @@
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
+use async_trait::async_trait;
+use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
+use error_stack::{IntoReport, ResultExt};
 use hex::FromHex;
-use multisig::types::KeyID;
 use serde::de::value::MapDeserializer;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 
+use multisig::msg::ExecuteMsg;
+
+use crate::event_processor::EventHandler;
 use crate::event_sub;
 use crate::handlers::errors::Error;
+use crate::queue::queued_broadcaster::BroadcasterClient;
+use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
@@ -22,7 +30,6 @@ struct SigningStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
     session_id: u64,
-    key_id: KeyID,
     #[serde(deserialize_with = "deserialize_public_keys")]
     pub_keys: HashMap<TMAddress, PublicKey>,
     #[serde(with = "hex")]
@@ -72,21 +79,126 @@ impl TryFrom<&event_sub::Event> for Option<SigningStartedEvent> {
     }
 }
 
+pub struct Handler<B>
+where
+    B: BroadcasterClient,
+{
+    worker: TMAddress,
+    multisig: TMAddress,
+    broadcaster: B,
+    signer: SharableEcdsaClient,
+}
+
+impl<B> Handler<B>
+where
+    B: BroadcasterClient,
+{
+    pub fn new(
+        worker: TMAddress,
+        multisig: TMAddress,
+        broadcaster: B,
+        signer: SharableEcdsaClient,
+    ) -> Self {
+        Self {
+            worker,
+            multisig,
+            broadcaster,
+            signer,
+        }
+    }
+
+    async fn broadcast_signature(
+        &self,
+        session_id: Uint64,
+        signature: HexBinary,
+    ) -> error_stack::Result<(), Error> {
+        let msg = serde_json::to_vec(&ExecuteMsg::SubmitSignature {
+            session_id,
+            signature,
+        })
+        .expect("submit signature msg should serialize");
+
+        let tx = MsgExecuteContract {
+            sender: self.worker.as_ref().clone(),
+            contract: self.multisig.as_ref().clone(),
+            msg,
+            funds: vec![],
+        };
+
+        self.broadcaster
+            .broadcast(tx)
+            .await
+            .change_context(Error::Broadcaster)
+    }
+}
+
+#[async_trait]
+impl<B> EventHandler for Handler<B>
+where
+    B: BroadcasterClient + Send + Sync,
+{
+    type Err = Error;
+
+    async fn handle(&self, event: &event_sub::Event) -> error_stack::Result<(), Error> {
+        let SigningStartedEvent {
+            contract_address,
+            session_id,
+            pub_keys,
+            msg,
+        } = match event.try_into().into_report()? {
+            Some(event) => event,
+            None => return Ok(()),
+        };
+
+        if self.multisig != contract_address {
+            return Ok(());
+        }
+
+        if !pub_keys.contains_key(&self.worker) {
+            return Ok(());
+        }
+
+        let signature = self
+            .signer
+            .sign(
+                self.multisig.to_string().as_str(),
+                msg,
+                &pub_keys[&self.worker],
+            )
+            .await
+            .change_context(Error::Sign)?;
+
+        self.broadcast_signature(session_id.into(), signature.into())
+            .await?;
+
+        return Ok(());
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::time::Duration;
 
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
+    use cosmrs::{AccountId, Gas};
     use cosmwasm_std::{Addr, HexBinary, Uint64};
-    use multisig::events::Event::SigningStarted;
-    use multisig::types::{MsgToSign, PublicKey};
+    use error_stack::Report;
     use tendermint::abci;
 
-    use crate::broadcaster::key::ECDSASigningKey;
+    use multisig::events::Event::SigningStarted;
+    use multisig::types::{KeyID, MsgToSign, PublicKey};
 
     use super::*;
+    use crate::broadcaster::{key::ECDSASigningKey, MockBroadcaster};
+    use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};
+    use crate::tofnd;
+    use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
+
+    const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 
     fn rand_account() -> String {
         ECDSASigningKey::random().address().to_string()
@@ -120,10 +232,7 @@ mod test {
 
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute(
-            "_contract_address",
-            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
-        );
+        event = event.add_attribute("_contract_address", MULTISIG_ADDRESS);
 
         abci::Event::new(
             event.ty,
@@ -136,6 +245,22 @@ mod test {
         )
         .try_into()
         .unwrap()
+    }
+
+    fn get_handler(
+        worker: TMAddress,
+        multisig: TMAddress,
+        signer: SharableEcdsaClient,
+    ) -> Handler<QueuedBroadcasterClient> {
+        let mut broadcaster = MockBroadcaster::new();
+        broadcaster
+            .expect_broadcast()
+            .returning(|_| Ok(TxResponse::default()));
+
+        let (broadcaster, _) =
+            QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
+
+        Handler::new(worker, multisig, broadcaster.client(), signer)
     }
 
     #[test]
@@ -184,5 +309,65 @@ mod test {
         let event: Option<SigningStartedEvent> = (&signing_started_event()).try_into().unwrap();
 
         assert!(event.is_some());
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_if_multisig_address_does_not_match() {
+        let mut client = MockEcdsaClient::new();
+        client
+            .expect_sign()
+            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let handler = get_handler(
+            ECDSASigningKey::random().address(),
+            ECDSASigningKey::random().address(),
+            SharableEcdsaClient::new(client),
+        );
+
+        assert!(handler.handle(&signing_started_event()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_if_worker_is_not_a_participant() {
+        let mut client = MockEcdsaClient::new();
+        client
+            .expect_sign()
+            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let handler = get_handler(
+            ECDSASigningKey::random().address(),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            SharableEcdsaClient::new(client),
+        );
+
+        assert!(handler.handle(&signing_started_event()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_if_sign_failed() {
+        let mut client = MockEcdsaClient::new();
+        client
+            .expect_sign()
+            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let event = signing_started_event();
+        let signing_started: Option<SigningStartedEvent> = (&event).try_into().unwrap();
+        let worker = signing_started
+            .unwrap()
+            .pub_keys
+            .keys()
+            .next()
+            .unwrap()
+            .clone();
+        let handler = get_handler(
+            worker,
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            SharableEcdsaClient::new(client),
+        );
+
+        assert!(matches!(
+            *handler.handle(&event).await.unwrap_err().current_context(),
+            Error::Sign
+        ));
     }
 }

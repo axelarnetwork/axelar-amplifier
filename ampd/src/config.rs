@@ -3,6 +3,7 @@ use serde::Deserialize;
 use crate::broadcaster;
 use crate::evm::{deserialize_evm_chain_configs, EvmChainConfig};
 use crate::tofnd::Config as TofndConfig;
+use crate::types::TMAddress;
 use crate::url::Url;
 use crate::ECDSASigningKey;
 
@@ -18,6 +19,7 @@ pub struct Config {
     #[serde(with = "hex")]
     pub private_key: ECDSASigningKey,
     pub event_buffer_cap: usize,
+    pub multisig_contract: Option<TMAddress>,
 }
 
 impl Default for Config {
@@ -30,6 +32,7 @@ impl Default for Config {
             tofnd_config: TofndConfig::default(),
             private_key: ECDSASigningKey::random(),
             event_buffer_cap: 100000,
+            multisig_contract: None,
         }
     }
 }
