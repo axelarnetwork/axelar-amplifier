@@ -149,7 +149,7 @@ where
             "get signing request",
         );
 
-        return match pub_keys.get(&self.worker) {
+        match pub_keys.get(&self.worker) {
             Some(pub_key) => {
                 let signature = self
                     .signer
@@ -167,7 +167,7 @@ where
                 info!("worker is not a participant");
                 Ok(())
             }
-        };
+        }
     }
 }
 
