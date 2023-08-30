@@ -11,17 +11,16 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+use crate::config::Config;
 use broadcaster::{accounts::account, key::ECDSASigningKey, Broadcaster};
 use event_processor::{EventHandler, EventProcessor};
-use event_sub::Event;
+use events::Event;
 use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
-
-use crate::config::Config;
 
 mod broadcaster;
 pub mod config;

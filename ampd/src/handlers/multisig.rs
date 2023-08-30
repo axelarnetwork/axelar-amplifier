@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -7,25 +7,24 @@ use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
 use error_stack::{IntoReport, ResultExt};
 use hex::FromHex;
-use serde::de::value::MapDeserializer;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 
+use events::Error::EventTypeMismatch;
+use events_derive;
+use events_derive::try_from;
 use multisig::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
-use crate::event_sub;
-use crate::handlers::errors::Error;
+use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
 
-const EVENT_SIGNING_STARTED: &str = "wasm-signing_started";
-
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
+#[try_from("wasm-signing_started")]
 struct SigningStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
@@ -59,24 +58,6 @@ where
             ))
         })
         .collect()
-}
-
-impl TryFrom<&event_sub::Event> for Option<SigningStartedEvent> {
-    type Error = Error;
-
-    fn try_from(event: &event_sub::Event) -> Result<Self, Self::Error> {
-        match event {
-            event_sub::Event::Abci {
-                event_type,
-                attributes,
-            } if event_type.as_str() == EVENT_SIGNING_STARTED => {
-                Ok(Some(SigningStartedEvent::deserialize(
-                    MapDeserializer::new(attributes.clone().into_iter()),
-                )?))
-            }
-            _ => Ok(None),
-        }
-    }
 }
 
 pub struct Handler<B>
@@ -139,15 +120,17 @@ where
 {
     type Err = Error;
 
-    async fn handle(&self, event: &event_sub::Event) -> error_stack::Result<(), Error> {
+    async fn handle(&self, event: &events::Event) -> error_stack::Result<(), Error> {
         let SigningStartedEvent {
             contract_address,
             session_id,
             pub_keys,
             msg,
-        } = match event.try_into().into_report()? {
-            Some(event) => event,
-            None => return Ok(()),
+        } = match event.try_into() as error_stack::Result<_, _> {
+            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
+                return Ok(());
+            }
+            result => result.change_context(DeserializeEvent)?,
         };
 
         if self.multisig != contract_address {
@@ -174,16 +157,17 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::convert::TryInto;
-    use std::time::Duration;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use std::collections::HashMap;
+    use std::convert::{TryFrom, TryInto};
+    use std::time::Duration;
+
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::{AccountId, Gas};
     use cosmwasm_std::{Addr, HexBinary, Uint64};
-    use error_stack::Report;
+    use error_stack::{Report, Result};
     use tendermint::abci;
 
     use multisig::events::Event::SigningStarted;
@@ -212,7 +196,7 @@ mod test {
         HexBinary::from(digest.as_slice())
     }
 
-    fn signing_started_event() -> event_sub::Event {
+    fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account(), rand_public_key()))
             .collect::<HashMap<String, PublicKey>>();
@@ -231,7 +215,7 @@ mod test {
         event.ty = format!("wasm-{}", event.ty);
         event = event.add_attribute("_contract_address", MULTISIG_ADDRESS);
 
-        abci::Event::new(
+        events::Event::try_from(abci::Event::new(
             event.ty,
             event
                 .attributes
@@ -239,8 +223,7 @@ mod test {
                 .map(|cosmwasm_std::Attribute { key, value }| {
                     (STANDARD.encode(key), STANDARD.encode(value))
                 }),
-        )
-        .try_into()
+        ))
         .unwrap()
     }
 
@@ -263,18 +246,21 @@ mod test {
     #[test]
     fn should_not_deserialize_incorrect_event_type() {
         // incorrect event type
-        let mut event: event_sub::Event = signing_started_event();
+        let mut event: events::Event = signing_started_event();
         match event {
-            event_sub::Event::Abci {
+            events::Event::Abci {
                 ref mut event_type, ..
             } => {
                 *event_type = "incorrect".into();
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Option<SigningStartedEvent> = (&event).try_into().unwrap();
+        let event: Result<SigningStartedEvent, events::Error> = (&event).try_into();
 
-        assert!(event.is_none());
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            events::Error::EventTypeMismatch(_)
+        ));
     }
 
     #[test]
@@ -288,7 +274,7 @@ mod test {
             PublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
-            event_sub::Event::Abci {
+            events::Event::Abci {
                 ref mut attributes, ..
             } => {
                 attributes.insert("pub_keys".into(), serde_json::to_value(map).unwrap());
@@ -296,16 +282,20 @@ mod test {
             _ => panic!("incorrect event type"),
         }
 
-        assert!(
-            <&event_sub::Event as TryInto<Option<SigningStartedEvent>>>::try_into(&event).is_err()
-        );
+        let event: Result<SigningStartedEvent, events::Error> = (&event).try_into();
+
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            events::Error::DeserializationFailed(_, _)
+        ));
     }
 
     #[test]
     fn should_deserialize_event() {
-        let event: Option<SigningStartedEvent> = (&signing_started_event()).try_into().unwrap();
+        let event: Result<SigningStartedEvent, events::Error> =
+            (&signing_started_event()).try_into();
 
-        assert!(event.is_some());
+        assert!(event.is_ok());
     }
 
     #[tokio::test]
@@ -348,14 +338,8 @@ mod test {
             .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
-        let signing_started: Option<SigningStartedEvent> = (&event).try_into().unwrap();
-        let worker = signing_started
-            .unwrap()
-            .pub_keys
-            .keys()
-            .next()
-            .unwrap()
-            .clone();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let worker = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = get_handler(
             worker,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),

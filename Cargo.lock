@@ -1966,6 +1966,7 @@ dependencies = [
 name = "events"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
  "base64 0.21.2",
  "error-stack",
  "serde_json",
