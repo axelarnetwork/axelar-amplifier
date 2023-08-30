@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::types::PublicKey;
 
-const DUMMY_CHAIN_ID: &str = "dummychainid";
+const DUMMY_CHAIN_ID: &str = "dummy_chain_id";
 const DUMMY_ACC_NUMBER: u64 = 0;
 
 #[derive(Error, Debug)]

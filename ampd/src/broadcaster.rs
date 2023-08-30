@@ -125,6 +125,7 @@ where
             })
             .await
             .change_context(Error::TxBuilding)?;
+
         let tx = BroadcastTxRequest {
             tx_bytes: tx
                 .to_bytes()
