@@ -90,12 +90,12 @@ where
 
     async fn broadcast_signature(
         &self,
-        session_id: Uint64,
-        signature: HexBinary,
+        session_id: impl Into<Uint64>,
+        signature: impl Into<HexBinary>,
     ) -> error_stack::Result<(), Error> {
         let msg = serde_json::to_vec(&ExecuteMsg::SubmitSignature {
-            session_id,
-            signature,
+            session_id: session_id.into(),
+            signature: signature.into(),
         })
         .expect("submit signature msg should serialize");
 
@@ -145,8 +145,7 @@ where
                     .await
                     .change_context(Error::Sign)?;
 
-                self.broadcast_signature(session_id.into(), signature.into())
-                    .await?;
+                self.broadcast_signature(session_id, signature).await?;
 
                 Ok(())
             }
