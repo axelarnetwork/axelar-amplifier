@@ -1,23 +1,21 @@
 use std::collections::HashMap;
-use std::convert::TryFrom;
 
 use ecdsa::VerifyingKey;
 use hex::FromHex;
-use multisig::types::KeyID;
-use serde::de::value::MapDeserializer;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 
-use crate::event_sub;
-use crate::handlers::errors::Error;
+use events_derive;
+use multisig::types::KeyID;
+
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
-
-const EVENT_SIGNING_STARTED: &str = "wasm-signing_started";
+use events_derive::try_from;
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
+#[try_from("wasm-signing_started")]
 struct SigningStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
@@ -54,35 +52,19 @@ where
         .collect()
 }
 
-impl TryFrom<&event_sub::Event> for Option<SigningStartedEvent> {
-    type Error = Error;
-
-    fn try_from(event: &event_sub::Event) -> Result<Self, Self::Error> {
-        match event {
-            event_sub::Event::Abci {
-                event_type,
-                attributes,
-            } if event_type.as_str() == EVENT_SIGNING_STARTED => {
-                Ok(Some(SigningStartedEvent::deserialize(
-                    MapDeserializer::new(attributes.clone().into_iter()),
-                )?))
-            }
-            _ => Ok(None),
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
+    use error_stack::Result;
+    use std::collections::HashMap;
+    use std::convert::{TryFrom, TryInto};
+
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use std::collections::HashMap;
-    use std::convert::TryInto;
-
     use cosmwasm_std::{Addr, HexBinary, Uint64};
+    use tendermint::abci;
+
     use multisig::events::Event::SigningStarted;
     use multisig::types::{MsgToSign, PublicKey};
-    use tendermint::abci;
 
     use crate::broadcaster::key::ECDSASigningKey;
 
@@ -103,7 +85,7 @@ mod test {
         HexBinary::from(digest.as_slice())
     }
 
-    fn signing_started_event() -> event_sub::Event {
+    fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account(), rand_public_key()))
             .collect::<HashMap<String, PublicKey>>();
@@ -125,7 +107,7 @@ mod test {
             "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
         );
 
-        abci::Event::new(
+        events::Event::try_from(abci::Event::new(
             event.ty,
             event
                 .attributes
@@ -133,26 +115,28 @@ mod test {
                 .map(|cosmwasm_std::Attribute { key, value }| {
                     (STANDARD.encode(key), STANDARD.encode(value))
                 }),
-        )
-        .try_into()
+        ))
         .unwrap()
     }
 
     #[test]
     fn should_not_deserialize_incorrect_event_type() {
         // incorrect event type
-        let mut event: event_sub::Event = signing_started_event();
+        let mut event: events::Event = signing_started_event();
         match event {
-            event_sub::Event::Abci {
+            events::Event::Abci {
                 ref mut event_type, ..
             } => {
                 *event_type = "incorrect".into();
             }
             _ => panic!("incorrect event type"),
         }
-        let event: Option<SigningStartedEvent> = (&event).try_into().unwrap();
+        let event: Result<SigningStartedEvent, events::Error> = (&event).try_into();
 
-        assert!(event.is_none());
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            events::Error::EventTypeMismatch(_)
+        ));
     }
 
     #[test]
@@ -166,7 +150,7 @@ mod test {
             PublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
-            event_sub::Event::Abci {
+            events::Event::Abci {
                 ref mut attributes, ..
             } => {
                 attributes.insert("pub_keys".into(), serde_json::to_value(map).unwrap());
@@ -174,15 +158,19 @@ mod test {
             _ => panic!("incorrect event type"),
         }
 
-        assert!(
-            <&event_sub::Event as TryInto<Option<SigningStartedEvent>>>::try_into(&event).is_err()
-        );
+        let event: Result<SigningStartedEvent, events::Error> = (&event).try_into();
+
+        assert!(matches!(
+            event.unwrap_err().current_context(),
+            events::Error::DeserializationFailed(_, _)
+        ));
     }
 
     #[test]
     fn should_deserialize_event() {
-        let event: Option<SigningStartedEvent> = (&signing_started_event()).try_into().unwrap();
+        let event: Result<SigningStartedEvent, events::Error> =
+            (&signing_started_event()).try_into();
 
-        assert!(event.is_some());
+        assert!(event.is_ok());
     }
 }
