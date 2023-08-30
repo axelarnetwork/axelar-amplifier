@@ -32,7 +32,6 @@ use tx::TxBuilder;
 pub mod accounts;
 pub mod clients;
 mod dec_coin;
-pub mod key;
 mod tx;
 
 #[derive(Error, Debug)]

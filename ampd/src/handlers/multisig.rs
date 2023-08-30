@@ -61,22 +61,26 @@ mod test {
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use cosmwasm_std::{Addr, HexBinary, Uint64};
+    use ecdsa::SigningKey;
+    use rand::rngs::OsRng;
     use tendermint::abci;
 
     use multisig::events::Event::SigningStarted;
     use multisig::types::{MsgToSign, PublicKey};
 
-    use crate::broadcaster::key::ECDSASigningKey;
-
     use super::*;
+    use crate::types;
 
     fn rand_account() -> String {
-        ECDSASigningKey::random().address().to_string()
+        types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .to_string()
     }
 
     fn rand_public_key() -> PublicKey {
         PublicKey::unchecked(HexBinary::from(
-            ECDSASigningKey::random().public_key().to_bytes(),
+            types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
         ))
     }
 

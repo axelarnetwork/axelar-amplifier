@@ -32,13 +32,20 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+    use ecdsa::SigningKey;
+    use rand::rngs::OsRng;
+
     use super::Config;
-    use crate::{broadcaster::key::ECDSASigningKey, evm::ChainName};
+    use crate::evm::ChainName;
+    use crate::types::PublicKey;
 
     #[test]
     fn deserialize_evm_configs() {
         let rpc_url = "http://localhost:7545/";
-        let voting_verifier = ECDSASigningKey::random().address();
+        let voting_verifier = PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .into();
 
         let config_str = format!(
             "
