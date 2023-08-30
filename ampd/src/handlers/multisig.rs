@@ -6,9 +6,10 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
 use error_stack::{IntoReport, ResultExt};
-use hex::FromHex;
+use hex::{encode, FromHex};
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
+use tracing::info;
 
 use events::Error::EventTypeMismatch;
 use events_derive;
@@ -22,6 +23,11 @@ use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
+
+#[derive(Debug, Deserialize)]
+pub struct MultisigConfig {
+    pub address: TMAddress,
+}
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -137,6 +143,12 @@ where
             return Ok(());
         }
 
+        info!(
+            session_id = session_id,
+            msg = encode(&msg),
+            "get signing request",
+        );
+
         return match pub_keys.get(&self.worker) {
             Some(pub_key) => {
                 let signature = self
@@ -145,11 +157,16 @@ where
                     .await
                     .change_context(Error::Sign)?;
 
+                info!(signature = encode(&signature), "ready to submit signature");
+
                 self.broadcast_signature(session_id, signature).await?;
 
                 Ok(())
             }
-            None => Ok(()),
+            None => {
+                info!("worker is not a participant");
+                Ok(())
+            }
         };
     }
 }

@@ -16,6 +16,7 @@ use broadcaster::{accounts::account, key::ECDSASigningKey, Broadcaster};
 use event_processor::{EventHandler, EventProcessor};
 use events::Event;
 use evm::EvmChainConfig;
+use handlers::multisig::MultisigConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::StateUpdater;
@@ -47,7 +48,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         tofnd_config,
         private_key,
         event_buffer_cap,
-        multisig_contract,
+        multisig,
     } = cfg;
 
     let tm_client =
@@ -102,7 +103,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     )
     .configure_evm_chains(&worker, evm_chains)
     .await?
-    .configure_multisig(&worker, multisig_contract)
+    .configure_multisig(&worker, multisig)
     .await
     .run()
     .await
@@ -186,14 +187,14 @@ where
     async fn configure_multisig(
         mut self,
         worker: &TMAddress,
-        multisig: Option<TMAddress>,
+        multisig: Option<MultisigConfig>,
     ) -> App<T> {
-        if let Some(address) = multisig {
+        if let Some(config) = multisig {
             self.register_handler(
                 "multisig-handler",
                 handlers::multisig::Handler::new(
                     worker.clone(),
-                    address,
+                    config.address,
                     self.broadcaster.client(),
                     self.ecdsa_client.clone(),
                 ),
