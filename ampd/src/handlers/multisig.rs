@@ -154,24 +154,21 @@ where
             return Ok(());
         }
 
-        if !pub_keys.contains_key(&self.worker) {
-            return Ok(());
-        }
+        return match pub_keys.get(&self.worker) {
+            Some(pub_key) => {
+                let signature = self
+                    .signer
+                    .sign(self.multisig.to_string().as_str(), msg, pub_key)
+                    .await
+                    .change_context(Error::Sign)?;
 
-        let signature = self
-            .signer
-            .sign(
-                self.multisig.to_string().as_str(),
-                msg,
-                &pub_keys[&self.worker],
-            )
-            .await
-            .change_context(Error::Sign)?;
+                self.broadcast_signature(session_id.into(), signature.into())
+                    .await?;
 
-        self.broadcast_signature(session_id.into(), signature.into())
-            .await?;
-
-        return Ok(());
+                Ok(())
+            }
+            None => Ok(()),
+        };
     }
 }
 

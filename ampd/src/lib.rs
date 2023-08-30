@@ -104,7 +104,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
     .configure_evm_chains(&worker, evm_chains)
     .await?
     .configure_multisig(&worker, multisig_contract)
-    .await?
+    .await
     .run()
     .await
 }
@@ -188,7 +188,7 @@ where
         mut self,
         worker: &TMAddress,
         multisig: Option<TMAddress>,
-    ) -> Result<App<T>, Error> {
+    ) -> App<T> {
         if let Some(address) = multisig {
             self.register_handler(
                 "multisig-handler",
@@ -202,14 +202,13 @@ where
             .await;
         }
 
-        Ok(self)
+        self
     }
 
-    async fn register_handler(
-        &mut self,
-        label: &str,
-        handler: impl EventHandler + Send + Sync + 'static,
-    ) {
+    async fn register_handler<H>(&mut self, label: &str, handler: H)
+    where
+        H: EventHandler + Send + Sync + 'static,
+    {
         let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
         self.state_updater.register_event(label, rx);
 
