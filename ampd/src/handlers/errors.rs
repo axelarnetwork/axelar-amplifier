@@ -7,5 +7,5 @@ pub enum Error {
     #[error("failed to get the latest finalized block")]
     Finalizer,
     #[error("failed to deserialize the event")]
-    DeserializeEvent(#[from] serde_json::Error),
+    DeserializeEvent,
 }

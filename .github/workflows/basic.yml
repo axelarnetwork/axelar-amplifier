@@ -57,6 +57,11 @@ jobs:
           override: true
           components: rustfmt, clippy
 
+      - name: Install cargo-sort
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cargo-sort
+
       - name: Install protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -68,6 +73,12 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+      - name: Run cargo sort
+        uses: actions-rs/cargo@v1
+        with:
+          command: sort
+          args: --workspace --check --check-format
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1

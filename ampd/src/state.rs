@@ -9,6 +9,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{StreamExt, StreamMap};
 use tracing::info;
 
+use crate::types::PublicKey;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("invalid state file")]
@@ -22,6 +24,7 @@ pub enum Error {
 #[derive(Serialize, Deserialize, Default)]
 pub struct State {
     handlers: HashMap<String, block::Height>,
+    pub pub_key: Option<PublicKey>,
 }
 
 impl State {
@@ -98,6 +101,12 @@ impl StateUpdater {
             .change_context(Error::WriteFailure)?;
 
         Ok(())
+    }
+}
+
+impl AsMut<State> for StateUpdater {
+    fn as_mut(&mut self) -> &mut State {
+        &mut self.state
     }
 }
 

@@ -95,7 +95,9 @@ pub mod execute {
             msg,
         };
 
-        Ok(Response::new().add_event(event.into()))
+        Ok(Response::new()
+            .set_data(to_binary(&session_id)?)
+            .add_event(event.into()))
     }
 
     pub fn submit_signature(
@@ -149,6 +151,10 @@ pub mod execute {
         snapshot: Snapshot,
         pub_keys: HashMap<String, (KeyType, HexBinary)>,
     ) -> Result<Response, ContractError> {
+        if snapshot.participants.len() != pub_keys.len() {
+            return Err(ContractError::PublicKeysMismatchParticipants {});
+        }
+
         for participant in snapshot.participants.keys() {
             if !pub_keys.contains_key(participant) {
                 return Err(ContractError::MissingPublicKey {
@@ -514,6 +520,7 @@ mod tests {
         assert_eq!(session.state, MultisigState::Pending);
 
         let res = res.unwrap();
+        assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
         assert_eq!(res.events.len(), 1);
 
         let event = res.events.get(0).unwrap();
