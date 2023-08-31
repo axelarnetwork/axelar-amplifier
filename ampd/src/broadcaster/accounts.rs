@@ -46,18 +46,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::broadcaster::accounts::account;
-    use crate::broadcaster::accounts::Error::*;
-
-    use crate::broadcaster::clients::MockAccountQueryClient;
-    use crate::broadcaster::key::ECDSASigningKey;
     use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
     use cosmos_sdk_proto::cosmos::auth::v1beta1::QueryAccountResponse;
     use cosmos_sdk_proto::traits::MessageExt;
     use cosmrs::Any;
+    use ecdsa::SigningKey;
     use error_stack::IntoReport;
+    use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
+
+    use crate::broadcaster::accounts::account;
+    use crate::broadcaster::accounts::Error::*;
+    use crate::broadcaster::clients::MockAccountQueryClient;
+    use crate::types::PublicKey;
+    use crate::types::TMAddress;
 
     #[test]
     async fn response_failed() {
@@ -66,7 +69,7 @@ mod tests {
             .expect_account()
             .returning(|_| Err(Status::aborted("aborted")).into_report());
 
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
 
         assert!(matches!(
             account(client, &address)
@@ -84,7 +87,7 @@ mod tests {
             .expect_account()
             .returning(|_| Ok(QueryAccountResponse { account: None }));
 
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
 
         assert!(matches!(
             account(client, &address)
@@ -107,7 +110,7 @@ mod tests {
             })
         });
 
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
 
         assert!(matches!(
             account(client, &address)
@@ -120,7 +123,7 @@ mod tests {
 
     #[test]
     async fn get_existing_account() {
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
         let acc = BaseAccount {
             address: address.to_string(),
             pub_key: None,
@@ -137,5 +140,12 @@ mod tests {
         });
 
         assert_eq!(account(client, &address).await.unwrap(), acc);
+    }
+
+    fn rand_tm_address() -> TMAddress {
+        PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .into()
     }
 }
