@@ -183,27 +183,32 @@ mod test {
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::{AccountId, Gas};
     use cosmwasm_std::{Addr, HexBinary, Uint64};
+    use ecdsa::SigningKey;
     use error_stack::{Report, Result};
+    use rand::rngs::OsRng;
     use tendermint::abci;
 
-    use multisig::events::Event::SigningStarted;
-    use multisig::types::{KeyID, MsgToSign, PublicKey};
-
     use super::*;
-    use crate::broadcaster::{key::ECDSASigningKey, MockBroadcaster};
+    use crate::broadcaster::MockBroadcaster;
     use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};
     use crate::tofnd;
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
+    use crate::types;
+    use multisig::events::Event::SigningStarted;
+    use multisig::types::{KeyID, MsgToSign, PublicKey};
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 
-    fn rand_account() -> String {
-        ECDSASigningKey::random().address().to_string()
+    fn rand_account() -> TMAddress {
+        types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .into()
     }
 
     fn rand_public_key() -> PublicKey {
         PublicKey::unchecked(HexBinary::from(
-            ECDSASigningKey::random().public_key().to_bytes(),
+            types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
         ))
     }
 
@@ -214,7 +219,7 @@ mod test {
 
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
-            .map(|_| (rand_account(), rand_public_key()))
+            .map(|_| (rand_account().to_string(), rand_public_key()))
             .collect::<HashMap<String, PublicKey>>();
 
         let poll_started = SigningStarted {
@@ -286,7 +291,7 @@ mod test {
         let invalid_pub_key: [u8; 32] = rand::random();
         let mut map: HashMap<String, PublicKey> = HashMap::new();
         map.insert(
-            rand_account(),
+            rand_account().to_string(),
             PublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
@@ -322,8 +327,8 @@ mod test {
             .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let handler = get_handler(
-            ECDSASigningKey::random().address(),
-            ECDSASigningKey::random().address(),
+            rand_account(),
+            rand_account(),
             SharableEcdsaClient::new(client),
         );
 
@@ -338,7 +343,7 @@ mod test {
             .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let handler = get_handler(
-            ECDSASigningKey::random().address(),
+            rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
         );
