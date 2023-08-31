@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 use crate::broadcaster;
 use crate::evm::{deserialize_evm_chain_configs, EvmChainConfig};
+use crate::handlers::multisig::MultisigConfig;
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
 
@@ -15,6 +16,7 @@ pub struct Config {
     pub evm_chains: Vec<EvmChainConfig>,
     pub tofnd_config: TofndConfig,
     pub event_buffer_cap: usize,
+    pub multisig: Option<MultisigConfig>,
 }
 
 impl Default for Config {
@@ -26,6 +28,7 @@ impl Default for Config {
             evm_chains: vec![],
             tofnd_config: TofndConfig::default(),
             event_buffer_cap: 100000,
+            multisig: None,
         }
     }
 }
