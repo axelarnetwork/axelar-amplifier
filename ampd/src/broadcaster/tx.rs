@@ -89,16 +89,14 @@ where
     }
 
     pub async fn with_dummy_sig(self) -> Result<TxRaw, Error> {
-        let x = self
-            .sign_with(
-                &DUMMY_CHAIN_ID
-                    .parse()
-                    .expect("the dummy chain id must be valid"),
-                DUMMY_ACC_NUMBER,
-                |_| async { Result::<_, Error>::Ok(vec![0; 64]) },
-            )
-            .await;
-        x
+        self.sign_with(
+            &DUMMY_CHAIN_ID
+                .parse()
+                .expect("the dummy chain id must be valid"),
+            DUMMY_ACC_NUMBER,
+            |_| async { Result::<_, Error>::Ok(vec![0; 64]) },
+        )
+        .await
     }
 }
 
