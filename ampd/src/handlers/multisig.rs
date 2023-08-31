@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
-use error_stack::{IntoReport, ResultExt};
+use error_stack::ResultExt;
 use hex::{encode, FromHex};
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
