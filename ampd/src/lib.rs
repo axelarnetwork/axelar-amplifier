@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::config::Config;
-use broadcaster::{accounts::account, key::ECDSASigningKey, Broadcaster};
+use broadcaster::{accounts::account, Broadcaster};
 use event_processor::EventProcessor;
 use events::Event;
 use evm::EvmChainConfig;
@@ -36,6 +36,8 @@ mod tofnd;
 mod types;
 mod url;
 
+const PREFIX: &str = "axelar";
+
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
 pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
@@ -45,7 +47,6 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         broadcast,
         evm_chains,
         tofnd_config,
-        private_key,
         event_buffer_cap,
     } = cfg;
 
@@ -76,7 +77,10 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         }
     };
 
-    let worker = private_key.address();
+    let worker = pub_key
+        .account_id(PREFIX)
+        .expect("failed to convert to account identifier")
+        .into();
     let account = account(query_client, &worker).await.map_err(Error::new)?;
 
     let broadcaster = broadcaster::BroadcastClientBuilder::default()
@@ -84,7 +88,6 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .signer(ecdsa_client.clone())
         .acc_number(account.account_number)
         .acc_sequence(account.sequence)
-        .priv_key(private_key)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
         .build()

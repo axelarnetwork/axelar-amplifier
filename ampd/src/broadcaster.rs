@@ -1,18 +1,20 @@
+use std::convert::TryInto;
 use std::thread;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::{
-    BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, TxRaw,
+    BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest,
 };
 use cosmos_sdk_proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
-use cosmrs::tx::{BodyBuilder, Fee, SignDoc, SignerInfo};
+use cosmrs::tx::Fee;
 use cosmrs::{Coin, Gas};
 use derive_builder::Builder;
-use error_stack::{FutureExt, IntoReport, IntoReportCompat, Report, Result, ResultExt};
+use error_stack::{FutureExt, IntoReport, Report, Result, ResultExt};
 use futures::TryFutureExt;
+use k256::sha2::{Digest, Sha256};
 use mockall::automock;
 use serde::Deserialize;
 use thiserror::Error;
@@ -25,19 +27,18 @@ use crate::report::LoggableError;
 use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::types::PublicKey;
 use dec_coin::DecCoin;
-use fee::zero_fee;
-use key::ECDSASigningKey;
+use tx::TxBuilder;
 
 pub mod accounts;
 pub mod clients;
 mod dec_coin;
-mod fee;
 pub mod key;
+mod tx;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("tx marshaling failed")]
-    TxMarshaling,
+    #[error("failed building tx")]
+    TxBuilding,
     #[error("failed to estimate gas")]
     GasEstimation,
     #[error("broadcast failed")]
@@ -88,12 +89,9 @@ where
     T: clients::BroadcastClient,
 {
     client: T,
-    #[allow(dead_code)]
     signer: SharableEcdsaClient,
     acc_number: u64,
     acc_sequence: u64,
-    priv_key: ECDSASigningKey,
-    #[allow(dead_code)]
     pub_key: (String, PublicKey),
     config: Config,
 }
@@ -104,13 +102,41 @@ where
     T: clients::BroadcastClient + Send + Sync,
 {
     async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error> {
-        let fee = self.estimate_fee(msgs.clone()).await?;
+        let tx = TxBuilder::default()
+            .msgs(msgs.clone())
+            .fee(self.estimate_fee(msgs).await?)
+            .pub_key(self.pub_key.1)
+            .acc_sequence(self.acc_sequence)
+            .build()
+            .into_report()
+            .change_context(Error::TxBuilding)?
+            .sign_with(&self.config.chain_id, self.acc_number, |sign_doc| {
+                let mut hasher = Sha256::new();
+                hasher.update(sign_doc);
 
-        let tx_bytes = self.create_tx(msgs, fee)?;
+                let sign_digest: [u8; 32] = hasher
+                    .finalize()
+                    .to_vec()
+                    .try_into()
+                    .expect("hash size must be 32");
+
+                self.signer
+                    .sign(self.pub_key.0.as_str(), sign_digest.into(), &self.pub_key.1)
+            })
+            .await
+            .change_context(Error::TxBuilding)?;
+
+        let tx = BroadcastTxRequest {
+            tx_bytes: tx
+                .to_bytes()
+                .into_report()
+                .change_context(Error::TxBuilding)?,
+            mode: BroadcastMode::Sync as i32,
+        };
 
         let response = self
             .client
-            .broadcast_tx(tx_bytes)
+            .broadcast_tx(tx)
             .change_context(Error::Broadcast)
             .await?;
         let TxResponse {
@@ -130,7 +156,20 @@ where
     }
 
     async fn estimate_fee(&mut self, msgs: Vec<cosmrs::Any>) -> Result<Fee, Error> {
-        let sim_tx = self.create_sim_tx(msgs)?;
+        let sim_tx = TxBuilder::default()
+            .msgs(msgs)
+            .zero_fee()
+            .pub_key(self.pub_key.1)
+            .acc_sequence(self.acc_sequence)
+            .build()
+            .into_report()
+            .change_context(Error::TxBuilding)?
+            .with_dummy_sig()
+            .await
+            .change_context(Error::TxBuilding)?
+            .to_bytes()
+            .into_report()
+            .change_context(Error::TxBuilding)?;
 
         self.estimate_gas(sim_tx).await.map(|gas| {
             let gas_adj = (gas as f64 * self.config.gas_adjustment) as u64;
@@ -163,56 +202,6 @@ where
                     .into_report()
             })
             .await
-    }
-
-    fn create_sim_tx<M>(&self, msgs: M) -> Result<Vec<u8>, Error>
-    where
-        M: IntoIterator<Item = cosmrs::Any>,
-    {
-        let body_bytes = BodyBuilder::new()
-            .msgs(msgs)
-            .finish()
-            .into_bytes()
-            .into_report()
-            .change_context(Error::TxMarshaling)?;
-
-        let auth_info_bytes =
-            SignerInfo::single_direct(Some(self.priv_key.public_key()), self.acc_sequence)
-                .auth_info(zero_fee())
-                .into_bytes()
-                .into_report()
-                .change_context(Error::TxMarshaling)?;
-
-        let raw = TxRaw {
-            body_bytes,
-            auth_info_bytes,
-            // empty signature to pass validation
-            signatures: vec![vec![0; 64]],
-        };
-
-        raw.to_bytes()
-            .into_report()
-            .change_context(Error::TxMarshaling)
-    }
-
-    pub fn create_tx<M>(&self, msgs: M, fee: Fee) -> Result<BroadcastTxRequest, Error>
-    where
-        M: IntoIterator<Item = cosmrs::Any>,
-    {
-        let body = BodyBuilder::new().msgs(msgs).finish();
-        let auth_info =
-            SignerInfo::single_direct(Some(self.priv_key.public_key()), self.acc_sequence)
-                .auth_info(fee);
-
-        SignDoc::new(&body, &auth_info, &self.config.chain_id, self.acc_number)
-            .and_then(|sign_doc| sign_doc.sign(&((&self.priv_key).into())))
-            .and_then(|tx| tx.to_bytes())
-            .map(|tx| BroadcastTxRequest {
-                tx_bytes: tx,
-                mode: BroadcastMode::Sync as i32,
-            })
-            .into_report()
-            .change_context(Error::TxMarshaling)
     }
 
     async fn confirm_tx(&mut self, tx_hash: &str) -> Result<(), Error> {
@@ -284,32 +273,36 @@ mod tests {
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
     use cosmos_sdk_proto::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use ecdsa::SigningKey;
     use error_stack::IntoReport;
+    use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
 
     use crate::broadcaster::clients::MockBroadcastClient;
-    use crate::broadcaster::key::ECDSASigningKey;
     use crate::broadcaster::{BroadcastClient, Broadcaster, Config, Error};
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
+    use crate::types::PublicKey;
 
     #[test]
     async fn gas_estimation_call_failed() {
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
+
         let mut client = MockBroadcastClient::new();
         client
             .expect_simulate()
             .returning(|_| Err(Status::unavailable("unavailable service")).into_report());
+
         let signer = MockEcdsaClient::new();
 
-        let priv_key = ECDSASigningKey::random();
-        let pub_key = priv_key.public_key();
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
             acc_number: 0,
             acc_sequence: 0,
-            priv_key,
-            pub_key: ("key_uid".into(), pub_key),
+            pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
@@ -326,25 +319,26 @@ mod tests {
 
     #[test]
     async fn gas_estimation_none_response() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
 
+        let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: None,
                 result: None,
             })
         });
+
         let signer = MockEcdsaClient::new();
 
-        let priv_key = ECDSASigningKey::random();
-        let pub_key = priv_key.public_key();
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
             acc_number: 0,
             acc_sequence: 0,
-            priv_key,
-            pub_key: ("key_uid".into(), pub_key),
+            pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
@@ -361,8 +355,11 @@ mod tests {
 
     #[test]
     async fn broadcast_failed() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
 
+        let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -372,21 +369,31 @@ mod tests {
                 result: None,
             })
         });
-
         client
             .expect_broadcast_tx()
             .returning(|_| Err(Status::aborted("failed")).into_report());
-        let signer = MockEcdsaClient::new();
 
-        let priv_key = ECDSASigningKey::random();
-        let pub_key = priv_key.public_key();
+        let mut signer = MockEcdsaClient::new();
+        signer
+            .expect_sign()
+            .once()
+            .returning(move |actual_key_uid, data, actual_pub_key| {
+                assert_eq!(actual_key_uid, key_id);
+                assert_eq!(actual_pub_key, &pub_key);
+
+                let (signature, _) = priv_key
+                    .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
+                    .unwrap();
+
+                Ok(signature.to_vec())
+            });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
             acc_number: 0,
             acc_sequence: 0,
-            priv_key,
-            pub_key: ("key_uid".into(), pub_key),
+            pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
@@ -403,8 +410,11 @@ mod tests {
 
     #[test]
     async fn tx_confirmation_failed() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
 
+        let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -414,26 +424,35 @@ mod tests {
                 result: None,
             })
         });
-
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-
         client
             .expect_get_tx()
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
             .returning(|_| Err(Status::deadline_exceeded("time out")).into_report());
-        let signer = MockEcdsaClient::new();
 
-        let priv_key = ECDSASigningKey::random();
-        let pub_key = priv_key.public_key();
+        let mut signer = MockEcdsaClient::new();
+        signer
+            .expect_sign()
+            .once()
+            .returning(move |actual_key_uid, data, actual_pub_key| {
+                assert_eq!(actual_key_uid, key_id);
+                assert_eq!(actual_pub_key, &pub_key);
+
+                let (signature, _) = priv_key
+                    .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
+                    .unwrap();
+
+                Ok(signature.to_vec())
+            });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
             acc_number: 0,
             acc_sequence: 0,
-            priv_key,
-            pub_key: ("key_uid".into(), pub_key),
+            pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
@@ -450,8 +469,11 @@ mod tests {
 
     #[test]
     async fn tx_execution_failed() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
 
+        let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -461,11 +483,9 @@ mod tests {
                 result: None,
             })
         });
-
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-
         client.expect_get_tx().times(1).returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
@@ -475,17 +495,28 @@ mod tests {
                 ..GetTxResponse::default()
             })
         });
-        let signer = MockEcdsaClient::new();
 
-        let priv_key = ECDSASigningKey::random();
-        let pub_key = priv_key.public_key();
+        let mut signer = MockEcdsaClient::new();
+        signer
+            .expect_sign()
+            .once()
+            .returning(move |actual_key_uid, data, actual_pub_key| {
+                assert_eq!(actual_key_uid, key_id);
+                assert_eq!(actual_pub_key, &pub_key);
+
+                let (signature, _) = priv_key
+                    .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
+                    .unwrap();
+
+                Ok(signature.to_vec())
+            });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
             acc_number: 0,
             acc_sequence: 0,
-            priv_key,
-            pub_key: ("key_uid".into(), pub_key),
+            pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
@@ -504,8 +535,11 @@ mod tests {
 
     #[test]
     async fn broadcast_confirmed() {
-        let mut client = MockBroadcastClient::new();
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
 
+        let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
             Ok(SimulateResponse {
                 gas_info: Some(GasInfo {
@@ -515,11 +549,9 @@ mod tests {
                 result: None,
             })
         });
-
         client
             .expect_broadcast_tx()
             .returning(|_| Ok(TxResponse::default()));
-
         client.expect_get_tx().returning(|_| {
             Ok(GetTxResponse {
                 tx_response: Some(TxResponse {
@@ -529,17 +561,28 @@ mod tests {
                 ..GetTxResponse::default()
             })
         });
-        let signer = MockEcdsaClient::new();
 
-        let priv_key = ECDSASigningKey::random();
-        let pub_key = priv_key.public_key();
+        let mut signer = MockEcdsaClient::new();
+        signer
+            .expect_sign()
+            .once()
+            .returning(move |actual_key_uid, data, actual_pub_key| {
+                assert_eq!(actual_key_uid, key_id);
+                assert_eq!(actual_pub_key, &pub_key);
+
+                let (signature, _) = priv_key
+                    .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
+                    .unwrap();
+
+                Ok(signature.to_vec())
+            });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
             acc_number: 0,
             acc_sequence: 0,
-            priv_key,
-            pub_key: ("key_uid".into(), pub_key),
+            pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
