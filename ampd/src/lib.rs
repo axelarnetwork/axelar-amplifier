@@ -13,9 +13,10 @@ use tracing::info;
 
 use crate::config::Config;
 use broadcaster::{accounts::account, Broadcaster};
-use event_processor::EventProcessor;
+use event_processor::{EventHandler, EventProcessor};
 use events::Event;
 use evm::EvmChainConfig;
+use handlers::multisig::MultisigConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use report::Error;
 use state::StateUpdater;
@@ -48,6 +49,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         evm_chains,
         tofnd_config,
         event_buffer_cap,
+        multisig,
     } = cfg;
 
     let tm_client =
@@ -102,8 +104,10 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         broadcast,
         event_buffer_cap,
     )
-    .configure_evm_chains(worker, evm_chains)
+    .configure_evm_chains(&worker, evm_chains)
     .await?
+    .configure_multisig(&worker, multisig)
+    .await
     .run()
     .await
 }
@@ -164,7 +168,7 @@ where
 
     async fn configure_evm_chains(
         mut self,
-        worker: TMAddress,
+        worker: &TMAddress,
         evm_chains: Vec<EvmChainConfig>,
     ) -> Result<App<T>, Error> {
         for config in evm_chains {
@@ -177,21 +181,48 @@ where
                 self.broadcaster.client(),
             );
 
-            let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
-            self.state_updater.register_event(&label, rx);
-
-            let sub: HandlerStream<_> =
-                match self.state_updater.state().handler_block_height(&label) {
-                    None => Box::pin(self.event_sub.sub()),
-                    Some(&completed_height) => Box::pin(event_sub::skip_to_block(
-                        self.event_sub.sub(),
-                        completed_height.increment(),
-                    )),
-                };
-            self.event_processor.add_handler(handler, sub);
+            self.register_handler(label.as_ref(), handler).await;
         }
 
         Ok(self)
+    }
+
+    async fn configure_multisig(
+        mut self,
+        worker: &TMAddress,
+        multisig: Option<MultisigConfig>,
+    ) -> App<T> {
+        if let Some(config) = multisig {
+            self.register_handler(
+                "multisig-handler",
+                handlers::multisig::Handler::new(
+                    worker.clone(),
+                    config.address,
+                    self.broadcaster.client(),
+                    self.ecdsa_client.clone(),
+                ),
+            )
+            .await;
+        }
+
+        self
+    }
+
+    async fn register_handler<H>(&mut self, label: &str, handler: H)
+    where
+        H: EventHandler + Send + Sync + 'static,
+    {
+        let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
+        self.state_updater.register_event(label, rx);
+
+        let sub: HandlerStream<_> = match self.state_updater.state().handler_block_height(label) {
+            None => Box::pin(self.event_sub.sub()),
+            Some(&completed_height) => Box::pin(event_sub::skip_to_block(
+                self.event_sub.sub(),
+                completed_height.increment(),
+            )),
+        };
+        self.event_processor.add_handler(handler, sub);
     }
 
     async fn run(self) -> Result<(), Error> {

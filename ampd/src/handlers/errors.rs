@@ -8,4 +8,6 @@ pub enum Error {
     Finalizer,
     #[error("failed to deserialize the event")]
     DeserializeEvent,
+    #[error("failed to get signature from tofnd")]
+    Sign,
 }
