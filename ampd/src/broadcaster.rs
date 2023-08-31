@@ -12,7 +12,7 @@ use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Coin, Gas};
 use derive_builder::Builder;
-use error_stack::{FutureExt, IntoReport, Report, Result, ResultExt};
+use error_stack::{FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
@@ -107,7 +107,6 @@ where
             .pub_key(self.pub_key.1)
             .acc_sequence(self.acc_sequence)
             .build()
-            .into_report()
             .change_context(Error::TxBuilding)?
             .sign_with(&self.config.chain_id, self.acc_number, |sign_doc| {
                 let mut hasher = Sha256::new();
@@ -126,10 +125,7 @@ where
             .change_context(Error::TxBuilding)?;
 
         let tx = BroadcastTxRequest {
-            tx_bytes: tx
-                .to_bytes()
-                .into_report()
-                .change_context(Error::TxBuilding)?,
+            tx_bytes: tx.to_bytes().change_context(Error::TxBuilding)?,
             mode: BroadcastMode::Sync as i32,
         };
 
@@ -161,13 +157,11 @@ where
             .pub_key(self.pub_key.1)
             .acc_sequence(self.acc_sequence)
             .build()
-            .into_report()
             .change_context(Error::TxBuilding)?
             .with_dummy_sig()
             .await
             .change_context(Error::TxBuilding)?
             .to_bytes()
-            .into_report()
             .change_context(Error::TxBuilding)?;
 
         self.estimate_gas(sim_tx).await.map(|gas| {
@@ -197,8 +191,7 @@ where
                 response
                     .gas_info
                     .map(|info| info.gas_used)
-                    .ok_or(Error::GasEstimation)
-                    .into_report()
+                    .ok_or(Error::GasEstimation.into())
             })
             .await
     }
@@ -229,7 +222,7 @@ where
 
                     return Ok(());
                 }
-                ConfirmationResult::Critical(err) => return Err(err).into_report(),
+                ConfirmationResult::Critical(err) => return Err(err.into()),
                 ConfirmationResult::Retriable(err) => {
                     if let Err(result) = result.as_mut() {
                         result.extend_one(err);
@@ -273,7 +266,6 @@ mod tests {
     use cosmos_sdk_proto::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use ecdsa::SigningKey;
-    use error_stack::IntoReport;
     use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
@@ -292,7 +284,7 @@ mod tests {
         let mut client = MockBroadcastClient::new();
         client
             .expect_simulate()
-            .returning(|_| Err(Status::unavailable("unavailable service")).into_report());
+            .returning(|_| Err(Status::unavailable("unavailable service").into()));
 
         let signer = MockEcdsaClient::new();
 
@@ -370,7 +362,7 @@ mod tests {
         });
         client
             .expect_broadcast_tx()
-            .returning(|_| Err(Status::aborted("failed")).into_report());
+            .returning(|_| Err(Status::aborted("failed").into()));
 
         let mut signer = MockEcdsaClient::new();
         signer
@@ -429,7 +421,7 @@ mod tests {
         client
             .expect_get_tx()
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
-            .returning(|_| Err(Status::deadline_exceeded("time out")).into_report());
+            .returning(|_| Err(Status::deadline_exceeded("time out").into()));
 
         let mut signer = MockEcdsaClient::new();
         signer

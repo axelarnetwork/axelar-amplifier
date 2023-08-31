@@ -4,7 +4,7 @@ use std::pin::Pin;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{FutureExt, IntoReport, Result, ResultExt};
+use error_stack::{FutureExt, Report, Result, ResultExt};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinSet;
 use tokio_stream::Stream;
@@ -12,13 +12,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::config::Config;
+use crate::report::Error;
 use broadcaster::{accounts::account, Broadcaster};
 use event_processor::{EventHandler, EventProcessor};
 use events::Event;
 use evm::EvmChainConfig;
 use handlers::multisig::MultisigConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
-use report::Error;
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
@@ -93,7 +93,6 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
         .build()
-        .into_report()
         .change_context(Error::Broadcaster)?;
 
     App::new(
@@ -259,10 +258,7 @@ where
         let res = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                result
-                    .map_err(Error::new)
-                    .into_report()
-                    .and_then(|result| result)
+                result.map_err(Error::new).map_err(Report::from)?
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),

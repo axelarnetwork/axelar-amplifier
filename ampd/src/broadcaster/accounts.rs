@@ -2,7 +2,7 @@ use crate::broadcaster::clients::AccountQueryClient;
 use crate::types::TMAddress;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
 use cosmos_sdk_proto::traits::Message;
-use error_stack::{FutureExt, IntoReport, Result, ResultExt};
+use error_stack::{FutureExt, Result, ResultExt};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -30,13 +30,14 @@ where
 
     let account = response
         .account
-        .ok_or_else(|| Error::AccountNotFound {
-            address: address.clone(),
+        .ok_or_else(|| {
+            Error::AccountNotFound {
+                address: address.clone(),
+            }
+            .into()
         })
-        .into_report()
         .and_then(|account| {
             BaseAccount::decode(&account.value[..])
-                .into_report()
                 .change_context(Error::MalformedResponse)
                 .attach_printable_lazy(|| format!("{{ value = {:?} }}", account.value))
         })?;
@@ -51,7 +52,6 @@ mod tests {
     use cosmos_sdk_proto::traits::MessageExt;
     use cosmrs::Any;
     use ecdsa::SigningKey;
-    use error_stack::IntoReport;
     use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
@@ -67,7 +67,7 @@ mod tests {
         let mut client = MockAccountQueryClient::new();
         client
             .expect_account()
-            .returning(|_| Err(Status::aborted("aborted")).into_report());
+            .returning(|_| Err(Status::aborted("aborted").into()));
 
         let address = rand_tm_address();
 

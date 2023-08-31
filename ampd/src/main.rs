@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
 use clap::{Parser, ValueEnum};
 use config::ConfigError;
-use error_stack::IntoReport;
+use error_stack::Report;
 use tracing::{error, info};
 
 use ampd::config::Config;
@@ -63,7 +63,7 @@ fn init_config(args: &Args) -> Config {
     let files = find_config_files(&args.config);
     info!("found {} config files to load", files.len());
 
-    match parse_config(files).into_report() {
+    match parse_config(files).map_err(Report::from) {
         Ok(cfg) => cfg,
         Err(report) => {
             let err = LoggableError::from(&report);

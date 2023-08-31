@@ -1,4 +1,5 @@
 use core::fmt::Debug;
+use std::future::Future;
 
 use cosmrs::tendermint::chain::Id;
 use cosmrs::{
@@ -7,8 +8,8 @@ use cosmrs::{
     Any, Coin,
 };
 use derive_builder::Builder;
-use error_stack::{IntoReport, IntoReportCompat, Result, ResultExt};
-use futures::Future;
+use error_stack::{Context, Result, ResultExt};
+use report::ResultCompatExt;
 use thiserror::Error;
 
 use crate::types::PublicKey;
@@ -63,19 +64,18 @@ where
     where
         F: Fn(Vec<u8>) -> Fut,
         Fut: Future<Output = Result<Vec<u8>, Err>>,
+        Err: Context,
     {
         let body = BodyBuilder::new().msgs(self.msgs).finish();
         let auth_info =
             SignerInfo::single_direct(Some(self.pub_key), self.acc_sequence).auth_info(self.fee);
         let sign_doc = SignDoc::new(&body, &auth_info, chain_id, acc_number)
-            .into_report()
             .change_context(Error::Marshaling)?;
 
         let signature = sign(
             sign_doc
                 .clone()
                 .into_bytes()
-                .into_report()
                 .change_context(Error::Marshaling)?,
         )
         .await
@@ -94,7 +94,7 @@ where
                 .parse()
                 .expect("the dummy chain id must be valid"),
             DUMMY_ACC_NUMBER,
-            |_| async { std::result::Result::<_, Error>::Ok(vec![0; 64]).into_report() },
+            |_| async { Result::<_, Error>::Ok(vec![0; 64]) },
         )
         .await
     }
@@ -112,13 +112,14 @@ mod tests {
         tx::{BodyBuilder, Fee, Msg, SignDoc, SignerInfo},
         AccountId, Coin,
     };
-    use error_stack::IntoReport;
+    use error_stack::Result;
     use k256::ecdsa;
     use k256::sha2::{Digest, Sha256};
     use tokio::test;
 
-    use super::{Error, TxBuilder, DUMMY_CHAIN_ID};
     use crate::types::PublicKey;
+
+    use super::{Error, TxBuilder, DUMMY_CHAIN_ID};
 
     #[test]
     async fn sign_with_should_produce_the_correct_tx() {
@@ -145,7 +146,7 @@ mod tests {
                 let priv_key = ecdsa::SigningKey::from_bytes(&priv_key_bytes).unwrap();
                 let (signature, _) = priv_key.sign_prehash_recoverable(&hash.to_vec()).unwrap();
 
-                std::result::Result::<_, Error>::Ok(signature.to_vec()).into_report()
+                Result::<_, Error>::Ok(signature.to_vec())
             })
             .await
             .unwrap();
