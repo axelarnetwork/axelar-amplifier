@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use std::{collections::HashMap, str::FromStr};
 
-use axelar_wasm_std::{Participant, Snapshot};
+use axelar_wasm_std::{snapshot::NonWeightedParticipant, Snapshot};
 use connection_router::{msg::Message, types::ChainName};
 use service_registry::state::Worker;
 
@@ -128,13 +128,8 @@ fn snapshot(
 
     let participants = active_workers
         .into_iter()
-        .map(Worker::try_into)
-        .collect::<Result<Vec<Participant>, _>>()
-        .map_err(
-            |err: service_registry::ContractError| ContractError::InvalidParticipants {
-                reason: err.to_string(),
-            },
-        )?
+        .map(Worker::into)
+        .collect::<Vec<NonWeightedParticipant>>()
         .try_into()
         .map_err(
             |err: axelar_wasm_std::nonempty::Error| ContractError::InvalidParticipants {

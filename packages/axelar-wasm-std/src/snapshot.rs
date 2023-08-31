@@ -12,6 +12,22 @@ pub struct Participant {
 }
 
 #[cw_serde]
+pub struct NonWeightedParticipant {
+    pub address: Addr,
+}
+
+impl From<NonWeightedParticipant> for Participant {
+    fn from(participant: NonWeightedParticipant) -> Self {
+        Self {
+            address: participant.address,
+            weight: Uint256::one()
+                .try_into()
+                .expect("violated invariant: weight is zero"),
+        }
+    }
+}
+
+#[cw_serde]
 pub struct Snapshot {
     pub timestamp: nonempty::Timestamp,
     pub height: nonempty::Uint64,
@@ -21,18 +37,20 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn new(
+    pub fn new<T: Into<Participant>>(
         timestamp: nonempty::Timestamp,
         height: nonempty::Uint64,
         quorum_threshold: Threshold,
-        participants: nonempty::Vec<Participant>,
+        participants: nonempty::Vec<T>,
     ) -> Self {
         let mut total_weight = Uint256::zero();
 
-        let participants: Vec<Participant> = participants.into();
+        let participants: Vec<T> = participants.into();
         let participants: HashMap<String, Participant> = participants
             .into_iter()
             .map(|participant| {
+                let participant = participant.into();
+
                 let weight: &Uint256 = (&participant.weight).into();
                 total_weight += weight;
 
@@ -116,6 +134,16 @@ mod tests {
             ("participant8", non_zero_256(300u16)),
             ("participant9", non_zero_256(300u16)),
         ])
+    }
+    #[test]
+    fn test_participant_conversion() {
+        let participant = NonWeightedParticipant {
+            address: Addr::unchecked("participant"),
+        };
+
+        let participant: Participant = participant.into();
+
+        assert_eq!(participant.weight, Uint256::one().try_into().unwrap());
     }
 
     #[test]
