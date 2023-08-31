@@ -39,9 +39,9 @@ pub enum QueryMsg {
     #[returns(Key)]
     GetKey { key_id: KeyID },
 
-    #[returns(Vec<PublicKey>)]
-    GetPublicKeys {
-        worker_addresses: Vec<String>,
+    #[returns(PublicKey)]
+    GetPublicKey {
+        worker_address: String,
         key_type: KeyType,
     },
 }

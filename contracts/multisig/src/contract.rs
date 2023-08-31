@@ -220,15 +220,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
         QueryMsg::GetKey { key_id } => to_binary(&query::get_key(deps, key_id)?),
-        QueryMsg::GetPublicKeys {
-            worker_addresses,
+        QueryMsg::GetPublicKey {
+            worker_address,
             key_type,
-        } => to_binary(&query::get_keys(
+        } => to_binary(&query::get_public_key(
             deps,
-            worker_addresses
-                .iter()
-                .map(|addr| deps.api.addr_validate(addr))
-                .collect::<Result<Vec<Addr>, _>>()?,
+            deps.api.addr_validate(&worker_address)?,
             key_type,
         )?),
     }
@@ -274,15 +271,8 @@ pub mod query {
         KEYS.load(deps.storage, &key_id)
     }
 
-    pub fn get_keys(
-        deps: Deps,
-        workers: Vec<Addr>,
-        key_type: KeyType,
-    ) -> StdResult<Vec<PublicKey>> {
-        workers
-            .into_iter()
-            .map(|worker| PUB_KEYS.load(deps.storage, (worker, key_type.clone())))
-            .collect::<Result<Vec<PublicKey>, _>>()
+    pub fn get_public_key(deps: Deps, worker: Addr, key_type: KeyType) -> StdResult<PublicKey> {
+        PUB_KEYS.load(deps.storage, (worker, key_type.clone()))
     }
 }
 
@@ -416,17 +406,17 @@ mod tests {
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
 
-    fn query_registered_keys(
+    fn query_registered_public_key(
         deps: Deps,
-        workers: Vec<Addr>,
+        worker: Addr,
         key_type: KeyType,
     ) -> StdResult<Binary> {
         let env = mock_env();
         query(
             deps,
             env,
-            QueryMsg::GetPublicKeys {
-                worker_addresses: workers.into_iter().map(|w| w.to_string()).collect(),
+            QueryMsg::GetPublicKey {
+                worker_address: worker.to_string(),
                 key_type,
             },
         )
@@ -707,19 +697,19 @@ mod tests {
             let res = do_register_key(deps.as_mut(), addr.clone(), pub_key.clone(), KeyType::ECDSA);
             assert!(res.is_ok());
         }
+        let mut ret_pub_keys: Vec<PublicKey> = vec![];
 
-        let res = query_registered_keys(
-            deps.as_ref(),
-            pub_keys.clone().into_iter().map(|(addr, _)| addr).collect(),
-            KeyType::ECDSA,
-        );
-        assert!(res.is_ok());
+        for (addr, _) in &pub_keys {
+            let res = query_registered_public_key(deps.as_ref(), addr.clone(), KeyType::ECDSA);
+            assert!(res.is_ok());
+            ret_pub_keys.push(from_binary(&res.unwrap()).unwrap());
+        }
         assert_eq!(
             pub_keys
                 .into_iter()
                 .map(|(_, pk)| PublicKey::try_from((KeyType::ECDSA, pk)).unwrap())
                 .collect::<Vec<PublicKey>>(),
-            from_binary::<Vec<PublicKey>>(&res.unwrap()).unwrap()
+            ret_pub_keys
         );
     }
 
@@ -750,11 +740,11 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        let res = query_registered_keys(deps.as_ref(), vec![pub_keys[0].0.clone()], KeyType::ECDSA);
+        let res = query_registered_public_key(deps.as_ref(), pub_keys[0].0.clone(), KeyType::ECDSA);
         assert!(res.is_ok());
         assert_eq!(
-            vec![PublicKey::try_from((KeyType::ECDSA, new_pub_key)).unwrap()],
-            from_binary::<Vec<PublicKey>>(&res.unwrap()).unwrap()
+            PublicKey::try_from((KeyType::ECDSA, new_pub_key)).unwrap(),
+            from_binary::<PublicKey>(&res.unwrap()).unwrap()
         );
     }
 }

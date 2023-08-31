@@ -45,9 +45,9 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
         QueryMsg::GetKey { key_id: _ } => unimplemented!(),
-        QueryMsg::GetPublicKeys {
-            worker_addresses,
-            key_type,
+        QueryMsg::GetPublicKey {
+            worker_address: _,
+            key_type: _,
         } => unimplemented!(),
     }
 }
