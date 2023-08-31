@@ -70,13 +70,16 @@ where
         let sign_doc = SignDoc::new(&body, &auth_info, chain_id, acc_number)
             .into_report()
             .change_context(Error::Marshaling)?;
-        let sign_digest = sign_doc
-            .clone()
-            .into_bytes()
-            .into_report()
-            .change_context(Error::Marshaling)?;
 
-        let signature = sign(sign_digest).await.change_context(Error::Sign)?;
+        let signature = sign(
+            sign_doc
+                .clone()
+                .into_bytes()
+                .into_report()
+                .change_context(Error::Marshaling)?,
+        )
+        .await
+        .change_context(Error::Sign)?;
 
         Ok(TxRaw {
             body_bytes: sign_doc.body_bytes,
@@ -134,9 +137,9 @@ mod tests {
             .acc_sequence(acc_sequence)
             .build()
             .unwrap()
-            .sign_with(&chain_id, acc_number, |sign_digest| async move {
+            .sign_with(&chain_id, acc_number, |sign_doc| async move {
                 let mut hasher = Sha256::new();
-                hasher.update(sign_digest);
+                hasher.update(sign_doc);
                 let hash = hasher.finalize();
 
                 let priv_key = ecdsa::SigningKey::from_bytes(&priv_key_bytes).unwrap();

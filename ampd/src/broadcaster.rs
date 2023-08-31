@@ -110,9 +110,9 @@ where
             .build()
             .into_report()
             .change_context(Error::TxBuilding)?
-            .sign_with(&self.config.chain_id, self.acc_number, |sign_digest| {
+            .sign_with(&self.config.chain_id, self.acc_number, |sign_doc| {
                 let mut hasher = Sha256::new();
-                hasher.update(sign_digest);
+                hasher.update(sign_doc);
 
                 let sign_digest: [u8; 32] = hasher
                     .finalize()
