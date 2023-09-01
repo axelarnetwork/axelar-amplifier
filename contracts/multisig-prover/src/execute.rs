@@ -2,7 +2,7 @@ use cosmwasm_std::{
     to_binary, wasm_execute, Addr, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper,
     QueryRequest, Response, SubMsg, WasmMsg, WasmQuery,
 };
-use multisig::types::{KeyType, PublicKey};
+use multisig::key::{KeyType, PublicKey};
 
 use std::{collections::HashMap, str::FromStr};
 
@@ -112,7 +112,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     for worker in &workers {
         let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
             worker_address: worker.address.to_string(),
-            key_type: multisig::types::KeyType::ECDSA,
+            key_type: KeyType::Ecdsa,
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
@@ -183,7 +183,7 @@ pub fn rotate_snapshot(
             pub_keys: pub_keys
                 .clone()
                 .into_iter()
-                .map(|(k, v)| (k, (KeyType::ECDSA, v)))
+                .map(|(k, v)| (k, (KeyType::Ecdsa, v)))
                 .collect(),
         })?,
         funds: vec![],

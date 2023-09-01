@@ -2,88 +2,13 @@ use std::{collections::HashMap, fmt};
 
 use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_binary, Addr, HexBinary, StdError, StdResult};
+use cosmwasm_std::{from_binary, Addr, HexBinary, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 
-use crate::{secp256k1::ecdsa_verify, ContractError};
+use crate::{key::PublicKey, ContractError};
 
 pub trait VerifiableSignature {
     fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError>;
-}
-
-#[cw_serde]
-pub enum KeyType {
-    ECDSA,
-}
-
-impl<'a> PrimaryKey<'a> for KeyType {
-    type Prefix = ();
-    type SubPrefix = ();
-    type Suffix = Self;
-    type SuperSuffix = Self;
-
-    fn key(&self) -> Vec<cw_storage_plus::Key> {
-        vec![cw_storage_plus::Key::Val8(
-            vec![self.clone() as u8]
-                .try_into()
-                .expect("failed to serialize key type"),
-        )]
-    }
-}
-
-impl KeyDeserialize for KeyType {
-    type Output = Self;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        serde_json::from_slice(value.as_slice()).map_err(|err| StdError::ParseErr {
-            target_type: "KeyType".into(),
-            msg: err.to_string(),
-        })
-    }
-}
-
-#[cw_serde]
-pub enum PublicKey {
-    ECDSA(ECDSAPublicKey),
-}
-
-impl TryFrom<(KeyType, HexBinary)> for PublicKey {
-    type Error = ContractError;
-
-    fn try_from((key_type, pub_key): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
-        match key_type {
-            KeyType::ECDSA => ECDSAPublicKey::try_from(pub_key).map(PublicKey::ECDSA),
-        }
-    }
-}
-
-impl<'a> From<&'a PublicKey> for &'a [u8] {
-    fn from(value: &'a PublicKey) -> Self {
-        match value {
-            PublicKey::ECDSA(pub_key) => pub_key.into(),
-        }
-    }
-}
-
-#[cw_serde]
-pub struct ECDSAPublicKey(HexBinary);
-
-impl From<ECDSAPublicKey> for HexBinary {
-    fn from(original: ECDSAPublicKey) -> Self {
-        original.0
-    }
-}
-
-impl<'a> From<&'a ECDSAPublicKey> for &'a [u8] {
-    fn from(original: &'a ECDSAPublicKey) -> Self {
-        original.0.as_slice()
-    }
-}
-
-impl ECDSAPublicKey {
-    pub fn unchecked(hex: HexBinary) -> Self {
-        Self(hex)
-    }
 }
 
 #[cw_serde]
@@ -104,66 +29,6 @@ impl<'a> From<&'a MsgToSign> for &'a [u8] {
 impl MsgToSign {
     pub fn unchecked(hex: HexBinary) -> Self {
         Self(hex)
-    }
-}
-
-#[cw_serde]
-#[derive(Ord, PartialOrd, Eq)]
-pub enum Signature {
-    ECDSA(ECDSASignature),
-}
-
-impl From<Signature> for HexBinary {
-    fn from(value: Signature) -> Self {
-        match value {
-            Signature::ECDSA(sig) => sig.into(),
-        }
-    }
-}
-
-impl TryFrom<(PublicKey, HexBinary)> for Signature {
-    type Error = ContractError;
-
-    fn try_from((pk, sig): (PublicKey, HexBinary)) -> Result<Self, Self::Error> {
-        match pk {
-            PublicKey::ECDSA(_) => ECDSASignature::try_from(sig).map(Signature::ECDSA),
-        }
-    }
-}
-
-#[cw_serde]
-#[derive(Ord, PartialOrd, Eq)]
-pub struct ECDSASignature(HexBinary);
-
-impl From<ECDSASignature> for HexBinary {
-    fn from(original: ECDSASignature) -> Self {
-        original.0
-    }
-}
-
-impl From<&ECDSASignature> for Vec<u8> {
-    fn from(original: &ECDSASignature) -> Self {
-        original.0.to_vec()
-    }
-}
-
-impl<'a> From<&'a ECDSASignature> for &'a [u8] {
-    fn from(original: &'a ECDSASignature) -> Self {
-        original.0.as_slice()
-    }
-}
-
-impl ECDSASignature {
-    pub fn unchecked(hex: HexBinary) -> Self {
-        Self(hex)
-    }
-}
-
-impl VerifiableSignature for Signature {
-    fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
-        match (self, pub_key) {
-            (Signature::ECDSA(sig), PublicKey::ECDSA(pub_key)) => ecdsa_verify(msg, sig, pub_key),
-        }
     }
 }
 
@@ -213,9 +78,27 @@ pub enum MultisigState {
     Completed,
 }
 
+const MESSAGE_HASH_LEN: usize = 32;
+
+impl TryFrom<HexBinary> for MsgToSign {
+    type Error = ContractError;
+
+    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
+        if other.len() != MESSAGE_HASH_LEN {
+            return Err(ContractError::InvalidMessageFormat {
+                reason: "Invalid input length".into(),
+            });
+        }
+
+        Ok(MsgToSign::unchecked(other))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::to_binary;
+
+    use crate::test::common::test_data;
 
     use super::*;
 
@@ -229,5 +112,23 @@ mod tests {
         let serialized = to_binary(&key).unwrap();
 
         assert_eq!(key, KeyID::from_vec(serialized.into()).unwrap());
+    }
+
+    #[test]
+    fn test_try_from_hexbinary_to_message() {
+        let hex = test_data::message();
+        let message = MsgToSign::try_from(hex.clone()).unwrap();
+        assert_eq!(HexBinary::from(message), hex);
+    }
+
+    #[test]
+    fn test_try_from_hexbinary_to_message_fails() {
+        let hex = HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap();
+        assert_eq!(
+            MsgToSign::try_from(hex.clone()).unwrap_err(),
+            ContractError::InvalidMessageFormat {
+                reason: "Invalid input length".into()
+            }
+        );
     }
 }

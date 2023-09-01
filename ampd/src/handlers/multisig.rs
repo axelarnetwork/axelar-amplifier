@@ -32,15 +32,15 @@ fn deserialize_public_keys<'de, D>(
 where
     D: Deserializer<'de>,
 {
-    let keys_by_address: HashMap<TMAddress, multisig::types::PublicKey> =
+    let keys_by_address: HashMap<TMAddress, multisig::key::PublicKey> =
         HashMap::deserialize(deserializer)?;
 
     keys_by_address
         .into_iter()
         .map(|(address, pk)| match pk {
-            multisig::types::PublicKey::ECDSA(hex) => Ok((
+            multisig::key::PublicKey::Ecdsa(hex) => Ok((
                 address,
-                VerifyingKey::from_sec1_bytes((&hex).into())
+                VerifyingKey::from_sec1_bytes(hex.as_ref())
                     .map_err(D::Error::custom)?
                     .into(),
             )),
@@ -60,7 +60,8 @@ mod test {
     use tendermint::abci;
 
     use multisig::events::Event::SigningStarted;
-    use multisig::types::{ECDSAPublicKey, MsgToSign};
+    use multisig::key::PublicKey;
+    use multisig::types::MsgToSign;
 
     use crate::broadcaster::key::ECDSASigningKey;
 
@@ -70,10 +71,10 @@ mod test {
         ECDSASigningKey::random().address().to_string()
     }
 
-    fn rand_public_key() -> multisig::types::PublicKey {
-        multisig::types::PublicKey::ECDSA(ECDSAPublicKey::unchecked(HexBinary::from(
+    fn rand_public_key() -> multisig::key::PublicKey {
+        multisig::key::PublicKey::Ecdsa(HexBinary::from(
             ECDSASigningKey::random().public_key().to_bytes(),
-        )))
+        ))
     }
 
     fn rand_message() -> HexBinary {
@@ -84,7 +85,7 @@ mod test {
     fn signing_started_event() -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account(), rand_public_key()))
-            .collect::<HashMap<String, multisig::types::PublicKey>>();
+            .collect::<HashMap<String, multisig::key::PublicKey>>();
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
@@ -140,10 +141,10 @@ mod test {
         let mut event = signing_started_event();
 
         let invalid_pub_key: [u8; 32] = rand::random();
-        let mut map: HashMap<String, ECDSAPublicKey> = HashMap::new();
+        let mut map: HashMap<String, PublicKey> = HashMap::new();
         map.insert(
             rand_account(),
-            ECDSAPublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
+            PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
             events::Event::Abci {

@@ -4,7 +4,10 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
-use crate::types::{Key, KeyID, KeyType, MultisigState, PublicKey, Signature};
+use crate::{
+    key::{KeyType, PublicKey, Signature},
+    types::{Key, KeyID, MultisigState},
+};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -25,8 +28,7 @@ pub enum ExecuteMsg {
         pub_keys: HashMap<String, (KeyType, HexBinary)>,
     },
     RegisterPublicKey {
-        public_key: HexBinary,
-        key_type: KeyType,
+        public_key: PublicKey,
     },
 }
 

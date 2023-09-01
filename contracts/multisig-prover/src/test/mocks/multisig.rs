@@ -34,10 +34,7 @@ pub fn execute(
             snapshot: _,
             pub_keys: _,
         } => Ok(Response::default()),
-        ExecuteMsg::RegisterPublicKey {
-            public_key: _,
-            key_type: _,
-        } => unimplemented!(),
+        ExecuteMsg::RegisterPublicKey { public_key: _ } => unimplemented!(),
     }
 }
 
@@ -54,8 +51,8 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 mod query {
     use multisig::{
+        key::Signature,
         msg::{Multisig, Signer},
-        types::Signature,
     };
 
     use crate::test::test_data;
@@ -73,10 +70,9 @@ mod query {
                     Signer {
                         address: op.address,
                         weight: op.weight.into(),
-                        pub_key: multisig::types::PublicKey::ECDSA(op.pub_key),
+                        pub_key: op.pub_key,
                     },
-                    op.signature
-                        .map(|sig| multisig::types::Signature::ECDSA(sig)),
+                    op.signature,
                 )
             })
             .collect::<Vec<(Signer, Option<Signature>)>>();

@@ -3,6 +3,7 @@ use connection_router::types::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Env, HexBinary, Uint256};
 use cw_storage_plus::{Item, Map};
+use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use sha3::{Digest, Keccak256};
 
@@ -39,7 +40,7 @@ pub struct WorkerSet {
 impl WorkerSet {
     pub fn new(
         snapshot: Snapshot,
-        pub_keys: Vec<multisig::types::PublicKey>,
+        pub_keys: Vec<PublicKey>,
         env: Env,
     ) -> Result<Self, ContractError> {
         let signers = pub_keys

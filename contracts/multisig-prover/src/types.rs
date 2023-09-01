@@ -3,7 +3,7 @@ use std::fmt::Display;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::types::ECDSASignature;
+use multisig::key::Signature;
 use sha3::{Digest, Keccak256};
 
 use crate::{encoding::Data, state::WorkerSet};
@@ -88,5 +88,5 @@ pub struct CommandBatch {
 pub struct Operator {
     pub address: HexBinary,
     pub weight: Uint256,
-    pub signature: Option<ECDSASignature>,
+    pub signature: Option<Signature>,
 }

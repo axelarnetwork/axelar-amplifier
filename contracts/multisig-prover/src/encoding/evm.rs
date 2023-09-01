@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::{operators::Operators, Snapshot};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, short_signature, ParamType, Token};
@@ -8,7 +7,7 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use connection_router::msg::Message;
-use multisig::{msg::Signer, types::Signature};
+use multisig::{key::Signature, msg::Signer};
 
 use crate::{
     error::ContractError,
@@ -63,29 +62,11 @@ impl TryFrom<(Signer, Option<Signature>)> for Operator {
 
     fn try_from((signer, sig): (Signer, Option<Signature>)) -> Result<Self, Self::Error> {
         Ok(Self {
-            address: evm_address((&signer.pub_key).into())?,
+            address: evm_address(signer.pub_key.as_ref())?,
             weight: signer.weight,
-            signature: sig.map(|Signature::ECDSA(sig)| sig),
+            signature: sig,
         })
     }
-}
-
-pub fn make_worker_set(
-    snapshot: Snapshot,
-    pub_keys: Vec<multisig::types::PublicKey>,
-) -> Result<Operators, ContractError> {
-    let addresses = pub_keys
-        .iter()
-        .map(|pub_key| evm_address(pub_key.into()))
-        .collect::<Result<Vec<HexBinary>, _>>()?;
-    let zipped: Vec<(HexBinary, Uint256)> = addresses
-        .into_iter()
-        .zip(snapshot.participants.values().map(|p| p.weight.into()))
-        .collect();
-    Ok(Operators {
-        weights: zipped,
-        threshold: snapshot.quorum.into(),
-    })
 }
 
 impl CommandBatch {
@@ -168,7 +149,7 @@ impl CommandBatch {
                 )));
 
                 if let Some(signature) = &operator.signature {
-                    signatures.push(Token::Bytes(signature.into()));
+                    signatures.push(Token::Bytes(<Vec<u8>>::from(signature.clone())));
                 }
 
                 (addresses, weights, signatures)
@@ -193,7 +174,7 @@ fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, Con
         .iter()
         .map(|s| {
             (
-                evm_address((&s.pub_key).into()).expect("couldn't convert pubkey to evm address"),
+                evm_address(s.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
                 s.weight,
             )
         })
@@ -300,7 +281,6 @@ fn command_params(
 #[cfg(test)]
 mod test {
     use ethabi::ParamType;
-    use multisig::types::PublicKey;
 
     use crate::test::test_data;
 
@@ -452,7 +432,7 @@ mod test {
         let mut new_worker_set = test_data::new_worker_set();
         new_worker_set
             .signers
-            .sort_by_key(|signer| evm_address((&signer.pub_key).into()).unwrap());
+            .sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
         let res = Command::try_from(new_worker_set.clone());
         assert!(res.is_ok());
 
@@ -462,7 +442,7 @@ mod test {
             assert_eq!(
                 tokens[0].clone().into_array().unwrap()[i],
                 Token::Address(ethereum_types::Address::from_slice(
-                    evm_address((&new_worker_set.signers[i].pub_key).into())
+                    evm_address(new_worker_set.signers[i].pub_key.as_ref())
                         .expect("couldn't convert pubkey to evm address")
                         .as_slice()
                 ))
@@ -546,9 +526,9 @@ mod test {
                     Signer {
                         address: op.address,
                         weight: op.weight.into(),
-                        pub_key: PublicKey::ECDSA(op.pub_key),
+                        pub_key: op.pub_key,
                     },
-                    op.signature.map(Signature::ECDSA),
+                    op.signature,
                 )
             })
             .collect::<Vec<(Signer, Option<Signature>)>>();
@@ -624,9 +604,9 @@ mod test {
                     Signer {
                         address: op.address,
                         weight: op.weight.into(),
-                        pub_key: PublicKey::ECDSA(op.pub_key),
+                        pub_key: op.pub_key,
                     },
-                    op.signature.map(Signature::ECDSA),
+                    op.signature,
                 )
             })
             .collect::<Vec<(Signer, Option<Signature>)>>();
@@ -697,25 +677,25 @@ mod test {
                 Signer {
                     address: operator2.address,
                     weight: operator2.weight,
-                    pub_key: PublicKey::ECDSA(operator2.pub_key),
+                    pub_key: operator2.pub_key,
                 },
-                operator2.signature.map(Signature::ECDSA),
+                operator2.signature,
             ),
             (
                 Signer {
                     address: operator1.address,
                     weight: operator1.weight,
-                    pub_key: PublicKey::ECDSA(operator1.pub_key),
+                    pub_key: operator1.pub_key,
                 },
-                operator1.signature.map(Signature::ECDSA),
+                operator1.signature,
             ),
             (
                 Signer {
                     address: operator3.address,
                     weight: operator3.weight,
-                    pub_key: PublicKey::ECDSA(operator3.pub_key),
+                    pub_key: operator3.pub_key,
                 },
-                operator3.signature.map(Signature::ECDSA),
+                operator3.signature,
             ),
         ];
 
