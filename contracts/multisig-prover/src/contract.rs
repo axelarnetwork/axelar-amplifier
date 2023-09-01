@@ -291,6 +291,8 @@ mod test {
 
 #[cfg(test)]
 mod tests {
+    use multisig::msg::Signer;
+
     use crate::{contract::execute::should_update_worker_set, test::test_data};
 
     #[test]
@@ -303,7 +305,7 @@ mod tests {
     fn should_update_worker_set_one_more() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop();
+        new_worker_set.signers.pop_first();
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 
@@ -311,7 +313,7 @@ mod tests {
     fn should_update_worker_set_one_less() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop();
+        new_worker_set.signers.pop_first();
         assert!(should_update_worker_set(&new_worker_set, &worker_set, 0));
     }
 
@@ -319,7 +321,7 @@ mod tests {
     fn should_update_worker_set_one_more_higher_threshold() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop();
+        new_worker_set.signers.pop_first();
         assert!(!should_update_worker_set(&worker_set, &new_worker_set, 1));
     }
 
@@ -327,8 +329,16 @@ mod tests {
     fn should_update_worker_set_diff_pub_key() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers[0].pub_key = worker_set.signers[1].pub_key.clone();
-        new_worker_set.signers[1].pub_key = worker_set.signers[0].pub_key.clone();
+        let first = new_worker_set.signers.pop_first();
+        let last = new_worker_set.signers.pop_last();
+        new_worker_set.signers.insert(Signer {
+            pub_key: first.clone().unwrap().pub_key,
+            ..last.clone().unwrap()
+        });
+        new_worker_set.signers.insert(Signer {
+            pub_key: last.unwrap().pub_key,
+            ..first.unwrap()
+        });
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 }

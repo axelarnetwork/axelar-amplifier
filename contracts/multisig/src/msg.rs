@@ -49,6 +49,7 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+#[derive(Eq, Ord, PartialOrd)]
 pub struct Signer {
     pub address: Addr,
     pub weight: Uint256,

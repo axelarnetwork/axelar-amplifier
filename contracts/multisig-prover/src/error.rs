@@ -28,10 +28,10 @@ pub enum ContractError {
     #[error("public key not found for participant {participant}")]
     PublicKeyNotFound { participant: String },
 
-    #[error("{0}")]
+    #[error(transparent)]
     ServiceRegistryError(#[from] service_registry::ContractError),
 
-    #[error("{0}")]
+    #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
     #[error("worker set has not changed sufficiently since last update")]

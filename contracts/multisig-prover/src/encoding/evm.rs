@@ -57,14 +57,14 @@ impl TryFrom<WorkerSet> for Command {
     }
 }
 
-impl TryFrom<(Signer, Option<Signature>)> for Operator {
+impl TryFrom<Signer> for Operator {
     type Error = ContractError;
 
-    fn try_from((signer, sig): (Signer, Option<Signature>)) -> Result<Self, Self::Error> {
+    fn try_from(signer: Signer) -> Result<Self, Self::Error> {
         Ok(Self {
             address: evm_address(signer.pub_key.as_ref())?,
             weight: signer.weight,
-            signature: sig,
+            signature: None,
         })
     }
 }
@@ -80,8 +80,8 @@ impl CommandBatch {
             .into_iter()
             .map(TryInto::try_into)
             .collect::<Result<Vec<Command>, ContractError>>()?;
-        if new_worker_set.is_some() {
-            commands.push(new_worker_set.clone().unwrap().try_into()?);
+        if let Some(worker_set) = new_worker_set.clone() {
+            commands.push(worker_set.clone().try_into()?);
         }
 
         let data = Data {
@@ -180,20 +180,17 @@ fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, Con
         })
         .collect();
     operators.sort_by_key(|op| op.0.clone());
-
-    let (addresses, weights) = operators.iter().fold(
-        (vec![], vec![]),
-        |(mut addresses, mut weights), operator| {
-            addresses.push(Token::Address(ethereum_types::Address::from_slice(
-                operator.0.as_slice(),
-            )));
-            weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
-                &operator.1.to_be_bytes(),
-            )));
-
-            (addresses, weights)
-        },
-    );
+    let (addresses, weights): (Vec<Token>, Vec<Token>) = operators
+        .iter()
+        .map(|operator| {
+            (
+                Token::Address(ethereum_types::Address::from_slice(operator.0.as_slice())),
+                Token::Uint(ethereum_types::U256::from_big_endian(
+                    &operator.1.to_be_bytes(),
+                )),
+            )
+        })
+        .unzip();
 
     let quorum = Token::Uint(ethereum_types::U256::from_big_endian(
         &worker_set.threshold.to_be_bytes(),
@@ -249,7 +246,14 @@ fn sorted_operators(
 ) -> Result<Vec<Operator>, ContractError> {
     let mut operators = signers
         .into_iter()
-        .map(TryInto::try_into)
+        .map(|(signer, sig)| {
+            signer.try_into().map(|mut op: Operator| {
+                if let Some(sig) = sig {
+                    op.set_signature(sig);
+                }
+                op
+            })
+        })
         .collect::<Result<Vec<Operator>, ContractError>>()?;
     operators.sort();
 
@@ -429,20 +433,19 @@ mod test {
 
     #[test]
     fn test_command_operator_transfer() {
-        let mut new_worker_set = test_data::new_worker_set();
-        new_worker_set
-            .signers
-            .sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
+        let new_worker_set = test_data::new_worker_set();
         let res = Command::try_from(new_worker_set.clone());
         assert!(res.is_ok());
 
         let tokens = decode_operator_transfer_command_params(res.unwrap().params);
-
-        for i in 0..new_worker_set.signers.len() {
+        let mut signers: Vec<Signer> = new_worker_set.signers.into_iter().collect();
+        signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
+        let mut i = 0;
+        for signer in signers {
             assert_eq!(
                 tokens[0].clone().into_array().unwrap()[i],
                 Token::Address(ethereum_types::Address::from_slice(
-                    evm_address(new_worker_set.signers[i].pub_key.as_ref())
+                    evm_address(signer.pub_key.as_ref())
                         .expect("couldn't convert pubkey to evm address")
                         .as_slice()
                 ))
@@ -451,9 +454,10 @@ mod test {
             assert_eq!(
                 tokens[1].clone().into_array().unwrap()[i],
                 Token::Uint(ethereum_types::U256::from_big_endian(
-                    &new_worker_set.signers[i].weight.to_be_bytes()
+                    &signer.weight.to_be_bytes()
                 ))
             );
+            i = i + 1;
         }
         assert_eq!(
             tokens[2],

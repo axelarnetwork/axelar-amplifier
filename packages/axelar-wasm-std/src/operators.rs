@@ -5,7 +5,7 @@ use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct Operators {
-    pub weights: Vec<(HexBinary, Uint256)>,
+    pub weights_by_addresses: Vec<(HexBinary, Uint256)>,
     pub threshold: Uint256,
 }
 

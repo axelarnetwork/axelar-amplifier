@@ -151,17 +151,9 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    let count_new = |a: &WorkerSet, b: &WorkerSet| {
-        a.signers
-            .iter()
-            .filter(|a_signer| {
-                !b.signers.iter().any(|b_signer| {
-                    a_signer.address == b_signer.address && a_signer.pub_key == b_signer.pub_key
-                })
-            })
-            .count()
-    };
-    count_new(new_workers, cur_workers) + count_new(cur_workers, new_workers) > max_diff
+    new_workers.signers.difference(&cur_workers.signers).count()
+        + cur_workers.signers.difference(&new_workers.signers).count()
+        > max_diff
 }
 
 pub fn rotate_snapshot(

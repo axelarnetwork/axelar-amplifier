@@ -90,3 +90,9 @@ pub struct Operator {
     pub weight: Uint256,
     pub signature: Option<Signature>,
 }
+
+impl Operator {
+    pub fn set_signature(&mut self, sig: Signature) {
+        self.signature = Some(sig);
+    }
+}

@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use axelar_wasm_std::{Snapshot, Threshold};
 use connection_router::types::ChainName;
 use cosmwasm_schema::cw_serde;
@@ -32,7 +34,7 @@ pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");
 
 #[cw_serde]
 pub struct WorkerSet {
-    pub signers: Vec<Signer>,
+    pub signers: BTreeSet<Signer>,
     pub threshold: Uint256,
     pub id: u64, // for randomness
 }
