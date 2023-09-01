@@ -165,7 +165,7 @@ where
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
             match config {
-                handlers::config::Config::EVMMsgVerifier {
+                handlers::config::Config::EvmMsgVerifier {
                     chain,
                     cosmwasm_contract,
                 } => self.configure_handler(

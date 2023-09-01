@@ -43,7 +43,7 @@ mod tests {
         let config_str = format!(
             "
             [[handlers]]
-            type = 'EVMMsgVerifier'
+            type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
 
             [handlers.chain]
@@ -51,7 +51,7 @@ mod tests {
             rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
-            type = 'EVMMsgVerifier'
+            type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
 
             [handlers.chain]
@@ -76,7 +76,7 @@ mod tests {
         let config_str = format!(
             "
             [[handlers]]
-            type = 'EVMMsgVerifier'
+            type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
 
             [handlers.chain]
@@ -84,7 +84,7 @@ mod tests {
             rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
-            type = 'EVMMsgVerifier'
+            type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
 
             [handlers.chain]

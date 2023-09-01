@@ -1,6 +1,6 @@
+use itertools::Itertools;
 use serde::de::{self, Deserializer};
 use serde::Deserialize;
-use std::collections::HashSet;
 
 use crate::evm::ChainName;
 use crate::types::TMAddress;
@@ -15,7 +15,7 @@ pub struct Chain {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum Config {
-    EVMMsgVerifier {
+    EvmMsgVerifier {
         chain: Chain,
         cosmwasm_contract: TMAddress,
     },
@@ -44,23 +44,17 @@ fn validate_evm_msg_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D
 where
     D: Deserializer<'de>,
 {
-    let evm_msg_verifier_configs: Vec<_> = configs
-        .iter()
-        .filter(|config| matches!(config, Config::EVMMsgVerifier { .. }))
-        .collect();
-
-    // validate chain names being unique
-    let chain_names: HashSet<_> = evm_msg_verifier_configs
+    if !configs
         .iter()
         .filter_map(|config| match config {
-            Config::EVMMsgVerifier {
+            Config::EvmMsgVerifier {
                 chain: Chain { name, .. },
                 ..
             } => Some(name),
             _ => None,
         })
-        .collect();
-    if evm_msg_verifier_configs.len() != chain_names.len() {
+        .all_unique()
+    {
         return Err(de::Error::custom(
             "the chain name EVM msg verifier configs must be unique",
         ));
