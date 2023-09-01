@@ -34,10 +34,7 @@ pub fn execute(
             snapshot: _,
             pub_keys: _,
         } => Ok(Response::default()),
-        ExecuteMsg::RegisterPublicKey {
-            public_key: _,
-            key_type: _,
-        } => unimplemented!(),
+        ExecuteMsg::RegisterPublicKey { public_key: _ } => unimplemented!(),
     }
 }
 

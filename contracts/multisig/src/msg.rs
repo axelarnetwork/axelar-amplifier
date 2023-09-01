@@ -28,8 +28,7 @@ pub enum ExecuteMsg {
         pub_keys: HashMap<String, (KeyType, HexBinary)>,
     },
     RegisterPublicKey {
-        public_key: HexBinary,
-        key_type: KeyType,
+        public_key: PublicKey,
     },
 }
 

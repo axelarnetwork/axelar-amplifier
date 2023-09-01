@@ -48,10 +48,9 @@ pub fn execute(
             snapshot,
             pub_keys,
         } => execute::key_gen(deps, info, key_id, snapshot, pub_keys),
-        ExecuteMsg::RegisterPublicKey {
-            public_key,
-            key_type,
-        } => execute::register_pub_key(deps, info, public_key, key_type),
+        ExecuteMsg::RegisterPublicKey { public_key } => {
+            execute::register_pub_key(deps, info, public_key)
+        }
     }
 }
 
@@ -194,20 +193,18 @@ pub mod execute {
     pub fn register_pub_key(
         deps: DepsMut,
         info: MessageInfo,
-        public_key: HexBinary,
-        key_type: KeyType,
+        public_key: PublicKey,
     ) -> Result<Response, ContractError> {
-        let pub_key: PublicKey = (key_type, public_key).try_into()?;
         PUB_KEYS.save(
             deps.storage,
-            (info.sender.clone(), key_type),
-            &pub_key.clone().into(),
+            (info.sender.clone(), public_key.key_type()),
+            &public_key.clone().into(),
         )?;
 
         Ok(Response::new().add_event(
             Event::PublicKeyRegistered {
                 worker: info.sender,
-                public_key: pub_key,
+                public_key,
             }
             .into(),
         ))
@@ -401,13 +398,9 @@ mod tests {
     fn do_register_key(
         deps: DepsMut,
         worker: Addr,
-        public_key: HexBinary,
-        key_type: KeyType,
+        public_key: PublicKey,
     ) -> Result<Response, ContractError> {
-        let msg = ExecuteMsg::RegisterPublicKey {
-            public_key,
-            key_type,
-        };
+        let msg = ExecuteMsg::RegisterPublicKey { public_key };
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
 
@@ -699,7 +692,11 @@ mod tests {
             .collect::<Vec<(Addr, HexBinary)>>();
 
         for (addr, pub_key) in &pub_keys {
-            let res = do_register_key(deps.as_mut(), addr.clone(), pub_key.clone(), KeyType::Ecdsa);
+            let res = do_register_key(
+                deps.as_mut(),
+                addr.clone(),
+                PublicKey::Ecdsa(pub_key.clone()),
+            );
             assert!(res.is_ok());
         }
         let mut ret_pub_keys: Vec<PublicKey> = vec![];
@@ -729,7 +726,11 @@ mod tests {
             .collect::<Vec<(Addr, HexBinary)>>();
 
         for (addr, pub_key) in &pub_keys {
-            let res = do_register_key(deps.as_mut(), addr.clone(), pub_key.clone(), KeyType::Ecdsa);
+            let res = do_register_key(
+                deps.as_mut(),
+                addr.clone(),
+                PublicKey::Ecdsa(pub_key.clone()),
+            );
             assert!(res.is_ok());
         }
 
@@ -740,8 +741,7 @@ mod tests {
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
-            new_pub_key.clone(),
-            KeyType::Ecdsa,
+            PublicKey::Ecdsa(new_pub_key.clone()),
         );
         assert!(res.is_ok());
 
