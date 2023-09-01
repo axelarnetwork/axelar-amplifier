@@ -58,7 +58,7 @@ where
 mod tests {
     use crate::event_processor::{self, EventHandler};
     use async_trait::async_trait;
-    use error_stack::{IntoReport, Result};
+    use error_stack::Result;
     use events::Event;
     use mockall::{mock, predicate};
     use tendermint::block;
@@ -97,7 +97,7 @@ mod tests {
             .expect_handle()
             .once()
             .with(predicate::eq(Event::BlockEnd(height)))
-            .returning(|_| Err(EventHandlerError::Unknown).into_report());
+            .returning(|_| Err(EventHandlerError::Unknown.into()));
 
         assert!(handler_1
             .chain(MockEventHandler::new())
@@ -121,7 +121,7 @@ mod tests {
             .expect_handle()
             .once()
             .with(predicate::eq(Event::BlockEnd(height)))
-            .returning(|_| Err(EventHandlerError::Unknown).into_report());
+            .returning(|_| Err(EventHandlerError::Unknown.into()));
 
         assert!(handler_1
             .chain(handler_2)

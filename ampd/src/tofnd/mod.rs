@@ -53,3 +53,9 @@ impl From<[u8; 32]> for MessageDigest {
         MessageDigest(digest)
     }
 }
+
+impl AsRef<[u8]> for MessageDigest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ecdsa::VerifyingKey;
-use error_stack::{IntoReport, ResultExt};
+use error_stack::ResultExt;
 use mockall::automock;
 use tokio::sync::Mutex;
 use tonic::{transport::Channel, Status};
@@ -39,7 +39,6 @@ impl MultisigClient {
             party_uid,
             client: multisig_client::MultisigClient::connect(url.to_string())
                 .await
-                .into_report()
                 .change_context(Error::Grpc)?,
         })
     }
@@ -62,19 +61,17 @@ impl EcdsaClient for MultisigClient {
                     .keygen_response
                     .ok_or_else(|| Status::internal("keygen response is empty"))
             })
-            .into_report()
             .change_context(Error::Grpc)
             .and_then(|response| match response {
                 KeygenResponse::PubKey(pub_key) => {
                     VerifyingKey::from_sec1_bytes(pub_key.as_slice())
-                        .into_report()
                         .change_context(Error::ParsingFailed)
                         .attach_printable(format!("{{ invalid_value = {:?} }}", pub_key))
                         .map(Into::into)
                 }
-                KeygenResponse::Error(error_msg) => Err(TofndError::ExecutionFailed(error_msg))
-                    .into_report()
-                    .change_context(Error::KeygenFailed),
+                KeygenResponse::Error(error_msg) => {
+                    Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::KeygenFailed)
+                }
             })
     }
 
@@ -100,13 +97,12 @@ impl EcdsaClient for MultisigClient {
                     .sign_response
                     .ok_or_else(|| Status::internal("sign response is empty"))
             })
-            .into_report()
             .change_context(Error::Grpc)
             .and_then(|response| match response {
                 SignResponse::Signature(signature) => Ok(signature),
-                SignResponse::Error(error_msg) => Err(TofndError::ExecutionFailed(error_msg))
-                    .into_report()
-                    .change_context(Error::SignFailed),
+                SignResponse::Error(error_msg) => {
+                    Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::SignFailed)
+                }
             })
     }
 }
@@ -137,12 +133,13 @@ impl SharableEcdsaClient {
 
 #[cfg(test)]
 mod tests {
+    use ecdsa::SigningKey;
     use error_stack::Report;
     use futures::future::join_all;
+    use rand::rngs::OsRng;
     use rand::{thread_rng, RngCore};
     use tokio::test;
 
-    use crate::broadcaster::key::ECDSASigningKey;
     use crate::tofnd::{
         error::Error,
         grpc::{MockEcdsaClient, SharableEcdsaClient},
@@ -170,7 +167,7 @@ mod tests {
 
     #[test]
     async fn keygen_succeeded() {
-        let rand_pub_key = ECDSASigningKey::random().public_key();
+        let rand_pub_key = SigningKey::random(&mut OsRng).verifying_key().into();
 
         let mut client = MockEcdsaClient::new();
         client.expect_keygen().returning(move |_| Ok(rand_pub_key));
@@ -194,7 +191,11 @@ mod tests {
         let digest: MessageDigest = rand::random::<[u8; 32]>().into();
         assert!(matches!(
             SharableEcdsaClient::new(client)
-                .sign(KEY_UID, digest, &ECDSASigningKey::random().public_key())
+                .sign(
+                    KEY_UID,
+                    digest,
+                    &SigningKey::random(&mut OsRng).verifying_key().into()
+                )
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -215,7 +216,11 @@ mod tests {
         let digest: MessageDigest = rand::random::<[u8; 32]>().into();
         assert_eq!(
             SharableEcdsaClient::new(client)
-                .sign(KEY_UID, digest, &ECDSASigningKey::random().public_key(),)
+                .sign(
+                    KEY_UID,
+                    digest,
+                    &SigningKey::random(&mut OsRng).verifying_key().into(),
+                )
                 .await
                 .unwrap(),
             Vec::from(sig)
@@ -241,7 +246,11 @@ mod tests {
                 let digest: MessageDigest = rand::random::<[u8; 32]>().into();
                 assert_eq!(
                     cloned
-                        .sign(KEY_UID, digest, &ECDSASigningKey::random().public_key())
+                        .sign(
+                            KEY_UID,
+                            digest,
+                            &SigningKey::random(&mut OsRng).verifying_key().into()
+                        )
                         .await
                         .unwrap(),
                     Vec::from(sig),
