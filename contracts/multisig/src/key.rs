@@ -9,6 +9,7 @@ use crate::{
 };
 
 #[cw_serde]
+#[derive(Copy)]
 pub enum KeyType {
     Ecdsa,
 }
@@ -73,7 +74,7 @@ impl<'a> PrimaryKey<'a> for KeyType {
 
     fn key(&self) -> Vec<cw_storage_plus::Key> {
         vec![cw_storage_plus::Key::Val8(
-            vec![self.clone() as u8]
+            vec![*self as u8]
                 .try_into()
                 .expect("failed to serialize key type"),
         )]

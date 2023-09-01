@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
 use crate::{
-    key::{KeyType, PublicKey, Signature},
+    key::{PublicKey, Signature},
     types::{KeyID, MsgToSign},
 };
 
@@ -29,7 +29,6 @@ pub enum Event {
     PublicKeyRegistered {
         worker: Addr,
         public_key: PublicKey,
-        key_type: KeyType,
     },
 }
 
@@ -63,23 +62,17 @@ impl From<Event> for cosmwasm_std::Event {
                 .add_attribute("signature", HexBinary::from(signature).to_hex()),
             Event::SigningCompleted { session_id } => cosmwasm_std::Event::new("signing_completed")
                 .add_attribute("session_id", session_id),
-            Event::PublicKeyRegistered {
-                worker,
-                public_key,
-                key_type,
-            } => cosmwasm_std::Event::new("public_key_registered")
-                .add_attribute(
-                    "worker",
-                    to_string(&worker).expect("failed to serialize worker"),
-                )
-                .add_attribute(
-                    "public_key",
-                    to_string(&public_key).expect("failed to serialize public key"),
-                )
-                .add_attribute(
-                    "key_type",
-                    to_string(&key_type).expect("failed to serialize key type"),
-                ),
+            Event::PublicKeyRegistered { worker, public_key } => {
+                cosmwasm_std::Event::new("public_key_registered")
+                    .add_attribute(
+                        "worker",
+                        to_string(&worker).expect("failed to serialize worker"),
+                    )
+                    .add_attribute(
+                        "public_key",
+                        to_string(&public_key).expect("failed to serialize public key"),
+                    )
+            }
         }
     }
 }

@@ -53,9 +53,7 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 mod query {
-    use multisig::{
-        msg::{Multisig, Signer},
-    };
+    use multisig::msg::{Multisig, Signer};
 
     use crate::test::test_data;
 

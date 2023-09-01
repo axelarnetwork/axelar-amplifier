@@ -114,7 +114,7 @@ pub mod execute {
         let signature: Signature = match key
             .pub_keys
             .iter()
-            .find(|pk| pk.0 == &info.sender.to_string())
+            .find(|&(addr, _)| addr == &info.sender.to_string())
         {
             None => {
                 return Err(ContractError::NotAParticipant {
@@ -197,18 +197,17 @@ pub mod execute {
         public_key: HexBinary,
         key_type: KeyType,
     ) -> Result<Response, ContractError> {
-        let pub_key: PublicKey = (key_type.clone(), public_key).try_into()?;
+        let pub_key: PublicKey = (key_type, public_key).try_into()?;
         PUB_KEYS.save(
             deps.storage,
-            (info.sender.clone(), key_type.clone()),
-            &pub_key.clone(),
+            (info.sender.clone(), key_type),
+            &pub_key.clone().into(),
         )?;
 
         Ok(Response::new().add_event(
             Event::PublicKeyRegistered {
                 worker: info.sender,
                 public_key: pub_key,
-                key_type,
             }
             .into(),
         ))
@@ -276,7 +275,8 @@ pub mod query {
     }
 
     pub fn get_public_key(deps: Deps, worker: Addr, key_type: KeyType) -> StdResult<PublicKey> {
-        PUB_KEYS.load(deps.storage, (worker, key_type.clone()))
+        let raw = PUB_KEYS.load(deps.storage, (worker, key_type))?;
+        Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
     }
 }
 
