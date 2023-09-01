@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use axelar_wasm_std::{Snapshot, Threshold};
 use connection_router::types::ChainName;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Env, HexBinary, Uint256};
+use cosmwasm_std::{Addr, HexBinary, Uint256};
 use cw_storage_plus::{Item, Map};
 use multisig::key::PublicKey;
 use multisig::msg::Signer;
@@ -36,14 +36,14 @@ pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");
 pub struct WorkerSet {
     pub signers: BTreeSet<Signer>,
     pub threshold: Uint256,
-    pub id: u64, // for randomness
+    pub nonce: u64, // for randomness
 }
 
 impl WorkerSet {
     pub fn new(
         snapshot: Snapshot,
         pub_keys: Vec<PublicKey>,
-        env: Env,
+        block_height: u64,
     ) -> Result<Self, ContractError> {
         let signers = pub_keys
             .into_iter()
@@ -58,7 +58,7 @@ impl WorkerSet {
         Ok(WorkerSet {
             signers,
             threshold: snapshot.quorum.into(),
-            id: env.block.height,
+            nonce: block_height,
         })
     }
 

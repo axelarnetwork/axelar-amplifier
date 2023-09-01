@@ -45,16 +45,13 @@ impl TryFrom<Message> for Command {
     }
 }
 
-impl TryFrom<WorkerSet> for Command {
-    type Error = ContractError;
-    fn try_from(worker_set: WorkerSet) -> Result<Self, Self::Error> {
-        let params = transfer_operatorship_params(&worker_set)?;
-        Ok(Command {
-            ty: CommandType::TransferOperatorship,
-            params,
-            id: worker_set.hash(),
-        })
-    }
+fn make_transfer_operatorship(worker_set: WorkerSet) -> Result<Command, ContractError> {
+    let params = transfer_operatorship_params(&worker_set)?;
+    Ok(Command {
+        ty: CommandType::TransferOperatorship,
+        params,
+        id: worker_set.hash(),
+    })
 }
 
 impl TryFrom<Signer> for Operator {
@@ -69,35 +66,52 @@ impl TryFrom<Signer> for Operator {
     }
 }
 
-impl CommandBatch {
-    pub fn new(
-        messages: Vec<Message>,
-        destination_chain_id: Uint256,
-        new_worker_set: Option<WorkerSet>,
-    ) -> Result<Self, ContractError> {
-        let message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
-        let mut commands = messages
-            .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<Vec<Command>, ContractError>>()?;
-        if let Some(worker_set) = new_worker_set.clone() {
-            commands.push(worker_set.clone().try_into()?);
-        }
+pub struct CommandBatchBuilder {
+    message_ids: Vec<String>,
+    new_worker_set: Option<WorkerSet>,
+    commands: Vec<Command>,
+    destination_chain_id: Uint256,
+}
 
-        let data = Data {
+impl CommandBatchBuilder {
+    pub fn new(destination_chain_id: Uint256) -> Self {
+        Self {
+            message_ids: vec![],
+            new_worker_set: None,
+            commands: vec![],
             destination_chain_id,
-            commands,
+        }
+    }
+
+    pub fn add_message(&mut self, msg: Message) -> Result<(), ContractError> {
+        self.message_ids.push(msg.id.clone());
+        self.commands.push(msg.try_into()?);
+        Ok(())
+    }
+
+    pub fn add_new_worker_set(&mut self, worker_set: WorkerSet) -> Result<(), ContractError> {
+        self.new_worker_set = Some(worker_set.clone());
+        self.commands.push(make_transfer_operatorship(worker_set)?);
+        Ok(())
+    }
+
+    pub fn build(self) -> Result<CommandBatch, ContractError> {
+        let data = Data {
+            destination_chain_id: self.destination_chain_id,
+            commands: self.commands,
         };
 
-        let id = BatchID::new(&message_ids, new_worker_set);
+        let id = BatchID::new(&self.message_ids, self.new_worker_set);
 
-        Ok(Self {
+        Ok(CommandBatch {
             id,
-            message_ids,
+            message_ids: self.message_ids,
             data,
         })
     }
+}
 
+impl CommandBatch {
     pub fn msg_to_sign(&self) -> HexBinary {
         let msg = Keccak256::digest(self.data.encode().as_slice());
 
@@ -136,7 +150,8 @@ impl CommandBatch {
         quorum: Uint256,
         signers: Vec<(Signer, Option<Signature>)>,
     ) -> Result<HexBinary, ContractError> {
-        let operators = sorted_operators(signers)?;
+        let mut operators = make_operators(signers)?;
+        operators.sort();
 
         let (addresses, weights, signatures) = operators.iter().fold(
             (vec![], vec![], vec![]),
@@ -241,23 +256,17 @@ fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
-fn sorted_operators(
-    signers: Vec<(Signer, Option<Signature>)>,
+fn make_operators(
+    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
 ) -> Result<Vec<Operator>, ContractError> {
-    let mut operators = signers
-        .into_iter()
-        .map(|(signer, sig)| {
-            signer.try_into().map(|mut op: Operator| {
-                if let Some(sig) = sig {
-                    op.set_signature(sig);
-                }
-                op
-            })
+    axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
+        signer.try_into().map(|mut op: Operator| {
+            if let Some(sig) = sig {
+                op.set_signature(sig);
+            }
+            op
         })
-        .collect::<Result<Vec<Operator>, ContractError>>()?;
-    operators.sort();
-
-    Ok(operators)
+    })
 }
 
 fn command_id(message_id: String) -> HexBinary {
@@ -434,7 +443,7 @@ mod test {
     #[test]
     fn test_command_operator_transfer() {
         let new_worker_set = test_data::new_worker_set();
-        let res = Command::try_from(new_worker_set.clone());
+        let res = make_transfer_operatorship(new_worker_set.clone());
         assert!(res.is_ok());
 
         let tokens = decode_operator_transfer_command_params(res.unwrap().params);
@@ -472,8 +481,12 @@ mod test {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
+        let mut builder = CommandBatchBuilder::new(destination_chain_id);
+        for msg in messages {
+            builder.add_message(msg).unwrap();
+        }
 
-        let res = CommandBatch::new(messages, destination_chain_id, None).unwrap();
+        let res = builder.build().unwrap();
 
         assert_eq!(
             res.message_ids,
@@ -504,12 +517,10 @@ mod test {
     #[test]
     fn test_new_command_batch_with_operator_transfer() {
         let test_data = decode_data(&test_data::encoded_data_with_operator_transfer());
-
-        let res = CommandBatch::new(
-            vec![],
-            test_data::chain_id_operator_transfer(),
-            Some(test_data::new_worker_set()),
-        );
+        let mut builder = CommandBatchBuilder::new(test_data::chain_id_operator_transfer());
+        let res = builder.add_new_worker_set(test_data::new_worker_set());
+        assert!(res.is_ok());
+        let res = builder.build();
         assert!(res.is_ok());
         assert_eq!(res.unwrap().data, test_data);
     }
@@ -521,7 +532,12 @@ mod test {
         let operators = test_data::operators();
         let quorum = test_data::quorum();
 
-        let batch = CommandBatch::new(messages, destination_chain_id, None).unwrap();
+        let mut builder = CommandBatchBuilder::new(destination_chain_id);
+        for msg in messages {
+            let res = builder.add_message(msg);
+            assert!(res.is_ok());
+        }
+        let batch = builder.build().unwrap();
 
         let signers = operators
             .into_iter()
@@ -703,7 +719,8 @@ mod test {
             ),
         ];
 
-        let operators = sorted_operators(signers).unwrap();
+        let mut operators = make_operators(signers).unwrap();
+        operators.sort();
 
         assert_eq!(
             operators[0].address.cmp(&operators[1].address),

@@ -241,7 +241,7 @@ pub mod query {
 
         let mut key = KEYS.load(deps.storage, &session.key_id)?;
 
-        let signers = key
+        let signers_with_sigs = key
             .snapshot
             .participants
             .into_iter()
@@ -265,7 +265,7 @@ pub mod query {
         Ok(Multisig {
             state: session.state,
             quorum: key.snapshot.quorum.into(),
-            signers,
+            signers: signers_with_sigs,
         })
     }
 

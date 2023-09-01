@@ -12,13 +12,14 @@ use service_registry::state::Worker;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
+    encoding::evm::CommandBatchBuilder,
     error::ContractError,
     events::Event,
     state::{
         Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
         REPLY_BATCH,
     },
-    types::{BatchID, CommandBatch},
+    types::BatchID,
 };
 
 pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Response, ContractError> {
@@ -32,7 +33,11 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let batch = CommandBatch::new(messages, config.destination_chain_id, None)?;
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+            for msg in messages {
+                builder.add_message(msg)?;
+            }
+            let batch = builder.build()?;
 
             COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
 
@@ -121,7 +126,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
         pub_keys.push(pub_key);
     }
 
-    let new_worker_set = WorkerSet::new(snapshot, pub_keys, env)?;
+    let new_worker_set = WorkerSet::new(snapshot, pub_keys, env.block.height)?;
 
     let cur_worker_set = CURRENT_WORKER_SET.load(deps.storage)?;
 
@@ -134,8 +139,10 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 
     NEXT_WORKER_SET.save(deps.storage, &new_worker_set)?;
+    let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+    builder.add_new_worker_set(new_worker_set)?;
 
-    let batch = CommandBatch::new(vec![], config.destination_chain_id, Some(new_worker_set))?;
+    let batch = builder.build()?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id: "static".to_string(), // TODO remove the key_id
