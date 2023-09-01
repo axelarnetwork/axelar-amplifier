@@ -26,6 +26,9 @@ jobs:
           version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
