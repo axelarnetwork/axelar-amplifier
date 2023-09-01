@@ -1,6 +1,7 @@
 pub mod contract;
 pub mod error;
 pub mod events;
+pub mod key;
 pub mod msg;
 pub mod signing;
 pub mod state;

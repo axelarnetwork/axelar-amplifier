@@ -2,30 +2,10 @@ use cosmwasm_crypto::secp256k1_verify;
 use cosmwasm_std::HexBinary;
 
 // TODO: Logic specific to secp256k1 will most likely be handled by core in the future.
-use crate::{
-    types::{ECDSAPublicKey, ECDSASignature, MsgToSign},
-    ContractError,
-};
+use crate::{types::MsgToSign, ContractError};
 
 const MESSAGE_HASH_LEN: usize = 32;
-const COMPRESSED_PUBKEY_LEN: usize = 33;
-const UNCOMPRESSED_PUBKEY_LEN: usize = 65;
-const EVM_SIGNATURE_LEN: usize = 65;
 const ECDSA_SIGNATURE_LEN: usize = 64;
-
-impl TryFrom<HexBinary> for ECDSAPublicKey {
-    type Error = ContractError;
-
-    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        if other.len() != COMPRESSED_PUBKEY_LEN && other.len() != UNCOMPRESSED_PUBKEY_LEN {
-            return Err(ContractError::InvalidPublicKeyFormat {
-                reason: "Invalid input length".into(),
-            });
-        }
-
-        Ok(ECDSAPublicKey::unchecked(other))
-    }
-}
 
 impl TryFrom<HexBinary> for MsgToSign {
     type Error = ContractError;
@@ -41,33 +21,11 @@ impl TryFrom<HexBinary> for MsgToSign {
     }
 }
 
-impl TryFrom<HexBinary> for ECDSASignature {
-    type Error = ContractError;
-
-    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
-        if other.len() != EVM_SIGNATURE_LEN {
-            return Err(ContractError::InvalidSignatureFormat {
-                reason: "Invalid input length".into(),
-            });
+pub fn ecdsa_verify(msg_hash: &[u8], sig: &[u8], pub_key: &[u8]) -> Result<bool, ContractError> {
+    secp256k1_verify(msg_hash, &sig[0..ECDSA_SIGNATURE_LEN], pub_key).map_err(|e| {
+        ContractError::SignatureVerificationFailed {
+            reason: e.to_string(),
         }
-
-        Ok(ECDSASignature::unchecked(other))
-    }
-}
-
-pub fn ecdsa_verify(
-    msg: &MsgToSign,
-    sig: &ECDSASignature,
-    pub_key: &ECDSAPublicKey,
-) -> Result<bool, ContractError> {
-    let signature: &[u8] = sig.into();
-    secp256k1_verify(
-        msg.into(),
-        &signature[0..ECDSA_SIGNATURE_LEN],
-        pub_key.into(),
-    )
-    .map_err(|e| ContractError::SignatureVerificationFailed {
-        reason: e.to_string(),
     })
 }
 
@@ -75,12 +33,16 @@ pub fn ecdsa_verify(
 mod tests {
     use super::*;
 
-    use crate::test::common::test_data;
+    use crate::{
+        key::{KeyType, PublicKey, Signature},
+        test::common::test_data,
+        types::VerifiableSignature,
+    };
 
     #[test]
     fn test_try_from_hexbinary_to_ecdsa_public_key() {
         let hex = test_data::pub_key();
-        let pub_key = ECDSAPublicKey::try_from(hex.clone()).unwrap();
+        let pub_key = PublicKey::try_from((KeyType::Ecdsa, hex.clone())).unwrap();
         assert_eq!(HexBinary::from(pub_key), hex);
     }
 
@@ -88,7 +50,7 @@ mod tests {
     fn test_try_from_hexbinary_to_eccdsa_public_key_fails() {
         let hex = HexBinary::from_hex("049b").unwrap();
         assert_eq!(
-            ECDSAPublicKey::try_from(hex.clone()).unwrap_err(),
+            PublicKey::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
             ContractError::InvalidPublicKeyFormat {
                 reason: "Invalid input length".into()
             }
@@ -116,7 +78,7 @@ mod tests {
     #[test]
     fn test_try_from_hexbinary_to_signature() {
         let hex = test_data::signature();
-        let signature = ECDSASignature::try_from(hex.clone()).unwrap();
+        let signature = Signature::try_from((KeyType::Ecdsa, hex.clone())).unwrap();
         assert_eq!(HexBinary::from(signature), hex);
     }
 
@@ -126,7 +88,7 @@ mod tests {
             HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72")
                 .unwrap();
         assert_eq!(
-            ECDSASignature::try_from(hex.clone()).unwrap_err(),
+            Signature::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
             ContractError::InvalidSignatureFormat {
                 reason: "Invalid input length".into()
             }
@@ -135,10 +97,10 @@ mod tests {
 
     #[test]
     fn test_verify_signature() {
-        let signature = ECDSASignature::try_from(test_data::signature()).unwrap();
+        let signature = Signature::try_from((KeyType::Ecdsa, test_data::signature())).unwrap();
         let message = MsgToSign::try_from(test_data::message()).unwrap();
-        let public_key = ECDSAPublicKey::try_from(test_data::pub_key()).unwrap();
-        let result = ecdsa_verify(&message, &signature, &public_key).unwrap();
+        let public_key = PublicKey::try_from((KeyType::Ecdsa, test_data::pub_key())).unwrap();
+        let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, true);
     }
 
@@ -149,10 +111,10 @@ mod tests {
         )
         .unwrap();
 
-        let signature = ECDSASignature::try_from(invalid_signature).unwrap();
+        let signature = Signature::try_from((KeyType::Ecdsa, invalid_signature)).unwrap();
         let message = MsgToSign::try_from(test_data::message()).unwrap();
-        let public_key = ECDSAPublicKey::try_from(test_data::pub_key()).unwrap();
-        let result = ecdsa_verify(&message, &signature, &public_key).unwrap();
+        let public_key = PublicKey::try_from((KeyType::Ecdsa, test_data::pub_key())).unwrap();
+        let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);
     }
 
@@ -163,10 +125,10 @@ mod tests {
         )
         .unwrap();
 
-        let signature = ECDSASignature::try_from(test_data::signature()).unwrap();
+        let signature = Signature::try_from((KeyType::Ecdsa, test_data::signature())).unwrap();
         let message = MsgToSign::try_from(test_data::message()).unwrap();
-        let public_key = ECDSAPublicKey::try_from(invalid_pub_key).unwrap();
-        let result = ecdsa_verify(&message, &signature, &public_key).unwrap();
+        let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
+        let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);
     }
 }

@@ -2,9 +2,9 @@ use cosmwasm_std::{Addr, Storage, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use crate::{
+    key::{KeyType, PublicKey},
     signing::SigningSession,
-    types::KeyType,
-    types::{Key, KeyID, PublicKey},
+    types::{Key, KeyID},
     ContractError,
 };
 

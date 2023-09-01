@@ -4,7 +4,7 @@
 use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::msg::Message;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
-use multisig::types::ECDSASignature;
+use multisig::key::{KeyType, Signature};
 
 fn legacy_cmd_id_input(
     source_transaction: HexBinary,
@@ -111,10 +111,10 @@ pub fn threshold() -> Threshold {
 #[derive(Debug)]
 pub struct TestOperator {
     pub address: Addr,
-    pub pub_key: multisig::types::ECDSAPublicKey,
+    pub pub_key: multisig::key::PublicKey,
     pub operator: HexBinary,
     pub weight: Uint256,
-    pub signature: Option<ECDSASignature>,
+    pub signature: Option<Signature>,
 }
 
 pub fn operators() -> Vec<TestOperator> {
@@ -194,10 +194,10 @@ pub fn operators() -> Vec<TestOperator> {
     .map(|(address, pub_key, operator, weight, signature)| {
         TestOperator {
             address: Addr::unchecked(address),
-            pub_key: HexBinary::from_hex(pub_key).unwrap().try_into().unwrap(),
+            pub_key: (KeyType::Ecdsa,HexBinary::from_hex(pub_key).unwrap()).try_into().unwrap(),
             operator: HexBinary::from_hex(operator).unwrap(),
             weight: Uint256::from(weight),
-            signature: signature.map(|s| HexBinary::from_hex(s).unwrap().try_into().unwrap()) }
+            signature: signature.map(|s| (KeyType::Ecdsa, HexBinary::from_hex(s).unwrap()).try_into().unwrap()) }
     })
     .collect()
 }

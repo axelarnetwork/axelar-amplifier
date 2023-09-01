@@ -53,7 +53,9 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 mod query {
-    use multisig::msg::{Multisig, Signer};
+    use multisig::{
+        msg::{Multisig, Signer},
+    };
 
     use crate::test::test_data;
 
@@ -68,10 +70,8 @@ mod query {
             .map(|op| Signer {
                 address: op.address,
                 weight: op.weight.into(),
-                pub_key: multisig::types::PublicKey::ECDSA(op.pub_key),
-                signature: op
-                    .signature
-                    .map(|sig| multisig::types::Signature::ECDSA(sig)),
+                pub_key: op.pub_key,
+                signature: op.signature,
             })
             .collect::<Vec<Signer>>();
 

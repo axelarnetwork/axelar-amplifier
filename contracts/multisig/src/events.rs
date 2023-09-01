@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
-use crate::types::{KeyID, KeyType, MsgToSign, PublicKey, Signature};
+use crate::{
+    key::{KeyType, PublicKey, Signature},
+    types::{KeyID, MsgToSign},
+};
 
 pub enum Event {
     // Emitted when a new signing session is open
