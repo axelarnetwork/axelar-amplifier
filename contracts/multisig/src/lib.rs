@@ -11,6 +11,6 @@ pub mod types;
 mod secp256k1;
 
 #[cfg(test)]
-mod test;
+pub mod test;
 
 pub use crate::error::ContractError;

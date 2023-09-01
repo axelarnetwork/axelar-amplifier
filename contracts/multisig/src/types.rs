@@ -78,9 +78,27 @@ pub enum MultisigState {
     Completed,
 }
 
+const MESSAGE_HASH_LEN: usize = 32;
+
+impl TryFrom<HexBinary> for MsgToSign {
+    type Error = ContractError;
+
+    fn try_from(other: HexBinary) -> Result<Self, Self::Error> {
+        if other.len() != MESSAGE_HASH_LEN {
+            return Err(ContractError::InvalidMessageFormat {
+                reason: "Invalid input length".into(),
+            });
+        }
+
+        Ok(MsgToSign::unchecked(other))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::to_binary;
+
+    use crate::test::common::test_data;
 
     use super::*;
 
@@ -94,5 +112,23 @@ mod tests {
         let serialized = to_binary(&key).unwrap();
 
         assert_eq!(key, KeyID::from_vec(serialized.into()).unwrap());
+    }
+
+    #[test]
+    fn test_try_from_hexbinary_to_message() {
+        let hex = test_data::message();
+        let message = MsgToSign::try_from(hex.clone()).unwrap();
+        assert_eq!(HexBinary::from(message), hex);
+    }
+
+    #[test]
+    fn test_try_from_hexbinary_to_message_fails() {
+        let hex = HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap();
+        assert_eq!(
+            MsgToSign::try_from(hex.clone()).unwrap_err(),
+            ContractError::InvalidMessageFormat {
+                reason: "Invalid input length".into()
+            }
+        );
     }
 }
