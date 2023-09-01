@@ -8,16 +8,16 @@ use service_registry;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
-    #[error("{0}")]
+    #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("{0}")]
+    #[error(transparent)]
     RouterError(#[from] connection_router::ContractError),
 
-    #[error("{0}")]
+    #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
-    #[error("{0}")]
+    #[error(transparent)]
     ServiceRegistryError(#[from] service_registry::ContractError),
 
     #[error("empty batch of messages")]
@@ -35,7 +35,7 @@ pub enum ContractError {
     #[error("poll not found")]
     PollNotFound,
 
-    #[error("{0}")]
+    #[error(transparent)]
     VoteError(#[from] voting::Error),
 
     #[error("worker set already confirmed")]

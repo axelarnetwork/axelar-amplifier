@@ -1,10 +1,11 @@
+use std::backtrace::Backtrace;
 use std::collections::VecDeque;
 use std::iter::FromIterator;
 use std::panic::Location;
-use std::{backtrace::Backtrace, fmt::Display};
 
 use error_stack::{AttachmentKind, Context, Frame, FrameKind, Report};
 use thiserror::Error;
+use tracing::error;
 use valuable::Valuable;
 
 #[derive(Error, Debug)]
@@ -19,17 +20,10 @@ pub enum Error {
     StateUpdater,
     #[error("tofnd failed")]
     Tofnd,
-    #[error("{0}")]
-    Error(String),
-}
-
-impl Error {
-    pub fn new<T>(msg: T) -> Error
-    where
-        T: Display,
-    {
-        Error::Error(msg.to_string())
-    }
+    #[error("connection failed")]
+    Connection,
+    #[error("thread execution failed")]
+    Threading,
 }
 
 #[derive(Valuable, PartialEq, Debug, Default)]

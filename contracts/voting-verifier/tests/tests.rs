@@ -505,7 +505,7 @@ fn should_not_confirm_twice() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_err());
     assert_eq!(
-        ContractError::WorkerSetAlreadyConfirmed {},
+        ContractError::WorkerSetAlreadyConfirmed,
         res.unwrap_err().downcast().unwrap()
     );
 }

@@ -358,7 +358,7 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
-            (BondingState::Unbonded {}, Uint128::from(100u32))
+            (BondingState::Unbonded, Uint128::from(100u32))
         );
     }
 

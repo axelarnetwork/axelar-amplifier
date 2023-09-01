@@ -6,24 +6,24 @@ use crate::state::BondingState;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
-    #[error("{0}")]
+    #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("{0}")]
+    #[error(transparent)]
     NonEmpty(#[from] nonempty::Error),
 
     #[error("unauthorized")]
-    Unauthorized {},
+    Unauthorized,
     #[error("service name already exists")]
-    ServiceAlreadyExists {},
+    ServiceAlreadyExists,
     #[error("service not found")]
-    ServiceNotFound {},
+    ServiceNotFound,
     #[error("worker already authorized")]
-    WorkerAlreadyAuthorized {},
+    WorkerAlreadyAuthorized,
     #[error("funds are in the wrong denomination")]
-    WrongDenom {},
+    WrongDenom,
     #[error("worker not found")]
-    WorkerNotFound {},
+    WorkerNotFound,
     #[error("invalid bonding state `{0:?}` for this operation")]
     InvalidBondingState(BondingState),
 }

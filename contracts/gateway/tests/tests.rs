@@ -909,7 +909,7 @@ fn duplicate_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::DuplicateMessageID {},
+        ContractError::DuplicateMessageID ,
         err.downcast().unwrap()
     );
 
@@ -922,7 +922,7 @@ fn duplicate_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::DuplicateMessageID {},
+        ContractError::DuplicateMessageID ,
         err.downcast().unwrap()
     );
 

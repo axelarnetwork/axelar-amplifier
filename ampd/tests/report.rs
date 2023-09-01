@@ -1,16 +1,23 @@
 use error_stack::Report;
+use thiserror::Error;
 
-use ampd::report::{Error, LoggableError};
+use ampd::report::LoggableError;
+
+#[derive(Error, Debug)]
+enum Error {
+    #[error("{0}")]
+    FromString(String),
+}
 
 // Do not move this test or the location field checks break
 #[test]
 fn correct_error_log() {
-    let report = Report::new(Error::new("error1".to_string()))
+    let report = Report::new(Error::FromString("error1".to_string()))
         .attach_printable("foo1")
-        .change_context(Error::new("error2".to_string()))
+        .change_context(Error::FromString("error2".to_string()))
         .attach_printable("test1")
         .attach_printable("test2")
-        .change_context(Error::new("error3".to_string()))
+        .change_context(Error::FromString("error3".to_string()))
         .attach(5);
 
     let mut err = LoggableError::from(&report);
@@ -25,15 +32,15 @@ fn correct_error_log() {
     let expected_err = LoggableError {
         msg: "error3".to_string(),
         attachments: vec!["opaque attachment".to_string()],
-        location: "ampd/tests/report.rs:13:10".to_string(),
+        location: "ampd/tests/report.rs:20:10".to_string(),
         cause: Some(Box::new(LoggableError {
             msg: "error2".to_string(),
             attachments: vec!["test1".to_string(), "test2".to_string()],
-            location: "ampd/tests/report.rs:10:10".to_string(),
+            location: "ampd/tests/report.rs:17:10".to_string(),
             cause: Some(Box::new(LoggableError {
                 msg: "error1".to_string(),
                 attachments: vec!["foo1".to_string()],
-                location: "ampd/tests/report.rs:8:18".to_string(),
+                location: "ampd/tests/report.rs:15:18".to_string(),
                 cause: None,
                 backtrace: None,
             })),
