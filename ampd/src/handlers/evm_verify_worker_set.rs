@@ -13,7 +13,7 @@ pub struct Operators {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct WorkerSet {
+pub struct WorkerSetConfirmation {
     pub tx_id: Hash,
     pub log_index: u64,
     pub operators: Operators,
@@ -25,7 +25,7 @@ pub struct WorkerSet {
 struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
-    worker_set: WorkerSet,
+    worker_set: WorkerSetConfirmation,
     poll_id: PollID,
     source_chain: connection_router::types::ChainName,
     source_gateway_address: EVMAddress,
