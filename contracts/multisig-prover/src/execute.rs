@@ -141,14 +141,16 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
 
+    let key_id = new_worker_set.id();
+
     // if no worker set, just store it and return
     if cur_worker_set.is_none() {
         CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
 
-        KEY_ID.save(deps.storage, &new_worker_set.hash().to_hex())?;
+        KEY_ID.save(deps.storage, &key_id)?;
 
         let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
-            key_id: new_worker_set.id(),
+            key_id,
             snapshot,
             pub_keys: participants
                 .into_iter()
@@ -186,7 +188,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     REPLY_BATCH.save(deps.storage, &batch.id)?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        key_id: "static".to_string(), // TODO remove the key_id
+        key_id: cur_worker_set.unwrap().id(), // TODO remove the key_id
         msg: batch.msg_to_sign(),
     };
 
