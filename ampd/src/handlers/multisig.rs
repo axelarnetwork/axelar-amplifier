@@ -25,11 +25,6 @@ use crate::types::PublicKey;
 use crate::types::TMAddress;
 
 #[derive(Debug, Deserialize)]
-pub struct MultisigConfig {
-    pub address: TMAddress,
-}
-
-#[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
 struct SigningStartedEvent {
     #[serde(rename = "_contract_address")]
