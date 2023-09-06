@@ -185,7 +185,7 @@ where
             info!("ready to verify a new worker set in poll");
 
             let vote = tx_receipt.map_or(false, |tx_receipt| {
-                verify_worker_set(&source_gateway_address, &tx_receipt, worker_set)
+                verify_worker_set(&source_gateway_address, &tx_receipt, &worker_set)
             });
             info!(vote, "ready to vote for a new worker set in poll");
 
