@@ -16,8 +16,6 @@ use crate::report::Error;
 use broadcaster::{accounts::account, Broadcaster};
 use event_processor::{EventHandler, EventProcessor};
 use events::Event;
-use evm::EvmChainConfig;
-use handlers::multisig::MultisigConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
@@ -46,10 +44,9 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         tm_jsonrpc,
         tm_grpc,
         broadcast,
-        evm_chains,
+        handlers,
         tofnd_config,
         event_buffer_cap,
-        multisig,
     } = cfg;
 
     let tm_client =
@@ -103,10 +100,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         broadcast,
         event_buffer_cap,
     )
-    .configure_evm_chains(&worker, evm_chains)
-    .await?
-    .configure_multisig(&worker, multisig)
-    .await
+    .configure_handlers(worker, handlers)?
     .run()
     .await
 }
@@ -121,7 +115,6 @@ where
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
-    #[allow(dead_code)]
     ecdsa_client: SharableEcdsaClient,
     token: CancellationToken,
 }
@@ -165,56 +158,55 @@ where
         }
     }
 
-    async fn configure_evm_chains(
+    fn configure_handlers(
         mut self,
-        worker: &TMAddress,
-        evm_chains: Vec<EvmChainConfig>,
+        worker: TMAddress,
+        handler_configs: Vec<handlers::config::Config>,
     ) -> Result<App<T>, Error> {
-        for config in evm_chains {
-            let label = format!("{}-confirm-gateway-tx-handler", config.name);
-            let handler = handlers::evm_verify_msg::Handler::new(
-                worker.clone(),
-                config.voting_verifier,
-                config.name,
-                evm::json_rpc::Client::new_http(&config.rpc_url).map_err(Error::new)?,
-                self.broadcaster.client(),
-            );
-
-            self.register_handler(label.as_ref(), handler).await;
+        for config in handler_configs {
+            match config {
+                handlers::config::Config::EvmMsgVerifier {
+                    chain,
+                    cosmwasm_contract,
+                } => self.configure_handler(
+                    format!("{}-msg-verifier", chain.name),
+                    handlers::evm_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        chain.name,
+                        evm::json_rpc::Client::new_http(&chain.rpc_url).map_err(Error::new)?,
+                        self.broadcaster.client(),
+                    ),
+                ),
+                handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
+                    .configure_handler(
+                        "multisig-signer",
+                        handlers::multisig::Handler::new(
+                            worker.clone(),
+                            cosmwasm_contract,
+                            self.broadcaster.client(),
+                            self.ecdsa_client.clone(),
+                        ),
+                    ),
+            }
         }
 
         Ok(self)
     }
 
-    async fn configure_multisig(
-        mut self,
-        worker: &TMAddress,
-        multisig: Option<MultisigConfig>,
-    ) -> App<T> {
-        if let Some(config) = multisig {
-            self.register_handler(
-                "multisig-handler",
-                handlers::multisig::Handler::new(
-                    worker.clone(),
-                    config.address,
-                    self.broadcaster.client(),
-                    self.ecdsa_client.clone(),
-                ),
-            )
-            .await;
-        }
-
-        self
-    }
-
-    async fn register_handler<H>(&mut self, label: &str, handler: H)
+    fn configure_handler<L, H>(&mut self, label: L, handler: H)
     where
+        L: AsRef<str>,
         H: EventHandler + Send + Sync + 'static,
     {
         let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
-        self.state_updater.register_event(label, rx);
+        self.state_updater.register_event(label.as_ref(), rx);
 
-        let sub: HandlerStream<_> = match self.state_updater.state().handler_block_height(label) {
+        let sub: HandlerStream<_> = match self
+            .state_updater
+            .state()
+            .handler_block_height(label.as_ref())
+        {
             None => Box::pin(self.event_sub.sub()),
             Some(&completed_height) => Box::pin(event_sub::skip_to_block(
                 self.event_sub.sub(),
