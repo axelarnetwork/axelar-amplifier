@@ -3,11 +3,7 @@ use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 use serde::{de::Error, Deserializer};
 
-use crate::{
-    secp256k1::ecdsa_verify,
-    types::{MsgToSign, VerifiableSignature},
-    ContractError,
-};
+use crate::{secp256k1::ecdsa_verify, types::MsgToSign, ContractError};
 
 #[cw_serde]
 #[derive(Copy)]
@@ -65,8 +61,8 @@ impl KeyTyped for Signature {
     }
 }
 
-impl VerifiableSignature for Signature {
-    fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
+impl Signature {
+    pub fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
         if !self.matches(pub_key) {
             return Err(ContractError::KeyTypeMismatch);
         }
@@ -189,12 +185,7 @@ impl From<PublicKey> for HexBinary {
 mod test {
     use cosmwasm_std::HexBinary;
 
-    use crate::{
-        key::Signature,
-        test::common::test_data,
-        types::{MsgToSign, VerifiableSignature},
-        ContractError,
-    };
+    use crate::{key::Signature, test::common::test_data, types::MsgToSign, ContractError};
 
     use super::{KeyType, PublicKey};
 
