@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
-use clap::{Parser, ValueEnum};
+use clap::{command, Parser, Subcommand, ValueEnum};
 use config::ConfigError;
 use error_stack::Report;
 use tracing::{error, info};
@@ -28,6 +28,9 @@ struct Args {
     /// Set the output style of the logs
     #[arg(short, long, value_enum, default_value_t = Output::Json)]
     pub output: Output,
+
+    #[clap(subcommand)]
+    pub cmd: Option<SubCommand>,
 }
 
 #[derive(Debug, Clone, Parser, ValueEnum)]
@@ -36,11 +39,26 @@ enum Output {
     Json,
 }
 
+#[derive(Debug, Subcommand)]
+enum SubCommand {
+    /// Run the ampd daemon process (default)
+    Daemon,
+    /// Register this node as a worker
+    RegisterWorker,
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
+    match args.cmd {
+        Some(SubCommand::RegisterWorker) => register_worker(args),
+        Some(SubCommand::Daemon) | None => run_daemon(args).await,
+    }
+}
+
+async fn run_daemon(args: Args) -> ExitCode {
     info!("starting daemon");
 
     let cfg = init_config(&args);
@@ -57,6 +75,12 @@ async fn main() -> ExitCode {
     };
     info!("shutting down");
     code
+}
+
+fn register_worker(args: Args) -> ExitCode {
+    println!("registering worker");
+    println!("args: {:?}", args);
+    ExitCode::SUCCESS
 }
 
 fn init_config(args: &Args) -> Config {
