@@ -153,8 +153,10 @@ where
             Some(pub_key) => {
                 let signature = self
                     .signer
-                    .sign(self.multisig.to_string().as_str(), msg, pub_key)
+                    .sign(self.multisig.to_string().as_str(), msg.clone(), pub_key)
                     .await
+                    .change_context(Error::Sign)?
+                    .to_recoverable(&msg, pub_key)
                     .change_context(Error::Sign)?;
 
                 info!(signature = encode(&signature), "ready to submit signature");
