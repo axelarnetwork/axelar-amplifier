@@ -1,8 +1,7 @@
 use serde::Deserialize;
 
 use crate::broadcaster;
-use crate::evm::{deserialize_evm_chain_configs, EvmChainConfig};
-use crate::handlers::multisig::MultisigConfig;
+use crate::handlers::{self, config::deserialize_handler_configs};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
 
@@ -12,11 +11,10 @@ pub struct Config {
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub broadcast: broadcaster::Config,
-    #[serde(deserialize_with = "deserialize_evm_chain_configs")]
-    pub evm_chains: Vec<EvmChainConfig>,
+    #[serde(deserialize_with = "deserialize_handler_configs")]
+    pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
     pub event_buffer_cap: usize,
-    pub multisig: Option<MultisigConfig>,
 }
 
 impl Default for Config {
@@ -25,10 +23,9 @@ impl Default for Config {
             tm_jsonrpc: "http://localhost:26657".parse().unwrap(),
             tm_grpc: "tcp://localhost:9090".parse().unwrap(),
             broadcast: broadcaster::Config::default(),
-            evm_chains: vec![],
+            handlers: vec![],
             tofnd_config: TofndConfig::default(),
             event_buffer_cap: 100000,
-            multisig: None,
         }
     }
 }
@@ -39,56 +36,85 @@ mod tests {
     use rand::rngs::OsRng;
 
     use super::Config;
-    use crate::evm::ChainName;
-    use crate::types::PublicKey;
+    use crate::types::{PublicKey, TMAddress};
 
     #[test]
-    fn deserialize_evm_configs() {
-        let rpc_url = "http://localhost:7545/";
-        let voting_verifier = PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
-            .account_id("axelar")
-            .unwrap()
-            .into();
-
+    fn deserialize_handlers() {
         let config_str = format!(
             "
-            [[evm_chains]]
+            [[handlers]]
+            type = 'EvmMsgVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
             name = 'Ethereum'
-            rpc_url = '{rpc_url}'
-            voting_verifier = '{voting_verifier}'
+            rpc_url = 'http://localhost:7545/'
 
-            [[evm_chains]]
+            [[handlers]]
+            type = 'EvmMsgVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
             name = 'Polygon'
-            rpc_url = '{rpc_url}'
-            voting_verifier = '{voting_verifier}'
+            rpc_url = 'http://localhost:7546/'
 
-            [[evm_chains]]
-            name = 'Optimism'
-            rpc_url = '{rpc_url}'
-            voting_verifier = '{voting_verifier}'
-            l1_chain_name = 'Ethereum'
+            [[handlers]]
+            type = 'MultisigSigner'
+            cosmwasm_contract = '{}'
             ",
+            rand_tm_address(),
+            rand_tm_address(),
+            rand_tm_address(),
         );
+
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.evm_chains.len(), 3);
+        assert_eq!(cfg.handlers.len(), 3);
+    }
 
-        let actual = cfg.evm_chains.get(0).unwrap();
-        assert_eq!(actual.name, ChainName::Ethereum);
-        assert_eq!(actual.rpc_url.as_str(), rpc_url);
-        assert_eq!(actual.l1_chain_name, None);
-        assert_eq!(actual.voting_verifier, voting_verifier);
+    #[test]
+    fn deserialize_handlers_evm_msg_verifiers_with_the_same_chain_name() {
+        let config_str = format!(
+            "
+            [[handlers]]
+            type = 'EvmMsgVerifier'
+            cosmwasm_contract = '{}'
 
-        let actual = cfg.evm_chains.get(1).unwrap();
-        assert_eq!(actual.name, ChainName::Other("Polygon".into()));
-        assert_eq!(actual.rpc_url.as_str(), rpc_url);
-        assert_eq!(actual.l1_chain_name, None);
-        assert_eq!(actual.voting_verifier, voting_verifier);
+            [handlers.chain]
+            name = 'Ethereum'
+            rpc_url = 'http://localhost:7545/'
 
-        let actual = cfg.evm_chains.get(2).unwrap();
-        assert_eq!(actual.name, ChainName::Other("Optimism".into()));
-        assert_eq!(actual.rpc_url.as_str(), rpc_url);
-        assert_eq!(actual.l1_chain_name, Some(ChainName::Ethereum));
-        assert_eq!(actual.voting_verifier, voting_verifier);
+            [[handlers]]
+            type = 'EvmMsgVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
+            name = 'Ethereum'
+            rpc_url = 'http://localhost:7546/'
+            ",
+            rand_tm_address(),
+            rand_tm_address(),
+        );
+
+        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
+    }
+
+    #[test]
+    fn deserialize_handlers_more_then_one_for_mulsitig_signer() {
+        let config_str = format!(
+            "
+            [[handlers]]
+            type = 'MultisigSigner'
+            cosmwasm_contract = '{}'
+
+            [[handlers]]
+            type = 'MultisigSigner'
+            cosmwasm_contract = '{}'
+            ",
+            rand_tm_address(),
+            rand_tm_address(),
+        );
+
+        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
     }
 
     #[test]
@@ -129,5 +155,12 @@ mod tests {
         assert_eq!(cfg.tofnd_config.url.as_str(), url);
         assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
         assert_eq!(cfg.tofnd_config.key_uid.as_str(), key_uid);
+    }
+
+    fn rand_tm_address() -> TMAddress {
+        PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .into()
     }
 }
