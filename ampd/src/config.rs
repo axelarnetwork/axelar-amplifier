@@ -59,16 +59,34 @@ mod tests {
             rpc_url = 'http://localhost:7546/'
 
             [[handlers]]
+            type = 'EvmWorkerSetVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
+            name = 'Ethereum'
+            rpc_url = 'http://localhost:7545/'
+
+            [[handlers]]
+            type = 'EvmWorkerSetVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
+            name = 'Polygon'
+            rpc_url = 'http://localhost:7546/'
+
+            [[handlers]]
             type = 'MultisigSigner'
             cosmwasm_contract = '{}'
             ",
             rand_tm_address(),
             rand_tm_address(),
             rand_tm_address(),
+            rand_tm_address(),
+            rand_tm_address(),
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 3);
+        assert_eq!(cfg.handlers.len(), 5);
     }
 
     #[test]
@@ -85,6 +103,33 @@ mod tests {
 
             [[handlers]]
             type = 'EvmMsgVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
+            name = 'Ethereum'
+            rpc_url = 'http://localhost:7546/'
+            ",
+            rand_tm_address(),
+            rand_tm_address(),
+        );
+
+        assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
+    }
+
+    #[test]
+    fn deserialize_handlers_evm_worker_set_verifiers_with_the_same_chain_name() {
+        let config_str = format!(
+            "
+            [[handlers]]
+            type = 'EvmWorkerSetVerifier'
+            cosmwasm_contract = '{}'
+
+            [handlers.chain]
+            name = 'Ethereum'
+            rpc_url = 'http://localhost:7545/'
+
+            [[handlers]]
+            type = 'EvmWorkerSetVerifier'
             cosmwasm_contract = '{}'
 
             [handlers.chain]

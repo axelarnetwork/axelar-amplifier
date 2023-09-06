@@ -66,7 +66,6 @@ where
     C: EthereumClient + Send + Sync,
     B: BroadcasterClient,
 {
-    #[allow(dead_code)]
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
