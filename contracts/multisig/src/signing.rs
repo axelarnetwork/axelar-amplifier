@@ -7,7 +7,7 @@ use axelar_wasm_std::Snapshot;
 
 use crate::{
     key::Signature,
-    types::{Key, KeyID, MsgToSign, MultisigState, VerifiableSignature},
+    types::{Key, KeyID, MsgToSign, MultisigState},
     ContractError,
 };
 
@@ -36,10 +36,7 @@ impl SigningSession {
         key: Key,
         signer: String,
         signature: Signature,
-    ) -> Result<(), ContractError>
-    where
-        Signature: VerifiableSignature,
-    {
+    ) -> Result<(), ContractError> {
         assert!(self.key_id == key.id, "violated invariant: key_id mismatch"); // TODO: correct way of handling this?
 
         if self.signatures.contains_key(&signer) {

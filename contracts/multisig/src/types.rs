@@ -7,10 +7,6 @@ use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 
 use crate::{key::PublicKey, ContractError};
 
-pub trait VerifiableSignature {
-    fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError>;
-}
-
 #[cw_serde]
 pub struct MsgToSign(HexBinary);
 
