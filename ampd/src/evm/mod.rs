@@ -1,13 +1,8 @@
-use std::collections::HashSet;
 use std::fmt::Display;
 
 use enum_display_derive::Display;
 use ethers::types::U64;
-use serde::de::{self, Deserializer};
 use serde::Deserialize;
-
-use crate::types::TMAddress;
-use crate::url::Url;
 
 pub mod error;
 pub mod finalizer;
@@ -45,53 +40,6 @@ impl ChainName {
             )),
         }
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EvmChainConfig {
-    pub name: ChainName,
-    pub rpc_url: Url,
-    pub l1_chain_name: Option<ChainName>,
-    pub voting_verifier: TMAddress,
-}
-
-pub fn deserialize_evm_chain_configs<'de, D>(
-    deserializer: D,
-) -> core::result::Result<Vec<EvmChainConfig>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let evm_configs: Vec<EvmChainConfig> = Deserialize::deserialize(deserializer)?;
-
-    // validate name being unique
-    let chain_names: HashSet<&ChainName> = evm_configs
-        .iter()
-        .map(|evm_config| &evm_config.name)
-        .collect();
-    if evm_configs.len() != chain_names.len() {
-        return Err(de::Error::custom(
-            "the evm_chain_configs must be unique by name",
-        ));
-    }
-
-    for config in &evm_configs {
-        match &config.l1_chain_name {
-            None => continue,
-            Some(l1_chain_name) => {
-                if !chain_names.contains(&l1_chain_name) {
-                    return Err(de::Error::custom(
-                        "l1_chain_name must be one of the evm_chain_configs if set",
-                    ));
-                }
-
-                if *l1_chain_name == config.name {
-                    return Err(de::Error::custom("l1_chain_name must not equal to name"));
-                }
-            }
-        }
-    }
-
-    Ok(evm_configs)
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, path::PathBuf};
 
-use error_stack::{IntoReport, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use tendermint::block;
 use thiserror::Error;
@@ -50,9 +50,7 @@ pub struct StateUpdater {
 impl StateUpdater {
     pub fn new(state_path: PathBuf) -> Result<Self, Error> {
         let state = match fs::read_to_string(state_path.as_path()) {
-            Ok(state) => serde_json::from_str(&state)
-                .into_report()
-                .change_context(Error::InvalidState)?,
+            Ok(state) => serde_json::from_str(&state).change_context(Error::InvalidState)?,
             Err(_) => {
                 info!("state does not exist, falling back to default");
 
@@ -92,13 +90,10 @@ impl StateUpdater {
     fn flush(self) -> Result<(), Error> {
         info!("persisting state to disk");
 
-        let state = serde_json::to_string(&self.state)
-            .into_report()
-            .change_context(Error::SerializationFailure)?;
+        let state =
+            serde_json::to_string(&self.state).change_context(Error::SerializationFailure)?;
 
-        fs::write(self.state_path, state)
-            .into_report()
-            .change_context(Error::WriteFailure)?;
+        fs::write(self.state_path, state).change_context(Error::WriteFailure)?;
 
         Ok(())
     }

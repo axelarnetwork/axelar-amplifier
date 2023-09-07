@@ -4,7 +4,8 @@ use std::str::FromStr;
 use std::{fmt, ops};
 
 use cosmrs::proto;
-use error_stack::{ensure, IntoReport, IntoReportCompat, Report, Result, ResultExt};
+use error_stack::{ensure, Report, Result, ResultExt};
+use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::error;
@@ -93,10 +94,7 @@ impl FromStr for FiniteAmount {
     type Err = Report<Error>;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let f = s
-            .parse::<f64>()
-            .into_report()
-            .change_context(ParsingFailed)?;
+        let f = s.parse::<f64>().change_context(ParsingFailed)?;
         f.try_into()
     }
 }
@@ -139,8 +137,7 @@ impl FromStr for Denom {
     type Err = Report<Error>;
 
     fn from_str(denom: &str) -> std::result::Result<Self, Self::Err> {
-        let denom: cosmrs::Denom =
-            IntoReportCompat::into_report(denom.parse()).change_context(ParsingFailed)?;
+        let denom: cosmrs::Denom = ResultCompatExt::change_context(denom.parse(), ParsingFailed)?;
         denom.try_into()
     }
 }

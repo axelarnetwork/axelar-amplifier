@@ -4,7 +4,7 @@ use std::pin::Pin;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{FutureExt, IntoReport, Result, ResultExt};
+use error_stack::{FutureExt, Report, Result, ResultExt};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinSet;
 use tokio_stream::Stream;
@@ -12,12 +12,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::config::Config;
-use broadcaster::{accounts::account, key::ECDSASigningKey, Broadcaster};
-use event_processor::EventProcessor;
+use crate::report::Error;
+use broadcaster::{accounts::account, Broadcaster};
+use event_processor::{EventHandler, EventProcessor};
 use events::Event;
-use evm::EvmChainConfig;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
-use report::Error;
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
@@ -36,6 +35,8 @@ mod tofnd;
 mod types;
 mod url;
 
+const PREFIX: &str = "axelar";
+
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
 pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
@@ -43,9 +44,8 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         tm_jsonrpc,
         tm_grpc,
         broadcast,
-        evm_chains,
+        handlers,
         tofnd_config,
-        private_key,
         event_buffer_cap,
     } = cfg;
 
@@ -76,7 +76,10 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         }
     };
 
-    let worker = private_key.address();
+    let worker = pub_key
+        .account_id(PREFIX)
+        .expect("failed to convert to account identifier")
+        .into();
     let account = account(query_client, &worker).await.map_err(Error::new)?;
 
     let broadcaster = broadcaster::BroadcastClientBuilder::default()
@@ -84,11 +87,9 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .signer(ecdsa_client.clone())
         .acc_number(account.account_number)
         .acc_sequence(account.sequence)
-        .priv_key(private_key)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
         .build()
-        .into_report()
         .change_context(Error::Broadcaster)?;
 
     App::new(
@@ -99,8 +100,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         broadcast,
         event_buffer_cap,
     )
-    .configure_evm_chains(worker, evm_chains)
-    .await?
+    .configure_handlers(worker, handlers)?
     .run()
     .await
 }
@@ -115,7 +115,6 @@ where
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
-    #[allow(dead_code)]
     ecdsa_client: SharableEcdsaClient,
     token: CancellationToken,
 }
@@ -159,36 +158,62 @@ where
         }
     }
 
-    async fn configure_evm_chains(
+    fn configure_handlers(
         mut self,
         worker: TMAddress,
-        evm_chains: Vec<EvmChainConfig>,
+        handler_configs: Vec<handlers::config::Config>,
     ) -> Result<App<T>, Error> {
-        for config in evm_chains {
-            let label = format!("{}-confirm-gateway-tx-handler", config.name);
-            let handler = handlers::evm_verify_msg::Handler::new(
-                worker.clone(),
-                config.voting_verifier,
-                config.name,
-                evm::json_rpc::Client::new_http(&config.rpc_url).map_err(Error::new)?,
-                self.broadcaster.client(),
-            );
-
-            let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
-            self.state_updater.register_event(&label, rx);
-
-            let sub: HandlerStream<_> =
-                match self.state_updater.state().handler_block_height(&label) {
-                    None => Box::pin(self.event_sub.sub()),
-                    Some(&completed_height) => Box::pin(event_sub::skip_to_block(
-                        self.event_sub.sub(),
-                        completed_height.increment(),
-                    )),
-                };
-            self.event_processor.add_handler(handler, sub);
+        for config in handler_configs {
+            match config {
+                handlers::config::Config::EvmMsgVerifier {
+                    chain,
+                    cosmwasm_contract,
+                } => self.configure_handler(
+                    format!("{}-msg-verifier", chain.name),
+                    handlers::evm_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        chain.name,
+                        evm::json_rpc::Client::new_http(&chain.rpc_url).map_err(Error::new)?,
+                        self.broadcaster.client(),
+                    ),
+                ),
+                handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
+                    .configure_handler(
+                        "multisig-signer",
+                        handlers::multisig::Handler::new(
+                            worker.clone(),
+                            cosmwasm_contract,
+                            self.broadcaster.client(),
+                            self.ecdsa_client.clone(),
+                        ),
+                    ),
+            }
         }
 
         Ok(self)
+    }
+
+    fn configure_handler<L, H>(&mut self, label: L, handler: H)
+    where
+        L: AsRef<str>,
+        H: EventHandler + Send + Sync + 'static,
+    {
+        let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
+        self.state_updater.register_event(label.as_ref(), rx);
+
+        let sub: HandlerStream<_> = match self
+            .state_updater
+            .state()
+            .handler_block_height(label.as_ref())
+        {
+            None => Box::pin(self.event_sub.sub()),
+            Some(&completed_height) => Box::pin(event_sub::skip_to_block(
+                self.event_sub.sub(),
+                completed_height.increment(),
+            )),
+        };
+        self.event_processor.add_handler(handler, sub);
     }
 
     async fn run(self) -> Result<(), Error> {
@@ -225,10 +250,7 @@ where
         let res = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                result
-                    .map_err(Error::new)
-                    .into_report()
-                    .and_then(|result| result)
+                result.map_err(Error::new).map_err(Report::from)?
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),
