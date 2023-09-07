@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ecdsa::VerifyingKey;
 use error_stack::ResultExt;
+use k256::Secp256k1;
 use mockall::automock;
 use tokio::sync::Mutex;
 use tonic::{transport::Channel, Status};
@@ -99,7 +100,12 @@ impl EcdsaClient for MultisigClient {
             })
             .change_context(Error::Grpc)
             .and_then(|response| match response {
-                SignResponse::Signature(signature) => Ok(signature),
+                SignResponse::Signature(signature) => {
+                    ecdsa::Signature::<Secp256k1>::from_der(&signature)
+                        .change_context(Error::ParsingFailed)
+                        .map(|sig| sig.to_vec())
+                        .map(Into::into)
+                }
                 SignResponse::Error(error_msg) => {
                     Err(TofndError::ExecutionFailed(error_msg)).change_context(Error::SignFailed)
                 }
@@ -134,6 +140,7 @@ mod tests {
     use ecdsa::SigningKey;
     use error_stack::Report;
     use futures::future::join_all;
+    use k256::Secp256k1;
     use rand::rngs::OsRng;
     use rand::{thread_rng, RngCore};
     use tokio::test;
@@ -141,7 +148,7 @@ mod tests {
     use crate::tofnd::{
         error::Error,
         grpc::{MockEcdsaClient, SharableEcdsaClient},
-        MessageDigest,
+        MessageDigest, Signature,
     };
 
     const KEY_UID: &str = "key_1";
@@ -203,15 +210,19 @@ mod tests {
 
     #[test]
     async fn sign_succeeded() {
-        let mut sig = [0u8; 64];
-        thread_rng().fill_bytes(&mut sig);
+        let mut hash = [0u8; 64];
+        thread_rng().fill_bytes(&mut hash);
+
+        let priv_key = SigningKey::<Secp256k1>::random(&mut OsRng);
+        let (signature, _) = priv_key.sign_prehash_recoverable(&hash.as_ref()).unwrap();
 
         let mut client = MockEcdsaClient::new();
         client
             .expect_sign()
-            .returning(move |_, _, _| Ok(Vec::from(sig)));
+            .returning(move |_, _, _| Ok(signature.to_vec().into()));
 
         let digest: MessageDigest = rand::random::<[u8; 32]>().into();
+
         assert_eq!(
             SharableEcdsaClient::new(client)
                 .sign(
@@ -221,19 +232,22 @@ mod tests {
                 )
                 .await
                 .unwrap(),
-            Vec::from(sig)
+            Signature::from(signature.to_vec()),
         );
     }
 
     #[test]
     async fn share_across_threads() {
-        let mut sig = [0u8; 64];
-        thread_rng().fill_bytes(&mut sig);
+        let mut hash = [0u8; 64];
+        thread_rng().fill_bytes(&mut hash);
+
+        let priv_key = SigningKey::<Secp256k1>::random(&mut OsRng);
+        let (signature, _) = priv_key.sign_prehash_recoverable(&hash).unwrap();
 
         let mut client = MockEcdsaClient::new();
         client
             .expect_sign()
-            .returning(move |_, _, _| Ok(Vec::from(sig)));
+            .returning(move |_, _, _| Ok(signature.to_vec().into()));
 
         let client = SharableEcdsaClient::new(client);
 
@@ -251,7 +265,7 @@ mod tests {
                         )
                         .await
                         .unwrap(),
-                    Vec::from(sig),
+                    Signature::from(signature.to_vec()),
                 )
             });
             handles.push(handle);

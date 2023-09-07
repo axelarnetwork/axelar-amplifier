@@ -55,6 +55,8 @@ valuable = { version = "0.1.0", features = ["derive"] }
 voting-verifier = { workspace = true }
 
 [dev-dependencies]
+elliptic-curve = "0.13.5"
+generic-array = "0.14.7"
 rand = "0.8.5"
 random-string = "1.0.0"
 
