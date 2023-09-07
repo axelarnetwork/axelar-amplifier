@@ -23,6 +23,12 @@ impl From<Uint256> for U256 {
     }
 }
 
+impl AsRef<ethers::types::U256> for U256 {
+    fn as_ref(&self) -> &ethers::types::U256 {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TMAddress(AccountId);
 
