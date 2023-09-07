@@ -115,12 +115,10 @@ impl SharableEcdsaClient {
         Self(Arc::new(Mutex::new(client)))
     }
 
-    #[allow(dead_code)]
     pub async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
         self.0.lock().await.keygen(key_uid).await
     }
 
-    #[allow(dead_code)]
     pub async fn sign(
         &self,
         key_uid: &str,
