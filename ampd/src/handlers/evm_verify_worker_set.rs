@@ -8,7 +8,7 @@ use crate::types::{EVMAddress, Hash, TMAddress, U256};
 
 #[derive(Deserialize, Debug)]
 pub struct Operators {
-    pub weights: Vec<(EVMAddress, U256)>,
+    pub weights_by_addresses: Vec<(EVMAddress, U256)>,
     pub threshold: U256,
 }
 
@@ -59,7 +59,7 @@ mod tests {
                 log_index: 100,
                 operators: Operators {
                     threshold: 40u64.into(),
-                    weights: vec![
+                    weights_by_addresses: vec![
                         (
                             HexBinary::from(EVMAddress::random().as_bytes()),
                             10u64.into(),
