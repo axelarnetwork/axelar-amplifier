@@ -7,7 +7,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::{RecoveryId, VerifyingKey};
 use error_stack::ResultExt;
-use hex::{encode, FromHex};
+use hex::encode;
 use k256::Secp256k1;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
@@ -44,21 +44,18 @@ fn deserialize_public_keys<'de, D>(
 where
     D: Deserializer<'de>,
 {
-    let keys_by_address: HashMap<TMAddress, String> = HashMap::deserialize(deserializer)?;
+    let keys_by_address: HashMap<TMAddress, multisig::key::PublicKey> =
+        HashMap::deserialize(deserializer)?;
 
     keys_by_address
         .into_iter()
-        .map(|(address, hex)| {
-            Ok((
+        .map(|(address, pk)| match pk {
+            multisig::key::PublicKey::Ecdsa(hex) => Ok((
                 address,
-                VerifyingKey::from_sec1_bytes(
-                    <Vec<u8>>::from_hex(hex)
-                        .map_err(D::Error::custom)?
-                        .as_slice(),
-                )
-                .map_err(D::Error::custom)?
-                .into(),
-            ))
+                VerifyingKey::from_sec1_bytes(hex.as_ref())
+                    .map_err(D::Error::custom)?
+                    .into(),
+            )),
         })
         .collect()
 }
@@ -209,6 +206,7 @@ mod test {
     use error_stack::{Report, Result};
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
+    use hex::FromHex;
     use k256::ecdsa::{Signature as K256Signature, VerifyingKey};
     use rand::rngs::OsRng;
     use tendermint::abci;
@@ -220,7 +218,8 @@ mod test {
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
     use crate::types;
     use multisig::events::Event::SigningStarted;
-    use multisig::types::{KeyID, MsgToSign, PublicKey};
+    use multisig::key::PublicKey;
+    use multisig::types::{KeyID, MsgToSign};
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 
@@ -231,8 +230,8 @@ mod test {
             .into()
     }
 
-    fn rand_public_key() -> PublicKey {
-        PublicKey::unchecked(HexBinary::from(
+    fn rand_public_key() -> multisig::key::PublicKey {
+        multisig::key::PublicKey::Ecdsa(HexBinary::from(
             types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
         ))
     }
@@ -317,7 +316,7 @@ mod test {
         let mut map: HashMap<String, PublicKey> = HashMap::new();
         map.insert(
             rand_account().to_string(),
-            PublicKey::unchecked(HexBinary::from(invalid_pub_key.as_slice())),
+            PublicKey::Ecdsa(HexBinary::from(invalid_pub_key.as_slice())),
         );
         match event {
             events::Event::Abci {

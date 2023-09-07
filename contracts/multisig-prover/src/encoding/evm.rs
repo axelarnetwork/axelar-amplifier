@@ -49,7 +49,7 @@ impl TryFrom<Signer> for Operator {
 
     fn try_from(signer: Signer) -> Result<Self, Self::Error> {
         Ok(Self {
-            address: evm_address((&signer.pub_key).into())?,
+            address: evm_address(signer.pub_key.as_ref())?,
             weight: signer.weight,
             signature: signer.signature,
         })
@@ -131,7 +131,7 @@ impl CommandBatch {
                 )));
 
                 if let Some(signature) = &operator.signature {
-                    signatures.push(Token::Bytes(signature.into()));
+                    signatures.push(Token::Bytes(<Vec<u8>>::from(signature.clone())));
                 }
 
                 (addresses, weights, signatures)

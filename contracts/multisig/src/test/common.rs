@@ -4,7 +4,10 @@ use axelar_wasm_std::{Participant, Snapshot, Threshold};
 use cosmwasm_std::{Addr, HexBinary, Timestamp, Uint256, Uint64};
 use rand::Rng;
 
-use crate::types::{Key, KeyID, PublicKey};
+use crate::{
+    key::{KeyType, PublicKey},
+    types::{Key, KeyID},
+};
 
 #[derive(Clone)]
 pub struct TestSigner {
@@ -77,7 +80,7 @@ pub fn build_key(key_id: KeyID, signers: &Vec<TestSigner>, snapshot: Snapshot) -
         .map(|signer| {
             (
                 signer.address.clone().to_string(),
-                PublicKey::try_from(signer.pub_key.clone()).unwrap(),
+                PublicKey::try_from((KeyType::Ecdsa, signer.pub_key.clone())).unwrap(),
             )
         })
         .collect::<HashMap<String, PublicKey>>();

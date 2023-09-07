@@ -2,6 +2,7 @@ use cosmwasm_std::{
     to_binary, wasm_execute, Addr, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper,
     QueryRequest, Response, SubMsg, WasmMsg, WasmQuery,
 };
+use multisig::key::KeyType;
 
 use std::{collections::HashMap, str::FromStr};
 
@@ -95,7 +96,11 @@ pub fn rotate_snapshot(
         msg: to_binary(&multisig::msg::ExecuteMsg::KeyGen {
             key_id: key_id.clone(),
             snapshot: snapshot.clone(),
-            pub_keys: pub_keys.clone(),
+            pub_keys: pub_keys
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k, (KeyType::Ecdsa, v)))
+                .collect(),
         })?,
         funds: vec![],
     };

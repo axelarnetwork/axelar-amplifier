@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
-use crate::types::{KeyID, MsgToSign, PublicKey, Signature};
+use crate::{
+    key::{PublicKey, Signature},
+    types::{KeyID, MsgToSign},
+};
 
 pub enum Event {
     // Emitted when a new signing session is open
@@ -22,6 +25,10 @@ pub enum Event {
     // Emitted when a signing session was completed
     SigningCompleted {
         session_id: Uint64,
+    },
+    PublicKeyRegistered {
+        worker: Addr,
+        public_key: PublicKey,
     },
 }
 
@@ -55,6 +62,17 @@ impl From<Event> for cosmwasm_std::Event {
                 .add_attribute("signature", HexBinary::from(signature).to_hex()),
             Event::SigningCompleted { session_id } => cosmwasm_std::Event::new("signing_completed")
                 .add_attribute("session_id", session_id),
+            Event::PublicKeyRegistered { worker, public_key } => {
+                cosmwasm_std::Event::new("public_key_registered")
+                    .add_attribute(
+                        "worker",
+                        to_string(&worker).expect("failed to serialize worker"),
+                    )
+                    .add_attribute(
+                        "public_key",
+                        to_string(&public_key).expect("failed to serialize public key"),
+                    )
+            }
         }
     }
 }
