@@ -37,7 +37,7 @@ impl PartialEq<&WorkerSetConfirmation> for IAxelarGatewayEventsWithLog<'_> {
             IAxelarGatewayEvents::OperatorshipTransferredFilter(event) => {
                 let (operators, weights): (Vec<_>, Vec<_>) = worker_set
                     .operators
-                    .weights
+                    .weights_by_addresses
                     .iter()
                     .map(|(operator, weight)| {
                         (
@@ -243,7 +243,7 @@ mod tests {
             log_index,
             operators: Operators {
                 threshold: Uint256::from(40u64).into(),
-                weights: vec![
+                weights_by_addresses: vec![
                     (EVMAddress::random(), Uint256::from(10u64).into()),
                     (EVMAddress::random(), Uint256::from(20u64).into()),
                     (EVMAddress::random(), Uint256::from(30u64).into()),
@@ -252,7 +252,7 @@ mod tests {
         };
         let (operators, weights): (Vec<_>, Vec<_>) = worker_set
             .operators
-            .weights
+            .weights_by_addresses
             .iter()
             .map(|(operator, weight)| {
                 (
