@@ -376,7 +376,7 @@ mod tests {
                     .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
                     .unwrap();
 
-                Ok(signature.into())
+                Ok(signature.to_vec())
             });
 
         let mut broadcaster = BroadcastClient {
@@ -435,7 +435,7 @@ mod tests {
                     .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
                     .unwrap();
 
-                Ok(signature.into())
+                Ok(signature.to_vec())
             });
 
         let mut broadcaster = BroadcastClient {
@@ -499,7 +499,7 @@ mod tests {
                     .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
                     .unwrap();
 
-                Ok(signature.into())
+                Ok(signature.to_vec())
             });
 
         let mut broadcaster = BroadcastClient {
@@ -565,7 +565,7 @@ mod tests {
                     .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
                     .unwrap();
 
-                Ok(signature.into())
+                Ok(signature.to_vec())
             });
 
         let mut broadcaster = BroadcastClient {

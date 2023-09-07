@@ -1,8 +1,6 @@
 use core::fmt::Debug;
-use std::convert::TryFrom;
 use std::future::Future;
 
-use crate::tofnd::Signature;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::{
     proto::cosmos::tx::v1beta1::TxRaw,
@@ -65,7 +63,7 @@ where
     ) -> Result<TxRaw, Error>
     where
         F: Fn(Vec<u8>) -> Fut,
-        Fut: Future<Output = Result<Signature, Err>>,
+        Fut: Future<Output = Result<Vec<u8>, Err>>,
         Err: Context,
     {
         let body = BodyBuilder::new().msgs(self.msgs).finish();
@@ -86,7 +84,7 @@ where
         Ok(TxRaw {
             body_bytes: sign_doc.body_bytes,
             auth_info_bytes: sign_doc.auth_info_bytes,
-            signatures: vec![signature.into()],
+            signatures: vec![signature],
         })
     }
 
@@ -96,7 +94,7 @@ where
                 .parse()
                 .expect("the dummy chain id must be valid"),
             DUMMY_ACC_NUMBER,
-            |_| async { Signature::try_from(vec![1; 64]).change_context(Error::Sign) },
+            |_| async { Result::<_, Error>::Ok(vec![0; 64]) },
         )
         .await
     }
@@ -148,7 +146,7 @@ mod tests {
                 let priv_key = ecdsa::SigningKey::from_bytes(&priv_key_bytes).unwrap();
                 let (signature, _) = priv_key.sign_prehash_recoverable(&hash.to_vec()).unwrap();
 
-                Result::<_, Error>::Ok(signature.into())
+                Result::<_, Error>::Ok(signature.to_vec())
             })
             .await
             .unwrap();
@@ -201,7 +199,7 @@ mod tests {
         let expected_tx = TxRaw {
             body_bytes: body.into_bytes().unwrap(),
             auth_info_bytes: auth_info.into_bytes().unwrap(),
-            signatures: vec![vec![1; 64]],
+            signatures: vec![vec![0; 64]],
         };
 
         assert_eq!(actual_tx, expected_tx);
