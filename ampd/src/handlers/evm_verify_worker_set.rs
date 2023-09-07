@@ -1,10 +1,27 @@
-use error_stack::ResultExt;
-use serde::Deserialize;
+use std::convert::TryInto;
 
-use axelar_wasm_std::voting::PollID;
+use cosmrs::cosmwasm::MsgExecuteContract;
+use error_stack::ResultExt;
+use ethers::types::{TransactionReceipt, U64};
+use serde::Deserialize;
+use tracing::{info, info_span};
+
+use async_trait::async_trait;
+use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
+use axelar_wasm_std::voting::PollID;
+use connection_router::types::ID_SEPARATOR;
+use voting_verifier::msg::ExecuteMsg;
+
+use crate::event_processor::EventHandler;
+use crate::evm::verifier::verify_worker_set;
+use crate::evm::{json_rpc::EthereumClient, ChainName};
+use crate::handlers::errors::Error;
+use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress, U256};
+
+type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Operators {
@@ -21,7 +38,6 @@ pub struct WorkerSetConfirmation {
 
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-worker_set_poll_started")]
-#[allow(dead_code)]
 struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
@@ -30,8 +46,154 @@ struct PollStartedEvent {
     source_chain: connection_router::types::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
-    expires_at: u64,
     participants: Vec<TMAddress>,
+}
+
+pub struct Handler<C, B>
+where
+    C: EthereumClient,
+    B: BroadcasterClient,
+{
+    worker: TMAddress,
+    voting_verifier: TMAddress,
+    chain: ChainName,
+    rpc_client: C,
+    broadcast_client: B,
+}
+
+impl<C, B> Handler<C, B>
+where
+    C: EthereumClient + Send + Sync,
+    B: BroadcasterClient,
+{
+    #[allow(dead_code)]
+    pub fn new(
+        worker: TMAddress,
+        voting_verifier: TMAddress,
+        chain: ChainName,
+        rpc_client: C,
+        broadcast_client: B,
+    ) -> Self {
+        Self {
+            worker,
+            voting_verifier,
+            chain,
+            rpc_client,
+            broadcast_client,
+        }
+    }
+
+    async fn finalized_tx_receipt(
+        &self,
+        tx_hash: Hash,
+        confirmation_height: u64,
+    ) -> Result<Option<TransactionReceipt>> {
+        let latest_finalized_block_height = self
+            .chain
+            .finalizer(&self.rpc_client, confirmation_height)
+            .latest_finalized_block_height()
+            .await
+            .change_context(Error::Finalizer)?;
+        let tx_receipt = self
+            .rpc_client
+            .transaction_receipt(tx_hash)
+            .await
+            .change_context(Error::Finalizer)?;
+
+        Ok(tx_receipt.and_then(|tx_receipt| {
+            if tx_receipt
+                .block_number
+                .unwrap_or(U64::MAX)
+                .le(&latest_finalized_block_height)
+            {
+                Some(tx_receipt)
+            } else {
+                None
+            }
+        }))
+    }
+
+    async fn broadcast_vote(&self, poll_id: PollID, vote: bool) -> Result<()> {
+        let msg = serde_json::to_vec(&ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![vote],
+        })
+        .expect("vote msg should serialize");
+        let tx = MsgExecuteContract {
+            sender: self.worker.as_ref().clone(),
+            contract: self.voting_verifier.as_ref().clone(),
+            msg,
+            funds: vec![],
+        };
+
+        self.broadcast_client
+            .broadcast(tx)
+            .await
+            .change_context(Error::Broadcaster)
+    }
+}
+
+#[async_trait]
+impl<C, B> EventHandler for Handler<C, B>
+where
+    C: EthereumClient + Send + Sync,
+    B: BroadcasterClient + Send + Sync,
+{
+    type Err = Error;
+
+    async fn handle(&self, event: &events::Event) -> Result<()> {
+        let PollStartedEvent {
+            contract_address,
+            poll_id,
+            source_chain,
+            source_gateway_address,
+            confirmation_height,
+            participants,
+            worker_set,
+        } = match event.try_into() as error_stack::Result<_, _> {
+            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
+                return Ok(())
+            }
+            event => event.change_context(Error::DeserializeEvent)?,
+        };
+
+        if self.voting_verifier != contract_address {
+            return Ok(());
+        }
+
+        if self.chain != source_chain {
+            return Ok(());
+        }
+
+        if !participants.contains(&self.worker) {
+            return Ok(());
+        }
+
+        let tx_receipt = self
+            .finalized_tx_receipt(worker_set.tx_id, confirmation_height)
+            .await?;
+        let vote = info_span!(
+            "verify a new worker set for an EVM chain",
+            poll_id = poll_id.to_string(),
+            source_chain = source_chain.to_string(),
+            id = format!(
+                "0x{:x}{}{}",
+                worker_set.tx_id, ID_SEPARATOR, worker_set.log_index
+            )
+        )
+        .in_scope(|| {
+            info!("ready to verify a new worker set in poll");
+
+            let vote = tx_receipt.map_or(false, |tx_receipt| {
+                verify_worker_set(&source_gateway_address, &tx_receipt, worker_set)
+            });
+            info!(vote, "ready to vote for a new worker set in poll");
+
+            vote
+        });
+
+        self.broadcast_vote(poll_id, vote).await
+    }
 }
 
 #[cfg(test)]

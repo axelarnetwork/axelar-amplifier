@@ -7,7 +7,7 @@ use serde::Deserialize;
 pub mod error;
 pub mod finalizer;
 pub mod json_rpc;
-pub mod message_verifier;
+pub mod verifier;
 
 #[derive(Debug, Deserialize, PartialEq, Hash, Eq, Clone, Display)]
 pub enum ChainName {
