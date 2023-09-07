@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -36,16 +36,18 @@ pub struct Worker {
     pub service_name: String,
 }
 
-impl TryInto<Participant> for Worker {
+impl TryFrom<Worker> for Participant {
     type Error = ContractError;
 
-    fn try_into(self) -> Result<Participant, ContractError> {
-        match self.bonding_state {
-            BondingState::Bonded { amount } => Ok(Participant {
-                address: self.address,
-                weight: amount.try_into()?,
+    fn try_from(worker: Worker) -> Result<Participant, ContractError> {
+        match worker.bonding_state {
+            BondingState::Bonded { amount: _ } => Ok(Self {
+                address: worker.address,
+                weight: Uint256::one() // Weight is set to one to ensure all workers have same weight. In future it should be derived from amount bonded
+                    .try_into()
+                    .expect("violated invariant: weight must not be zero"),
             }),
-            _ => Err(ContractError::InvalidBondingState(self.bonding_state)),
+            _ => Err(ContractError::InvalidBondingState(worker.bonding_state)),
         }
     }
 }
