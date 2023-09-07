@@ -178,6 +178,19 @@ where
                         self.broadcaster.client(),
                     ),
                 ),
+                handlers::config::Config::EvmWorkerSetVerifier {
+                    chain,
+                    cosmwasm_contract,
+                } => self.configure_handler(
+                    format!("{}-worker-set-verifier", chain.name),
+                    handlers::evm_verify_worker_set::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        chain.name,
+                        evm::json_rpc::Client::new_http(&chain.rpc_url).map_err(Error::new)?,
+                        self.broadcaster.client(),
+                    ),
+                ),
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
                     .configure_handler(
                         "multisig-signer",

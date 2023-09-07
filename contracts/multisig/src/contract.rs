@@ -754,4 +754,75 @@ mod tests {
             from_binary::<PublicKey>(&res.unwrap()).unwrap()
         );
     }
+    #[test]
+    fn test_register_key() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        let signers = test_data::signers();
+        let pub_keys = signers
+            .iter()
+            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
+            .collect::<Vec<(Addr, HexBinary)>>();
+
+        for (addr, pub_key) in &pub_keys {
+            let res = do_register_key(
+                deps.as_mut(),
+                addr.clone(),
+                PublicKey::Ecdsa(pub_key.clone()),
+            );
+            assert!(res.is_ok());
+        }
+        let mut ret_pub_keys: Vec<PublicKey> = vec![];
+
+        for (addr, _) in &pub_keys {
+            let res = query_registered_public_key(deps.as_ref(), addr.clone(), KeyType::Ecdsa);
+            assert!(res.is_ok());
+            ret_pub_keys.push(from_binary(&res.unwrap()).unwrap());
+        }
+        assert_eq!(
+            pub_keys
+                .into_iter()
+                .map(|(_, pk)| PublicKey::try_from((KeyType::Ecdsa, pk)).unwrap())
+                .collect::<Vec<PublicKey>>(),
+            ret_pub_keys
+        );
+    }
+
+    #[test]
+    fn test_update_key() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+        let signers = test_data::signers();
+        let pub_keys = signers
+            .iter()
+            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
+            .collect::<Vec<(Addr, HexBinary)>>();
+
+        for (addr, pub_key) in &pub_keys {
+            let res = do_register_key(
+                deps.as_mut(),
+                addr.clone(),
+                PublicKey::Ecdsa(pub_key.clone()),
+            );
+            assert!(res.is_ok());
+        }
+
+        let new_pub_key = HexBinary::from_hex(
+            "021a381b3e07347d3a05495347e1fb2fe04764afcea5a74084fa957947b59f9026",
+        )
+        .unwrap();
+        let res = do_register_key(
+            deps.as_mut(),
+            pub_keys[0].0.clone(),
+            PublicKey::Ecdsa(new_pub_key.clone()),
+        );
+        assert!(res.is_ok());
+
+        let res = query_registered_public_key(deps.as_ref(), pub_keys[0].0.clone(), KeyType::Ecdsa);
+        assert!(res.is_ok());
+        assert_eq!(
+            PublicKey::try_from((KeyType::Ecdsa, new_pub_key)).unwrap(),
+            from_binary::<PublicKey>(&res.unwrap()).unwrap()
+        );
+    }
 }

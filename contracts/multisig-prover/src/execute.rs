@@ -2,7 +2,7 @@ use cosmwasm_std::{
     to_binary, wasm_execute, Addr, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper,
     QueryRequest, Response, SubMsg, WasmMsg, WasmQuery,
 };
-use multisig::key::{KeyType, PublicKey};
+use multisig::key::KeyType;
 
 use std::{collections::HashMap, str::FromStr};
 
