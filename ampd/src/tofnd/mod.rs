@@ -31,7 +31,7 @@ impl Default for Config {
 // Signature is an alias for signature in raw bytes
 pub type Signature = Vec<u8>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct MessageDigest([u8; 32]);
 
 impl FromHex for MessageDigest {
