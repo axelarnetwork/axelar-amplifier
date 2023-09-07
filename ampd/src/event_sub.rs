@@ -2,8 +2,9 @@ use std::convert::TryInto;
 use std::iter;
 use std::time::Duration;
 
-use error_stack::{FutureExt, Result};
-use error_stack::{IntoReport, ResultExt};
+use error_stack::ResultExt;
+use error_stack::{FutureExt, Report, Result};
+use futures::TryStreamExt;
 use tendermint::abci;
 use tendermint::block;
 use thiserror::Error;
@@ -53,7 +54,7 @@ impl<T: TmClient + Sync> EventSub<T> {
     }
 
     pub fn sub(&mut self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
-        BroadcastStream::new(self.tx.subscribe()).map(IntoReport::into_report)
+        BroadcastStream::new(self.tx.subscribe()).map_err(Report::from)
     }
 
     pub async fn run(mut self) -> Result<(), EventSubError> {
@@ -123,10 +124,7 @@ impl<T: TmClient + Sync> EventSub<T> {
             .chain(iter::once(Event::BlockEnd(height)));
 
         for event in events {
-            self.tx
-                .send(event)
-                .into_report()
-                .change_context(EventSubError::Publish)?;
+            self.tx.send(event).change_context(EventSubError::Publish)?;
         }
 
         Ok(())

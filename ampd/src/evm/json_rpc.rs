@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use error_stack::{self, IntoReport};
+use error_stack::Report;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
 use ethers::types::{Block, BlockNumber, TransactionReceipt, H256, U64};
 use ethers::utils::serialize;
@@ -58,7 +58,7 @@ where
             )
             .await
             .map_err(Into::into)
-            .into_report()
+            .map_err(Report::from)
     }
 
     async fn block_number(&self) -> Result<U64> {
@@ -66,7 +66,7 @@ where
             .request("eth_blockNumber", ())
             .await
             .map_err(Into::into)
-            .into_report()
+            .map_err(Report::from)
     }
 
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>> {
@@ -74,7 +74,7 @@ where
             .request("eth_getTransactionReceipt", [hash])
             .await
             .map_err(Into::into)
-            .into_report()
+            .map_err(Report::from)
     }
 }
 
@@ -88,6 +88,6 @@ where
             .request("chain_getFinalizedHead", ())
             .await
             .map_err(Into::into)
-            .into_report()
+            .map_err(Report::from)
     }
 }

@@ -2,7 +2,7 @@ use crate::broadcaster::clients::AccountQueryClient;
 use crate::types::TMAddress;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
 use cosmos_sdk_proto::traits::Message;
-use error_stack::{FutureExt, IntoReport, Result, ResultExt};
+use error_stack::{FutureExt, Result, ResultExt};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -30,13 +30,14 @@ where
 
     let account = response
         .account
-        .ok_or_else(|| Error::AccountNotFound {
-            address: address.clone(),
+        .ok_or_else(|| {
+            Error::AccountNotFound {
+                address: address.clone(),
+            }
+            .into()
         })
-        .into_report()
         .and_then(|account| {
             BaseAccount::decode(&account.value[..])
-                .into_report()
                 .change_context(Error::MalformedResponse)
                 .attach_printable_lazy(|| format!("{{ value = {:?} }}", account.value))
         })?;
@@ -46,27 +47,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::broadcaster::accounts::account;
-    use crate::broadcaster::accounts::Error::*;
-
-    use crate::broadcaster::clients::MockAccountQueryClient;
-    use crate::broadcaster::key::ECDSASigningKey;
     use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
     use cosmos_sdk_proto::cosmos::auth::v1beta1::QueryAccountResponse;
     use cosmos_sdk_proto::traits::MessageExt;
     use cosmrs::Any;
-    use error_stack::IntoReport;
+    use ecdsa::SigningKey;
+    use rand::rngs::OsRng;
     use tokio::test;
     use tonic::Status;
+
+    use crate::broadcaster::accounts::account;
+    use crate::broadcaster::accounts::Error::*;
+    use crate::broadcaster::clients::MockAccountQueryClient;
+    use crate::types::PublicKey;
+    use crate::types::TMAddress;
 
     #[test]
     async fn response_failed() {
         let mut client = MockAccountQueryClient::new();
         client
             .expect_account()
-            .returning(|_| Err(Status::aborted("aborted")).into_report());
+            .returning(|_| Err(Status::aborted("aborted").into()));
 
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
 
         assert!(matches!(
             account(client, &address)
@@ -84,7 +87,7 @@ mod tests {
             .expect_account()
             .returning(|_| Ok(QueryAccountResponse { account: None }));
 
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
 
         assert!(matches!(
             account(client, &address)
@@ -107,7 +110,7 @@ mod tests {
             })
         });
 
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
 
         assert!(matches!(
             account(client, &address)
@@ -120,7 +123,7 @@ mod tests {
 
     #[test]
     async fn get_existing_account() {
-        let address = ECDSASigningKey::random().address();
+        let address = rand_tm_address();
         let acc = BaseAccount {
             address: address.to_string(),
             pub_key: None,
@@ -137,5 +140,12 @@ mod tests {
         });
 
         assert_eq!(account(client, &address).await.unwrap(), acc);
+    }
+
+    fn rand_tm_address() -> TMAddress {
+        PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+            .account_id("axelar")
+            .unwrap()
+            .into()
     }
 }
