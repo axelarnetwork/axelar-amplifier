@@ -21,20 +21,18 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn new<T: Into<Participant>>(
+    pub fn new(
         timestamp: nonempty::Timestamp,
         height: nonempty::Uint64,
         quorum_threshold: Threshold,
-        participants: nonempty::Vec<T>,
+        participants: nonempty::Vec<Participant>,
     ) -> Self {
         let mut total_weight = Uint256::zero();
 
-        let participants: Vec<T> = participants.into();
+        let participants: Vec<Participant> = participants.into();
         let participants: HashMap<String, Participant> = participants
             .into_iter()
             .map(|participant| {
-                let participant = participant.into();
-
                 let weight: &Uint256 = (&participant.weight).into();
                 total_weight += weight;
 
