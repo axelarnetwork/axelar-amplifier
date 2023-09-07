@@ -206,6 +206,7 @@ mod test {
     use error_stack::{Report, Result};
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
+    use hex::FromHex;
     use k256::ecdsa::{Signature as K256Signature, VerifyingKey};
     use rand::rngs::OsRng;
     use tendermint::abci;
