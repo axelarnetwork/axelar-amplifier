@@ -46,7 +46,7 @@ pub fn execute(
         ExecuteMsg::KeyGen {
             key_id,
             snapshot,
-            pub_keys,
+            pub_keys_by_address: pub_keys,
         } => execute::key_gen(deps, info, key_id, snapshot, pub_keys),
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
@@ -332,7 +332,7 @@ mod tests {
         let msg = ExecuteMsg::KeyGen {
             key_id: subkey.clone(),
             snapshot: snapshot.clone(),
-            pub_keys: pub_keys.clone(),
+            pub_keys_by_address: pub_keys.clone(),
         };
 
         execute(deps, env, info.clone(), msg).map(|res| {

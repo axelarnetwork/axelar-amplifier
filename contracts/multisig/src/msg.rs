@@ -25,7 +25,7 @@ pub enum ExecuteMsg {
     KeyGen {
         key_id: String,
         snapshot: Snapshot,
-        pub_keys: HashMap<String, (KeyType, HexBinary)>,
+        pub_keys_by_address: HashMap<String, (KeyType, HexBinary)>,
     },
     RegisterPublicKey {
         public_key: PublicKey,

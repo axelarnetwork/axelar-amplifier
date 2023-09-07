@@ -143,40 +143,37 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
     let key_id = new_worker_set.id();
 
-    // if no worker set, just store it and return
-    if cur_worker_set.is_none() {
-        CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
+    match cur_worker_set {
+        None => {
+            // if no worker set, just store it and return
+            CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
 
-        KEY_ID.save(deps.storage, &key_id)?;
+            KEY_ID.save(deps.storage, &key_id)?;
 
-        let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
-            key_id,
-            snapshot,
-            pub_keys: participants
-                .into_iter()
-                .map(|(participant, pub_key)| {
-                    (
-                        participant.address.to_string(),
-                        (KeyType::ECDSA, <&[u8]>::from(&pub_key).into()),
-                    )
-                })
-                .collect(),
-        };
+            let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
+                key_id,
+                snapshot,
+                pub_keys_by_address: participants
+                    .into_iter()
+                    .map(|(participant, pub_key)| {
+                        (
+                            participant.address.to_string(),
+                            (KeyType::ECDSA, <&[u8]>::from(&pub_key).into()),
+                        )
+                    })
+                    .collect(),
+            };
 
-        return Ok(Response::new().add_message(wasm_execute(
-            config.multisig,
-            &key_gen_msg,
-            vec![],
-        )?));
-    }
-
-    if !should_update_worker_set(
-        &new_worker_set,
-        &cur_worker_set.clone().unwrap(),
-        config.worker_set_diff_threshold as usize,
-    ) {
-        return Err(ContractError::WorkerSetUnchanged);
-    }
+            Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
+        }
+        Some(cur_worker_set) => {
+            if !should_update_worker_set(
+                &new_worker_set,
+                &cur_worker_set,
+                config.worker_set_diff_threshold as usize,
+            ) {
+                return Err(ContractError::WorkerSetUnchanged);
+            }
 
     NEXT_WORKER_SET.save(deps.storage, &(new_worker_set.clone(), snapshot))?;
     let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
@@ -184,18 +181,20 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
     let batch = builder.build()?;
 
-    COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
-    REPLY_BATCH.save(deps.storage, &batch.id)?;
+            COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
+            REPLY_BATCH.save(deps.storage, &batch.id)?;
 
-    let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        key_id: cur_worker_set.unwrap().id(), // TODO remove the key_id
-        msg: batch.msg_to_sign(),
-    };
+            let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
+                key_id: cur_worker_set.id(), // TODO remove the key_id
+                msg: batch.msg_to_sign(),
+            };
 
-    Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-        wasm_execute(config.multisig, &start_sig_msg, vec![])?,
-        START_MULTISIG_REPLY_ID,
-    )))
+            Ok(Response::new().add_submessage(SubMsg::reply_on_success(
+                wasm_execute(config.multisig, &start_sig_msg, vec![])?,
+                START_MULTISIG_REPLY_ID,
+            )))
+        }
+    }
 }
 
 pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
@@ -222,7 +221,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
         key_id: worker_set.id(), // TODO: replace key id with worker set id
         snapshot,                // TODO: refactor this to just pass the WorkerSet struct
-        pub_keys: worker_set
+        pub_keys_by_address: worker_set
             .signers
             .into_iter()
             .map(|s| {

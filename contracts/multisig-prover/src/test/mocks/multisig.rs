@@ -39,7 +39,7 @@ pub fn execute(
         ExecuteMsg::KeyGen {
             key_id: _,
             snapshot: _,
-            pub_keys: _,
+            pub_keys_by_address: _,
         } => Ok(Response::default()),
         ExecuteMsg::RegisterPublicKey {
             public_key,
