@@ -43,7 +43,7 @@ impl TryFrom<Worker> for Participant {
         match worker.bonding_state {
             BondingState::Bonded { amount: _ } => Ok(Self {
                 address: worker.address,
-                weight: Uint256::one()
+                weight: Uint256::one() // Weight is set to one to ensure all workers have same weight. In future it should be derived from amount bonded
                     .try_into()
                     .expect("violated invariant: weight is zero"),
             }),
