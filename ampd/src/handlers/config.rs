@@ -19,6 +19,10 @@ pub enum Config {
         chain: Chain,
         cosmwasm_contract: TMAddress,
     },
+    EvmWorkerSetVerifier {
+        chain: Chain,
+        cosmwasm_contract: TMAddress,
+    },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
     },
@@ -38,6 +42,29 @@ where
         )),
         _ => Ok(()),
     }
+}
+
+fn validate_evm_worker_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    if !configs
+        .iter()
+        .filter_map(|config| match config {
+            Config::EvmWorkerSetVerifier {
+                chain: Chain { name, .. },
+                ..
+            } => Some(name),
+            _ => None,
+        })
+        .all_unique()
+    {
+        return Err(de::Error::custom(
+            "the chain name EVM worker set verifier configs must be unique",
+        ));
+    }
+
+    Ok(())
 }
 
 fn validate_evm_msg_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -72,6 +99,7 @@ where
     let configs: Vec<Config> = Deserialize::deserialize(deserializer)?;
 
     validate_evm_msg_verifier_configs::<D>(&configs)?;
+    validate_evm_worker_set_verifier_configs::<D>(&configs)?;
     validate_multisig_signer_config::<D>(&configs)?;
 
     Ok(configs)
