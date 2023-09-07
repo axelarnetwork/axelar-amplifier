@@ -280,8 +280,8 @@ fn take_snapshot(
 
     let participants = workers
         .into_iter()
-        .map(service_registry::state::Worker::into)
-        .collect::<Vec<snapshot::NonWeightedParticipant>>();
+        .map(service_registry::state::Worker::try_into)
+        .collect::<Result<Vec<snapshot::Participant>, _>>()?;
 
     Ok(snapshot::Snapshot::new(
         env.block.time.try_into()?,

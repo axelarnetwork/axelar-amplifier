@@ -12,22 +12,6 @@ pub struct Participant {
 }
 
 #[cw_serde]
-pub struct NonWeightedParticipant {
-    pub address: Addr,
-}
-
-impl From<NonWeightedParticipant> for Participant {
-    fn from(participant: NonWeightedParticipant) -> Self {
-        Self {
-            address: participant.address,
-            weight: Uint256::one()
-                .try_into()
-                .expect("violated invariant: weight is zero"),
-        }
-    }
-}
-
-#[cw_serde]
 pub struct Snapshot {
     pub timestamp: nonempty::Timestamp,
     pub height: nonempty::Uint64,
@@ -134,16 +118,6 @@ mod tests {
             ("participant8", non_zero_256(300u16)),
             ("participant9", non_zero_256(300u16)),
         ])
-    }
-    #[test]
-    fn test_participant_conversion() {
-        let participant = NonWeightedParticipant {
-            address: Addr::unchecked("participant"),
-        };
-
-        let participant: Participant = participant.into();
-
-        assert_eq!(participant.weight, Uint256::one().try_into().unwrap());
     }
 
     #[test]

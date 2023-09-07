@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -12,7 +12,7 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-use axelar_wasm_std::snapshot::{NonWeightedParticipant, Participant};
+use axelar_wasm_std::snapshot::Participant;
 
 use crate::ContractError;
 
@@ -41,19 +41,13 @@ impl TryFrom<Worker> for Participant {
 
     fn try_from(worker: Worker) -> Result<Participant, ContractError> {
         match worker.bonding_state {
-            BondingState::Bonded { amount } => Ok(Self {
+            BondingState::Bonded { amount: _ } => Ok(Self {
                 address: worker.address,
-                weight: amount.try_into()?,
+                weight: Uint256::one()
+                    .try_into()
+                    .expect("violated invariant: weight is zero"),
             }),
             _ => Err(ContractError::InvalidBondingState(worker.bonding_state)),
-        }
-    }
-}
-
-impl From<Worker> for NonWeightedParticipant {
-    fn from(worker: Worker) -> Self {
-        Self {
-            address: worker.address,
         }
     }
 }
