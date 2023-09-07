@@ -3,6 +3,7 @@ use ethers::prelude::abigen;
 use ethers::types::{Log, TransactionReceipt};
 
 use crate::handlers::evm_verify_msg::Message;
+use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
 use crate::types::EVMAddress;
 
 abigen!(IAxelarGateway, "src/evm/abi/IAxelarGateway.json");
@@ -46,6 +47,14 @@ pub fn verify_message(
     };
 
     tx_receipt.transaction_hash == msg.tx_id && event == msg
+}
+
+pub fn verify_worker_set(
+    _gateway_address: &EVMAddress,
+    _tx_receipt: &TransactionReceipt,
+    _worker_set: WorkerSetConfirmation,
+) -> bool {
+    todo!()
 }
 
 #[cfg(test)]

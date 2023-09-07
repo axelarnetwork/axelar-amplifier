@@ -18,7 +18,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::evm::json_rpc::EthereumClient;
-use crate::evm::message_verifier::verify_message;
+use crate::evm::verifier::verify_message;
 use crate::evm::ChainName;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
