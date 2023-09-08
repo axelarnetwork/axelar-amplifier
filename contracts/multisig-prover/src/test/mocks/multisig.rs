@@ -50,7 +50,10 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 mod query {
-    use multisig::msg::{Multisig, Signer};
+    use multisig::{
+        key::Signature,
+        msg::{Multisig, Signer},
+    };
 
     use crate::test::test_data;
 
@@ -62,13 +65,17 @@ mod query {
 
         let signers = operators
             .into_iter()
-            .map(|op| Signer {
-                address: op.address,
-                weight: op.weight.into(),
-                pub_key: op.pub_key,
-                signature: op.signature,
+            .map(|op| {
+                (
+                    Signer {
+                        address: op.address,
+                        weight: op.weight.into(),
+                        pub_key: op.pub_key,
+                    },
+                    op.signature,
+                )
             })
-            .collect::<Vec<Signer>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         Multisig {
             state: MultisigState::Completed,

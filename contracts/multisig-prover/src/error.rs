@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
@@ -23,4 +24,16 @@ pub enum ContractError {
 
     #[error("invalid contract reply: {reason}")]
     InvalidContractReply { reason: String },
+
+    #[error("public key not found for participant {participant}")]
+    PublicKeyNotFound { participant: String },
+
+    #[error(transparent)]
+    ServiceRegistryError(#[from] service_registry::ContractError),
+
+    #[error(transparent)]
+    NonEmptyError(#[from] nonempty::Error),
+
+    #[error("worker set has not changed sufficiently since last update")]
+    WorkerSetUnchanged,
 }

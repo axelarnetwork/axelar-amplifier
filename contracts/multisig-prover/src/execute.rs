@@ -2,34 +2,42 @@ use cosmwasm_std::{
     to_binary, wasm_execute, Addr, BlockInfo, DepsMut, Env, HexBinary, QuerierWrapper,
     QueryRequest, Response, SubMsg, WasmMsg, WasmQuery,
 };
-use multisig::key::KeyType;
+use multisig::key::{KeyType, PublicKey};
 
 use std::{collections::HashMap, str::FromStr};
 
-use axelar_wasm_std::{Participant, Snapshot};
+use axelar_wasm_std::{snapshot, Participant, Snapshot};
 use connection_router::{msg::Message, types::ChainName};
 use service_registry::state::Worker;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
+    encoding::evm::CommandBatchBuilder,
     error::ContractError,
     events::Event,
-    state::{Config, COMMANDS_BATCH, CONFIG, KEY_ID, REPLY_BATCH},
-    types::{BatchID, CommandBatch},
+    state::{
+        Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
+        REPLY_BATCH,
+    },
+    types::BatchID,
 };
 
 pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Response, ContractError> {
     let key_id = KEY_ID.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
 
-    let batch_id = BatchID::new(&message_ids);
+    let batch_id = BatchID::new(&message_ids, None);
 
     let messages = get_messages(deps.querier, message_ids, config.gateway, config.chain_name)?;
 
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let batch = CommandBatch::new(messages, config.destination_chain_id)?;
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+            for msg in messages {
+                builder.add_message(msg)?;
+            }
+            let batch = builder.build()?;
 
             COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
 
@@ -78,6 +86,81 @@ fn get_messages(
     }
 
     Ok(messages)
+}
+
+pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
+        service_name: config.service_name,
+        chain_name: config.chain_name.into(),
+    };
+    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: config.service_registry.to_string(),
+        msg: to_binary(&active_workers_query)?,
+    }))?;
+
+    let participants = workers
+        .clone()
+        .into_iter()
+        .map(service_registry::state::Worker::try_into)
+        .collect::<Result<Vec<snapshot::Participant>, _>>()?;
+
+    let snapshot = snapshot::Snapshot::new(
+        env.block.time.try_into()?,
+        env.block.height.try_into()?,
+        config.signing_threshold,
+        participants.try_into()?,
+    );
+
+    let mut pub_keys = vec![];
+    for worker in &workers {
+        let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
+            worker_address: worker.address.to_string(),
+            key_type: KeyType::Ecdsa,
+        };
+        let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.multisig.to_string(),
+            msg: to_binary(&pub_key_query)?,
+        }))?;
+        pub_keys.push(pub_key);
+    }
+
+    let new_worker_set = WorkerSet::new(snapshot, pub_keys, env.block.height)?;
+
+    let cur_worker_set = CURRENT_WORKER_SET.load(deps.storage)?;
+
+    if !should_update_worker_set(
+        &new_worker_set,
+        &cur_worker_set,
+        config.worker_set_diff_threshold as usize,
+    ) {
+        return Err(ContractError::WorkerSetUnchanged);
+    }
+
+    NEXT_WORKER_SET.save(deps.storage, &new_worker_set)?;
+    let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+    builder.add_new_worker_set(new_worker_set)?;
+
+    let batch = builder.build()?;
+
+    let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
+        key_id: "static".to_string(), // TODO remove the key_id
+        msg: batch.msg_to_sign(),
+    };
+
+    // TODO handle the reply
+    Ok(Response::new().add_message(wasm_execute(config.multisig, &start_sig_msg, vec![])?))
+}
+
+pub fn should_update_worker_set(
+    new_workers: &WorkerSet,
+    cur_workers: &WorkerSet,
+    max_diff: usize,
+) -> bool {
+    new_workers.signers.difference(&cur_workers.signers).count()
+        + cur_workers.signers.difference(&new_workers.signers).count()
+        > max_diff
 }
 
 pub fn rotate_snapshot(

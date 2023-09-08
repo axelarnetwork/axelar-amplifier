@@ -6,17 +6,19 @@ use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::key::Signature;
 use sha3::{Digest, Keccak256};
 
-use crate::encoding::Data;
+use crate::{encoding::Data, state::WorkerSet};
 
 #[cw_serde]
 pub enum CommandType {
     ApproveContractCall,
+    TransferOperatorship,
 }
 
 impl Display for CommandType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CommandType::ApproveContractCall => write!(f, "approveContractCall"),
+            CommandType::TransferOperatorship => write!(f, "transferOperatorship"),
         }
     }
 }
@@ -63,10 +65,13 @@ impl KeyDeserialize for BatchID {
 }
 
 impl BatchID {
-    pub fn new(message_ids: &[String]) -> BatchID {
+    pub fn new(message_ids: &[String], new_worker_set: Option<WorkerSet>) -> BatchID {
         let mut message_ids = message_ids.to_vec();
         message_ids.sort();
 
+        if let Some(new_worker_set) = new_worker_set {
+            message_ids.push(new_worker_set.hash().to_string())
+        }
         Keccak256::digest(message_ids.join(",")).as_slice().into()
     }
 }
@@ -84,4 +89,10 @@ pub struct Operator {
     pub address: HexBinary,
     pub weight: Uint256,
     pub signature: Option<Signature>,
+}
+
+impl Operator {
+    pub fn set_signature(&mut self, sig: Signature) {
+        self.signature = Some(sig);
+    }
 }

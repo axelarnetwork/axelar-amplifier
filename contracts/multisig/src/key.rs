@@ -18,6 +18,7 @@ pub enum Signature {
 }
 
 #[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
 pub enum PublicKey {
     #[serde(deserialize_with = "deserialize_ecdsa_key")]
     Ecdsa(HexBinary),

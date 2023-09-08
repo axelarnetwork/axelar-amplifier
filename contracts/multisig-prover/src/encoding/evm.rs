@@ -7,10 +7,11 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use connection_router::msg::Message;
-use multisig::msg::Signer;
+use multisig::{key::Signature, msg::Signer};
 
 use crate::{
     error::ContractError,
+    state::WorkerSet,
     types::{BatchID, Command, CommandBatch, CommandType, Operator},
 };
 
@@ -44,6 +45,15 @@ impl TryFrom<Message> for Command {
     }
 }
 
+fn make_transfer_operatorship(worker_set: WorkerSet) -> Result<Command, ContractError> {
+    let params = transfer_operatorship_params(&worker_set)?;
+    Ok(Command {
+        ty: CommandType::TransferOperatorship,
+        params,
+        id: worker_set.hash(),
+    })
+}
+
 impl TryFrom<Signer> for Operator {
     type Error = ContractError;
 
@@ -51,35 +61,57 @@ impl TryFrom<Signer> for Operator {
         Ok(Self {
             address: evm_address(signer.pub_key.as_ref())?,
             weight: signer.weight,
-            signature: signer.signature,
+            signature: None,
+        })
+    }
+}
+
+pub struct CommandBatchBuilder {
+    message_ids: Vec<String>,
+    new_worker_set: Option<WorkerSet>,
+    commands: Vec<Command>,
+    destination_chain_id: Uint256,
+}
+
+impl CommandBatchBuilder {
+    pub fn new(destination_chain_id: Uint256) -> Self {
+        Self {
+            message_ids: vec![],
+            new_worker_set: None,
+            commands: vec![],
+            destination_chain_id,
+        }
+    }
+
+    pub fn add_message(&mut self, msg: Message) -> Result<(), ContractError> {
+        self.message_ids.push(msg.id.clone());
+        self.commands.push(msg.try_into()?);
+        Ok(())
+    }
+
+    pub fn add_new_worker_set(&mut self, worker_set: WorkerSet) -> Result<(), ContractError> {
+        self.new_worker_set = Some(worker_set.clone());
+        self.commands.push(make_transfer_operatorship(worker_set)?);
+        Ok(())
+    }
+
+    pub fn build(self) -> Result<CommandBatch, ContractError> {
+        let data = Data {
+            destination_chain_id: self.destination_chain_id,
+            commands: self.commands,
+        };
+
+        let id = BatchID::new(&self.message_ids, self.new_worker_set);
+
+        Ok(CommandBatch {
+            id,
+            message_ids: self.message_ids,
+            data,
         })
     }
 }
 
 impl CommandBatch {
-    pub fn new(
-        messages: Vec<Message>,
-        destination_chain_id: Uint256,
-    ) -> Result<Self, ContractError> {
-        let message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
-
-        let data = Data {
-            destination_chain_id,
-            commands: messages
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<Vec<Command>, ContractError>>()?,
-        };
-
-        let id = BatchID::new(&message_ids);
-
-        Ok(Self {
-            id,
-            message_ids,
-            data,
-        })
-    }
-
     pub fn msg_to_sign(&self) -> HexBinary {
         let msg = Keccak256::digest(self.data.encode().as_slice());
 
@@ -96,7 +128,7 @@ impl CommandBatch {
     pub fn encode_execute_data(
         &self,
         quorum: Uint256,
-        signers: Vec<Signer>,
+        signers: Vec<(Signer, Option<Signature>)>,
     ) -> Result<HexBinary, ContractError> {
         let param = ethabi::encode(&[
             Token::Bytes(self.data.encode().into()),
@@ -116,9 +148,10 @@ impl CommandBatch {
     fn encode_proof(
         &self,
         quorum: Uint256,
-        signers: Vec<Signer>,
+        signers: Vec<(Signer, Option<Signature>)>,
     ) -> Result<HexBinary, ContractError> {
-        let operators = sorted_operators(signers)?;
+        let mut operators = make_operators(signers)?;
+        operators.sort();
 
         let (addresses, weights, signatures) = operators.iter().fold(
             (vec![], vec![], vec![]),
@@ -148,6 +181,37 @@ impl CommandBatch {
         ])
         .into())
     }
+}
+
+fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|s| {
+            (
+                evm_address(s.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
+                s.weight,
+            )
+        })
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    let (addresses, weights): (Vec<Token>, Vec<Token>) = operators
+        .iter()
+        .map(|operator| {
+            (
+                Token::Address(ethereum_types::Address::from_slice(operator.0.as_slice())),
+                Token::Uint(ethereum_types::U256::from_big_endian(
+                    &operator.1.to_be_bytes(),
+                )),
+            )
+        })
+        .unzip();
+
+    let quorum = Token::Uint(ethereum_types::U256::from_big_endian(
+        &worker_set.threshold.to_be_bytes(),
+    ));
+
+    Ok(ethabi::encode(&[Token::Array(addresses), Token::Array(weights), quorum]).into())
 }
 
 #[cw_serde]
@@ -192,14 +256,17 @@ fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
-fn sorted_operators(signers: Vec<Signer>) -> Result<Vec<Operator>, ContractError> {
-    let mut operators = signers
-        .into_iter()
-        .map(TryInto::try_into)
-        .collect::<Result<Vec<Operator>, ContractError>>()?;
-    operators.sort();
-
-    Ok(operators)
+fn make_operators(
+    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
+) -> Result<Vec<Operator>, ContractError> {
+    axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
+        signer.try_into().map(|mut op: Operator| {
+            if let Some(sig) = sig {
+                op.set_signature(sig);
+            }
+            op
+        })
+    })
 }
 
 fn command_id(message_id: String) -> HexBinary {
@@ -244,6 +311,19 @@ mod test {
         )
         .unwrap()
     }
+    fn decode_operator_transfer_command_params<'a>(
+        encoded_params: impl Into<Vec<u8>>,
+    ) -> Vec<Token> {
+        ethabi::decode(
+            &[
+                ParamType::Array(Box::new(ParamType::Address)),
+                ParamType::Array(Box::new(ParamType::Uint(32))),
+                ParamType::Uint(32),
+            ],
+            &encoded_params.into(),
+        )
+        .unwrap()
+    }
 
     pub fn decode_data(encoded_data: &HexBinary) -> Data {
         let tokens_array = &ethabi::decode(
@@ -283,7 +363,8 @@ mod test {
                                 id: id.to_owned().try_into().unwrap(),
                                 ty: match ty.as_str() {
                                     "approveContractCall" => CommandType::ApproveContractCall,
-                                    _ => panic!("undecodable command type"),
+                                    "transferOperatorship" => CommandType::TransferOperatorship,
+                                    &_ => panic!("undecodable command type"),
                                 },
                                 params: HexBinary::from(params.to_owned()),
                             };
@@ -360,12 +441,52 @@ mod test {
     }
 
     #[test]
+    fn test_command_operator_transfer() {
+        let new_worker_set = test_data::new_worker_set();
+        let res = make_transfer_operatorship(new_worker_set.clone());
+        assert!(res.is_ok());
+
+        let tokens = decode_operator_transfer_command_params(res.unwrap().params);
+        let mut signers: Vec<Signer> = new_worker_set.signers.into_iter().collect();
+        signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
+        let mut i = 0;
+        for signer in signers {
+            assert_eq!(
+                tokens[0].clone().into_array().unwrap()[i],
+                Token::Address(ethereum_types::Address::from_slice(
+                    evm_address(signer.pub_key.as_ref())
+                        .expect("couldn't convert pubkey to evm address")
+                        .as_slice()
+                ))
+            );
+
+            assert_eq!(
+                tokens[1].clone().into_array().unwrap()[i],
+                Token::Uint(ethereum_types::U256::from_big_endian(
+                    &signer.weight.to_be_bytes()
+                ))
+            );
+            i = i + 1;
+        }
+        assert_eq!(
+            tokens[2],
+            Token::Uint(ethereum_types::U256::from_big_endian(
+                &new_worker_set.threshold.to_be_bytes()
+            ))
+        );
+    }
+
+    #[test]
     fn test_new_command_batch() {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
+        let mut builder = CommandBatchBuilder::new(destination_chain_id);
+        for msg in messages {
+            builder.add_message(msg).unwrap();
+        }
 
-        let res = CommandBatch::new(messages, destination_chain_id).unwrap();
+        let res = builder.build().unwrap();
 
         assert_eq!(
             res.message_ids,
@@ -394,23 +515,43 @@ mod test {
     }
 
     #[test]
+    fn test_new_command_batch_with_operator_transfer() {
+        let test_data = decode_data(&test_data::encoded_data_with_operator_transfer());
+        let mut builder = CommandBatchBuilder::new(test_data::chain_id_operator_transfer());
+        let res = builder.add_new_worker_set(test_data::new_worker_set());
+        assert!(res.is_ok());
+        let res = builder.build();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().data, test_data);
+    }
+
+    #[test]
     fn test_batch_with_proof() {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let operators = test_data::operators();
         let quorum = test_data::quorum();
 
-        let batch = CommandBatch::new(messages, destination_chain_id).unwrap();
+        let mut builder = CommandBatchBuilder::new(destination_chain_id);
+        for msg in messages {
+            let res = builder.add_message(msg);
+            assert!(res.is_ok());
+        }
+        let batch = builder.build().unwrap();
 
         let signers = operators
             .into_iter()
-            .map(|op| Signer {
-                address: op.address,
-                weight: op.weight.into(),
-                pub_key: op.pub_key,
-                signature: op.signature,
+            .map(|op| {
+                (
+                    Signer {
+                        address: op.address,
+                        weight: op.weight.into(),
+                        pub_key: op.pub_key,
+                    },
+                    op.signature,
+                )
             })
-            .collect::<Vec<Signer>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         let execute_data = &batch.encode_execute_data(quorum, signers).unwrap();
 
@@ -478,13 +619,17 @@ mod test {
 
         let signers = operators
             .into_iter()
-            .map(|op| Signer {
-                address: op.address,
-                weight: op.weight.into(),
-                pub_key: op.pub_key,
-                signature: op.signature,
+            .map(|op| {
+                (
+                    Signer {
+                        address: op.address,
+                        weight: op.weight.into(),
+                        pub_key: op.pub_key,
+                    },
+                    op.signature,
+                )
             })
-            .collect::<Vec<Signer>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         let res = batch.encode_execute_data(quorum, signers).unwrap();
         assert_eq!(res, test_data::execute_data());
@@ -505,10 +650,10 @@ mod test {
         let mut message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
 
         message_ids.sort();
-        let res = BatchID::new(&message_ids);
+        let res = BatchID::new(&message_ids, None);
 
         message_ids.reverse();
-        let res2 = BatchID::new(&message_ids);
+        let res2 = BatchID::new(&message_ids, None);
 
         assert_eq!(res, res2);
     }
@@ -548,27 +693,34 @@ mod test {
         );
 
         let signers = vec![
-            Signer {
-                address: operator2.address,
-                weight: operator2.weight,
-                pub_key: operator2.pub_key,
-                signature: operator2.signature,
-            },
-            Signer {
-                address: operator1.address,
-                weight: operator1.weight,
-                pub_key: operator1.pub_key,
-                signature: operator1.signature,
-            },
-            Signer {
-                address: operator3.address,
-                weight: operator3.weight,
-                pub_key: operator3.pub_key,
-                signature: operator3.signature,
-            },
+            (
+                Signer {
+                    address: operator2.address,
+                    weight: operator2.weight,
+                    pub_key: operator2.pub_key,
+                },
+                operator2.signature,
+            ),
+            (
+                Signer {
+                    address: operator1.address,
+                    weight: operator1.weight,
+                    pub_key: operator1.pub_key,
+                },
+                operator1.signature,
+            ),
+            (
+                Signer {
+                    address: operator3.address,
+                    weight: operator3.weight,
+                    pub_key: operator3.pub_key,
+                },
+                operator3.signature,
+            ),
         ];
 
-        let operators = sorted_operators(signers).unwrap();
+        let mut operators = make_operators(signers).unwrap();
+        operators.sort();
 
         assert_eq!(
             operators[0].address.cmp(&operators[1].address),

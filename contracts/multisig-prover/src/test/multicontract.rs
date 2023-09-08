@@ -131,6 +131,7 @@ fn instantiate_prover(
         signing_threshold: test_data::threshold(),
         service_name: "service-name".to_string(),
         chain_name: "Ethereum".to_string(),
+        worker_set_diff_threshold: 0,
     };
 
     app.instantiate_contract(
