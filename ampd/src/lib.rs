@@ -59,7 +59,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .change_context(Error::Connection)?;
     let multisig_client = MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
         .await
-        .change_context(Error::Tofnd)?;
+        .change_context(Error::Connection)?;
     let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
     let mut state_updater = StateUpdater::new(state_path).change_context(Error::StateUpdater)?;
@@ -267,7 +267,7 @@ where
         let res = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                result.change_context(Error::Threading)?
+                result.change_context(Error::Task)?
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),

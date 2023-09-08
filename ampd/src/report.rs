@@ -22,8 +22,8 @@ pub enum Error {
     Tofnd,
     #[error("connection failed")]
     Connection,
-    #[error("thread execution failed")]
-    Threading,
+    #[error("task execution failed")]
+    Task,
 }
 
 #[derive(Valuable, PartialEq, Debug, Default)]
