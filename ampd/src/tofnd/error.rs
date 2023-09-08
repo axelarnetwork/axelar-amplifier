@@ -8,7 +8,7 @@ pub enum Error {
     KeygenFailed,
     #[error("sign failed")]
     SignFailed,
-    #[error("{0}")]
+    #[error(transparent)]
     FromHex(#[from] hex::FromHexError),
     #[error("parsing failed")]
     ParsingFailed,

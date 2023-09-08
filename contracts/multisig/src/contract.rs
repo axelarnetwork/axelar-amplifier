@@ -151,7 +151,7 @@ pub mod execute {
         pub_keys: HashMap<String, (KeyType, HexBinary)>,
     ) -> Result<Response, ContractError> {
         if snapshot.participants.len() != pub_keys.len() {
-            return Err(ContractError::PublicKeysMismatchParticipants {});
+            return Err(ContractError::PublicKeysMismatchParticipants);
         }
 
         for participant in snapshot.participants.keys() {

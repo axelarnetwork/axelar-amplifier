@@ -67,7 +67,7 @@ fn bad_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::RouterError(connection_router::error::ContractError::InvalidMessageID {}),
+        ContractError::RouterError(connection_router::error::ContractError::InvalidMessageID),
         res.downcast().unwrap()
     )
 }

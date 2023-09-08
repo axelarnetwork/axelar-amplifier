@@ -5,29 +5,29 @@ use crate::types::ChainName;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
-    #[error("{0}")]
+    #[error(transparent)]
     Std(#[from] StdError),
 
     #[error("caller is not authorized")]
-    Unauthorized {},
+    Unauthorized,
 
     #[error("chain already exists")]
-    ChainAlreadyExists {},
+    ChainAlreadyExists,
 
     #[error("chain name is invalid")]
-    InvalidChainName {},
+    InvalidChainName,
 
     #[error("message ID is invalid")]
-    InvalidMessageID {},
+    InvalidMessageID,
 
     #[error("chain is not found")]
-    ChainNotFound {},
+    ChainNotFound,
 
     #[error("gateway is not registered")]
-    GatewayNotRegistered {},
+    GatewayNotRegistered,
 
     #[error("gateway is already registered")]
-    GatewayAlreadyRegistered {},
+    GatewayAlreadyRegistered,
 
     #[error("chain is frozen")]
     ChainFrozen { chain: ChainName },
@@ -36,7 +36,7 @@ pub enum ContractError {
     InvalidAddress(String),
 
     #[error("source chain does not match registered gateway")]
-    WrongSourceChain {},
+    WrongSourceChain,
 }
 
 impl From<ContractError> for StdError {

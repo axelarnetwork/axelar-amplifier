@@ -143,7 +143,7 @@ fn route_non_existing_chain() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::ChainNotFound {}, res.downcast().unwrap());
+    assert_eq!(ContractError::ChainNotFound, res.downcast().unwrap());
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
 
     // don't prepend source chain
     let bad_id = msg.id.split(&msg.source_chain).collect::<Vec<&str>>()[0];
@@ -204,7 +204,7 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
 
     let res = config
         .app
@@ -218,7 +218,7 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
 
     let res = config
         .app
@@ -232,7 +232,7 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID {}, res.downcast().unwrap());
+    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
 }
 
 #[test]
@@ -301,7 +301,7 @@ fn wrong_source_chain() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::WrongSourceChain {}, res.downcast().unwrap());
+    assert_eq!(ContractError::WrongSourceChain, res.downcast().unwrap());
 }
 
 #[test]
@@ -379,7 +379,7 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
     let res = config.app.execute_contract(
         config.admin_address.clone(),
@@ -405,7 +405,7 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
     let res = config.app.execute_contract(
         config.admin_address.clone(),
@@ -431,7 +431,7 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
     let res = config
         .app
@@ -446,7 +446,7 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized {}, res.downcast().unwrap());
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
     let res = config.app.execute_contract(
         config.admin_address.clone(),
@@ -535,10 +535,7 @@ fn upgrade_gateway_incoming() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
+    assert_eq!(ContractError::GatewayNotRegistered, res.downcast().unwrap());
 
     let res = config.app.execute_contract(
         new_gateway,
@@ -568,10 +565,7 @@ fn register_chain_test() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::GatewayNotRegistered {},
-        res.downcast().unwrap()
-    );
+    assert_eq!(ContractError::GatewayNotRegistered, res.downcast().unwrap());
 
     register_chain(&mut config, &eth);
     let res = config
@@ -583,7 +577,7 @@ fn register_chain_test() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::ChainNotFound {}, res.downcast().unwrap());
+    assert_eq!(ContractError::ChainNotFound, res.downcast().unwrap());
 
     register_chain(&mut config, &polygon);
     let res = config.app.execute_contract(
@@ -613,10 +607,7 @@ fn chain_already_registered() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::ChainAlreadyExists {},
-        res.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ChainAlreadyExists, res.downcast().unwrap());
 
     // case insensitive
     let res = config
@@ -631,10 +622,7 @@ fn chain_already_registered() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::ChainAlreadyExists {},
-        res.downcast().unwrap()
-    );
+    assert_eq!(ContractError::ChainAlreadyExists, res.downcast().unwrap());
 }
 
 #[test]
@@ -652,7 +640,7 @@ fn invalid_chain_name() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidChainName {}, res.downcast().unwrap());
+    assert_eq!(ContractError::InvalidChainName, res.downcast().unwrap());
 
     let res = config
         .app
@@ -666,7 +654,7 @@ fn invalid_chain_name() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidChainName {}, res.downcast().unwrap());
+    assert_eq!(ContractError::InvalidChainName, res.downcast().unwrap());
 }
 
 #[test]
@@ -688,7 +676,7 @@ fn gateway_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::GatewayAlreadyRegistered {},
+        ContractError::GatewayAlreadyRegistered,
         res.downcast().unwrap()
     );
 
@@ -706,7 +694,7 @@ fn gateway_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::GatewayAlreadyRegistered {},
+        ContractError::GatewayAlreadyRegistered,
         res.downcast().unwrap()
     );
 }

@@ -4,7 +4,7 @@ use std::pin::Pin;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{FutureExt, Report, Result, ResultExt};
+use error_stack::{FutureExt, Result, ResultExt};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinSet;
 use tokio_stream::Stream;
@@ -49,20 +49,20 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         event_buffer_cap,
     } = cfg;
 
-    let tm_client =
-        tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str()).map_err(Error::new)?;
+    let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
+        .change_context(Error::Connection)?;
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
-        .map_err(Error::new)?;
+        .change_context(Error::Connection)?;
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
-        .map_err(Error::new)?;
+        .change_context(Error::Connection)?;
     let multisig_client = MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
         .await
-        .map_err(Error::new)?;
+        .change_context(Error::Connection)?;
     let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
-    let mut state_updater = StateUpdater::new(state_path).map_err(Error::new)?;
+    let mut state_updater = StateUpdater::new(state_path).change_context(Error::StateUpdater)?;
     let pub_key = match state_updater.state().pub_key {
         Some(pub_key) => pub_key,
         None => {
@@ -80,7 +80,9 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .account_id(PREFIX)
         .expect("failed to convert to account identifier")
         .into();
-    let account = account(query_client, &worker).await.map_err(Error::new)?;
+    let account = account(query_client, &worker)
+        .await
+        .change_context(Error::Broadcaster)?;
 
     let broadcaster = broadcaster::BroadcastClientBuilder::default()
         .client(service_client)
@@ -174,7 +176,8 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        evm::json_rpc::Client::new_http(&chain.rpc_url).map_err(Error::new)?,
+                        evm::json_rpc::Client::new_http(&chain.rpc_url)
+                            .change_context(Error::Connection)?,
                         self.broadcaster.client(),
                     ),
                 ),
@@ -187,7 +190,8 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        evm::json_rpc::Client::new_http(&chain.rpc_url).map_err(Error::new)?,
+                        evm::json_rpc::Client::new_http(&chain.rpc_url)
+                            .change_context(Error::Connection)?,
                         self.broadcaster.client(),
                     ),
                 ),
@@ -263,7 +267,7 @@ where
         let res = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                result.map_err(Error::new).map_err(Report::from)?
+                result.change_context(Error::Task)?
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),

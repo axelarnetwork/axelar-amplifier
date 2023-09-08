@@ -41,7 +41,7 @@ pub fn confirm_worker_set(
         .may_load(deps.storage, new_operators.hash())?
         .is_some()
     {
-        return Err(ContractError::WorkerSetAlreadyConfirmed {});
+        return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 
     let config = CONFIG.load(deps.storage)?;
@@ -157,7 +157,7 @@ pub fn vote(
 ) -> Result<Response, ContractError> {
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound {})?;
+        .ok_or(ContractError::PollNotFound)?;
     match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
             poll.cast_vote(env.block.height, &info.sender, votes)?
@@ -232,7 +232,7 @@ fn end_poll_worker_set(
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound {})?;
+        .ok_or(ContractError::PollNotFound)?;
 
     let poll_result = match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
@@ -326,7 +326,7 @@ fn remove_pending_message(
 ) -> Result<Vec<Message>, ContractError> {
     let pending_messages = PENDING_MESSAGES
         .may_load(store, poll_id)?
-        .ok_or(ContractError::PollNotFound {})?;
+        .ok_or(ContractError::PollNotFound)?;
 
     PENDING_MESSAGES.remove(store, poll_id);
 
