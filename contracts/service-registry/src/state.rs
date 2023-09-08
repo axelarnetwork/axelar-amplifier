@@ -76,7 +76,7 @@ impl BondingState {
                 amount,
                 unbonded_at: _,
             } => amount + to_add,
-            BondingState::Unbonded {} => to_add,
+            BondingState::Unbonded => to_add,
         };
         if amount.is_zero() {
             Err(ContractError::InvalidBondingState(self))
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_unbonded_add_bond() {
-        let state = BondingState::Unbonded {};
+        let state = BondingState::Unbonded;
         let res = state.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_zero_bond() {
-        let state = BondingState::Unbonded {};
+        let state = BondingState::Unbonded;
         let res = state.clone().add_bond(Uint128::from(0u32));
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), ContractError::InvalidBondingState(state));
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_unbonded_unbond() {
-        let state = BondingState::Unbonded {};
+        let state = BondingState::Unbonded;
         let res = state.clone().unbond(true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
@@ -360,13 +360,13 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
-            (BondingState::Unbonded {}, Uint128::from(100u32))
+            (BondingState::Unbonded, Uint128::from(100u32))
         );
     }
 
     #[test]
     fn test_unbonded_claim_stake() {
-        let state = BondingState::Unbonded {};
+        let state = BondingState::Unbonded;
         let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(

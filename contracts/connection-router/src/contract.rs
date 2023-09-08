@@ -88,10 +88,10 @@ pub mod execute {
         gateway: Addr,
     ) -> Result<Response, ContractError> {
         if find_chain_for_gateway(&deps, &gateway)?.is_some() {
-            return Err(ContractError::GatewayAlreadyRegistered {});
+            return Err(ContractError::GatewayAlreadyRegistered);
         }
         chain_endpoints().update(deps.storage, name.clone(), |chain| match chain {
-            Some(_) => Err(ContractError::ChainAlreadyExists {}),
+            Some(_) => Err(ContractError::ChainAlreadyExists),
             None => Ok(ChainEndpoint {
                 name: name.clone(),
                 gateway: Gateway {
@@ -119,10 +119,10 @@ pub mod execute {
         contract_address: Addr,
     ) -> Result<Response, ContractError> {
         if find_chain_for_gateway(&deps, &contract_address)?.is_some() {
-            return Err(ContractError::GatewayAlreadyRegistered {});
+            return Err(ContractError::GatewayAlreadyRegistered);
         }
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
-            None => Err(ContractError::ChainNotFound {}),
+            None => Err(ContractError::ChainNotFound),
             Some(mut chain) => {
                 chain.gateway.address = contract_address.clone();
                 Ok(chain)
@@ -145,7 +145,7 @@ pub mod execute {
         direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
-            None => Err(ContractError::ChainNotFound {}),
+            None => Err(ContractError::ChainNotFound),
             Some(mut chain) => {
                 *chain.frozen_status |= direction;
                 Ok(chain)
@@ -160,7 +160,7 @@ pub mod execute {
         direction: GatewayDirection,
     ) -> Result<Response, ContractError> {
         chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
-            None => Err(ContractError::ChainNotFound {}),
+            None => Err(ContractError::ChainNotFound),
             Some(mut chain) => {
                 *chain.frozen_status -= direction;
                 Ok(chain)
@@ -183,7 +183,7 @@ pub mod execute {
         msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         let source_chain = find_chain_for_gateway(&deps, &info.sender)?
-            .ok_or(ContractError::GatewayNotRegistered {})?;
+            .ok_or(ContractError::GatewayNotRegistered)?;
         if incoming_frozen(&source_chain.frozen_status) {
             return Err(ContractError::ChainFrozen {
                 chain: source_chain.name,
@@ -193,7 +193,7 @@ pub mod execute {
         let mut msgs_by_destination: HashMap<String, Vec<msg::Message>> = HashMap::new();
         for msg in &msgs {
             if source_chain.name != msg.source_chain {
-                return Err(ContractError::WrongSourceChain {});
+                return Err(ContractError::WrongSourceChain);
             }
 
             msgs_by_destination
@@ -206,7 +206,7 @@ pub mod execute {
         for (destination_chain, msgs) in msgs_by_destination {
             let destination_chain = chain_endpoints()
                 .may_load(deps.storage, destination_chain.parse()?)?
-                .ok_or(ContractError::ChainNotFound {})?;
+                .ok_or(ContractError::ChainNotFound)?;
 
             if outgoing_frozen(&destination_chain.frozen_status) {
                 return Err(ContractError::ChainFrozen {
@@ -229,7 +229,7 @@ pub mod execute {
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if config.admin != info.sender {
-            return Err(ContractError::Unauthorized {});
+            return Err(ContractError::Unauthorized);
         }
         Ok(())
     }

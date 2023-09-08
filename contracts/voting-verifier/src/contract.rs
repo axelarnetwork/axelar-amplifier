@@ -40,7 +40,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::VerifyMessages { messages } => {
             if messages.is_empty() {
-                return Err(ContractError::EmptyMessages {});
+                return Err(ContractError::EmptyMessages);
             }
 
             // todo: extract to conversion function

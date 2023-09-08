@@ -120,7 +120,7 @@ impl TryFrom<msg::Message> for Message {
             .id
             .starts_with(&format!("{}{}", value.source_chain, ID_SEPARATOR))
         {
-            return Err(ContractError::InvalidMessageID {});
+            return Err(ContractError::InvalidMessageID);
         }
 
         Ok(Message::new(

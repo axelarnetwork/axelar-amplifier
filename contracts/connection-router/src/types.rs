@@ -22,7 +22,7 @@ impl FromStr for MessageID {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.contains(ID_SEPARATOR) || s.is_empty() {
-            return Err(ContractError::InvalidMessageID {});
+            return Err(ContractError::InvalidMessageID);
         }
         Ok(MessageID(s.to_lowercase()))
     }
@@ -82,7 +82,7 @@ impl FromStr for ChainName {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.contains(ID_SEPARATOR) || s.is_empty() {
-            return Err(ContractError::InvalidChainName {});
+            return Err(ContractError::InvalidChainName);
         }
 
         Ok(ChainName(s.to_lowercase()))
@@ -170,7 +170,7 @@ mod tests {
         // empty
         assert_eq!(
             "".parse::<ChainName>().unwrap_err(),
-            ContractError::InvalidChainName {}
+            ContractError::InvalidChainName
         );
 
         // name contains id separator
@@ -178,7 +178,7 @@ mod tests {
             format!("chain {ID_SEPARATOR}")
                 .parse::<ChainName>()
                 .unwrap_err(),
-            ContractError::InvalidChainName {}
+            ContractError::InvalidChainName
         );
     }
 
