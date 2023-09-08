@@ -44,4 +44,7 @@ pub enum ContractError {
 
     #[error("missing public key for participant {participant}")]
     MissingPublicKey { participant: String },
+
+    #[error("key type mismatch")]
+    KeyTypeMismatch,
 }

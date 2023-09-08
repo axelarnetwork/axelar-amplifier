@@ -41,6 +41,7 @@ pub fn instantiate(
         service_name: msg.service_name,
         chain_name: ChainName::from_str(&msg.chain_name)
             .map_err(|_| ContractError::InvalidChainName)?,
+        worker_set_diff_threshold: msg.worker_set_diff_threshold,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -65,6 +66,7 @@ pub fn execute(
 
             execute::rotate_snapshot(deps, env, config, pub_keys, key_id)
         }
+        ExecuteMsg::UpdateWorkerSet {} => execute::update_worker_set(deps, env),
     }
 }
 
@@ -204,6 +206,7 @@ mod test {
             signing_threshold,
             service_name: service_name.to_string(),
             chain_name: "Ethereum".to_string(),
+            worker_set_diff_threshold: 0,
         };
 
         let res = instantiate(deps.as_mut(), env, info, msg);
@@ -283,5 +286,59 @@ mod test {
             }
             _ => panic!("Expected proof status to be completed"), // multisig mock will always return completed multisig
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use multisig::msg::Signer;
+
+    use crate::{contract::execute::should_update_worker_set, test::test_data};
+
+    #[test]
+    fn should_update_worker_set_no_change() {
+        let worker_set = test_data::new_worker_set();
+        assert!(!should_update_worker_set(&worker_set, &worker_set, 0));
+    }
+
+    #[test]
+    fn should_update_worker_set_one_more() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers.pop_first();
+        assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+    }
+
+    #[test]
+    fn should_update_worker_set_one_less() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers.pop_first();
+        assert!(should_update_worker_set(&new_worker_set, &worker_set, 0));
+    }
+
+    #[test]
+    fn should_update_worker_set_one_more_higher_threshold() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        new_worker_set.signers.pop_first();
+        assert!(!should_update_worker_set(&worker_set, &new_worker_set, 1));
+    }
+
+    #[test]
+    fn should_update_worker_set_diff_pub_key() {
+        let worker_set = test_data::new_worker_set();
+        let mut new_worker_set = worker_set.clone();
+        let first = new_worker_set.signers.pop_first();
+        let last = new_worker_set.signers.pop_last();
+        new_worker_set.signers.insert(Signer {
+            pub_key: first.clone().unwrap().pub_key,
+            ..last.clone().unwrap()
+        });
+        new_worker_set.signers.insert(Signer {
+            pub_key: last.unwrap().pub_key,
+            ..first.unwrap()
+        });
+        assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 }

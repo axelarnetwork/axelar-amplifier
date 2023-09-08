@@ -4,7 +4,10 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
-use crate::types::{Key, KeyID, MultisigState, PublicKey, Signature};
+use crate::{
+    key::{KeyType, PublicKey, Signature},
+    types::{Key, KeyID, MultisigState},
+};
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -22,7 +25,10 @@ pub enum ExecuteMsg {
     KeyGen {
         key_id: String,
         snapshot: Snapshot,
-        pub_keys: HashMap<String, HexBinary>,
+        pub_keys: HashMap<String, (KeyType, HexBinary)>,
+    },
+    RegisterPublicKey {
+        public_key: PublicKey,
     },
 }
 
@@ -34,19 +40,25 @@ pub enum QueryMsg {
 
     #[returns(Key)]
     GetKey { key_id: KeyID },
+
+    #[returns(PublicKey)]
+    GetPublicKey {
+        worker_address: String,
+        key_type: KeyType,
+    },
 }
 
 #[cw_serde]
+#[derive(Eq, Ord, PartialOrd)]
 pub struct Signer {
     pub address: Addr,
     pub weight: Uint256,
     pub pub_key: PublicKey,
-    pub signature: Option<Signature>,
 }
 
 #[cw_serde]
 pub struct Multisig {
     pub state: MultisigState,
     pub quorum: Uint256,
-    pub signers: Vec<Signer>,
+    pub signers: Vec<(Signer, Option<Signature>)>,
 }

@@ -239,7 +239,7 @@ fn should_start_worker_set_confirmation() {
     let contract_address = initialize_contract(&mut app, service_registry_address.into_string());
 
     let operators = Operators {
-        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
         threshold: 1u64.into(),
     };
     let msg = msg::ExecuteMsg::ConfirmWorkerSet {
@@ -278,7 +278,7 @@ fn should_confirm_worker_set() {
         .unwrap();
 
     let operators = Operators {
-        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
         threshold: 1u64.into(),
     };
     let msg = msg::ExecuteMsg::ConfirmWorkerSet {
@@ -332,7 +332,7 @@ fn should_not_confirm_worker_set() {
         .unwrap();
 
     let operators = Operators {
-        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
         threshold: 1u64.into(),
     };
     let msg = msg::ExecuteMsg::ConfirmWorkerSet {
@@ -386,7 +386,7 @@ fn should_confirm_worker_set_after_failed() {
         .unwrap();
 
     let operators = Operators {
-        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
         threshold: 1u64.into(),
     };
     let msg = msg::ExecuteMsg::ConfirmWorkerSet {
@@ -472,7 +472,7 @@ fn should_not_confirm_twice() {
         .unwrap();
 
     let operators = Operators {
-        weights: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
+        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
         threshold: 1u64.into(),
     };
     let msg = msg::ExecuteMsg::ConfirmWorkerSet {

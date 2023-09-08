@@ -2,6 +2,7 @@ use error_stack::Report;
 use thiserror::Error;
 
 use ampd::report::LoggableError;
+use std::env;
 
 #[derive(Error, Debug)]
 enum Error {
@@ -12,6 +13,7 @@ enum Error {
 // Do not move this test or the location field checks break
 #[test]
 fn correct_error_log() {
+    env::set_var("RUST_BACKTRACE", "1");
     let report = Report::new(Error::FromString("error1".to_string()))
         .attach_printable("foo1")
         .change_context(Error::FromString("error2".to_string()))

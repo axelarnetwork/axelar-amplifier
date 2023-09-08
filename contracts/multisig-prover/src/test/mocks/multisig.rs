@@ -34,6 +34,7 @@ pub fn execute(
             snapshot: _,
             pub_keys: _,
         } => Ok(Response::default()),
+        ExecuteMsg::RegisterPublicKey { public_key: _ } => unimplemented!(),
     }
 }
 
@@ -41,11 +42,18 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
         QueryMsg::GetKey { key_id: _ } => unimplemented!(),
+        QueryMsg::GetPublicKey {
+            worker_address: _,
+            key_type: _,
+        } => unimplemented!(),
     }
 }
 
 mod query {
-    use multisig::msg::{Multisig, Signer};
+    use multisig::{
+        key::Signature,
+        msg::{Multisig, Signer},
+    };
 
     use crate::test::test_data;
 
@@ -57,13 +65,17 @@ mod query {
 
         let signers = operators
             .into_iter()
-            .map(|op| Signer {
-                address: op.address,
-                weight: op.weight.into(),
-                pub_key: op.pub_key,
-                signature: op.signature,
+            .map(|op| {
+                (
+                    Signer {
+                        address: op.address,
+                        weight: op.weight.into(),
+                        pub_key: op.pub_key,
+                    },
+                    op.signature,
+                )
             })
-            .collect::<Vec<Signer>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         Multisig {
             state: MultisigState::Completed,
