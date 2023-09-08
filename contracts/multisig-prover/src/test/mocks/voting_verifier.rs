@@ -50,7 +50,7 @@ pub fn confirm_worker_set(
 ) {
     let mut new_operators: Vec<(HexBinary, Uint256)> = workers
         .iter()
-        .map(|w| (evm_address((&w.pub_key).into()).unwrap(), w.weight))
+        .map(|w| (evm_address(w.pub_key.as_ref()).unwrap(), w.weight))
         .collect();
     new_operators.sort_by_key(|op| op.0.clone());
     app.execute_contract(
@@ -59,7 +59,7 @@ pub fn confirm_worker_set(
         &ExecuteMsg::ConfirmWorkerSet {
             message_id: MessageID::try_from("ethereum:00".to_string()).unwrap(),
             new_operators: Operators {
-                weights: new_operators,
+                weights_by_addresses: new_operators,
                 threshold,
             },
         },

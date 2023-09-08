@@ -7,7 +7,6 @@ use cosmwasm_std::{Addr, HexBinary, Uint256};
 use cw_storage_plus::{Item, Map};
 use multisig::key::PublicKey;
 use multisig::msg::Signer;
-use multisig::types::PublicKey;
 use sha3::{Digest, Keccak256};
 
 use crate::error::ContractError;
@@ -61,7 +60,7 @@ impl WorkerSet {
         Ok(WorkerSet {
             signers,
             threshold,
-            nonce: block.height,
+            nonce: block_height,
         })
     }
 

@@ -93,7 +93,7 @@ mod test {
     };
     use cw_multi_test::{AppResponse, Executor};
     use ethabi::{ParamType, Token};
-    use multisig::{msg::Signer, types::PublicKey};
+    use multisig::msg::Signer;
 
     use crate::{
         msg::{GetProofResponse, ProofStatus},
@@ -239,7 +239,7 @@ mod test {
                 .into_iter()
                 .map(|op| Signer {
                     address: op.address,
-                    pub_key: PublicKey::ECDSA(op.pub_key),
+                    pub_key: op.pub_key,
                     weight: op.weight,
                 })
                 .collect(),
@@ -260,14 +260,10 @@ mod test {
         let worker_set = query_get_worker_set(&mut test_case);
         assert!(worker_set.is_ok());
 
-        let mut worker_set = worker_set.unwrap();
-        worker_set.signers.sort_by_key(|s| s.address.clone());
+        let worker_set = worker_set.unwrap();
 
-        let mut expected_worker_set =
+        let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), test_case.app.block_info().height);
-        expected_worker_set
-            .signers
-            .sort_by_key(|s| s.address.clone());
 
         assert_eq!(worker_set, expected_worker_set);
     }
@@ -293,14 +289,10 @@ mod test {
         let worker_set = query_get_worker_set(&mut test_case);
         assert!(worker_set.is_ok());
 
-        let mut worker_set = worker_set.unwrap();
-        worker_set.signers.sort_by_key(|s| s.address.clone());
+        let worker_set = worker_set.unwrap();
 
-        let mut expected_worker_set =
+        let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), test_case.app.block_info().height);
-        expected_worker_set
-            .signers
-            .sort_by_key(|s| s.address.clone());
 
         assert_eq!(worker_set, expected_worker_set);
     }
@@ -333,14 +325,10 @@ mod test {
         let worker_set = query_get_worker_set(&mut test_case);
         assert!(worker_set.is_ok());
 
-        let mut worker_set = worker_set.unwrap();
-        worker_set.signers.sort_by_key(|s| s.address.clone());
+        let worker_set = worker_set.unwrap();
 
-        let mut expected_worker_set =
+        let expected_worker_set =
             test_operators_to_worker_set(new_worker_set, test_case.app.block_info().height);
-        expected_worker_set
-            .signers
-            .sort_by_key(|s| s.address.clone());
 
         assert_eq!(worker_set, expected_worker_set);
     }
@@ -372,14 +360,10 @@ mod test {
         let worker_set = query_get_worker_set(&mut test_case);
         assert!(worker_set.is_ok());
 
-        let mut worker_set = worker_set.unwrap();
-        worker_set.signers.sort_by_key(|s| s.address.clone());
+        let worker_set = worker_set.unwrap();
 
-        let mut expected_worker_set =
+        let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), test_case.app.block_info().height);
-        expected_worker_set
-            .signers
-            .sort_by_key(|s| s.address.clone());
 
         assert_eq!(worker_set, expected_worker_set);
     }
@@ -435,14 +419,10 @@ mod test {
         let worker_set = query_get_worker_set(&mut test_case);
         assert!(worker_set.is_ok());
 
-        let mut worker_set = worker_set.unwrap();
-        worker_set.signers.sort_by_key(|s| s.address.clone());
+        let worker_set = worker_set.unwrap();
 
-        let mut expected_worker_set =
+        let expected_worker_set =
             test_operators_to_worker_set(new_worker_set, test_case.app.block_info().height);
-        expected_worker_set
-            .signers
-            .sort_by_key(|s| s.address.clone());
 
         assert_eq!(worker_set, expected_worker_set);
     }

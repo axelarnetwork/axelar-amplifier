@@ -136,8 +136,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
     let (snapshot, participants) = get_workers_info(&deps, &env)?;
 
-
-    let new_worker_set = WorkerSet::new(snapshot, pub_keys, env.block.height)?;
+    let new_worker_set = WorkerSet::new(
+        participants.clone(),
+        snapshot.quorum.into(),
+        env.block.height,
+    )?;
 
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
 
@@ -158,7 +161,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                     .map(|(participant, pub_key)| {
                         (
                             participant.address.to_string(),
-                            (KeyType::ECDSA, <&[u8]>::from(&pub_key).into()),
+                            (KeyType::Ecdsa, pub_key.as_ref().into()),
                         )
                     })
                     .collect(),
@@ -175,11 +178,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
-    NEXT_WORKER_SET.save(deps.storage, &(new_worker_set.clone(), snapshot))?;
-    let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
-    builder.add_new_worker_set(new_worker_set)?;
+            NEXT_WORKER_SET.save(deps.storage, &(new_worker_set.clone(), snapshot))?;
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+            builder.add_new_worker_set(new_worker_set)?;
 
-    let batch = builder.build()?;
+            let batch = builder.build()?;
 
             COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
             REPLY_BATCH.save(deps.storage, &batch.id)?;
@@ -205,6 +208,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     let query = voting_verifier::msg::QueryMsg::IsWorkerSetConfirmed {
         new_operators: worker_set.clone().try_into()?,
     };
+
     let is_confirmed: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
         msg: to_binary(&query)?,
@@ -227,7 +231,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
             .map(|s| {
                 (
                     s.address.to_string(),
-                    (KeyType::ECDSA, <&[u8]>::from(&s.pub_key).into()),
+                    (KeyType::Ecdsa, s.pub_key.as_ref().into()),
                 )
             })
             .collect(),
@@ -249,6 +253,7 @@ pub fn should_update_worker_set(
 #[cfg(test)]
 mod tests {
     use crate::{execute::should_update_worker_set, test::test_data};
+    use std::collections::BTreeSet;
 
     #[test]
     fn should_update_worker_set_no_change() {
@@ -260,7 +265,7 @@ mod tests {
     fn should_update_worker_set_one_more() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop();
+        new_worker_set.signers.pop_first();
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 
@@ -268,7 +273,7 @@ mod tests {
     fn should_update_worker_set_one_less() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop();
+        new_worker_set.signers.pop_first();
         assert!(should_update_worker_set(&new_worker_set, &worker_set, 0));
     }
 
@@ -276,7 +281,7 @@ mod tests {
     fn should_update_worker_set_one_more_higher_threshold() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop();
+        new_worker_set.signers.pop_first();
         assert!(!should_update_worker_set(&worker_set, &new_worker_set, 1));
     }
 
@@ -284,8 +289,10 @@ mod tests {
     fn should_update_worker_set_diff_pub_key() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers[0].pub_key = worker_set.signers[1].pub_key.clone();
-        new_worker_set.signers[1].pub_key = worker_set.signers[0].pub_key.clone();
+        let mut signers = new_worker_set.signers.into_iter().collect::<Vec<_>>();
+        signers[0].pub_key = signers[1].pub_key.clone();
+        signers[1].pub_key = signers[0].pub_key.clone();
+        new_worker_set.signers = BTreeSet::from_iter(signers);
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 }

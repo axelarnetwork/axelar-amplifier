@@ -3,9 +3,10 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, Executor};
 use cw_storage_plus::Map;
+use multisig::key::{KeyType, KeyTyped, PublicKey};
 use multisig::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    types::{KeyType, MultisigState, PublicKey},
+    types::MultisigState,
 };
 
 use crate::test::test_data::TestOperator;
@@ -41,15 +42,11 @@ pub fn execute(
             snapshot: _,
             pub_keys_by_address: _,
         } => Ok(Response::default()),
-        ExecuteMsg::RegisterPublicKey {
-            public_key,
-            key_type,
-        } => {
-            let pub_key: PublicKey = (key_type.clone(), public_key).try_into().unwrap();
+        ExecuteMsg::RegisterPublicKey { public_key } => {
             PUB_KEYS.save(
                 deps.storage,
-                (info.sender.to_string(), key_type.clone()),
-                &pub_key.clone(),
+                (info.sender.to_string(), public_key.key_type()),
+                &public_key,
             )?;
             Ok(Response::default())
         }
@@ -63,7 +60,6 @@ pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<Tes
             multisig_address.clone(),
             &ExecuteMsg::RegisterPublicKey {
                 public_key: worker.pub_key.into(),
-                key_type: KeyType::ECDSA,
             },
             &[],
         )
@@ -87,6 +83,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 mod query {
+    use multisig::key::PublicKey;
     use multisig::{
         key::Signature,
         msg::{Multisig, Signer},

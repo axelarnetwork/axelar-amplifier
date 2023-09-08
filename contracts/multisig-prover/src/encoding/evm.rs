@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{ethereum_types, short_signature, ParamType, Token};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
+use axelar_wasm_std::operators::Operators;
 use connection_router::msg::Message;
 use multisig::{key::Signature, msg::Signer};
 
@@ -55,15 +55,16 @@ fn make_transfer_operatorship(worker_set: WorkerSet) -> Result<Command, Contract
     })
 }
 
-impl TryInto<Operators> for WorkerSet {
+impl TryFrom<WorkerSet> for Operators {
     type Error = ContractError;
-    fn try_into(self) -> Result<Operators, Self::Error> {
-        let mut operators: Vec<(HexBinary, Uint256)> = self
+
+    fn try_from(worker_set: WorkerSet) -> Result<Self, Self::Error> {
+        let mut operators: Vec<(HexBinary, Uint256)> = worker_set
             .signers
             .iter()
             .map(|s| {
                 (
-                    evm_address((&s.pub_key).into())
+                    evm_address(s.pub_key.as_ref())
                         .expect("couldn't convert pubkey to evm address"),
                     s.weight,
                 )
@@ -71,8 +72,8 @@ impl TryInto<Operators> for WorkerSet {
             .collect();
         operators.sort_by_key(|op| op.0.clone());
         Ok(Operators {
-            weights: operators,
-            threshold: self.threshold,
+            weights_by_addresses: operators,
+            threshold: worker_set.threshold,
         })
     }
 }
