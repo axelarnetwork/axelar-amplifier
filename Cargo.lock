@@ -91,6 +91,7 @@ dependencies = [
  "cosmwasm-std",
  "deref-derive",
  "derive_builder",
+ "dirs",
  "ecdsa 0.16.8",
  "elliptic-curve 0.13.5",
  "enum-display-derive",
@@ -127,6 +128,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "valuable",
+ "valuable-serde",
  "voting-verifier",
 ]
 
