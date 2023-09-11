@@ -53,7 +53,7 @@ tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-subscriber = { version = "0.3.16", features = ["json", "valuable"] }
 url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
-valuable-serde = { version = "0.1.0", features = ["std"]}
+valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 
 [dev-dependencies]

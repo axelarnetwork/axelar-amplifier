@@ -6,19 +6,19 @@ where
 }
 
 pub trait InspectorResult<T, E> {
-    /// This function has a trailing underscore to avoid name collision with the unstable [core::result::Result::inspect](https://doc.rust-lang.org/core/result/enum.Result.html#method.inspect) function.
-    fn inspect_<F>(self, f: F) -> Self
+    /// This function should be called `inspect`, but would have a name collision with the unstable [core::result::Result::inspect](https://doc.rust-lang.org/core/result/enum.Result.html#method.inspect) function.
+    fn tap<F>(self, f: F) -> Self
     where
         F: FnOnce(&T);
 
-    /// This function has a trailing underscore to avoid name collision with the unstable [core::result::Result::inspect_err](https://doc.rust-lang.org/core/result/enum.Result.html#method.inspect_err) function.
-    fn inspect_err_<F>(self, f: F) -> Self
+    /// This function should be called `inspect_err`, but would have a name collision with the unstable [core::result::Result::inspect_err](https://doc.rust-lang.org/core/result/enum.Result.html#method.inspect_err) function.
+    fn tap_err<F>(self, f: F) -> Self
     where
         F: FnOnce(&E);
 }
 
 impl<T, E> InspectorResult<T, E> for Result<T, E> {
-    fn inspect_<F>(self, f: F) -> Self
+    fn tap<F>(self, f: F) -> Self
     where
         F: FnOnce(&T),
     {
@@ -28,7 +28,7 @@ impl<T, E> InspectorResult<T, E> for Result<T, E> {
         })
     }
 
-    fn inspect_err_<F>(self, f: F) -> Self
+    fn tap_err<F>(self, f: F) -> Self
     where
         F: FnOnce(&E),
     {

@@ -47,7 +47,7 @@ async fn main() -> ExitCode {
     info!(args = args.as_value(), "starting daemon");
     let result = run_daemon(&args)
         .await
-        .inspect_err_(|report| error!(err = LoggableError::from(report).as_value(), "{report}"));
+        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"));
     info!("shutting down");
 
     match result {
@@ -86,7 +86,7 @@ fn init_config(config_paths: &[PathBuf]) -> Config {
 
     parse_config(files)
         .change_context(Error::LoadConfig)
-        .inspect_err_(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
+        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
         .unwrap_or(Config::default())
 }
 
