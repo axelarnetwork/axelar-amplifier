@@ -419,8 +419,8 @@ mod test {
 
         assert_eq!(
             res.id,
-            HexBinary::from_hex("cdf61b5aa2024f5a27383b0785fc393c566eef69569cf5abec945794b097bb73")
-                .unwrap() // https://axelarscan.io/gmp/0xc8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f
+            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
+                .unwrap()
         );
         assert_eq!(res.ty, CommandType::ApproveContractCall);
         assert_eq!(
@@ -684,12 +684,13 @@ mod test {
 
     #[test]
     fn test_evm_address() {
-        let pub_key = test_data::pub_key();
-        let expected_address = test_data::evm_address();
+        let op = test_data::operators().remove(0);
+        let pub_key = op.pub_key;
+        let expected_address = op.operator;
 
-        let operator = evm_address(pub_key.as_slice()).unwrap();
+        let evm_address = evm_address(pub_key.as_ref()).unwrap();
 
-        assert_eq!(operator, expected_address);
+        assert_eq!(evm_address, expected_address);
     }
 
     #[test]

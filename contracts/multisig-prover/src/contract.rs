@@ -84,7 +84,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 
     use anyhow::Error;
     use cosmwasm_std::{
@@ -92,7 +92,6 @@ mod test {
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
-    use ethabi::{ParamType, Token};
     use multisig::msg::Signer;
 
     use crate::{
@@ -104,6 +103,8 @@ mod test {
             test_data::{self, TestOperator},
         },
     };
+
+    use crate::contract::execute::should_update_worker_set;
 
     use super::*;
 
@@ -515,39 +516,14 @@ mod test {
         let res = query_get_proof(&mut test_case, None).unwrap();
 
         assert_eq!(res.multisig_session_id, MULTISIG_SESSION_ID);
-        assert_eq!(res.message_ids.len(), 2);
+        assert_eq!(res.message_ids.len(), 1);
         match res.status {
             ProofStatus::Completed { execute_data } => {
-                let tokens =
-                    ethabi::decode(&[ParamType::Bytes], &execute_data.as_slice()[4..]).unwrap();
-
-                let input = match tokens[0].clone() {
-                    Token::Bytes(input) => input,
-                    _ => panic!("Invalid proof"),
-                };
-
-                let tokens =
-                    ethabi::decode(&[ParamType::Bytes, ParamType::Bytes], input.as_slice())
-                        .unwrap();
-
-                assert_eq!(
-                    tokens,
-                    vec![
-                        Token::Bytes(res.data.encode().to_vec()),
-                        Token::Bytes(test_data::encoded_proof().to_vec())
-                    ]
-                );
+                assert_eq!(execute_data, test_data::execute_data());
             }
             _ => panic!("Expected proof status to be completed"), // multisig mock will always return completed multisig
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use multisig::msg::Signer;
-
-    use crate::{contract::execute::should_update_worker_set, test::test_data};
 
     #[test]
     fn should_update_worker_set_no_change() {

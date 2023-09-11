@@ -158,8 +158,8 @@ fn instantiate_prover(
         voting_verifier_address,
         destination_chain_id: test_data::destination_chain_id(),
         signing_threshold: test_data::threshold(),
-        service_name: "service-name".to_string(),
-        chain_name: "Ethereum".to_string(),
+        service_name: "validators".to_string(),
+        chain_name: "ganache-0".to_string(),
         worker_set_diff_threshold: 0,
     };
 
