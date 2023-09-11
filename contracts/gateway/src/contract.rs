@@ -105,7 +105,7 @@ pub mod execute {
         let verifier = config.verifier;
 
         if contains_duplicates(&mut msgs) {
-            return Err(ContractError::DuplicateMessageID {});
+            return Err(ContractError::DuplicateMessageID);
         }
 
         let (_, unverified) = partition_by_verified(deps, msgs)?;
@@ -129,7 +129,7 @@ pub mod execute {
         let router = CONFIG.load(deps.storage)?.router;
 
         if contains_duplicates(&mut msgs) {
-            return Err(ContractError::DuplicateMessageID {});
+            return Err(ContractError::DuplicateMessageID);
         }
 
         let (verified, unverified) = partition_by_verified(deps, msgs)?;

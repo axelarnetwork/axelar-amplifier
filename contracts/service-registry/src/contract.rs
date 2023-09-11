@@ -117,7 +117,7 @@ pub mod execute {
     pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if config.governance != info.sender {
-            return Err(ContractError::Unauthorized {});
+            return Err(ContractError::Unauthorized);
         }
         Ok(())
     }
@@ -148,7 +148,7 @@ pub mod execute {
                     unbonding_period_days,
                     description,
                 }),
-                _ => Err(ContractError::ServiceAlreadyExists {}),
+                _ => Err(ContractError::ServiceAlreadyExists),
             }
         })?;
 
@@ -164,7 +164,7 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         SERVICES
             .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
+            .ok_or(ContractError::ServiceNotFound)?;
 
         for worker in workers {
             WORKERS.update(
@@ -197,13 +197,13 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
+            .ok_or(ContractError::ServiceNotFound)?;
 
         let bond = if !info.funds.is_empty() {
             info.funds
                 .iter()
                 .find(|coin| coin.denom == service.bond_denom)
-                .ok_or(ContractError::WrongDenom {})?
+                .ok_or(ContractError::WrongDenom)?
                 .amount
         } else {
             Uint128::zero() // sender can rebond currently unbonding funds by just sending no new funds
@@ -239,11 +239,11 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         SERVICES
             .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
+            .ok_or(ContractError::ServiceNotFound)?;
 
         WORKERS
             .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound {})?;
+            .ok_or(ContractError::WorkerNotFound)?;
 
         for chain in chains {
             WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
@@ -260,11 +260,11 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         SERVICES
             .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
+            .ok_or(ContractError::ServiceNotFound)?;
 
         let worker = WORKERS
             .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound {})?;
+            .ok_or(ContractError::WorkerNotFound)?;
 
         let can_unbond = true; // TODO: actually query the service to determine this value
 
@@ -290,11 +290,11 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
+            .ok_or(ContractError::ServiceNotFound)?;
 
         let worker = WORKERS
             .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound {})?;
+            .ok_or(ContractError::WorkerNotFound)?;
 
         let (bonding_state, released_bond) = worker
             .bonding_state
@@ -343,7 +343,7 @@ pub mod query {
     ) -> Result<Vec<Worker>, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound {})?;
+            .ok_or(ContractError::ServiceNotFound)?;
 
         let workers = WORKERS_PER_CHAIN
             .prefix((&service_name, &chain_name))

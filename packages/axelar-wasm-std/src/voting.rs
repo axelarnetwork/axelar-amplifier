@@ -31,22 +31,22 @@ use crate::Snapshot;
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
     #[error("not a participant")]
-    NotParticipant(),
+    NotParticipant,
 
     #[error("invalid vote size")]
-    InvalidVoteSize(),
+    InvalidVoteSize,
 
     #[error("already voted")]
-    AlreadyVoted(),
+    AlreadyVoted,
 
     #[error("poll is not in progress")]
-    PollNotInProgress(),
+    PollNotInProgress,
 
     #[error("cannot tally before poll end")]
-    PollNotEnded(),
+    PollNotEnded,
 
     #[error("poll has expired")]
-    PollExpired(),
+    PollExpired,
 }
 
 #[cw_serde]
@@ -183,11 +183,11 @@ impl Poll for WeightedPoll {
             // can tally early if all participants voted
             && self.voted.len() < self.snapshot.get_participants().len()
         {
-            return Err(Error::PollNotEnded {});
+            return Err(Error::PollNotEnded);
         }
 
         if self.status == PollStatus::Finished {
-            return Err(Error::PollNotInProgress {});
+            return Err(Error::PollNotInProgress);
         }
 
         self.status = PollStatus::Finished;
@@ -211,22 +211,22 @@ impl Poll for WeightedPoll {
         let participant = self
             .snapshot
             .get_participant(sender)
-            .ok_or(Error::NotParticipant {})?;
+            .ok_or(Error::NotParticipant)?;
 
         if block_height >= self.expires_at {
-            return Err(Error::PollExpired {});
+            return Err(Error::PollExpired);
         }
 
         if votes.len() != self.poll_size as usize {
-            return Err(Error::InvalidVoteSize {});
+            return Err(Error::InvalidVoteSize);
         }
 
         if self.voted.contains(sender) {
-            return Err(Error::AlreadyVoted {});
+            return Err(Error::AlreadyVoted);
         }
 
         if self.status != PollStatus::InProgress {
-            return Err(Error::PollNotInProgress {});
+            return Err(Error::PollNotInProgress);
         }
 
         self.voted.insert(sender.clone());
@@ -271,7 +271,7 @@ mod tests {
 
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked(rand_addr.as_str()), votes),
-            Err(Error::NotParticipant {})
+            Err(Error::NotParticipant)
         );
     }
 
@@ -285,7 +285,7 @@ mod tests {
         let votes = vec![true, true];
         assert_eq!(
             poll.cast_vote(2, &Addr::unchecked("addr1"), votes),
-            Err(Error::PollExpired {})
+            Err(Error::PollExpired)
         );
     }
 
@@ -295,7 +295,7 @@ mod tests {
         let votes = vec![true];
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
-            Err(Error::InvalidVoteSize {})
+            Err(Error::InvalidVoteSize)
         );
     }
 
@@ -309,7 +309,7 @@ mod tests {
             .is_ok());
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
-            Err(Error::AlreadyVoted {})
+            Err(Error::AlreadyVoted)
         );
     }
 
@@ -320,21 +320,21 @@ mod tests {
         poll.status = PollStatus::Finished;
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
-            Err(Error::PollNotInProgress {})
+            Err(Error::PollNotInProgress)
         );
     }
 
     #[test]
     fn tally_before_poll_end() {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
-        assert_eq!(poll.tally(0), Err(Error::PollNotEnded {}));
+        assert_eq!(poll.tally(0), Err(Error::PollNotEnded));
     }
 
     #[test]
     fn tally_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         poll.status = PollStatus::Finished;
-        assert_eq!(poll.tally(2), Err(Error::PollNotInProgress {}));
+        assert_eq!(poll.tally(2), Err(Error::PollNotInProgress));
     }
 
     #[test]

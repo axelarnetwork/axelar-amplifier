@@ -63,7 +63,7 @@ fn register_service() {
     );
     assert!(!res.is_ok());
     assert_eq!(
-        ContractError::Unauthorized {},
+        ContractError::Unauthorized,
         res.unwrap_err().downcast().unwrap()
     );
 }
@@ -125,7 +125,7 @@ fn authorize_worker() {
         &[],
     );
     assert_eq!(
-        ContractError::Unauthorized {},
+        ContractError::Unauthorized,
         res.unwrap_err().downcast().unwrap()
     );
 }
@@ -460,7 +460,7 @@ fn bond_wrong_denom() {
     );
     assert!(res.is_err());
     assert_eq!(
-        ContractError::WrongDenom {},
+        ContractError::WrongDenom,
         res.unwrap_err().downcast().unwrap()
     );
 }
