@@ -18,6 +18,17 @@ pub trait InspectorResult<T, E> {
 }
 
 impl<T, E> InspectorResult<T, E> for Result<T, E> {
+    /// Use this to create a side effect without consuming the result.
+    ///
+    /// Example:
+    /// ```
+    ///# fn main() -> Result<i32, String> {
+    /// use axelar_wasm_std::utils::InspectorResult;
+    ///
+    /// let result = Ok(1);
+    /// result.tap(|x| println!("result is {}", x)).map(|x| x + 1)
+    ///# }
+    /// ```
     fn tap<F>(self, f: F) -> Self
     where
         F: FnOnce(&T),
@@ -28,6 +39,17 @@ impl<T, E> InspectorResult<T, E> for Result<T, E> {
         })
     }
 
+    /// Use this to create a side effect without consuming the error.
+    ///
+    /// Example:
+    /// ```
+    ///# fn main() -> Result<i32, String> {
+    /// use axelar_wasm_std::utils::InspectorResult;
+    ///
+    /// let result = Err("wrong value");
+    /// result.tap_err(|x| println!("result is {}", x)).map_err(|x| x + 1)
+    ///# }
+    /// ```
     fn tap_err<F>(self, f: F) -> Self
     where
         F: FnOnce(&E),
