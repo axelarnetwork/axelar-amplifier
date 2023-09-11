@@ -10,6 +10,10 @@ use valuable::Valuable;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("failed to load config, falling back on default")]
+    LoadConfig,
+    #[error("{0} is not a valid location to persist state")]
+    StateLocation(String),
     #[error("event sub failed")]
     EventSub,
     #[error("event processor failed")]

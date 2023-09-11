@@ -1,20 +1,23 @@
 use std::fmt::Debug;
 use std::fs::canonicalize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
 use clap::{Parser, ValueEnum};
 use config::ConfigError;
-use error_stack::Report;
+use error_stack::{Report, ResultExt};
 use tracing::{error, info};
-
-use ampd::config::Config;
-use ampd::report::LoggableError;
-use ampd::run;
 use valuable::Valuable;
 
-#[derive(Debug, Parser)]
+use ampd::config::Config;
+use ampd::report::Error;
+use ampd::report::LoggableError;
+use ampd::run;
+use axelar_wasm_std::utils::InspectorResult;
+use axelar_wasm_std::FnExt;
+
+#[derive(Debug, Parser, Valuable)]
 #[command(version)]
 struct Args {
     /// Set the paths for config file lookup. Can be defined multiple times (configs get merged)
@@ -30,7 +33,7 @@ struct Args {
     pub output: Output,
 }
 
-#[derive(Debug, Clone, Parser, ValueEnum)]
+#[derive(Debug, Clone, Parser, ValueEnum, Valuable)]
 enum Output {
     Text,
     Json,
@@ -41,37 +44,21 @@ async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
-    info!("starting daemon");
+    info!(args = args.as_value(), "starting daemon");
+    let result = run_daemon(&args)
+        .await
+        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"));
+    info!("shutting down");
 
-    let cfg = init_config(&args);
-    let code = match run(cfg, args.state).await {
+    match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(report) => {
-            let err = LoggableError::from(&report);
-            error!(err = err.as_value(), "{report}");
+            // print detailed error report as the last output if in text mode
             if matches!(args.output, Output::Text) {
                 eprintln!("{report:?}");
             }
+
             ExitCode::FAILURE
-        }
-    };
-    info!("shutting down");
-    code
-}
-
-fn init_config(args: &Args) -> Config {
-    let files = find_config_files(&args.config);
-    info!("found {} config files to load", files.len());
-
-    match parse_config(files).map_err(Report::from) {
-        Ok(cfg) => cfg,
-        Err(report) => {
-            let err = LoggableError::from(&report);
-            error!(
-                err = err.as_value(),
-                "failed to load config, falling back to default"
-            );
-            Config::default()
         }
     }
 }
@@ -87,19 +74,61 @@ fn set_up_logger(output: &Output) {
     };
 }
 
-fn find_config_files(config: &[PathBuf]) -> Vec<File<FileSourceFile, FileFormat>> {
-    config
-        .iter()
-        .map(canonicalize)
-        .filter_map(Result::ok)
-        .map(File::from)
-        .collect()
+async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
+    let cfg = init_config(&args.config);
+    let state_path = check_state_path(args.state.as_path())?;
+
+    run(cfg, state_path).await
 }
 
-fn parse_config(files: Vec<File<FileSourceFile, FileFormat>>) -> Result<Config, ConfigError> {
+fn init_config(config_paths: &[PathBuf]) -> Config {
+    let files = find_config_files(config_paths);
+
+    parse_config(files)
+        .change_context(Error::LoadConfig)
+        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
+        .unwrap_or(Config::default())
+}
+
+fn find_config_files(config: &[PathBuf]) -> Vec<File<FileSourceFile, FileFormat>> {
+    let files = config
+        .iter()
+        .map(PathBuf::as_path)
+        .map(expand_home_dir)
+        .map(canonicalize)
+        .filter_map(Result::ok)
+        .inspect(|path| info!("found config file {}", path.to_string_lossy()))
+        .map(File::from)
+        .collect::<Vec<_>>();
+
+    if files.is_empty() {
+        info!("found no config files to load");
+    }
+
+    files
+}
+
+fn parse_config(
+    files: Vec<File<FileSourceFile, FileFormat>>,
+) -> error_stack::Result<Config, ConfigError> {
     cfg::builder()
         .add_source(files)
         .add_source(Environment::with_prefix(clap::crate_name!()))
         .build()?
         .try_deserialize::<Config>()
+        .map_err(Report::from)
+}
+
+fn check_state_path(path: &Path) -> error_stack::Result<PathBuf, Error> {
+    expand_home_dir(path)
+        .then(canonicalize)
+        .change_context(Error::StateLocation(path.to_string_lossy().into_owned()))
+}
+
+fn expand_home_dir(path: &Path) -> PathBuf {
+    let Ok(home_subfolder) = path.strip_prefix("~") else{
+        return path.to_path_buf()
+    };
+
+    dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))
 }

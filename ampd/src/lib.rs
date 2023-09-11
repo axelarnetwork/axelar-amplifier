@@ -11,8 +11,6 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::config::Config;
-use crate::report::Error;
 use broadcaster::{accounts::account, Broadcaster};
 use event_processor::{EventHandler, EventProcessor};
 use events::Event;
@@ -20,6 +18,9 @@ use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
+
+use crate::config::Config;
+use crate::report::Error;
 
 mod broadcaster;
 pub mod config;
