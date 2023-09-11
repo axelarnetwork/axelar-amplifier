@@ -22,12 +22,13 @@ impl<T, E> InspectorResult<T, E> for Result<T, E> {
     ///
     /// Example:
     /// ```
-    ///# fn main() -> Result<i32, String> {
     /// use axelar_wasm_std::utils::InspectorResult;
     ///
-    /// let result = Ok(1);
-    /// result.tap(|x| println!("result is {}", x)).map(|x| x + 1)
-    ///# }
+    /// let result: Result<i32, String> = Ok(1);
+    /// assert_eq!(result.tap(|x| println!("result is {}", x)).map(|x| x + 1), Ok(2));
+    ///
+    /// let err:Result<i32, String> = Err("wrong value".to_string());
+    /// assert!(err.tap(|x| println!("error is {}", x)).is_err()); // println will not be called
     /// ```
     fn tap<F>(self, f: F) -> Self
     where
@@ -43,12 +44,13 @@ impl<T, E> InspectorResult<T, E> for Result<T, E> {
     ///
     /// Example:
     /// ```
-    ///# fn main() -> Result<i32, String> {
     /// use axelar_wasm_std::utils::InspectorResult;
     ///
-    /// let result = Err("wrong value");
-    /// result.tap_err(|x| println!("result is {}", x)).map_err(|x| x + 1)
-    ///# }
+    /// let result: Result<i32, String> = Ok(1);
+    /// assert_eq!(result.tap_err(|x| println!("error is {}", x)).map(|x| x + 1), Ok(2)); // println will not be called
+    ///
+    /// let err:Result<i32, String> = Err("wrong value".to_string());
+    /// assert!(err.tap_err(|x| println!("result is {}", x)).is_err());
     /// ```
     fn tap_err<F>(self, f: F) -> Self
     where
