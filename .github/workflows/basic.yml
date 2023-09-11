@@ -28,6 +28,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-test"
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -73,6 +75,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache-lint"
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
