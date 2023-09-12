@@ -11,8 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup update stable
-      - name: Install protoc
-        run: apt-get install protobuf-compiler
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
