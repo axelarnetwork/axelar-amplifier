@@ -15,7 +15,8 @@ use crate::{
     encoding::evm::CommandBatchBuilder,
     error::ContractError,
     state::{
-        WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET, REPLY_BATCH,
+        Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
+        REPLY_BATCH,
     },
     types::BatchID,
 };
@@ -89,12 +90,11 @@ fn get_messages(
 fn get_workers_info(
     deps: &DepsMut,
     env: &Env,
+    config: &Config,
 ) -> Result<(Snapshot, Vec<(Participant, PublicKey)>), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
     let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
-        service_name: config.service_name,
-        chain_name: config.chain_name.into(),
+        service_name: config.service_name.clone(),
+        chain_name: config.chain_name.to_string(),
     };
 
     let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -134,13 +134,9 @@ fn get_workers_info(
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let (snapshot, participants) = get_workers_info(&deps, &env)?;
+    let (snapshot, participants) = get_workers_info(&deps, &env, &config)?;
 
-    let new_worker_set = WorkerSet::new(
-        participants.clone(),
-        snapshot.quorum.into(),
-        env.block.height,
-    )?;
+    let new_worker_set = WorkerSet::new(participants, snapshot.quorum.into(), env.block.height)?;
 
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
 
@@ -156,12 +152,13 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
                 key_id,
                 snapshot,
-                pub_keys_by_address: participants
+                pub_keys_by_address: new_worker_set
+                    .signers
                     .into_iter()
-                    .map(|(participant, pub_key)| {
+                    .map(|signer| {
                         (
-                            participant.address.to_string(),
-                            (KeyType::Ecdsa, pub_key.as_ref().into()),
+                            signer.address.to_string(),
+                            (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
                         )
                     })
                     .collect(),
