@@ -206,7 +206,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     let (worker_set, snapshot) = NEXT_WORKER_SET.load(deps.storage)?;
 
     let query = voting_verifier::msg::QueryMsg::IsWorkerSetConfirmed {
-        new_operators: worker_set.clone().try_into()?,
+        new_operators: worker_set.clone().into(),
     };
 
     let is_confirmed: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

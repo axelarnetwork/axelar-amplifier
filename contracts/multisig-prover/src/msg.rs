@@ -24,8 +24,8 @@ pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
     ConstructProof { message_ids: Vec<String> },
-    UpdateWorkerSet {},
-    ConfirmWorkerSet {},
+    UpdateWorkerSet,
+    ConfirmWorkerSet,
 }
 
 #[cw_serde]
@@ -35,7 +35,7 @@ pub enum QueryMsg {
     GetProof { multisig_session_id: Uint64 },
 
     #[returns(WorkerSet)]
-    GetWorkerSet {},
+    GetWorkerSet,
 }
 
 #[cw_serde]

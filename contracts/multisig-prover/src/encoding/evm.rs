@@ -55,10 +55,8 @@ fn make_transfer_operatorship(worker_set: WorkerSet) -> Result<Command, Contract
     })
 }
 
-impl TryFrom<WorkerSet> for Operators {
-    type Error = ContractError;
-
-    fn try_from(worker_set: WorkerSet) -> Result<Self, Self::Error> {
+impl From<WorkerSet> for Operators {
+    fn from(worker_set: WorkerSet) -> Self {
         let mut operators: Vec<(HexBinary, Uint256)> = worker_set
             .signers
             .iter()
@@ -71,10 +69,10 @@ impl TryFrom<WorkerSet> for Operators {
             })
             .collect();
         operators.sort_by_key(|op| op.0.clone());
-        Ok(Operators {
+        Operators {
             weights_by_addresses: operators,
             threshold: worker_set.threshold,
-        })
+        }
     }
 }
 
