@@ -1,20 +1,20 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::broadcaster;
 use crate::handlers::{self, config::deserialize_handler_configs};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
 pub struct Config {
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
+    pub event_buffer_cap: usize,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
-    pub event_buffer_cap: usize,
 }
 
 impl Default for Config {
@@ -32,11 +32,19 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use cosmrs::AccountId;
     use ecdsa::SigningKey;
     use rand::rngs::OsRng;
 
-    use super::Config;
+    use crate::evm::ChainName;
+    use crate::handlers::config::Chain;
+    use crate::handlers::config::Config as HandlerConfig;
     use crate::types::{PublicKey, TMAddress};
+    use crate::url::Url;
+
+    use super::Config;
 
     #[test]
     fn deserialize_handlers() {
@@ -45,34 +53,26 @@ mod tests {
             [[handlers]]
             type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Ethereum'
-            rpc_url = 'http://localhost:7545/'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
             type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Polygon'
-            rpc_url = 'http://localhost:7546/'
+            chain_name = 'Polygon'
+            chain_rpc_url = 'http://localhost:7546/'
 
             [[handlers]]
             type = 'EvmWorkerSetVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Ethereum'
-            rpc_url = 'http://localhost:7545/'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
             type = 'EvmWorkerSetVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Polygon'
-            rpc_url = 'http://localhost:7546/'
+            chain_name = 'Polygon'
+            chain_rpc_url = 'http://localhost:7546/'
 
             [[handlers]]
             type = 'MultisigSigner'
@@ -96,18 +96,14 @@ mod tests {
             [[handlers]]
             type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Ethereum'
-            rpc_url = 'http://localhost:7545/'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
             type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Ethereum'
-            rpc_url = 'http://localhost:7546/'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7546/'
             ",
             rand_tm_address(),
             rand_tm_address(),
@@ -123,18 +119,14 @@ mod tests {
             [[handlers]]
             type = 'EvmWorkerSetVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Ethereum'
-            rpc_url = 'http://localhost:7545/'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
             type = 'EvmWorkerSetVerifier'
             cosmwasm_contract = '{}'
-
-            [handlers.chain]
-            name = 'Ethereum'
-            rpc_url = 'http://localhost:7546/'
+            chain_name = 'Ethereum'
+            chain_rpc_url = 'http://localhost:7546/'
             ",
             rand_tm_address(),
             rand_tm_address(),
@@ -207,5 +199,42 @@ mod tests {
             .account_id("axelar")
             .unwrap()
             .into()
+    }
+
+    #[test]
+    fn can_serialize_deserialize_config() {
+        let cfg = Config {
+            handlers: vec![
+                HandlerConfig::EvmMsgVerifier {
+                    chain: Chain {
+                        name: ChainName::Ethereum,
+                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    },
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 20]).unwrap(),
+                    ),
+                },
+                HandlerConfig::EvmWorkerSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 20]).unwrap(),
+                    ),
+                    chain: Chain {
+                        name: ChainName::Other("Fantom".to_string()),
+                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    },
+                },
+                HandlerConfig::MultisigSigner {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 20]).unwrap(),
+                    ),
+                },
+            ],
+            ..Config::default()
+        };
+
+        let serialized = toml::to_string_pretty(&cfg).expect("should work");
+        let deserialized: Config = toml::from_str(serialized.as_str()).expect("should work");
+
+        assert_eq!(cfg, deserialized);
     }
 }
