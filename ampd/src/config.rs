@@ -32,6 +32,10 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::PathBuf;
     use std::str::FromStr;
 
     use cosmrs::AccountId;
@@ -203,7 +207,34 @@ mod tests {
 
     #[test]
     fn can_serialize_deserialize_config() {
-        let cfg = Config {
+        let cfg = config_template();
+
+        let serialized = toml::to_string_pretty(&cfg).expect("should work");
+        let deserialized: Config = toml::from_str(serialized.as_str()).expect("should work");
+
+        assert_eq!(cfg, deserialized);
+    }
+
+    #[test]
+    fn deserialize_config() {
+        let cfg = toml::to_string_pretty(&config_template()).unwrap();
+
+        let path = PathBuf::from_str("src/tests")
+            .unwrap()
+            .join("config_template.toml");
+
+        // manually delete the file to create a new template before running the test
+        if !path.exists() {
+            let mut file = File::create(&path).unwrap();
+            file.write_all(cfg.as_bytes()).unwrap();
+        };
+
+        let serialized = fs::read_to_string(path).unwrap();
+        assert_eq!(cfg, serialized);
+    }
+
+    fn config_template() -> Config {
+        Config {
             handlers: vec![
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
@@ -211,12 +242,12 @@ mod tests {
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 20]).unwrap(),
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                 },
                 HandlerConfig::EvmWorkerSetVerifier {
                     cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 20]).unwrap(),
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     chain: Chain {
                         name: ChainName::Other("Fantom".to_string()),
@@ -225,16 +256,11 @@ mod tests {
                 },
                 HandlerConfig::MultisigSigner {
                     cosmwasm_contract: TMAddress::from(
-                        AccountId::new("axelar", &[0u8; 20]).unwrap(),
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                 },
             ],
             ..Config::default()
-        };
-
-        let serialized = toml::to_string_pretty(&cfg).expect("should work");
-        let deserialized: Config = toml::from_str(serialized.as_str()).expect("should work");
-
-        assert_eq!(cfg, deserialized);
+        }
     }
 }
