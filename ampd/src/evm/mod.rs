@@ -2,14 +2,14 @@ use std::fmt::Display;
 
 use enum_display_derive::Display;
 use ethers::types::U64;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub mod error;
 pub mod finalizer;
 pub mod json_rpc;
 pub mod verifier;
 
-#[derive(Debug, Deserialize, PartialEq, Hash, Eq, Clone, Display)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Hash, Eq, Clone, Display)]
 pub enum ChainName {
     Ethereum,
     #[serde(untagged)]

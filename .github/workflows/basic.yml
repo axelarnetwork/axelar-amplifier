@@ -1,6 +1,11 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 
-on: pull_request
+on: 
+  pull_request:
+  push:
+    branches:
+      - 'main'
+      - 'releases/**'
 
 name: Basic
 
@@ -29,7 +34,7 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-cache-test"
+          shared-key: "cache"
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -76,7 +81,7 @@ jobs:
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-cache-lint"
+          shared-key: "cache"
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
