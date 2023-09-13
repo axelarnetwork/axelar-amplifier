@@ -17,6 +17,13 @@ pub struct InstantiateMsg {
     pub service_name: String,
     pub chain_name: String,
     pub worker_set_diff_threshold: u32,
+    pub encoding_scheme: EncodingScheme
+}
+
+#[cw_serde]
+pub enum EncodingScheme {
+    Abi,
+    Bcs
 }
 
 #[cw_serde]
