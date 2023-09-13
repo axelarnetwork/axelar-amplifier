@@ -12,7 +12,7 @@ use service_registry::state::Worker;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
-    encoding::evm::CommandBatchBuilder,
+    encoding::encoding::CommandBatchBuilder,
     error::ContractError,
     events::Event,
     state::{
@@ -35,7 +35,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
         None => {
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
             for msg in messages {
-                builder.add_message(msg)?;
+                builder.add_message(msg, config.encoding_scheme)?;
             }
             let batch = builder.build()?;
 
