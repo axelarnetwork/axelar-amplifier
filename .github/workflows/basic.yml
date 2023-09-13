@@ -53,7 +53,7 @@ jobs:
           command: wasm
           args: --locked --workspace --exclude ampd
         env:
-          RUSTFLAGS: "$-D warnings --cfg tracing_unstable -C link-arg=-s"
+          RUSTFLAGS: "-D warnings --cfg tracing_unstable -C link-arg=-s"
 
   lints:
     name: Lints
