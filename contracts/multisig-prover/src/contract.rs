@@ -283,7 +283,7 @@ mod test {
                 assert_eq!(
                     tokens,
                     vec![
-                        Token::Bytes(res.data.encode().to_vec()),
+                        Token::Bytes(res.data.encode(EncodingScheme::Abi).to_vec()),
                         Token::Bytes(test_data::encoded_proof().to_vec())
                     ]
                 );

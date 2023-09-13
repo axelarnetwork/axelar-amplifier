@@ -21,6 +21,7 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
+#[derive(Copy)]
 pub enum EncodingScheme {
     Abi,
     Bcs

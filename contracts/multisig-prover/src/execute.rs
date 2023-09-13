@@ -50,7 +50,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id,
-        msg: command_batch.msg_to_sign(),
+        msg: command_batch.msg_to_sign(config.encoding_scheme),
     };
 
     let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
@@ -140,13 +140,13 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
     NEXT_WORKER_SET.save(deps.storage, &new_worker_set)?;
     let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
-    builder.add_new_worker_set(new_worker_set)?;
+    builder.add_new_worker_set(new_worker_set, config.encoding_scheme)?;
 
     let batch = builder.build()?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id: "static".to_string(), // TODO remove the key_id
-        msg: batch.msg_to_sign(),
+        msg: batch.msg_to_sign(config.encoding_scheme),
     };
 
     // TODO handle the reply
