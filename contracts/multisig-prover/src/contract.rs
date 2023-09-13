@@ -245,7 +245,7 @@ mod tests {
                 })
                 .collect(),
             threshold: quorum,
-            nonce,
+            created_at: nonce,
         }
     }
 

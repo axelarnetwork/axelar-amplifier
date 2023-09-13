@@ -227,7 +227,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
     NEXT_WORKER_SET.remove(deps.storage);
-    KEY_ID.save(deps.storage, &worker_set.hash().to_hex())?;
+    KEY_ID.save(deps.storage, &worker_set.id())?;
 
     let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
         key_id: worker_set.id(),

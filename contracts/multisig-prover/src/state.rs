@@ -39,7 +39,7 @@ pub struct WorkerSet {
     pub threshold: Uint256,
     // for hash uniqueness. The same exact worker set could be in use at two different times,
     // and we need to be able to distinguish between the two
-    pub nonce: u64,
+    pub created_at: u64,
 }
 
 impl WorkerSet {
@@ -60,7 +60,7 @@ impl WorkerSet {
         Ok(WorkerSet {
             signers,
             threshold,
-            nonce: block_height,
+            created_at: block_height,
         })
     }
 
