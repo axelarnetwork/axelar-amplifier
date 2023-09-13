@@ -17,7 +17,6 @@ use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use thiserror::Error;
 use tonic::Status;
 use tracing::debug;
@@ -49,20 +48,17 @@ pub enum Error {
     ExecutionError { response: TxResponse },
 }
 
-#[serde_as]
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Config {
     pub chain_id: Id,
-    #[serde(rename = "tx_fetch_interval_in_ms")]
-    #[serde_as(as = "serde_with::DurationMilliSeconds<u64>")]
+    #[serde(with = "humantime_serde")]
     pub tx_fetch_interval: Duration,
     pub tx_fetch_max_retries: u32,
     pub gas_adjustment: f64,
     pub gas_price: DecCoin,
     pub batch_gas_limit: Gas,
     pub queue_cap: usize,
-    #[serde(rename = "broadcast_interval_in_ms")]
-    #[serde_as(as = "serde_with::DurationMilliSeconds<u64>")]
+    #[serde(with = "humantime_serde")]
     pub broadcast_interval: Duration,
 }
 

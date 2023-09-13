@@ -7,7 +7,7 @@ use cosmrs::proto;
 use error_stack::{ensure, Report, Result, ResultExt};
 use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, SerializeDisplay};
+use serde_with::SerializeDisplay;
 use thiserror::Error;
 use tracing::error;
 
@@ -23,7 +23,6 @@ pub enum Error {
     DenomIsEmpty,
 }
 
-#[serde_as]
 #[derive(SerializeDisplay, Deserialize, Clone, Debug, PartialEq, PartialOrd)]
 #[serde(try_from = "String")]
 pub struct DecCoin {

@@ -4,13 +4,13 @@ event_buffer_cap = 100000
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
-tx_fetch_interval_in_ms = 500
+tx_fetch_interval = '500ms'
 tx_fetch_max_retries = 10
 gas_adjustment = 1.0
 gas_price = '0.00005uaxl'
 batch_gas_limit = 1000000
 queue_cap = 1000
-broadcast_interval_in_ms = 5000
+broadcast_interval = '5s'
 
 [[handlers]]
 type = 'EvmMsgVerifier'
