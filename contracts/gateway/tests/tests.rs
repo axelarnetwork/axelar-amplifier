@@ -143,7 +143,7 @@ fn verify_multiple_messages() {
         &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
         &[],
     );
-    println!("{:?}", res);
+
     assert!(res.is_ok());
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
