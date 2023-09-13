@@ -6,7 +6,7 @@ use multisig::key::{KeyType, PublicKey};
 
 use std::str::FromStr;
 
-use axelar_wasm_std::{snapshot, Participant, Snapshot};
+use axelar_wasm_std::snapshot;
 use connection_router::{msg::Message, types::ChainName};
 use service_registry::state::Worker;
 
@@ -18,7 +18,7 @@ use crate::{
         Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
         REPLY_BATCH,
     },
-    types::BatchID,
+    types::{BatchID, WorkersInfo},
 };
 
 pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Response, ContractError> {
@@ -91,7 +91,7 @@ fn get_workers_info(
     deps: &DepsMut,
     env: &Env,
     config: &Config,
-) -> Result<(Snapshot, Vec<(Participant, PublicKey)>), ContractError> {
+) -> Result<WorkersInfo, ContractError> {
     let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.to_string(),
@@ -128,15 +128,22 @@ fn get_workers_info(
         pub_keys.push(pub_key);
     }
 
-    Ok((snapshot, participants.into_iter().zip(pub_keys).collect()))
+    Ok(WorkersInfo {
+        snapshot,
+        pubkeys_by_participant: participants.into_iter().zip(pub_keys).collect(),
+    })
 }
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let (snapshot, participants) = get_workers_info(&deps, &env, &config)?;
+    let workers_info = get_workers_info(&deps, &env, &config)?;
 
-    let new_worker_set = WorkerSet::new(participants, snapshot.quorum.into(), env.block.height)?;
+    let new_worker_set = WorkerSet::new(
+        workers_info.pubkeys_by_participant,
+        workers_info.snapshot.quorum.into(),
+        env.block.height,
+    )?;
 
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
 
@@ -151,7 +158,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
                 key_id,
-                snapshot,
+                snapshot: workers_info.snapshot,
                 pub_keys_by_address: new_worker_set
                     .signers
                     .into_iter()
@@ -175,7 +182,10 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
-            NEXT_WORKER_SET.save(deps.storage, &(new_worker_set.clone(), snapshot))?;
+            NEXT_WORKER_SET.save(
+                deps.storage,
+                &(new_worker_set.clone(), workers_info.snapshot),
+            )?;
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
             builder.add_new_worker_set(new_worker_set)?;
 
@@ -220,8 +230,8 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     KEY_ID.save(deps.storage, &worker_set.hash().to_hex())?;
 
     let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
-        key_id: worker_set.id(), // TODO: replace key id with worker set id
-        snapshot,                // TODO: refactor this to just pass the WorkerSet struct
+        key_id: worker_set.id(),
+        snapshot, // TODO: refactor this to just pass the WorkerSet struct
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
