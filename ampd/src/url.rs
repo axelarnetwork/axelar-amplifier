@@ -1,6 +1,6 @@
 use deref_derive::Deref;
 use serde::de::{Error, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use url::ParseError;
@@ -14,6 +14,15 @@ impl<'a> Deserialize<'a> for Url {
         D: Deserializer<'a>,
     {
         deserializer.deserialize_string(UrlVisitor)
+    }
+}
+
+impl Serialize for Url {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.0.as_str())
     }
 }
 

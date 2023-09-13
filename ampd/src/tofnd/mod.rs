@@ -1,5 +1,5 @@
 use hex::{self, FromHex};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::url::Url;
 
@@ -11,7 +11,7 @@ mod proto {
     tonic::include_proto!("tofnd");
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Config {
     pub url: Url,
     pub party_uid: String,

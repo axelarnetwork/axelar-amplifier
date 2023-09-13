@@ -1,27 +1,31 @@
 use itertools::Itertools;
 use serde::de::{self, Deserializer};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_with::with_prefix;
 
 use crate::evm::ChainName;
 use crate::types::TMAddress;
 use crate::url::Url;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
 }
 
-#[derive(Debug, Deserialize)]
+with_prefix!(chain "chain_");
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Config {
     EvmMsgVerifier {
-        chain: Chain,
         cosmwasm_contract: TMAddress,
+        #[serde(flatten, with = "chain")]
+        chain: Chain,
     },
     EvmWorkerSetVerifier {
-        chain: Chain,
         cosmwasm_contract: TMAddress,
+        #[serde(flatten, with = "chain")]
+        chain: Chain,
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
