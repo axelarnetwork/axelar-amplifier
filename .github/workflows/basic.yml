@@ -8,7 +8,7 @@ on:
       - 'releases/**'
 
 env: 
-  RUSTFLAGS: "-D warnings"
+  RUSTFLAGS: "-D warnings --cfg tracing_unstable"
 
 name: Basic
 
