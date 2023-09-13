@@ -48,7 +48,7 @@ jobs:
           command: wasm
           args: --locked --workspace --exclude ampd
         env:
-          RUSTFLAGS: "-D warnings -C link-arg=-s"
+          RUSTFLAGS: "$RUSTFLAGS -C link-arg=-s"
 
   lints:
     name: Lints
