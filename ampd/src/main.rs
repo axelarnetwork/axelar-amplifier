@@ -76,7 +76,7 @@ fn set_up_logger(output: &Output) {
 
 async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
     let cfg = init_config(&args.config);
-    let state_path = check_state_path(args.state.as_path())?;
+    let state_path = expand_home_dir(args.state.as_path());
 
     run(cfg, state_path).await
 }
@@ -117,12 +117,6 @@ fn parse_config(
         .build()?
         .try_deserialize::<Config>()
         .map_err(Report::from)
-}
-
-fn check_state_path(path: &Path) -> error_stack::Result<PathBuf, Error> {
-    expand_home_dir(path)
-        .then(canonicalize)
-        .change_context(Error::StateLocation(path.to_string_lossy().into_owned()))
 }
 
 fn expand_home_dir(path: &Path) -> PathBuf {
