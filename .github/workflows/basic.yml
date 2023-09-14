@@ -7,6 +7,9 @@ on:
       - 'main'
       - 'releases/**'
 
+env: 
+  RUSTFLAGS: "-D warnings --cfg tracing_unstable"
+
 name: Basic
 
 jobs:
@@ -15,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -26,9 +29,8 @@ jobs:
           override: true
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
@@ -50,14 +52,14 @@ jobs:
           command: wasm
           args: --locked --workspace --exclude ampd
         env:
-          RUSTFLAGS: "-C link-arg=-s"
+          RUSTFLAGS: "-D warnings --cfg tracing_unstable -C link-arg=-s"
 
   lints:
     name: Lints
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -73,9 +75,8 @@ jobs:
           crate: cargo-sort
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
