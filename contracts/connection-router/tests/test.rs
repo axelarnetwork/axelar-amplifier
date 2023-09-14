@@ -385,6 +385,21 @@ fn authorization() {
 
     assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterChain {
+                chain: chain.chain_name.to_string(),
+                gateway_address: chain.gateway.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
     let res = config.app.execute_contract(
         config.governance_address.clone(),
         config.contract_address.clone(),
@@ -400,6 +415,21 @@ fn authorization() {
         .app
         .execute_contract(
             Addr::unchecked("random"),
+            config.contract_address.clone(),
+            &ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.to_string(),
+                direction: GatewayDirection::Bidirectional,
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
+    let res = config
+        .app
+        .execute_contract(
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::FreezeChain {
                 chain: chain.chain_name.to_string(),
@@ -440,7 +470,48 @@ fn authorization() {
     let res = config
         .app
         .execute_contract(
+            config.governance_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.to_string(),
+                direction: GatewayDirection::None,
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
+    let res = config.app.execute_contract(
+        config.admin_address.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::FreezeChain {
+            chain: chain.chain_name.to_string(),
+            direction: GatewayDirection::None,
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let res = config
+        .app
+        .execute_contract(
             Addr::unchecked("random"),
+            config.contract_address.clone(),
+            &ExecuteMsg::UpgradeGateway {
+                chain: chain.chain_name.to_string(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.to_string(),
