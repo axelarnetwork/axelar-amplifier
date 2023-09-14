@@ -8,4 +8,4 @@ edition = "2021"
 cosmwasm-schema = "1.1.3"
 cosmwasm-std = "1.1.3"
 cw2 = "0.15.1"
-thiserror = {workspace = true}
+thiserror = { workspace = true }
