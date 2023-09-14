@@ -39,4 +39,7 @@ pub enum ContractError {
 
     #[error("worker set not confirmed")]
     WorkerSetNotConfirmed,
+
+    #[error("a worker set confirmation already in progress")]
+    WorkerSetConfirmationInProgress,
 }

@@ -182,6 +182,10 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
+            if NEXT_WORKER_SET.exists(deps.storage) {
+                return Err(ContractError::WorkerSetConfirmationInProgress);
+            }
+
             NEXT_WORKER_SET.save(
                 deps.storage,
                 &(new_worker_set.clone(), workers_info.snapshot),
