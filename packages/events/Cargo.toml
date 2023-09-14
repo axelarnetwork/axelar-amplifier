@@ -13,4 +13,4 @@ serde_json = "1.0.105"
 # Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
 tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
-thiserror = "1.0.47"
+thiserror = { workspace = true }
