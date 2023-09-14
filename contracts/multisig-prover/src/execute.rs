@@ -182,8 +182,15 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
-            if NEXT_WORKER_SET.exists(deps.storage) {
-                return Err(ContractError::WorkerSetConfirmationInProgress);
+            if let Ok(Some((next_worker_set, _))) = NEXT_WORKER_SET.may_load(deps.storage) {
+                // We throw error if there is a worker set confirmation in progress, but we allow to retry
+                // if the new worker set is the same as the one in progress. We can't use direct comparison
+                // because the created_at might be different, so we compare only the signers and threshold.
+                if next_worker_set.signers != new_worker_set.signers
+                    || next_worker_set.threshold != new_worker_set.threshold
+                {
+                    return Err(ContractError::WorkerSetConfirmationInProgress);
+                }
             }
 
             NEXT_WORKER_SET.save(
