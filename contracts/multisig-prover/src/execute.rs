@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, SubMsg,
-    WasmQuery,
+    to_binary, wasm_execute, Addr, Deps, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
+    SubMsg, WasmQuery,
 };
 use multisig::key::{KeyType, PublicKey};
 
@@ -182,15 +182,8 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
-            if let Ok(Some((next_worker_set, _))) = NEXT_WORKER_SET.may_load(deps.storage) {
-                // We throw error if there is a worker set confirmation in progress, but we allow to retry
-                // if the new worker set is the same as the one in progress. We can't use direct comparison
-                // because the created_at might be different, so we compare only the signers and threshold.
-                if next_worker_set.signers != new_worker_set.signers
-                    || next_worker_set.threshold != new_worker_set.threshold
-                {
-                    return Err(ContractError::WorkerSetConfirmationInProgress);
-                }
+            if different_set_in_progress(deps.as_ref(), &new_worker_set) {
+                return Err(ContractError::WorkerSetConfirmationInProgress);
             }
 
             NEXT_WORKER_SET.save(
@@ -268,10 +261,27 @@ pub fn should_update_worker_set(
         > max_diff
 }
 
+// Returns true if there is a different worker set pending for confirmation, false if there is no
+// worker set pending or if the pending set is the same. We can't use direct comparison
+// because the created_at might be different, so we compare only the signers and threshold.
+fn different_set_in_progress(deps: Deps, new_worker_set: &WorkerSet) -> bool {
+    if let Ok(Some((next_worker_set, _))) = NEXT_WORKER_SET.may_load(deps.storage) {
+        return next_worker_set.signers != new_worker_set.signers
+            || next_worker_set.threshold != new_worker_set.threshold;
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{execute::should_update_worker_set, test::test_data};
-    use std::collections::BTreeSet;
+    use axelar_wasm_std::Snapshot;
+    use cosmwasm_std::{testing::mock_dependencies, Timestamp, Uint256, Uint64};
+
+    use crate::{execute::should_update_worker_set, state::NEXT_WORKER_SET, test::test_data};
+    use std::collections::{BTreeSet, HashMap};
+
+    use super::different_set_in_progress;
 
     #[test]
     fn should_update_worker_set_no_change() {
@@ -312,5 +322,51 @@ mod tests {
         signers[1].pub_key = signers[0].pub_key.clone();
         new_worker_set.signers = BTreeSet::from_iter(signers);
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+    }
+
+    #[test]
+    fn test_no_set_pending_confirmation() {
+        let deps = mock_dependencies();
+        let new_worker_set = test_data::new_worker_set();
+
+        assert!(!different_set_in_progress(deps.as_ref(), &new_worker_set));
+    }
+
+    #[test]
+    fn test_same_set_pending_confirmation() {
+        let mut deps = mock_dependencies();
+        let mut new_worker_set = test_data::new_worker_set();
+
+        NEXT_WORKER_SET
+            .save(deps.as_mut().storage, &(new_worker_set.clone(), snapshot()))
+            .unwrap();
+
+        new_worker_set.created_at += 1;
+
+        assert!(!different_set_in_progress(deps.as_ref(), &new_worker_set));
+    }
+
+    #[test]
+    fn test_different_set_pending_confirmation() {
+        let mut deps = mock_dependencies();
+        let mut new_worker_set = test_data::new_worker_set();
+
+        NEXT_WORKER_SET
+            .save(deps.as_mut().storage, &(new_worker_set.clone(), snapshot()))
+            .unwrap();
+
+        new_worker_set.signers.pop_first();
+
+        assert!(different_set_in_progress(deps.as_ref(), &new_worker_set));
+    }
+
+    fn snapshot() -> Snapshot {
+        Snapshot {
+            timestamp: Timestamp::from_nanos(1).try_into().unwrap(),
+            height: Uint64::one().try_into().unwrap(),
+            total_weight: Uint256::one().try_into().unwrap(),
+            quorum: Uint256::one().try_into().unwrap(),
+            participants: HashMap::new(),
+        }
     }
 }
