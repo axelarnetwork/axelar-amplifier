@@ -42,7 +42,7 @@ pub fn instantiate(
         chain_name: ChainName::from_str(&msg.chain_name)
             .map_err(|_| ContractError::InvalidChainName)?,
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
-        encoding_scheme: msg.encoding_scheme,
+        encoding: msg.encoding,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -101,11 +101,12 @@ mod test {
     use ethabi::{ParamType, Token};
 
     use crate::{
+        encoding::EncodingScheme,
         msg::{GetProofResponse, ProofStatus},
         test::{
             multicontract::{setup_test_case, TestCaseConfig},
             test_data,
-        }, encoding::encoding::EncodingScheme,
+        },
     };
 
     use super::*;
@@ -208,7 +209,7 @@ mod test {
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
                 worker_set_diff_threshold: 0,
-                encoding_scheme: encoding_scheme.clone(),
+                encoding: encoding_scheme.clone(),
             };
 
             let res = instantiate(deps.as_mut(), env, info, msg);
@@ -229,7 +230,7 @@ mod test {
                 signing_threshold.try_into().unwrap()
             );
             assert_eq!(config.service_name, service_name);
-            assert_eq!(config.encoding_scheme, encoding_scheme)
+            assert_eq!(config.encoding, encoding_scheme)
         }
     }
 

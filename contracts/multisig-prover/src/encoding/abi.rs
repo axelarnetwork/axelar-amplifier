@@ -130,7 +130,9 @@ fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
     })
 }
 
-pub(super) fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
+pub(super) fn transfer_operatorship_params(
+    worker_set: &WorkerSet,
+) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .iter()
@@ -183,7 +185,7 @@ pub(super) fn command_params(
                 reason: format!("destination_address is not a valid EVM address: {}", e),
             }
         })?;
-    let payload_hash : [u8; 32] =
+    let payload_hash: [u8; 32] =
         payload_hash
             .as_slice()
             .try_into()
@@ -204,14 +206,16 @@ pub(super) fn command_params(
     .into())
 }
 
-
 #[cfg(test)]
 mod test {
 
-    use crate::{test::test_data, types::{Command, CommandType}, encoding::encoding::{EncodingScheme, CommandBatchBuilder}};
+    use crate::{
+        encoding::{CommandBatchBuilder, EncodingScheme},
+        test::test_data,
+        types::{Command, CommandType},
+    };
 
     use super::*;
-
 
     fn decode_command_params<'a>(encoded_params: impl Into<Vec<u8>>) -> Vec<Token> {
         ethabi::decode(
@@ -226,7 +230,6 @@ mod test {
         .unwrap()
     }
 
-
     fn decode_operator_transfer_command_params<'a>(
         encoded_params: impl Into<Vec<u8>>,
     ) -> Vec<Token> {
@@ -240,7 +243,6 @@ mod test {
         )
         .unwrap()
     }
-
 
     pub fn decode_data(encoded_data: &HexBinary) -> Data {
         let tokens_array = &ethabi::decode(
@@ -305,7 +307,12 @@ mod test {
         let messages = test_data::messages();
         let router_message = messages.first().unwrap().clone();
 
-        let res = command_params(router_message.source_chain, router_message.source_address, router_message.destination_address, router_message.payload_hash);
+        let res = command_params(
+            router_message.source_chain,
+            router_message.source_address,
+            router_message.destination_address,
+            router_message.payload_hash,
+        );
         assert!(res.is_ok());
 
         let res = res.unwrap();
@@ -325,7 +332,12 @@ mod test {
         let mut router_message = test_data::messages().first().unwrap().clone();
         router_message.destination_address = "invalid".into();
 
-        let res = command_params(router_message.source_chain, router_message.source_address, router_message.destination_address, router_message.payload_hash);
+        let res = command_params(
+            router_message.source_chain,
+            router_message.source_address,
+            router_message.destination_address,
+            router_message.payload_hash,
+        );
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
@@ -341,7 +353,12 @@ mod test {
             HexBinary::from_hex("df0e679e57348329e51e4337b7839882c29f21a3095a718c239f147b143ff8")
                 .unwrap();
 
-        let res = command_params(router_message.source_chain, router_message.source_address, router_message.destination_address, router_message.payload_hash);
+        let res = command_params(
+            router_message.source_chain,
+            router_message.source_address,
+            router_message.destination_address,
+            router_message.payload_hash,
+        );
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
@@ -428,7 +445,8 @@ mod test {
     #[test]
     fn test_new_command_batch_with_operator_transfer() {
         let test_data = decode_data(&test_data::encoded_data_with_operator_transfer());
-        let mut builder = CommandBatchBuilder::new(test_data::chain_id_operator_transfer(), EncodingScheme::Abi);
+        let mut builder =
+            CommandBatchBuilder::new(test_data::chain_id_operator_transfer(), EncodingScheme::Abi);
         let res = builder.add_new_worker_set(test_data::new_worker_set());
         assert!(res.is_ok());
         let res = builder.build();
@@ -464,9 +482,7 @@ mod test {
             })
             .collect::<Vec<(Signer, Option<Signature>)>>();
 
-        let execute_data = &batch
-            .encode_execute_data(quorum, signers)
-            .unwrap();
+        let execute_data = &batch.encode_execute_data(quorum, signers).unwrap();
 
         let tokens = ethabi::decode(
             &[ParamType::Bytes],
@@ -528,7 +544,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
-            encoding_scheme: EncodingScheme::Abi
+            encoding: EncodingScheme::Abi,
         };
 
         let signers = operators
@@ -545,9 +561,7 @@ mod test {
             })
             .collect::<Vec<(Signer, Option<Signature>)>>();
 
-        let res = batch
-            .encode_execute_data(quorum, signers)
-            .unwrap();
+        let res = batch.encode_execute_data(quorum, signers).unwrap();
         assert_eq!(res, test_data::execute_data());
     }
 
@@ -559,7 +573,6 @@ mod test {
 
         assert_eq!(res, encoded_data);
     }
-
 
     #[test]
     fn test_evm_address() {
@@ -577,7 +590,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
-            encoding_scheme: EncodingScheme::Abi
+            encoding: EncodingScheme::Abi,
         };
 
         let res = batch.msg_to_sign();
