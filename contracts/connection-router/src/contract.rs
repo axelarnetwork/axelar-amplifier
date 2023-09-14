@@ -15,7 +15,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
-    let governance = deps.api.addr_validate(&msg.goverance_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
     CONFIG.save(
         deps.storage,
         &Config {
