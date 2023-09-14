@@ -27,7 +27,7 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
         MultisigState::Pending => ProofStatus::Pending,
         MultisigState::Completed => {
             let execute_data = batch
-                .encode_execute_data(multisig.quorum, multisig.signers, config.encoding_scheme)
+                .encode_execute_data(multisig.quorum, multisig.signers)
                 .map_err(|e| {
                     StdError::generic_err(format!("failed to encode execute data: {}", e))
                 })?;

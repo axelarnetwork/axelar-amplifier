@@ -9,8 +9,8 @@ use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use sha3::{Digest, Keccak256};
 
+use crate::encoding::encoding::EncodingScheme;
 use crate::error::ContractError;
-use crate::msg::EncodingScheme;
 use crate::types::{BatchID, CommandBatch};
 
 #[cw_serde]

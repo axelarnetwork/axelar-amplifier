@@ -4,7 +4,7 @@ use axelar_wasm_std::Threshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::encoding::Data;
+use crate::encoding::{Data, encoding::EncodingScheme};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -20,12 +20,6 @@ pub struct InstantiateMsg {
     pub encoding_scheme: EncodingScheme
 }
 
-#[cw_serde]
-#[derive(Copy)]
-pub enum EncodingScheme {
-    Abi,
-    Bcs
-}
 
 #[cw_serde]
 pub enum ExecuteMsg {

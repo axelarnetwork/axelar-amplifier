@@ -6,7 +6,7 @@ use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::key::Signature;
 use sha3::{Digest, Keccak256};
 
-use crate::{encoding::Data, state::WorkerSet};
+use crate::{encoding::{Data, encoding::EncodingScheme}, state::WorkerSet};
 
 #[cw_serde]
 pub enum CommandType {
@@ -81,6 +81,7 @@ pub struct CommandBatch {
     pub id: BatchID,
     pub message_ids: Vec<String>,
     pub data: Data,
+    pub encoding_scheme: EncodingScheme
 }
 
 #[cw_serde]

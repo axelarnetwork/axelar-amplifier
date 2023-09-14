@@ -101,11 +101,11 @@ mod test {
     use ethabi::{ParamType, Token};
 
     use crate::{
-        msg::{EncodingScheme, GetProofResponse, ProofStatus},
+        msg::{GetProofResponse, ProofStatus},
         test::{
             multicontract::{setup_test_case, TestCaseConfig},
             test_data,
-        },
+        }, encoding::encoding::EncodingScheme,
     };
 
     use super::*;

@@ -33,9 +33,9 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoding_scheme);
             for msg in messages {
-                builder.add_message(msg, config.encoding_scheme)?;
+                builder.add_message(msg)?;
             }
             let batch = builder.build()?;
 
@@ -50,7 +50,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id,
-        msg: command_batch.msg_to_sign(config.encoding_scheme),
+        msg: command_batch.msg_to_sign(),
     };
 
     let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
@@ -139,14 +139,14 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 
     NEXT_WORKER_SET.save(deps.storage, &new_worker_set)?;
-    let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
-    builder.add_new_worker_set(new_worker_set, config.encoding_scheme)?;
+    let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoding_scheme);
+    builder.add_new_worker_set(new_worker_set)?;
 
     let batch = builder.build()?;
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id: "static".to_string(), // TODO remove the key_id
-        msg: batch.msg_to_sign(config.encoding_scheme),
+        msg: batch.msg_to_sign(),
     };
 
     // TODO handle the reply
