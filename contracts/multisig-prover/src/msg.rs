@@ -4,7 +4,7 @@ use axelar_wasm_std::Threshold;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
-use crate::encoding::{Data, EncodingScheme};
+use crate::encoding::{Data, EncodingLanguage};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -17,7 +17,7 @@ pub struct InstantiateMsg {
     pub service_name: String,
     pub chain_name: String,
     pub worker_set_diff_threshold: u32,
-    pub encoding: EncodingScheme,
+    pub encoding: EncodingLanguage,
 }
 
 #[cw_serde]

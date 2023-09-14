@@ -210,7 +210,7 @@ pub(super) fn command_params(
 mod test {
 
     use crate::{
-        encoding::{CommandBatchBuilder, EncodingScheme},
+        encoding::{CommandBatchBuilder, EncodingLanguage},
         test::test_data,
         types::{Command, CommandType},
     };
@@ -409,7 +409,7 @@ mod test {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
-        let mut builder = CommandBatchBuilder::new(destination_chain_id, EncodingScheme::Abi);
+        let mut builder = CommandBatchBuilder::new(destination_chain_id, EncodingLanguage::Abi);
         for msg in messages {
             builder.add_message(msg).unwrap();
         }
@@ -445,8 +445,10 @@ mod test {
     #[test]
     fn test_new_command_batch_with_operator_transfer() {
         let test_data = decode_data(&test_data::encoded_data_with_operator_transfer());
-        let mut builder =
-            CommandBatchBuilder::new(test_data::chain_id_operator_transfer(), EncodingScheme::Abi);
+        let mut builder = CommandBatchBuilder::new(
+            test_data::chain_id_operator_transfer(),
+            EncodingLanguage::Abi,
+        );
         let res = builder.add_new_worker_set(test_data::new_worker_set());
         assert!(res.is_ok());
         let res = builder.build();
@@ -461,7 +463,7 @@ mod test {
         let operators = test_data::operators();
         let quorum = test_data::quorum();
 
-        let mut builder = CommandBatchBuilder::new(destination_chain_id, EncodingScheme::Abi);
+        let mut builder = CommandBatchBuilder::new(destination_chain_id, EncodingLanguage::Abi);
         for msg in messages {
             let res = builder.add_message(msg);
             assert!(res.is_ok());
@@ -544,7 +546,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
-            encoding: EncodingScheme::Abi,
+            encoding: EncodingLanguage::Abi,
         };
 
         let signers = operators
@@ -569,7 +571,7 @@ mod test {
     fn test_data_encode() {
         let encoded_data = test_data::encoded_data();
         let data = decode_data(&encoded_data);
-        let res = data.encode(EncodingScheme::Abi);
+        let res = data.encode(EncodingLanguage::Abi);
 
         assert_eq!(res, encoded_data);
     }
@@ -590,7 +592,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
-            encoding: EncodingScheme::Abi,
+            encoding: EncodingLanguage::Abi,
         };
 
         let res = batch.msg_to_sign();

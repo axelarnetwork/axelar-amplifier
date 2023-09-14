@@ -7,7 +7,7 @@ use multisig::key::Signature;
 use sha3::{Digest, Keccak256};
 
 use crate::{
-    encoding::{Data, EncodingScheme},
+    encoding::{Data, EncodingLanguage},
     state::WorkerSet,
 };
 
@@ -84,7 +84,7 @@ pub struct CommandBatch {
     pub id: BatchID,
     pub message_ids: Vec<String>,
     pub data: Data,
-    pub encoding: EncodingScheme,
+    pub encoding: EncodingLanguage,
 }
 
 #[cw_serde]

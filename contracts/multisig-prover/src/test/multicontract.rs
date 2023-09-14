@@ -132,7 +132,7 @@ fn instantiate_prover(
         service_name: "service-name".to_string(),
         chain_name: "Ethereum".to_string(),
         worker_set_diff_threshold: 0,
-        encoding: crate::encoding::EncodingScheme::Abi,
+        encoding: crate::encoding::EncodingLanguage::Abi,
     };
 
     app.instantiate_contract(
