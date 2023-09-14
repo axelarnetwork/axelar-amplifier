@@ -31,7 +31,6 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
@@ -78,7 +77,6 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v2
         with:
-          version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
