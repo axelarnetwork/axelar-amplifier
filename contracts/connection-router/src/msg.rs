@@ -18,6 +18,7 @@ pub struct Message {
 #[cw_serde]
 pub struct InstantiateMsg {
     pub admin_address: String,
+    pub goverance_address: String,
 }
 
 #[cw_serde]
