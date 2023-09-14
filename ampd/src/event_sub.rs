@@ -225,7 +225,7 @@ mod tests {
     async fn start_from_should_work() {
         let block_count = 10;
         let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
+            serde_json::from_str(include_str!("tests/axelar_block.json")).unwrap();
         let from_height = (block.header.height.value() - block_count + 1)
             .try_into()
             .unwrap();
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     async fn should_start_from_latest_when_none_is_given() {
         let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
+            serde_json::from_str(include_str!("tests/axelar_block.json")).unwrap();
         let height = block.header.height;
 
         let mut mock_client = tm_client::MockTmClient::new();
@@ -330,7 +330,7 @@ mod tests {
     async fn stream_should_work() {
         let block_count = 10;
         let block: tendermint::Block =
-            serde_json::from_str(include_str!("../tests/fixtures/block.json")).unwrap();
+            serde_json::from_str(include_str!("tests/axelar_block.json")).unwrap();
         let block_height = block.header.height;
         let mut rng = rand::thread_rng();
         let block_results = tm_client::BlockResultsResponse {

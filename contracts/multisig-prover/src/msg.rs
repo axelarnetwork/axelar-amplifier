@@ -3,7 +3,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 
 use crate::encoding::Data;
-use crate::state::WorkerSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -34,7 +33,7 @@ pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
 
-    #[returns(WorkerSet)]
+    #[returns(crate::state::WorkerSet)]
     GetWorkerSet,
 }
 

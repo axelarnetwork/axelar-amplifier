@@ -11,11 +11,11 @@ use tracing::{error, info};
 use valuable::Valuable;
 
 use ampd::config::Config;
-use ampd::report::Error;
-use ampd::report::LoggableError;
+use ampd::error::Error;
 use ampd::run;
 use axelar_wasm_std::utils::InspectorResult;
 use axelar_wasm_std::FnExt;
+use report::LoggableError;
 
 #[derive(Debug, Parser, Valuable)]
 #[command(version)]
