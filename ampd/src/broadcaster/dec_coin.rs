@@ -7,6 +7,7 @@ use cosmrs::proto;
 use error_stack::{ensure, Report, Result, ResultExt};
 use report::ResultCompatExt;
 use serde::{Deserialize, Serialize};
+use serde_with::SerializeDisplay;
 use thiserror::Error;
 use tracing::error;
 
@@ -22,7 +23,8 @@ pub enum Error {
     DenomIsEmpty,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, PartialOrd)]
+#[derive(SerializeDisplay, Deserialize, Clone, Debug, PartialEq, PartialOrd)]
+#[serde(try_from = "String")]
 pub struct DecCoin {
     pub denom: Denom,
     pub amount: FiniteAmount,
@@ -59,6 +61,34 @@ impl TryFrom<&proto::cosmos::base::v1beta1::DecCoin> for DecCoin {
 impl From<DecCoin> for proto::cosmos::base::v1beta1::DecCoin {
     fn from(coin: DecCoin) -> proto::cosmos::base::v1beta1::DecCoin {
         proto::cosmos::base::v1beta1::DecCoin::from(&coin)
+    }
+}
+
+impl TryFrom<String> for DecCoin {
+    type Error = Report<Error>;
+
+    fn try_from(s: String) -> core::result::Result<Self, Self::Error> {
+        s.as_str().try_into()
+    }
+}
+
+impl TryFrom<&str> for DecCoin {
+    type Error = Report<Error>;
+
+    fn try_from(s: &str) -> core::result::Result<Self, Self::Error> {
+        let amount_index = s.find(char::is_numeric);
+        let denom_index = s.find(char::is_alphabetic);
+
+        match (amount_index, denom_index) {
+            (Some(0), Some(denom_index)) => {
+                let (amount, denom) = s.split_at(denom_index);
+                Ok(DecCoin {
+                    denom: denom.parse()?,
+                    amount: amount.parse()?,
+                })
+            }
+            _ => Err(Report::from(ParsingFailed)),
+        }
     }
 }
 
@@ -178,6 +208,36 @@ mod tests {
     #[test]
     fn invalid_denom() {
         assert!(DecCoin::new(1000.00, "ax~7").is_err())
+    }
+
+    #[test]
+    fn correct_try_from_string() {
+        assert_eq!(
+            DecCoin::new(100.0, "uaxl").ok(),
+            DecCoin::try_from("100uaxl").ok()
+        );
+        assert_eq!(
+            DecCoin::new(100.5, "uaxl").ok(),
+            DecCoin::try_from("100.5uaxl").ok()
+        );
+        assert_eq!(
+            DecCoin::new(100.523478623, "uaxl").ok(),
+            DecCoin::try_from("100.523478623uaxl").ok()
+        );
+        assert_eq!(
+            DecCoin::new(10.0, "a0uaxl").ok(),
+            DecCoin::try_from("10a0uaxl").ok()
+        );
+        assert_eq!(
+            DecCoin::new(10.0, "a0u/axl").ok(),
+            DecCoin::try_from("10a0u/axl").ok()
+        );
+    }
+
+    #[test]
+    fn invalid_try_from_string() {
+        assert!(DecCoin::try_from("10a0u/-xl").is_err());
+        assert!(DecCoin::try_from("uaxl6").is_err());
     }
 
     #[test]

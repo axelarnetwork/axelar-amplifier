@@ -1,6 +1,14 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 
-on: pull_request
+on: 
+  pull_request:
+  push:
+    branches:
+      - 'main'
+      - 'releases/**'
+
+env: 
+  RUSTFLAGS: "-D warnings --cfg tracing_unstable"
 
 name: Basic
 
@@ -10,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -21,15 +29,14 @@ jobs:
           override: true
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-cache-test"
+          shared-key: "cache"
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -45,14 +52,14 @@ jobs:
           command: wasm
           args: --locked --workspace --exclude ampd
         env:
-          RUSTFLAGS: "-C link-arg=-s"
+          RUSTFLAGS: "-D warnings --cfg tracing_unstable -C link-arg=-s"
 
   lints:
     name: Lints
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -68,15 +75,14 @@ jobs:
           crate: cargo-sort
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.x'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-cache-lint"
+          shared-key: "cache"
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1

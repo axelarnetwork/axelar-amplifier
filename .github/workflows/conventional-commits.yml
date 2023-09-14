@@ -1,7 +1,6 @@
 name: Ensure Conventional Commit message
 
-on:
-  pull_request:
+on: pull_request
 
 jobs:
   ensure-CC:
