@@ -72,7 +72,7 @@ pub async fn run(cfg: Config, state: State) -> Result<State, Error> {
                 .keygen(&tofnd_config.key_uid)
                 .await
                 .change_context(Error::Tofnd)?;
-            state_updater.set_public_key(pub_key);
+            state_updater.as_mut().pub_key = Some(pub_key);
 
             pub_key
         }
@@ -271,7 +271,7 @@ where
                 .map_err(|_| report!(Error::ReturnState))
         });
 
-        let _ = match (set.join_next().await, token.is_cancelled()) {
+        let execution_result = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
                 result.change_context(Error::Task)?
@@ -281,7 +281,17 @@ where
         };
 
         while (set.join_next().await).is_some() {}
-        state_rx.try_recv().change_context(Error::ReturnState)
+        let state_update_result = state_rx.try_recv().change_context(Error::ReturnState);
+
+        match (execution_result, state_update_result) {
+            (Err(mut err1), Err(err2)) => {
+                err1.extend_one(err2);
+                Err(err1)
+            }
+            (Err(err1), Ok(_)) => Err(err1),
+            (Ok(_), Err(err2)) => Err(err2),
+            (Ok(_), Ok(state)) => Ok(state),
+        }
     }
 }
 

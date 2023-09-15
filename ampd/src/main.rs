@@ -66,9 +66,9 @@ async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
     let cfg = init_config(&args.config);
     let state_path = expand_home_dir(&args.state);
 
-    let state = state::load(&state_path).change_context(Error::Ampd)?;
-    let state = run(cfg, state).await.change_context(Error::Ampd)?;
-    state::flush(&state, state_path).change_context(Error::Ampd)
+    let state = state::load(&state_path).change_context(Error::Fatal)?;
+    let state = run(cfg, state).await.change_context(Error::Fatal)?;
+    state::flush(&state, state_path).change_context(Error::Fatal)
 }
 
 fn set_up_logger(output: &Output) {
@@ -133,5 +133,5 @@ enum Error {
     #[error("failed to load config")]
     LoadConfig,
     #[error("catastrophic failure")]
-    Ampd,
+    Fatal,
 }

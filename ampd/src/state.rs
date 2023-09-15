@@ -37,8 +37,12 @@ impl State {
         self.handlers.get(handler_name)
     }
 
-    fn set_handler_block_height(&mut self, handler_name: String, height: block::Height) {
-        self.handlers.insert(handler_name, height);
+    pub fn set_handler_block_height(
+        &mut self,
+        handler_name: impl Into<String>,
+        height: impl Into<block::Height>,
+    ) {
+        self.handlers.insert(handler_name.into(), height.into());
     }
 }
 
@@ -76,9 +80,11 @@ impl StateUpdater {
 
         self.state
     }
+}
 
-    pub fn set_public_key(&mut self, pub_key: PublicKey) {
-        self.state.pub_key = Some(pub_key);
+impl AsMut<State> for StateUpdater {
+    fn as_mut(&mut self) -> &mut State {
+        &mut self.state
     }
 }
 
@@ -120,7 +126,6 @@ fn ensure_parent_dirs_exist(path: impl AsRef<Path>) -> Result<(), Error> {
 mod tests {
     use crate::state;
     use ecdsa::signature::rand_core::OsRng;
-    use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::{fs, panic};
     use tokio::sync::mpsc;
@@ -141,14 +146,11 @@ mod tests {
     fn can_load_and_flush_state() {
         let path = PathBuf::from("./state_subfolder/can_load_and_flush_state.json");
         run_test(&path, || {
-            let state = State {
-                pub_key: Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into()),
-                handlers: HashMap::from([
-                    ("handler1".to_string(), 10u16.into()),
-                    ("handler2".to_string(), 15u16.into()),
-                    ("handler3".to_string(), 7u16.into()),
-                ]),
-            };
+            let mut state = State::default();
+            state.pub_key = Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
+            state.set_handler_block_height("handler1", 10u16);
+            state.set_handler_block_height("handler2", 15u16);
+            state.set_handler_block_height("handler3", 7u16);
 
             state::flush(&state, &path).unwrap();
             let loaded_state = state::load(&path).unwrap();
@@ -168,8 +170,8 @@ mod tests {
         state_updater.register_event("handler1", rx1);
         state_updater.register_event("handler2", rx2);
 
-        let public_key = ecdsa::SigningKey::random(&mut OsRng).verifying_key().into();
-        state_updater.set_public_key(public_key);
+        state_updater.as_mut().pub_key =
+            Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
 
         let handle1 = tokio::spawn(async move {
             tx1.send(1u16.into()).await.unwrap();
@@ -191,14 +193,16 @@ mod tests {
 
         let modified_state = state_runner.await;
 
-        let expected_state = State {
-            pub_key: Some(public_key),
-            handlers: HashMap::from([
-                ("handler1".to_string(), 3u16.into()),
-                ("handler2".to_string(), 4u16.into()),
-            ]),
-        };
+        let mut expected_state = State::default();
+        expected_state.pub_key = Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
+        expected_state.set_handler_block_height("handler1", 3u16);
+        expected_state.set_handler_block_height("handler2", 4u16);
 
         assert_eq!(modified_state, expected_state);
+
+        assert_eq!(
+            modified_state.min_handler_block_height(),
+            Some(&3u16.into())
+        );
     }
 }
