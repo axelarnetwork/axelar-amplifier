@@ -22,7 +22,6 @@ use types::TMAddress;
 
 use crate::config::Config;
 use crate::state::State;
-use crate::error::Error;
 
 mod broadcaster;
 pub mod config;
