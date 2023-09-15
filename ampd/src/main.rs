@@ -67,8 +67,13 @@ async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
     let state_path = expand_home_dir(&args.state);
 
     let state = state::load(&state_path).change_context(Error::Fatal)?;
-    let state = run(cfg, state).await.change_context(Error::Fatal)?;
-    state::flush(&state, state_path).change_context(Error::Fatal)
+    let result_with_state = run(cfg, state).await;
+    state::flush(&state, state_path).change_context(Error::Fatal)?;
+    if let Some(report) = result_with_state.error {
+        return Err(report.change_context(Error::Fatal));
+    }
+
+    Ok(())
 }
 
 fn set_up_logger(output: &Output) {

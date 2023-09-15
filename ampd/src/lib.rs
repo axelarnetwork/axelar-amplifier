@@ -3,7 +3,7 @@ use std::pin::Pin;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{report, FutureExt, Result, ResultExt};
+use error_stack::{report, FutureExt, Report, Result, ResultExt};
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -41,7 +41,7 @@ const PREFIX: &str = "axelar";
 
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
-pub async fn run(cfg: Config, state: State) -> Result<State, Error> {
+pub async fn run(cfg: Config, state: State) -> ResultWithState {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -235,7 +235,7 @@ where
         self.event_processor.add_handler(handler, sub);
     }
 
-    async fn run(self) -> Result<State, Error> {
+    async fn run(self) -> ResultWithState {
         let Self {
             event_sub,
             event_processor,
@@ -266,9 +266,11 @@ where
         set.spawn(event_processor.run().change_context(Error::EventProcessor));
         set.spawn(broadcaster.run().change_context(Error::Broadcaster));
         set.spawn(async move {
+            // assert: the app must wait for this task to exit before trying to receive the state
             state_tx
                 .send(state_updater.run().await)
-                .map_err(|_| report!(Error::ReturnState))
+                .expect("the state receiver should still be alive");
+            Ok(())
         });
 
         let execution_result = match (set.join_next().await, token.is_cancelled()) {
@@ -281,18 +283,21 @@ where
         };
 
         while (set.join_next().await).is_some() {}
-        let state_update_result = state_rx.try_recv().change_context(Error::ReturnState);
+        // assert: all tasks have exited, it is safe to receive the state
+        let state = state_rx
+            .try_recv()
+            .expect("the state sender should have been able to send the state");
 
-        match (execution_result, state_update_result) {
-            (Err(mut err1), Err(err2)) => {
-                err1.extend_one(err2);
-                Err(err1)
-            }
-            (Err(err1), Ok(_)) => Err(err1),
-            (Ok(_), Err(err2)) => Err(err2),
-            (Ok(_), Ok(state)) => Ok(state),
+        ResultWithState {
+            state,
+            error: execution_result.err(),
         }
     }
+}
+
+pub struct ResultWithState {
+    pub state: State,
+    pub error: Option<Report<Error>>,
 }
 
 #[derive(Error, Debug)]
