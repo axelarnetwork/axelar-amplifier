@@ -9,7 +9,7 @@ use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use sha3::{Digest, Keccak256};
 
-use crate::encoding::EncodingLanguage;
+use crate::encoding::Encoder;
 use crate::error::ContractError;
 use crate::types::{BatchID, CommandBatch};
 
@@ -24,7 +24,7 @@ pub struct Config {
     pub service_name: String,
     pub chain_name: ChainName,
     pub worker_set_diff_threshold: u32,
-    pub encoding: EncodingLanguage,
+    pub encoder: Encoder,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

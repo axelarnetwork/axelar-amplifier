@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{short_signature, ParamType, Token};
+use itertools::MultiUnzip;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use multisig::{key::Signature, msg::Signer};
 use sha3::{Digest, Keccak256};
@@ -17,20 +18,22 @@ use ethabi::ethereum_types;
 
 pub const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
 
-pub(super) fn encode(data: &Data) -> HexBinary {
+pub fn encode(data: &Data) -> HexBinary {
     let destination_chain_id = Token::Uint(ethabi::ethereum_types::U256::from_big_endian(
         &data.destination_chain_id.to_be_bytes(),
     ));
 
-    let (commands_ids, commands_types, commands_params) = data.commands.iter().fold(
-        (vec![], vec![], vec![]),
-        |(mut commands_ids, mut commands_types, mut commands_params), command| {
-            commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-            commands_types.push(Token::String(command.ty.to_string()));
-            commands_params.push(Token::Bytes(command.params.to_vec()));
-            (commands_ids, commands_types, commands_params)
-        },
-    );
+    let (commands_ids, commands_types, commands_params) = data
+        .commands
+        .iter()
+        .map(|command| {
+            (
+                Token::FixedBytes(command.id.to_vec()),
+                Token::String(command.ty.to_string()),
+                Token::Bytes(command.params.to_vec()),
+            )
+        })
+        .multiunzip();
 
     ethabi::encode(&[
         destination_chain_id,
@@ -41,7 +44,7 @@ pub(super) fn encode(data: &Data) -> HexBinary {
     .into()
 }
 
-pub(super) fn msg_to_sign(command_batch: &CommandBatch) -> HexBinary {
+pub fn msg_to_sign(command_batch: &CommandBatch) -> HexBinary {
     let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
@@ -54,7 +57,7 @@ pub(super) fn msg_to_sign(command_batch: &CommandBatch) -> HexBinary {
     Keccak256::digest(unsigned).as_slice().into()
 }
 
-pub(super) fn encode_execute_data(
+pub fn encode_execute_data(
     command_batch: &CommandBatch,
     quorum: Uint256,
     signers: Vec<(Signer, Option<Signature>)>,
@@ -80,23 +83,20 @@ fn encode_proof(
     let mut operators = make_operators(signers)?;
     operators.sort();
 
-    let (addresses, weights, signatures) = operators.iter().fold(
-        (vec![], vec![], vec![]),
-        |(mut addresses, mut weights, mut signatures), operator| {
-            addresses.push(Token::Address(ethereum_types::Address::from_slice(
-                operator.address.as_slice(),
-            )));
-            weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
-                &operator.weight.to_be_bytes(),
-            )));
+    let (addresses, weights, signatures): (Vec<_>, Vec<_>, Vec<_>) = operators
+        .into_iter()
+        .map(|op| {
+            (
+                Token::Address(ethereum_types::Address::from_slice(op.address.as_slice())),
+                Token::Uint(ethereum_types::U256::from_big_endian(
+                    &op.weight.to_be_bytes(),
+                )),
+                op.signature.map(|sig| Token::Bytes(<Vec<u8>>::from(sig))),
+            )
+        })
+        .multiunzip();
 
-            if let Some(signature) = &operator.signature {
-                signatures.push(Token::Bytes(<Vec<u8>>::from(signature.clone())));
-            }
-
-            (addresses, weights, signatures)
-        },
-    );
+    let signatures = signatures.into_iter().flatten().collect();
 
     let quorum = Token::Uint(ethereum_types::U256::from_big_endian(&quorum.to_be_bytes()));
 
@@ -130,9 +130,7 @@ fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
     })
 }
 
-pub(super) fn transfer_operatorship_params(
-    worker_set: &WorkerSet,
-) -> Result<HexBinary, ContractError> {
+pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .iter()
@@ -173,7 +171,7 @@ fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
-pub(super) fn command_params(
+pub fn command_params(
     source_chain: String,
     source_address: String,
     destination_address: String,
@@ -210,7 +208,7 @@ pub(super) fn command_params(
 mod test {
 
     use crate::{
-        encoding::{CommandBatchBuilder, EncodingLanguage},
+        encoding::{CommandBatchBuilder, Encoder},
         test::test_data,
         types::{Command, CommandType},
     };
@@ -409,7 +407,7 @@ mod test {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
-        let mut builder = CommandBatchBuilder::new(destination_chain_id, EncodingLanguage::Abi);
+        let mut builder = CommandBatchBuilder::new(destination_chain_id, Encoder::Abi);
         for msg in messages {
             builder.add_message(msg).unwrap();
         }
@@ -445,10 +443,8 @@ mod test {
     #[test]
     fn test_new_command_batch_with_operator_transfer() {
         let test_data = decode_data(&test_data::encoded_data_with_operator_transfer());
-        let mut builder = CommandBatchBuilder::new(
-            test_data::chain_id_operator_transfer(),
-            EncodingLanguage::Abi,
-        );
+        let mut builder =
+            CommandBatchBuilder::new(test_data::chain_id_operator_transfer(), Encoder::Abi);
         let res = builder.add_new_worker_set(test_data::new_worker_set());
         assert!(res.is_ok());
         let res = builder.build();
@@ -463,7 +459,7 @@ mod test {
         let operators = test_data::operators();
         let quorum = test_data::quorum();
 
-        let mut builder = CommandBatchBuilder::new(destination_chain_id, EncodingLanguage::Abi);
+        let mut builder = CommandBatchBuilder::new(destination_chain_id, Encoder::Abi);
         for msg in messages {
             let res = builder.add_message(msg);
             assert!(res.is_ok());
@@ -546,7 +542,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
-            encoding: EncodingLanguage::Abi,
+            encoder: Encoder::Abi,
         };
 
         let signers = operators
@@ -571,7 +567,7 @@ mod test {
     fn test_data_encode() {
         let encoded_data = test_data::encoded_data();
         let data = decode_data(&encoded_data);
-        let res = data.encode(EncodingLanguage::Abi);
+        let res = data.encode(Encoder::Abi);
 
         assert_eq!(res, encoded_data);
     }
@@ -592,7 +588,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
-            encoding: EncodingLanguage::Abi,
+            encoder: Encoder::Abi,
         };
 
         let res = batch.msg_to_sign();

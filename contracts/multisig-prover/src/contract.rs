@@ -42,7 +42,7 @@ pub fn instantiate(
         chain_name: ChainName::from_str(&msg.chain_name)
             .map_err(|_| ContractError::InvalidChainName)?,
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
-        encoding: msg.encoding,
+        encoder: msg.encoder,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -101,7 +101,7 @@ mod test {
     use ethabi::{ParamType, Token};
 
     use crate::{
-        encoding::EncodingLanguage,
+        encoding::Encoder,
         msg::{GetProofResponse, ProofStatus},
         test::{
             multicontract::{setup_test_case, TestCaseConfig},
@@ -194,7 +194,7 @@ mod test {
             .try_into()
             .unwrap();
         let service_name = "service_name";
-        for encoding in vec![EncodingLanguage::Abi, EncodingLanguage::Bcs] {
+        for encoding in vec![Encoder::Abi, Encoder::Bcs] {
             let mut deps = mock_dependencies();
             let info = mock_info(&instantiator, &[]);
             let env = mock_env();
@@ -209,7 +209,7 @@ mod test {
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
                 worker_set_diff_threshold: 0,
-                encoding: encoding.clone(),
+                encoder: encoding.clone(),
             };
 
             let res = instantiate(deps.as_mut(), env, info, msg);
@@ -230,7 +230,7 @@ mod test {
                 signing_threshold.try_into().unwrap()
             );
             assert_eq!(config.service_name, service_name);
-            assert_eq!(config.encoding, encoding)
+            assert_eq!(config.encoder, encoding)
         }
     }
 
@@ -284,7 +284,7 @@ mod test {
                 assert_eq!(
                     tokens,
                     vec![
-                        Token::Bytes(res.data.encode(EncodingLanguage::Abi).to_vec()),
+                        Token::Bytes(res.data.encode(Encoder::Abi).to_vec()),
                         Token::Bytes(test_data::encoded_proof().to_vec())
                     ]
                 );

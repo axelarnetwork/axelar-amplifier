@@ -1,4 +1,4 @@
-pub mod abi;
+mod abi;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
@@ -15,22 +15,22 @@ use crate::{
 
 #[cw_serde]
 #[derive(Copy)]
-pub enum EncodingLanguage {
+pub enum Encoder {
     Abi,
     Bcs,
 }
 
-fn make_command(msg: Message, encoding: EncodingLanguage) -> Result<Command, ContractError> {
+fn make_command(msg: Message, encoding: Encoder) -> Result<Command, ContractError> {
     Ok(Command {
         ty: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
         params: match encoding {
-            EncodingLanguage::Abi => abi::command_params(
+            Encoder::Abi => abi::command_params(
                 msg.source_chain,
                 msg.source_address,
                 msg.destination_address,
                 msg.payload_hash,
             )?,
-            EncodingLanguage::Bcs => todo!(),
+            Encoder::Bcs => todo!(),
         },
         id: command_id(msg.id),
     })
@@ -38,11 +38,11 @@ fn make_command(msg: Message, encoding: EncodingLanguage) -> Result<Command, Con
 
 fn make_transfer_operatorship(
     worker_set: WorkerSet,
-    encoding: EncodingLanguage,
+    encoding: Encoder,
 ) -> Result<Command, ContractError> {
     let params = match encoding {
-        EncodingLanguage::Abi => abi::transfer_operatorship_params(&worker_set),
-        EncodingLanguage::Bcs => {
+        Encoder::Abi => abi::transfer_operatorship_params(&worker_set),
+        Encoder::Bcs => {
             todo!()
         }
     }?;
@@ -58,11 +58,11 @@ pub struct CommandBatchBuilder {
     new_worker_set: Option<WorkerSet>,
     commands: Vec<Command>,
     destination_chain_id: Uint256,
-    encoding: EncodingLanguage,
+    encoding: Encoder,
 }
 
 impl CommandBatchBuilder {
-    pub fn new(destination_chain_id: Uint256, encoding: EncodingLanguage) -> Self {
+    pub fn new(destination_chain_id: Uint256, encoding: Encoder) -> Self {
         Self {
             message_ids: vec![],
             new_worker_set: None,
@@ -97,16 +97,16 @@ impl CommandBatchBuilder {
             id,
             message_ids: self.message_ids,
             data,
-            encoding: self.encoding,
+            encoder: self.encoding,
         })
     }
 }
 
 impl CommandBatch {
     pub fn msg_to_sign(&self) -> HexBinary {
-        match self.encoding {
-            EncodingLanguage::Abi => abi::msg_to_sign(self),
-            EncodingLanguage::Bcs => todo!(),
+        match self.encoder {
+            Encoder::Abi => abi::msg_to_sign(self),
+            Encoder::Bcs => todo!(),
         }
     }
 
@@ -115,9 +115,9 @@ impl CommandBatch {
         quorum: Uint256,
         signers: Vec<(Signer, Option<Signature>)>,
     ) -> Result<HexBinary, ContractError> {
-        match self.encoding {
-            EncodingLanguage::Abi => abi::encode_execute_data(self, quorum, signers),
-            EncodingLanguage::Bcs => todo!(),
+        match self.encoder {
+            Encoder::Abi => abi::encode_execute_data(self, quorum, signers),
+            Encoder::Bcs => todo!(),
         }
     }
 }
@@ -129,10 +129,10 @@ pub struct Data {
 }
 
 impl Data {
-    pub fn encode(&self, encoding: EncodingLanguage) -> HexBinary {
+    pub fn encode(&self, encoding: Encoder) -> HexBinary {
         match encoding {
-            EncodingLanguage::Abi => abi::encode(self),
-            EncodingLanguage::Bcs => todo!(),
+            Encoder::Abi => abi::encode(self),
+            Encoder::Bcs => todo!(),
         }
     }
 }
@@ -168,7 +168,7 @@ mod test {
         let messages = test_data::messages();
         let router_message = messages.first().unwrap();
 
-        let res = make_command(router_message.to_owned(), EncodingLanguage::Abi);
+        let res = make_command(router_message.to_owned(), Encoder::Abi);
         assert!(res.is_ok());
 
         let res = res.unwrap();
@@ -184,7 +184,7 @@ mod test {
     #[test]
     fn test_command_operator_transfer() {
         let new_worker_set = test_data::new_worker_set();
-        let res = make_transfer_operatorship(new_worker_set.clone(), EncodingLanguage::Abi);
+        let res = make_transfer_operatorship(new_worker_set.clone(), Encoder::Abi);
         assert!(res.is_ok());
 
         assert_eq!(res.unwrap().ty, CommandType::TransferOperatorship);

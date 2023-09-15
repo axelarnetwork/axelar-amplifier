@@ -33,8 +33,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let mut builder =
-                CommandBatchBuilder::new(config.destination_chain_id, config.encoding);
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
             for msg in messages {
                 builder.add_message(msg)?;
             }
@@ -140,7 +139,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 
     NEXT_WORKER_SET.save(deps.storage, &new_worker_set)?;
-    let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoding);
+    let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
     builder.add_new_worker_set(new_worker_set)?;
 
     let batch = builder.build()?;
