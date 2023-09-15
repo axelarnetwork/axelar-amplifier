@@ -13,6 +13,7 @@ use crate::{
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
+    pub governance: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
