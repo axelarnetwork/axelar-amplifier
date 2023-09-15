@@ -126,8 +126,8 @@ fn check_state_path(path: &Path) -> error_stack::Result<PathBuf, Error> {
 }
 
 fn expand_home_dir(path: &Path) -> PathBuf {
-    let Ok(home_subfolder) = path.strip_prefix("~") else{
-        return path.to_path_buf()
+    let Ok(home_subfolder) = path.strip_prefix("~") else {
+        return path.to_path_buf();
     };
 
     dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))

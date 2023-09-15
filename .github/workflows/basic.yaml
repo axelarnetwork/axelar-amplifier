@@ -19,8 +19,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
-        uses: ./.github/actions/build
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.71.1
+          override: true
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cache"
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -36,15 +48,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
-        uses: ./.github/actions/build
-
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: 1.71.1
           target: wasm32-unknown-unknown
+          override: true
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cache"
 
       - name: Compile WASM contract
         uses: actions-rs/cargo@v1
@@ -54,21 +69,29 @@ jobs:
         env:
           RUSTFLAGS: -D warnings --cfg tracing_unstable -C link-arg=-s
 
-  linting:
-    name: Linting
+  lints:
+    name: Lints
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build
-        uses: ./.github/actions/build
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: 1.71.1
+          override: true
           components: rustfmt, clippy
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cache"
 
       - name: Install cargo-sort
         uses: baptiste0928/cargo-install@v2

@@ -15,8 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
-        uses: ./.github/actions/build
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.71.1
+          override: true
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v2
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cache"
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
