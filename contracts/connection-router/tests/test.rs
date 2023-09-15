@@ -15,6 +15,7 @@ struct TestConfig {
     app: cw_multi_test::App,
     contract_address: Addr,
     admin_address: Addr,
+    governance_address: Addr,
 }
 
 struct Chain {
@@ -28,12 +29,14 @@ fn setup() -> TestConfig {
     let code_id = app.store_code(Box::new(code));
 
     let admin_address = Addr::unchecked("admin");
+    let governance_address = Addr::unchecked("governance");
     let contract_address = app
         .instantiate_contract(
             code_id,
             Addr::unchecked("router"),
             &InstantiateMsg {
                 admin_address: admin_address.to_string(),
+                governance_address: governance_address.to_string(),
             },
             &[],
             "Contract",
@@ -44,6 +47,7 @@ fn setup() -> TestConfig {
         app,
         contract_address,
         admin_address,
+        governance_address,
     }
 }
 
@@ -59,7 +63,7 @@ fn register_chain(config: &mut TestConfig, chain: &Chain) {
     let _ = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.to_string(),
@@ -381,8 +385,23 @@ fn authorization() {
 
     assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::RegisterChain {
+                chain: chain.chain_name.to_string(),
+                gateway_address: chain.gateway.to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
     let res = config.app.execute_contract(
-        config.admin_address.clone(),
+        config.governance_address.clone(),
         config.contract_address.clone(),
         &ExecuteMsg::RegisterChain {
             chain: chain.chain_name.to_string(),
@@ -396,6 +415,21 @@ fn authorization() {
         .app
         .execute_contract(
             Addr::unchecked("random"),
+            config.contract_address.clone(),
+            &ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.to_string(),
+                direction: GatewayDirection::Bidirectional,
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
+    let res = config
+        .app
+        .execute_contract(
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::FreezeChain {
                 chain: chain.chain_name.to_string(),
@@ -436,6 +470,32 @@ fn authorization() {
     let res = config
         .app
         .execute_contract(
+            config.governance_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.to_string(),
+                direction: GatewayDirection::None,
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
+    let res = config.app.execute_contract(
+        config.admin_address.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::FreezeChain {
+            chain: chain.chain_name.to_string(),
+            direction: GatewayDirection::None,
+        },
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let res = config
+        .app
+        .execute_contract(
             Addr::unchecked("random"),
             config.contract_address.clone(),
             &ExecuteMsg::UpgradeGateway {
@@ -448,8 +508,23 @@ fn authorization() {
 
     assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
 
+    let res = config
+        .app
+        .execute_contract(
+            config.admin_address.clone(),
+            config.contract_address.clone(),
+            &ExecuteMsg::UpgradeGateway {
+                chain: chain.chain_name.to_string(),
+                contract_address: Addr::unchecked("new gateway").to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+
     let res = config.app.execute_contract(
-        config.admin_address.clone(),
+        config.governance_address.clone(),
         config.contract_address.clone(),
         &ExecuteMsg::UpgradeGateway {
             chain: chain.chain_name.to_string(),
@@ -473,7 +548,7 @@ fn upgrade_gateway_outgoing() {
     let _ = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.to_string(),
@@ -515,7 +590,7 @@ fn upgrade_gateway_incoming() {
     let _ = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.to_string(),
@@ -598,7 +673,7 @@ fn chain_already_registered() {
     let res = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: eth.chain_name.to_string(),
@@ -613,7 +688,7 @@ fn chain_already_registered() {
     let res = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: "ETHEREUM".to_string(),
@@ -631,7 +706,7 @@ fn invalid_chain_name() {
     let res = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: "bad:".to_string(),
@@ -645,7 +720,7 @@ fn invalid_chain_name() {
     let res = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: "".to_string(),
@@ -666,7 +741,7 @@ fn gateway_already_registered() {
     let res = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: polygon.chain_name.to_string(),
@@ -684,7 +759,7 @@ fn gateway_already_registered() {
     let res = config
         .app
         .execute_contract(
-            config.admin_address.clone(),
+            config.governance_address.clone(),
             config.contract_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: eth.chain_name.to_string(),
@@ -1436,7 +1511,7 @@ fn bad_gateway() {
     register_chain(&mut config, &polygon);
 
     let res = config.app.execute_contract(
-        config.admin_address.clone(),
+        config.governance_address.clone(),
         config.contract_address.clone(),
         &ExecuteMsg::UpgradeGateway {
             chain: polygon.chain_name.to_string(),

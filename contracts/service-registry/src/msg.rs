@@ -1,8 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 
-use crate::state::Worker;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_account: String,
@@ -54,7 +52,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<Worker>)]
+    #[returns(Vec<crate::state::Worker>)]
     GetActiveWorkers {
         service_name: String,
         chain_name: String,
