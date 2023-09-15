@@ -10,6 +10,9 @@ pub struct TestCaseConfig {
     pub app: App,
     pub admin: Addr,
     pub prover_address: Addr,
+    pub service_registry_address: Addr,
+    pub voting_verifier_address: Addr,
+    pub multisig_address: Addr,
 }
 
 pub fn mock_app() -> App {
@@ -79,6 +82,30 @@ fn instantiate_mock_gateway(app: &mut App) -> Addr {
     .unwrap()
 }
 
+fn contract_voting_verifier() -> Box<dyn Contract<Empty>> {
+    let contract = ContractWrapper::new(
+        mocks::voting_verifier::execute,
+        mocks::voting_verifier::instantiate,
+        mocks::voting_verifier::query,
+    );
+    Box::new(contract)
+}
+
+fn instantiate_mock_voting_verifier(app: &mut App) -> Addr {
+    let code_id = app.store_code(contract_voting_verifier());
+    let msg = mocks::voting_verifier::InstantiateMsg {};
+
+    app.instantiate_contract(
+        code_id,
+        Addr::unchecked(INSTANTIATOR),
+        &msg,
+        &[],
+        "mock-voting-verifier",
+        None,
+    )
+    .unwrap()
+}
+
 fn contract_service_registry() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
         mocks::service_registry::execute,
@@ -120,6 +147,7 @@ fn instantiate_prover(
     gateway_address: String,
     multisig_address: String,
     service_registry_address: String,
+    voting_verifier_address: String,
 ) -> Addr {
     let code_id = app.store_code(contract_prover());
     let msg = crate::msg::InstantiateMsg {
@@ -127,10 +155,11 @@ fn instantiate_prover(
         gateway_address,
         multisig_address,
         service_registry_address,
+        voting_verifier_address,
         destination_chain_id: test_data::destination_chain_id(),
         signing_threshold: test_data::threshold(),
-        service_name: "service-name".to_string(),
-        chain_name: "Ethereum".to_string(),
+        service_name: "validators".to_string(),
+        chain_name: "ganache-0".to_string(),
         worker_set_diff_threshold: 0,
     };
 
@@ -151,19 +180,30 @@ pub fn setup_test_case() -> TestCaseConfig {
     let gateway_address = instantiate_mock_gateway(&mut app);
     let multisig_address = instantiate_mock_multisig(&mut app);
     let service_registry_address = instantiate_mock_service_registry(&mut app);
+    let voting_verifier_address = instantiate_mock_voting_verifier(&mut app);
 
     let prover_address = instantiate_prover(
         &mut app,
         gateway_address.to_string(),
         multisig_address.to_string(),
         service_registry_address.to_string(),
+        voting_verifier_address.to_string(),
     );
 
     app.update_block(next_block);
+    mocks::service_registry::set_active_workers(
+        &mut app,
+        service_registry_address.clone(),
+        test_data::operators(),
+    );
+    mocks::multisig::register_pub_keys(&mut app, multisig_address.clone(), test_data::operators());
 
     TestCaseConfig {
         app,
         admin: Addr::unchecked(INSTANTIATOR),
         prover_address,
+        service_registry_address,
+        voting_verifier_address,
+        multisig_address,
     }
 }

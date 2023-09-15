@@ -48,6 +48,7 @@ serde_json = "1.0.89"
 service-registry = { workspace = true }
 sha3 = { version = "0.10", default-features = false, features = [] }
 thiserror = { workspace = true }
+voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 anyhow = "1.0"

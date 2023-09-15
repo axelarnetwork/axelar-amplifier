@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use axelar_wasm_std::{Snapshot, Threshold};
+use axelar_wasm_std::{Participant, Snapshot, Threshold};
 use connection_router::types::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
@@ -18,6 +18,7 @@ pub struct Config {
     pub gateway: Addr,
     pub multisig: Addr,
     pub service_registry: Addr,
+    pub voting_verifier: Addr,
     pub destination_chain_id: Uint256,
     pub signing_threshold: Threshold,
     pub service_name: String,
@@ -36,19 +37,20 @@ pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");
 pub struct WorkerSet {
     pub signers: BTreeSet<Signer>,
     pub threshold: Uint256,
-    pub nonce: u64, // for randomness
+    // for hash uniqueness. The same exact worker set could be in use at two different times,
+    // and we need to be able to distinguish between the two
+    pub created_at: u64,
 }
 
 impl WorkerSet {
     pub fn new(
-        snapshot: Snapshot,
-        pub_keys: Vec<PublicKey>,
+        participants: Vec<(Participant, PublicKey)>,
+        threshold: Uint256,
         block_height: u64,
     ) -> Result<Self, ContractError> {
-        let signers = pub_keys
+        let signers = participants
             .into_iter()
-            .zip(snapshot.participants.iter())
-            .map(|(pub_key, (_, participant))| Signer {
+            .map(|(participant, pub_key)| Signer {
                 address: participant.address.clone(),
                 weight: participant.weight.into(),
                 pub_key,
@@ -57,8 +59,8 @@ impl WorkerSet {
 
         Ok(WorkerSet {
             signers,
-            threshold: snapshot.quorum.into(),
-            nonce: block_height,
+            threshold,
+            created_at: block_height,
         })
     }
 
@@ -67,6 +69,11 @@ impl WorkerSet {
             .as_slice()
             .into()
     }
+
+    pub fn id(&self) -> String {
+        self.hash().to_hex()
+    }
 }
+
 pub const CURRENT_WORKER_SET: Item<WorkerSet> = Item::new("current_worker_set");
-pub const NEXT_WORKER_SET: Item<WorkerSet> = Item::new("next_worker_set");
+pub const NEXT_WORKER_SET: Item<(WorkerSet, Snapshot)> = Item::new("next_worker_set");

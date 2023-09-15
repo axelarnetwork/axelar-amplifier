@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
+use axelar_wasm_std::{Participant, Snapshot};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::key::Signature;
+use multisig::key::{PublicKey, Signature};
 use sha3::{Digest, Keccak256};
 
 use crate::{encoding::Data, state::WorkerSet};
@@ -95,4 +96,9 @@ impl Operator {
     pub fn set_signature(&mut self, sig: Signature) {
         self.signature = Some(sig);
     }
+}
+
+pub struct WorkersInfo {
+    pub snapshot: Snapshot,
+    pub pubkeys_by_participant: Vec<(Participant, PublicKey)>,
 }

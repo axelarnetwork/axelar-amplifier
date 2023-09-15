@@ -4,7 +4,7 @@ use multisig::{msg::Multisig, types::MultisigState};
 
 use crate::{
     msg::{GetProofResponse, ProofStatus},
-    state::{COMMANDS_BATCH, CONFIG, MULTISIG_SESSION_BATCH},
+    state::{WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, MULTISIG_SESSION_BATCH},
 };
 
 pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofResponse> {
@@ -42,4 +42,8 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
         data: batch.data,
         status,
     })
+}
+
+pub fn get_worker_set(deps: Deps) -> StdResult<WorkerSet> {
+    CURRENT_WORKER_SET.load(deps.storage)
 }
