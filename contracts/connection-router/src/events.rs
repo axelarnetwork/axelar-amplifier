@@ -54,8 +54,8 @@ pub struct MessagesConsumed<'a> {
 impl From<RouterInstantiated> for Event {
     fn from(other: RouterInstantiated) -> Self {
         Event::new("router_instantiated")
-        .add_attribute("admin_address", other.admin)
-        .add_attribute("governance_address", other.governance)
+            .add_attribute("admin_address", other.admin)
+            .add_attribute("governance_address", other.governance)
     }
 }
 
