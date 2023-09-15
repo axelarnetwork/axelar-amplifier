@@ -15,13 +15,15 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
     CONFIG.save(
         deps.storage,
         &Config {
             admin: admin.clone(),
+            governance: governance.clone(),
         },
     )?;
-    Ok(Response::new().add_event(RouterInstantiated { admin }.into()))
+    Ok(Response::new().add_event(RouterInstantiated { admin, governance }.into()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -36,7 +38,7 @@ pub fn execute(
             chain,
             gateway_address,
         } => {
-            execute::require_admin(&deps, info)?;
+            execute::require_governance(&deps, info)?;
             let gateway_address = deps.api.addr_validate(&gateway_address)?;
             execute::register_chain(deps, chain.parse()?, gateway_address)
         }
@@ -44,7 +46,7 @@ pub fn execute(
             chain,
             contract_address,
         } => {
-            execute::require_admin(&deps, info)?;
+            execute::require_governance(&deps, info)?;
             let contract_address = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_gateway(deps, chain.parse()?, contract_address)
         }
@@ -229,6 +231,14 @@ pub mod execute {
     pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if config.admin != info.sender {
+            return Err(ContractError::Unauthorized);
+        }
+        Ok(())
+    }
+
+    pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.governance != info.sender {
             return Err(ContractError::Unauthorized);
         }
         Ok(())
