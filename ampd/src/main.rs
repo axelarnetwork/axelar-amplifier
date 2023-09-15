@@ -11,11 +11,10 @@ use tracing::{error, info};
 use valuable::Valuable;
 
 use ampd::config::Config;
-use ampd::error::Error;
-use ampd::run;
+use ampd::{run, state};
 use axelar_wasm_std::utils::InspectorResult;
-use axelar_wasm_std::FnExt;
 use report::LoggableError;
+use thiserror::Error;
 
 #[derive(Debug, Parser, Valuable)]
 #[command(version)]
@@ -63,6 +62,15 @@ async fn main() -> ExitCode {
     }
 }
 
+async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
+    let cfg = init_config(&args.config);
+    let state_path = expand_home_dir(&args.state);
+
+    let state = state::load(&state_path).change_context(Error::Ampd)?;
+    let state = run(cfg, state).await.change_context(Error::Ampd)?;
+    state::flush(&state, state_path).change_context(Error::Ampd)
+}
+
 fn set_up_logger(output: &Output) {
     match output {
         Output::Json => {
@@ -72,13 +80,6 @@ fn set_up_logger(output: &Output) {
             tracing_subscriber::fmt().compact().init();
         }
     };
-}
-
-async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
-    let cfg = init_config(&args.config);
-    let state_path = expand_home_dir(args.state.as_path());
-
-    run(cfg, state_path).await
 }
 
 fn init_config(config_paths: &[PathBuf]) -> Config {
@@ -93,7 +94,6 @@ fn init_config(config_paths: &[PathBuf]) -> Config {
 fn find_config_files(config: &[PathBuf]) -> Vec<File<FileSourceFile, FileFormat>> {
     let files = config
         .iter()
-        .map(PathBuf::as_path)
         .map(expand_home_dir)
         .map(canonicalize)
         .filter_map(Result::ok)
@@ -119,10 +119,19 @@ fn parse_config(
         .map_err(Report::from)
 }
 
-fn expand_home_dir(path: &Path) -> PathBuf {
+fn expand_home_dir(path: impl AsRef<Path>) -> PathBuf {
+    let path = path.as_ref();
     let Ok(home_subfolder) = path.strip_prefix("~") else{
         return path.to_path_buf()
     };
 
     dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))
+}
+
+#[derive(Error, Debug)]
+enum Error {
+    #[error("failed to load config")]
+    LoadConfig,
+    #[error("catastrophic failure")]
+    Ampd,
 }

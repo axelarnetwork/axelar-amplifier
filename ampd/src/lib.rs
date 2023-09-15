@@ -1,11 +1,12 @@
-use std::path::PathBuf;
 use std::pin::Pin;
 
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{FutureExt, Result, ResultExt};
+use error_stack::{report, FutureExt, Result, ResultExt};
+use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
@@ -20,11 +21,10 @@ use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
 
 use crate::config::Config;
-use crate::error::Error;
+use crate::state::State;
 
 mod broadcaster;
 pub mod config;
-pub mod error;
 mod event_processor;
 mod event_sub;
 mod evm;
@@ -40,7 +40,7 @@ const PREFIX: &str = "axelar";
 
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
-pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
+pub async fn run(cfg: Config, state: State) -> Result<State, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -63,7 +63,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .change_context(Error::Connection)?;
     let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
-    let mut state_updater = StateUpdater::new(state_path).change_context(Error::StateUpdater)?;
+    let mut state_updater = StateUpdater::new(state);
     let pub_key = match state_updater.state().pub_key {
         Some(pub_key) => pub_key,
         None => {
@@ -71,7 +71,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
                 .keygen(&tofnd_config.key_uid)
                 .await
                 .change_context(Error::Tofnd)?;
-            state_updater.as_mut().pub_key = Some(pub_key);
+            state_updater.set_public_key(pub_key);
 
             pub_key
         }
@@ -234,7 +234,7 @@ where
         self.event_processor.add_handler(handler, sub);
     }
 
-    async fn run(self) -> Result<(), Error> {
+    async fn run(self) -> Result<State, Error> {
         let Self {
             event_sub,
             event_processor,
@@ -259,13 +259,18 @@ where
             exit_token.cancel();
         });
 
+        let (state_tx, mut state_rx) = oneshot::channel::<State>();
         let mut set = JoinSet::new();
         set.spawn(event_sub.run().change_context(Error::EventSub));
         set.spawn(event_processor.run().change_context(Error::EventProcessor));
         set.spawn(broadcaster.run().change_context(Error::Broadcaster));
-        set.spawn(state_updater.run().change_context(Error::StateUpdater));
+        set.spawn(async move {
+            state_tx
+                .send(state_updater.run().await)
+                .map_err(|_| report!(Error::ReturnState))
+        });
 
-        let res = match (set.join_next().await, token.is_cancelled()) {
+        let _ = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
                 result.change_context(Error::Task)?
@@ -275,7 +280,24 @@ where
         };
 
         while (set.join_next().await).is_some() {}
-
-        res
+        state_rx.try_recv().change_context(Error::ReturnState)
     }
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("event sub failed")]
+    EventSub,
+    #[error("event processor failed")]
+    EventProcessor,
+    #[error("broadcaster failed")]
+    Broadcaster,
+    #[error("tofnd failed")]
+    Tofnd,
+    #[error("connection failed")]
+    Connection,
+    #[error("task execution failed")]
+    Task,
+    #[error("failed to return updated state")]
+    ReturnState,
 }
