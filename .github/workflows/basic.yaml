@@ -42,8 +42,8 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
-  cosmowasm-compilation:
-    name: Cosmowasm Compilation
+  cosmwasm-compilation:
+    name: Cosmwasm Compilation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
