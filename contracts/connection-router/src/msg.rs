@@ -17,14 +17,17 @@ pub struct Message {
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    // admin controls freezing and unfreezing a chain
     pub admin_address: String,
+    // governance votes on chains being added or upgraded
+    pub governance_address: String,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
     /*
-     * Router Admin Methods
-     * All of the below messages can only be called by the router admin
+     * Governance Methods
+     * All of the below messages can only be called by governance
      */
     // Registers a new chain with the router
     RegisterChain {
@@ -36,6 +39,11 @@ pub enum ExecuteMsg {
         chain: String,
         contract_address: String,
     },
+
+    /*
+     * Router Admin Methods
+     * All of the below messages can only be called by the router admin
+     */
     // Freezes a chain, in the specified direction.
     FreezeChain {
         chain: String,
