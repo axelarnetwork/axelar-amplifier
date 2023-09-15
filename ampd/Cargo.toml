@@ -42,7 +42,7 @@ tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branc
 tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = [
   "http-client",
 ] }
-thiserror = "1.0.37"
+thiserror = { workspace = true }
 tokio = { version = "1.22.0", features = ["signal"] }
 tokio-stream = { version = "0.1.11", features = ["sync"] }
 tokio-util = "0.7.8"
