@@ -14,6 +14,7 @@ service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
 report = { version = "^0.1.0", path = "packages/report" }
+thiserror = "1.0.47"
 
 [profile.release]
 opt-level = 3
