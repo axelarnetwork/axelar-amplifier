@@ -6,13 +6,13 @@ use std::process::ExitCode;
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
 use clap::{Parser, ValueEnum};
 use config::ConfigError;
-use error_stack::{Report, ResultExt};
+use error_stack::{bail, Report, ResultExt};
 use thiserror::Error;
 use tracing::{error, info};
 use valuable::Valuable;
 
 use ampd::config::Config;
-use ampd::{run, state};
+use ampd::{run, state, ResultWithState};
 use axelar_wasm_std::utils::InspectorResult;
 use report::LoggableError;
 
@@ -67,11 +67,19 @@ async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
     let state_path = expand_home_dir(&args.state);
 
     let state = state::load(&state_path).change_context(Error::Fatal)?;
-    let result_with_state = run(cfg, state).await;
-    state::flush(&state, state_path).change_context(Error::Fatal)?;
-    if let Some(report) = result_with_state.error {
-        return Err(report.change_context(Error::Fatal));
-    }
+    let result = run(cfg, state).await;
+    let error = result.error.map(|err| err.change_context(Error::Fatal));
+    let mut state_flush_result =
+        state::flush(&result.state, state_path).change_context(Error::Fatal);
+
+    match (error, state_flush_result) {
+        (Some(mut report), Err(state_err)) => {
+            report.extend_one(state_err);
+            bail!(report)
+        }
+        (Some(report), Ok(())) | (None, Err(report)) => bail!(report),
+        (None, Ok(())) => (),
+    };
 
     Ok(())
 }
