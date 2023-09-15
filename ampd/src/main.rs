@@ -12,7 +12,7 @@ use tracing::{error, info};
 use valuable::Valuable;
 
 use ampd::config::Config;
-use ampd::{run, state, ResultWithState};
+use ampd::{run, state};
 use axelar_wasm_std::utils::InspectorResult;
 use report::LoggableError;
 
