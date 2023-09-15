@@ -228,7 +228,7 @@ mod tests {
 
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use voting_verifier::events::{EvmMessage, PollMetadata, PollStarted};
+    use voting_verifier::events::{CrossChainMessage, PollMetadata, PollStarted};
 
     use crate::types::{EVMAddress, Hash};
 
@@ -255,7 +255,7 @@ mod tests {
                 ],
             },
             messages: vec![
-                EvmMessage {
+                CrossChainMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
                     log_index: 0,
                     source_address: format!("0x{:x}", EVMAddress::random()),
@@ -263,7 +263,7 @@ mod tests {
                     destination_address: format!("0x{:x}", EVMAddress::random()),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
-                EvmMessage {
+                CrossChainMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
                     log_index: 1,
                     source_address: format!("0x{:x}", EVMAddress::random()),
@@ -271,7 +271,7 @@ mod tests {
                     destination_address: format!("0x{:x}", EVMAddress::random()),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
-                EvmMessage {
+                CrossChainMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
                     log_index: 10,
                     source_address: format!("0x{:x}", EVMAddress::random()),
