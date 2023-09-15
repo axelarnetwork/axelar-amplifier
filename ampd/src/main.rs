@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
 use clap::{Parser, ValueEnum};
 use config::ConfigError;
-use error_stack::{bail, Report, ResultExt};
+use error_stack::{Report, ResultExt};
 use thiserror::Error;
 use tracing::{error, info};
 use valuable::Valuable;
@@ -67,21 +67,25 @@ async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
     let state_path = expand_home_dir(&args.state);
 
     let state = state::load(&state_path).change_context(Error::Fatal)?;
-    let result = run(cfg, state).await;
-    let error = result.error.map(|err| err.change_context(Error::Fatal));
-    let mut state_flush_result =
-        state::flush(&result.state, state_path).change_context(Error::Fatal);
+    let (state, execution_result) = run(cfg, state).await;
+    let state_flush_result = state
+        .map(|state| state::flush(&state, state_path).change_context(Error::Fatal))
+        .unwrap_or(Ok(()));
 
-    match (error, state_flush_result) {
-        (Some(mut report), Err(state_err)) => {
+    let execution_result = execution_result.change_context(Error::Fatal);
+    match (execution_result, state_flush_result) {
+        // both execution and persisting state failed: return the merged error
+        (Err(mut report), Err(state_err)) => {
             report.extend_one(state_err);
-            bail!(report)
+            Err(report)
         }
-        (Some(report), Ok(())) | (None, Err(report)) => bail!(report),
-        (None, Ok(())) => (),
-    };
 
-    Ok(())
+        // any single path failed: report the error
+        (Err(report), Ok(())) | (Ok(()), Err(report)) => Err(report),
+
+        // no errors in either execution or persisting state
+        (Ok(()), Ok(())) => Ok(()),
+    }
 }
 
 fn set_up_logger(output: &Output) {

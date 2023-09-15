@@ -1,9 +1,10 @@
 use std::pin::Pin;
 
+use axelar_wasm_std::FnExt;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{report, FutureExt, Report, Result, ResultExt};
+use error_stack::{FutureExt, Result, ResultExt};
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -41,7 +42,19 @@ const PREFIX: &str = "axelar";
 
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
-pub async fn run(cfg: Config, state: State) -> ResultWithState {
+pub async fn run(cfg: Config, state: State) -> (Option<State>, Result<(), Error>) {
+    let app = prepare_app(cfg, state).await;
+
+    match app {
+        Ok(app) => app
+            .run()
+            .await
+            .then(|(state, report)| (Some(state), report)),
+        Err(err) => (None, Err(err)),
+    }
+}
+
+async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -104,9 +117,7 @@ pub async fn run(cfg: Config, state: State) -> ResultWithState {
         broadcast,
         event_buffer_cap,
     )
-    .configure_handlers(worker, handlers)?
-    .run()
-    .await
+    .configure_handlers(worker, handlers)
 }
 
 struct App<T>
@@ -235,7 +246,7 @@ where
         self.event_processor.add_handler(handler, sub);
     }
 
-    async fn run(self) -> ResultWithState {
+    async fn run(self) -> (State, Result<(), Error>) {
         let Self {
             event_sub,
             event_processor,
@@ -276,7 +287,10 @@ where
         let execution_result = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                result.change_context(Error::Task)?
+                match result {
+                    Ok(result) => result,
+                    Err(err) => Err(err).change_context(Error::Task),
+                }
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),
@@ -288,16 +302,8 @@ where
             .try_recv()
             .expect("the state sender should have been able to send the state");
 
-        ResultWithState {
-            state,
-            error: execution_result.err(),
-        }
+        (state, execution_result)
     }
-}
-
-pub struct ResultWithState {
-    pub state: State,
-    pub error: Option<Report<Error>>,
 }
 
 #[derive(Error, Debug)]
