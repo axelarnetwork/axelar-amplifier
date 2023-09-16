@@ -1,5 +1,3 @@
-extern crate core;
-
 mod loggable;
 mod result_ext;
 

@@ -27,8 +27,8 @@ impl Display for LoggableError {
                 .attachments
                 .iter()
                 .map(|a| format!("{:?}", a))
-                .join("; ");
-            format!("{} ({:?})", self.msg, string)
+                .join(", ");
+            format!("{} ({})", self.msg, string)
         };
 
         let output = match &self.cause {
@@ -203,5 +203,30 @@ mod tests {
         };
 
         assert_eq!(err, expected_err);
+    }
+
+    #[test]
+    fn display_should_not_panic() {
+        let vec_attachment = format!("{:?}", vec![1, 2, 3, 4, 5]);
+        let report = Report::new(Error::FromString("internal error".to_string()))
+            .attach_printable("inner attachment")
+            .change_context(Error::FromString("middle error".to_string()))
+            .attach_printable("test1")
+            .attach_printable(format!("{{ value = {:?} }}", 5))
+            .change_context(Error::FromString("outer error".to_string()))
+            .attach(5)
+            .attach_printable(vec_attachment.clone());
+
+        let error = LoggableError::from(&report);
+        println!("{}", error);
+        let error_msg = format!("{}", error);
+
+        assert!(error_msg.contains("internal error"));
+        assert!(error_msg.contains("middle error"));
+        assert!(error_msg.contains("outer error"));
+        assert!(error_msg.contains("test1"));
+        assert!(error_msg.contains("value"));
+        assert!(error_msg.contains("inner attachment"));
+        assert!(error_msg.contains(vec_attachment.as_str()));
     }
 }
