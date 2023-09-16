@@ -170,8 +170,8 @@ mod tests {
         state_updater.register_event("handler1", rx1);
         state_updater.register_event("handler2", rx2);
 
-        state_updater.as_mut().pub_key =
-            Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
+        let pub_key = Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
+        state_updater.as_mut().pub_key = pub_key;
 
         let handle1 = tokio::spawn(async move {
             tx1.send(1u16.into()).await.unwrap();
@@ -193,8 +193,10 @@ mod tests {
 
         let modified_state = state_runner.await;
 
-        let mut expected_state = State::default();
-        expected_state.pub_key = Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
+        let mut expected_state = State {
+            pub_key,
+            ..State::default()
+        };
         expected_state.set_handler_block_height("handler1", 3u16);
         expected_state.set_handler_block_height("handler2", 4u16);
 
