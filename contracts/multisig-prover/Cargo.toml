@@ -29,6 +29,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
+axelar-wasm-std-derive = { workspace = true }
 connection-router = { workspace = true, features = ["library"] }
 cosmwasm-schema = "1.1.3"
 cosmwasm-std = "1.1.3"
@@ -37,12 +38,14 @@ cw-storage-plus = "1.0.1"
 cw-utils = "1.0.1"
 cw2 = "0.15.1"
 either = "1.8.1"
+error-stack = { workspace = true }
 ethabi = { version = "18.0.0", default-features = false, features = [] }
 gateway = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = [] }
 itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 multisig = { workspace = true, features = ["library"] }
+report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"

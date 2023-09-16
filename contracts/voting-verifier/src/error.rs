@@ -1,12 +1,12 @@
-use cosmwasm_std::StdError;
-use thiserror::Error;
-
 use axelar_wasm_std::{nonempty, voting};
+use axelar_wasm_std_derive::IntoContractError;
 use connection_router;
 use connection_router::types::{ChainName, MessageID};
+use cosmwasm_std::StdError;
 use service_registry;
+use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),

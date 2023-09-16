@@ -15,7 +15,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let config = Config {
         service_name: msg.service_name,
         service_registry: deps.api.addr_validate(&msg.service_registry_address)?,
@@ -36,11 +36,11 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::VerifyMessages { messages } => {
             if messages.is_empty() {
-                return Err(ContractError::EmptyMessages);
+                Err(ContractError::EmptyMessages)?;
             }
 
             // todo: extract to conversion function
@@ -55,7 +55,7 @@ pub fn execute(
                 .iter()
                 .any(|message| !message.source_chain.eq(&source_chain))
             {
-                return Err(ContractError::SourceChainMismatch(source_chain));
+                Err(ContractError::SourceChainMismatch(source_chain))?;
             }
 
             execute::verify_messages(deps, env, messages)
@@ -67,6 +67,7 @@ pub fn execute(
             new_operators,
         } => execute::confirm_worker_set(deps, env, message_id, new_operators),
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
