@@ -161,6 +161,7 @@ fn instantiate_prover(
         service_name: "validators".to_string(),
         chain_name: "ganache-0".to_string(),
         worker_set_diff_threshold: 0,
+        encoder: crate::encoding::Encoder::Abi,
     };
 
     app.instantiate_contract(

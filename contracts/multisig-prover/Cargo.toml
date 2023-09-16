@@ -40,6 +40,7 @@ either = "1.8.1"
 ethabi = { version = "18.0.0", default-features = false, features = [] }
 gateway = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = [] }
+itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 multisig = { workspace = true, features = ["library"] }
 schemars = "0.8.10"

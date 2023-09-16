@@ -12,7 +12,7 @@ use voting_verifier::msg::{ExecuteMsg, QueryMsg};
 #[cw_serde]
 pub struct InstantiateMsg {}
 
-use crate::{encoding::evm::evm_address, test::test_data::TestOperator};
+use crate::test::test_data::TestOperator;
 
 pub const CONFIRMED_WORKER_SETS: Map<Vec<u8>, ()> = Map::new("confirmed_worker_sets");
 pub fn instantiate(
@@ -50,7 +50,7 @@ pub fn confirm_worker_set(
 ) {
     let mut new_operators: Vec<(HexBinary, Uint256)> = workers
         .iter()
-        .map(|w| (evm_address(w.pub_key.as_ref()).unwrap(), w.weight))
+        .map(|w| (w.operator.clone(), w.weight))
         .collect();
     new_operators.sort_by_key(|op| op.0.clone());
     app.execute_contract(

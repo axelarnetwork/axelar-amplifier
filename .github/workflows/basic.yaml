@@ -1,14 +1,14 @@
 # Based on https://github.com/actions-rs/example/blob/master/.github/workflows/quickstart.yml
 
-on: 
+on:
   pull_request:
   push:
     branches:
-      - 'main'
-      - 'releases/**'
+      - main
+      - releases/**
 
-env: 
-  RUSTFLAGS: "-D warnings --cfg tracing_unstable"
+env:
+  RUSTFLAGS: -D warnings --cfg tracing_unstable
 
 name: Basic
 
@@ -17,21 +17,17 @@ jobs:
     name: Test Suite
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: 1.71.1
-          target: wasm32-unknown-unknown
           override: true
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
@@ -46,20 +42,38 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+  cosmwasm-compilation:
+    name: Cosmwasm Compilation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.71.1
+          target: wasm32-unknown-unknown
+          override: true
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cache"
+
       - name: Compile WASM contract
         uses: actions-rs/cargo@v1
         with:
           command: wasm
           args: --locked --workspace --exclude ampd
         env:
-          RUSTFLAGS: "-D warnings --cfg tracing_unstable -C link-arg=-s"
+          RUSTFLAGS: -D warnings --cfg tracing_unstable -C link-arg=-s
 
   lints:
     name: Lints
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -68,11 +82,6 @@ jobs:
           toolchain: 1.71.1
           override: true
           components: rustfmt, clippy
-
-      - name: Install cargo-sort
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: cargo-sort
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
@@ -83,6 +92,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "cache"
+
+      - name: Install cargo-sort
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cargo-sort
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
@@ -102,12 +116,6 @@ jobs:
           command: clippy
           args: -- -D warnings
 
-      - name: Generate Schema
-        uses: actions-rs/cargo@v1
-        with:
-          command: schema
-          args: --locked
-
-      - name: Schema Changes
+      - name: Check Diff
         # fails if any changes not committed
-        run: git diff --exit-code schema
+        run: git diff --exit-code

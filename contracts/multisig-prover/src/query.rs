@@ -13,6 +13,7 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
     let batch_id = MULTISIG_SESSION_BATCH.load(deps.storage, multisig_session_id.u64())?;
 
     let batch = COMMANDS_BATCH.load(deps.storage, &batch_id)?;
+    assert_eq!(batch.encoder, config.encoder);
 
     let query_msg = multisig::msg::QueryMsg::GetMultisig {
         session_id: multisig_session_id,

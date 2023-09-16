@@ -44,6 +44,7 @@ pub fn instantiate(
         chain_name: ChainName::from_str(&msg.chain_name)
             .map_err(|_| ContractError::InvalidChainName)?,
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
+        encoder: msg.encoder,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -95,6 +96,7 @@ mod tests {
     use multisig::msg::Signer;
 
     use crate::{
+        encoding::Encoder,
         msg::{GetProofResponse, ProofStatus},
         state::WorkerSet,
         test::{
@@ -192,42 +194,45 @@ mod tests {
             .try_into()
             .unwrap();
         let service_name = "service_name";
+        for encoding in vec![Encoder::Abi, Encoder::Bcs] {
+            let mut deps = mock_dependencies();
+            let info = mock_info(&instantiator, &[]);
+            let env = mock_env();
 
-        let mut deps = mock_dependencies();
-        let info = mock_info(&instantiator, &[]);
-        let env = mock_env();
+            let msg = InstantiateMsg {
+                admin_address: admin.to_string(),
+                gateway_address: gateway_address.to_string(),
+                multisig_address: multisig_address.to_string(),
+                voting_verifier_address: voting_verifier_address.to_string(),
+                service_registry_address: service_registry_address.to_string(),
+                destination_chain_id,
+                signing_threshold,
+                service_name: service_name.to_string(),
+                chain_name: "Ethereum".to_string(),
+                worker_set_diff_threshold: 0,
+                encoder: encoding.clone(),
+            };
 
-        let msg = InstantiateMsg {
-            admin_address: admin.to_string(),
-            gateway_address: gateway_address.to_string(),
-            multisig_address: multisig_address.to_string(),
-            service_registry_address: service_registry_address.to_string(),
-            voting_verifier_address: voting_verifier_address.to_string(),
-            destination_chain_id,
-            signing_threshold,
-            service_name: service_name.to_string(),
-            chain_name: "Ethereum".to_string(),
-            worker_set_diff_threshold: 0,
-        };
+            let res = instantiate(deps.as_mut(), env, info, msg);
 
-        let res = instantiate(deps.as_mut(), env, info, msg);
+            assert!(res.is_ok());
+            let res = res.unwrap();
 
-        assert!(res.is_ok());
-        let res = res.unwrap();
+            assert_eq!(res.messages.len(), 0);
 
-        assert_eq!(res.messages.len(), 0);
-
-        let config = CONFIG.load(deps.as_ref().storage).unwrap();
-        assert_eq!(config.admin, admin);
-        assert_eq!(config.gateway, gateway_address);
-        assert_eq!(config.multisig, multisig_address);
-        assert_eq!(config.service_registry, service_registry_address);
-        assert_eq!(config.destination_chain_id, destination_chain_id);
-        assert_eq!(
-            config.signing_threshold,
-            signing_threshold.try_into().unwrap()
-        );
-        assert_eq!(config.service_name, service_name);
+            let config = CONFIG.load(deps.as_ref().storage).unwrap();
+            assert_eq!(config.admin, admin);
+            assert_eq!(config.gateway, gateway_address);
+            assert_eq!(config.multisig, multisig_address);
+            assert_eq!(config.service_registry, service_registry_address);
+            assert_eq!(config.destination_chain_id, destination_chain_id);
+            assert_eq!(
+                config.signing_threshold,
+                signing_threshold.try_into().unwrap()
+            );
+            assert_eq!(config.service_name, service_name);
+            assert_eq!(config.encoder, encoding)
+        }
     }
 
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {

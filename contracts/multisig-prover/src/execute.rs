@@ -12,7 +12,7 @@ use service_registry::state::Worker;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
-    encoding::evm::CommandBatchBuilder,
+    encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{
         Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
@@ -32,7 +32,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
             for msg in messages {
                 builder.add_message(msg)?;
             }
@@ -190,7 +190,10 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 deps.storage,
                 &(new_worker_set.clone(), workers_info.snapshot),
             )?;
-            let mut builder = CommandBatchBuilder::new(config.destination_chain_id);
+            let mut builder = CommandBatchBuilder::new(
+                config.destination_chain_id,
+                crate::encoding::Encoder::Abi,
+            );
             builder.add_new_worker_set(new_worker_set)?;
 
             let batch = builder.build()?;
@@ -217,7 +220,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     let (worker_set, snapshot) = NEXT_WORKER_SET.load(deps.storage)?;
 
     let query = voting_verifier::msg::QueryMsg::IsWorkerSetConfirmed {
-        new_operators: worker_set.clone().into(),
+        new_operators: make_operators(worker_set.clone(), config.encoder),
     };
 
     let is_confirmed: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
