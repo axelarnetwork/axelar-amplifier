@@ -1,11 +1,12 @@
-use std::path::PathBuf;
 use std::pin::Pin;
 
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{FutureExt, Result, ResultExt};
+use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
@@ -20,7 +21,7 @@ use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
 
 use crate::config::Config;
-use crate::error::Error;
+use crate::state::State;
 
 mod broadcaster;
 pub mod config;
@@ -40,7 +41,16 @@ const PREFIX: &str = "axelar";
 
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
-pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
+pub async fn run(cfg: Config, state: State) -> (State, Result<(), Error>) {
+    let app = prepare_app(cfg, state.clone()).await;
+
+    match app {
+        Ok(app) => app.run().await,
+        Err(err) => (state, Err(err)),
+    }
+}
+
+async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>, Error> {
     let Config {
         tm_jsonrpc,
         tm_grpc,
@@ -63,7 +73,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         .change_context(Error::Connection)?;
     let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
-    let mut state_updater = StateUpdater::new(state_path).change_context(Error::StateUpdater)?;
+    let mut state_updater = StateUpdater::new(state);
     let pub_key = match state_updater.state().pub_key {
         Some(pub_key) => pub_key,
         None => {
@@ -103,9 +113,7 @@ pub async fn run(cfg: Config, state_path: PathBuf) -> Result<(), Error> {
         broadcast,
         event_buffer_cap,
     )
-    .configure_handlers(worker, handlers)?
-    .run()
-    .await
+    .configure_handlers(worker, handlers)
 }
 
 struct App<T>
@@ -234,7 +242,7 @@ where
         self.event_processor.add_handler(handler, sub);
     }
 
-    async fn run(self) -> Result<(), Error> {
+    async fn run(self) -> (State, Result<(), Error>) {
         let Self {
             event_sub,
             event_processor,
@@ -259,23 +267,52 @@ where
             exit_token.cancel();
         });
 
+        let (state_tx, mut state_rx) = oneshot::channel::<State>();
         let mut set = JoinSet::new();
         set.spawn(event_sub.run().change_context(Error::EventSub));
         set.spawn(event_processor.run().change_context(Error::EventProcessor));
         set.spawn(broadcaster.run().change_context(Error::Broadcaster));
-        set.spawn(state_updater.run().change_context(Error::StateUpdater));
+        set.spawn(async move {
+            // assert: the app must wait for this task to exit before trying to receive the state
+            state_tx
+                .send(state_updater.run().await)
+                .expect("the state receiver should still be alive");
+            Ok(())
+        });
 
-        let res = match (set.join_next().await, token.is_cancelled()) {
+        let execution_result = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                result.change_context(Error::Task)?
+                result.unwrap_or_else(|err| Err(err).change_context(Error::Task))
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),
         };
 
         while (set.join_next().await).is_some() {}
+        // assert: all tasks have exited, it is safe to receive the state
+        let state = state_rx
+            .try_recv()
+            .expect("the state sender should have been able to send the state");
 
-        res
+        (state, execution_result)
     }
+}
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("event sub failed")]
+    EventSub,
+    #[error("event processor failed")]
+    EventProcessor,
+    #[error("broadcaster failed")]
+    Broadcaster,
+    #[error("tofnd failed")]
+    Tofnd,
+    #[error("connection failed")]
+    Connection,
+    #[error("task execution failed")]
+    Task,
+    #[error("failed to return updated state")]
+    ReturnState,
 }
