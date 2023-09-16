@@ -5,7 +5,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, Addr, HexBinary, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 
-use crate::{key::PublicKey, ContractError};
+use crate::key::PublicKey;
+use crate::ContractError;
 
 #[cw_serde]
 pub struct MsgToSign(HexBinary);

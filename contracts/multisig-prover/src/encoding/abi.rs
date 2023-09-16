@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{HexBinary, Uint256};
 use ethabi::{short_signature, ParamType, Token};
 use itertools::MultiUnzip;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
-use multisig::{key::Signature, msg::Signer};
 use sha3::{Digest, Keccak256};
+
+use multisig::{key::Signature, msg::Signer};
 
 use crate::{
     error::ContractError,
@@ -80,7 +82,7 @@ fn encode_proof(
     quorum: Uint256,
     signers: Vec<(Signer, Option<Signature>)>,
 ) -> Result<HexBinary, ContractError> {
-    let mut operators = make_operators(signers)?;
+    let mut operators = make_evm_operators_with_sigs(signers)?;
     operators.sort();
 
     let (addresses, weights, signatures): (Vec<_>, Vec<_>, Vec<_>) = operators
@@ -109,7 +111,25 @@ fn encode_proof(
     .into())
 }
 
-fn make_operators(
+pub fn make_operators(worker_set: WorkerSet) -> Operators {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|s| {
+            (
+                evm_address(s.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
+                s.weight,
+            )
+        })
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    Operators {
+        weights_by_addresses: operators,
+        threshold: worker_set.threshold,
+    }
+}
+
+fn make_evm_operators_with_sigs(
     signers_with_sigs: Vec<(Signer, Option<Signature>)>,
 ) -> Result<Vec<Operator>, ContractError> {
     axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
@@ -574,12 +594,13 @@ mod test {
 
     #[test]
     fn test_evm_address() {
-        let pub_key = test_data::pub_key();
-        let expected_address = test_data::evm_address();
+        let op = test_data::operators().remove(0);
+        let pub_key = op.pub_key;
+        let expected_address = op.operator;
 
-        let operator = evm_address(pub_key.as_slice()).unwrap();
+        let evm_address = evm_address(pub_key.as_ref()).unwrap();
 
-        assert_eq!(operator, expected_address);
+        assert_eq!(evm_address, expected_address);
     }
 
     #[test]
@@ -634,7 +655,7 @@ mod test {
             ),
         ];
 
-        let mut operators = make_operators(signers).unwrap();
+        let mut operators = make_evm_operators_with_sigs(signers).unwrap();
         operators.sort();
 
         assert_eq!(

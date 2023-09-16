@@ -1,5 +1,6 @@
 mod abi;
 
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
@@ -129,8 +130,8 @@ pub struct Data {
 }
 
 impl Data {
-    pub fn encode(&self, encoding: Encoder) -> HexBinary {
-        match encoding {
+    pub fn encode(&self, encoder: Encoder) -> HexBinary {
+        match encoder {
             Encoder::Abi => abi::encode(self),
             Encoder::Bcs => todo!(),
         }
@@ -140,6 +141,13 @@ impl Data {
 fn command_id(message_id: String) -> HexBinary {
     // TODO: we might need to change the command id format to match the one in core for migration purposes
     Keccak256::digest(message_id.as_bytes()).as_slice().into()
+}
+
+pub fn make_operators(worker_set: WorkerSet, encoder: Encoder) -> Operators {
+    match encoder {
+        Encoder::Abi => abi::make_operators(worker_set),
+        Encoder::Bcs => todo!(),
+    }
 }
 
 #[cfg(test)]
@@ -175,8 +183,8 @@ mod test {
 
         assert_eq!(
             res.id,
-            HexBinary::from_hex("cdf61b5aa2024f5a27383b0785fc393c566eef69569cf5abec945794b097bb73")
-                .unwrap() // https://axelarscan.io/gmp/0xc8a0024fa264d538986271bdf8d2901c443321faa33440b9f28e38ea28e6141f
+            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
+                .unwrap()
         );
         assert_eq!(res.ty, CommandType::ApproveContractCall);
     }
