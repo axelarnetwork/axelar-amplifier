@@ -3024,6 +3024,7 @@ dependencies = [
  "ethabi",
  "gateway",
  "hex",
+ "itertools 0.11.0",
  "k256 0.13.1",
  "multisig",
  "schemars",

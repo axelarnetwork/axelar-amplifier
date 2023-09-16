@@ -1,211 +1,156 @@
 use std::str::FromStr;
 
-use cosmwasm_schema::cw_serde;
+use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{HexBinary, Uint256};
-use ethabi::{ethereum_types, short_signature, ParamType, Token};
+use ethabi::{short_signature, ParamType, Token};
+use itertools::MultiUnzip;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
-use axelar_wasm_std::operators::Operators;
-use connection_router::msg::Message;
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
     error::ContractError,
     state::WorkerSet,
-    types::{BatchID, Command, CommandBatch, CommandType, Operator},
+    types::{CommandBatch, Operator},
 };
 
-const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
+use super::Data;
+use ethabi::ethereum_types;
 
-impl TryFrom<Message> for Command {
-    type Error = ContractError;
+pub const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
 
-    fn try_from(msg: Message) -> Result<Self, Self::Error> {
-        Ok(Command {
-            ty: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
-            params: command_params(
-                msg.source_chain,
-                msg.source_address,
-                ethereum_types::Address::from_str(&msg.destination_address).map_err(|e| {
-                    ContractError::InvalidMessage {
-                        reason: format!("destination_address is not a valid EVM address: {}", e),
-                    }
-                })?,
-                msg.payload_hash.as_slice().try_into().map_err(|e| {
-                    ContractError::InvalidMessage {
-                        reason: format!(
-                            "payload_hash length is not a valid keccak256 hash length: {}",
-                            e
-                        ),
-                    }
-                })?,
-            ),
-            id: command_id(msg.id),
+pub fn encode(data: &Data) -> HexBinary {
+    let destination_chain_id = Token::Uint(ethabi::ethereum_types::U256::from_big_endian(
+        &data.destination_chain_id.to_be_bytes(),
+    ));
+
+    let (commands_ids, commands_types, commands_params) = data
+        .commands
+        .iter()
+        .map(|command| {
+            (
+                Token::FixedBytes(command.id.to_vec()),
+                Token::String(command.ty.to_string()),
+                Token::Bytes(command.params.to_vec()),
+            )
         })
+        .multiunzip();
+
+    ethabi::encode(&[
+        destination_chain_id,
+        Token::Array(commands_ids),
+        Token::Array(commands_types),
+        Token::Array(commands_params),
+    ])
+    .into()
+}
+
+pub fn msg_to_sign(command_batch: &CommandBatch) -> HexBinary {
+    let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
+
+    // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
+    let unsigned = [
+        "\x19Ethereum Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
+        msg.as_slice(),
+    ]
+    .concat();
+
+    Keccak256::digest(unsigned).as_slice().into()
+}
+
+pub fn encode_execute_data(
+    command_batch: &CommandBatch,
+    quorum: Uint256,
+    signers: Vec<(Signer, Option<Signature>)>,
+) -> Result<HexBinary, ContractError> {
+    let param = ethabi::encode(&[
+        Token::Bytes(encode(&command_batch.data).into()),
+        Token::Bytes(encode_proof(quorum, signers)?.into()),
+    ]);
+
+    let input = ethabi::encode(&[Token::Bytes(param)]);
+
+    let mut calldata = short_signature(GATEWAY_EXECUTE_FUNCTION_NAME, &[ParamType::Bytes]).to_vec();
+
+    calldata.extend(input);
+
+    Ok(calldata.into())
+}
+
+fn encode_proof(
+    quorum: Uint256,
+    signers: Vec<(Signer, Option<Signature>)>,
+) -> Result<HexBinary, ContractError> {
+    let mut operators = make_evm_operators_with_sigs(signers)?;
+    operators.sort();
+
+    let (addresses, weights, signatures): (Vec<_>, Vec<_>, Vec<_>) = operators
+        .into_iter()
+        .map(|op| {
+            (
+                Token::Address(ethereum_types::Address::from_slice(op.address.as_slice())),
+                Token::Uint(ethereum_types::U256::from_big_endian(
+                    &op.weight.to_be_bytes(),
+                )),
+                op.signature.map(|sig| Token::Bytes(<Vec<u8>>::from(sig))),
+            )
+        })
+        .multiunzip();
+
+    let signatures = signatures.into_iter().flatten().collect();
+
+    let quorum = Token::Uint(ethereum_types::U256::from_big_endian(&quorum.to_be_bytes()));
+
+    Ok(ethabi::encode(&[
+        Token::Array(addresses),
+        Token::Array(weights),
+        quorum,
+        Token::Array(signatures),
+    ])
+    .into())
+}
+
+pub fn make_operators(worker_set: WorkerSet) -> Operators {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|s| {
+            (
+                evm_address(s.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
+                s.weight,
+            )
+        })
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    Operators {
+        weights_by_addresses: operators,
+        threshold: worker_set.threshold,
     }
 }
 
-fn make_transfer_operatorship(worker_set: WorkerSet) -> Result<Command, ContractError> {
-    let params = transfer_operatorship_params(&worker_set)?;
-    Ok(Command {
-        ty: CommandType::TransferOperatorship,
-        params,
-        id: worker_set.hash(),
+fn make_evm_operators_with_sigs(
+    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
+) -> Result<Vec<Operator>, ContractError> {
+    axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
+        make_evm_operator(signer).map(|mut op: Operator| {
+            if let Some(sig) = sig {
+                op.set_signature(sig);
+            }
+            op
+        })
     })
 }
 
-impl From<WorkerSet> for Operators {
-    fn from(worker_set: WorkerSet) -> Self {
-        let mut operators: Vec<(HexBinary, Uint256)> = worker_set
-            .signers
-            .iter()
-            .map(|s| {
-                (
-                    evm_address(s.pub_key.as_ref())
-                        .expect("couldn't convert pubkey to evm address"),
-                    s.weight,
-                )
-            })
-            .collect();
-        operators.sort_by_key(|op| op.0.clone());
-        Operators {
-            weights_by_addresses: operators,
-            threshold: worker_set.threshold,
-        }
-    }
+fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
+    Ok(Operator {
+        address: evm_address(signer.pub_key.as_ref())?,
+        weight: signer.weight,
+        signature: None,
+    })
 }
 
-impl TryFrom<Signer> for Operator {
-    type Error = ContractError;
-
-    fn try_from(signer: Signer) -> Result<Self, Self::Error> {
-        Ok(Self {
-            address: evm_address(signer.pub_key.as_ref())?,
-            weight: signer.weight,
-            signature: None,
-        })
-    }
-}
-
-pub struct CommandBatchBuilder {
-    message_ids: Vec<String>,
-    new_worker_set: Option<WorkerSet>,
-    commands: Vec<Command>,
-    destination_chain_id: Uint256,
-}
-
-impl CommandBatchBuilder {
-    pub fn new(destination_chain_id: Uint256) -> Self {
-        Self {
-            message_ids: vec![],
-            new_worker_set: None,
-            commands: vec![],
-            destination_chain_id,
-        }
-    }
-
-    pub fn add_message(&mut self, msg: Message) -> Result<(), ContractError> {
-        self.message_ids.push(msg.id.clone());
-        self.commands.push(msg.try_into()?);
-        Ok(())
-    }
-
-    pub fn add_new_worker_set(&mut self, worker_set: WorkerSet) -> Result<(), ContractError> {
-        self.new_worker_set = Some(worker_set.clone());
-        self.commands.push(make_transfer_operatorship(worker_set)?);
-        Ok(())
-    }
-
-    pub fn build(self) -> Result<CommandBatch, ContractError> {
-        let data = Data {
-            destination_chain_id: self.destination_chain_id,
-            commands: self.commands,
-        };
-
-        let id = BatchID::new(&self.message_ids, self.new_worker_set);
-
-        Ok(CommandBatch {
-            id,
-            message_ids: self.message_ids,
-            data,
-        })
-    }
-}
-
-impl CommandBatch {
-    pub fn msg_to_sign(&self) -> HexBinary {
-        let msg = Keccak256::digest(self.data.encode().as_slice());
-
-        // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
-        let unsigned = [
-            "\x19Ethereum Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
-            msg.as_slice(),
-        ]
-        .concat();
-
-        Keccak256::digest(unsigned).as_slice().into()
-    }
-
-    pub fn encode_execute_data(
-        &self,
-        quorum: Uint256,
-        signers: Vec<(Signer, Option<Signature>)>,
-    ) -> Result<HexBinary, ContractError> {
-        let param = ethabi::encode(&[
-            Token::Bytes(self.data.encode().into()),
-            Token::Bytes(self.encode_proof(quorum, signers)?.into()),
-        ]);
-
-        let input = ethabi::encode(&[Token::Bytes(param)]);
-
-        let mut calldata =
-            short_signature(GATEWAY_EXECUTE_FUNCTION_NAME, &[ParamType::Bytes]).to_vec();
-
-        calldata.extend(input);
-
-        Ok(calldata.into())
-    }
-
-    fn encode_proof(
-        &self,
-        quorum: Uint256,
-        signers: Vec<(Signer, Option<Signature>)>,
-    ) -> Result<HexBinary, ContractError> {
-        let mut operators = make_operators(signers)?;
-        operators.sort();
-
-        let (addresses, weights, signatures) = operators.iter().fold(
-            (vec![], vec![], vec![]),
-            |(mut addresses, mut weights, mut signatures), operator| {
-                addresses.push(Token::Address(ethereum_types::Address::from_slice(
-                    operator.address.as_slice(),
-                )));
-                weights.push(Token::Uint(ethereum_types::U256::from_big_endian(
-                    &operator.weight.to_be_bytes(),
-                )));
-
-                if let Some(signature) = &operator.signature {
-                    signatures.push(Token::Bytes(<Vec<u8>>::from(signature.clone())));
-                }
-
-                (addresses, weights, signatures)
-            },
-        );
-
-        let quorum = Token::Uint(ethereum_types::U256::from_big_endian(&quorum.to_be_bytes()));
-
-        Ok(ethabi::encode(&[
-            Token::Array(addresses),
-            Token::Array(weights),
-            quorum,
-            Token::Array(signatures),
-        ])
-        .into())
-    }
-}
-
-fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
+pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .iter()
@@ -236,39 +181,7 @@ fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, Con
     Ok(ethabi::encode(&[Token::Array(addresses), Token::Array(weights), quorum]).into())
 }
 
-#[cw_serde]
-pub struct Data {
-    pub destination_chain_id: Uint256,
-    pub commands: Vec<Command>,
-}
-
-impl Data {
-    pub fn encode(&self) -> HexBinary {
-        let destination_chain_id = Token::Uint(ethereum_types::U256::from_big_endian(
-            &self.destination_chain_id.to_be_bytes(),
-        ));
-
-        let (commands_ids, commands_types, commands_params) = self.commands.iter().fold(
-            (vec![], vec![], vec![]),
-            |(mut commands_ids, mut commands_types, mut commands_params), command| {
-                commands_ids.push(Token::FixedBytes(command.id.to_vec()));
-                commands_types.push(Token::String(command.ty.to_string()));
-                commands_params.push(Token::Bytes(command.params.to_vec()));
-                (commands_ids, commands_types, commands_params)
-            },
-        );
-
-        ethabi::encode(&[
-            destination_chain_id,
-            Token::Array(commands_ids),
-            Token::Array(commands_types),
-            Token::Array(commands_params),
-        ])
-        .into()
-    }
-}
-
-pub fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
+fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     let pub_key =
         PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidPublicKey {
             reason: e.to_string(),
@@ -278,31 +191,29 @@ pub fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     Ok(Keccak256::digest(&pub_key.as_bytes()[1..]).as_slice()[12..].into())
 }
 
-fn make_operators(
-    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
-) -> Result<Vec<Operator>, ContractError> {
-    axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
-        signer.try_into().map(|mut op: Operator| {
-            if let Some(sig) = sig {
-                op.set_signature(sig);
-            }
-            op
-        })
-    })
-}
-
-fn command_id(message_id: String) -> HexBinary {
-    // TODO: we might need to change the command id format to match the one in core for migration purposes
-    Keccak256::digest(message_id.as_bytes()).as_slice().into()
-}
-
-fn command_params(
+pub fn command_params(
     source_chain: String,
     source_address: String,
-    destination_address: ethereum_types::Address,
-    payload_hash: [u8; 32],
-) -> HexBinary {
-    ethabi::encode(&[
+    destination_address: String,
+    payload_hash: HexBinary,
+) -> Result<HexBinary, ContractError> {
+    let destination_address =
+        ethereum_types::Address::from_str(&destination_address).map_err(|e| {
+            ContractError::InvalidMessage {
+                reason: format!("destination_address is not a valid EVM address: {}", e),
+            }
+        })?;
+    let payload_hash: [u8; 32] =
+        payload_hash
+            .as_slice()
+            .try_into()
+            .map_err(|e| ContractError::InvalidMessage {
+                reason: format!(
+                    "payload_hash length is not a valid keccak256 hash length: {}",
+                    e
+                ),
+            })?;
+    Ok(ethabi::encode(&[
         Token::String(source_chain),
         Token::String(source_address),
         Token::Address(destination_address),
@@ -310,14 +221,17 @@ fn command_params(
         Token::FixedBytes(vec![]), // TODO: Dummy data for now while Gateway is updated to not require these fields
         Token::Uint(ethereum_types::U256::zero()),
     ])
-    .into()
+    .into())
 }
 
 #[cfg(test)]
 mod test {
-    use ethabi::ParamType;
 
-    use crate::test::test_data;
+    use crate::{
+        encoding::{CommandBatchBuilder, Encoder},
+        test::test_data,
+        types::{Command, CommandType},
+    };
 
     use super::*;
 
@@ -333,6 +247,7 @@ mod test {
         )
         .unwrap()
     }
+
     fn decode_operator_transfer_command_params<'a>(
         encoded_params: impl Into<Vec<u8>>,
     ) -> Vec<Token> {
@@ -408,21 +323,20 @@ mod test {
     #[test]
     fn test_command_from_router_message() {
         let messages = test_data::messages();
-        let router_message = messages.first().unwrap();
+        let router_message = messages.first().unwrap().clone();
 
-        let res = Command::try_from(router_message.to_owned());
+        let res = command_params(
+            router_message.source_chain,
+            router_message.source_address,
+            router_message.destination_address,
+            router_message.payload_hash,
+        );
         assert!(res.is_ok());
 
         let res = res.unwrap();
 
         assert_eq!(
-            res.id,
-            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
-                .unwrap()
-        );
-        assert_eq!(res.ty, CommandType::ApproveContractCall);
-        assert_eq!(
-            decode_command_params(res.params),
+            decode_command_params(res),
             decode_command_params(
                 decode_data(&test_data::encoded_data()).commands[0]
                     .params
@@ -436,7 +350,12 @@ mod test {
         let mut router_message = test_data::messages().first().unwrap().clone();
         router_message.destination_address = "invalid".into();
 
-        let res = Command::try_from(router_message.to_owned());
+        let res = command_params(
+            router_message.source_chain,
+            router_message.source_address,
+            router_message.destination_address,
+            router_message.payload_hash,
+        );
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
@@ -452,7 +371,12 @@ mod test {
             HexBinary::from_hex("df0e679e57348329e51e4337b7839882c29f21a3095a718c239f147b143ff8")
                 .unwrap();
 
-        let res = Command::try_from(router_message.to_owned());
+        let res = command_params(
+            router_message.source_chain,
+            router_message.source_address,
+            router_message.destination_address,
+            router_message.payload_hash,
+        );
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
@@ -465,10 +389,10 @@ mod test {
     #[test]
     fn test_command_operator_transfer() {
         let new_worker_set = test_data::new_worker_set();
-        let res = make_transfer_operatorship(new_worker_set.clone());
+        let res = transfer_operatorship_params(&new_worker_set);
         assert!(res.is_ok());
 
-        let tokens = decode_operator_transfer_command_params(res.unwrap().params);
+        let tokens = decode_operator_transfer_command_params(res.unwrap());
         let mut signers: Vec<Signer> = new_worker_set.signers.into_iter().collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
         let mut i = 0;
@@ -503,7 +427,7 @@ mod test {
         let messages = test_data::messages();
         let destination_chain_id = test_data::destination_chain_id();
         let test_data = decode_data(&test_data::encoded_data());
-        let mut builder = CommandBatchBuilder::new(destination_chain_id);
+        let mut builder = CommandBatchBuilder::new(destination_chain_id, Encoder::Abi);
         for msg in messages {
             builder.add_message(msg).unwrap();
         }
@@ -539,7 +463,8 @@ mod test {
     #[test]
     fn test_new_command_batch_with_operator_transfer() {
         let test_data = decode_data(&test_data::encoded_data_with_operator_transfer());
-        let mut builder = CommandBatchBuilder::new(test_data::chain_id_operator_transfer());
+        let mut builder =
+            CommandBatchBuilder::new(test_data::chain_id_operator_transfer(), Encoder::Abi);
         let res = builder.add_new_worker_set(test_data::new_worker_set());
         assert!(res.is_ok());
         let res = builder.build();
@@ -554,7 +479,7 @@ mod test {
         let operators = test_data::operators();
         let quorum = test_data::quorum();
 
-        let mut builder = CommandBatchBuilder::new(destination_chain_id);
+        let mut builder = CommandBatchBuilder::new(destination_chain_id, Encoder::Abi);
         for msg in messages {
             let res = builder.add_message(msg);
             assert!(res.is_ok());
@@ -637,6 +562,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
+            encoder: Encoder::Abi,
         };
 
         let signers = operators
@@ -661,23 +587,9 @@ mod test {
     fn test_data_encode() {
         let encoded_data = test_data::encoded_data();
         let data = decode_data(&encoded_data);
-        let res = data.encode();
+        let res = data.encode(Encoder::Abi);
 
         assert_eq!(res, encoded_data);
-    }
-
-    #[test]
-    fn test_batch_id() {
-        let messages = test_data::messages();
-        let mut message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
-
-        message_ids.sort();
-        let res = BatchID::new(&message_ids, None);
-
-        message_ids.reverse();
-        let res2 = BatchID::new(&message_ids, None);
-
-        assert_eq!(res, res2);
     }
 
     #[test]
@@ -697,6 +609,7 @@ mod test {
             id: HexBinary::from_hex("00").unwrap().into(),
             message_ids: vec![],
             data: decode_data(&test_data::encoded_data()),
+            encoder: Encoder::Abi,
         };
 
         let res = batch.msg_to_sign();
@@ -742,7 +655,7 @@ mod test {
             ),
         ];
 
-        let mut operators = make_operators(signers).unwrap();
+        let mut operators = make_evm_operators_with_sigs(signers).unwrap();
         operators.sort();
 
         assert_eq!(
