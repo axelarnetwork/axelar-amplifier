@@ -46,7 +46,7 @@ async fn main() -> ExitCode {
     info!(args = args.as_value(), "starting daemon");
     let result = run_daemon(&args)
         .await
-        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"));
+        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report:#}"));
     info!("shutting down");
 
     match result {
