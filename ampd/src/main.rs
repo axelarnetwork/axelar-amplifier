@@ -68,9 +68,7 @@ async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
 
     let state = state::load(&state_path).change_context(Error::Fatal)?;
     let (state, execution_result) = run(cfg, state).await;
-    let state_flush_result = state
-        .map(|state| state::flush(&state, state_path).change_context(Error::Fatal))
-        .unwrap_or(Ok(()));
+    let state_flush_result = state::flush(&state, state_path).change_context(Error::Fatal);
 
     let execution_result = execution_result.change_context(Error::Fatal);
     match (execution_result, state_flush_result) {
@@ -149,6 +147,6 @@ fn expand_home_dir(path: impl AsRef<Path>) -> PathBuf {
 enum Error {
     #[error("failed to load config")]
     LoadConfig,
-    #[error("catastrophic failure")]
+    #[error("fatal failure")]
     Fatal,
 }

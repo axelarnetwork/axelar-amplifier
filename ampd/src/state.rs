@@ -94,7 +94,7 @@ pub fn load(path: impl AsRef<Path>) -> Result<State, Error> {
     match fs::read_to_string(path) {
         Ok(state) => serde_json::from_str(&state).change_context(Error::InvalidState),
         Err(_) => {
-            info!("state file does not exist, starting to track current state");
+            info!("state file does not exist, starting from current blockchain state");
             Ok(State::default())
         }
     }

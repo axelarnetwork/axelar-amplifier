@@ -1,6 +1,5 @@
 use std::pin::Pin;
 
-use axelar_wasm_std::FnExt;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
@@ -42,15 +41,12 @@ const PREFIX: &str = "axelar";
 
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
-pub async fn run(cfg: Config, state: State) -> (Option<State>, Result<(), Error>) {
-    let app = prepare_app(cfg, state).await;
+pub async fn run(cfg: Config, state: State) -> (State, Result<(), Error>) {
+    let app = prepare_app(cfg, state.clone()).await;
 
     match app {
-        Ok(app) => app
-            .run()
-            .await
-            .then(|(state, report)| (Some(state), report)),
-        Err(err) => (None, Err(err)),
+        Ok(app) => app.run().await,
+        Err(err) => (state, Err(err)),
     }
 }
 
@@ -287,10 +283,7 @@ where
         let execution_result = match (set.join_next().await, token.is_cancelled()) {
             (Some(result), false) => {
                 token.cancel();
-                match result {
-                    Ok(result) => result,
-                    Err(err) => Err(err).change_context(Error::Task),
-                }
+                result.unwrap_or_else(|err| Err(err).change_context(Error::Task))
             }
             (Some(_), true) => Ok(()),
             (None, _) => panic!("all tasks exited unexpectedly"),
