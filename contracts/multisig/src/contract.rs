@@ -46,8 +46,8 @@ pub fn execute(
         ExecuteMsg::KeyGen {
             key_id,
             snapshot,
-            pub_keys,
-        } => execute::key_gen(deps, info, key_id, snapshot, pub_keys),
+            pub_keys_by_address,
+        } => execute::key_gen(deps, info, key_id, snapshot, pub_keys_by_address),
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
         }
@@ -148,14 +148,14 @@ pub mod execute {
         info: MessageInfo,
         key_id: String,
         snapshot: Snapshot,
-        pub_keys: HashMap<String, (KeyType, HexBinary)>,
+        pub_keys_by_address: HashMap<String, (KeyType, HexBinary)>,
     ) -> Result<Response, ContractError> {
-        if snapshot.participants.len() != pub_keys.len() {
+        if snapshot.participants.len() != pub_keys_by_address.len() {
             return Err(ContractError::PublicKeysMismatchParticipants);
         }
 
         for participant in snapshot.participants.keys() {
-            if !pub_keys.contains_key(participant) {
+            if !pub_keys_by_address.contains_key(participant) {
                 return Err(ContractError::MissingPublicKey {
                     participant: participant.to_owned(),
                 });
@@ -169,7 +169,7 @@ pub mod execute {
         let key = Key {
             id: key_id.clone(),
             snapshot,
-            pub_keys: pub_keys
+            pub_keys: pub_keys_by_address
                 .into_iter()
                 .map(|(k, v)| {
                     (
@@ -332,7 +332,7 @@ mod tests {
         let msg = ExecuteMsg::KeyGen {
             key_id: subkey.clone(),
             snapshot: snapshot.clone(),
-            pub_keys: pub_keys.clone(),
+            pub_keys_by_address: pub_keys.clone(),
         };
 
         execute(deps, env, info.clone(), msg).map(|res| {
