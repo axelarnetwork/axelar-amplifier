@@ -1,14 +1,15 @@
-use connection_router::{self, msg};
 use std::{collections::HashMap, vec};
 
-use connection_router::types::{ChainName, GatewayDirection, ID_SEPARATOR};
 use cosmwasm_std::Addr;
+use cosmwasm_std::HexBinary;
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use connection_router::contract::*;
 use connection_router::error::ContractError;
 use connection_router::msg::{ExecuteMsg, InstantiateMsg};
-use cosmwasm_std::HexBinary;
+use connection_router::types::{ChainName, GatewayDirection, ID_SEPARATOR};
+use connection_router::{self, msg};
+
 pub mod mock;
 
 struct TestConfig {
@@ -148,8 +149,10 @@ fn route_non_existing_chain() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainNotFound.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
     );
 }
 
@@ -196,8 +199,10 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidMessageID.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
     );
 
     // don't prepend source chain
@@ -215,8 +220,10 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidMessageID.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
     );
 
     let res = config
@@ -232,8 +239,10 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidMessageID.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
     );
 
     let res = config
@@ -249,8 +258,10 @@ fn message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidMessageID.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
     );
 }
 
@@ -278,8 +289,11 @@ fn invalid_address() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidAddress("".to_string()).into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress("".to_string()))
+            .to_string()
     );
 
     let res = config
@@ -295,8 +309,11 @@ fn invalid_address() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidAddress("".to_string()).into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress("".to_string()))
+            .to_string()
     );
 }
 
@@ -321,8 +338,10 @@ fn wrong_source_chain() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::WrongSourceChain.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::WrongSourceChain).to_string()
     );
 }
 
@@ -402,8 +421,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config
@@ -420,8 +441,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config.app.execute_contract(
@@ -449,8 +472,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config
@@ -467,8 +492,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config.app.execute_contract(
@@ -496,8 +523,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config
@@ -514,8 +543,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config.app.execute_contract(
@@ -543,8 +574,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config
@@ -561,8 +594,10 @@ fn authorization() {
         .unwrap_err();
 
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::Unauthorized.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 
     let res = config.app.execute_contract(
@@ -653,8 +688,10 @@ fn upgrade_gateway_incoming() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::GatewayNotRegistered.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::GatewayNotRegistered).to_string()
     );
 
     let res = config.app.execute_contract(
@@ -686,8 +723,10 @@ fn register_chain_test() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::GatewayNotRegistered.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::GatewayNotRegistered).to_string()
     );
 
     register_chain(&mut config, &eth);
@@ -701,8 +740,10 @@ fn register_chain_test() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainNotFound.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
     );
 
     register_chain(&mut config, &polygon);
@@ -734,8 +775,10 @@ fn chain_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainAlreadyExists.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainAlreadyExists).to_string()
     );
 
     // case insensitive
@@ -752,8 +795,10 @@ fn chain_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainAlreadyExists.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainAlreadyExists).to_string()
     );
 }
 
@@ -773,8 +818,10 @@ fn invalid_chain_name() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidChainName.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidChainName).to_string()
     );
 
     let res = config
@@ -790,8 +837,10 @@ fn invalid_chain_name() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::InvalidChainName.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidChainName).to_string()
     );
 }
 
@@ -814,8 +863,10 @@ fn gateway_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::GatewayAlreadyRegistered.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::GatewayAlreadyRegistered).to_string()
     );
 
     register_chain(&mut config, &polygon);
@@ -832,8 +883,10 @@ fn gateway_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::GatewayAlreadyRegistered.into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::GatewayAlreadyRegistered).to_string()
     );
 }
 
@@ -870,11 +923,13 @@ fn freeze_incoming() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 
     let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
@@ -943,11 +998,13 @@ fn freeze_outgoing() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 
     let res = config.app.execute_contract(
@@ -1017,11 +1074,13 @@ fn freeze_chain() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 
     // can't route from frozen chain
@@ -1036,11 +1095,13 @@ fn freeze_chain() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
-            chain: polygon.chain_name.clone(),
-        }
-        .into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
+            chain: polygon.chain_name.clone()
+        })
+        .to_string()
     );
 
     // unfreeze and test that everything works correctly
@@ -1144,11 +1205,13 @@ fn unfreeze_incoming() {
         .unwrap_err();
     // can't route to the chain
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 }
 
@@ -1199,11 +1262,13 @@ fn unfreeze_outgoing() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
-            chain: polygon.chain_name.clone(),
-        }
-        .into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
+            chain: polygon.chain_name.clone()
+        })
+        .to_string()
     );
 
     // can route to the chain now
@@ -1264,11 +1329,13 @@ fn freeze_incoming_then_outgoing() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 
     // can't route from frozen chain
@@ -1283,11 +1350,13 @@ fn freeze_incoming_then_outgoing() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
-            chain: polygon.chain_name.clone(),
-        }
-        .into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
+            chain: polygon.chain_name.clone()
+        })
+        .to_string()
     );
 }
 
@@ -1338,11 +1407,13 @@ fn freeze_outgoing_then_incoming() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 
     // can't route from frozen chain
@@ -1357,11 +1428,13 @@ fn freeze_outgoing_then_incoming() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
-            chain: polygon.chain_name.clone(),
-        }
-        .into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
+            chain: polygon.chain_name.clone()
+        })
+        .to_string()
     );
 }
 
@@ -1549,11 +1622,13 @@ fn unfreeze_nothing() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        }
-        .into()
+        })
+        .to_string()
     );
 
     // can't route from frozen chain
@@ -1568,11 +1643,13 @@ fn unfreeze_nothing() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::ChainFrozen {
-            chain: polygon.chain_name.clone(),
-        }
-        .into()
+        res.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::ChainFrozen {
+            chain: polygon.chain_name.clone()
+        })
+        .to_string()
     );
 }
 

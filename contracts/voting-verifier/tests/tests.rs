@@ -93,8 +93,13 @@ fn should_failed_if_messages_are_not_from_same_source() {
         .execute_contract(Addr::unchecked(SENDER), contract_address, &msg, &[])
         .unwrap_err();
     assert_eq!(
-        err.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::SourceChainMismatch(SOURCE_CHAIN.parse().unwrap()).into(),
+        err.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::SourceChainMismatch(
+            SOURCE_CHAIN.parse().unwrap()
+        ))
+        .to_string()
     );
 }
 
@@ -507,7 +512,8 @@ fn should_not_confirm_twice() {
     assert_eq!(
         res.unwrap_err()
             .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap(),
-        ContractError::WorkerSetAlreadyConfirmed.into()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::WorkerSetAlreadyConfirmed).to_string()
     );
 }

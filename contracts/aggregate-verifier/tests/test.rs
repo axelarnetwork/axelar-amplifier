@@ -67,8 +67,8 @@ fn bad_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        res.downcast::<ContractError>().unwrap(),
-        connection_router::error::ContractError::InvalidMessageID.into()
+        res.downcast::<ContractError>().unwrap().to_string(),
+        ContractError::from(connection_router::error::ContractError::InvalidMessageID).to_string()
     )
 }
 

@@ -65,8 +65,9 @@ fn register_service() {
     assert_eq!(
         res.unwrap_err()
             .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap(),
-        ContractError::Unauthorized.into()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 }
 
@@ -129,8 +130,9 @@ fn authorize_worker() {
     assert_eq!(
         res.unwrap_err()
             .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap(),
-        ContractError::Unauthorized.into()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 }
 
@@ -466,8 +468,9 @@ fn bond_wrong_denom() {
     assert_eq!(
         res.unwrap_err()
             .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap(),
-        ContractError::WrongDenom.into()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::WrongDenom).to_string()
     );
 }
 
@@ -970,12 +973,15 @@ fn unbonding_period() {
     assert_eq!(
         res.unwrap_err()
             .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap(),
-        ContractError::InvalidBondingState(BondingState::Unbonding {
-            unbonded_at: app.block_info().time,
-            amount: min_worker_bond,
-        })
-        .into()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
+            BondingState::Unbonding {
+                unbonded_at: app.block_info().time,
+                amount: min_worker_bond,
+            }
+        ))
+        .to_string()
     );
     assert_eq!(
         app.wrap()

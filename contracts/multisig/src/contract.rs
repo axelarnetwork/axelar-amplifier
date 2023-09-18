@@ -483,15 +483,15 @@ mod tests {
 
         let res = do_key_gen(deps.as_mut());
         assert_eq!(
-            res.unwrap_err(),
-            ContractError::DuplicateKeyID {
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::DuplicateKeyID {
                 key_id: KeyID {
                     owner: Addr::unchecked(PROVER),
                     subkey: "key".to_string(),
                 }
                 .to_string()
-            }
-            .into()
+            })
+            .to_string()
         );
     }
 
@@ -547,15 +547,15 @@ mod tests {
         let res = do_start_signing_session(deps.as_mut(), sender);
 
         assert_eq!(
-            res.unwrap_err(),
-            ContractError::NoActiveKeyFound {
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::NoActiveKeyFound {
                 key_id: KeyID {
                     owner: Addr::unchecked(sender),
                     subkey: "key".to_string(),
                 }
                 .to_string()
-            }
-            .into()
+            })
+            .to_string()
         );
     }
 
@@ -650,11 +650,11 @@ mod tests {
         let res = do_sign(deps.as_mut(), invalid_session_id, &signer);
 
         assert_eq!(
-            res.unwrap_err(),
-            ContractError::SigningSessionNotFound {
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::SigningSessionNotFound {
                 session_id: invalid_session_id
-            }
-            .into()
+            })
+            .to_string()
         );
     }
 

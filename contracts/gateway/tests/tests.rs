@@ -909,8 +909,10 @@ fn duplicate_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        err.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::DuplicateMessageID.into(),
+        err.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::DuplicateMessageID).to_string()
     );
 
     let err = app
@@ -922,8 +924,10 @@ fn duplicate_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        err.downcast::<axelar_wasm_std::ContractError>().unwrap(),
-        ContractError::DuplicateMessageID.into()
+        err.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::DuplicateMessageID).to_string()
     );
 
     //verify one of them
