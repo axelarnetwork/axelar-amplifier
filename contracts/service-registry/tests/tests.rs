@@ -63,8 +63,10 @@ fn register_service() {
     );
     assert!(!res.is_ok());
     assert_eq!(
-        ContractError::Unauthorized,
-        res.unwrap_err().downcast().unwrap()
+        res.unwrap_err()
+            .downcast::<axelar_wasm_std::ContractError>()
+            .unwrap(),
+        ContractError::Unauthorized.into()
     );
 }
 
@@ -125,8 +127,10 @@ fn authorize_worker() {
         &[],
     );
     assert_eq!(
-        ContractError::Unauthorized,
-        res.unwrap_err().downcast().unwrap()
+        res.unwrap_err()
+            .downcast::<axelar_wasm_std::ContractError>()
+            .unwrap(),
+        ContractError::Unauthorized.into()
     );
 }
 
@@ -460,8 +464,10 @@ fn bond_wrong_denom() {
     );
     assert!(res.is_err());
     assert_eq!(
-        ContractError::WrongDenom,
-        res.unwrap_err().downcast().unwrap()
+        res.unwrap_err()
+            .downcast::<axelar_wasm_std::ContractError>()
+            .unwrap(),
+        ContractError::WrongDenom.into()
     );
 }
 
@@ -962,11 +968,14 @@ fn unbonding_period() {
     );
     assert!(!res.is_ok());
     assert_eq!(
+        res.unwrap_err()
+            .downcast::<axelar_wasm_std::ContractError>()
+            .unwrap(),
         ContractError::InvalidBondingState(BondingState::Unbonding {
             unbonded_at: app.block_info().time,
             amount: min_worker_bond,
-        }),
-        res.unwrap_err().downcast().unwrap()
+        })
+        .into()
     );
     assert_eq!(
         app.wrap()

@@ -12,7 +12,7 @@ use cosmwasm_std::HexBinary;
 pub mod mock;
 
 struct TestConfig {
-    app: cw_multi_test::App,
+    app: App,
     contract_address: Addr,
     admin_address: Addr,
     governance_address: Addr,
@@ -147,7 +147,10 @@ fn route_non_existing_chain() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::ChainNotFound, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::ChainNotFound.into()
+    );
 }
 
 #[test]
@@ -192,7 +195,10 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidMessageID.into()
+    );
 
     // don't prepend source chain
     let bad_id = msg.id.split(&msg.source_chain).collect::<Vec<&str>>()[0];
@@ -208,7 +214,10 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidMessageID.into()
+    );
 
     let res = config
         .app
@@ -222,7 +231,10 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidMessageID.into()
+    );
 
     let res = config
         .app
@@ -236,7 +248,10 @@ fn message_id() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidMessageID, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidMessageID.into()
+    );
 }
 
 #[test]
@@ -263,8 +278,8 @@ fn invalid_address() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::InvalidAddress("".to_string()),
-        res.downcast().unwrap()
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidAddress("".to_string()).into()
     );
 
     let res = config
@@ -280,8 +295,8 @@ fn invalid_address() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::InvalidAddress("".to_string()),
-        res.downcast().unwrap()
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidAddress("".to_string()).into()
     );
 }
 
@@ -305,7 +320,10 @@ fn wrong_source_chain() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::WrongSourceChain, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::WrongSourceChain.into()
+    );
 }
 
 #[test]
@@ -383,7 +401,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config
         .app
@@ -398,7 +419,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config.app.execute_contract(
         config.governance_address.clone(),
@@ -424,7 +448,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config
         .app
@@ -439,7 +466,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config.app.execute_contract(
         config.admin_address.clone(),
@@ -465,7 +495,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config
         .app
@@ -480,7 +513,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config.app.execute_contract(
         config.admin_address.clone(),
@@ -506,7 +542,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config
         .app
@@ -521,7 +560,10 @@ fn authorization() {
         )
         .unwrap_err();
 
-    assert_eq!(ContractError::Unauthorized, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::Unauthorized.into()
+    );
 
     let res = config.app.execute_contract(
         config.governance_address.clone(),
@@ -610,7 +652,10 @@ fn upgrade_gateway_incoming() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::GatewayNotRegistered, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::GatewayNotRegistered.into()
+    );
 
     let res = config.app.execute_contract(
         new_gateway,
@@ -640,7 +685,10 @@ fn register_chain_test() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::GatewayNotRegistered, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::GatewayNotRegistered.into()
+    );
 
     register_chain(&mut config, &eth);
     let res = config
@@ -652,7 +700,10 @@ fn register_chain_test() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::ChainNotFound, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::ChainNotFound.into()
+    );
 
     register_chain(&mut config, &polygon);
     let res = config.app.execute_contract(
@@ -682,7 +733,10 @@ fn chain_already_registered() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::ChainAlreadyExists, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::ChainAlreadyExists.into()
+    );
 
     // case insensitive
     let res = config
@@ -697,7 +751,10 @@ fn chain_already_registered() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::ChainAlreadyExists, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::ChainAlreadyExists.into()
+    );
 }
 
 #[test]
@@ -715,7 +772,10 @@ fn invalid_chain_name() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidChainName, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidChainName.into()
+    );
 
     let res = config
         .app
@@ -729,7 +789,10 @@ fn invalid_chain_name() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(ContractError::InvalidChainName, res.downcast().unwrap());
+    assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::InvalidChainName.into()
+    );
 }
 
 #[test]
@@ -751,8 +814,8 @@ fn gateway_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::GatewayAlreadyRegistered,
-        res.downcast().unwrap()
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::GatewayAlreadyRegistered.into()
     );
 
     register_chain(&mut config, &polygon);
@@ -769,8 +832,8 @@ fn gateway_already_registered() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::GatewayAlreadyRegistered,
-        res.downcast().unwrap()
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
+        ContractError::GatewayAlreadyRegistered.into()
     );
 }
 
@@ -807,10 +870,11 @@ fn freeze_incoming() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
@@ -879,10 +943,11 @@ fn freeze_outgoing() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     let res = config.app.execute_contract(
@@ -952,10 +1017,11 @@ fn freeze_chain() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     // can't route from frozen chain
@@ -970,10 +1036,11 @@ fn freeze_chain() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone(),
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     // unfreeze and test that everything works correctly
@@ -1077,10 +1144,11 @@ fn unfreeze_incoming() {
         .unwrap_err();
     // can't route to the chain
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 }
 
@@ -1131,10 +1199,11 @@ fn unfreeze_outgoing() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone(),
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     // can route to the chain now
@@ -1195,10 +1264,11 @@ fn freeze_incoming_then_outgoing() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     // can't route from frozen chain
@@ -1213,10 +1283,11 @@ fn freeze_incoming_then_outgoing() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone(),
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 }
 
@@ -1267,10 +1338,11 @@ fn freeze_outgoing_then_incoming() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     // can't route from frozen chain
@@ -1285,10 +1357,11 @@ fn freeze_outgoing_then_incoming() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone(),
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 }
 
@@ -1476,10 +1549,11 @@ fn unfreeze_nothing() {
         .unwrap_err();
     // can't route to frozen chain
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone()
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 
     // can't route from frozen chain
@@ -1494,10 +1568,11 @@ fn unfreeze_nothing() {
         )
         .unwrap_err();
     assert_eq!(
+        res.downcast::<axelar_wasm_std::ContractError>().unwrap(),
         ContractError::ChainFrozen {
             chain: polygon.chain_name.clone(),
-        },
-        res.downcast().unwrap()
+        }
+        .into()
     );
 }
 

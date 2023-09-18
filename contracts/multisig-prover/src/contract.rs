@@ -391,8 +391,10 @@ mod tests {
 
         assert!(res.is_err());
         assert_eq!(
-            ContractError::WorkerSetUnchanged,
-            res.unwrap_err().downcast().unwrap()
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap(),
+            ContractError::WorkerSetUnchanged.into()
         );
     }
 
@@ -460,8 +462,10 @@ mod tests {
         let res = confirm_worker_set(&mut test_case);
         assert!(res.is_err());
         assert_eq!(
-            ContractError::WorkerSetNotConfirmed,
-            res.unwrap_err().downcast().unwrap()
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap(),
+            ContractError::WorkerSetNotConfirmed.into()
         );
     }
 
@@ -498,8 +502,10 @@ mod tests {
         let res = confirm_worker_set(&mut test_case);
         assert!(res.is_err());
         assert_eq!(
-            ContractError::WorkerSetNotConfirmed,
-            res.unwrap_err().downcast().unwrap()
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap(),
+            ContractError::WorkerSetNotConfirmed.into(),
         );
     }
 

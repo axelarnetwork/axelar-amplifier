@@ -491,6 +491,7 @@ mod tests {
                 }
                 .to_string()
             }
+            .into()
         );
     }
 
@@ -554,6 +555,7 @@ mod tests {
                 }
                 .to_string()
             }
+            .into()
         );
     }
 
@@ -652,6 +654,7 @@ mod tests {
             ContractError::SigningSessionNotFound {
                 session_id: invalid_session_id
             }
+            .into()
         );
     }
 
