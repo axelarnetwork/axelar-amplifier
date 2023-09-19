@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -10,6 +11,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::FnExt;
 
 use crate::ContractError;
 
@@ -23,8 +25,9 @@ impl FromStr for MessageID {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // todo: should be exactly 1 when migrated to state::NewMessage
-        if s.matches(ID_SEPARATOR).count() < 1 {
+        // todo: should split in exactly 2 parts when migrated to state::NewMessage
+        let split: Vec<_> = s.split(ID_SEPARATOR).filter(|s| !s.is_empty()).collect();
+        if split.len() < 2 {
             return Err(ContractError::InvalidMessageID);
         }
         Ok(MessageID(s.to_lowercase()))
@@ -78,6 +81,66 @@ impl KeyDeserialize for MessageID {
     }
 }
 
+/// cosmwasm cannot serialize tuples, so we need to convert [GlobalMessageId] into a struct
+#[cw_serde]
+struct GlobalMessageIdSerde {
+    chain_name: ChainName,
+    message_id: MessageID,
+}
+
+#[cw_serde]
+#[serde(from = "GlobalMessageIdSerde", into = "GlobalMessageIdSerde")]
+pub struct GlobalMessageId(ChainName, MessageID);
+
+impl From<GlobalMessageId> for GlobalMessageIdSerde {
+    fn from(other: GlobalMessageId) -> Self {
+        Self {
+            chain_name: other.0,
+            message_id: other.1,
+        }
+    }
+}
+
+impl From<GlobalMessageIdSerde> for GlobalMessageId {
+    fn from(other: GlobalMessageIdSerde) -> Self {
+        Self(other.chain_name, other.message_id)
+    }
+}
+
+impl GlobalMessageId {
+    pub fn new(chain_name: ChainName, message_id: MessageID) -> Self {
+        Self(chain_name, message_id)
+    }
+}
+
+impl Display for GlobalMessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}{}", &self.0, ID_SEPARATOR, &self.1)
+    }
+}
+
+impl PrimaryKey<'_> for GlobalMessageId {
+    type Prefix = ChainName;
+    type SubPrefix = ();
+    type Suffix = MessageID;
+    type SuperSuffix = (ChainName, MessageID);
+
+    fn key(&self) -> Vec<Key> {
+        let mut keys = self.0.key();
+        keys.extend(self.1.key());
+        keys
+    }
+}
+
+impl KeyDeserialize for GlobalMessageId {
+    type Output = Self;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        let (chain, id) = <(ChainName, MessageID)>::from_vec(value)?;
+        Ok(GlobalMessageId(chain, id))
+    }
+}
+
 #[cw_serde]
 #[serde(try_from = "String")]
 pub struct ChainName(String);
@@ -108,8 +171,8 @@ impl TryFrom<String> for ChainName {
     }
 }
 
-impl fmt::Display for ChainName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ChainName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -132,11 +195,14 @@ impl<'a> Prefixer<'a> for ChainName {
 }
 
 impl KeyDeserialize for ChainName {
-    type Output = String;
+    type Output = Self;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        String::from_utf8(value).map_err(StdError::invalid_utf8)
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(ChainName::try_from)
+            .map_err(StdError::invalid_utf8)
     }
 }
 
@@ -231,11 +297,21 @@ mod tests {
 
         assert!(MessageID::from_str("invalid_hash").is_err());
         assert!(serde_json::from_str::<MessageID>("\"invalid_hash\"").is_err());
+
+        assert!(MessageID::from_str("invalid_hash:").is_err());
     }
 
     #[test]
     fn message_id_is_lower_case() {
         let msg_id = "HaSH:iD".parse::<MessageID>().unwrap();
         assert_eq!(msg_id.to_string(), "hash:id");
+    }
+
+    #[test]
+    fn serialize_global_message_id() {
+        let id = GlobalMessageId::new("ethereum".parse().unwrap(), "hash:id".parse().unwrap());
+
+        let serialized = serde_json::to_string(&id).unwrap();
+        assert_eq!(id, serde_json::from_str(&serialized).unwrap());
     }
 }
