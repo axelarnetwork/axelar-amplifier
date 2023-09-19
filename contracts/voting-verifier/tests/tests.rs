@@ -1,7 +1,7 @@
-use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{from_binary, Addr, Uint64};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
+use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::Threshold;
 use connection_router::msg::Message;
 use connection_router::types::{MessageID, ID_SEPARATOR};
@@ -93,8 +93,13 @@ fn should_failed_if_messages_are_not_from_same_source() {
         .execute_contract(Addr::unchecked(SENDER), contract_address, &msg, &[])
         .unwrap_err();
     assert_eq!(
-        ContractError::SourceChainMismatch(SOURCE_CHAIN.parse().unwrap()),
-        err.downcast().unwrap()
+        err.downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::SourceChainMismatch(
+            SOURCE_CHAIN.parse().unwrap()
+        ))
+        .to_string()
     );
 }
 
@@ -505,7 +510,10 @@ fn should_not_confirm_twice() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_err());
     assert_eq!(
-        ContractError::WorkerSetAlreadyConfirmed,
-        res.unwrap_err().downcast().unwrap()
+        res.unwrap_err()
+            .downcast::<axelar_wasm_std::ContractError>()
+            .unwrap()
+            .to_string(),
+        axelar_wasm_std::ContractError::from(ContractError::WorkerSetAlreadyConfirmed).to_string()
     );
 }

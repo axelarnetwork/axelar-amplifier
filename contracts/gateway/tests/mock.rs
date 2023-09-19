@@ -169,6 +169,7 @@ pub fn make_mock_router(app: &mut App) -> Addr {
             Addr::unchecked("router"),
             &connection_router::msg::InstantiateMsg {
                 admin_address: Addr::unchecked("admin").to_string(),
+                governance_address: Addr::unchecked("governance").to_string(),
             },
             &[],
             "Contract",
