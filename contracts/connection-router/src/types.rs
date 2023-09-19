@@ -1,13 +1,15 @@
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
 
-use axelar_wasm_std::flagset::FlagSet;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use flagset::flags;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use axelar_wasm_std::flagset::FlagSet;
 
 use crate::ContractError;
 
@@ -21,7 +23,8 @@ impl FromStr for MessageID {
     type Err = ContractError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !s.contains(ID_SEPARATOR) || s.is_empty() {
+        // todo: should be exactly 1 when migrated to state::NewMessage
+        if s.matches(ID_SEPARATOR).count() < 1 {
             return Err(ContractError::InvalidMessageID);
         }
         Ok(MessageID(s.to_lowercase()))
@@ -41,9 +44,11 @@ impl From<MessageID> for String {
     }
 }
 
-impl<'a> MessageID {
-    pub fn as_str(&'a self) -> &'a str {
-        self.0.as_str()
+impl Deref for MessageID {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -217,5 +222,20 @@ mod tests {
                 .unwrap_err()
                 .to_string()
         );
+    }
+
+    #[test]
+    fn message_id_must_have_at_least_one_separator() {
+        assert!(MessageID::from_str("source_chain:hash:id").is_ok());
+        assert!(serde_json::from_str::<MessageID>("\"source_chain:hash:id\"").is_ok());
+
+        assert!(MessageID::from_str("invalid_hash").is_err());
+        assert!(serde_json::from_str::<MessageID>("\"invalid_hash\"").is_err());
+    }
+
+    #[test]
+    fn message_id_is_lower_case() {
+        let msg_id = "HaSH:iD".parse::<MessageID>().unwrap();
+        assert_eq!(msg_id.to_string(), "hash:id");
     }
 }
