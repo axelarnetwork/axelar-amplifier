@@ -64,12 +64,12 @@ pub fn execute(
 }
 
 pub mod execute {
-
     use std::vec;
 
-    use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::{Addr, WasmMsg};
     use itertools::Itertools;
+
+    use axelar_wasm_std::flagset::FlagSet;
 
     use crate::state::NewMessage;
     use crate::{
@@ -193,8 +193,7 @@ pub mod execute {
 
         let mut wasm_msgs = vec![];
 
-        for (destination_chain, msgs_by_destination) in
-            &msgs.iter().group_by(|msg| msg.destination_chain.clone())
+        for (destination_chain, msgs) in &msgs.iter().group_by(|msg| msg.destination_chain.clone())
         {
             let destination_chain = chain_endpoints()
                 .may_load(deps.storage, destination_chain)?
@@ -208,9 +207,7 @@ pub mod execute {
 
             wasm_msgs.push(WasmMsg::Execute {
                 contract_addr: destination_chain.gateway.address.to_string(),
-                msg: to_binary(&ExecuteMsg::RouteMessages(
-                    msgs_by_destination.cloned().collect(),
-                ))?,
+                msg: to_binary(&ExecuteMsg::RouteMessages(msgs.cloned().collect()))?,
                 funds: vec![],
             });
         }
