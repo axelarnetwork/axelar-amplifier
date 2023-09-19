@@ -1,5 +1,4 @@
 use axelar_wasm_std::operators::Operators;
-use connection_router::types::{ChainName, MessageID};
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
@@ -9,7 +8,7 @@ use axelar_wasm_std::{
     snapshot,
     voting::{Poll, WeightedPoll},
 };
-use connection_router::state::Message;
+use connection_router::state::{ChainName, Message, MessageId};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
@@ -34,7 +33,7 @@ enum VerificationStatus {
 pub fn confirm_worker_set(
     deps: DepsMut,
     env: Env,
-    message_id: MessageID,
+    message_id: MessageId,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
     if CONFIRMED_WORKER_SETS

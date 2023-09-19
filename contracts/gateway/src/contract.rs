@@ -143,7 +143,7 @@ pub mod execute {
                         .into_iter()
                         .map(connection_router::state::NewMessage::try_from)
                         .collect::<Result<Vec<_>, _>>()
-                        .map_err(|_| connection_router::error::ContractError::InvalidMessageID)?, //todo: remove when integrating error stack into the gateway
+                        .map_err(|_| connection_router::error::ContractError::InvalidMessageId)?, //todo: remove when integrating error stack into the gateway
                 ))?,
                 funds: vec![],
             })

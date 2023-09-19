@@ -5,10 +5,8 @@ use axelar_wasm_std::{
     voting::{PollID, PollResult},
     Threshold,
 };
-use connection_router::{
-    msg::Message,
-    types::{ChainName, MessageID},
-};
+use connection_router::msg::Message;
+use connection_router::state::{ChainName, MessageId};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -45,7 +43,7 @@ pub enum ExecuteMsg {
 
     // Starts a poll to confirm a worker set update on the external evm gateway
     ConfirmWorkerSet {
-        message_id: MessageID,
+        message_id: MessageId,
         new_operators: Operators,
     },
 }
