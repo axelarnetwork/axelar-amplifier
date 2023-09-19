@@ -4,7 +4,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::Threshold;
 use connection_router::msg::Message;
-use connection_router::state::MessageId;
+use connection_router::state::{MessageId, ID_SEPARATOR};
 use service_registry::state::Worker;
 use voting_verifier::{contract, error::ContractError, msg};
 

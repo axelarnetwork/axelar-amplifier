@@ -1,5 +1,4 @@
-use connection_router::state::NewMessage;
-use connection_router::types::CrossChainUid;
+use connection_router::state::{CrossChainUid, NewMessage};
 use connection_router::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};

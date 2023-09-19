@@ -8,8 +8,7 @@ use axelar_wasm_std::{
     voting::{PollID, WeightedPoll},
     Threshold,
 };
-use connection_router::types::MessageId;
-use connection_router::{state::Message, types::ChainName};
+use connection_router::state::{ChainName, Message, MessageId};
 
 #[cw_serde]
 pub struct Config {

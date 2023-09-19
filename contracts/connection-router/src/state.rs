@@ -441,7 +441,7 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
 
-    use crate::state::{ChainName, CrossChainUid, MessageId, NewMessage};
+    use crate::state::{ChainName, CrossChainUid, MessageId, NewMessage, ID_SEPARATOR};
     use crate::ContractError;
 
     #[test]

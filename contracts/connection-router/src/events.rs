@@ -1,8 +1,7 @@
 use cosmwasm_std::{Addr, Attribute, Event};
 use std::ops::Deref;
 
-use crate::state::Message;
-use crate::{state::NewMessage, types::ChainName};
+use crate::state::{ChainName, Message, NewMessage};
 
 pub struct RouterInstantiated {
     pub admin: Addr,
