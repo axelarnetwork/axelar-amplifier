@@ -41,11 +41,6 @@ impl Display for LoggableError {
 
 impl Error for LoggableError {}
 
-#[derive(Valuable, PartialEq, Eq, Debug)]
-pub struct LoggableBacktrace {
-    pub lines: Vec<String>,
-}
-
 impl<T> From<&Report<T>> for LoggableError {
     fn from(report: &Report<T>) -> Self {
         let mut errors: Vec<LoggableError> = Vec::new();
@@ -93,6 +88,22 @@ impl<T> From<&Report<T>> for LoggableError {
     }
 }
 
+fn chain_causes(errors: Vec<LoggableError>) -> Option<LoggableError> {
+    errors
+        .into_iter()
+        // the outermost error appears first in the vector, so the iterator for the causal dependency needs to be reversed
+        .rev()
+        .fold(None, |acc: Option<LoggableError>, mut e: LoggableError| {
+            e.cause = acc.map(Box::new);
+            Some(e)
+        })
+}
+
+#[derive(Valuable, PartialEq, Eq, Debug)]
+pub struct LoggableBacktrace {
+    pub lines: Vec<String>,
+}
+
 impl From<&Backtrace> for LoggableBacktrace {
     fn from(backtrace: &Backtrace) -> Self {
         LoggableBacktrace {
@@ -103,17 +114,6 @@ impl From<&Backtrace> for LoggableBacktrace {
                 .collect(),
         }
     }
-}
-
-fn chain_causes(errors: Vec<LoggableError>) -> Option<LoggableError> {
-    errors
-        .into_iter()
-        // the outermost error appears first in the vector, so the iterator for the causal dependency needs to be reversed
-        .rev()
-        .fold(None, |acc: Option<LoggableError>, mut e: LoggableError| {
-            e.cause = acc.map(Box::new);
-            Some(e)
-        })
 }
 
 enum FrameType<'a> {

@@ -13,7 +13,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let governance = deps.api.addr_validate(&msg.governance_address)?;
     CONFIG.save(
@@ -32,7 +32,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::RegisterChain {
             chain,
@@ -63,9 +63,11 @@ pub fn execute(
             info,
             msgs.into_iter()
                 .map(Message::try_from)
-                .collect::<Result<Vec<Message>, _>>()?,
+                .collect::<Result<Vec<Message>, _>>()
+                .map_err(axelar_wasm_std::ContractError::from)?,
         ),
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {

@@ -25,7 +25,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let gateway = deps.api.addr_validate(&msg.gateway_address)?;
     let multisig = deps.api.addr_validate(&msg.multisig_address)?;
@@ -58,20 +58,26 @@ pub fn execute(
     env: Env,
     _info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::UpdateWorkerSet {} => execute::update_worker_set(deps, env),
         ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps),
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> Result<Response, ContractError> {
+pub fn reply(
+    deps: DepsMut,
+    _env: Env,
+    reply: Reply,
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match reply.id {
         START_MULTISIG_REPLY_ID => reply::start_multisig_reply(deps, reply),
         _ => unreachable!("unknown reply ID"),
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -385,8 +391,11 @@ mod tests {
 
         assert!(res.is_err());
         assert_eq!(
-            ContractError::WorkerSetUnchanged,
-            res.unwrap_err().downcast().unwrap()
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap()
+                .to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::WorkerSetUnchanged).to_string()
         );
     }
 
@@ -454,8 +463,11 @@ mod tests {
         let res = confirm_worker_set(&mut test_case);
         assert!(res.is_err());
         assert_eq!(
-            ContractError::WorkerSetNotConfirmed,
-            res.unwrap_err().downcast().unwrap()
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap()
+                .to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::WorkerSetNotConfirmed).to_string()
         );
     }
 
@@ -492,8 +504,11 @@ mod tests {
         let res = confirm_worker_set(&mut test_case);
         assert!(res.is_err());
         assert_eq!(
-            ContractError::WorkerSetNotConfirmed,
-            res.unwrap_err().downcast().unwrap()
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap()
+                .to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::WorkerSetNotConfirmed).to_string()
         );
     }
 

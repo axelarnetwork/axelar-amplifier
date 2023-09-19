@@ -22,7 +22,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     CONFIG.save(
         deps.storage,
         &Config {
@@ -38,7 +38,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::RegisterService {
             service_name,
@@ -107,6 +107,7 @@ pub fn execute(
             execute::claim_stake(deps, env, info, service_name)
         }
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {
