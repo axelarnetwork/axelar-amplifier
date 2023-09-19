@@ -81,20 +81,20 @@ impl KeyDeserialize for MessageID {
     }
 }
 
-/// cosmwasm cannot serialize tuples, so we need to convert [GlobalMessageId] into a struct
+/// cosmwasm cannot serialize tuples, so we need to convert [CrossChainUid] into a struct
 #[cw_serde]
-pub struct GlobalMessageId {
+pub struct CrossChainUid {
     pub chain: ChainName,
-    pub message_id: MessageID,
+    pub uid: MessageID,
 }
 
-impl Display for GlobalMessageId {
+impl Display for CrossChainUid {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.message_id)
+        write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.ChainUid)
     }
 }
 
-impl PrimaryKey<'_> for GlobalMessageId {
+impl PrimaryKey<'_> for CrossChainUid {
     type Prefix = ChainName;
     type SubPrefix = ();
     type Suffix = MessageID;
@@ -102,17 +102,17 @@ impl PrimaryKey<'_> for GlobalMessageId {
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
-        keys.extend(self.message_id.key());
+        keys.extend(self.ChainUid.key());
         keys
     }
 }
 
-impl KeyDeserialize for GlobalMessageId {
+impl KeyDeserialize for CrossChainUid {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, message_id) = <(ChainName, MessageID)>::from_vec(value)?;
-        Ok(GlobalMessageId { chain, message_id })
+        let (chain, uid) = <(ChainName, MessageID)>::from_vec(value)?;
+        Ok(CrossChainUid { chain, uid })
     }
 }
 
@@ -284,9 +284,9 @@ mod tests {
 
     #[test]
     fn serialize_global_message_id() {
-        let id = GlobalMessageId {
+        let id = CrossChainUid {
             chain: "ethereum".parse().unwrap(),
-            message_id: "hash:id".parse().unwrap(),
+            uid: "hash:id".parse().unwrap(),
         };
 
         let serialized = serde_json::to_string(&id).unwrap();

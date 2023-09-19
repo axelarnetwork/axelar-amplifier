@@ -1,12 +1,12 @@
 use connection_router::state::NewMessage;
-use connection_router::types::GlobalMessageId;
+use connection_router::types::CrossChainUid;
 use connection_router::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 
-const MOCK_GATEWAY_MESSAGES: Map<GlobalMessageId, NewMessage> = Map::new("gateway_messages");
+const MOCK_GATEWAY_MESSAGES: Map<CrossChainUid, NewMessage> = Map::new("gateway_messages");
 
 #[cw_serde]
 pub enum MockGatewayExecuteMsg {
@@ -31,7 +31,7 @@ pub fn mock_gateway_execute(
 
 #[cw_serde]
 pub enum MockGatewayQueryMsg {
-    GetMessages { ids: Vec<GlobalMessageId> },
+    GetMessages { ids: Vec<CrossChainUid> },
 }
 pub fn mock_gateway_query(deps: Deps, _env: Env, msg: MockGatewayQueryMsg) -> StdResult<Binary> {
     let mut msgs = vec![];

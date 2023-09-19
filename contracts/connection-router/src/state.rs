@@ -11,7 +11,7 @@ use error_stack::{bail, Report, ResultExt};
 
 use axelar_wasm_std::nonempty;
 
-use crate::types::GlobalMessageId;
+use crate::types::CrossChainUid;
 use crate::{
     msg,
     types::{ChainEndpoint, ChainName, MessageID, ID_SEPARATOR},
@@ -84,7 +84,7 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 
 #[cw_serde]
 pub struct NewMessage {
-    pub id: GlobalMessageId,
+    pub id: CrossChainUid,
     pub destination_address: Address,
     pub destination_chain: ChainName,
     pub source_address: Address,
@@ -122,8 +122,8 @@ impl TryFrom<Message> for NewMessage {
         }
 
         Ok(NewMessage {
-            id: GlobalMessageId {
-                message_id: id.parse()?,
+            id: CrossChainUid {
+                uid: id.parse()?,
                 chain: msg.source_chain,
             },
             destination_address: msg.destination_address.parse()?,
@@ -243,7 +243,7 @@ impl TryFrom<String> for Address {
 #[cfg(test)]
 mod tests {
     use crate::state::NewMessage;
-    use crate::types::GlobalMessageId;
+    use crate::types::CrossChainUid;
     use cosmwasm_std::to_vec;
     use hex;
     use sha3::{Digest, Sha3_256};
@@ -272,8 +272,8 @@ mod tests {
 
     fn dummy_message() -> NewMessage {
         NewMessage {
-            id: GlobalMessageId {
-                message_id: "hash:index".parse().unwrap(),
+            id: CrossChainUid {
+                uid: "hash:index".parse().unwrap(),
                 chain: "chain".parse().unwrap(),
             },
             source_address: "source_address".parse().unwrap(),

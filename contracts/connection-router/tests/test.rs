@@ -8,7 +8,7 @@ use connection_router::contract::*;
 use connection_router::error::ContractError;
 use connection_router::msg::{ExecuteMsg, InstantiateMsg};
 use connection_router::state::NewMessage;
-use connection_router::types::{ChainName, GatewayDirection, GlobalMessageId};
+use connection_router::types::{ChainName, CrossChainUid, GatewayDirection};
 
 pub mod mock;
 
@@ -86,8 +86,8 @@ fn generate_messages(
         *nonce = *nonce + 1;
         let id = format!("tx_id:{}", nonce);
         msgs.push(NewMessage {
-            id: GlobalMessageId {
-                message_id: id.parse().unwrap(),
+            id: CrossChainUid {
+                uid: id.parse().unwrap(),
                 chain: src_chain.chain_name.clone(),
             },
             destination_address: "idc".parse().unwrap(),
