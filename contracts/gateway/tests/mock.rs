@@ -109,7 +109,7 @@ pub fn mock_router_execute(
     match msg {
         connection_router::msg::ExecuteMsg::RouteMessages(msgs) => {
             for msg in msgs {
-                let msg: connection_router::state::Message = msg.try_into()?;
+                let msg = connection_router::state::Message::try_from(msg)?;
                 MOCK_ROUTER_MESSAGES.save(deps.storage, msg.id.to_string(), &msg)?;
             }
         }
