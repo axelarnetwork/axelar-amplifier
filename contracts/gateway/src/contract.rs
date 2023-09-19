@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
-use error_stack::Report;
+use error_stack::Report; //this is here to test the linting changes
 
 use crate::{
     error::ContractError,
