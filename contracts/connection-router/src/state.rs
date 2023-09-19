@@ -85,10 +85,10 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 #[cw_serde]
 pub struct NewMessage {
     pub id_on_chain: MessageID, // unique per chain
-    pub destination_address: ContractAddress,
+    pub destination_address: Address,
     pub destination_chain: ChainName,
     pub source_chain: ChainName,
-    pub source_address: ContractAddress,
+    pub source_address: Address,
     pub payload_hash: HexBinary,
 }
 
@@ -216,9 +216,9 @@ impl From<Message> for msg::Message {
 }
 
 #[cw_serde]
-pub struct ContractAddress(nonempty::String);
+pub struct Address(nonempty::String);
 
-impl Deref for ContractAddress {
+impl Deref for Address {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
@@ -226,19 +226,19 @@ impl Deref for ContractAddress {
     }
 }
 
-impl FromStr for ContractAddress {
+impl FromStr for Address {
     type Err = Report<ContractError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ContractAddress::try_from(s.to_string())
+        Address::try_from(s.to_string())
     }
 }
 
-impl TryFrom<String> for ContractAddress {
+impl TryFrom<String> for Address {
     type Error = Report<ContractError>;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(ContractAddress(
+        Ok(Address(
             value
                 .parse::<nonempty::String>()
                 .change_context(ContractError::InvalidAddress)?,
