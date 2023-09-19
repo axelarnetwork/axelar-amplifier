@@ -103,7 +103,7 @@ pub struct WorkerSetConfirmation {
 
 impl WorkerSetConfirmation {
     pub fn new(message_id: MessageId, operators: Operators) -> Result<Self, ContractError> {
-        let (tx_id, event_index) = parse_message_id(&message_id)?;
+       let (tx_id, event_index) = parse_message_id(&message_id)?;
         Ok(Self {
             tx_id,
             event_index,
