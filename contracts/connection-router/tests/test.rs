@@ -262,10 +262,7 @@ fn invalid_address() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::InvalidAddress("".to_string()),
-        res.downcast().unwrap()
-    );
+    assert_eq!(ContractError::InvalidAddress, res.downcast().unwrap());
 
     let res = config
         .app
@@ -279,10 +276,7 @@ fn invalid_address() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        ContractError::InvalidAddress("".to_string()),
-        res.downcast().unwrap()
-    );
+    assert_eq!(ContractError::InvalidAddress, res.downcast().unwrap());
 }
 
 #[test]

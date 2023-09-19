@@ -6,6 +6,7 @@ use crate::types::GatewayDirection;
 // Message is a type meant to be used in interfaces where the data can be provided by the user.
 // The fields have not necessarily been validated, and should be checked prior to further processing.
 #[cw_serde]
+#[deprecated(note = "use NewMessage instead")]
 pub struct Message {
     pub id: String, // should be globally unique
     pub source_address: String,
