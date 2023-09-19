@@ -36,7 +36,7 @@ pub struct PollMetadata {
 
 pub enum PollStarted {
     Messages {
-        messages: Vec<CrossChainMessage>,
+        messages: Vec<MessageByTxEvent>,
         metadata: PollMetadata,
     },
     WorkerSet {
@@ -114,7 +114,7 @@ impl WorkerSetConfirmation {
 }
 
 #[cw_serde]
-pub struct CrossChainMessage {
+pub struct MessageByTxEvent {
     pub tx_id: String,
     pub event_index: u64,
     pub destination_address: String,
@@ -123,13 +123,13 @@ pub struct CrossChainMessage {
     pub payload_hash: HexBinary,
 }
 
-impl TryFrom<Message> for CrossChainMessage {
+impl TryFrom<Message> for MessageByTxEvent {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
         let (tx_id, event_index) = parse_message_id(&other.id)?;
 
-        Ok(CrossChainMessage {
+        Ok(MessageByTxEvent {
             tx_id,
             event_index,
             destination_address: other.destination_address,
@@ -140,7 +140,7 @@ impl TryFrom<Message> for CrossChainMessage {
     }
 }
 
-impl FromStr for CrossChainMessage {
+impl FromStr for MessageByTxEvent {
     type Err = serde_json::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
