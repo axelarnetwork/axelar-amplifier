@@ -42,7 +42,6 @@ pub fn execute(
                 .collect::<Result<Vec<Message>, _>>()?;
             verify_messages(deps, msgs)
         }
-
         ExecuteMsg::RouteMessages(messages) => {
             let msgs = messages
                 .into_iter()
@@ -142,8 +141,9 @@ pub mod execute {
                     verified
                         .clone()
                         .into_iter()
-                        .map(connection_router::msg::Message::from)
-                        .collect(),
+                        .map(connection_router::state::NewMessage::try_from)
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| connection_router::error::ContractError::InvalidMessageID)?, //todo: remove when integrating error stack into the gateway
                 ))?,
                 funds: vec![],
             })
