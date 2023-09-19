@@ -296,13 +296,27 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
+ "error-stack",
  "flagset",
  "num-traits",
  "rand",
+ "report",
  "schemars",
  "serde",
  "serde_json",
  "sha3",
+ "thiserror",
+]
+
+[[package]]
+name = "axelar-wasm-std-derive"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "error-stack",
+ "quote",
+ "report",
+ "syn 2.0.29",
  "thiserror",
 ]
 
