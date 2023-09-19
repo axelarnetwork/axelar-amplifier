@@ -271,6 +271,23 @@ mod tests {
     }
 
     #[test]
+    fn create_correct_global_message_id() {
+        let msg = NewMessage {
+            id_on_chain: "hash:id".to_string().parse().unwrap(),
+            source_chain: "source_chain".to_string().parse().unwrap(),
+            source_address: "source_address".parse().unwrap(),
+            destination_chain: "destination_chain".parse().unwrap(),
+            destination_address: "destination_address".parse().unwrap(),
+            payload_hash: [1; 32].into(),
+        };
+
+        assert_eq!(
+            msg.global_id().to_string(),
+            "source_chain:hash:id".to_string()
+        );
+    }
+
+    #[test]
     // Any modifications to the Message struct fields or their types
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
