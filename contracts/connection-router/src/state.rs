@@ -329,7 +329,7 @@ impl PrimaryKey<'_> for CrossChainUid {
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
-        keys.extend(self.ChainUid.key());
+        keys.extend(self.id.key());
         keys
     }
 }
