@@ -291,7 +291,7 @@ mod tests {
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
-        test::common::test_data,
+        test::common::ecdsa_test_data,
         test::common::{build_snapshot, TestSigner},
         types::MultisigState,
     };
@@ -321,7 +321,7 @@ mod tests {
         let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
-        let signers = test_data::signers();
+        let signers = ecdsa_test_data::signers();
         let pub_keys = signers
             .iter()
             .map(|signer| {
@@ -380,7 +380,7 @@ mod tests {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
-        let message = test_data::message();
+        let message = ecdsa_test_data::message();
         let msg = ExecuteMsg::StartSigningSession {
             key_id: "key".to_string(),
             msg: message.clone(),
@@ -510,7 +510,7 @@ mod tests {
             subkey: "key".to_string(),
         };
         let key = get_key(deps.as_ref().storage, &key_id).unwrap();
-        let message = test_data::message();
+        let message = ecdsa_test_data::message();
 
         assert_eq!(session.id, Uint64::one());
         assert_eq!(session.key_id, key.id);
@@ -563,7 +563,7 @@ mod tests {
     fn test_submit_signature() {
         let mut deps = setup_with_session_started();
 
-        let signers = test_data::signers();
+        let signers = ecdsa_test_data::signers();
 
         let session_id = Uint64::one();
         let signer = signers.get(0).unwrap().to_owned();
@@ -606,7 +606,7 @@ mod tests {
     fn test_submit_signature_completed() {
         let mut deps = setup_with_session_started();
 
-        let signers = test_data::signers();
+        let signers = ecdsa_test_data::signers();
 
         let session_id = Uint64::one();
         let signer = signers.get(0).unwrap().to_owned();
@@ -646,7 +646,7 @@ mod tests {
         let mut deps = setup_with_session_started();
 
         let invalid_session_id = Uint64::zero();
-        let signer = test_data::signers().get(0).unwrap().to_owned();
+        let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
         let res = do_sign(deps.as_mut(), invalid_session_id, &signer);
 
         assert_eq!(
@@ -663,7 +663,7 @@ mod tests {
         let mut deps = setup_with_session_started();
 
         let session_id = Uint64::one();
-        let signer = test_data::signers().get(0).unwrap().to_owned();
+        let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
         do_sign(deps.as_mut(), session_id, &signer).unwrap();
 
         let msg = QueryMsg::GetMultisig { session_id };
@@ -698,7 +698,7 @@ mod tests {
     fn test_register_key() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        let signers = test_data::signers();
+        let signers = ecdsa_test_data::signers();
         let pub_keys = signers
             .iter()
             .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
@@ -732,7 +732,7 @@ mod tests {
     fn test_update_key() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        let signers = test_data::signers();
+        let signers = ecdsa_test_data::signers();
         let pub_keys = signers
             .iter()
             .map(|signer| (signer.address.clone(), signer.pub_key.clone()))

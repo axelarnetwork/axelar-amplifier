@@ -95,7 +95,7 @@ impl TryFrom<HexBinary> for MsgToSign {
 mod tests {
     use cosmwasm_std::to_binary;
 
-    use crate::test::common::test_data;
+    use crate::test::common::ecdsa_test_data;
 
     use super::*;
 
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_try_from_hexbinary_to_message() {
-        let hex = test_data::message();
+        let hex = ecdsa_test_data::message();
         let message = MsgToSign::try_from(hex.clone()).unwrap();
         assert_eq!(HexBinary::from(message), hex);
     }
