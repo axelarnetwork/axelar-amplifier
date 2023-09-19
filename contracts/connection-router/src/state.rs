@@ -1,8 +1,15 @@
+#![allow(deprecated)]
+
 use core::panic;
+use std::ops::Deref;
+use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
+use error_stack::{Report, ResultExt};
+
+use axelar_wasm_std::nonempty;
 
 use crate::{
     msg,
@@ -77,6 +84,30 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 // Message represents a message for which the fields have been successfully validated.
 // This should never be supplied by the user.
 #[cw_serde]
+pub struct NewMessage {
+    pub id_on_chain: MessageID, // globally unique
+    pub destination_address: Address,
+    pub destination_chain: ChainName,
+    pub source_chain: ChainName,
+    pub source_address: Address,
+    pub payload_hash: HexBinary,
+}
+
+impl NewMessage {
+    pub fn global_id(&self) -> MessageID {
+        format!(
+            "{}{}{}",
+            &self.source_chain, ID_SEPARATOR, &self.id_on_chain
+        )
+        .try_into()
+        .expect("a valid source chain and valid id should always produce a valid global message id")
+    }
+}
+
+// Message represents a message for which the fields have been successfully validated.
+// This should never be supplied by the user.
+#[cw_serde]
+#[deprecated(note = "use NewMessage instead")]
 pub struct Message {
     pub id: MessageID, // globally unique
     pub destination_address: String,
@@ -110,11 +141,11 @@ impl TryFrom<msg::Message> for Message {
     type Error = ContractError;
     fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
         if value.destination_address.is_empty() {
-            return Err(ContractError::InvalidAddress(value.destination_address));
+            return Err(ContractError::InvalidAddress);
         }
 
         if value.source_address.is_empty() {
-            return Err(ContractError::InvalidAddress(value.source_address));
+            return Err(ContractError::InvalidAddress);
         }
 
         if !value
@@ -148,13 +179,62 @@ impl From<Message> for msg::Message {
     }
 }
 
+#[cw_serde]
+pub struct Address(nonempty::String);
+
+impl Deref for Address {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl FromStr for Address {
+    type Err = Report<ContractError>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Address::try_from(s.to_string())
+    }
+}
+
+impl TryFrom<String> for Address {
+    type Error = Report<ContractError>;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(Address(
+            value
+                .parse::<nonempty::String>()
+                .change_context(ContractError::InvalidAddress)?,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::state::NewMessage;
     use cosmwasm_std::to_vec;
     use hex;
     use sha3::{Digest, Sha3_256};
 
     use super::Message;
+
+    #[test]
+    fn create_correct_global_message_id() {
+        let msg = NewMessage {
+            id_on_chain: "hash:id".to_string().parse().unwrap(),
+            source_chain: "source_chain".to_string().parse().unwrap(),
+            source_address: "source_address".parse().unwrap(),
+            destination_chain: "destination_chain".parse().unwrap(),
+            destination_address: "destination_address".parse().unwrap(),
+            payload_hash: [1; 32].into(),
+        };
+
+        assert_eq!(
+            msg.global_id().to_string(),
+            "source_chain:hash:id".to_string()
+        );
+    }
 
     #[test]
     // Any modifications to the Message struct fields or their types

@@ -288,12 +288,12 @@ fn invalid_address() {
             &[],
         )
         .unwrap_err();
+
     assert_eq!(
         res.downcast::<axelar_wasm_std::ContractError>()
             .unwrap()
             .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress("".to_string()))
-            .to_string()
+        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress).to_string()
     );
 
     let res = config
@@ -308,12 +308,12 @@ fn invalid_address() {
             &[],
         )
         .unwrap_err();
+
     assert_eq!(
         res.downcast::<axelar_wasm_std::ContractError>()
             .unwrap()
             .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress("".to_string()))
-            .to_string()
+        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress).to_string()
     );
 }
 

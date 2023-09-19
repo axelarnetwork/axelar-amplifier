@@ -33,8 +33,8 @@ pub enum ContractError {
     #[error("chain is frozen")]
     ChainFrozen { chain: ChainName },
 
-    #[error("address of {0} is invalid")]
-    InvalidAddress(String),
+    #[error("address is invalid")]
+    InvalidAddress,
 
     #[error("source chain does not match registered gateway")]
     WrongSourceChain,
