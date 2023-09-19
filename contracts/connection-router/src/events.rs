@@ -132,7 +132,7 @@ pub fn make_message_event_new(event_name: &str, msg: NewMessage) -> Event {
     Event::new(event_name).add_attributes(attrs)
 }
 
-#[deprecated(note = "use make_message_event instead")]
+#[deprecated(note = "use make_message_event_new instead")]
 pub fn make_message_event(event_name: &str, msg: Message) -> Event {
     let attrs: Vec<Attribute> = msg.into();
     Event::new(event_name).add_attributes(attrs)
