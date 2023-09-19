@@ -15,7 +15,7 @@ use service_registry::state::Worker;
 
 use crate::error::ContractError;
 use crate::events::{
-    EvmMessage, PollEnded, PollMetadata, PollStarted, Voted, WorkerSetConfirmation,
+    MessageByTxEvent, PollEnded, PollMetadata, PollStarted, Voted, WorkerSetConfirmation,
 };
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
@@ -130,7 +130,7 @@ pub fn verify_messages(
     let evm_messages = pending_messages
         .into_iter()
         .map(TryInto::try_into)
-        .collect::<Result<Vec<EvmMessage>, _>>()?;
+        .collect::<Result<Vec<MessageByTxEvent>, _>>()?;
 
     Ok(response.add_event(
         PollStarted::Messages {

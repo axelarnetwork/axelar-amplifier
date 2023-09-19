@@ -36,7 +36,7 @@ pub struct PollMetadata {
 
 pub enum PollStarted {
     Messages {
-        messages: Vec<EvmMessage>,
+        messages: Vec<MessageByTxEvent>,
         metadata: PollMetadata,
     },
     WorkerSet {
@@ -98,40 +98,40 @@ impl From<PollStarted> for Event {
 #[cw_serde]
 pub struct WorkerSetConfirmation {
     pub tx_id: String,
-    pub log_index: u64,
+    pub event_index: u64,
     pub operators: Operators,
 }
 
 impl WorkerSetConfirmation {
     pub fn new(message_id: MessageID, operators: Operators) -> Result<Self, ContractError> {
-        let (tx_id, log_index) = parse_message_id(&message_id)?;
+        let (tx_id, event_index) = parse_message_id(&message_id)?;
         Ok(Self {
             tx_id,
-            log_index,
+            event_index,
             operators,
         })
     }
 }
 
 #[cw_serde]
-pub struct EvmMessage {
+pub struct MessageByTxEvent {
     pub tx_id: String,
-    pub log_index: u64,
+    pub event_index: u64,
     pub destination_address: String,
     pub destination_chain: ChainName,
     pub source_address: String,
     pub payload_hash: HexBinary,
 }
 
-impl TryFrom<Message> for EvmMessage {
+impl TryFrom<Message> for MessageByTxEvent {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, log_index) = parse_message_id(&other.id)?;
+        let (tx_id, event_index) = parse_message_id(&other.id)?;
 
-        Ok(EvmMessage {
+        Ok(MessageByTxEvent {
             tx_id,
-            log_index,
+            event_index,
             destination_address: other.destination_address,
             destination_chain: other.destination_chain,
             source_address: other.source_address,
@@ -140,7 +140,7 @@ impl TryFrom<Message> for EvmMessage {
     }
 }
 
-impl FromStr for EvmMessage {
+impl FromStr for MessageByTxEvent {
     type Err = serde_json::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
