@@ -1,7 +1,8 @@
+use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{StdError, Uint64};
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
