@@ -136,8 +136,8 @@ fn parse_config(
 
 fn expand_home_dir(path: impl AsRef<Path>) -> PathBuf {
     let path = path.as_ref();
-    let Ok(home_subfolder) = path.strip_prefix("~") else{
-        return path.to_path_buf()
+    let Ok(home_subfolder) = path.strip_prefix("~") else {
+        return path.to_path_buf();
     };
 
     dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))
