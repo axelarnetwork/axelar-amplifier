@@ -25,7 +25,6 @@ secp256k1 = []
 # use this feature to enable ed25519 for signature verification
 ed25519 = []
 
-
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
