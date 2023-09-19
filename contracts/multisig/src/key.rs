@@ -304,7 +304,8 @@ mod ecdsa_tests {
 
     #[test]
     fn test_verify_signature() {
-        let signature = Signature::try_from((KeyType::Ecdsa, ecdsa_test_data::signature())).unwrap();
+        let signature =
+            Signature::try_from((KeyType::Ecdsa, ecdsa_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
@@ -332,7 +333,8 @@ mod ecdsa_tests {
         )
         .unwrap();
 
-        let signature = Signature::try_from((KeyType::Ecdsa, ecdsa_test_data::signature())).unwrap();
+        let signature =
+            Signature::try_from((KeyType::Ecdsa, ecdsa_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
@@ -412,9 +414,11 @@ mod ed25519_tests {
 
     #[test]
     fn test_verify_signature() {
-        let signature = Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
+        let signature =
+            Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
-        let public_key = PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
+        let public_key =
+            PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, true);
     }
@@ -428,7 +432,8 @@ mod ed25519_tests {
 
         let signature = Signature::try_from((KeyType::Ed25519, invalid_signature)).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
-        let public_key = PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
+        let public_key =
+            PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);
     }
@@ -439,7 +444,8 @@ mod ed25519_tests {
             HexBinary::from_hex("ffff8a3c50c8381541b682f4941ef7df351376f60e3fa0296f48f0f767a4f321")
                 .unwrap();
 
-        let signature = Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
+        let signature =
+            Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ed25519, invalid_pub_key)).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();

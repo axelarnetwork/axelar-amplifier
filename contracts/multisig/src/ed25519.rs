@@ -1,4 +1,3 @@
-
 // TODO: Logic specific to secp256k1 will most likely be handled by core in the future.
 use crate::ContractError;
 
