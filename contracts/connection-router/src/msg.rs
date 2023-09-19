@@ -1,3 +1,4 @@
+use crate::state::NewMessage;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
 
@@ -62,7 +63,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
-    RouteMessages(Vec<Message>),
+    RouteMessages(Vec<NewMessage>),
 }
 
 #[cw_serde]

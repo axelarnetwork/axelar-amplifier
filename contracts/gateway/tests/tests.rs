@@ -95,7 +95,10 @@ fn generate_messages(count: usize) -> Vec<connection_router::state::Message> {
     let mut msgs = vec![];
     for x in 0..count {
         let src_chain = "mock-chain";
-        let id = format!("{}{}{}", src_chain, ID_SEPARATOR, x);
+        let id = format!(
+            "{}{}{}{}{}",
+            src_chain, ID_SEPARATOR, "hash", ID_SEPARATOR, x
+        );
         msgs.push(connection_router::state::Message::new(
             id.parse().unwrap(),
             "idc".into(),

@@ -7,8 +7,8 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use connection_router::contract::*;
 use connection_router::error::ContractError;
 use connection_router::msg::{ExecuteMsg, InstantiateMsg};
-use connection_router::types::{ChainName, GatewayDirection, ID_SEPARATOR};
-use connection_router::{self, msg};
+use connection_router::state::NewMessage;
+use connection_router::types::{ChainName, GatewayDirection};
 
 pub mod mock;
 
@@ -80,22 +80,17 @@ fn generate_messages(
     dest_chain: &Chain,
     nonce: &mut usize,
     count: usize,
-) -> Vec<msg::Message> {
+) -> Vec<NewMessage> {
     let mut msgs = vec![];
     for x in 0..count {
         *nonce = *nonce + 1;
-        let id = format!(
-            "{}{}id-{}",
-            src_chain.chain_name.to_string(),
-            ID_SEPARATOR,
-            nonce
-        );
-        msgs.push(msg::Message {
-            id: id.parse().unwrap(),
-            destination_address: String::from("idc"),
-            destination_chain: dest_chain.chain_name.to_string(),
-            source_chain: src_chain.chain_name.to_string(),
-            source_address: String::from("idc"),
+        let id = format!("tx_id:{}", nonce);
+        msgs.push(NewMessage {
+            id_on_chain: id.parse().unwrap(),
+            destination_address: "idc".parse().unwrap(),
+            destination_chain: dest_chain.chain_name.clone(),
+            source_chain: src_chain.chain_name.clone(),
+            source_address: "idc".parse().unwrap(),
             payload_hash: HexBinary::from(vec![x as u8; 256]),
         })
     }
@@ -129,6 +124,16 @@ fn route() {
 
     assert_eq!(msgs.len(), msgs_ret.len());
     assert_eq!(msgs, msgs_ret);
+
+    // try to route twice
+    let res = config.app.execute_contract(
+        eth.gateway.clone(),
+        config.contract_address.clone(),
+        &ExecuteMsg::RouteMessages(msgs.clone()),
+        &[],
+    );
+
+    assert!(res.is_ok());
 }
 
 #[test]
@@ -138,182 +143,22 @@ fn route_non_existing_chain() {
     let polygon = make_chain("polygon", &mut config);
 
     register_chain(&mut config, &eth);
-    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+    let polygon_msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
     let res = config
         .app
         .execute_contract(
             eth.gateway.clone(),
             config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg.clone()]),
+            &ExecuteMsg::RouteMessages(vec![polygon_msg.clone()]),
             &[],
         )
         .unwrap_err();
+
     assert_eq!(
         res.downcast::<axelar_wasm_std::ContractError>()
             .unwrap()
             .to_string(),
         axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
-    );
-}
-
-#[test]
-fn message_id() {
-    let mut config = setup();
-    let eth = make_chain("ethereum", &mut config);
-    let polygon = make_chain("polygon", &mut config);
-
-    register_chain(&mut config, &eth);
-    register_chain(&mut config, &polygon);
-
-    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
-    // try to route same message twice
-    let res = config.app.execute_contract(
-        eth.gateway.clone(),
-        config.contract_address.clone(),
-        &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-        &[],
-    );
-
-    assert!(res.is_ok());
-
-    let res = config.app.execute_contract(
-        eth.gateway.clone(),
-        config.contract_address.clone(),
-        &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-        &[],
-    );
-
-    assert!(res.is_ok());
-
-    // msg id uses wrong source chain
-    let res = config
-        .app
-        .execute_contract(
-            polygon.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg::Message {
-                source_chain: polygon.chain_name.to_string(),
-                ..msg.clone()
-            }]),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
-    );
-
-    // don't prepend source chain
-    let bad_id = msg.id.split(&msg.source_chain).collect::<Vec<&str>>()[0];
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg::Message {
-                id: bad_id.to_string(),
-                ..msg.clone()
-            }]),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
-    );
-
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg::Message {
-                id: "bad:".to_string(),
-                ..msg.clone()
-            }]),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
-    );
-
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg::Message {
-                id: "".to_string(),
-                ..msg.clone()
-            }]),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidMessageID).to_string()
-    );
-}
-
-#[test]
-fn invalid_address() {
-    let mut config = setup();
-    let eth = make_chain("ethereum", &mut config);
-    let polygon = make_chain("polygon", &mut config);
-
-    register_chain(&mut config, &eth);
-    register_chain(&mut config, &polygon);
-
-    let msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
-
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg::Message {
-                destination_address: "".to_string(),
-                ..msg.clone()
-            }]),
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress).to_string()
-    );
-
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg::Message {
-                source_address: "".to_string(),
-                ..msg.clone()
-            }]),
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::InvalidAddress).to_string()
     );
 }
 
