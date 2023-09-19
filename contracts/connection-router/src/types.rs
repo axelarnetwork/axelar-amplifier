@@ -55,8 +55,8 @@ impl Deref for MessageID {
     }
 }
 
-impl fmt::Display for MessageID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for MessageID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -83,39 +83,14 @@ impl KeyDeserialize for MessageID {
 
 /// cosmwasm cannot serialize tuples, so we need to convert [GlobalMessageId] into a struct
 #[cw_serde]
-struct GlobalMessageIdSerde {
-    chain_name: ChainName,
-    message_id: MessageID,
-}
-
-#[cw_serde]
-#[serde(from = "GlobalMessageIdSerde", into = "GlobalMessageIdSerde")]
-pub struct GlobalMessageId(ChainName, MessageID);
-
-impl From<GlobalMessageId> for GlobalMessageIdSerde {
-    fn from(other: GlobalMessageId) -> Self {
-        Self {
-            chain_name: other.0,
-            message_id: other.1,
-        }
-    }
-}
-
-impl From<GlobalMessageIdSerde> for GlobalMessageId {
-    fn from(other: GlobalMessageIdSerde) -> Self {
-        Self(other.chain_name, other.message_id)
-    }
-}
-
-impl GlobalMessageId {
-    pub fn new(chain_name: ChainName, message_id: MessageID) -> Self {
-        Self(chain_name, message_id)
-    }
+pub struct GlobalMessageId {
+    pub chain: ChainName,
+    pub message_id: MessageID,
 }
 
 impl Display for GlobalMessageId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", &self.0, ID_SEPARATOR, &self.1)
+        write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.message_id)
     }
 }
 
@@ -126,8 +101,8 @@ impl PrimaryKey<'_> for GlobalMessageId {
     type SuperSuffix = (ChainName, MessageID);
 
     fn key(&self) -> Vec<Key> {
-        let mut keys = self.0.key();
-        keys.extend(self.1.key());
+        let mut keys = self.chain.key();
+        keys.extend(self.message_id.key());
         keys
     }
 }
@@ -136,8 +111,8 @@ impl KeyDeserialize for GlobalMessageId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(ChainName, MessageID)>::from_vec(value)?;
-        Ok(GlobalMessageId(chain, id))
+        let (chain, message_id) = <(ChainName, MessageID)>::from_vec(value)?;
+        Ok(GlobalMessageId { chain, message_id })
     }
 }
 
@@ -309,7 +284,10 @@ mod tests {
 
     #[test]
     fn serialize_global_message_id() {
-        let id = GlobalMessageId::new("ethereum".parse().unwrap(), "hash:id".parse().unwrap());
+        let id = GlobalMessageId {
+            chain: "ethereum".parse().unwrap(),
+            message_id: "hash:id".parse().unwrap(),
+        };
 
         let serialized = serde_json::to_string(&id).unwrap();
         assert_eq!(id, serde_json::from_str(&serialized).unwrap());

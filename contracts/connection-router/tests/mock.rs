@@ -22,7 +22,7 @@ pub fn mock_gateway_execute(
     match msg {
         MockGatewayExecuteMsg::RouteMessages(messages) => {
             for m in messages {
-                MOCK_GATEWAY_MESSAGES.save(deps.storage, m.global_id(), &m)?;
+                MOCK_GATEWAY_MESSAGES.save(deps.storage, m.id.clone(), &m)?;
             }
             Ok(Response::new())
         }
@@ -58,7 +58,7 @@ pub fn get_gateway_messages(
         .query_wasm_smart(
             gateway_address,
             &MockGatewayQueryMsg::GetMessages {
-                ids: msgs.iter().map(|m| m.global_id()).collect(),
+                ids: msgs.iter().map(|m| m.id.clone()).collect(),
             },
         )
         .unwrap()
