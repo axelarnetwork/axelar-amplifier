@@ -98,16 +98,16 @@ impl From<PollStarted> for Event {
 #[cw_serde]
 pub struct WorkerSetConfirmation {
     pub tx_id: String,
-    pub log_index: u64,
+    pub event_index: u64,
     pub operators: Operators,
 }
 
 impl WorkerSetConfirmation {
     pub fn new(message_id: MessageID, operators: Operators) -> Result<Self, ContractError> {
-        let (tx_id, log_index) = parse_message_id(&message_id)?;
+        let (tx_id, event_index) = parse_message_id(&message_id)?;
         Ok(Self {
             tx_id,
-            log_index,
+            event_index,
             operators,
         })
     }
@@ -116,7 +116,7 @@ impl WorkerSetConfirmation {
 #[cw_serde]
 pub struct CrossChainMessage {
     pub tx_id: String,
-    pub log_index: u64,
+    pub event_index: u64,
     pub destination_address: String,
     pub destination_chain: ChainName,
     pub source_address: String,
@@ -127,11 +127,11 @@ impl TryFrom<Message> for CrossChainMessage {
     type Error = ContractError;
 
     fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, log_index) = parse_message_id(&other.id)?;
+        let (tx_id, event_index) = parse_message_id(&other.id)?;
 
         Ok(CrossChainMessage {
             tx_id,
-            log_index,
+            event_index,
             destination_address: other.destination_address,
             destination_chain: other.destination_chain,
             source_address: other.source_address,

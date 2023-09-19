@@ -30,7 +30,7 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: Hash,
-    pub log_index: u64,
+    pub event_index: u64,
     pub destination_address: String,
     pub destination_chain: connection_router::types::ChainName,
     pub source_address: EVMAddress,
@@ -182,7 +182,7 @@ where
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
-            .map(|message| format!("0x{:x}{}{}", message.tx_id, ID_SEPARATOR, message.log_index))
+            .map(|message| format!("0x{:x}{}{}", message.tx_id, ID_SEPARATOR, message.event_index))
             .collect::<Vec<_>>();
         let votes = info_span!(
             "verify messages from an EVM chain",
@@ -257,7 +257,7 @@ mod tests {
             messages: vec![
                 CrossChainMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
-                    log_index: 0,
+                    event_index: 0,
                     source_address: format!("0x{:x}", EVMAddress::random()),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()),
@@ -265,7 +265,7 @@ mod tests {
                 },
                 CrossChainMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
-                    log_index: 1,
+                    event_index: 1,
                     source_address: format!("0x{:x}", EVMAddress::random()),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()),
@@ -273,7 +273,7 @@ mod tests {
                 },
                 CrossChainMessage {
                     tx_id: format!("0x{:x}", Hash::random()),
-                    log_index: 10,
+                    event_index: 10,
                     source_address: format!("0x{:x}", EVMAddress::random()),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()),
