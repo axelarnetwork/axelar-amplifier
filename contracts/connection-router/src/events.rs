@@ -104,8 +104,8 @@ impl From<ChainUnfrozen> for Event {
 impl From<NewMessage> for Vec<Attribute> {
     fn from(other: NewMessage) -> Self {
         vec![
-            ("id", other.id.uid).into(),
-            ("source_chain", other.id.chain).into(),
+            ("id", other.uid.id).into(),
+            ("source_chain", other.uid.chain).into(),
             ("source_addresses", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_addresses", other.destination_address.deref()).into(),

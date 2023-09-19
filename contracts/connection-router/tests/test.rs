@@ -86,8 +86,8 @@ fn generate_messages(
         *nonce = *nonce + 1;
         let id = format!("tx_id:{}", nonce);
         msgs.push(NewMessage {
-            id: CrossChainUid {
-                uid: id.parse().unwrap(),
+            uid: CrossChainUid {
+                id: id.parse().unwrap(),
                 chain: src_chain.chain_name.clone(),
             },
             destination_address: "idc".parse().unwrap(),

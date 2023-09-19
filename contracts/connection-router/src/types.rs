@@ -85,12 +85,12 @@ impl KeyDeserialize for MessageID {
 #[cw_serde]
 pub struct CrossChainUid {
     pub chain: ChainName,
-    pub uid: MessageID,
+    pub id: MessageID,
 }
 
 impl Display for CrossChainUid {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.ChainUid)
+        write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.id)
     }
 }
 
@@ -102,7 +102,7 @@ impl PrimaryKey<'_> for CrossChainUid {
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
-        keys.extend(self.ChainUid.key());
+        keys.extend(self.id.key());
         keys
     }
 }
@@ -111,8 +111,8 @@ impl KeyDeserialize for CrossChainUid {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, uid) = <(ChainName, MessageID)>::from_vec(value)?;
-        Ok(CrossChainUid { chain, uid })
+        let (chain, id) = <(ChainName, MessageID)>::from_vec(value)?;
+        Ok(CrossChainUid { chain, id })
     }
 }
 
@@ -286,7 +286,7 @@ mod tests {
     fn serialize_global_message_id() {
         let id = CrossChainUid {
             chain: "ethereum".parse().unwrap(),
-            uid: "hash:id".parse().unwrap(),
+            id: "hash:id".parse().unwrap(),
         };
 
         let serialized = serde_json::to_string(&id).unwrap();
