@@ -209,7 +209,7 @@ pub mod execute {
             wasm_msgs.push(WasmMsg::Execute {
                 contract_addr: destination_chain.gateway.address.to_string(),
                 msg: to_binary(&ExecuteMsg::RouteMessages(
-                    msgs_by_destination.map(|msg| msg.clone()).collect(),
+                    msgs_by_destination.cloned().collect(),
                 ))?,
                 funds: vec![],
             });
