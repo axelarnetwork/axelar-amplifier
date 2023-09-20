@@ -3,18 +3,18 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
 use axelar_wasm_std::{
-    counter,
+    counter, nonempty,
     operators::Operators,
     voting::{PollID, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, Message, MessageId};
+use connection_router::state::{ChainName, CrossChainId, NewMessage};
 
 #[cw_serde]
 pub struct Config {
-    pub service_registry: Addr,
-    pub service_name: String,
-    pub source_gateway_address: String,
+    pub service_registry_contract: Addr,
+    pub service_name: nonempty::String,
+    pub source_gateway_address: nonempty::String,
     pub voting_threshold: Threshold,
     pub block_expiry: u64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
@@ -31,13 +31,13 @@ pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 
-pub const PENDING_MESSAGES: Map<PollID, Vec<Message>> = Map::new("pending_messages");
+pub const PENDING_MESSAGES: Map<PollID, Vec<NewMessage>> = Map::new("pending_messages");
 
-pub const VERIFIED_MESSAGES: Map<&MessageId, Message> = Map::new("verified_messages");
+pub const VERIFIED_MESSAGES: Map<&CrossChainId, NewMessage> = Map::new("verified_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-// primary key is hash of Operators struct
-pub const CONFIRMED_WORKER_SETS: Map<Vec<u8>, ()> = Map::new("confirmed_worker_sets");
+type OperatorsHash = Vec<u8>;
+pub const CONFIRMED_WORKER_SETS: Map<OperatorsHash, ()> = Map::new("confirmed_worker_sets");
 
 pub const PENDING_WORKER_SETS: Map<PollID, Operators> = Map::new("pending_worker_sets");

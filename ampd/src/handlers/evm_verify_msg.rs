@@ -233,7 +233,7 @@ mod tests {
 
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use voting_verifier::events::{MessageByTxEvent, PollMetadata, PollStarted};
+    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::types::{EVMAddress, Hash};
 
@@ -244,7 +244,9 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
+                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                    .parse()
+                    .unwrap(),
                 confirmation_height: 15,
                 expires_at: 100,
                 participants: vec![
@@ -260,28 +262,28 @@ mod tests {
                 ],
             },
             messages: vec![
-                MessageByTxEvent {
-                    tx_id: format!("0x{:x}", Hash::random()),
+                TxEventConfirmation {
+                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                     event_index: 0,
-                    source_address: format!("0x{:x}", EVMAddress::random()),
+                    source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()),
+                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
-                MessageByTxEvent {
-                    tx_id: format!("0x{:x}", Hash::random()),
+                TxEventConfirmation {
+                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                     event_index: 1,
-                    source_address: format!("0x{:x}", EVMAddress::random()),
+                    source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()),
+                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
-                MessageByTxEvent {
-                    tx_id: format!("0x{:x}", Hash::random()),
+                TxEventConfirmation {
+                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                     event_index: 10,
-                    source_address: format!("0x{:x}", EVMAddress::random()),
+                    source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
-                    destination_address: format!("0x{:x}", EVMAddress::random()),
+                    destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     payload_hash: HexBinary::from(Hash::random().as_bytes()),
                 },
             ],
