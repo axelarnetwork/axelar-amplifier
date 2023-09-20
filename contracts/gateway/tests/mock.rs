@@ -1,4 +1,5 @@
 use connection_router::msg::Message;
+use connection_router::state::NewMessage;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -9,8 +10,8 @@ const MOCK_VERIFIER_MESSAGES: Map<String, bool> = Map::new("verifier_messages");
 
 #[cw_serde]
 pub enum MockVerifierExecuteMsg {
-    VerifyMessages { messages: Vec<Message> },
-    MessagesVerified { messages: Vec<Message> },
+    VerifyMessages { messages: Vec<NewMessage> },
+    MessagesVerified { messages: Vec<NewMessage> },
 }
 
 pub fn mock_verifier_execute(
@@ -49,7 +50,7 @@ pub fn mock_verifier_execute(
 
 #[cw_serde]
 pub enum MockVerifierQueryMsg {
-    IsVerified { messages: Vec<Message> },
+    IsVerified { messages: Vec<NewMessage> },
 }
 pub fn mock_verifier_query(deps: Deps, _env: Env, msg: MockVerifierQueryMsg) -> StdResult<Binary> {
     let mut res = vec![];
@@ -73,7 +74,7 @@ pub fn mock_verifier_query(deps: Deps, _env: Env, msg: MockVerifierQueryMsg) -> 
 pub fn is_verified(
     app: &mut App,
     verifier_address: Addr,
-    msgs: Vec<connection_router::msg::Message>,
+    msgs: Vec<NewMessage>,
 ) -> Vec<(String, bool)> {
     app.wrap()
         .query_wasm_smart(
@@ -83,11 +84,7 @@ pub fn is_verified(
         .unwrap()
 }
 
-pub fn mark_messages_as_verified(
-    app: &mut App,
-    verifier_address: Addr,
-    msgs: Vec<connection_router::msg::Message>,
-) {
+pub fn mark_messages_as_verified(app: &mut App, verifier_address: Addr, msgs: Vec<NewMessage>) {
     app.execute_contract(
         Addr::unchecked("relayer"),
         verifier_address.clone(),

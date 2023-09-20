@@ -113,6 +113,29 @@ impl TryFrom<NewMessage> for Message {
 }
 
 /// temporary conversion until [Message] is removed
+impl TryFrom<msg::Message> for NewMessage {
+    type Error = Report<ContractError>;
+
+    fn try_from(msg: msg::Message) -> Result<Self, Self::Error> {
+        let (_, id) = msg
+            .id
+            .split_once(ID_SEPARATOR)
+            .ok_or(ContractError::InvalidMessageId)?;
+
+        Ok(NewMessage {
+            cc_id: CrossChainId {
+                id: id.parse()?,
+                chain: msg.source_chain.parse()?,
+            },
+            destination_address: msg.destination_address.parse()?,
+            destination_chain: msg.destination_chain.parse()?,
+            source_address: msg.source_address.parse()?,
+            payload_hash: msg.payload_hash,
+        })
+    }
+}
+
+/// temporary conversion until [Message] is removed
 impl TryFrom<Message> for NewMessage {
     type Error = Report<ContractError>;
 
