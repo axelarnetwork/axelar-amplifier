@@ -32,7 +32,7 @@ pub struct Operators {
 #[derive(Deserialize, Debug)]
 pub struct WorkerSetConfirmation {
     pub tx_id: Hash,
-    pub log_index: u64,
+    pub event_index: u64,
     pub operators: Operators,
 }
 
@@ -177,7 +177,7 @@ where
             source_chain = source_chain.to_string(),
             id = format!(
                 "0x{:x}{}{}",
-                worker_set.tx_id, ID_SEPARATOR, worker_set.log_index
+                worker_set.tx_id, ID_SEPARATOR, worker_set.event_index
             )
         )
         .in_scope(|| {
@@ -217,7 +217,7 @@ mod tests {
         let poll_started = PollStarted::WorkerSet {
             worker_set: WorkerSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()),
-                log_index: 100,
+                event_index: 100,
                 operators: Operators {
                     threshold: 40u64.into(),
                     weights_by_addresses: vec![

@@ -18,7 +18,7 @@ impl PartialEq<&Message> for IAxelarGatewayEventsWithLog<'_> {
         match event {
             IAxelarGatewayEvents::ContractCallFilter(event) => {
                 log.transaction_hash == Some(msg.tx_id)
-                    && log.log_index == Some(msg.log_index.into())
+                    && log.log_index == Some(msg.event_index.into())
                     && event.sender == msg.source_address
                     && event.destination_chain == msg.destination_chain.to_string()
                     && event.destination_contract_address == msg.destination_address
@@ -48,7 +48,7 @@ impl PartialEq<&WorkerSetConfirmation> for IAxelarGatewayEventsWithLog<'_> {
                     .unzip();
 
                 log.transaction_hash == Some(worker_set.tx_id)
-                    && log.log_index == Some(worker_set.log_index.into())
+                    && log.log_index == Some(worker_set.event_index.into())
                     && event.new_operators_data
                         == encode(&[
                             Token::Array(operators),
@@ -84,7 +84,7 @@ pub fn verify_message(
     tx_receipt: &TransactionReceipt,
     msg: &Message,
 ) -> bool {
-    match get_event(gateway_address, tx_receipt, msg.log_index) {
+    match get_event(gateway_address, tx_receipt, msg.event_index) {
         Some(event) => tx_receipt.transaction_hash == msg.tx_id && event == msg,
         None => false,
     }
@@ -95,7 +95,7 @@ pub fn verify_worker_set(
     tx_receipt: &TransactionReceipt,
     worker_set: &WorkerSetConfirmation,
 ) -> bool {
-    match get_event(gateway_address, tx_receipt, worker_set.log_index) {
+    match get_event(gateway_address, tx_receipt, worker_set.event_index) {
         Some(event) => tx_receipt.transaction_hash == worker_set.tx_id && event == worker_set,
         None => false,
     }
@@ -145,19 +145,19 @@ mod tests {
         let (gateway_address, tx_receipt, mut worker_set) =
             get_matching_worker_set_and_tx_receipt();
 
-        worker_set.log_index = 0;
+        worker_set.event_index = 0;
         assert!(!verify_worker_set(
             &gateway_address,
             &tx_receipt,
             &worker_set
         ));
-        worker_set.log_index = 2;
+        worker_set.event_index = 2;
         assert!(!verify_worker_set(
             &gateway_address,
             &tx_receipt,
             &worker_set
         ));
-        worker_set.log_index = 3;
+        worker_set.event_index = 3;
         assert!(!verify_worker_set(
             &gateway_address,
             &tx_receipt,
@@ -209,11 +209,11 @@ mod tests {
     fn should_not_verify_msg_if_log_index_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_receipt();
 
-        msg.log_index = 0;
+        msg.event_index = 0;
         assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
-        msg.log_index = 2;
+        msg.event_index = 2;
         assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
-        msg.log_index = 3;
+        msg.event_index = 3;
         assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
@@ -240,7 +240,7 @@ mod tests {
 
         let worker_set = WorkerSetConfirmation {
             tx_id,
-            log_index,
+            event_index: log_index,
             operators: Operators {
                 threshold: Uint256::from(40u64).into(),
                 weights_by_addresses: vec![
@@ -290,7 +290,7 @@ mod tests {
 
         let msg = Message {
             tx_id,
-            log_index,
+            event_index: log_index,
             source_address: "0xd48e199950589a4336e4dc43bd2c72ba0c0baa86"
                 .parse()
                 .unwrap(),

@@ -18,7 +18,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let router = deps.api.addr_validate(&msg.router_address)?;
     let verifier = deps.api.addr_validate(&msg.verifier_address)?;
 
@@ -33,7 +33,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::VerifyMessages(messages) => {
             let msgs = messages
@@ -42,7 +42,6 @@ pub fn execute(
                 .collect::<Result<Vec<Message>, _>>()?;
             verify_messages(deps, msgs)
         }
-
         ExecuteMsg::RouteMessages(messages) => {
             let msgs = messages
                 .into_iter()
@@ -57,6 +56,7 @@ pub fn execute(
             }
         }
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {
@@ -141,8 +141,9 @@ pub mod execute {
                     verified
                         .clone()
                         .into_iter()
-                        .map(connection_router::msg::Message::from)
-                        .collect(),
+                        .map(connection_router::state::NewMessage::try_from)
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|_| connection_router::error::ContractError::InvalidMessageID)?, //todo: remove when integrating error stack into the gateway
                 ))?,
                 funds: vec![],
             })
