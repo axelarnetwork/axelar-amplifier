@@ -1,4 +1,5 @@
 mod abi;
+mod bcs;
 
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
