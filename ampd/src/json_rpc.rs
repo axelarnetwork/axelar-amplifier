@@ -7,6 +7,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::url::Url;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
+
 pub struct Client<P>
 where
     P: JsonRpcClient,
