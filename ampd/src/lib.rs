@@ -36,6 +36,7 @@ mod tm_client;
 mod tofnd;
 mod types;
 mod url;
+mod sui;
 
 const PREFIX: &str = "axelar";
 

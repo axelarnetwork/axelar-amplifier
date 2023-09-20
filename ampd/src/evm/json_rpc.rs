@@ -27,7 +27,7 @@ pub struct Client<P>
 where
     P: JsonRpcClient,
 {
-    provider: P,
+    pub provider: P,
 }
 
 impl<P> Client<P>
