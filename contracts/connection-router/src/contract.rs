@@ -187,7 +187,7 @@ pub mod execute {
             });
         }
 
-        if msgs.iter().any(|msg| msg.source_chain != source_chain.name) {
+        if msgs.iter().any(|msg| msg.uid.chain != source_chain.name) {
             return Err(ContractError::WrongSourceChain);
         }
 
