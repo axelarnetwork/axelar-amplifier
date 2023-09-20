@@ -1,10 +1,10 @@
+use axelar_wasm_std::ContractError;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::DepsMut;
 use cosmwasm_std::{
     entry_point, Env, Event, MessageInfo, Reply, Response, StdResult, SubMsg, SubMsgResult,
 };
 
-use crate::error::ContractError;
 use crate::msg::{BatchMsg, ExecuteMsg, InstantiateMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]

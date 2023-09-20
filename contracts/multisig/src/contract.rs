@@ -22,7 +22,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     _msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
 
     Ok(Response::default())
@@ -34,11 +34,15 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id, msg } => {
-            execute::start_signing_session(deps, info, key_id, msg.try_into()?)
-        }
+        ExecuteMsg::StartSigningSession { key_id, msg } => execute::start_signing_session(
+            deps,
+            info,
+            key_id,
+            msg.try_into()
+                .map_err(axelar_wasm_std::ContractError::from)?,
+        ),
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
@@ -52,6 +56,7 @@ pub fn execute(
             execute::register_pub_key(deps, info, public_key)
         }
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {
@@ -303,7 +308,7 @@ mod tests {
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
 
-    fn do_instantiate(deps: DepsMut) -> Result<Response, ContractError> {
+    fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
 
@@ -312,7 +317,7 @@ mod tests {
         instantiate(deps, env, info, msg)
     }
 
-    fn do_key_gen(deps: DepsMut) -> Result<(Response, Key), ContractError> {
+    fn do_key_gen(deps: DepsMut) -> Result<(Response, Key), axelar_wasm_std::ContractError> {
         let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
@@ -368,7 +373,10 @@ mod tests {
         )
     }
 
-    fn do_start_signing_session(deps: DepsMut, sender: &str) -> Result<Response, ContractError> {
+    fn do_start_signing_session(
+        deps: DepsMut,
+        sender: &str,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
@@ -384,7 +392,7 @@ mod tests {
         deps: DepsMut,
         session_id: Uint64,
         signer: &TestSigner,
-    ) -> Result<Response, ContractError> {
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
         let msg = ExecuteMsg::SubmitSignature {
             session_id,
             signature: signer.signature.clone(),
@@ -401,7 +409,7 @@ mod tests {
         deps: DepsMut,
         worker: Addr,
         public_key: PublicKey,
-    ) -> Result<Response, ContractError> {
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
         let msg = ExecuteMsg::RegisterPublicKey { public_key };
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
@@ -475,14 +483,15 @@ mod tests {
 
         let res = do_key_gen(deps.as_mut());
         assert_eq!(
-            res.unwrap_err(),
-            ContractError::DuplicateKeyID {
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::DuplicateKeyID {
                 key_id: KeyID {
                     owner: Addr::unchecked(PROVER),
                     subkey: "key".to_string(),
                 }
                 .to_string()
-            }
+            })
+            .to_string()
         );
     }
 
@@ -538,14 +547,15 @@ mod tests {
         let res = do_start_signing_session(deps.as_mut(), sender);
 
         assert_eq!(
-            res.unwrap_err(),
-            ContractError::NoActiveKeyFound {
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::NoActiveKeyFound {
                 key_id: KeyID {
                     owner: Addr::unchecked(sender),
                     subkey: "key".to_string(),
                 }
                 .to_string()
-            }
+            })
+            .to_string()
         );
     }
 
@@ -640,10 +650,11 @@ mod tests {
         let res = do_sign(deps.as_mut(), invalid_session_id, &signer);
 
         assert_eq!(
-            res.unwrap_err(),
-            ContractError::SigningSessionNotFound {
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::SigningSessionNotFound {
                 session_id: invalid_session_id
-            }
+            })
+            .to_string()
         );
     }
 

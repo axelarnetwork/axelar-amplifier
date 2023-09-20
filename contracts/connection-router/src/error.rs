@@ -1,9 +1,10 @@
+use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
 use thiserror::Error;
 
 use crate::types::ChainName;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
@@ -32,8 +33,8 @@ pub enum ContractError {
     #[error("chain is frozen")]
     ChainFrozen { chain: ChainName },
 
-    #[error("address of {0} is invalid")]
-    InvalidAddress(String),
+    #[error("address is invalid")]
+    InvalidAddress,
 
     #[error("source chain does not match registered gateway")]
     WrongSourceChain,
