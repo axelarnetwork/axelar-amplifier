@@ -1,4 +1,5 @@
 mod abi;
+mod bcs;
 
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
@@ -43,9 +44,7 @@ fn make_transfer_operatorship(
 ) -> Result<Command, ContractError> {
     let params = match encoding {
         Encoder::Abi => abi::transfer_operatorship_params(&worker_set),
-        Encoder::Bcs => {
-            todo!()
-        }
+        Encoder::Bcs => bcs::transfer_operatorship_params(&worker_set),
     }?;
     Ok(Command {
         ty: CommandType::TransferOperatorship,
@@ -146,7 +145,7 @@ fn command_id(message_id: String) -> HexBinary {
 pub fn make_operators(worker_set: WorkerSet, encoder: Encoder) -> Operators {
     match encoder {
         Encoder::Abi => abi::make_operators(worker_set),
-        Encoder::Bcs => todo!(),
+        Encoder::Bcs => bcs::make_operators(worker_set),
     }
 }
 
