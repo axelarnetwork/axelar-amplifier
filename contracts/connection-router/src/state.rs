@@ -11,7 +11,7 @@ use error_stack::{bail, Report, ResultExt};
 
 use axelar_wasm_std::nonempty;
 
-use crate::types::GlobalMessageId;
+use crate::types::CrossChainUid;
 use crate::{
     msg,
     types::{ChainEndpoint, ChainName, MessageID, ID_SEPARATOR},
@@ -84,19 +84,11 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 
 #[cw_serde]
 pub struct NewMessage {
-    pub id_on_chain: MessageID, // unique per chain
+    pub uid: CrossChainUid,
     pub destination_address: Address,
     pub destination_chain: ChainName,
-    pub source_chain: ChainName,
     pub source_address: Address,
     pub payload_hash: HexBinary,
-}
-
-impl NewMessage {
-    /// Returns a globally unique message id.
-    pub fn global_id(&self) -> GlobalMessageId {
-        GlobalMessageId::new(self.source_chain.clone(), self.id_on_chain.clone())
-    }
 }
 
 /// temporary conversion until [Message] is removed
@@ -105,10 +97,10 @@ impl TryFrom<NewMessage> for Message {
 
     fn try_from(msg: NewMessage) -> Result<Self, Self::Error> {
         Ok(Message {
-            id: format!("{}", msg.global_id()).parse()?,
+            id: format!("{}", msg.uid).parse()?,
             destination_address: msg.destination_address.to_string(),
             destination_chain: msg.destination_chain,
-            source_chain: msg.source_chain,
+            source_chain: msg.uid.chain,
             source_address: msg.source_address.to_string(),
             payload_hash: msg.payload_hash,
         })
@@ -130,10 +122,12 @@ impl TryFrom<Message> for NewMessage {
         }
 
         Ok(NewMessage {
-            id_on_chain: id.parse()?,
+            uid: CrossChainUid {
+                id: id.parse()?,
+                chain: msg.source_chain,
+            },
             destination_address: msg.destination_address.parse()?,
             destination_chain: msg.destination_chain,
-            source_chain: msg.source_chain,
             source_address: msg.source_address.parse()?,
             payload_hash: msg.payload_hash,
         })
@@ -249,25 +243,16 @@ impl TryFrom<String> for Address {
 #[cfg(test)]
 mod tests {
     use crate::state::NewMessage;
+    use crate::types::CrossChainUid;
     use cosmwasm_std::to_vec;
     use hex;
     use sha3::{Digest, Sha3_256};
 
     #[test]
     fn create_correct_global_message_id() {
-        let msg = NewMessage {
-            id_on_chain: "hash:id".to_string().parse().unwrap(),
-            source_chain: "source_chain".to_string().parse().unwrap(),
-            source_address: "source_address".parse().unwrap(),
-            destination_chain: "destination_chain".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
-            payload_hash: [1; 32].into(),
-        };
+        let msg = dummy_message();
 
-        assert_eq!(
-            msg.global_id().to_string(),
-            "source_chain:hash:id".to_string()
-        );
+        assert_eq!(msg.uid.to_string(), "chain:hash:index".to_string());
     }
 
     #[test]
@@ -275,20 +260,26 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "5f3a7dd295d833e5846820cd394fed714da1b45a8c372f73ec8ad8ec6aef9a0d";
+            "cf6a6e654af0d60891b91cb014b1c12c7d2d95edd5f3cca54125d8a9917b240e";
 
-        let msg = NewMessage {
-            id_on_chain: "hash:index".parse().unwrap(),
-            source_chain: "chain".parse().unwrap(),
-            source_address: "source_address".parse().unwrap(),
-            destination_chain: "destination_chain".parse().unwrap(),
-            destination_address: "destination_address".parse().unwrap(),
-            payload_hash: [1; 32].into(),
-        };
+        let msg = dummy_message();
 
         assert_eq!(
             hex::encode(Sha3_256::digest(&to_vec(&msg).unwrap())),
             expected_message_hash
         );
+    }
+
+    fn dummy_message() -> NewMessage {
+        NewMessage {
+            uid: CrossChainUid {
+                id: "hash:index".parse().unwrap(),
+                chain: "chain".parse().unwrap(),
+            },
+            source_address: "source_address".parse().unwrap(),
+            destination_chain: "destination_chain".parse().unwrap(),
+            destination_address: "destination_address".parse().unwrap(),
+            payload_hash: [1; 32].into(),
+        }
     }
 }

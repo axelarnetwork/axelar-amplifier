@@ -7,9 +7,6 @@ on:
       - main
       - releases/**
 
-env:
-  RUSTFLAGS: -D warnings -A deprecated --cfg tracing_unstable
-
 name: Basic
 
 jobs:
@@ -40,6 +37,7 @@ jobs:
           command: test
           args: --locked
         env:
+          RUSTFLAGS: --cfg tracing_unstable
           RUST_BACKTRACE: 1
 
   cosmwasm-compilation:
@@ -67,7 +65,7 @@ jobs:
           command: wasm
           args: --locked --workspace --exclude ampd
         env:
-          RUSTFLAGS: -D warnings -A deprecated --cfg tracing_unstable -C link-arg=-s
+          RUSTFLAGS: --cfg tracing_unstable -C link-arg=-s
 
   lints:
     name: Lints
@@ -114,7 +112,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: -- -D warnings -A deprecated
 
       - name: Check Diff
         # fails if any changes not committed
