@@ -1,1 +1,1 @@
-pub mod json_rpc;
+mod json_rpc;
