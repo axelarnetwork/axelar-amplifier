@@ -1,4 +1,5 @@
 mod abi;
+mod bcs;
 
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
@@ -31,7 +32,12 @@ fn make_command(msg: Message, encoding: Encoder) -> Result<Command, ContractErro
                 msg.destination_address,
                 msg.payload_hash,
             )?,
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::command_params(
+                msg.source_chain,
+                msg.source_address,
+                msg.destination_address,
+                msg.payload_hash,
+            )?,
         },
         id: command_id(msg.id),
     })
@@ -104,7 +110,7 @@ impl CommandBatchBuilder {
 }
 
 impl CommandBatch {
-    pub fn msg_to_sign(&self) -> HexBinary {
+    pub fn msg_to_sign(&self) -> Result<HexBinary, ContractError> {
         match self.encoder {
             Encoder::Abi => abi::msg_to_sign(self),
             Encoder::Bcs => todo!(),
@@ -130,10 +136,10 @@ pub struct Data {
 }
 
 impl Data {
-    pub fn encode(&self, encoder: Encoder) -> HexBinary {
+    pub fn encode(&self, encoder: Encoder) -> Result<HexBinary, ContractError> {
         match encoder {
             Encoder::Abi => abi::encode(self),
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::encode(self),
         }
     }
 }

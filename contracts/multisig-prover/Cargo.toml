@@ -29,6 +29,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
+bcs = { version = "0.1.5"}
 connection-router = { workspace = true, features = ["library"] }
 cosmwasm-schema = "1.1.3"
 cosmwasm-std = "1.1.3"
