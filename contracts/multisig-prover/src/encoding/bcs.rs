@@ -5,9 +5,12 @@ use multisig::{key::Signature, msg::Signer};
 
 use crate::{error::ContractError, types::Operator};
 
-
 fn u256_to_u128(val: Uint256) -> u128 {
-    assert!(val <= Uint256::from(u128::MAX), "couldn't convert u256 ({}) to u128", val);
+    assert!(
+        val <= Uint256::from(u128::MAX),
+        "couldn't convert u256 ({}) to u128",
+        val
+    );
     u128::from_le_bytes(
         val.to_le_bytes()[..16]
             .try_into()
@@ -39,9 +42,7 @@ fn encode_proof(
     Ok(to_bytes(&(addresses, weights, quorum, signatures))?.into())
 }
 
-fn make_operators_with_sigs(
-    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
-) -> Vec<Operator> {
+fn make_operators_with_sigs(signers_with_sigs: Vec<(Signer, Option<Signature>)>) -> Vec<Operator> {
     signers_with_sigs
         .into_iter()
         .map(|(signer, sig)| Operator {
@@ -73,7 +74,6 @@ mod test {
         let val = u128::MAX;
         assert_eq!(val, u256_to_u128(Uint256::from(val)));
     }
-
 
     #[test]
     #[should_panic]
