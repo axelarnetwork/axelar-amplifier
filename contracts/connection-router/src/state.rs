@@ -466,7 +466,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn should_fail_to_parse_invalid_chain_name() {
         // empty
@@ -548,7 +547,6 @@ mod tests {
         let serialized = serde_json::to_string(&id).unwrap();
         assert_eq!(id, serde_json::from_str(&serialized).unwrap());
     }
-
 
     fn dummy_message() -> NewMessage {
         NewMessage {
