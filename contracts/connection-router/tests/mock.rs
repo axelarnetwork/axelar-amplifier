@@ -1,11 +1,11 @@
-use connection_router::state::{CrossChainUid, NewMessage};
+use connection_router::state::{CrossChainId, NewMessage};
 use connection_router::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 
-const MOCK_GATEWAY_MESSAGES: Map<CrossChainUid, NewMessage> = Map::new("gateway_messages");
+const MOCK_GATEWAY_MESSAGES: Map<CrossChainId, NewMessage> = Map::new("gateway_messages");
 
 #[cw_serde]
 pub enum MockGatewayExecuteMsg {
@@ -21,7 +21,7 @@ pub fn mock_gateway_execute(
     match msg {
         MockGatewayExecuteMsg::RouteMessages(messages) => {
             for m in messages {
-                MOCK_GATEWAY_MESSAGES.save(deps.storage, m.uid.clone(), &m)?;
+                MOCK_GATEWAY_MESSAGES.save(deps.storage, m.cc_id.clone(), &m)?;
             }
             Ok(Response::new())
         }
@@ -30,7 +30,7 @@ pub fn mock_gateway_execute(
 
 #[cw_serde]
 pub enum MockGatewayQueryMsg {
-    GetMessages { ids: Vec<CrossChainUid> },
+    GetMessages { ids: Vec<CrossChainId> },
 }
 pub fn mock_gateway_query(deps: Deps, _env: Env, msg: MockGatewayQueryMsg) -> StdResult<Binary> {
     let mut msgs = vec![];
@@ -57,7 +57,7 @@ pub fn get_gateway_messages(
         .query_wasm_smart(
             gateway_address,
             &MockGatewayQueryMsg::GetMessages {
-                ids: msgs.iter().map(|m| m.uid.clone()).collect(),
+                ids: msgs.iter().map(|m| m.cc_id.clone()).collect(),
             },
         )
         .unwrap()

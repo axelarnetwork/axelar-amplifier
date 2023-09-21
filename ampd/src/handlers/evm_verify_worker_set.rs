@@ -216,7 +216,7 @@ mod tests {
     fn get_poll_started_event() -> Event {
         let poll_started = PollStarted::WorkerSet {
             worker_set: WorkerSetConfirmation {
-                tx_id: format!("0x{:x}", Hash::random()),
+                tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
                 operators: Operators {
                     threshold: 40u64.into(),
@@ -239,7 +239,9 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
+                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                    .parse()
+                    .unwrap(),
                 confirmation_height: 15,
                 expires_at: 100,
                 participants: vec![

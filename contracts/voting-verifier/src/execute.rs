@@ -8,13 +8,13 @@ use axelar_wasm_std::{
     snapshot,
     voting::{Poll, WeightedPoll},
 };
-use connection_router::state::{ChainName, Message, MessageId};
+use connection_router::state::{ChainName, MessageId, NewMessage};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
 use crate::error::ContractError;
 use crate::events::{
-    MessageByTxEvent, PollEnded, PollMetadata, PollStarted, Voted, WorkerSetConfirmation,
+    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
@@ -26,8 +26,8 @@ use crate::state::{
 };
 
 enum VerificationStatus {
-    Verified(Message),
-    Pending(Message),
+    Verified(NewMessage),
+    Pending(NewMessage),
 }
 
 pub fn confirm_worker_set(
@@ -47,20 +47,20 @@ pub fn confirm_worker_set(
     let snapshot = take_snapshot(deps.as_ref(), &env, &config.source_chain)?;
     let participants = snapshot.get_participants();
 
-    let id = create_worker_set_poll(
+    let poll_id = create_worker_set_poll(
         deps.storage,
         env.block.height,
         config.block_expiry,
         snapshot,
     )?;
 
-    PENDING_WORKER_SETS.save(deps.storage, id, &new_operators)?;
+    PENDING_WORKER_SETS.save(deps.storage, poll_id, &new_operators)?;
 
     Ok(Response::new().add_event(
         PollStarted::WorkerSet {
             worker_set: WorkerSetConfirmation::new(message_id, new_operators)?,
             metadata: PollMetadata {
-                poll_id: id,
+                poll_id,
                 source_chain: config.source_chain,
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
@@ -75,8 +75,21 @@ pub fn confirm_worker_set(
 pub fn verify_messages(
     deps: DepsMut,
     env: Env,
-    messages: Vec<Message>,
+    messages: Vec<NewMessage>,
 ) -> Result<Response, ContractError> {
+    if messages.is_empty() {
+        Err(ContractError::EmptyMessages)?;
+    }
+
+    let source_chain = CONFIG.load(deps.storage)?.source_chain;
+
+    if messages
+        .iter()
+        .any(|message| message.cc_id.chain.ne(&source_chain))
+    {
+        Err(ContractError::SourceChainMismatch(source_chain))?;
+    }
+
     let config = CONFIG.load(deps.storage)?;
 
     let messages = messages
@@ -96,13 +109,13 @@ pub fn verify_messages(
         verification_statuses: messages
             .iter()
             .map(|status| match status {
-                Verified(message) => (message.id.to_string(), true),
-                Pending(message) => (message.id.to_string(), false),
+                Verified(message) => (message.cc_id.clone(), true),
+                Pending(message) => (message.cc_id.clone(), false),
             })
             .collect(),
     })?);
 
-    let pending_messages: Vec<Message> = messages
+    let pending_messages: Vec<NewMessage> = messages
         .into_iter()
         .filter_map(|status| match status {
             Pending(message) => Some(message),
@@ -114,7 +127,7 @@ pub fn verify_messages(
         return Ok(response);
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &env, &pending_messages[0].source_chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &env, &pending_messages[0].cc_id.chain)?;
     let participants = snapshot.get_participants();
     let id = create_messages_poll(
         deps.storage,
@@ -129,7 +142,7 @@ pub fn verify_messages(
     let evm_messages = pending_messages
         .into_iter()
         .map(TryInto::try_into)
-        .collect::<Result<Vec<MessageByTxEvent>, _>>()?;
+        .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
     Ok(response.add_event(
         PollStarted::Messages {
@@ -195,11 +208,11 @@ fn end_poll_messages(
             true => Some(message),
             false => None,
         })
-        .collect::<Vec<&Message>>();
+        .collect::<Vec<&NewMessage>>();
 
     for message in messages {
         if !is_message_verified(deps.as_ref(), message)? {
-            VERIFIED_MESSAGES.save(deps.storage, &message.id, message)?;
+            VERIFIED_MESSAGES.save(deps.storage, &message.cc_id, message)?;
         }
     }
 
@@ -268,12 +281,12 @@ fn take_snapshot(
     // todo: add chain param to query after service registry updated
     // query service registry for active workers
     let active_workers_query = QueryMsg::GetActiveWorkers {
-        service_name: config.service_name,
+        service_name: config.service_name.to_string(),
         chain_name: chain.clone().into(),
     };
 
     let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.service_registry.to_string(),
+        contract_addr: config.service_registry_contract.to_string(),
         msg: to_binary(&active_workers_query)?,
     }))?;
 
@@ -322,7 +335,7 @@ fn create_messages_poll(
 fn remove_pending_message(
     store: &mut dyn Storage,
     poll_id: PollID,
-) -> Result<Vec<Message>, ContractError> {
+) -> Result<Vec<NewMessage>, ContractError> {
     let pending_messages = PENDING_MESSAGES
         .may_load(store, poll_id)?
         .ok_or(ContractError::PollNotFound)?;

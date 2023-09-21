@@ -89,7 +89,7 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 
 #[cw_serde]
 pub struct NewMessage {
-    pub uid: CrossChainUid,
+    pub cc_id: CrossChainId,
     pub destination_address: Address,
     pub destination_chain: ChainName,
     pub source_address: Address,
@@ -102,10 +102,10 @@ impl TryFrom<NewMessage> for Message {
 
     fn try_from(msg: NewMessage) -> Result<Self, Self::Error> {
         Ok(Message {
-            id: format!("{}", msg.uid).parse()?,
+            id: format!("{}", msg.cc_id).parse()?,
             destination_address: msg.destination_address.to_string(),
             destination_chain: msg.destination_chain,
-            source_chain: msg.uid.chain,
+            source_chain: msg.cc_id.chain,
             source_address: msg.source_address.to_string(),
             payload_hash: msg.payload_hash,
         })
@@ -127,7 +127,7 @@ impl TryFrom<Message> for NewMessage {
         }
 
         Ok(NewMessage {
-            uid: CrossChainUid {
+            cc_id: CrossChainId {
                 id: id.parse()?,
                 chain: msg.source_chain,
             },
@@ -310,18 +310,18 @@ impl KeyDeserialize for MessageId {
 }
 
 #[cw_serde]
-pub struct CrossChainUid {
+pub struct CrossChainId {
     pub chain: ChainName,
     pub id: MessageId,
 }
 
-impl Display for CrossChainUid {
+impl Display for CrossChainId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.id)
     }
 }
 
-impl PrimaryKey<'_> for CrossChainUid {
+impl PrimaryKey<'_> for CrossChainId {
     type Prefix = ChainName;
     type SubPrefix = ();
     type Suffix = MessageId;
@@ -334,12 +334,12 @@ impl PrimaryKey<'_> for CrossChainUid {
     }
 }
 
-impl KeyDeserialize for CrossChainUid {
+impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (chain, id) = <(ChainName, MessageId)>::from_vec(value)?;
-        Ok(CrossChainUid { chain, id })
+        Ok(CrossChainId { chain, id })
     }
 }
 
@@ -441,14 +441,14 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
 
-    use crate::state::{ChainName, CrossChainUid, MessageId, NewMessage, ID_SEPARATOR};
+    use crate::state::{ChainName, CrossChainId, MessageId, NewMessage, ID_SEPARATOR};
     use crate::ContractError;
 
     #[test]
     fn create_correct_global_message_id() {
         let msg = dummy_message();
 
-        assert_eq!(msg.uid.to_string(), "chain:hash:index".to_string());
+        assert_eq!(msg.cc_id.to_string(), "chain:hash:index".to_string());
     }
 
     #[test]
@@ -456,7 +456,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "cf6a6e654af0d60891b91cb014b1c12c7d2d95edd5f3cca54125d8a9917b240e";
+            "252e44129132a3bac9b26ee4d7f247453bd80b2aa0513050c274d5c5cf2f7153";
 
         let msg = dummy_message();
 
@@ -539,7 +539,7 @@ mod tests {
 
     #[test]
     fn serialize_global_message_id() {
-        let id = CrossChainUid {
+        let id = CrossChainId {
             chain: "ethereum".parse().unwrap(),
             id: "hash:id".parse().unwrap(),
         };
@@ -550,7 +550,7 @@ mod tests {
 
     fn dummy_message() -> NewMessage {
         NewMessage {
-            uid: CrossChainUid {
+            cc_id: CrossChainId {
                 id: "hash:index".parse().unwrap(),
                 chain: "chain".parse().unwrap(),
             },
