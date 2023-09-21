@@ -25,10 +25,8 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v2
 
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1.8.3
-        with:
-          version: "16"
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
     
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
