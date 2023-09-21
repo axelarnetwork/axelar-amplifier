@@ -270,6 +270,7 @@ impl TryFrom<String> for Address {
 
 #[cw_serde]
 #[serde(try_from = "String")]
+#[derive(Eq, Hash)]
 pub struct MessageId(String);
 
 impl FromStr for MessageId {
@@ -333,9 +334,26 @@ impl KeyDeserialize for MessageId {
 }
 
 #[cw_serde]
+#[derive(Eq, Hash)]
 pub struct CrossChainId {
     pub chain: ChainName,
     pub id: MessageId,
+}
+
+/// todo: remove this when state::NewMessage is used
+impl FromStr for CrossChainId {
+    type Err = ContractError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split_once(ID_SEPARATOR);
+        let (chain, id) = parts
+            .map(|(chain, id)| (chain.parse::<ChainName>(), id.parse::<MessageId>()))
+            .ok_or(ContractError::InvalidMessageId)?;
+        Ok(CrossChainId {
+            chain: chain?,
+            id: id?,
+        })
+    }
 }
 
 impl Display for CrossChainId {
@@ -368,6 +386,7 @@ impl KeyDeserialize for CrossChainId {
 
 #[cw_serde]
 #[serde(try_from = "String")]
+#[derive(Eq, Hash)]
 pub struct ChainName(String);
 
 impl FromStr for ChainName {

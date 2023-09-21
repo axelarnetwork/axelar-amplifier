@@ -4,7 +4,6 @@ use connection_router::state::{CrossChainId, NewMessage, ID_SEPARATOR};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
-use voting_verifier::msg as voting_msg;
 
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
 pub mod mock;
