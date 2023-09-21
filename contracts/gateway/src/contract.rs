@@ -2,8 +2,6 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
-use connection_router::state::NewMessage;
-
 use crate::{
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
