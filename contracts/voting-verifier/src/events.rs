@@ -1,11 +1,11 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 use serde_json::to_string;
 
+use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::PollID;
 use connection_router::state::{ChainName, Message, MessageId, ID_SEPARATOR};
 
@@ -103,7 +103,7 @@ pub struct WorkerSetConfirmation {
 
 impl WorkerSetConfirmation {
     pub fn new(message_id: MessageId, operators: Operators) -> Result<Self, ContractError> {
-       let (tx_id, event_index) = parse_message_id(&message_id)?;
+        let (tx_id, event_index) = parse_message_id(&message_id)?;
         Ok(Self {
             tx_id,
             event_index,

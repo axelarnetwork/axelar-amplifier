@@ -1,7 +1,9 @@
-use crate::state::ChainName;
-use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
 use thiserror::Error;
+
+use axelar_wasm_std_derive::IntoContractError;
+
+use crate::state::ChainName;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
