@@ -110,10 +110,10 @@ impl CommandBatchBuilder {
 }
 
 impl CommandBatch {
-    pub fn msg_to_sign(&self) -> Result<HexBinary, ContractError> {
+    pub fn msg_digest(&self) -> HexBinary {
         match self.encoder {
-            Encoder::Abi => abi::msg_to_sign(self),
-            Encoder::Bcs => bcs::msg_to_sign(self),
+            Encoder::Abi => abi::msg_digest(self),
+            Encoder::Bcs => bcs::msg_digest(self),
         }
     }
 
@@ -136,7 +136,7 @@ pub struct Data {
 }
 
 impl Data {
-    pub fn encode(&self, encoder: Encoder) -> Result<HexBinary, ContractError> {
+    pub fn encode(&self, encoder: Encoder) -> HexBinary {
         match encoder {
             Encoder::Abi => abi::encode(self),
             Encoder::Bcs => bcs::encode(self),

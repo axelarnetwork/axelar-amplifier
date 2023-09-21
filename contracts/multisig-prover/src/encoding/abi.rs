@@ -20,7 +20,7 @@ use ethabi::ethereum_types;
 
 pub const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
 
-pub fn encode(data: &Data) -> Result<HexBinary, ContractError> {
+pub fn encode(data: &Data) -> HexBinary {
     let destination_chain_id = Token::Uint(ethabi::ethereum_types::U256::from_big_endian(
         &data.destination_chain_id.to_be_bytes(),
     ));
@@ -37,17 +37,17 @@ pub fn encode(data: &Data) -> Result<HexBinary, ContractError> {
         })
         .multiunzip();
 
-    Ok(ethabi::encode(&[
+    ethabi::encode(&[
         destination_chain_id,
         Token::Array(commands_ids),
         Token::Array(commands_types),
         Token::Array(commands_params),
     ])
-    .into())
+    .into()
 }
 
-pub fn msg_to_sign(command_batch: &CommandBatch) -> Result<HexBinary, ContractError> {
-    let msg = Keccak256::digest(encode(&command_batch.data)?.as_slice());
+pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
+    let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
@@ -56,7 +56,7 @@ pub fn msg_to_sign(command_batch: &CommandBatch) -> Result<HexBinary, ContractEr
     ]
     .concat();
 
-    Ok(Keccak256::digest(unsigned).as_slice().into())
+    Keccak256::digest(unsigned).as_slice().into()
 }
 
 pub fn encode_execute_data(
@@ -65,7 +65,7 @@ pub fn encode_execute_data(
     signers: Vec<(Signer, Option<Signature>)>,
 ) -> Result<HexBinary, ContractError> {
     let param = ethabi::encode(&[
-        Token::Bytes(encode(&command_batch.data)?.into()),
+        Token::Bytes(encode(&command_batch.data).into()),
         Token::Bytes(encode_proof(quorum, signers)?.into()),
     ]);
 
@@ -589,8 +589,7 @@ mod test {
         let data = decode_data(&encoded_data);
         let res = data.encode(Encoder::Abi);
 
-        assert!(res.is_ok());
-        assert_eq!(res.unwrap(), encoded_data);
+        assert_eq!(res, encoded_data);
     }
 
     #[test]
@@ -613,11 +612,10 @@ mod test {
             encoder: Encoder::Abi,
         };
 
-        let res = batch.msg_to_sign();
+        let res = batch.msg_digest();
         let expected_msg = test_data::msg_to_sign();
 
-        assert!(res.is_ok());
-        assert_eq!(res.unwrap(), expected_msg);
+        assert_eq!(res, expected_msg);
     }
 
     #[test]

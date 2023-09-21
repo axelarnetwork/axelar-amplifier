@@ -1,5 +1,5 @@
 use bcs::to_bytes;
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{HexBinary, Uint256};
 use itertools::Itertools;
 
 use crate::{error::ContractError, types::CommandBatch};
@@ -14,29 +14,48 @@ pub fn command_params(
     destination_address: String,
     payload_hash: HexBinary,
 ) -> Result<HexBinary, ContractError> {
+    assert!(
+        destination_address.len() == 64,
+        "destination_address ({}) is not 32 bytes",
+        destination_address
+    );
     let ret = to_bytes(&(
         source_chain,
         source_address,
-        <[u8; 30]>::try_from(&HexBinary::from_hex(&destination_address)?.to_vec()[..30])
-            .expect("couldn't convert destination_address to 30 byte array"), // TODO: is this right? Why are addresses 30 bytes?
+        <[u8; 32]>::try_from(&HexBinary::from_hex(&destination_address)?.to_vec()[..32])
+            .expect("couldn't convert destination_address to 32 byte array"),
         payload_hash.to_vec(),
     ))?;
 
     Ok(ret.into())
 }
 
-pub fn encode(data: &Data) -> Result<HexBinary, ContractError> {
-    // destination chain id is u64
-    let destination_chain_id = &u64::from_le_bytes(
-        data.destination_chain_id.to_le_bytes()[..8]
+// destination chain id must be u64 for sui
+fn chain_id_as_u64(chain_id: Uint256) -> u64 {
+    assert!(
+        chain_id <= Uint256::from(u64::MAX),
+        "chain_id ({}) is greater than u64 max",
+        chain_id
+    );
+    u64::from_le_bytes(
+        chain_id.to_le_bytes()[..8]
             .try_into()
             .expect("Couldn't convert u256 to u64"),
-    );
+    )
+}
+
+pub fn encode(data: &Data) -> HexBinary {
+    let destination_chain_id = chain_id_as_u64(data.destination_chain_id);
 
     let (commands_ids, command_types, command_params): (Vec<[u8; 32]>, Vec<String>, Vec<Vec<u8>>) =
         data.commands
             .iter()
             .map(|command| {
+                assert!(
+                    command.id.len() == 32,
+                    "command.id ({}) is not 32 bytes",
+                    command.id
+                );
                 (
                     <[u8; 32]>::try_from(&command.id.to_vec()[..32])
                         .expect("couldn't convert command id to 32 byte array"), // command-ids are fixed length sequences
@@ -46,17 +65,18 @@ pub fn encode(data: &Data) -> Result<HexBinary, ContractError> {
             })
             .multiunzip();
 
-    Ok(to_bytes(&(
+    to_bytes(&(
         destination_chain_id,
         commands_ids,
         command_types,
         command_params,
-    ))?
-    .into())
+    ))
+    .expect("couldn't encode batch as bcs")
+    .into()
 }
 
-pub fn msg_to_sign(command_batch: &CommandBatch) -> Result<HexBinary, ContractError> {
-    let msg = Keccak256::digest(encode(&command_batch.data)?.as_slice());
+pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
+    let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
 
     // Sui is just mimicking EVM here
     let unsigned = [
@@ -65,7 +85,7 @@ pub fn msg_to_sign(command_batch: &CommandBatch) -> Result<HexBinary, ContractEr
     ]
     .concat();
 
-    Ok(Keccak256::digest(unsigned).as_slice().into())
+    Keccak256::digest(unsigned).as_slice().into()
 }
 
 #[cfg(test)]
@@ -75,24 +95,33 @@ mod test {
 
     use bcs::from_bytes;
     use connection_router::msg::Message;
-    use cosmwasm_std::HexBinary;
+    use cosmwasm_std::{HexBinary, Uint256};
 
-    use crate::{
-        encoding::{
-            bcs::{command_params, encode},
-            CommandBatchBuilder, Data,
-        },
-        types::{Command, CommandBatch},
-    };
+    use crate::{encoding::{
+        bcs::{chain_id_as_u64, command_params, encode},
+        CommandBatchBuilder, Data,
+    }, types::Command};
 
-    use super::msg_to_sign;
+    use super::msg_digest;
+
+    #[test]
+    fn test_chain_id_as_u64() {
+        let chain_id = 1u64;
+        assert_eq!(chain_id, chain_id_as_u64(Uint256::from(chain_id as u128)));
+    }
+    #[test]
+    #[should_panic]
+    fn test_chain_id_as_u64_fails() {
+        let chain_id = u128::MAX;
+        chain_id_as_u64(Uint256::from(chain_id));
+    }
 
     #[test]
     fn test_command_params() {
         let res = command_params(
             "Ethereum".into(),
             "00".into(),
-            "01".repeat(30).into(),
+            "01".repeat(32).into(),
             HexBinary::from_hex("02").unwrap(),
         );
         assert!(res.is_ok());
@@ -103,7 +132,7 @@ mod test {
         let (source_chain, source_address, destination_address, payload_hash): (
             String,
             String,
-            [u8; 30],
+            [u8; 32],
             Vec<u8>,
         ) = params.unwrap();
         assert_eq!(source_chain, "Ethereum".to_string());
@@ -112,17 +141,28 @@ mod test {
 
         assert_eq!(
             destination_address.to_vec(),
-            HexBinary::from_hex(&"01".repeat(30)).unwrap().to_vec()
+            HexBinary::from_hex(&"01".repeat(32)).unwrap().to_vec()
         );
 
         assert_eq!(payload_hash, vec![2]);
     }
 
     #[test]
+    #[should_panic]
+    fn test_invalid_destination_address() {
+        let _ = command_params(
+            "Ethereum".into(),
+            "00".into(),
+            "01".into(),
+            HexBinary::from_hex("02").unwrap(),
+        );
+    }
+
+    #[test]
     fn test_encode() {
         let source_chain = "Ethereum";
         let source_address = "AA";
-        let destination_address = "BB".repeat(30);
+        let destination_address = "BB".repeat(32);
         let payload_hash = HexBinary::from_hex("CC").unwrap();
         let destination_chain_id = 1u64;
         let command_id = HexBinary::from_hex(&"FF".repeat(32)).unwrap();
@@ -140,9 +180,7 @@ mod test {
                 .unwrap(),
             }],
         };
-        let res = encode(&data);
-        assert!(res.is_ok());
-        let encoded = res.unwrap();
+        let encoded = encode(&data);
         let decoded: Result<(u64, Vec<[u8; 32]>, Vec<String>, Vec<Vec<u8>>), _> =
             from_bytes(&encoded.to_vec());
         assert!(decoded.is_ok());
@@ -167,7 +205,7 @@ mod test {
             source_address_decoded,
             destination_address_decoded,
             payload_hash_decoded,
-        ): (String, String, [u8; 30], Vec<u8>) = command.unwrap();
+        ): (String, String, [u8; 32], Vec<u8>) = command.unwrap();
 
         assert_eq!(source_chain_decoded, source_chain);
 
@@ -186,23 +224,20 @@ mod test {
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
         let _ = builder.add_message(Message {
             id: "ethereum:foobar".into(),
-            destination_address: "0F".repeat(30),
+            destination_address: "0F".repeat(32),
             destination_chain: "sui".into(),
             source_chain: "ethereum".into(),
             source_address: "0x00".into(),
             payload_hash: HexBinary::from(vec![0, 1, 0, 1]),
         });
         let batch = builder.build().unwrap();
-        let res = msg_to_sign(&batch);
-        assert!(res.is_ok());
-
-        let msg = res.unwrap();
+        let msg = msg_digest(&batch);
         assert_eq!(msg.len(), 32);
 
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
         let _ = builder.add_message(Message {
             id: "ethereum:foobar2".into(),
-            destination_address: "0F".repeat(30),
+            destination_address: "0F".repeat(32),
             destination_chain: "sui".into(),
             source_chain: "ethereum".into(),
             source_address: "0x00".into(),
@@ -210,8 +245,7 @@ mod test {
         });
 
         let batch = builder.build().unwrap();
-        let res2 = msg_to_sign(&batch);
-        assert!(res2.is_ok());
-        assert_ne!(msg, res2.unwrap());
+        let msg2 = msg_digest(&batch);
+        assert_ne!(msg, msg2);
     }
 }
