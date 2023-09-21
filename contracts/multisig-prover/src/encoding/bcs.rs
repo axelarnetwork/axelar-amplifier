@@ -1,6 +1,6 @@
 use bcs::to_bytes;
 use cosmwasm_std::{HexBinary, Uint256};
-use itertools::{chain, Itertools};
+use itertools::Itertools;
 
 use crate::error::ContractError;
 
