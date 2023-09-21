@@ -28,7 +28,7 @@ jobs:
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1.8.3
         with:
-          version: "10.0"
+          version: "16"
     
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
