@@ -250,10 +250,10 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
-            .map(|s| {
+            .map(|signer| {
                 (
-                    s.address.to_string(),
-                    (KeyType::Ecdsa, s.pub_key.as_ref().into()),
+                    signer.address.to_string(),
+                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
                 )
             })
             .collect(),

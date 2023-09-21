@@ -138,7 +138,7 @@ pub fn get_router_messages(
         .query_wasm_smart(
             router_address,
             &MockRouterQueryMsg::GetMessages {
-                ids: msgs.into_iter().map(|m| m.cc_id).collect(),
+                ids: msgs.into_iter().map(|msg| msg.cc_id).collect(),
             },
         )
         .unwrap()

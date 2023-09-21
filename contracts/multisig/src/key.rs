@@ -31,7 +31,7 @@ where
 {
     let pk: HexBinary = Deserialize::deserialize(deserializer)?;
     PublicKey::try_from((KeyType::Ecdsa, pk.clone()))
-        .map_err(|e| D::Error::custom(format!("failed to deserialize public key: {}", e)))?;
+        .map_err(|err| D::Error::custom(format!("failed to deserialize public key: {}", err)))?;
     Ok(pk)
 }
 

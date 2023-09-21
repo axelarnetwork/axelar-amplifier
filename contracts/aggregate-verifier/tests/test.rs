@@ -96,7 +96,7 @@ fn verify_messages_not_verified() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), false))
+            .map(|msg| (msg.cc_id.clone(), false))
             .collect::<Vec<(CrossChainId, bool)>>()
     );
 }
@@ -139,7 +139,7 @@ fn verify_messages_verified() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<(CrossChainId, bool)>>()
     );
 }
@@ -183,10 +183,16 @@ fn verify_messages_mixed_status() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| if verified.iter().find(|m2| *m2 == m).is_some() {
-                (m.cc_id.clone(), true)
-            } else {
-                (m.cc_id.clone(), false)
+            .map(|msg| {
+                if verified
+                    .iter()
+                    .find(|verified_msg| *verified_msg == msg)
+                    .is_some()
+                {
+                    (msg.cc_id.clone(), true)
+                } else {
+                    (msg.cc_id.clone(), false)
+                }
             })
             .collect::<Vec<(CrossChainId, bool)>>()
     );

@@ -59,7 +59,7 @@ pub mod execute {
 
     fn contains_duplicates(msgs: &mut Vec<NewMessage>) -> bool {
         let orig_len = msgs.len();
-        msgs.sort_unstable_by_key(|a| a.cc_id.to_string());
+        msgs.sort_unstable_by_key(|msg| msg.cc_id.to_string());
         msgs.dedup_by(|a, b| a.cc_id == b.cc_id);
         orig_len != msgs.len()
     }
@@ -79,8 +79,8 @@ pub mod execute {
                 msg: to_binary(&query_msg)?,
             }))?;
 
-        Ok(msgs.into_iter().partition(|m| -> bool {
-            match query_response.iter().find(|r| m.cc_id == r.0) {
+        Ok(msgs.into_iter().partition(|msg| -> bool {
+            match query_response.iter().find(|r| msg.cc_id == r.0) {
                 Some((_, v)) => *v,
                 None => false,
             }
@@ -151,7 +151,7 @@ pub mod execute {
 
         Ok(Response::new().add_events(
             msgs.into_iter()
-                .map(|m| GatewayEvent::MessageRouted { msg: m }.into()),
+                .map(|msg| GatewayEvent::MessageRouted { msg }.into()),
         ))
     }
 }
