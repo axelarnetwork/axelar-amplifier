@@ -117,7 +117,8 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
         .iter()
         .map(|signer| {
             (
-                evm_address(signer.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
+                evm_address(signer.pub_key.as_ref())
+                    .expect("couldn't convert pubkey to evm address"),
                 signer.weight,
             )
         })
@@ -156,7 +157,8 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
         .iter()
         .map(|signer| {
             (
-                evm_address(signer.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
+                evm_address(signer.pub_key.as_ref())
+                    .expect("couldn't convert pubkey to evm address"),
                 signer.weight,
             )
         })
