@@ -84,14 +84,9 @@ impl Signature {
             return Err(ContractError::KeyTypeMismatch);
         }
 
-        match (self, pub_key) {
-            (Signature::Ecdsa(sig), PublicKey::Ecdsa(pub_key)) => {
-                ecdsa_verify(msg.into(), sig.as_ref(), pub_key.as_ref())
-            }
-            (Signature::Ed25519(sig), PublicKey::Ed25519(pub_key)) => {
-                ed25519_verify(msg.into(), sig.as_ref(), pub_key.as_ref())
-            }
-            _ => Err(ContractError::KeyTypeMismatch),
+        match self {
+            Signature::Ecdsa(sig) => ecdsa_verify(msg.into(), sig.as_ref(), pub_key.as_ref()),
+            Signature::Ed25519(sig) => ed25519_verify(msg.into(), sig.as_ref(), pub_key.as_ref()),
         }
     }
 }
