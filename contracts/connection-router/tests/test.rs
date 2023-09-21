@@ -7,8 +7,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use connection_router::contract::*;
 use connection_router::error::ContractError;
 use connection_router::msg::{ExecuteMsg, InstantiateMsg};
-use connection_router::state::NewMessage;
-use connection_router::types::{ChainName, CrossChainUid, GatewayDirection};
+use connection_router::state::{ChainName, CrossChainUid, GatewayDirection, NewMessage};
 
 pub mod mock;
 

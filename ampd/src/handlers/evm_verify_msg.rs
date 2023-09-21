@@ -11,7 +11,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::PollID;
-use connection_router::types::ID_SEPARATOR;
+use connection_router::state::ID_SEPARATOR;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
@@ -32,7 +32,7 @@ pub struct Message {
     pub tx_id: Hash,
     pub event_index: u64,
     pub destination_address: String,
-    pub destination_chain: connection_router::types::ChainName,
+    pub destination_chain: connection_router::state::ChainName,
     pub source_address: EVMAddress,
     pub payload_hash: Hash,
 }
@@ -43,7 +43,7 @@ struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
     poll_id: PollID,
-    source_chain: connection_router::types::ChainName,
+    source_chain: connection_router::state::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     messages: Vec<Message>,

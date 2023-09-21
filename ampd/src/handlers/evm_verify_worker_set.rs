@@ -11,7 +11,7 @@ use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
 use axelar_wasm_std::voting::PollID;
-use connection_router::types::ID_SEPARATOR;
+use connection_router::state::ID_SEPARATOR;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -43,7 +43,7 @@ struct PollStartedEvent {
     contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
     poll_id: PollID,
-    source_chain: connection_router::types::ChainName,
+    source_chain: connection_router::state::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     participants: Vec<TMAddress>,
