@@ -58,6 +58,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "voting-verifier",
 ]
 
 [[package]]

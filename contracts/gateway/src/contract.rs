@@ -61,7 +61,7 @@ pub fn execute(
 
 pub mod execute {
 
-    use cosmwasm_std::{to_binary, QueryRequest, WasmMsg, WasmQuery};
+    use cosmwasm_std::{to_binary, QueryRequest, StdError, WasmMsg, WasmQuery};
 
     use crate::{events::GatewayEvent, state::OUTGOING_MESSAGES};
 
@@ -81,7 +81,11 @@ pub mod execute {
         let verifier = CONFIG.load(deps.storage)?.verifier;
 
         let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
-            messages: msgs.iter().map(|m| m.clone().into()).collect(),
+            messages: msgs
+                .iter()
+                .map(|m| m.clone().try_into())
+                .collect::<Result<_, _>>()
+                .map_err(|_| StdError::generic_err("invalid messages"))?, //todo: error mapping needs to get removed when gateway is mirated to NewMessage
         };
         let query_response: Vec<(String, bool)> =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -115,8 +119,9 @@ pub mod execute {
             msg: to_binary(&aggregate_verifier::msg::ExecuteMsg::VerifyMessages {
                 messages: unverified
                     .into_iter()
-                    .map(connection_router::msg::Message::from)
-                    .collect(),
+                    .map(|m| m.clone().try_into())
+                    .collect::<Result<_, _>>()
+                    .map_err(|_| StdError::generic_err("invalid messages"))?, //todo: error mapping needs to get removed when gateway is mirated to NewMessage
             })?,
             funds: vec![],
         }))

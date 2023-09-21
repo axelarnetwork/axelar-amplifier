@@ -35,7 +35,7 @@ fn verify_one_message() {
 
     let src_chain = "mock-chain-2";
     let msg = Message {
-        id: format!("{}{}foobar", src_chain, ID_SEPARATOR,).into(),
+        id: format!("{}{}txhash{}5", src_chain, ID_SEPARATOR, ID_SEPARATOR).into(),
         destination_address: "idc".into(),
         destination_chain: "mock-chain".into(),
         source_chain: src_chain.into(),
@@ -50,8 +50,11 @@ fn verify_one_message() {
         &[],
     );
     assert!(res.is_ok());
-    let ret: Vec<(String, bool)> =
-        is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
+    let ret: Vec<(String, bool)> = is_verified(
+        &mut app,
+        verifier_address.clone(),
+        vec![msg.clone().try_into().unwrap()],
+    );
     assert_eq!(ret, vec![(msg.id.clone(), false)]);
 
     let res = app.execute_contract(
@@ -61,11 +64,18 @@ fn verify_one_message() {
         &[],
     );
     assert!(res.is_ok());
-    let ret: Vec<(String, bool)> =
-        is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
+    let ret: Vec<(String, bool)> = is_verified(
+        &mut app,
+        verifier_address.clone(),
+        vec![msg.clone().try_into().unwrap()],
+    );
     assert_eq!(ret, vec![(msg.id.clone(), false)]);
 
-    mark_messages_as_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
+    mark_messages_as_verified(
+        &mut app,
+        verifier_address.clone(),
+        vec![msg.clone().try_into().unwrap()],
+    );
 
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
@@ -74,8 +84,11 @@ fn verify_one_message() {
         &[],
     );
     assert!(res.is_ok());
-    let ret: Vec<(String, bool)> =
-        is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
+    let ret: Vec<(String, bool)> = is_verified(
+        &mut app,
+        verifier_address.clone(),
+        vec![msg.clone().try_into().unwrap()],
+    );
     assert_eq!(ret, vec![(msg.id.clone(), true)]);
 
     // should still return true if queried again
@@ -86,8 +99,11 @@ fn verify_one_message() {
         &[],
     );
     assert!(res.is_ok());
-    let ret: Vec<(String, bool)> =
-        is_verified(&mut app, verifier_address.clone(), vec![msg.clone()]);
+    let ret: Vec<(String, bool)> = is_verified(
+        &mut app,
+        verifier_address.clone(),
+        vec![msg.clone().try_into().unwrap()],
+    );
     assert_eq!(ret, vec![(msg.id, true)]);
 }
 
@@ -114,7 +130,7 @@ fn generate_messages(count: usize) -> Vec<connection_router::state::Message> {
 fn convert_messages(
     msgs: &Vec<connection_router::state::Message>,
 ) -> Vec<connection_router::msg::Message> {
-    msgs.into_iter().map(|m| m.clone().into()).collect()
+    msgs.iter().map(|m| m.clone().into()).collect()
 }
 
 #[test]
@@ -143,7 +159,11 @@ fn verify_multiple_messages() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::VerifyMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
 
@@ -151,7 +171,9 @@ fn verify_multiple_messages() {
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
@@ -164,7 +186,9 @@ fn verify_multiple_messages() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
@@ -177,7 +201,9 @@ fn verify_multiple_messages() {
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
@@ -190,19 +216,25 @@ fn verify_multiple_messages() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::VerifyMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
         ret,
-        msgs.into_iter()
+        msgs.iter()
             .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
@@ -237,7 +269,10 @@ fn verify_multiple_messages_mixed_status() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs_verified.to_vec()),
+        msgs_verified
+            .into_iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
@@ -250,7 +285,9 @@ fn verify_multiple_messages_mixed_status() {
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(ret.len(), msgs.len());
@@ -278,7 +315,9 @@ fn verify_multiple_messages_mixed_status() {
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(ret.len(), msgs.len());
@@ -299,24 +338,33 @@ fn verify_multiple_messages_mixed_status() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs_unverified.to_vec()),
+        msgs_unverified
+            .into_iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::VerifyMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
         ret,
-        msgs.into_iter()
+        msgs.iter()
             .map(|m| (m.id.to_string(), true))
             .collect::<Vec<(String, bool)>>()
     );
@@ -349,14 +397,20 @@ fn execute_one_message() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::VerifyMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -368,7 +422,9 @@ fn execute_one_message() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
@@ -381,7 +437,9 @@ fn execute_one_message() {
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -393,14 +451,20 @@ fn execute_one_message() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -440,14 +504,20 @@ fn execute_multiple_messages() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::VerifyMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
@@ -460,7 +530,9 @@ fn execute_multiple_messages() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
@@ -473,7 +545,9 @@ fn execute_multiple_messages() {
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
@@ -486,14 +560,20 @@ fn execute_multiple_messages() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
@@ -537,7 +617,10 @@ fn execute_multiple_messages_mixed_status() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs_verified.to_vec()),
+        msgs_verified
+            .into_iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
@@ -550,7 +633,9 @@ fn execute_multiple_messages_mixed_status() {
     let mut ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     ret.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(ret.len(), msgs.len());
@@ -607,14 +692,20 @@ fn execute_not_verified_message() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -626,20 +717,28 @@ fn execute_not_verified_message() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -680,20 +779,28 @@ fn execute_pre_verified_message() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -734,20 +841,28 @@ fn execute_twice() {
     mark_messages_as_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
 
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -762,14 +877,20 @@ fn execute_twice() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::RouteMessages(convert_messages(&msgs.clone())),
+        &ExecuteMsg::RouteMessages(
+            msgs.iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
     let ret: Vec<(String, bool)> = is_verified(
         &mut app,
         verifier_address.clone(),
-        convert_messages(&msgs.clone()),
+        msgs.iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
     );
     assert_eq!(
         ret,
@@ -899,7 +1020,7 @@ fn duplicate_message_id() {
         .unwrap();
 
     // make two different messages with the same ID
-    let mut msgs = convert_messages(&generate_messages(2));
+    let mut msgs = generate_messages(2);
     msgs[1].id = msgs[0].id.clone();
     assert_ne!(msgs[0], msgs[1]);
 
@@ -907,7 +1028,11 @@ fn duplicate_message_id() {
         .execute_contract(
             Addr::unchecked("relayer"),
             gateway_address.clone(),
-            &ExecuteMsg::VerifyMessages(msgs.clone()),
+            &ExecuteMsg::VerifyMessages(
+                msgs.iter()
+                    .map(|msg| msg.clone().try_into().unwrap())
+                    .collect(),
+            ),
             &[],
         )
         .unwrap_err();
@@ -922,7 +1047,11 @@ fn duplicate_message_id() {
         .execute_contract(
             Addr::unchecked("relayer"),
             gateway_address.clone(),
-            &ExecuteMsg::RouteMessages(msgs.clone()),
+            &ExecuteMsg::RouteMessages(
+                msgs.iter()
+                    .map(|msg| msg.clone().try_into().unwrap())
+                    .collect(),
+            ),
             &[],
         )
         .unwrap_err();
@@ -934,17 +1063,35 @@ fn duplicate_message_id() {
     );
 
     //verify one of them
-    mark_messages_as_verified(&mut app, verifier_address.clone(), msgs[0..1].to_vec());
+    mark_messages_as_verified(
+        &mut app,
+        verifier_address.clone(),
+        msgs[0..1]
+            .into_iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
+    );
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(msgs[0..1].to_vec()),
+        &ExecuteMsg::VerifyMessages(
+            msgs[0..1]
+                .into_iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
 
-    let ret: Vec<(String, bool)> =
-        is_verified(&mut app, verifier_address.clone(), msgs[0..1].to_vec());
+    let ret: Vec<(String, bool)> = is_verified(
+        &mut app,
+        verifier_address.clone(),
+        msgs[0..1]
+            .into_iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
+    );
     assert_eq!(
         ret,
         msgs[0..1]
@@ -957,13 +1104,24 @@ fn duplicate_message_id() {
     let res = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &ExecuteMsg::VerifyMessages(msgs[1..2].to_vec()),
+        &ExecuteMsg::VerifyMessages(
+            msgs[1..2]
+                .into_iter()
+                .map(|msg| msg.clone().try_into().unwrap())
+                .collect(),
+        ),
         &[],
     );
     assert!(res.is_ok());
 
-    let ret: Vec<(String, bool)> =
-        is_verified(&mut app, verifier_address.clone(), msgs[1..2].to_vec());
+    let ret: Vec<(String, bool)> = is_verified(
+        &mut app,
+        verifier_address.clone(),
+        msgs[1..2]
+            .into_iter()
+            .map(|msg| msg.clone().try_into().unwrap())
+            .collect(),
+    );
     assert_eq!(
         ret,
         msgs[1..2]

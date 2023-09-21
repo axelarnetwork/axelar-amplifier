@@ -1,75 +1,31 @@
 use aggregate_verifier::contract::*;
 use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
-use axelar_wasm_std::ContractError;
-use connection_router::msg::Message;
-use connection_router::state::ID_SEPARATOR;
+use connection_router::state::{CrossChainId, NewMessage, ID_SEPARATOR};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
+use voting_verifier::msg as voting_msg;
 
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
 pub mod mock;
 
-fn generate_messages(count: usize) -> Vec<connection_router::state::Message> {
+fn generate_messages(count: usize) -> Vec<NewMessage> {
     let mut msgs = vec![];
     for x in 0..count {
         let src_chain = "mock-chain";
-        let id = format!("{}{}{}", src_chain, ID_SEPARATOR, x);
-        msgs.push(connection_router::state::Message::new(
-            id.parse().unwrap(),
-            "idc".into(),
-            "mock-chain-2".parse().unwrap(),
-            src_chain.parse().unwrap(),
-            "idc".into(),
-            vec![x as u8, 0, 0, 0].into(),
-        ));
+        let id = format!("tx_hash{}{}", ID_SEPARATOR, x);
+        msgs.push(NewMessage {
+            cc_id: CrossChainId {
+                chain: src_chain.parse().unwrap(),
+                id: id.parse().unwrap(),
+            },
+            destination_address: "idc".parse().unwrap(),
+            destination_chain: "mock-chain-2".parse().unwrap(),
+            source_address: "idc".parse().unwrap(),
+            payload_hash: vec![x as u8, 0, 0, 0].into(),
+        });
     }
     msgs
-}
-
-fn convert_messages(
-    msgs: &Vec<connection_router::state::Message>,
-) -> Vec<connection_router::msg::Message> {
-    msgs.into_iter().map(|m| m.clone().into()).collect()
-}
-
-#[test]
-fn bad_message_id() {
-    let mut app = App::default();
-    let voting_verifier_address = make_mock_voting_verifier(&mut app);
-
-    let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
-    let code_id = app.store_code(Box::new(code));
-
-    let verifier_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("gateway"),
-            &InstantiateMsg {
-                verifier_address: voting_verifier_address.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-    let mut msgs = convert_messages(&generate_messages(10));
-    msgs[0] = Message {
-        id: "".to_string(),
-        ..msgs[0].clone()
-    };
-    let res = app
-        .execute_contract(
-            Addr::unchecked("relayer"),
-            verifier_address.clone(),
-            &ExecuteMsg::VerifyMessages { messages: msgs },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<ContractError>().unwrap().to_string(),
-        ContractError::from(connection_router::error::ContractError::InvalidMessageId).to_string()
-    )
 }
 
 #[test]
@@ -101,7 +57,7 @@ fn verify_messages_empty() {
             &[],
         )
         .unwrap();
-    let ret: Vec<(String, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(ret, vec![]);
 }
 
@@ -132,17 +88,17 @@ fn verify_messages_not_verified() {
             Addr::unchecked("relayer"),
             verifier_address.clone(),
             &ExecuteMsg::VerifyMessages {
-                messages: convert_messages(&msgs),
+                messages: msgs.clone(),
             },
             &[],
         )
         .unwrap();
-    let ret: Vec<(String, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id.to_string(), false))
-            .collect::<Vec<(String, bool)>>()
+            .map(|m| (m.cc_id.clone(), false))
+            .collect::<Vec<(CrossChainId, bool)>>()
     );
 }
 
@@ -168,24 +124,24 @@ fn verify_messages_verified() {
         .unwrap();
 
     let msgs = generate_messages(10);
-    mark_messages_as_verified(&mut app, voting_verifier_address, convert_messages(&msgs));
+    mark_messages_as_verified(&mut app, voting_verifier_address, msgs.clone());
 
     let res = app
         .execute_contract(
             Addr::unchecked("relayer"),
             verifier_address.clone(),
             &ExecuteMsg::VerifyMessages {
-                messages: convert_messages(&msgs),
+                messages: msgs.clone(),
             },
             &[],
         )
         .unwrap();
-    let ret: Vec<(String, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.id.to_string(), true))
-            .collect::<Vec<(String, bool)>>()
+            .map(|m| (m.cc_id.clone(), true))
+            .collect::<Vec<(CrossChainId, bool)>>()
     );
 }
 
@@ -212,31 +168,27 @@ fn verify_messages_mixed_status() {
 
     let msgs = generate_messages(10);
     let (verified, _) = msgs.split_at(5);
-    mark_messages_as_verified(
-        &mut app,
-        voting_verifier_address,
-        convert_messages(&verified.to_vec()),
-    );
+    mark_messages_as_verified(&mut app, voting_verifier_address, verified.to_vec());
 
     let res = app
         .execute_contract(
             Addr::unchecked("relayer"),
             verifier_address.clone(),
             &ExecuteMsg::VerifyMessages {
-                messages: convert_messages(&msgs),
+                messages: msgs.clone(),
             },
             &[],
         )
         .unwrap();
-    let ret: Vec<(String, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         msgs.iter()
             .map(|m| if verified.iter().find(|m2| *m2 == m).is_some() {
-                (m.id.to_string(), true)
+                (m.cc_id.clone(), true)
             } else {
-                (m.id.to_string(), false)
+                (m.cc_id.clone(), false)
             })
-            .collect::<Vec<(String, bool)>>()
+            .collect::<Vec<(CrossChainId, bool)>>()
     );
 }
