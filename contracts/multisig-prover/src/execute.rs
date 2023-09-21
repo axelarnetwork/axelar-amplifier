@@ -7,7 +7,7 @@ use multisig::key::{KeyType, PublicKey};
 use std::str::FromStr;
 
 use axelar_wasm_std::snapshot;
-use connection_router::{msg::Message, types::ChainName};
+use connection_router::{msg::Message, state::ChainName};
 use service_registry::state::Worker;
 
 use crate::{

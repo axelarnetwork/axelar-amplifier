@@ -1,5 +1,5 @@
 use connection_router::msg::Message;
-use connection_router::types::ID_SEPARATOR;
+use connection_router::state::ID_SEPARATOR;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 use gateway::contract::*;
