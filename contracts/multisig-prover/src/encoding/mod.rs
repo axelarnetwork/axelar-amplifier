@@ -113,7 +113,7 @@ impl CommandBatch {
     pub fn msg_to_sign(&self) -> Result<HexBinary, ContractError> {
         match self.encoder {
             Encoder::Abi => abi::msg_to_sign(self),
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::msg_to_sign(self),
         }
     }
 

@@ -2,9 +2,11 @@ use bcs::to_bytes;
 use cosmwasm_std::HexBinary;
 use itertools::Itertools;
 
-use crate::error::ContractError;
+use crate::{error::ContractError, types::CommandBatch};
 
 use super::Data;
+
+use sha3::{Digest, Keccak256};
 
 pub fn command_params(
     source_chain: String,
@@ -53,21 +55,37 @@ pub fn encode(data: &Data) -> Result<HexBinary, ContractError> {
     .into())
 }
 
+pub fn msg_to_sign(command_batch: &CommandBatch) -> Result<HexBinary, ContractError> {
+    let msg = Keccak256::digest(encode(&command_batch.data)?.as_slice());
+
+    // Sui is just mimicking EVM here
+    let unsigned = [
+        "\x19Sui Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
+        msg.as_slice(),
+    ]
+    .concat();
+
+    Ok(Keccak256::digest(unsigned).as_slice().into())
+}
+
 #[cfg(test)]
 mod test {
 
     use std::vec;
 
     use bcs::from_bytes;
+    use connection_router::msg::Message;
     use cosmwasm_std::HexBinary;
 
     use crate::{
         encoding::{
             bcs::{command_params, encode},
-            Data,
+            CommandBatchBuilder, Data,
         },
-        types::Command,
+        types::{Command, CommandBatch},
     };
+
+    use super::msg_to_sign;
 
     #[test]
     fn test_command_params() {
@@ -161,5 +179,39 @@ mod test {
         );
 
         assert_eq!(payload_hash_decoded, payload_hash.to_vec());
+    }
+
+    #[test]
+    fn test_msg_to_sign() {
+        let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
+        let _ = builder.add_message(Message {
+            id: "ethereum:foobar".into(),
+            destination_address: "0F".repeat(30),
+            destination_chain: "sui".into(),
+            source_chain: "ethereum".into(),
+            source_address: "0x00".into(),
+            payload_hash: HexBinary::from(vec![0, 1, 0, 1]),
+        });
+        let batch = builder.build().unwrap();
+        let res = msg_to_sign(&batch);
+        assert!(res.is_ok());
+
+        let msg = res.unwrap();
+        assert_eq!(msg.len(), 32);
+
+        let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
+        let _ = builder.add_message(Message {
+            id: "ethereum:foobar2".into(),
+            destination_address: "0F".repeat(30),
+            destination_chain: "sui".into(),
+            source_chain: "ethereum".into(),
+            source_address: "0x00".into(),
+            payload_hash: HexBinary::from(vec![0, 1, 0, 1]),
+        });
+
+        let batch = builder.build().unwrap();
+        let res2 = msg_to_sign(&batch);
+        assert!(res2.is_ok());
+        assert_ne!(msg, res2.unwrap());
     }
 }
