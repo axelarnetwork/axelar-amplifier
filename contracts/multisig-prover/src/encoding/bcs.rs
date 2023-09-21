@@ -43,11 +43,13 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
 #[cfg(test)]
 mod test {
 
+    use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
+    use cosmwasm_std::HexBinary;
 
     use crate::{encoding::bcs::u256_to_u128, test::test_data};
 
-    use super::transfer_operatorship_params;
+    use super::{make_operators, transfer_operatorship_params};
 
     #[test]
     fn test_transfer_operatorship_params() {
@@ -73,5 +75,24 @@ mod test {
         assert_eq!(operators, operators_expected);
         assert_eq!(weights, weights_expected);
         assert_eq!(quorum, u256_to_u128(worker_set.threshold));
+    }
+
+    #[test]
+    fn test_make_operators() {
+        let worker_set = test_data::new_worker_set();
+        let mut expected: Vec<(HexBinary, _)> = worker_set
+            .clone()
+            .signers
+            .into_iter()
+            .map(|s| (s.pub_key.into(), s.weight))
+            .collect();
+        expected.sort_by_key(|op| op.0.clone());
+
+        let operators = make_operators(worker_set.clone());
+        let expected_operators = Operators {
+            weights_by_addresses: expected,
+            threshold: worker_set.threshold,
+        };
+        assert_eq!(operators, expected_operators);
     }
 }
