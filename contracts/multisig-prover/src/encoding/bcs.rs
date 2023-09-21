@@ -97,10 +97,13 @@ mod test {
     use connection_router::msg::Message;
     use cosmwasm_std::{HexBinary, Uint256};
 
-    use crate::{encoding::{
-        bcs::{chain_id_as_u64, command_params, encode},
-        CommandBatchBuilder, Data,
-    }, types::Command};
+    use crate::{
+        encoding::{
+            bcs::{chain_id_as_u64, command_params, encode},
+            CommandBatchBuilder, Data,
+        },
+        types::Command,
+    };
 
     use super::msg_digest;
 
