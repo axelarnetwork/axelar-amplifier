@@ -6,7 +6,7 @@ use cosmwasm_std::{
 
 use std::str::FromStr;
 
-use connection_router::types::ChainName;
+use connection_router::state::ChainName;
 
 use crate::{
     error::ContractError,

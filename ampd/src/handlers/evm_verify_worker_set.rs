@@ -11,7 +11,7 @@ use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
 use axelar_wasm_std::voting::PollID;
-use connection_router::types::ID_SEPARATOR;
+use connection_router::state::ID_SEPARATOR;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -43,7 +43,7 @@ struct PollStartedEvent {
     contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
     poll_id: PollID,
-    source_chain: connection_router::types::ChainName,
+    source_chain: connection_router::state::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     participants: Vec<TMAddress>,
@@ -216,7 +216,7 @@ mod tests {
     fn get_poll_started_event() -> Event {
         let poll_started = PollStarted::WorkerSet {
             worker_set: WorkerSetConfirmation {
-                tx_id: format!("0x{:x}", Hash::random()),
+                tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
                 operators: Operators {
                     threshold: 40u64.into(),
@@ -239,7 +239,9 @@ mod tests {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "ethereum".parse().unwrap(),
-                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5".into(),
+                source_gateway_address: "0x4f4495243837681061c4743b74eedf548d5686a5"
+                    .parse()
+                    .unwrap(),
                 confirmation_height: 15,
                 expires_at: 100,
                 participants: vec![
