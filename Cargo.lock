@@ -42,6 +42,8 @@ dependencies = [
 name = "aggregate-verifier"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -50,6 +52,8 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
  "cw2 0.15.1",
+ "error-stack",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -296,13 +300,27 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
+ "error-stack",
  "flagset",
  "num-traits",
  "rand",
+ "report",
  "schemars",
  "serde",
  "serde_json",
  "sha3",
+ "thiserror",
+]
+
+[[package]]
+name = "axelar-wasm-std-derive"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "error-stack",
+ "quote",
+ "report",
+ "syn 2.0.29",
  "thiserror",
 ]
 
@@ -400,9 +418,13 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 name = "batching"
 version = "0.1.0"
 dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
+ "error-stack",
+ "report",
  "thiserror",
 ]
 
@@ -756,15 +778,19 @@ name = "connection-router"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "cw2 0.15.1",
+ "error-stack",
  "flagset",
  "hex",
+ "itertools 0.11.0",
  "rand",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -2257,6 +2283,8 @@ name = "gateway"
 version = "0.1.0"
 dependencies = [
  "aggregate-verifier",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -2265,6 +2293,8 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
  "cw2 0.15.1",
+ "error-stack",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -3001,6 +3031,7 @@ name = "multisig"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -3008,8 +3039,10 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "cw2 0.15.1",
+ "error-stack",
  "getrandom",
  "rand",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -3022,6 +3055,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "bcs",
  "connection-router",
  "cosmwasm-schema",
@@ -3032,12 +3066,14 @@ dependencies = [
  "cw-utils 1.0.1",
  "cw2 0.15.1",
  "either",
+ "error-stack",
  "ethabi",
  "gateway",
  "hex",
  "itertools 0.11.0",
  "k256 0.13.1",
  "multisig",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -4454,12 +4490,15 @@ name = "service-registry"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
+ "error-stack",
+ "report",
  "schemars",
  "serde",
  "thiserror",
@@ -5507,6 +5546,7 @@ name = "voting-verifier"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -5516,6 +5556,8 @@ dependencies = [
  "cw0",
  "cw2 0.15.1",
  "either",
+ "error-stack",
+ "report",
  "schemars",
  "serde",
  "serde_json",

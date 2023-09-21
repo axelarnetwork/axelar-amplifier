@@ -1,6 +1,6 @@
 use aggregate_verifier::contract::*;
-use aggregate_verifier::error::ContractError;
 use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
+use axelar_wasm_std::ContractError;
 use connection_router::msg::Message;
 use connection_router::types::ID_SEPARATOR;
 use cosmwasm_std::from_binary;
@@ -67,8 +67,8 @@ fn bad_message_id() {
         )
         .unwrap_err();
     assert_eq!(
-        ContractError::RouterError(connection_router::error::ContractError::InvalidMessageID),
-        res.downcast().unwrap()
+        res.downcast::<ContractError>().unwrap().to_string(),
+        ContractError::from(connection_router::error::ContractError::InvalidMessageID).to_string()
     )
 }
 

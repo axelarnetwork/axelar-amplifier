@@ -23,7 +23,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let verifier = deps.api.addr_validate(&msg.verifier_address)?;
     CONFIG.save(deps.storage, &Config { verifier })?;
 
@@ -36,9 +36,10 @@ pub fn execute(
     _env: Env,
     _info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::VerifyMessages { messages } => {
+            // todo: this conversion can go away once the message types are merged
             let msgs = messages
                 .into_iter()
                 .map(state::Message::try_from)
@@ -47,6 +48,7 @@ pub fn execute(
             verify_messages(deps, msgs)
         }
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {
@@ -80,7 +82,11 @@ pub mod execute {
 const VERIFY_REPLY: u64 = 0;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(_deps: DepsMut, _: Env, reply: Reply) -> Result<Response, ContractError> {
+pub fn reply(
+    _deps: DepsMut,
+    _: Env,
+    reply: Reply,
+) -> Result<Response, axelar_wasm_std::ContractError> {
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             // check format of data
@@ -97,6 +103,7 @@ pub fn reply(_deps: DepsMut, _: Env, reply: Reply) -> Result<Response, ContractE
             e
         ))),
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
