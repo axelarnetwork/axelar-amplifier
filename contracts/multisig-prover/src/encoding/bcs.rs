@@ -15,8 +15,8 @@ pub fn command_params(
     let ret = to_bytes(&(
         source_chain,
         source_address,
-        <[u8; 30]>::try_from(&HexBinary::from_hex(&destination_address)?.to_vec()[..30])
-            .expect("couldn't convert destination_address to 30 byte array"), // TODO: is this right? Why are addresses 30 bytes?
+        <[u8; 32]>::try_from(&HexBinary::from_hex(&destination_address)?.to_vec()[..32])
+            .expect("couldn't convert destination_address to 32 byte array"), // TODO: is this right? Why are addresses 32 bytes?
         payload_hash.to_vec(),
     ))?;
 
@@ -74,7 +74,7 @@ mod test {
         let res = command_params(
             "Ethereum".into(),
             "00".into(),
-            "01".repeat(30).into(),
+            "01".repeat(32).into(),
             HexBinary::from_hex("02").unwrap(),
         );
         assert!(res.is_ok());
@@ -85,7 +85,7 @@ mod test {
         let (source_chain, source_address, destination_address, payload_hash): (
             String,
             String,
-            [u8; 30],
+            [u8; 32],
             Vec<u8>,
         ) = params.unwrap();
         assert_eq!(source_chain, "Ethereum".to_string());
@@ -94,7 +94,7 @@ mod test {
 
         assert_eq!(
             destination_address.to_vec(),
-            HexBinary::from_hex(&"01".repeat(30)).unwrap().to_vec()
+            HexBinary::from_hex(&"01".repeat(32)).unwrap().to_vec()
         );
 
         assert_eq!(payload_hash, vec![2]);
@@ -104,7 +104,7 @@ mod test {
     fn test_encode() {
         let source_chain = "Ethereum";
         let source_address = "AA";
-        let destination_address = "BB".repeat(30);
+        let destination_address = "BB".repeat(32);
         let payload_hash = HexBinary::from_hex("CC").unwrap();
         let destination_chain_id = 1u64;
         let command_id = HexBinary::from_hex(&"FF".repeat(32)).unwrap();
@@ -149,7 +149,7 @@ mod test {
             source_address_decoded,
             destination_address_decoded,
             payload_hash_decoded,
-        ): (String, String, [u8; 30], Vec<u8>) = command.unwrap();
+        ): (String, String, [u8; 32], Vec<u8>) = command.unwrap();
 
         assert_eq!(source_chain_decoded, source_chain);
 
