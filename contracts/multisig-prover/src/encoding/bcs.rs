@@ -5,12 +5,22 @@ use multisig::{key::Signature, msg::Signer};
 
 use crate::{error::ContractError, types::Operator};
 
+
+fn u256_to_u128(val: Uint256) -> u128 {
+    assert!(val <= Uint256::from(u128::MAX), "couldn't convert u256 ({}) to u128", val);
+    u128::from_le_bytes(
+        val.to_le_bytes()[..16]
+            .try_into()
+            .expect("couldn't convert u256 to u128"),
+    )
+}
+
 #[allow(dead_code)]
 fn encode_proof(
     quorum: Uint256,
     signers: Vec<(Signer, Option<Signature>)>,
 ) -> Result<HexBinary, ContractError> {
-    let mut operators = make_operators_with_sigs(signers)?;
+    let mut operators = make_operators_with_sigs(signers);
     operators.sort();
 
     let (addresses, weights, signatures): (Vec<_>, Vec<u128>, Vec<_>) = operators
@@ -18,38 +28,28 @@ fn encode_proof(
         .map(|op| {
             (
                 op.address.to_vec(),
-                u128::from_le_bytes(
-                    op.weight.to_le_bytes()[..16]
-                        .try_into()
-                        .expect("couldn't convert u256 to u128"),
-                )
-                .to_le(),
+                u256_to_u128(op.weight),
                 op.signature.as_ref().map(|sig| sig.as_ref().to_vec()),
             )
         })
         .multiunzip();
 
     let signatures: Vec<Vec<u8>> = signatures.into_iter().flatten().collect();
-    let quorum = &u128::from_le_bytes(
-        quorum.to_le_bytes()[..16]
-            .try_into()
-            .expect("couldn't convert u256 to u128"),
-    );
+    let quorum = u256_to_u128(quorum);
     Ok(to_bytes(&(addresses, weights, quorum, signatures))?.into())
 }
 
-#[allow(dead_code)]
 fn make_operators_with_sigs(
     signers_with_sigs: Vec<(Signer, Option<Signature>)>,
-) -> Result<Vec<Operator>, ContractError> {
-    Ok(signers_with_sigs
+) -> Vec<Operator> {
+    signers_with_sigs
         .into_iter()
         .map(|(signer, sig)| Operator {
             address: signer.pub_key.into(),
             weight: signer.weight,
             signature: sig,
         })
-        .collect())
+        .collect()
 }
 
 #[cfg(test)]
@@ -64,7 +64,22 @@ mod test {
         msg::Signer,
     };
 
+    use crate::encoding::bcs::u256_to_u128;
+
     use super::encode_proof;
+
+    #[test]
+    fn test_u256_to_u128() {
+        let val = u128::MAX;
+        assert_eq!(val, u256_to_u128(Uint256::from(val)));
+    }
+
+
+    #[test]
+    #[should_panic]
+    fn test_u256_to_u128_fails() {
+        let _ = u256_to_u128(Uint256::MAX);
+    }
 
     #[test]
     fn test_encode_proof() {
