@@ -57,7 +57,7 @@ pub fn get_gateway_messages(
         .query_wasm_smart(
             gateway_address,
             &MockGatewayQueryMsg::GetMessages {
-                ids: msgs.iter().map(|m| m.cc_id.clone()).collect(),
+                ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
             },
         )
         .unwrap()

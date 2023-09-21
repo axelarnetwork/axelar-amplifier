@@ -293,7 +293,7 @@ fn execute_one_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), false))
+            .map(|msg| (msg.cc_id.clone(), false))
             .collect::<Vec<_>>()
     );
 
@@ -311,7 +311,7 @@ fn execute_one_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 
@@ -327,7 +327,7 @@ fn execute_one_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 
@@ -494,7 +494,7 @@ fn execute_not_verified_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), false))
+            .map(|msg| (msg.cc_id.clone(), false))
             .collect::<Vec<_>>()
     );
 
@@ -512,7 +512,7 @@ fn execute_not_verified_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 
@@ -559,7 +559,7 @@ fn execute_pre_verified_message() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 
@@ -606,7 +606,7 @@ fn execute_twice() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 
@@ -625,7 +625,7 @@ fn execute_twice() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 }
@@ -668,7 +668,7 @@ fn receive_one_message() {
         .query_wasm_smart(
             gateway_address,
             &QueryMsg::GetMessages {
-                message_ids: msgs.iter().map(|m| m.cc_id.clone()).collect(),
+                message_ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
             },
         )
         .unwrap();
@@ -713,7 +713,7 @@ fn receive_many_messages() {
         .query_wasm_smart(
             gateway_address,
             &QueryMsg::GetMessages {
-                message_ids: msgs.iter().map(|m| m.cc_id.clone()).collect(),
+                message_ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
             },
         )
         .unwrap();
@@ -793,7 +793,7 @@ fn duplicate_message_id() {
         ret,
         msgs[0..1]
             .iter()
-            .map(|m| (m.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), true))
             .collect::<Vec<_>>()
     );
 
@@ -811,7 +811,7 @@ fn duplicate_message_id() {
         ret,
         msgs[1..2]
             .iter()
-            .map(|m| (m.cc_id.clone(), false))
+            .map(|msg| (msg.cc_id.clone(), false))
             .collect::<Vec<_>>()
     );
 }
