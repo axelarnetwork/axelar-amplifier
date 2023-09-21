@@ -7,6 +7,7 @@ use multisig::key::{KeyType, PublicKey};
 use std::str::FromStr;
 
 use axelar_wasm_std::snapshot;
+use connection_router::state::CrossChainId;
 use connection_router::{msg::Message, state::ChainName};
 use service_registry::state::Worker;
 
@@ -65,7 +66,14 @@ fn get_messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway::msg::QueryMsg::GetMessages { message_ids };
+    let ids = message_ids
+        .into_iter()
+        .map(|id| {
+            id.parse::<CrossChainId>()
+                .expect("ids should have correct format")
+        })
+        .collect::<Vec<_>>();
+    let query = gateway::msg::QueryMsg::GetMessages { message_ids: ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,
