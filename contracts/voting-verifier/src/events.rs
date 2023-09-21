@@ -61,10 +61,7 @@ impl From<PollMetadata> for Vec<Attribute> {
                 &serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
             ),
             ("source_chain", &value.source_chain.to_string()),
-            (
-                "source_gateway_address",
-                &value.source_gateway_address.to_string(),
-            ),
+            ("source_gateway_address", &value.source_gateway_address),
             (
                 "confirmation_height",
                 &value.confirmation_height.to_string(),
@@ -179,7 +176,7 @@ impl From<Voted> for Event {
         Event::new("voted")
             .add_attribute(
                 "poll_id",
-                &serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
+                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute("voter", other.voter)
     }
