@@ -47,7 +47,7 @@ pub fn encode(data: &Data) -> HexBinary {
     .into()
 }
 
-pub fn msg_to_sign(command_batch: &CommandBatch) -> HexBinary {
+pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
     let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
@@ -70,7 +70,7 @@ pub fn encode_execute_data(
         .map(|(signer, non_recoverable)| {
             let recoverable = non_recoverable.and_then(|sig| {
                 sig.to_recoverable(
-                    command_batch.msg_to_sign().as_slice(),
+                    command_batch.msg_digest().as_slice(),
                     &signer.pub_key,
                     add27,
                 )
@@ -648,7 +648,7 @@ mod test {
             encoder: Encoder::Abi,
         };
 
-        let res = batch.msg_to_sign();
+        let res = batch.msg_digest();
         let expected_msg = test_data::msg_to_sign();
 
         assert_eq!(res, expected_msg);

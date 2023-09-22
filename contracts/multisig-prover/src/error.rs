@@ -38,6 +38,9 @@ pub enum ContractError {
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
 
+    #[error(transparent)]
+    BcsError(#[from] bcs::Error),
+
     #[error("worker set has not changed sufficiently since last update")]
     WorkerSetUnchanged,
 
