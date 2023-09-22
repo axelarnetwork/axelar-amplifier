@@ -31,37 +31,31 @@ pub fn command_params(
         ),
     })?;
 
-    let ret = to_bytes(&(
+    Ok(to_bytes(&(
         source_chain,
         source_address,
         destination_address,
         payload_hash.to_vec(),
-    ))?;
-
-    Ok(ret.into())
+    ))
+    .expect("couldn't serialize command as bcs")
+    .into())
 }
 
-// destination chain id must be u64 for sui
-fn chain_id_as_u64(chain_id: Uint256) -> u64 {
-    assert!(
-        chain_id <= Uint256::from(u64::MAX),
-        "chain_id ({}) is greater than u64 max",
-        chain_id
-    );
-    u64::from_le_bytes(
-        chain_id.to_le_bytes()[..8]
-            .try_into()
-            .expect("Couldn't convert u256 to u64"),
-    )
+fn u256_to_u64(chain_id: Uint256) -> u64 {
+    chain_id.to_string().parse().expect("chain_id is invalid")
 }
 
 fn make_command_id(command_id: &HexBinary) -> [u8; 32] {
     // command-ids are fixed length sequences
-    <[u8; 32]>::try_from(command_id.to_vec()).expect("couldn't convert command id to 32 byte array")
+    command_id
+        .to_vec()
+        .try_into()
+        .expect("couldn't convert command id to 32 byte array")
 }
 
 pub fn encode(data: &Data) -> HexBinary {
-    let destination_chain_id = chain_id_as_u64(data.destination_chain_id);
+    // destination chain id must be u64 for sui
+    let destination_chain_id = u256_to_u64(data.destination_chain_id);
 
     let (commands_ids, command_types, command_params): (Vec<[u8; 32]>, Vec<String>, Vec<Vec<u8>>) =
         data.commands
@@ -95,7 +89,7 @@ mod test {
 
     use crate::{
         encoding::{
-            bcs::{chain_id_as_u64, command_params, encode},
+            bcs::{command_params, encode, make_command_id, u256_to_u64},
             Data,
         },
         types::Command,
@@ -104,13 +98,25 @@ mod test {
     #[test]
     fn test_chain_id_as_u64() {
         let chain_id = 1u64;
-        assert_eq!(chain_id, chain_id_as_u64(Uint256::from(chain_id as u128)));
+        assert_eq!(chain_id, u256_to_u64(Uint256::from(chain_id as u128)));
     }
+
     #[test]
     #[should_panic]
     fn test_chain_id_as_u64_fails() {
         let chain_id = u128::MAX;
-        chain_id_as_u64(Uint256::from(chain_id));
+        u256_to_u64(Uint256::from(chain_id));
+    }
+
+    #[test]
+    fn test_make_command_id() {
+        assert_eq!([0; 32], make_command_id(&HexBinary::from(vec![0; 32])));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_make_command_id_fails_too_large() {
+        make_command_id(&HexBinary::from(vec![0; 30]));
     }
 
     #[test]
