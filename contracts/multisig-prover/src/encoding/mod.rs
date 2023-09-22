@@ -1,4 +1,5 @@
 mod abi;
+mod bcs;
 
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;
@@ -31,7 +32,12 @@ fn make_command(msg: Message, encoding: Encoder) -> Result<Command, ContractErro
                 msg.destination_address,
                 msg.payload_hash,
             )?,
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::command_params(
+                msg.source_chain,
+                msg.source_address,
+                msg.destination_address,
+                msg.payload_hash,
+            )?,
         },
         id: command_id(msg.id),
     })
@@ -104,9 +110,9 @@ impl CommandBatchBuilder {
 }
 
 impl CommandBatch {
-    pub fn msg_to_sign(&self) -> HexBinary {
+    pub fn msg_digest(&self) -> HexBinary {
         match self.encoder {
-            Encoder::Abi => abi::msg_to_sign(self),
+            Encoder::Abi => abi::msg_digest(self),
             Encoder::Bcs => todo!(),
         }
     }
@@ -133,7 +139,7 @@ impl Data {
     pub fn encode(&self, encoder: Encoder) -> HexBinary {
         match encoder {
             Encoder::Abi => abi::encode(self),
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::encode(self),
         }
     }
 }
@@ -177,6 +183,20 @@ mod test {
         let router_message = messages.first().unwrap();
 
         let res = make_command(router_message.to_owned(), Encoder::Abi);
+        assert!(res.is_ok());
+
+        let res = res.unwrap();
+
+        assert_eq!(
+            res.id,
+            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
+                .unwrap()
+        );
+        assert_eq!(res.ty, CommandType::ApproveContractCall);
+
+        let mut router_message = router_message.to_owned();
+        router_message.destination_address = "FF".repeat(32);
+        let res = make_command(router_message.to_owned(), Encoder::Bcs);
         assert!(res.is_ok());
 
         let res = res.unwrap();

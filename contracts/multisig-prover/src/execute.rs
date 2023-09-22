@@ -50,7 +50,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id,
-        msg: command_batch.msg_to_sign(),
+        msg: command_batch.msg_digest(),
     };
 
     let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
@@ -211,7 +211,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 key_id: cur_worker_set.id(), // TODO remove the key_id
-                msg: batch.msg_to_sign(),
+                msg: batch.msg_digest(),
             };
 
             Ok(Response::new().add_submessage(SubMsg::reply_on_success(
