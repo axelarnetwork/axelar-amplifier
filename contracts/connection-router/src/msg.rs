@@ -1,8 +1,6 @@
-use crate::state::NewMessage;
+use crate::state::{GatewayDirection, NewMessage};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::HexBinary;
-
-use crate::types::GatewayDirection;
 
 // Message is a type meant to be used in interfaces where the data can be provided by the user.
 // The fields have not necessarily been validated, and should be checked prior to further processing.
