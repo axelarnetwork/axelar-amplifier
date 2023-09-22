@@ -8,6 +8,7 @@ use crate::{
     key::{KeyType, PublicKey, Signature},
     types::{KeyID, MultisigState},
 };
+use crate::key::NonRecoverable;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
@@ -60,5 +61,5 @@ pub struct Signer {
 pub struct Multisig {
     pub state: MultisigState,
     pub quorum: Uint256,
-    pub signers: Vec<(Signer, Option<Signature>)>,
+    pub signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
 }

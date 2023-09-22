@@ -3031,6 +3031,7 @@ dependencies = [
  "cw2 0.15.1",
  "error-stack",
  "getrandom",
+ "k256 0.13.1",
  "rand",
  "report",
  "schemars",

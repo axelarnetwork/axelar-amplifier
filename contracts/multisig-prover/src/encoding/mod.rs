@@ -6,6 +6,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
 use connection_router::msg::Message;
+use multisig::key::NonRecoverable;
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
@@ -114,7 +115,7 @@ impl CommandBatch {
     pub fn encode_execute_data(
         &self,
         quorum: Uint256,
-        signers: Vec<(Signer, Option<Signature>)>,
+        signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
     ) -> Result<HexBinary, ContractError> {
         match self.encoder {
             Encoder::Abi => abi::encode_execute_data(self, quorum, signers),

@@ -5,6 +5,7 @@ use cosmwasm_std::{Uint256, Uint64};
 
 use axelar_wasm_std::Snapshot;
 
+use crate::key::NonRecoverable;
 use crate::{
     key::Signature,
     types::{Key, KeyID, MsgToSign, MultisigState},
@@ -16,7 +17,7 @@ pub struct SigningSession {
     pub id: Uint64,
     pub key_id: KeyID,
     pub msg: MsgToSign,
-    pub signatures: HashMap<String, Signature>,
+    pub signatures: HashMap<String, Signature<NonRecoverable>>,
     pub state: MultisigState,
 }
 
@@ -35,7 +36,7 @@ impl SigningSession {
         &mut self,
         key: Key,
         signer: String,
-        signature: Signature,
+        signature: Signature<NonRecoverable>,
     ) -> Result<(), ContractError> {
         assert!(self.key_id == key.id, "violated invariant: key_id mismatch"); // TODO: correct way of handling this?
 
@@ -219,7 +220,7 @@ mod tests {
         let mut session =
             SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
-        let invalid_sig : Signature = (KeyType::Ecdsa, HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e035111c")
+        let invalid_sig : Signature<NonRecoverable> = (KeyType::Ecdsa, HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511")
                 .unwrap()).try_into().unwrap();
 
         let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
