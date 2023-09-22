@@ -1,4 +1,4 @@
-use connection_router::state::Message;
+use connection_router::state::{CrossChainId, NewMessage};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
@@ -11,4 +11,4 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const OUTGOING_MESSAGES: Map<String, Message> = Map::new("outgoing_messages");
+pub const OUTGOING_MESSAGES: Map<CrossChainId, NewMessage> = Map::new("outgoing_messages");

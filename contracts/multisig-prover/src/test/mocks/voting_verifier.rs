@@ -50,7 +50,7 @@ pub fn confirm_worker_set(
 ) {
     let mut new_operators: Vec<(HexBinary, Uint256)> = workers
         .iter()
-        .map(|w| (w.operator.clone(), w.weight))
+        .map(|worker| (worker.operator.clone(), worker.weight))
         .collect();
     new_operators.sort_by_key(|op| op.0.clone());
     app.execute_contract(
