@@ -70,7 +70,7 @@ pub fn encode_execute_data(
         .map(|(signer, non_recoverable)| {
             let recoverable = non_recoverable.and_then(|sig| {
                 sig.to_recoverable(
-                    command_batch.msg_to_sign().as_slice(),
+                    command_batch.msg_digest().as_slice(),
                     &signer.pub_key,
                     shift27,
                 )
