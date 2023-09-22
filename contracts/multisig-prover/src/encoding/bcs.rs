@@ -6,6 +6,9 @@ use crate::error::ContractError;
 
 use super::Data;
 
+// TODO: all of the public functions in this file should be moved to a trait,
+// that has an abi and bcs implementation (and possibly others)
+
 pub fn command_params(
     source_chain: String,
     source_address: String,
@@ -43,6 +46,11 @@ fn chain_id_as_u64(chain_id: Uint256) -> u64 {
     )
 }
 
+fn make_command_id(command_id: &HexBinary) -> [u8; 32] {
+    // command-ids are fixed length sequences
+    <[u8; 32]>::try_from(command_id.to_vec()).expect("couldn't convert command id to 32 byte array")
+}
+
 pub fn encode(data: &Data) -> HexBinary {
     let destination_chain_id = chain_id_as_u64(data.destination_chain_id);
 
@@ -51,8 +59,7 @@ pub fn encode(data: &Data) -> HexBinary {
             .iter()
             .map(|command| {
                 (
-                    <[u8; 32]>::try_from(command.id.to_vec())
-                        .expect("couldn't convert command id to 32 byte array"), // command-ids are fixed length sequences
+                    make_command_id(&command.id),
                     command.ty.to_string(),
                     command.params.to_vec(),
                 )
