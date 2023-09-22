@@ -8,7 +8,6 @@ use crate::{
     types::{KeyID, MsgToSign},
 };
 
-// ANCHOR: events
 pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
@@ -32,7 +31,6 @@ pub enum Event {
         public_key: PublicKey,
     },
 }
-// ANCHOR_END: events
 
 impl From<Event> for cosmwasm_std::Event {
     fn from(other: Event) -> Self {
