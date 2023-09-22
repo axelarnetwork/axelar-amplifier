@@ -46,7 +46,7 @@ pub fn encode(data: &Data) -> HexBinary {
     .into()
 }
 
-pub fn msg_to_sign(command_batch: &CommandBatch) -> HexBinary {
+pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
     let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
@@ -115,10 +115,11 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .iter()
-        .map(|s| {
+        .map(|signer| {
             (
-                evm_address(s.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
-                s.weight,
+                evm_address(signer.pub_key.as_ref())
+                    .expect("couldn't convert pubkey to evm address"),
+                signer.weight,
             )
         })
         .collect();
@@ -154,10 +155,11 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .iter()
-        .map(|s| {
+        .map(|signer| {
             (
-                evm_address(s.pub_key.as_ref()).expect("couldn't convert pubkey to evm address"),
-                s.weight,
+                evm_address(signer.pub_key.as_ref())
+                    .expect("couldn't convert pubkey to evm address"),
+                signer.weight,
             )
         })
         .collect();
@@ -183,8 +185,8 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
 
 fn evm_address(pub_key: &[u8]) -> Result<HexBinary, ContractError> {
     let pub_key =
-        PublicKey::from_sec1_bytes(pub_key).map_err(|e| ContractError::InvalidPublicKey {
-            reason: e.to_string(),
+        PublicKey::from_sec1_bytes(pub_key).map_err(|err| ContractError::InvalidPublicKey {
+            reason: err.to_string(),
         })?;
     let pub_key = pub_key.to_encoded_point(false);
 
@@ -198,19 +200,19 @@ pub fn command_params(
     payload_hash: HexBinary,
 ) -> Result<HexBinary, ContractError> {
     let destination_address =
-        ethereum_types::Address::from_str(&destination_address).map_err(|e| {
+        ethereum_types::Address::from_str(&destination_address).map_err(|err| {
             ContractError::InvalidMessage {
-                reason: format!("destination_address is not a valid EVM address: {}", e),
+                reason: format!("destination_address is not a valid EVM address: {}", err),
             }
         })?;
     let payload_hash: [u8; 32] =
         payload_hash
             .as_slice()
             .try_into()
-            .map_err(|e| ContractError::InvalidMessage {
+            .map_err(|err| ContractError::InvalidMessage {
                 reason: format!(
                     "payload_hash length is not a valid keccak256 hash length: {}",
-                    e
+                    err
                 ),
             })?;
     Ok(ethabi::encode(&[
@@ -612,7 +614,7 @@ mod test {
             encoder: Encoder::Abi,
         };
 
-        let res = batch.msg_to_sign();
+        let res = batch.msg_digest();
         let expected_msg = test_data::msg_to_sign();
 
         assert_eq!(res, expected_msg);

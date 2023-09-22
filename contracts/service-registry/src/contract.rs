@@ -70,7 +70,7 @@ pub fn execute(
             execute::require_governance(&deps, info)?;
             let workers = workers
                 .into_iter()
-                .map(|w| deps.api.addr_validate(&w))
+                .map(|worker| deps.api.addr_validate(&worker))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_worker_authorization_status(
                 deps,
@@ -86,7 +86,7 @@ pub fn execute(
             execute::require_governance(&deps, info)?;
             let workers = workers
                 .into_iter()
-                .map(|w| deps.api.addr_validate(&w))
+                .map(|worker| deps.api.addr_validate(&worker))
                 .collect::<Result<Vec<_>, _>>()?;
             execute::update_worker_authorization_status(
                 deps,
@@ -137,21 +137,25 @@ pub mod execute {
     ) -> Result<Response, ContractError> {
         let key = &service_name.clone();
 
-        SERVICES.update(deps.storage, key, |s| -> Result<Service, ContractError> {
-            match s {
-                None => Ok(Service {
-                    name: service_name,
-                    service_contract,
-                    min_num_workers,
-                    max_num_workers,
-                    min_worker_bond,
-                    bond_denom,
-                    unbonding_period_days,
-                    description,
-                }),
-                _ => Err(ContractError::ServiceAlreadyExists),
-            }
-        })?;
+        SERVICES.update(
+            deps.storage,
+            key,
+            |service| -> Result<Service, ContractError> {
+                match service {
+                    None => Ok(Service {
+                        name: service_name,
+                        service_contract,
+                        min_num_workers,
+                        max_num_workers,
+                        min_worker_bond,
+                        bond_denom,
+                        unbonding_period_days,
+                        description,
+                    }),
+                    _ => Err(ContractError::ServiceAlreadyExists),
+                }
+            },
+        )?;
 
         // Response with attributes? event?
         Ok(Response::new())
@@ -328,7 +332,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             service_name,
             chain_name,
         } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
-            .map_err(|e| e.into()),
+            .map_err(|err| err.into()),
     }
 }
 

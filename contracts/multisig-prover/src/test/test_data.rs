@@ -183,8 +183,8 @@ pub fn operators() -> Vec<TestOperator> {
                 .unwrap(),
             operator: HexBinary::from_hex(operator).unwrap(),
             weight: Uint256::from(weight),
-            signature: signature.map(|s| {
-                (KeyType::Ecdsa, HexBinary::from_hex(s).unwrap())
+            signature: signature.map(|sig| {
+                (KeyType::Ecdsa, HexBinary::from_hex(sig).unwrap())
                     .try_into()
                     .unwrap()
             }),

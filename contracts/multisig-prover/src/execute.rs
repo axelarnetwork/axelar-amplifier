@@ -7,7 +7,8 @@ use multisig::key::{KeyType, PublicKey};
 use std::str::FromStr;
 
 use axelar_wasm_std::snapshot;
-use connection_router::{msg::Message, types::ChainName};
+use connection_router::state::CrossChainId;
+use connection_router::{msg::Message, state::ChainName};
 use service_registry::state::Worker;
 
 use crate::{
@@ -49,7 +50,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
 
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id,
-        msg: command_batch.msg_to_sign(),
+        msg: command_batch.msg_digest(),
     };
 
     let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
@@ -65,7 +66,14 @@ fn get_messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway::msg::QueryMsg::GetMessages { message_ids };
+    let ids = message_ids
+        .into_iter()
+        .map(|id| {
+            id.parse::<CrossChainId>()
+                .expect("ids should have correct format")
+        })
+        .collect::<Vec<_>>();
+    let query = gateway::msg::QueryMsg::GetMessages { message_ids: ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,
@@ -203,7 +211,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 key_id: cur_worker_set.id(), // TODO remove the key_id
-                msg: batch.msg_to_sign(),
+                msg: batch.msg_digest(),
             };
 
             Ok(Response::new().add_submessage(SubMsg::reply_on_success(
@@ -242,10 +250,10 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
-            .map(|s| {
+            .map(|signer| {
                 (
-                    s.address.to_string(),
-                    (KeyType::Ecdsa, s.pub_key.as_ref().into()),
+                    signer.address.to_string(),
+                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
                 )
             })
             .collect(),
