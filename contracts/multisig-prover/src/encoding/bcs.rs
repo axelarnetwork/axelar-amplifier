@@ -127,6 +127,17 @@ pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
 
     Keccak256::digest(unsigned).as_slice().into()
 }
+pub fn encode_execute_data(
+    command_batch: &CommandBatch,
+    quorum: Uint256,
+    signers: Vec<(Signer, Option<Signature>)>,
+) -> Result<HexBinary, ContractError> {
+    let input = to_bytes(&(
+        encode(&command_batch.data).to_vec(),
+        encode_proof(quorum, signers)?.to_vec(),
+    ))?;
+    Ok(input.into())
+}
 
 fn u256_to_u128(val: Uint256) -> u128 {
     val.to_string().parse().expect("value is larger than u128")
@@ -142,7 +153,7 @@ fn u256_to_u64(chain_id: Uint256) -> u64 {
 #[cfg(test)]
 mod test {
 
-    use std::vec;
+    use std::{collections::BTreeSet, vec};
 
     use bcs::from_bytes;
     use connection_router::msg::Message;
@@ -155,11 +166,13 @@ mod test {
     use crate::{
         encoding::{
             bcs::{
-                command_params, encode, encode_proof, make_command_id, u256_to_u128, u256_to_u64,
+                command_params, encode, encode_execute_data, encode_proof, make_command_id,
+                u256_to_u128, u256_to_u64,
             },
             CommandBatchBuilder, Data,
         },
-        types::Command,
+        state::WorkerSet,
+        types::{BatchID, Command, CommandBatch},
     };
 
     use super::msg_digest;
@@ -395,5 +408,76 @@ mod test {
         let batch = builder.build().unwrap();
         let msg2 = msg_digest(&batch);
         assert_ne!(msg, msg2);
+    }
+
+    #[test]
+    fn test_encode_execute_data() {
+        let approval = HexBinary::from_hex("8a02010000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020213617070726f7665436f6e747261637443616c6c13617070726f7665436f6e747261637443616c6c0249034554480330783000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000004c064158454c415203307831000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000087010121037286a4f1177bea06c8e15cf6ec3df0b7747a01ac2329ca2999dfd74eff59902801640000000000000000000000000000000a0000000000000000000000000000000141ef5ce016a4beed7e11761e5831805e962fca3d8901696a61a6ffd3af2b646bdc3740f64643bdb164b8151d1424eb4943d03f71e71816c00726e2d68ee55600c600").unwrap();
+
+        let zero_addr = "00".repeat(32);
+
+        let data = Data {
+            destination_chain_id: 1u32.into(),
+            commands: vec![
+                Command {
+                    id: HexBinary::from_hex(
+                        "0000000000000000000000000000000000000000000000000000000000000001",
+                    )
+                    .unwrap(),
+                    ty: crate::types::CommandType::ApproveContractCall,
+                    params: command_params(
+                        "ETH".into(),
+                        "0x0".into(),
+                        zero_addr.clone(),
+                        HexBinary::from([0; 32]),
+                    )
+                    .unwrap(),
+                },
+                Command {
+                    id: HexBinary::from_hex(
+                        "0000000000000000000000000000000000000000000000000000000000000002",
+                    )
+                    .unwrap(),
+                    ty: crate::types::CommandType::ApproveContractCall,
+                    params: command_params(
+                        "AXELAR".into(),
+                        "0x1".into(),
+                        zero_addr,
+                        HexBinary::from([0; 32]),
+                    )
+                    .unwrap(),
+                },
+            ],
+        };
+
+        let command_batch = CommandBatch {
+            message_ids: vec![],
+            id: BatchID::new(&vec!["foobar".to_string()], None),
+            data,
+            encoder: crate::encoding::Encoder::Bcs,
+        };
+        let quorum = 10u128;
+
+        let signer = Signer {
+            address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+            weight: Uint256::from(100u128),
+            pub_key: PublicKey::Ecdsa(
+                HexBinary::from_hex(
+                    "037286a4f1177bea06c8e15cf6ec3df0b7747a01ac2329ca2999dfd74eff599028",
+                )
+                .unwrap(),
+            ),
+        };
+        let signature = Signature::Ecdsa(
+        HexBinary::from_hex("ef5ce016a4beed7e11761e5831805e962fca3d8901696a61a6ffd3af2b646bdc3740f64643bdb164b8151d1424eb4943d03f71e71816c00726e2d68ee55600c600").unwrap());
+        let encoded = encode_execute_data(
+            &command_batch,
+            Uint256::from(quorum),
+            vec![(signer, Some(signature))],
+        );
+        assert!(encoded.is_ok());
+        let encoded = encoded.unwrap();
+        assert_eq!(encoded.len(), approval.to_vec().len());
+        assert_eq!(encoded.to_vec(), approval.to_vec());
     }
 }
