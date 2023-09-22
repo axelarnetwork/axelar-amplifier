@@ -1,4 +1,4 @@
-use connection_router::state::CrossChainId;
+use connection_router::state::{CrossChainId, NewMessage};
 use cosmwasm_std::{to_binary, QueryRequest, WasmMsg, WasmQuery};
 
 use crate::{events::GatewayEvent, state::OUTGOING_MESSAGES};
