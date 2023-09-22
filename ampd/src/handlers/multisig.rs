@@ -11,7 +11,6 @@ use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tracing::info;
 
-use axelar_wasm_std::FnExt;
 use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;

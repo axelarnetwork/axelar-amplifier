@@ -152,7 +152,7 @@ impl Signature<Recoverable> {
         match self {
             Signature::Ecdsa(sig, _) => Signature::Ecdsa(
                 HexBinary::from(&sig.as_slice()[..NonRecoverable::LEN]),
-                PhantomData::default(),
+                PhantomData,
             ),
         }
     }
@@ -241,7 +241,7 @@ where
         });
     }
     match key_type {
-        KeyType::Ecdsa => Ok(Signature::Ecdsa(sig, PhantomData::default())),
+        KeyType::Ecdsa => Ok(Signature::Ecdsa(sig, PhantomData)),
     }
 }
 

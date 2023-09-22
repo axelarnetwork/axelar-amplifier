@@ -235,7 +235,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub mod query {
     use crate::{
-        key::{KeyType, PublicKey, Signature},
+        key::{KeyType, PublicKey},
         msg::Signer,
         state::PUB_KEYS,
     };
