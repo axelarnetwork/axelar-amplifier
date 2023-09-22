@@ -15,17 +15,26 @@ pub fn command_params(
     destination_address: String,
     payload_hash: HexBinary,
 ) -> Result<HexBinary, ContractError> {
+    if payload_hash.len() != 32 {
+        return Err(ContractError::InvalidMessage {
+            reason: format!("payload hash is not 32 bytes {}", payload_hash.to_hex()),
+        });
+    }
+
+    let destination_address = <[u8; 32]>::try_from(
+        HexBinary::from_hex(&destination_address)?.to_vec(),
+    )
+    .map_err(|_| ContractError::InvalidMessage {
+        reason: format!(
+            "destination_address is not a valid Sui address: {}",
+            destination_address
+        ),
+    })?;
+
     let ret = to_bytes(&(
         source_chain,
         source_address,
-        <[u8; 32]>::try_from(HexBinary::from_hex(&destination_address)?.to_vec()).map_err(
-            |_| ContractError::InvalidMessage {
-                reason: format!(
-                    "destination_address is not a valid Sui address: {}",
-                    destination_address
-                ),
-            },
-        )?,
+        destination_address,
         payload_hash.to_vec(),
     ))?;
 
@@ -110,7 +119,7 @@ mod test {
             "Ethereum".into(),
             "00".into(),
             "01".repeat(32).into(),
-            HexBinary::from_hex("02").unwrap(),
+            HexBinary::from_hex(&"02".repeat(32)).unwrap(),
         );
         assert!(res.is_ok());
 
@@ -132,7 +141,7 @@ mod test {
             HexBinary::from_hex(&"01".repeat(32)).unwrap().to_vec()
         );
 
-        assert_eq!(payload_hash, vec![2]);
+        assert_eq!(payload_hash, vec![2; 32]);
     }
 
     #[test]
@@ -151,7 +160,7 @@ mod test {
         let source_chain = "Ethereum";
         let source_address = "AA";
         let destination_address = "BB".repeat(32);
-        let payload_hash = HexBinary::from_hex("CC").unwrap();
+        let payload_hash = HexBinary::from_hex(&"CC".repeat(32)).unwrap();
         let destination_chain_id = 1u64;
         let command_id = HexBinary::from_hex(&"FF".repeat(32)).unwrap();
         let data = Data {
