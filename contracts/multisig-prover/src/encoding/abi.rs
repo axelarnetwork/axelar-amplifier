@@ -72,7 +72,7 @@ pub fn encode_execute_data(
                 sig.to_recoverable(
                     command_batch.msg_to_sign().as_slice(),
                     &signer.pub_key,
-                    shift27,
+                    add27,
                 )
                 .ok()
             });
@@ -174,7 +174,7 @@ where
     })
 }
 
-fn shift27(recovery_byte: u8) -> u8 {
+fn add27(recovery_byte: u8) -> u8 {
     recovery_byte + 27
 }
 
@@ -732,7 +732,7 @@ mod test {
             .to_recoverable(
                 HexBinary::from_hex(digest).unwrap().as_slice(),
                 &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
-                shift27,
+                add27,
             )
             .unwrap();
 
