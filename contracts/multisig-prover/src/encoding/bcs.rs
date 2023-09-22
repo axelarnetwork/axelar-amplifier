@@ -12,16 +12,17 @@ pub fn command_params(
     destination_address: String,
     payload_hash: HexBinary,
 ) -> Result<HexBinary, ContractError> {
-    assert!(
-        destination_address.len() == 64,
-        "destination_address ({}) is not 32 bytes",
-        destination_address
-    );
     let ret = to_bytes(&(
         source_chain,
         source_address,
-        <[u8; 32]>::try_from(&HexBinary::from_hex(&destination_address)?.to_vec()[..32])
-            .expect("couldn't convert destination_address to 32 byte array"),
+        <[u8; 32]>::try_from(HexBinary::from_hex(&destination_address)?.to_vec()).map_err(
+            |_| ContractError::InvalidMessage {
+                reason: format!(
+                    "destination_address is not a valid Sui address: {}",
+                    destination_address
+                ),
+            },
+        )?,
         payload_hash.to_vec(),
     ))?;
 
@@ -49,13 +50,8 @@ pub fn encode(data: &Data) -> HexBinary {
         data.commands
             .iter()
             .map(|command| {
-                assert!(
-                    command.id.len() == 32,
-                    "command.id ({}) is not 32 bytes",
-                    command.id
-                );
                 (
-                    <[u8; 32]>::try_from(&command.id.to_vec()[..32])
+                    <[u8; 32]>::try_from(command.id.to_vec())
                         .expect("couldn't convert command id to 32 byte array"), // command-ids are fixed length sequences
                     command.ty.to_string(),
                     command.params.to_vec(),
@@ -133,14 +129,14 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
     fn test_invalid_destination_address() {
-        let _ = command_params(
+        let res = command_params(
             "Ethereum".into(),
             "00".into(),
             "01".into(),
             HexBinary::from_hex("02").unwrap(),
         );
+        assert!(!res.is_ok());
     }
 
     #[test]
