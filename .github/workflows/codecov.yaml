@@ -9,7 +9,7 @@ on:
 
 jobs:
   coverage:
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-latest-m
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -27,7 +27,7 @@ jobs:
 
       - name: Install libclang-dev
         run: sudo apt-get install libclang-dev
-
+    
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
         with:
