@@ -6,16 +6,7 @@ use multisig::{key::Signature, msg::Signer};
 use crate::{error::ContractError, types::Operator};
 
 fn u256_to_u128(val: Uint256) -> u128 {
-    assert!(
-        val <= Uint256::from(u128::MAX),
-        "couldn't convert u256 ({}) to u128",
-        val
-    );
-    u128::from_le_bytes(
-        val.to_le_bytes()[..16]
-            .try_into()
-            .expect("couldn't convert u256 to u128"),
-    )
+    val.to_string().parse().expect("value is larger than u128")
 }
 
 #[allow(dead_code)]
@@ -24,9 +15,9 @@ fn encode_proof(
     signers: Vec<(Signer, Option<Signature>)>,
 ) -> Result<HexBinary, ContractError> {
     let mut operators = make_operators_with_sigs(signers);
-    operators.sort();
+    operators.sort(); // gateway requires operators to be sorted
 
-    let (addresses, weights, signatures): (Vec<_>, Vec<u128>, Vec<_>) = operators
+    let (addresses, weights, signatures): (Vec<_>, Vec<_>, Vec<_>) = operators
         .iter()
         .map(|op| {
             (
