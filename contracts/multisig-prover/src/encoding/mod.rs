@@ -193,6 +193,20 @@ mod test {
                 .unwrap()
         );
         assert_eq!(res.ty, CommandType::ApproveContractCall);
+
+        let mut router_message = router_message.to_owned();
+        router_message.destination_address = "FF".repeat(32);
+        let res = make_command(router_message.to_owned(), Encoder::Bcs);
+        assert!(res.is_ok());
+
+        let res = res.unwrap();
+
+        assert_eq!(
+            res.id,
+            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
+                .unwrap()
+        );
+        assert_eq!(res.ty, CommandType::ApproveContractCall);
     }
 
     #[test]
