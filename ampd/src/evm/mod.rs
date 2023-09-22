@@ -16,8 +16,8 @@ pub enum ChainName {
     Other(String),
 }
 
-impl PartialEq<connection_router::types::ChainName> for ChainName {
-    fn eq(&self, other: &connection_router::types::ChainName) -> bool {
+impl PartialEq<connection_router::state::ChainName> for ChainName {
+    fn eq(&self, other: &connection_router::state::ChainName) -> bool {
         self.to_string().eq_ignore_ascii_case(&other.to_string())
     }
 }
@@ -44,28 +44,26 @@ impl ChainName {
 
 #[cfg(test)]
 mod tests {
+    use crate::evm;
+    use connection_router::state::ChainName;
     use std::str::FromStr;
-
-    use crate::evm::ChainName;
 
     #[test]
     fn chain_name_partial_eq() {
-        let chain_name = ChainName::Ethereum;
+        let chain_name = evm::ChainName::Ethereum;
 
-        assert!(chain_name == connection_router::types::ChainName::from_str("Ethereum").unwrap());
-        assert!(chain_name == connection_router::types::ChainName::from_str("ETHEREUM").unwrap());
-        assert!(chain_name == connection_router::types::ChainName::from_str("ethereum").unwrap());
-        assert!(chain_name == connection_router::types::ChainName::from_str("ethEReum").unwrap());
-        assert!(chain_name != connection_router::types::ChainName::from_str("Ethereum-1").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("Ethereum").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("ETHEREUM").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("ethereum").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("ethEReum").unwrap());
+        assert_ne!(chain_name, ChainName::from_str("Ethereum-1").unwrap());
 
-        let chain_name = ChainName::Other("avalanche".into());
+        let chain_name = evm::ChainName::Other("avalanche".into());
 
-        assert!(chain_name == connection_router::types::ChainName::from_str("Avalanche").unwrap());
-        assert!(chain_name == connection_router::types::ChainName::from_str("AVALANCHE").unwrap());
-        assert!(chain_name == connection_router::types::ChainName::from_str("avalanche").unwrap());
-        assert!(chain_name == connection_router::types::ChainName::from_str("avaLAnche").unwrap());
-        assert!(
-            chain_name != connection_router::types::ChainName::from_str("Avalanche-2").unwrap()
-        );
+        assert_eq!(chain_name, ChainName::from_str("Avalanche").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("AVALANCHE").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("avalanche").unwrap());
+        assert_eq!(chain_name, ChainName::from_str("avaLAnche").unwrap());
+        assert_ne!(chain_name, ChainName::from_str("Avalanche-2").unwrap());
     }
 }

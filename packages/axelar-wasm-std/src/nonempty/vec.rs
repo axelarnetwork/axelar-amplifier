@@ -2,6 +2,7 @@ use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
+#[serde(try_from = "std::vec::Vec<T>")]
 pub struct Vec<T>(std::vec::Vec<T>);
 
 impl<T> TryFrom<std::vec::Vec<T>> for Vec<T> {
