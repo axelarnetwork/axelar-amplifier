@@ -30,8 +30,10 @@ mod event_processor;
 mod event_sub;
 mod evm;
 mod handlers;
+mod json_rpc;
 mod queue;
 pub mod state;
+mod sui;
 mod tm_client;
 mod tofnd;
 mod types;
@@ -185,7 +187,7 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        evm::json_rpc::Client::new_http(&chain.rpc_url)
+                        json_rpc::Client::new_http(&chain.rpc_url)
                             .change_context(Error::Connection)?,
                         self.broadcaster.client(),
                     ),
@@ -199,7 +201,7 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        evm::json_rpc::Client::new_http(&chain.rpc_url)
+                        json_rpc::Client::new_http(&chain.rpc_url)
                             .change_context(Error::Connection)?,
                         self.broadcaster.client(),
                     ),
