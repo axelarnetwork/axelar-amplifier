@@ -111,7 +111,7 @@ impl CommandBatch {
     pub fn msg_digest(&self) -> HexBinary {
         match self.encoder {
             Encoder::Abi => abi::msg_digest(self),
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::msg_digest(self),
         }
     }
 
