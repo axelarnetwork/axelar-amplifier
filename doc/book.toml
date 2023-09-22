@@ -5,7 +5,7 @@ src = "src"
 title = "Amplifier Documentation"
 
 [build]
-build-dir = "../doc/book"
+build-dir = "../target/book"
 create-missing = false
 
 [preprocessor]
@@ -14,7 +14,6 @@ create-missing = false
 command = "mdbook-mermaid"
 
 [output.html]
-site-url = "/book/"
 
 [output.linkcheck]
 warning-policy = "error"

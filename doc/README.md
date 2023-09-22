@@ -1,3 +1,7 @@
+## How to read the docs
+
+You can directly navigate through the markdown files [here](./src) or build the book locally using `mdbook`.
+
 ## Prerequisites to build book
 
 Install required packages
@@ -8,7 +12,7 @@ cargo install mdbook-mermaid
 cargo install mdbook-linkcheck
 ```
 
-# Build the book
+## Build the book
 
 From the book directory run:
 
