@@ -4,11 +4,11 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
+use crate::key::NonRecoverable;
 use crate::{
     key::{KeyType, PublicKey, Signature},
     types::{KeyID, MultisigState},
 };
-use crate::key::NonRecoverable;
 
 #[cw_serde]
 pub struct InstantiateMsg {}
