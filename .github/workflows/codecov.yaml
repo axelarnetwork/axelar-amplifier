@@ -4,8 +4,8 @@ on:
   pull_request:
   push:
     branches:
-      - 'main'
-      - 'releases/**'
+      - main
+      - releases/**
 
 jobs:
   coverage:
@@ -35,6 +35,9 @@ jobs:
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+        env:
+          RUSTFLAGS: --cfg tracing_unstable
+          RUST_BACKTRACE: 1
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
