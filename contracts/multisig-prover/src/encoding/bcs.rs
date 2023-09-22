@@ -7,14 +7,7 @@ use crate::{error::ContractError, state::WorkerSet};
 use itertools::Itertools;
 use multisig::{key::Signature, msg::Signer};
 
-<<<<<<< HEAD
-use crate::types::Operator;
-=======
-use crate::{
-    error::ContractError,
-    types::{CommandBatch, Operator},
-};
->>>>>>> main
+use crate::types::{CommandBatch, Operator};
 
 use super::Data;
 use sha3::{Digest, Keccak256};
