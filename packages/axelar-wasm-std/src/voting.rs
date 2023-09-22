@@ -197,7 +197,7 @@ impl Poll for WeightedPoll {
             results: self
                 .votes
                 .iter()
-                .map(|v| *v >= self.snapshot.quorum.into())
+                .map(|tally| *tally >= self.snapshot.quorum.into())
                 .collect(),
         })
     }

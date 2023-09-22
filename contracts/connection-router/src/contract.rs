@@ -71,11 +71,8 @@ pub mod execute {
 
     use axelar_wasm_std::flagset::FlagSet;
 
-    use crate::state::NewMessage;
-    use crate::{
-        events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted},
-        types::{ChainEndpoint, ChainName, Gateway, GatewayDirection},
-    };
+    use crate::events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted};
+    use crate::state::{ChainEndpoint, ChainName, Gateway, GatewayDirection, NewMessage};
 
     use super::*;
 
@@ -187,7 +184,7 @@ pub mod execute {
             });
         }
 
-        if msgs.iter().any(|msg| msg.uid.chain != source_chain.name) {
+        if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
             return Err(ContractError::WrongSourceChain);
         }
 

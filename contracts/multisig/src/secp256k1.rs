@@ -9,9 +9,9 @@ pub fn ecdsa_verify(
     sig: &Signature<NonRecoverable>,
     pub_key: &[u8],
 ) -> Result<bool, ContractError> {
-    secp256k1_verify(msg_hash, sig.as_ref(), pub_key).map_err(|e| {
+    secp256k1_verify(msg_hash, sig.as_ref(), pub_key).map_err(|err| {
         ContractError::SignatureVerificationFailed {
-            reason: e.to_string(),
+            reason: err.to_string(),
         }
     })
 }
