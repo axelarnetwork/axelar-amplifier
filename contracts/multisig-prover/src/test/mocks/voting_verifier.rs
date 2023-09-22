@@ -1,5 +1,5 @@
 use axelar_wasm_std::operators::Operators;
-use connection_router::types::MessageID;
+use connection_router::state::MessageId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
@@ -50,14 +50,14 @@ pub fn confirm_worker_set(
 ) {
     let mut new_operators: Vec<(HexBinary, Uint256)> = workers
         .iter()
-        .map(|w| (w.operator.clone(), w.weight))
+        .map(|worker| (worker.operator.clone(), worker.weight))
         .collect();
     new_operators.sort_by_key(|op| op.0.clone());
     app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
         &ExecuteMsg::ConfirmWorkerSet {
-            message_id: MessageID::try_from("ethereum:00".to_string()).unwrap(),
+            message_id: MessageId::try_from("ethereum:00".to_string()).unwrap(),
             new_operators: Operators {
                 weights_by_addresses: new_operators,
                 threshold,

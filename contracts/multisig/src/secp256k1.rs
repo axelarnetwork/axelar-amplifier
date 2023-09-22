@@ -6,9 +6,9 @@ use crate::ContractError;
 const ECDSA_SIGNATURE_LEN: usize = 64;
 
 pub fn ecdsa_verify(msg_hash: &[u8], sig: &[u8], pub_key: &[u8]) -> Result<bool, ContractError> {
-    secp256k1_verify(msg_hash, &sig[0..ECDSA_SIGNATURE_LEN], pub_key).map_err(|e| {
+    secp256k1_verify(msg_hash, &sig[0..ECDSA_SIGNATURE_LEN], pub_key).map_err(|err| {
         ContractError::SignatureVerificationFailed {
-            reason: e.to_string(),
+            reason: err.to_string(),
         }
     })
 }

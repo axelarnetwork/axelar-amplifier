@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use axelar_wasm_std::{Participant, Snapshot, Threshold};
-use connection_router::types::ChainName;
+use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
 use cw_storage_plus::{Item, Map};

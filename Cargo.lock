@@ -91,6 +91,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -7462,6 +7463,7 @@ dependencies = [
  "anyhow",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "bcs",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
