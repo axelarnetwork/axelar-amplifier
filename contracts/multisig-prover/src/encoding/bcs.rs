@@ -8,7 +8,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .iter()
-        .map(|s| (s.pub_key.clone().into(), s.weight))
+        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
     Operators {
