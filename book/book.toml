@@ -18,3 +18,4 @@ site-url = "/book/"
 
 [output.linkcheck]
 warning-policy = "error"
+traverse-parent-directories = true
