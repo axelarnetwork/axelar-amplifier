@@ -430,6 +430,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bcs"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bd3ffe8b19a604421a5d461d4a70346223e535903fbc3067138bddbebddcf77"
+dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "bech32"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3047,6 +3057,7 @@ dependencies = [
  "anyhow",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "bcs",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
