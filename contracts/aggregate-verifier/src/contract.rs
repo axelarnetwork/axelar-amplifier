@@ -1,3 +1,4 @@
+use connection_router::state::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -6,14 +7,13 @@ use cosmwasm_std::{
 };
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
+use voting_verifier::msg as voting_msg;
+
 use crate::{
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{Config, CONFIG},
 };
-
-use connection_router::msg;
-use connection_router::state;
 
 use self::execute::verify_messages;
 
@@ -38,28 +38,21 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::VerifyMessages { messages } => {
-            // todo: this conversion can go away once the message types are merged
-            let msgs = messages
-                .into_iter()
-                .map(state::Message::try_from)
-                .collect::<Result<Vec<state::Message>, _>>()?;
-
-            verify_messages(deps, msgs)
-        }
+        ExecuteMsg::VerifyMessages { messages } => verify_messages(deps, messages),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {
-
     use cosmwasm_std::{to_binary, SubMsg, WasmMsg};
+
+    use connection_router::state::NewMessage;
 
     use super::*;
 
     pub fn verify_messages(
         deps: DepsMut,
-        msgs: Vec<state::Message>,
+        msgs: Vec<NewMessage>,
     ) -> Result<Response, ContractError> {
         // Simply pass through to a single verifier for now. If there are multiple verification
         // methods in the future, as well as support for a callback when a message is actually
@@ -68,9 +61,7 @@ pub mod execute {
         Ok(Response::new().add_submessage(SubMsg::reply_on_success(
             WasmMsg::Execute {
                 contract_addr: verifier.to_string(),
-                msg: to_binary(&ExecuteMsg::VerifyMessages {
-                    messages: msgs.into_iter().map(msg::Message::from).collect(),
-                })?,
+                msg: to_binary(&voting_msg::ExecuteMsg::VerifyMessages { messages: msgs })?,
                 funds: vec![],
             },
             VERIFY_REPLY,
@@ -90,7 +81,7 @@ pub fn reply(
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             // check format of data
-            let _: Vec<(String, bool)> = from_binary(&data)?;
+            let _: Vec<(CrossChainId, bool)> = from_binary(&data)?;
 
             // only one verifier, so just return the response as is
             Ok(Response::new().set_data(data))
@@ -109,11 +100,11 @@ pub fn reply(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::IsVerified { messages: _ } => {
+        QueryMsg::IsVerified { messages } => {
             let verifier = CONFIG.load(deps.storage)?.verifier;
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: verifier.to_string(),
-                msg: to_binary(&msg)?,
+                msg: to_binary(&voting_msg::QueryMsg::IsVerified { messages })?,
             }))
         }
     }

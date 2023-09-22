@@ -113,6 +113,29 @@ impl TryFrom<NewMessage> for Message {
 }
 
 /// temporary conversion until [Message] is removed
+impl TryFrom<msg::Message> for NewMessage {
+    type Error = Report<ContractError>;
+
+    fn try_from(msg: msg::Message) -> Result<Self, Self::Error> {
+        let (_, id) = msg
+            .id
+            .split_once(ID_SEPARATOR)
+            .ok_or(ContractError::InvalidMessageId)?;
+
+        Ok(NewMessage {
+            cc_id: CrossChainId {
+                id: id.parse()?,
+                chain: msg.source_chain.parse()?,
+            },
+            destination_address: msg.destination_address.parse()?,
+            destination_chain: msg.destination_chain.parse()?,
+            source_address: msg.source_address.parse()?,
+            payload_hash: msg.payload_hash,
+        })
+    }
+}
+
+/// temporary conversion until [Message] is removed
 impl TryFrom<Message> for NewMessage {
     type Error = Report<ContractError>;
 
@@ -247,6 +270,7 @@ impl TryFrom<String> for Address {
 
 #[cw_serde]
 #[serde(try_from = "String")]
+#[derive(Eq, Hash)]
 pub struct MessageId(String);
 
 impl FromStr for MessageId {
@@ -310,9 +334,26 @@ impl KeyDeserialize for MessageId {
 }
 
 #[cw_serde]
+#[derive(Eq, Hash)]
 pub struct CrossChainId {
     pub chain: ChainName,
     pub id: MessageId,
+}
+
+/// todo: remove this when state::NewMessage is used
+impl FromStr for CrossChainId {
+    type Err = ContractError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split_once(ID_SEPARATOR);
+        let (chain, id) = parts
+            .map(|(chain, id)| (chain.parse::<ChainName>(), id.parse::<MessageId>()))
+            .ok_or(ContractError::InvalidMessageId)?;
+        Ok(CrossChainId {
+            chain: chain?,
+            id: id?,
+        })
+    }
 }
 
 impl Display for CrossChainId {
@@ -345,6 +386,7 @@ impl KeyDeserialize for CrossChainId {
 
 #[cw_serde]
 #[serde(try_from = "String")]
+#[derive(Eq, Hash)]
 pub struct ChainName(String);
 
 impl FromStr for ChainName {
