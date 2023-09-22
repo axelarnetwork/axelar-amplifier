@@ -9,7 +9,7 @@ on:
 
 jobs:
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-large
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -24,6 +24,9 @@ jobs:
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
+
+      - name: Install libclang-dev
+        run: sudo apt-get install libclang-dev
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
