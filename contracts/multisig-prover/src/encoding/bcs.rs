@@ -1,18 +1,47 @@
+use axelar_wasm_std::operators::Operators;
 use bcs::to_bytes;
 use cosmwasm_std::{HexBinary, Uint256};
+
+use crate::{error::ContractError, state::WorkerSet};
+
 use itertools::Itertools;
 use multisig::{key::Signature, msg::Signer};
 
-use crate::{
-    error::ContractError,
-    types::{CommandBatch, Operator},
-};
+use crate::types::{CommandBatch, Operator};
 
 use super::Data;
 use sha3::{Digest, Keccak256};
 
 // TODO: all of the public functions in this file should be moved to a trait,
 // that has an abi and bcs implementation (and possibly others)
+
+pub fn make_operators(worker_set: WorkerSet) -> Operators {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    Operators {
+        weights_by_addresses: operators,
+        threshold: worker_set.threshold,
+    }
+}
+
+pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|s| (s.pub_key.clone().into(), s.weight))
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    let (addresses, weights): (Vec<Vec<u8>>, Vec<_>) = operators
+        .into_iter()
+        .map(|(pub_key, weight)| (pub_key.to_vec(), u256_to_u128(weight)))
+        .unzip();
+
+    Ok(to_bytes(&(addresses, weights, u256_to_u128(worker_set.threshold)))?.into())
+}
 
 #[allow(dead_code)]
 fn encode_proof(
@@ -142,11 +171,13 @@ fn u256_to_u64(chain_id: Uint256) -> u64 {
 #[cfg(test)]
 mod test {
 
-    use std::vec;
-
+    use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
     use connection_router::msg::Message;
     use cosmwasm_std::{Addr, HexBinary, Uint256};
+
+    use std::vec;
+
     use multisig::{
         key::{PublicKey, Signature},
         msg::Signer,
@@ -155,14 +186,61 @@ mod test {
     use crate::{
         encoding::{
             bcs::{
-                command_params, encode, encode_proof, make_command_id, u256_to_u128, u256_to_u64,
+                command_params, encode, encode_proof, make_command_id, make_operators,
+                transfer_operatorship_params, u256_to_u128, u256_to_u64,
             },
             CommandBatchBuilder, Data,
         },
+        test::test_data,
         types::Command,
     };
 
     use super::msg_digest;
+    #[test]
+    fn test_transfer_operatorship_params() {
+        let worker_set = test_data::new_worker_set();
+
+        let res = transfer_operatorship_params(&worker_set);
+        assert!(res.is_ok());
+
+        let decoded = from_bytes(&res.unwrap());
+        assert!(decoded.is_ok());
+
+        let (operators, weights, quorum): (Vec<Vec<u8>>, Vec<u128>, u128) = decoded.unwrap();
+
+        let mut expected: Vec<(Vec<u8>, u128)> = worker_set
+            .signers
+            .into_iter()
+            .map(|s| (s.pub_key.as_ref().to_vec(), u256_to_u128(s.weight)))
+            .collect();
+        expected.sort_by_key(|op| op.0.clone());
+        let (operators_expected, weights_expected): (Vec<Vec<u8>>, Vec<u128>) =
+            expected.into_iter().unzip();
+
+        assert_eq!(operators, operators_expected);
+        assert_eq!(weights, weights_expected);
+        assert_eq!(quorum, u256_to_u128(worker_set.threshold));
+    }
+
+    #[test]
+    fn test_make_operators() {
+        let worker_set = test_data::new_worker_set();
+        let mut expected: Vec<(HexBinary, _)> = worker_set
+            .clone()
+            .signers
+            .into_iter()
+            .map(|s| (s.pub_key.into(), s.weight))
+            .collect();
+        expected.sort_by_key(|op| op.0.clone());
+
+        let operators = make_operators(worker_set.clone());
+        let expected_operators = Operators {
+            weights_by_addresses: expected,
+            threshold: worker_set.threshold,
+        };
+        assert_eq!(operators, expected_operators);
+    }
+
     #[test]
     fn test_u256_to_u128() {
         let val = u128::MAX;
