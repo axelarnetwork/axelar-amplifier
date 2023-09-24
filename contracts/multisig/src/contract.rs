@@ -60,6 +60,7 @@ pub fn execute(
 }
 
 pub mod execute {
+    use crate::key::NonRecoverable;
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -115,7 +116,7 @@ pub mod execute {
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
         let key = KEYS.load(deps.storage, &session.key_id)?;
-        let signature: Signature = match key
+        let signature: Signature<NonRecoverable> = match key
             .pub_keys
             .iter()
             .find(|&(addr, _)| addr == &info.sender.to_string())
@@ -234,7 +235,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub mod query {
     use crate::{
-        key::{KeyType, PublicKey, Signature},
+        key::{KeyType, PublicKey},
         msg::Signer,
         state::PUB_KEYS,
     };
@@ -265,7 +266,7 @@ pub mod query {
                     session.signatures.get(&address).cloned(),
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature>)>>();
+            .collect::<Vec<_>>();
 
         Ok(Multisig {
             state: session.state,

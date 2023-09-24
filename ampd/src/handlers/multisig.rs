@@ -2,13 +2,11 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::FnExt;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmwasm_std::{HexBinary, Uint64};
-use ecdsa::{RecoveryId, VerifyingKey};
+use ecdsa::VerifyingKey;
 use error_stack::ResultExt;
 use hex::encode;
-use k256::Secp256k1;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tracing::info;
@@ -22,7 +20,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::tofnd::grpc::SharableEcdsaClient;
-use crate::tofnd::{MessageDigest, Signature};
+use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
 
@@ -153,8 +151,7 @@ where
 
                 info!(signature = encode(&signature), "ready to submit signature");
 
-                self.broadcast_signature(session_id, to_recoverable(signature, &msg, pub_key)?)
-                    .await?;
+                self.broadcast_signature(session_id, signature).await?;
 
                 Ok(())
             }
@@ -166,60 +163,34 @@ where
     }
 }
 
-// TODO: handle signature conversion in wasm contract
-fn to_recoverable(
-    sig: Signature,
-    digest: &MessageDigest,
-    pub_key: &PublicKey,
-) -> error_stack::Result<Vec<u8>, Error> {
-    let sig =
-        ecdsa::Signature::<Secp256k1>::from_slice(sig.as_slice()).change_context(Error::Sign)?;
-
-    let recovery_id = VerifyingKey::from_sec1_bytes(pub_key.to_bytes().as_ref())
-        .change_context(Error::Sign)?
-        .then(|k| {
-            RecoveryId::trial_recovery_from_prehash(&k, digest.as_ref(), &sig)
-                .change_context(Error::Sign)
-        })?;
-
-    let mut recoverable = sig.to_vec();
-    //  We have to make v 27 or 28 due to openzeppelin's implementation
-    recoverable.push(recovery_id.to_byte() + 27);
-
-    Ok(recoverable)
-}
-
 #[cfg(test)]
 mod test {
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use std::collections::HashMap;
     use std::convert::{TryFrom, TryInto};
-    use std::str::FromStr;
     use std::time::Duration;
 
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::{AccountId, Gas};
     use cosmwasm_std::{Addr, HexBinary, Uint64};
     use ecdsa::SigningKey;
-    use elliptic_curve::consts::U32;
     use error_stack::{Report, Result};
-    use ethers::types::Signature as EthersSignature;
-    use generic_array::GenericArray;
     use hex::FromHex;
-    use k256::ecdsa::{Signature as K256Signature, VerifyingKey};
     use rand::rngs::OsRng;
     use tendermint::abci;
 
-    use super::*;
+    use multisig::events::Event::SigningStarted;
+    use multisig::key::PublicKey;
+    use multisig::types::{KeyID, MsgToSign};
+
     use crate::broadcaster::MockBroadcaster;
     use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};
     use crate::tofnd;
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
     use crate::types;
-    use multisig::events::Event::SigningStarted;
-    use multisig::key::PublicKey;
-    use multisig::types::{KeyID, MsgToSign};
+
+    use super::*;
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 
@@ -395,37 +366,5 @@ mod test {
             *handler.handle(&event).await.unwrap_err().current_context(),
             Error::Sign
         ));
-    }
-
-    #[test]
-    fn should_convert_signature_to_recoverable() {
-        let ethers_signature = EthersSignature::from_str("74ab5ec395cdafd861dec309c30f6cf8884fc9905eb861171e636d9797478adb60b2bfceb7db0a08769ed7a60006096d3e0f6d3783d125600ac6306180ecbc6f1b").unwrap();
-        let pub_key =
-            Vec::from_hex("03571a2dcec96eecc7950c9f36367fd459b8d334bac01ac153b7ed3dcf4025fc22")
-                .unwrap();
-
-        let digest = "6ac52b00f4256d98d53c256949288135c14242a39001d5fdfa564ea003ccaf92";
-
-        let signature = {
-            let mut r_bytes = [0u8; 32];
-            let mut s_bytes = [0u8; 32];
-            ethers_signature.r.to_big_endian(&mut r_bytes);
-            ethers_signature.s.to_big_endian(&mut s_bytes);
-            let gar: &GenericArray<u8, U32> = GenericArray::from_slice(&r_bytes);
-            let gas: &GenericArray<u8, U32> = GenericArray::from_slice(&s_bytes);
-
-            K256Signature::from_scalars(*gar, *gas).unwrap()
-        };
-
-        let recoverable_signature = to_recoverable(
-            signature.to_vec(),
-            &MessageDigest::from_hex(digest).unwrap(),
-            &VerifyingKey::from_sec1_bytes(pub_key.as_ref())
-                .unwrap()
-                .into(),
-        )
-        .unwrap();
-
-        assert_eq!(recoverable_signature, ethers_signature.to_vec());
     }
 }
