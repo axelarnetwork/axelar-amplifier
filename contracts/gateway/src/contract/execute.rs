@@ -110,7 +110,7 @@ fn load_router(deps: &DepsMut) -> error_stack::Result<Addr, ContractError> {
         .map(|cfg| cfg.router)
 }
 
-fn ensure_unique_ids(msgs: &Vec<NewMessage>) -> error_stack::Result<(), ContractError> {
+fn ensure_unique_ids(msgs: &[NewMessage]) -> error_stack::Result<(), ContractError> {
     let duplicates: Vec<_> = msgs
         .iter()
         .map(|m| &m.cc_id)
