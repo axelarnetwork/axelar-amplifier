@@ -183,8 +183,6 @@ mod test {
     use connection_router::msg::Message;
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
-    use std::vec;
-
     use multisig::{
         key::{PublicKey, Recoverable, Signature},
         msg::Signer,
