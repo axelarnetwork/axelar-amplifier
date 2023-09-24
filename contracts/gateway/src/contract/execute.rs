@@ -1,80 +1,50 @@
+use cosmwasm_std::{to_binary, Addr, QueryRequest, WasmMsg, WasmQuery};
+use error_stack::{Report, ResultExt};
+use itertools::Itertools;
+
 use connection_router::state::{CrossChainId, NewMessage};
-use cosmwasm_std::{to_binary, QueryRequest, WasmMsg, WasmQuery};
 
 use crate::{events::GatewayEvent, state::OUTGOING_MESSAGES};
 
 use super::*;
 
-fn contains_duplicates(msgs: &mut Vec<NewMessage>) -> bool {
-    let orig_len = msgs.len();
-    msgs.sort_unstable_by_key(|msg| msg.cc_id.to_string());
-    msgs.dedup_by(|a, b| a.cc_id == b.cc_id);
-    orig_len != msgs.len()
-}
-
-fn partition_by_verified(
-    deps: DepsMut,
-    msgs: Vec<NewMessage>,
-) -> Result<(Vec<NewMessage>, Vec<NewMessage>), ContractError> {
-    let verifier = CONFIG.load(deps.storage)?.verifier;
-
-    let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
-        messages: msgs.clone(),
-    };
-    let query_response: Vec<(CrossChainId, bool)> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: verifier.to_string(),
-            msg: to_binary(&query_msg)?,
-        }))?;
-
-    Ok(msgs.into_iter().partition(|msg| -> bool {
-        match query_response.iter().find(|r| msg.cc_id == r.0) {
-            Some((_, v)) => *v,
-            None => false,
-        }
-    }))
-}
-
 pub fn verify_messages(
     deps: DepsMut,
-    mut msgs: Vec<NewMessage>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let verifier = config.verifier;
+    msgs: Vec<NewMessage>,
+) -> error_stack::Result<Response, ContractError> {
+    ensure_unique_ids(&msgs)?;
 
-    if contains_duplicates(&mut msgs) {
-        return Err(ContractError::DuplicateMessageID);
-    }
+    let verifier = load_verifier(&deps)?;
 
-    let (_, unverified) = partition_by_verified(deps, msgs)?;
+    let (_, unverified) = partition_by_verified(deps, msgs).map_err(Report::from)?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: verifier.to_string(),
         msg: to_binary(&aggregate_verifier::msg::ExecuteMsg::VerifyMessages {
             messages: unverified,
-        })?,
+        })
+        .map_err(ContractError::from)?,
         funds: vec![],
     }))
 }
 
 pub fn route_incoming_messages(
     deps: DepsMut,
-    mut msgs: Vec<NewMessage>,
-) -> Result<Response, ContractError> {
-    let router = CONFIG.load(deps.storage)?.router;
+    msgs: Vec<NewMessage>,
+) -> error_stack::Result<Response, ContractError> {
+    ensure_unique_ids(&msgs)?;
 
-    if contains_duplicates(&mut msgs) {
-        return Err(ContractError::DuplicateMessageID);
-    }
+    let router = load_router(&deps)?;
 
-    let (verified, unverified) = partition_by_verified(deps, msgs.clone())?;
+    let (verified, unverified) = partition_by_verified(deps, msgs).map_err(Report::from)?;
 
     Ok(Response::new()
         .add_message(WasmMsg::Execute {
             contract_addr: router.to_string(),
             msg: to_binary(&connection_router::msg::ExecuteMsg::RouteMessages(
                 verified.clone(),
-            ))?,
+            ))
+            .map_err(ContractError::from)?,
             funds: vec![],
         })
         .add_events(
@@ -101,4 +71,55 @@ pub fn route_outgoing_messages(
         msgs.into_iter()
             .map(|msg| GatewayEvent::MessageRouted { msg }.into()),
     ))
+}
+
+fn partition_by_verified(
+    deps: DepsMut,
+    msgs: Vec<NewMessage>,
+) -> Result<(Vec<NewMessage>, Vec<NewMessage>), ContractError> {
+    let verifier = CONFIG.load(deps.storage)?.verifier;
+
+    let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
+        messages: msgs.clone(),
+    };
+    let query_response: Vec<(CrossChainId, bool)> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: verifier.to_string(),
+            msg: to_binary(&query_msg)?,
+        }))?;
+
+    Ok(msgs.into_iter().partition(|msg| -> bool {
+        match query_response.iter().find(|r| msg.cc_id == r.0) {
+            Some((_, v)) => *v,
+            None => false,
+        }
+    }))
+}
+
+fn load_verifier(deps: &DepsMut) -> error_stack::Result<Addr, ContractError> {
+    CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::VerifierNotFound)
+        .map(|cfg| cfg.verifier)
+}
+
+fn load_router(deps: &DepsMut) -> error_stack::Result<Addr, ContractError> {
+    CONFIG
+        .load(deps.storage)
+        .change_context(ContractError::RouterNotFound)
+        .map(|cfg| cfg.router)
+}
+
+fn ensure_unique_ids(msgs: &Vec<NewMessage>) -> error_stack::Result<(), ContractError> {
+    let duplicates: Vec<_> = msgs
+        .iter()
+        .map(|m| &m.cc_id)
+        .duplicates()
+        .map(|cc_id| cc_id.to_string())
+        .collect();
+    if !duplicates.is_empty() {
+        return Err(ContractError::DuplicateMessageID)
+            .attach_printable(duplicates.iter().join(", "));
+    }
+    Ok(())
 }

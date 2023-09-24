@@ -15,4 +15,10 @@ pub enum ContractError {
 
     #[error("batch contains duplicate message ids")]
     DuplicateMessageID,
+
+    #[error("could not find verifier address")]
+    VerifierNotFound,
+
+    #[error("could not find router address")]
+    RouterNotFound,
 }
