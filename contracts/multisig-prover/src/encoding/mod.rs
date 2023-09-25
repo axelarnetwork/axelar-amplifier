@@ -123,7 +123,7 @@ impl CommandBatch {
     ) -> Result<HexBinary, ContractError> {
         match self.encoder {
             Encoder::Abi => abi::encode_execute_data(self, quorum, signers),
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::encode_execute_data(self, quorum, signers),
         }
     }
 }
