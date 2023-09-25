@@ -14,7 +14,7 @@ pub fn verify_messages(
 ) -> error_stack::Result<Response, ContractError> {
     ensure_unique_ids(&msgs)?;
 
-    let verifier = load_verifier(&deps)?;
+    let verifier = load_config(&deps)?.verifier;
 
     let (_, unverified) = partition_by_verified(deps, msgs).map_err(Report::from)?;
 
@@ -34,7 +34,7 @@ pub fn route_incoming_messages(
 ) -> error_stack::Result<Response, ContractError> {
     ensure_unique_ids(&msgs)?;
 
-    let router = load_router(&deps)?;
+    let router = load_config(&deps)?.router;
 
     let (verified, unverified) = partition_by_verified(deps, msgs).map_err(Report::from)?;
 
@@ -77,7 +77,7 @@ fn partition_by_verified(
     deps: DepsMut,
     msgs: Vec<NewMessage>,
 ) -> Result<(Vec<NewMessage>, Vec<NewMessage>), ContractError> {
-    let verifier = CONFIG.load(deps.storage)?.verifier;
+    let verifier = load_config(&deps)?.verifier;
 
     let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
         messages: msgs.clone(),
@@ -96,18 +96,11 @@ fn partition_by_verified(
     }))
 }
 
-fn load_verifier(deps: &DepsMut) -> error_stack::Result<Addr, ContractError> {
-    CONFIG
+fn load_config(deps: &DepsMut) -> Result<Config, Report<ContractError>> {
+    let cfg = CONFIG
         .load(deps.storage)
-        .change_context(ContractError::VerifierNotFound)
-        .map(|cfg| cfg.verifier)
-}
-
-fn load_router(deps: &DepsMut) -> error_stack::Result<Addr, ContractError> {
-    CONFIG
-        .load(deps.storage)
-        .change_context(ContractError::RouterNotFound)
-        .map(|cfg| cfg.router)
+        .change_context(ContractError::ConfigNotFound)?;
+    Ok(cfg)
 }
 
 fn ensure_unique_ids(msgs: &[NewMessage]) -> error_stack::Result<(), ContractError> {
