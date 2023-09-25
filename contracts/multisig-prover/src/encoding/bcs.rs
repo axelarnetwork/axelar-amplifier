@@ -1,12 +1,18 @@
+use std::convert::identity;
+
+use axelar_wasm_std::operators::Operators;
 use bcs::to_bytes;
 use cosmwasm_std::{HexBinary, Uint256};
-use itertools::Itertools;
-use multisig::{key::Signature, msg::Signer};
 
-use crate::{
-    error::ContractError,
-    types::{CommandBatch, Operator},
+use crate::{error::ContractError, state::WorkerSet};
+
+use itertools::Itertools;
+use multisig::{
+    key::{NonRecoverable, Recoverable, Signature},
+    msg::Signer,
 };
+
+use crate::types::{CommandBatch, Operator};
 
 use super::Data;
 use sha3::{Digest, Keccak256};
@@ -14,10 +20,38 @@ use sha3::{Digest, Keccak256};
 // TODO: all of the public functions in this file should be moved to a trait,
 // that has an abi and bcs implementation (and possibly others)
 
+pub fn make_operators(worker_set: WorkerSet) -> Operators {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    Operators {
+        weights_by_addresses: operators,
+        threshold: worker_set.threshold,
+    }
+}
+
+pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .iter()
+        .map(|s| (s.pub_key.clone().into(), s.weight))
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    let (addresses, weights): (Vec<Vec<u8>>, Vec<_>) = operators
+        .into_iter()
+        .map(|(pub_key, weight)| (pub_key.to_vec(), u256_to_u128(weight)))
+        .unzip();
+
+    Ok(to_bytes(&(addresses, weights, u256_to_u128(worker_set.threshold)))?.into())
+}
+
 #[allow(dead_code)]
 fn encode_proof(
     quorum: Uint256,
-    signers: Vec<(Signer, Option<Signature>)>,
+    signers: Vec<(Signer, Option<Signature<Recoverable>>)>,
 ) -> Result<HexBinary, ContractError> {
     let mut operators = make_operators_with_sigs(signers);
     operators.sort(); // gateway requires operators to be sorted
@@ -38,7 +72,9 @@ fn encode_proof(
     Ok(to_bytes(&(addresses, weights, quorum, signatures))?.into())
 }
 
-fn make_operators_with_sigs(signers_with_sigs: Vec<(Signer, Option<Signature>)>) -> Vec<Operator> {
+fn make_operators_with_sigs(
+    signers_with_sigs: Vec<(Signer, Option<Signature<Recoverable>>)>,
+) -> Vec<Operator<Recoverable>> {
     signers_with_sigs
         .into_iter()
         .map(|(signer, sig)| Operator {
@@ -116,12 +152,10 @@ pub fn encode(data: &Data) -> HexBinary {
 }
 
 pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
-    let msg = Keccak256::digest(encode(&command_batch.data).as_slice());
-
     // Sui is just mimicking EVM here
     let unsigned = [
-        "\x19Sui Signed Message:\n32".as_bytes(), // Keccek256 hash length = 32
-        msg.as_slice(),
+        "\x19Sui Signed Message:\n".as_bytes(), // Keccek256 hash length = 32
+        encode(&command_batch.data).as_slice(),
     ]
     .concat();
 
@@ -130,8 +164,22 @@ pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
 pub fn encode_execute_data(
     command_batch: &CommandBatch,
     quorum: Uint256,
-    signers: Vec<(Signer, Option<Signature>)>,
+    signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
 ) -> Result<HexBinary, ContractError> {
+    let signers = signers
+        .into_iter()
+        .map(|(signer, non_recoverable)| {
+            let recoverable = non_recoverable.map(|sig| {
+                sig.to_recoverable(
+                    command_batch.msg_digest().as_slice(),
+                    &signer.pub_key,
+                    identity,
+                )
+                .expect("couldn't recover signature")
+            });
+            (signer, recoverable)
+        })
+        .collect::<Vec<_>>();
     let input = to_bytes(&(
         encode(&command_batch.data).to_vec(),
         encode_proof(quorum, signers)?.to_vec(),
@@ -153,11 +201,13 @@ fn u256_to_u64(chain_id: Uint256) -> u64 {
 #[cfg(test)]
 mod test {
 
-    use std::{collections::BTreeSet, vec};
+    use std::{marker::PhantomData, vec};
 
+    use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
     use connection_router::msg::Message;
     use cosmwasm_std::{Addr, HexBinary, Uint256};
+
     use multisig::{
         key::{PublicKey, Signature},
         msg::Signer,
@@ -167,15 +217,61 @@ mod test {
         encoding::{
             bcs::{
                 command_params, encode, encode_execute_data, encode_proof, make_command_id,
-                u256_to_u128, u256_to_u64,
+                make_operators, transfer_operatorship_params, u256_to_u128, u256_to_u64,
             },
             CommandBatchBuilder, Data,
         },
         state::WorkerSet,
+        test::test_data,
         types::{BatchID, Command, CommandBatch},
     };
 
     use super::msg_digest;
+    #[test]
+    fn test_transfer_operatorship_params() {
+        let worker_set = test_data::new_worker_set();
+
+        let res = transfer_operatorship_params(&worker_set);
+        assert!(res.is_ok());
+
+        let decoded = from_bytes(&res.unwrap());
+        assert!(decoded.is_ok());
+
+        let (operators, weights, quorum): (Vec<Vec<u8>>, Vec<u128>, u128) = decoded.unwrap();
+
+        let mut expected: Vec<(Vec<u8>, u128)> = worker_set
+            .signers
+            .into_iter()
+            .map(|s| (s.pub_key.as_ref().to_vec(), u256_to_u128(s.weight)))
+            .collect();
+        expected.sort_by_key(|op| op.0.clone());
+        let (operators_expected, weights_expected): (Vec<Vec<u8>>, Vec<u128>) =
+            expected.into_iter().unzip();
+
+        assert_eq!(operators, operators_expected);
+        assert_eq!(weights, weights_expected);
+        assert_eq!(quorum, u256_to_u128(worker_set.threshold));
+    }
+
+    #[test]
+    fn test_make_operators() {
+        let worker_set = test_data::new_worker_set();
+        let mut expected: Vec<(HexBinary, _)> = worker_set
+            .clone()
+            .signers
+            .into_iter()
+            .map(|s| (s.pub_key.into(), s.weight))
+            .collect();
+        expected.sort_by_key(|op| op.0.clone());
+
+        let operators = make_operators(worker_set.clone());
+        let expected_operators = Operators {
+            weights_by_addresses: expected,
+            threshold: worker_set.threshold,
+        };
+        assert_eq!(operators, expected_operators);
+    }
+
     #[test]
     fn test_u256_to_u128() {
         let val = u128::MAX;
@@ -208,7 +304,7 @@ mod test {
             ),
         },
         Some(Signature::Ecdsa(
-        HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap()))),
+        HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap(), PhantomData))),
             (Signer {
             address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
             weight: Uint256::from(10u128),
@@ -220,7 +316,7 @@ mod test {
             ),
         },
         Some(Signature::Ecdsa(
-        HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap())))];
+        HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72021b").unwrap(), PhantomData)))];
 
         let quorum = Uint256::from(10u128);
         let proof = encode_proof(quorum, signers.clone());
@@ -250,7 +346,7 @@ mod test {
             assert_eq!(weights[i], 10u128);
             assert_eq!(
                 signatures[i],
-                HexBinary::from(signers[i].1.clone().unwrap()).to_vec()
+                HexBinary::from(signers[i].1.clone().unwrap().as_ref()).to_vec()
             );
         }
     }
@@ -469,7 +565,8 @@ mod test {
             ),
         };
         let signature = Signature::Ecdsa(
-        HexBinary::from_hex("ef5ce016a4beed7e11761e5831805e962fca3d8901696a61a6ffd3af2b646bdc3740f64643bdb164b8151d1424eb4943d03f71e71816c00726e2d68ee55600c600").unwrap());
+        HexBinary::from_hex("ef5ce016a4beed7e11761e5831805e962fca3d8901696a61a6ffd3af2b646bdc3740f64643bdb164b8151d1424eb4943d03f71e71816c00726e2d68ee55600c6").unwrap(), 
+    PhantomData);
         let encoded = encode_execute_data(
             &command_batch,
             Uint256::from(quorum),
