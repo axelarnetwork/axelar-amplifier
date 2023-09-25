@@ -2,6 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 use serde::{de::Error, Deserializer};
+use std::marker::PhantomData;
 
 use crate::{secp256k1::ecdsa_verify, types::MsgToSign, ContractError};
 
@@ -13,8 +14,43 @@ pub enum KeyType {
 
 #[cw_serde]
 #[derive(PartialOrd, Ord, Eq)]
-pub enum Signature {
-    Ecdsa(HexBinary),
+pub enum Signature<T>
+where
+    T: Recoverability,
+{
+    Ecdsa(HexBinary, PhantomData<T>),
+}
+
+pub trait Recoverability {
+    fn len() -> usize;
+}
+
+#[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
+pub struct Recoverable;
+
+impl Recoverable {
+    const LEN: usize = 65;
+}
+
+#[cw_serde]
+#[derive(Ord, PartialOrd, Eq)]
+pub struct NonRecoverable;
+
+impl NonRecoverable {
+    const LEN: usize = 64;
+}
+
+impl Recoverability for Recoverable {
+    fn len() -> usize {
+        Recoverable::LEN
+    }
+}
+
+impl Recoverability for NonRecoverable {
+    fn len() -> usize {
+        NonRecoverable::LEN
+    }
 }
 
 #[cw_serde]
@@ -36,7 +72,7 @@ where
 }
 
 pub trait KeyTyped {
-    fn matches<T>(&self, other: &T) -> bool
+    fn matches_type<T>(&self, other: &T) -> bool
     where
         T: KeyTyped,
     {
@@ -54,24 +90,70 @@ impl KeyTyped for PublicKey {
     }
 }
 
-impl KeyTyped for Signature {
+impl<T> KeyTyped for Signature<T>
+where
+    T: Recoverability,
+{
     fn key_type(&self) -> KeyType {
         match self {
-            Signature::Ecdsa(_) => KeyType::Ecdsa,
+            Signature::Ecdsa(_, _) => KeyType::Ecdsa,
         }
     }
 }
 
-impl Signature {
+impl Signature<NonRecoverable> {
     pub fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
-        if !self.matches(pub_key) {
+        if !self.matches_type(pub_key) {
             return Err(ContractError::KeyTypeMismatch);
         }
 
-        match (self, pub_key) {
-            (Signature::Ecdsa(sig), PublicKey::Ecdsa(pub_key)) => {
-                ecdsa_verify(msg.into(), sig.as_ref(), pub_key.as_ref())
+        match self.key_type() {
+            KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self, pub_key.as_ref()),
+        }
+    }
+
+    pub fn to_recoverable(
+        &self,
+        msg: &[u8],
+        pub_key: &PublicKey,
+        recovery_transform: impl FnOnce(u8) -> u8,
+    ) -> Result<Signature<Recoverable>, ContractError> {
+        match self {
+            Signature::Ecdsa(sig, _) => {
+                let sig = k256::ecdsa::Signature::from_slice(sig.as_ref()).map_err(|err| {
+                    ContractError::InvalidSignatureFormat {
+                        reason: err.to_string(),
+                    }
+                })?;
+
+                let recovery_byte = k256::ecdsa::VerifyingKey::from_sec1_bytes(pub_key.as_ref())
+                    .and_then(|k| {
+                        k256::ecdsa::RecoveryId::trial_recovery_from_prehash(&k, msg, &sig)
+                    })
+                    .map_err(|err| ContractError::InvalidSignatureFormat {
+                        reason: err.to_string(),
+                    })?
+                    .to_byte();
+                let mut recoverable = sig.to_vec();
+                recoverable.push(recovery_transform(recovery_byte));
+
+                (KeyType::Ecdsa, HexBinary::from(recoverable)).try_into()
             }
+        }
+    }
+}
+
+impl Signature<Recoverable> {
+    pub fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
+        self.to_non_recoverable().verify(msg, pub_key)
+    }
+
+    fn to_non_recoverable(&self) -> Signature<NonRecoverable> {
+        match self {
+            Signature::Ecdsa(sig, _) => Signature::Ecdsa(
+                HexBinary::from(&sig.as_slice()[..NonRecoverable::LEN]),
+                PhantomData,
+            ),
         }
     }
 }
@@ -98,13 +180,14 @@ impl KeyDeserialize for KeyType {
         serde_json::from_slice(value.as_slice()).map_err(|err| StdError::ParseErr {
             target_type: "KeyType".into(),
             msg: err.to_string(),
+            #[cfg(feature = "backtraces")]
+            backtrace: std::backtrace::Backtrace::capture(),
         })
     }
 }
 
 const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33;
 const ECDSA_UNCOMPRESSED_PUBKEY_LEN: usize = 65;
-const EVM_SIGNATURE_LEN: usize = 65;
 
 impl TryFrom<(KeyType, HexBinary)> for PublicKey {
     type Error = ContractError;
@@ -125,20 +208,40 @@ impl TryFrom<(KeyType, HexBinary)> for PublicKey {
     }
 }
 
-impl TryFrom<(KeyType, HexBinary)> for Signature {
+impl TryFrom<(KeyType, HexBinary)> for Signature<Recoverable> {
     type Error = ContractError;
 
     fn try_from((key_type, sig): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
-        match key_type {
-            KeyType::Ecdsa => {
-                if sig.len() != EVM_SIGNATURE_LEN {
-                    return Err(ContractError::InvalidSignatureFormat {
-                        reason: "Invalid input length".into(),
-                    });
-                }
-                Ok(Signature::Ecdsa(sig))
-            }
-        }
+        try_from((key_type, sig), Recoverable::len())
+    }
+}
+
+impl TryFrom<(KeyType, HexBinary)> for Signature<NonRecoverable> {
+    type Error = ContractError;
+
+    fn try_from((key_type, sig): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
+        try_from((key_type, sig), NonRecoverable::len())
+    }
+}
+
+fn try_from<T>(
+    (key_type, sig): (KeyType, HexBinary),
+    expected_len: usize,
+) -> Result<Signature<T>, ContractError>
+where
+    T: Recoverability,
+{
+    if sig.len() != expected_len {
+        return Err(ContractError::InvalidSignatureFormat {
+            reason: format!(
+                "invalid input length {}, expected {}",
+                sig.len(),
+                expected_len
+            ),
+        });
+    }
+    match key_type {
+        KeyType::Ecdsa => Ok(Signature::Ecdsa(sig, PhantomData)),
     }
 }
 
@@ -150,26 +253,13 @@ impl AsRef<[u8]> for PublicKey {
     }
 }
 
-impl AsRef<[u8]> for Signature {
+impl<T> AsRef<[u8]> for Signature<T>
+where
+    T: Recoverability,
+{
     fn as_ref(&self) -> &[u8] {
         match self {
-            Signature::Ecdsa(sig) => sig.as_ref(),
-        }
-    }
-}
-
-impl From<Signature> for Vec<u8> {
-    fn from(value: Signature) -> Vec<u8> {
-        match value {
-            Signature::Ecdsa(sig) => sig.to_vec(),
-        }
-    }
-}
-
-impl From<Signature> for HexBinary {
-    fn from(original: Signature) -> Self {
-        match original {
-            Signature::Ecdsa(sig) => sig,
+            Signature::Ecdsa(sig, _) => sig.as_ref(),
         }
     }
 }
@@ -186,6 +276,7 @@ impl From<PublicKey> for HexBinary {
 mod test {
     use cosmwasm_std::HexBinary;
 
+    use crate::key::NonRecoverable;
     use crate::{key::Signature, test::common::test_data, types::MsgToSign, ContractError};
 
     use super::{KeyType, PublicKey};
@@ -237,8 +328,9 @@ mod test {
     #[test]
     fn test_try_from_hexbinary_to_signature() {
         let hex = test_data::signature();
-        let signature = Signature::try_from((KeyType::Ecdsa, hex.clone())).unwrap();
-        assert_eq!(HexBinary::from(signature), hex);
+        let signature: Signature<NonRecoverable> =
+            (KeyType::Ecdsa, hex.clone()).try_into().unwrap();
+        assert_eq!(signature.as_ref(), hex.as_ref());
     }
 
     #[test]
@@ -247,16 +339,17 @@ mod test {
             HexBinary::from_hex("283786d844a7c4d1d424837074d0c8ec71becdcba4dd42b5307cb543a0e2c8b81c10ad541defd5ce84d2a608fc454827d0b65b4865c8192a2ea1736a5c4b72")
                 .unwrap();
         assert_eq!(
-            Signature::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
+            <Signature<NonRecoverable>>::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
             ContractError::InvalidSignatureFormat {
-                reason: "Invalid input length".into()
+                reason: "invalid input length 63, expected 64".into()
             }
         );
     }
 
     #[test]
     fn test_verify_signature() {
-        let signature = Signature::try_from((KeyType::Ecdsa, test_data::signature())).unwrap();
+        let signature: Signature<NonRecoverable> =
+            (KeyType::Ecdsa, test_data::signature()).try_into().unwrap();
         let message = MsgToSign::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, test_data::pub_key())).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
@@ -266,11 +359,12 @@ mod test {
     #[test]
     fn test_verify_signature_invalid_signature() {
         let invalid_signature = HexBinary::from_hex(
-            "a112231719403227b297139cc6beef82a4e034663bfe48cf732687860b16227a51e4bd6be96fceeecf8e77fe7cdd4f5567d71aed5388484d1f2ba355298c954e1b",
+            "a112231719403227b297139cc6beef82a4e034663bfe48cf732687860b16227a51e4bd6be96fceeecf8e77fe7cdd4f5567d71aed5388484d1f2ba355298c954e",
         )
         .unwrap();
 
-        let signature = Signature::try_from((KeyType::Ecdsa, invalid_signature)).unwrap();
+        let signature: Signature<NonRecoverable> =
+            (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
         let message = MsgToSign::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, test_data::pub_key())).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();
@@ -284,7 +378,8 @@ mod test {
         )
         .unwrap();
 
-        let signature = Signature::try_from((KeyType::Ecdsa, test_data::signature())).unwrap();
+        let signature: Signature<NonRecoverable> =
+            (KeyType::Ecdsa, test_data::signature()).try_into().unwrap();
         let message = MsgToSign::try_from(test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
         let result = signature.verify(&message, &public_key).unwrap();

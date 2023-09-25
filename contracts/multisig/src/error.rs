@@ -7,7 +7,7 @@ pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("No active key found for {key_id:?}")]
+    #[error("no active key found for {key_id:?}")]
     NoActiveKeyFound { key_id: String },
 
     #[error("{signer:?} already submitted a signature for signing session {session_id:?}")]
@@ -16,28 +16,28 @@ pub enum ContractError {
     #[error("{signer:?} is not a participant in signing session {session_id:?}")]
     NotAParticipant { session_id: Uint64, signer: String },
 
-    #[error("Signature verification failed: {reason:?}")]
+    #[error("signature verification failed: {reason:?}")]
     SignatureVerificationFailed { reason: String },
 
     #[error("{signer:?} submitted an invalid signature for signing session {session_id:?}")]
     InvalidSignature { session_id: Uint64, signer: String },
 
-    #[error("Invalid public key format: {reason:?}")]
+    #[error("invalid public key format: {reason:?}")]
     InvalidPublicKeyFormat { reason: String },
 
-    #[error("Invalid message format: {reason:?}")]
+    #[error("invalid message format: {reason:?}")]
     InvalidMessageFormat { reason: String },
 
-    #[error("Invalid signature format: {reason:?}")]
+    #[error("invalid signature format: {reason:?}")]
     InvalidSignatureFormat { reason: String },
 
-    #[error("Signing session {session_id:?} is already closed")]
+    #[error("signing session {session_id:?} is already closed")]
     SigningSessionClosed { session_id: Uint64 },
 
-    #[error("Signing session {session_id:?} not found")]
+    #[error("signing session {session_id:?} not found")]
     SigningSessionNotFound { session_id: Uint64 },
 
-    #[error("Key ID {key_id:?} already exists")]
+    #[error("key ID {key_id:?} already exists")]
     DuplicateKeyID { key_id: String },
 
     #[error("number of participants does not match number of public keys")]

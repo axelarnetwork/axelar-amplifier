@@ -1,12 +1,14 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{HexBinary, Uint256};
+use ethabi::ethereum_types;
 use ethabi::{short_signature, ParamType, Token};
 use itertools::MultiUnzip;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
+use axelar_wasm_std::operators::Operators;
+use multisig::key::{NonRecoverable, Recoverability, Recoverable};
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
@@ -16,7 +18,6 @@ use crate::{
 };
 
 use super::Data;
-use ethabi::ethereum_types;
 
 pub const GATEWAY_EXECUTE_FUNCTION_NAME: &str = "execute";
 
@@ -62,8 +63,23 @@ pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
 pub fn encode_execute_data(
     command_batch: &CommandBatch,
     quorum: Uint256,
-    signers: Vec<(Signer, Option<Signature>)>,
+    signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
 ) -> Result<HexBinary, ContractError> {
+    let signers = signers
+        .into_iter()
+        .map(|(signer, non_recoverable)| {
+            let recoverable = non_recoverable.and_then(|sig| {
+                sig.to_recoverable(
+                    command_batch.msg_digest().as_slice(),
+                    &signer.pub_key,
+                    add27,
+                )
+                .ok()
+            });
+            (signer, recoverable)
+        })
+        .collect::<Vec<_>>();
+
     let param = ethabi::encode(&[
         Token::Bytes(encode(&command_batch.data).into()),
         Token::Bytes(encode_proof(quorum, signers)?.into()),
@@ -80,7 +96,7 @@ pub fn encode_execute_data(
 
 fn encode_proof(
     quorum: Uint256,
-    signers: Vec<(Signer, Option<Signature>)>,
+    signers: Vec<(Signer, Option<Signature<Recoverable>>)>,
 ) -> Result<HexBinary, ContractError> {
     let mut operators = make_evm_operators_with_sigs(signers)?;
     operators.sort();
@@ -93,7 +109,8 @@ fn encode_proof(
                 Token::Uint(ethereum_types::U256::from_big_endian(
                     &op.weight.to_be_bytes(),
                 )),
-                op.signature.map(|sig| Token::Bytes(<Vec<u8>>::from(sig))),
+                op.signature
+                    .map(|sig| Token::Bytes(<Vec<u8>>::from(sig.as_ref()))),
             )
         })
         .multiunzip();
@@ -130,25 +147,35 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     }
 }
 
-fn make_evm_operators_with_sigs(
-    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
-) -> Result<Vec<Operator>, ContractError> {
+fn make_evm_operators_with_sigs<T>(
+    signers_with_sigs: Vec<(Signer, Option<Signature<T>>)>,
+) -> Result<Vec<Operator<T>>, ContractError>
+where
+    T: Recoverability,
+{
     axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
-        make_evm_operator(signer).map(|mut op: Operator| {
+        make_evm_operator(signer).map(|op| {
             if let Some(sig) = sig {
-                op.set_signature(sig);
+                return op.with_signature(sig);
             }
             op
         })
     })
 }
 
-fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
+fn make_evm_operator<T>(signer: Signer) -> Result<Operator<T>, ContractError>
+where
+    T: Recoverability,
+{
     Ok(Operator {
         address: evm_address(signer.pub_key.as_ref())?,
         weight: signer.weight,
         signature: None,
     })
+}
+
+fn add27(recovery_byte: u8) -> u8 {
+    recovery_byte + 27
 }
 
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
@@ -228,6 +255,13 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
+    use elliptic_curve::consts::U32;
+    use ethers::types::Signature as EthersSignature;
+    use generic_array::GenericArray;
+    use hex::FromHex;
+    use k256::ecdsa::Signature as K256Signature;
+
+    use multisig::key::KeyType;
 
     use crate::{
         encoding::{CommandBatchBuilder, Encoder},
@@ -500,7 +534,7 @@ mod test {
                     op.signature,
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature>)>>();
+            .collect::<Vec<(Signer, Option<Signature<NonRecoverable>>)>>();
 
         let execute_data = &batch.encode_execute_data(quorum, signers).unwrap();
 
@@ -579,7 +613,7 @@ mod test {
                     op.signature,
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature>)>>();
+            .collect::<Vec<(Signer, Option<Signature<NonRecoverable>>)>>();
 
         let res = batch.encode_execute_data(quorum, signers).unwrap();
         assert_eq!(res, test_data::execute_data());
@@ -667,6 +701,44 @@ mod test {
         assert_eq!(
             operators[1].address.cmp(&operators[2].address),
             std::cmp::Ordering::Less
+        );
+    }
+
+    #[test]
+    fn should_convert_signature_to_recoverable() {
+        let ethers_signature = EthersSignature::from_str("74ab5ec395cdafd861dec309c30f6cf8884fc9905eb861171e636d9797478adb60b2bfceb7db0a08769ed7a60006096d3e0f6d3783d125600ac6306180ecbc6f1b").unwrap();
+        let pub_key =
+            Vec::from_hex("03571a2dcec96eecc7950c9f36367fd459b8d334bac01ac153b7ed3dcf4025fc22")
+                .unwrap();
+
+        let digest = "6ac52b00f4256d98d53c256949288135c14242a39001d5fdfa564ea003ccaf92";
+
+        let signature = {
+            let mut r_bytes = [0u8; 32];
+            let mut s_bytes = [0u8; 32];
+            ethers_signature.r.to_big_endian(&mut r_bytes);
+            ethers_signature.s.to_big_endian(&mut s_bytes);
+            let gar: &GenericArray<u8, U32> = GenericArray::from_slice(&r_bytes);
+            let gas: &GenericArray<u8, U32> = GenericArray::from_slice(&s_bytes);
+
+            K256Signature::from_scalars(*gar, *gas).unwrap()
+        };
+
+        let non_recoverable: Signature<NonRecoverable> =
+            (KeyType::Ecdsa, HexBinary::from(signature.to_vec()))
+                .try_into()
+                .unwrap();
+        let recoverable_signature = non_recoverable
+            .to_recoverable(
+                HexBinary::from_hex(digest).unwrap().as_slice(),
+                &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
+                add27,
+            )
+            .unwrap();
+
+        assert_eq!(
+            recoverable_signature.as_ref(),
+            ethers_signature.to_vec().as_slice()
         );
     }
 }

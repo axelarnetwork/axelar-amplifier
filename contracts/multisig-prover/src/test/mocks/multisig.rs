@@ -84,10 +84,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 mod query {
     use multisig::key::PublicKey;
-    use multisig::{
-        key::Signature,
-        msg::{Multisig, Signer},
-    };
+    use multisig::msg::{Multisig, Signer};
 
     use crate::test::test_data;
 
@@ -109,7 +106,7 @@ mod query {
                     op.signature,
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature>)>>();
+            .collect::<Vec<_>>();
 
         Multisig {
             state: MultisigState::Completed,

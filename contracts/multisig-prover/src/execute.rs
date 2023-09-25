@@ -198,10 +198,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 deps.storage,
                 &(new_worker_set.clone(), workers_info.snapshot),
             )?;
-            let mut builder = CommandBatchBuilder::new(
-                config.destination_chain_id,
-                crate::encoding::Encoder::Abi,
-            );
+            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
             builder.add_new_worker_set(new_worker_set)?;
 
             let batch = builder.build()?;

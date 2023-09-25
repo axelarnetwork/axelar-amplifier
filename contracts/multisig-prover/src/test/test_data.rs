@@ -4,6 +4,7 @@ use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::msg::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use multisig::key::NonRecoverable;
 use multisig::{
     key::{KeyType, PublicKey, Signature},
     msg::Signer,
@@ -133,7 +134,7 @@ pub struct TestOperator {
     pub pub_key: multisig::key::PublicKey,
     pub operator: HexBinary,
     pub weight: Uint256,
-    pub signature: Option<Signature>,
+    pub signature: Option<Signature<NonRecoverable>>,
 }
 
 pub fn operators() -> Vec<TestOperator> {
@@ -150,21 +151,21 @@ pub fn operators() -> Vec<TestOperator> {
             "0277b844fb49bf9b5838dc15d79f3c6c7701eb2e0ab066d4aa63ce162b08718d37",
             "11C67adfe52a3782bd518294188C4AAfaaF6cDeb",
             1u128,
-            Some("eff382a60ef4d917ae0bcbd58ab121fbd7bd53b777773bf1da298d3701565a3379a5b741f881ad739e651a544f2331c085c482857856201c49328ae9ba65cf131c"),
+            Some("eff382a60ef4d917ae0bcbd58ab121fbd7bd53b777773bf1da298d3701565a3379a5b741f881ad739e651a544f2331c085c482857856201c49328ae9ba65cf13"),
         ),
         (
             "axelar14g0tmk5ldxxdqtl0utl69ck43cpcvd0ay4lfyt",
             "03a54c7ad1621b57803bc5bcfe826b713bf5c5a15906ccd08f271d58992bee71d6",
             "4905FD2e40B1A037256e32fe1e4BCa41AE510d73",
             1u128,
-            Some("301ff4127c1c5a865732776769c6227e4978a1c4567bc1d2926cd798422f1f507b10989e173c6ebc23334eb7e3c713e940369c418061d5cad1173882f35dc43d1b"),
+            Some("301ff4127c1c5a865732776769c6227e4978a1c4567bc1d2926cd798422f1f507b10989e173c6ebc23334eb7e3c713e940369c418061d5cad1173882f35dc43d"),
         ),
         (
             "axelar1gwd8wd3qkapk8pnwdu4cchah2sjjws6lx694r6",
             "033a9726a6e2fdc308089c6cab1e6fda2e2bddeb2bcf800990e5fd2c05a270c9df",
             "a6E7b3b7A1AF4103F540D05776F7dd200210201F",
             1u128,
-            Some("c55581edbf0401d0cd3495522323e45d4521312dafdedf39b4adc8085a3842c74f13c055b72d12ec3afc1e8f9c37b5f660fbefb38165dbe61090923865e158271b"),
+            Some("c55581edbf0401d0cd3495522323e45d4521312dafdedf39b4adc8085a3842c74f13c055b72d12ec3afc1e8f9c37b5f660fbefb38165dbe61090923865e15827"),
         ),
         (
             "axelar1fcrwupthhxm6zsd7kw00w2fk530p6wtt8mj92l",

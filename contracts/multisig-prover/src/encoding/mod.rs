@@ -7,6 +7,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
 use connection_router::msg::Message;
+use multisig::key::NonRecoverable;
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
@@ -49,9 +50,7 @@ fn make_transfer_operatorship(
 ) -> Result<Command, ContractError> {
     let params = match encoding {
         Encoder::Abi => abi::transfer_operatorship_params(&worker_set),
-        Encoder::Bcs => {
-            todo!()
-        }
+        Encoder::Bcs => bcs::transfer_operatorship_params(&worker_set),
     }?;
     Ok(Command {
         ty: CommandType::TransferOperatorship,
@@ -120,11 +119,11 @@ impl CommandBatch {
     pub fn encode_execute_data(
         &self,
         quorum: Uint256,
-        signers: Vec<(Signer, Option<Signature>)>,
+        signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
     ) -> Result<HexBinary, ContractError> {
         match self.encoder {
             Encoder::Abi => abi::encode_execute_data(self, quorum, signers),
-            Encoder::Bcs => todo!(),
+            Encoder::Bcs => bcs::encode_execute_data(self, quorum, signers),
         }
     }
 }
@@ -152,7 +151,7 @@ fn command_id(message_id: String) -> HexBinary {
 pub fn make_operators(worker_set: WorkerSet, encoder: Encoder) -> Operators {
     match encoder {
         Encoder::Abi => abi::make_operators(worker_set),
-        Encoder::Bcs => todo!(),
+        Encoder::Bcs => bcs::make_operators(worker_set),
     }
 }
 
