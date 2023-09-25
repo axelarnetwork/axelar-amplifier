@@ -76,17 +76,19 @@ pub fn route_outgoing_messages(
 fn partition_by_verified(
     deps: DepsMut,
     msgs: Vec<NewMessage>,
-) -> Result<(Vec<NewMessage>, Vec<NewMessage>), ContractError> {
+) -> error_stack::Result<(Vec<NewMessage>, Vec<NewMessage>), ContractError> {
     let verifier = load_config(&deps)?.verifier;
 
     let query_msg = aggregate_verifier::msg::QueryMsg::IsVerified {
         messages: msgs.clone(),
     };
-    let query_response: Vec<(CrossChainId, bool)> =
-        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let query_response: Vec<(CrossChainId, bool)> = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: verifier.to_string(),
-            msg: to_binary(&query_msg)?,
-        }))?;
+            msg: to_binary(&query_msg).map_err(ContractError::from)?,
+        }))
+        .map_err(ContractError::from)?;
 
     Ok(msgs.into_iter().partition(|msg| -> bool {
         match query_response.iter().find(|r| msg.cc_id == r.0) {
@@ -96,7 +98,7 @@ fn partition_by_verified(
     }))
 }
 
-fn load_config(deps: &DepsMut) -> Result<Config, Report<ContractError>> {
+fn load_config(deps: &DepsMut) -> error_stack::Result<Config, ContractError> {
     let cfg = CONFIG
         .load(deps.storage)
         .change_context(ContractError::ConfigNotFound)?;
