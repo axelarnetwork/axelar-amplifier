@@ -16,6 +16,6 @@ pub enum ContractError {
     #[error("batch contains duplicate message ids")]
     DuplicateMessageID,
 
-    #[error("could not contract config")]
+    #[error("could not find contract config")]
     ConfigNotFound,
 }
