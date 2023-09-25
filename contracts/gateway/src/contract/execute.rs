@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Addr, QueryRequest, WasmMsg, WasmQuery};
+use cosmwasm_std::{to_binary, QueryRequest, WasmMsg, WasmQuery};
 use error_stack::{Report, ResultExt};
 use itertools::Itertools;
 
