@@ -1,6 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use error_stack::Report;
 
 use crate::{
     error::ContractError,
@@ -39,7 +40,7 @@ pub fn execute(
         ExecuteMsg::RouteMessages(msgs) => {
             let router = CONFIG.load(deps.storage)?.router;
             if info.sender == router {
-                route_outgoing_messages(deps, msgs)
+                route_outgoing_messages(deps, msgs).map_err(Report::from)
             } else {
                 route_incoming_messages(deps, msgs)
             }
