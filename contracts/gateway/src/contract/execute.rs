@@ -108,12 +108,14 @@ fn load_config(deps: &DepsMut) -> error_stack::Result<Config, ContractError> {
 fn ensure_unique_ids(msgs: &[NewMessage]) -> error_stack::Result<(), ContractError> {
     let duplicates: Vec<_> = msgs
         .iter()
+        // the following two map instructions are separated on purpose
+        // so the duplicate check is done on the typed id instead of just a string
         .map(|m| &m.cc_id)
         .duplicates()
         .map(|cc_id| cc_id.to_string())
         .collect();
     if !duplicates.is_empty() {
-        return Err(ContractError::DuplicateMessageID)
+        return Err(ContractError::DuplicateMessageIds)
             .attach_printable(duplicates.iter().join(", "));
     }
     Ok(())

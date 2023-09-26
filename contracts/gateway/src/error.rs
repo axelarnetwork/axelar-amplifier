@@ -14,7 +14,7 @@ pub enum ContractError {
     SenderNotRouter,
 
     #[error("batch contains duplicate message ids")]
-    DuplicateMessageID,
+    DuplicateMessageIds,
 
     #[error("could not contract config")]
     ConfigNotFound,
