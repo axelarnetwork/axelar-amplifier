@@ -4858,6 +4858,7 @@ dependencies = [
  "cw-utils 1.0.1",
  "cw2 0.15.1",
  "error-stack",
+ "itertools 0.11.0",
  "report",
  "schemars",
  "serde",
