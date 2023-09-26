@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Deps, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
+    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
     Storage, SubMsg, WasmQuery,
 };
 use multisig::key::{KeyType, PublicKey};
@@ -143,7 +143,7 @@ fn get_workers_info(
 }
 
 fn get_worker_sets(deps: &DepsMut, env: &Env, config: &Config) -> (Option<WorkerSet>, WorkerSet) {
-    let workers_info = get_workers_info(&deps, &env, &config).unwrap();
+    let workers_info = get_workers_info(deps, env, config).unwrap();
 
     let new_worker_set = WorkerSet::new(
         workers_info.pubkeys_by_participant,
@@ -182,7 +182,7 @@ fn initialize_worker_set(
 
     KEY_ID.save(storage, &key_id).unwrap();
 
-    let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
+    multisig::msg::ExecuteMsg::KeyGen {
         key_id,
         snapshot: workers_info.snapshot,
         pub_keys_by_address: new_worker_set
@@ -195,9 +195,7 @@ fn initialize_worker_set(
                 )
             })
             .collect(),
-    };
-
-    key_gen_msg
+    }
 }
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
@@ -206,8 +204,6 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     let workers_info = get_workers_info(&deps, &env, &config)?;
 
     let (cur_worker_set, new_worker_set) = get_worker_sets(&deps, &env, &config);
-
-    let key_id = new_worker_set.id();
 
     match cur_worker_set {
         None => {
@@ -226,7 +222,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
-            let _ = match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone()) {
+            match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone()) {
                 Err(contract_error) => return Err(contract_error),
                 Ok(value) => value,
             };
