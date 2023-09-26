@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Deps, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
-    SubMsg, WasmQuery,
+    SubMsg, WasmQuery, Storage
 };
 use multisig::key::{KeyType, PublicKey};
 
@@ -142,18 +142,39 @@ fn get_workers_info(
     })
 }
 
-pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let workers_info = get_workers_info(&deps, &env, &config)?;
+fn get_worker_sets(deps: &DepsMut, env: &Env, config: &Config) -> (Option<WorkerSet>, WorkerSet) {
+    let workers_info = get_workers_info(&deps, &env, &config).unwrap();
 
     let new_worker_set = WorkerSet::new(
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
         env.block.height,
+    ).unwrap();
+
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
+
+    (cur_worker_set, new_worker_set)
+}
+
+fn save_next_worker_set(storage: &mut dyn Storage, workers_info: WorkersInfo, new_worker_set: WorkerSet) -> Result<(), ContractError> {
+    if different_set_in_progress(storage, &new_worker_set) {
+        return Err(ContractError::WorkerSetConfirmationInProgress);
+    }
+
+    NEXT_WORKER_SET.save(
+        storage,
+        &(new_worker_set, workers_info.snapshot),
     )?;
 
-    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
+    Ok(())
+}
+
+pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let workers_info = get_workers_info(&deps, &env, &config)?;
+
+    let (cur_worker_set, new_worker_set) = get_worker_sets(&deps, &env, &config);
 
     let key_id = new_worker_set.id();
 
@@ -190,14 +211,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 return Err(ContractError::WorkerSetUnchanged);
             }
 
-            if different_set_in_progress(deps.as_ref(), &new_worker_set) {
-                return Err(ContractError::WorkerSetConfirmationInProgress);
-            }
+            let _ = match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone()) {
+                Err(contract_error) => return Err(contract_error),
+                Ok(value) => value,
+            };
 
-            NEXT_WORKER_SET.save(
-                deps.storage,
-                &(new_worker_set.clone(), workers_info.snapshot),
-            )?;
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
             builder.add_new_worker_set(new_worker_set)?;
 
@@ -272,8 +290,8 @@ pub fn should_update_worker_set(
 // Returns true if there is a different worker set pending for confirmation, false if there is no
 // worker set pending or if the pending set is the same. We can't use direct comparison
 // because the created_at might be different, so we compare only the signers and threshold.
-fn different_set_in_progress(deps: Deps, new_worker_set: &WorkerSet) -> bool {
-    if let Ok(Some((next_worker_set, _))) = NEXT_WORKER_SET.may_load(deps.storage) {
+fn different_set_in_progress(storage: &dyn Storage, new_worker_set: &WorkerSet) -> bool {
+    if let Ok(Some((next_worker_set, _))) = NEXT_WORKER_SET.may_load(storage) {
         return next_worker_set.signers != new_worker_set.signers
             || next_worker_set.threshold != new_worker_set.threshold;
     }
@@ -337,7 +355,7 @@ mod tests {
         let deps = mock_dependencies();
         let new_worker_set = test_data::new_worker_set();
 
-        assert!(!different_set_in_progress(deps.as_ref(), &new_worker_set));
+        assert!(!different_set_in_progress(deps.as_ref().storage, &new_worker_set));
     }
 
     #[test]
@@ -351,7 +369,7 @@ mod tests {
 
         new_worker_set.created_at += 1;
 
-        assert!(!different_set_in_progress(deps.as_ref(), &new_worker_set));
+        assert!(!different_set_in_progress(deps.as_ref().storage, &new_worker_set));
     }
 
     #[test]
@@ -365,7 +383,7 @@ mod tests {
 
         new_worker_set.signers.pop_first();
 
-        assert!(different_set_in_progress(deps.as_ref(), &new_worker_set));
+        assert!(different_set_in_progress(deps.as_ref().storage, &new_worker_set));
     }
 
     fn snapshot() -> Snapshot {
