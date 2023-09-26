@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Deps, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
-    SubMsg, WasmQuery, Storage
+    Storage, SubMsg, WasmQuery,
 };
 use multisig::key::{KeyType, PublicKey};
 
@@ -149,24 +149,55 @@ fn get_worker_sets(deps: &DepsMut, env: &Env, config: &Config) -> (Option<Worker
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
         env.block.height,
-    ).unwrap();
+    )
+    .unwrap();
 
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
 
     (cur_worker_set, new_worker_set)
 }
 
-fn save_next_worker_set(storage: &mut dyn Storage, workers_info: WorkersInfo, new_worker_set: WorkerSet) -> Result<(), ContractError> {
+fn save_next_worker_set(
+    storage: &mut dyn Storage,
+    workers_info: WorkersInfo,
+    new_worker_set: WorkerSet,
+) -> Result<(), ContractError> {
     if different_set_in_progress(storage, &new_worker_set) {
         return Err(ContractError::WorkerSetConfirmationInProgress);
     }
 
-    NEXT_WORKER_SET.save(
-        storage,
-        &(new_worker_set, workers_info.snapshot),
-    )?;
+    NEXT_WORKER_SET.save(storage, &(new_worker_set, workers_info.snapshot))?;
 
     Ok(())
+}
+
+fn initialize_worker_set(
+    storage: &mut dyn Storage,
+    new_worker_set: WorkerSet,
+    workers_info: WorkersInfo,
+) -> multisig::msg::ExecuteMsg {
+    let key_id = new_worker_set.id(); // this is really just the worker_set_id
+
+    CURRENT_WORKER_SET.save(storage, &new_worker_set).unwrap();
+
+    KEY_ID.save(storage, &key_id).unwrap();
+
+    let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
+        key_id,
+        snapshot: workers_info.snapshot,
+        pub_keys_by_address: new_worker_set
+            .signers
+            .into_iter()
+            .map(|signer| {
+                (
+                    signer.address.to_string(),
+                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
+                )
+            })
+            .collect(),
+    };
+
+    key_gen_msg
 }
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
@@ -181,24 +212,8 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     match cur_worker_set {
         None => {
             // if no worker set, just store it and return
-            CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
-
-            KEY_ID.save(deps.storage, &key_id)?;
-
-            let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
-                key_id,
-                snapshot: workers_info.snapshot,
-                pub_keys_by_address: new_worker_set
-                    .signers
-                    .into_iter()
-                    .map(|signer| {
-                        (
-                            signer.address.to_string(),
-                            (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
-                        )
-                    })
-                    .collect(),
-            };
+            let key_gen_msg =
+                initialize_worker_set(deps.storage, new_worker_set.clone(), workers_info);
 
             Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
@@ -355,7 +370,10 @@ mod tests {
         let deps = mock_dependencies();
         let new_worker_set = test_data::new_worker_set();
 
-        assert!(!different_set_in_progress(deps.as_ref().storage, &new_worker_set));
+        assert!(!different_set_in_progress(
+            deps.as_ref().storage,
+            &new_worker_set
+        ));
     }
 
     #[test]
@@ -369,7 +387,10 @@ mod tests {
 
         new_worker_set.created_at += 1;
 
-        assert!(!different_set_in_progress(deps.as_ref().storage, &new_worker_set));
+        assert!(!different_set_in_progress(
+            deps.as_ref().storage,
+            &new_worker_set
+        ));
     }
 
     #[test]
@@ -383,7 +404,10 @@ mod tests {
 
         new_worker_set.signers.pop_first();
 
-        assert!(different_set_in_progress(deps.as_ref().storage, &new_worker_set));
+        assert!(different_set_in_progress(
+            deps.as_ref().storage,
+            &new_worker_set
+        ));
     }
 
     fn snapshot() -> Snapshot {
