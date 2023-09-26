@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response,
-    Storage, SubMsg, WasmQuery,
+    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
+    SubMsg, WasmQuery,
 };
 use multisig::key::{KeyType, PublicKey};
 
