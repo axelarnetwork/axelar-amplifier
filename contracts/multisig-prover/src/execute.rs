@@ -142,9 +142,10 @@ fn get_workers_info(
     })
 }
 
-fn get_worker_sets(deps: &DepsMut, env: &Env, config: &Config) -> (Option<WorkerSet>, WorkerSet) {
+fn get_next_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Option<WorkerSet> {
     let workers_info = get_workers_info(deps, env, config).unwrap();
 
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
     let new_worker_set = WorkerSet::new(
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
@@ -152,9 +153,20 @@ fn get_worker_sets(deps: &DepsMut, env: &Env, config: &Config) -> (Option<Worker
     )
     .unwrap();
 
-    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
-
-    (cur_worker_set, new_worker_set)
+    match cur_worker_set {
+        Some(cur_worker_set) => {
+            if should_update_worker_set(
+                &new_worker_set,
+                &cur_worker_set,
+                config.worker_set_diff_threshold as usize,
+            ) {
+                return Some(new_worker_set);
+            } else {
+                return None;
+            }
+        }
+        None => return Some(new_worker_set),
+    };
 }
 
 fn save_next_worker_set(
@@ -179,13 +191,20 @@ fn initialize_worker_set(
     let key_id = new_worker_set.id(); // this is really just the worker_set_id
 
     CURRENT_WORKER_SET.save(storage, &new_worker_set).unwrap();
-
     KEY_ID.save(storage, &key_id).unwrap();
 
+    make_keygen_msg(key_id, workers_info.snapshot, new_worker_set)
+}
+
+fn make_keygen_msg(
+    key_id: String,
+    snapshot: axelar_wasm_std::Snapshot,
+    worker_set: WorkerSet,
+) -> multisig::msg::ExecuteMsg {
     multisig::msg::ExecuteMsg::KeyGen {
         key_id,
-        snapshot: workers_info.snapshot,
-        pub_keys_by_address: new_worker_set
+        snapshot: snapshot,
+        pub_keys_by_address: worker_set
             .signers
             .into_iter()
             .map(|signer| {
@@ -200,35 +219,31 @@ fn initialize_worker_set(
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
     let workers_info = get_workers_info(&deps, &env, &config)?;
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
+    let new_worker_set = get_next_worker_set(&deps, &env, &config);
 
-    let (cur_worker_set, new_worker_set) = get_worker_sets(&deps, &env, &config);
+    if new_worker_set.is_none() {
+        return Err(ContractError::WorkerSetUnchanged);
+    }
 
     match cur_worker_set {
         None => {
             // if no worker set, just store it and return
             let key_gen_msg =
-                initialize_worker_set(deps.storage, new_worker_set.clone(), workers_info);
+                initialize_worker_set(deps.storage, new_worker_set.clone().unwrap(), workers_info);
 
             Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
         Some(cur_worker_set) => {
-            if !should_update_worker_set(
-                &new_worker_set,
-                &cur_worker_set,
-                config.worker_set_diff_threshold as usize,
-            ) {
-                return Err(ContractError::WorkerSetUnchanged);
-            }
-
-            match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone()) {
+            match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone().unwrap())
+            {
                 Err(contract_error) => return Err(contract_error),
                 Ok(value) => value,
             };
 
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-            builder.add_new_worker_set(new_worker_set)?;
+            builder.add_new_worker_set(new_worker_set.unwrap())?;
 
             let batch = builder.build()?;
 
