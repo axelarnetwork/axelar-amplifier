@@ -160,13 +160,13 @@ fn get_next_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Option<Wor
                 &cur_worker_set,
                 config.worker_set_diff_threshold as usize,
             ) {
-                return Some(new_worker_set);
+                Some(new_worker_set)
             } else {
-                return None;
+                None
             }
         }
-        None => return Some(new_worker_set),
-    };
+        None => Some(new_worker_set),
+    }
 }
 
 fn save_next_worker_set(
@@ -203,7 +203,7 @@ fn make_keygen_msg(
 ) -> multisig::msg::ExecuteMsg {
     multisig::msg::ExecuteMsg::KeyGen {
         key_id,
-        snapshot: snapshot,
+        snapshot,
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
