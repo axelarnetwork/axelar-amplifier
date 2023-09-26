@@ -4,7 +4,7 @@ use thiserror::Error;
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error("batch contains duplicate message ids")]
-    DuplicateMessageID,
+    DuplicateMessageIds,
 
     #[error("could not store outgoing message")]
     StoreOutgoingMessage,

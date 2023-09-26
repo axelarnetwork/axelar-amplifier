@@ -762,7 +762,7 @@ fn duplicate_message_id() {
         .unwrap()
         .to_string()
         .contains(
-            &axelar_wasm_std::ContractError::from(ContractError::DuplicateMessageID).to_string()
+            &axelar_wasm_std::ContractError::from(ContractError::DuplicateMessageIds).to_string()
         ));
 
     let err = app
@@ -778,7 +778,7 @@ fn duplicate_message_id() {
         .unwrap()
         .to_string()
         .contains(
-            &axelar_wasm_std::ContractError::from(ContractError::DuplicateMessageID).to_string()
+            &axelar_wasm_std::ContractError::from(ContractError::DuplicateMessageIds).to_string()
         ));
 
     //verify one of them
