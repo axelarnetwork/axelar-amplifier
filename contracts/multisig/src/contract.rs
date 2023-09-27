@@ -61,6 +61,7 @@ pub fn execute(
 
 pub mod execute {
     use crate::key::NonRecoverable;
+    use crate::signing::{sign, update_session_state};
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -111,7 +112,7 @@ pub mod execute {
         session_id: Uint64,
         signature: HexBinary,
     ) -> Result<Response, ContractError> {
-        let mut session = SIGNING_SESSIONS
+        let session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
@@ -130,9 +131,11 @@ pub mod execute {
             Some((_, pk)) => (pk.key_type(), signature).try_into()?,
         };
 
-        session.add_signature(key, info.sender.clone().into(), signature.clone())?;
+        let signer = info.sender.clone().into();
 
-        SIGNING_SESSIONS.save(deps.storage, session_id.u64(), &session)?;
+        let signature = sign(deps.storage, &session, &key, signer, signature)?;
+
+        let state = update_session_state(deps.storage, session, &key.snapshot)?;
 
         let event = Event::SignatureSubmitted {
             session_id,
@@ -140,7 +143,7 @@ pub mod execute {
             signature,
         };
 
-        if session.state == MultisigState::Completed {
+        if state == MultisigState::Completed {
             Ok(Response::new()
                 .add_event(event.into())
                 .add_event(Event::SigningCompleted { session_id }.into()))
@@ -237,7 +240,7 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        state::PUB_KEYS,
+        state::{session_signatures, PUB_KEYS},
     };
 
     use super::*;
@@ -257,16 +260,18 @@ pub mod query {
                     .remove(&address)
                     .expect("violated invariant: pub_key not found");
 
-                (
+                Ok((
                     Signer {
                         address: participant.address,
                         weight: participant.weight.into(),
                         pub_key,
                     },
-                    session.signatures.get(&address).cloned(),
-                )
+                    session_signatures(deps.storage, session.id.u64())?
+                        .get(&address)
+                        .cloned(),
+                ))
             })
-            .collect::<Vec<_>>();
+            .collect::<StdResult<Vec<_>>>()?;
 
         Ok(Multisig {
             state: session.state,
@@ -292,6 +297,7 @@ mod tests {
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
+        state::session_signatures,
         test::common::test_data,
         test::common::{build_snapshot, TestSigner},
         types::MultisigState,
@@ -512,11 +518,12 @@ mod tests {
         };
         let key = get_key(deps.as_ref().storage, &key_id).unwrap();
         let message = test_data::message();
+        let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
         assert_eq!(session.id, Uint64::one());
         assert_eq!(session.key_id, key.id);
         assert_eq!(session.msg, message.clone().try_into().unwrap());
-        assert!(session.signatures.is_empty());
+        assert!(signatures.is_empty());
         assert_eq!(session.state, MultisigState::Pending);
 
         let res = res.unwrap();
@@ -573,11 +580,11 @@ mod tests {
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+        let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-        assert_eq!(session.signatures.len(), 1);
+        assert_eq!(signatures.len(), 1);
         assert_eq!(
-            session
-                .signatures
+            signatures
                 .get(&signer.address.clone().into_string())
                 .unwrap(),
             &Signature::try_from((KeyType::Ecdsa, signer.signature.clone())).unwrap()
@@ -620,13 +627,11 @@ mod tests {
         assert!(res.is_ok());
 
         let session = SIGNING_SESSIONS.load(deps.as_ref().storage, 1u64).unwrap();
+        let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-        assert_eq!(session.signatures.len(), 2);
+        assert_eq!(signatures.len(), 2);
         assert_eq!(
-            session
-                .signatures
-                .get(&signer.address.into_string())
-                .unwrap(),
+            signatures.get(&signer.address.into_string()).unwrap(),
             &Signature::try_from((KeyType::Ecdsa, signer.signature)).unwrap()
         );
         assert_eq!(session.state, MultisigState::Completed);
@@ -677,6 +682,7 @@ mod tests {
         let key = KEYS
             .load(deps.as_ref().storage, (&session.key_id).into())
             .unwrap();
+        let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
         assert_eq!(query_res.state, session.state);
         assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
@@ -692,7 +698,7 @@ mod tests {
 
                 assert_eq!(signer.0.weight, Uint256::from(participant.weight));
                 assert_eq!(signer.0.pub_key, key.pub_keys.get(address).unwrap().clone());
-                assert_eq!(signer.1, session.signatures.get(address).cloned());
+                assert_eq!(signer.1, signatures.get(address).cloned());
             });
     }
     #[test]
