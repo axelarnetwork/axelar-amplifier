@@ -237,10 +237,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
         Some(cur_worker_set) => {
-            match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone()) {
-                Err(contract_error) => return Err(contract_error),
-                Ok(value) => value,
-            };
+            save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
 
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
             builder.add_new_worker_set(new_worker_set)?;
