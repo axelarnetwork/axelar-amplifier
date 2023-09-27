@@ -176,7 +176,6 @@ mod test {
     use cosmwasm_std::{Addr, HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
-    use hex::FromHex;
     use rand::rngs::OsRng;
     use tendermint::abci;
 
