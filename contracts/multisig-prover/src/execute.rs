@@ -221,8 +221,8 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &env, &config)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
-    let new_worker_set = get_next_worker_set(&deps, &env, &config)?
-        .ok_or_else(|| ContractError::WorkerSetUnchanged)?;
+    let new_worker_set =
+        get_next_worker_set(&deps, &env, &config)?.ok_or(ContractError::WorkerSetUnchanged)?;
 
     match cur_worker_set {
         None => {
