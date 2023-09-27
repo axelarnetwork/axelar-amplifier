@@ -221,36 +221,29 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &env, &config)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
-    let new_worker_set = get_next_worker_set(&deps, &env, &config)?;
-
-    if new_worker_set.is_none() {
-        return Err(ContractError::WorkerSetUnchanged);
-    }
-
-    //.unwrap() is safe here because we know new_worker_set is not none from the if statement above.
-    let new_worker_set_unwrapped = new_worker_set.unwrap();
+    let new_worker_set = get_next_worker_set(&deps, &env, &config)?
+        .ok_or_else(|| ContractError::WorkerSetUnchanged)?;
 
     match cur_worker_set {
         None => {
             // if no worker set, just store it and return
-            initialize_worker_set(deps.storage, new_worker_set_unwrapped.clone())?;
+            initialize_worker_set(deps.storage, new_worker_set.clone())?;
             let key_gen_msg = make_keygen_msg(
-                new_worker_set_unwrapped.id(),
+                new_worker_set.id(),
                 workers_info.snapshot,
-                new_worker_set_unwrapped.clone(),
+                new_worker_set.clone(),
             );
 
             Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
         Some(cur_worker_set) => {
-            match save_next_worker_set(deps.storage, workers_info, new_worker_set_unwrapped.clone())
-            {
+            match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone()) {
                 Err(contract_error) => return Err(contract_error),
                 Ok(value) => value,
             };
 
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-            builder.add_new_worker_set(new_worker_set_unwrapped)?;
+            builder.add_new_worker_set(new_worker_set)?;
 
             let batch = builder.build()?;
 
