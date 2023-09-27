@@ -6,7 +6,7 @@ use crate::ContractError;
 
 pub fn ecdsa_verify(
     msg_hash: &[u8],
-    sig: &Signature<NonRecoverable>,
+    sig: &Signature,
     pub_key: &[u8],
 ) -> Result<bool, ContractError> {
     secp256k1_verify(msg_hash, sig.as_ref(), pub_key).map_err(|err| {

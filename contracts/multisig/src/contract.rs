@@ -116,7 +116,7 @@ pub mod execute {
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
         let key = KEYS.load(deps.storage, &session.key_id)?;
-        let signature: Signature<NonRecoverable> = match key
+        let signature: Signature = match key
             .pub_keys
             .iter()
             .find(|&(addr, _)| addr == &info.sender.to_string())

@@ -119,7 +119,7 @@ impl CommandBatch {
     pub fn encode_execute_data(
         &self,
         quorum: Uint256,
-        signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
+        signers: Vec<(Signer, Option<Signature>)>,
     ) -> Result<HexBinary, ContractError> {
         match self.encoder {
             Encoder::Abi => abi::encode_execute_data(self, quorum, signers),

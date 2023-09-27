@@ -21,7 +21,7 @@ pub enum Event {
     SignatureSubmitted {
         session_id: Uint64,
         participant: Addr,
-        signature: Signature<NonRecoverable>,
+        signature: Signature,
     },
     // Emitted when a signing session was completed
     SigningCompleted {

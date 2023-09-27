@@ -5,9 +5,9 @@ edition = "2021"
 description = "Multisig contract"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -47,6 +47,7 @@ schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 thiserror = { workspace = true }
+enum-display-derive = "0.1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

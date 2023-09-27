@@ -61,5 +61,5 @@ pub struct Signer {
 pub struct Multisig {
     pub state: MultisigState,
     pub quorum: Uint256,
-    pub signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
+    pub signers: Vec<(Signer, Option<Signature>)>,
 }

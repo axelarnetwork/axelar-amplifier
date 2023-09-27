@@ -134,7 +134,7 @@ pub struct TestOperator {
     pub pub_key: multisig::key::PublicKey,
     pub operator: HexBinary,
     pub weight: Uint256,
-    pub signature: Option<Signature<NonRecoverable>>,
+    pub signature: Option<Signature>,
 }
 
 pub fn operators() -> Vec<TestOperator> {
