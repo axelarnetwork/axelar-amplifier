@@ -142,16 +142,19 @@ fn get_workers_info(
     })
 }
 
-fn get_next_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Option<WorkerSet> {
-    let workers_info = get_workers_info(deps, env, config).unwrap();
+fn get_next_worker_set(
+    deps: &DepsMut,
+    env: &Env,
+    config: &Config,
+) -> Result<Option<WorkerSet>, ContractError> {
+    let workers_info = get_workers_info(deps, env, config)?;
 
-    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
     let new_worker_set = WorkerSet::new(
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
         env.block.height,
-    )
-    .unwrap();
+    )?;
 
     match cur_worker_set {
         Some(cur_worker_set) => {
@@ -160,12 +163,12 @@ fn get_next_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Option<Wor
                 &cur_worker_set,
                 config.worker_set_diff_threshold as usize,
             ) {
-                Some(new_worker_set)
+                Ok(Some(new_worker_set))
             } else {
-                None
+                Ok(None)
             }
         }
-        None => Some(new_worker_set),
+        None => Ok(Some(new_worker_set)),
     }
 }
 
@@ -178,22 +181,19 @@ fn save_next_worker_set(
         return Err(ContractError::WorkerSetConfirmationInProgress);
     }
 
-    NEXT_WORKER_SET.save(storage, &(new_worker_set, workers_info.snapshot))?;
-
-    Ok(())
+    Ok(NEXT_WORKER_SET.save(storage, &(new_worker_set, workers_info.snapshot))?)
 }
 
 fn initialize_worker_set(
     storage: &mut dyn Storage,
     new_worker_set: WorkerSet,
-    workers_info: WorkersInfo,
-) -> multisig::msg::ExecuteMsg {
+) -> Result<(), ContractError> {
     let key_id = new_worker_set.id(); // this is really just the worker_set_id
 
-    CURRENT_WORKER_SET.save(storage, &new_worker_set).unwrap();
-    KEY_ID.save(storage, &key_id).unwrap();
+    CURRENT_WORKER_SET.save(storage, &new_worker_set)?;
+    KEY_ID.save(storage, &key_id)?;
 
-    make_keygen_msg(key_id, workers_info.snapshot, new_worker_set)
+    Ok(())
 }
 
 fn make_keygen_msg(
@@ -220,30 +220,37 @@ fn make_keygen_msg(
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &env, &config)?;
-    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage).unwrap();
-    let new_worker_set = get_next_worker_set(&deps, &env, &config);
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
+    let new_worker_set = get_next_worker_set(&deps, &env, &config)?;
 
     if new_worker_set.is_none() {
         return Err(ContractError::WorkerSetUnchanged);
     }
 
+    //.unwrap() is safe here because we know new_worker_set is not none from the if statement above.
+    let new_worker_set_unwrapped = new_worker_set.unwrap();
+
     match cur_worker_set {
         None => {
             // if no worker set, just store it and return
-            let key_gen_msg =
-                initialize_worker_set(deps.storage, new_worker_set.clone().unwrap(), workers_info);
+            initialize_worker_set(deps.storage, new_worker_set_unwrapped.clone())?;
+            let key_gen_msg = make_keygen_msg(
+                new_worker_set_unwrapped.id(),
+                workers_info.snapshot,
+                new_worker_set_unwrapped.clone(),
+            );
 
             Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
         Some(cur_worker_set) => {
-            match save_next_worker_set(deps.storage, workers_info, new_worker_set.clone().unwrap())
+            match save_next_worker_set(deps.storage, workers_info, new_worker_set_unwrapped.clone())
             {
                 Err(contract_error) => return Err(contract_error),
                 Ok(value) => value,
             };
 
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-            builder.add_new_worker_set(new_worker_set.unwrap())?;
+            builder.add_new_worker_set(new_worker_set_unwrapped)?;
 
             let batch = builder.build()?;
 
