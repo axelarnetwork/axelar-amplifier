@@ -39,6 +39,7 @@ cw-storage-plus = "1.0.1"
 cw-utils = "1.0.1"
 cw2 = "0.15.1"
 error-stack = { workspace = true }
+itertools = { workspace = true }
 report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
