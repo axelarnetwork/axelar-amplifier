@@ -97,8 +97,12 @@ pub struct Operator {
 }
 
 impl Operator {
-    pub fn set_signature(&mut self, sig: Signature) {
-        self.signature = Some(sig);
+    pub fn with_signature(self, sig: Signature) -> Operator {
+        Operator {
+            address: self.address,
+            weight: self.weight,
+            signature: Some(sig),
+        }
     }
 }
 

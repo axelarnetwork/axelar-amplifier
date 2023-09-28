@@ -17,9 +17,9 @@ impl From<MsgToSign> for HexBinary {
     }
 }
 
-impl<'a> From<&'a MsgToSign> for &'a [u8] {
-    fn from(original: &'a MsgToSign) -> Self {
-        original.0.as_slice()
+impl AsRef<[u8]> for MsgToSign {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
     }
 }
 

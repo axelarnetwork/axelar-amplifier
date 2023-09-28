@@ -234,7 +234,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub mod query {
     use crate::{
-        key::{KeyType, PublicKey, Signature},
+        key::{KeyType, PublicKey},
         msg::Signer,
         state::PUB_KEYS,
     };
@@ -265,7 +265,7 @@ pub mod query {
                     session.signatures.get(&address).cloned(),
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature>)>>();
+            .collect::<Vec<_>>();
 
         Ok(Multisig {
             state: session.state,

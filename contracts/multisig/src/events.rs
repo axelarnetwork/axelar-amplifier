@@ -59,7 +59,7 @@ impl From<Event> for cosmwasm_std::Event {
             } => cosmwasm_std::Event::new("signature_submitted")
                 .add_attribute("session_id", session_id)
                 .add_attribute("participant", participant)
-                .add_attribute("signature", HexBinary::from(signature).to_hex()),
+                .add_attribute("signature", HexBinary::from(signature.as_ref()).to_hex()),
             Event::SigningCompleted { session_id } => cosmwasm_std::Event::new("signing_completed")
                 .add_attribute("session_id", session_id),
             Event::PublicKeyRegistered { worker, public_key } => {
