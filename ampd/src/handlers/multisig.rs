@@ -54,6 +54,14 @@ where
                     .map_err(D::Error::custom)?
                     .into(),
             )),
+
+            multisig::key::PublicKey::Ed25519(hex) => {
+                let pk: cosmrs::tendermint::PublicKey =
+                    cosmrs::tendermint::crypto::ed25519::VerificationKey::try_from(hex.as_ref())
+                        .map_err(D::Error::custom)?
+                        .into();
+                Ok((address, pk.into()))
+            }
         })
         .collect()
 }

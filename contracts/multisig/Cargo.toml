@@ -15,13 +15,15 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["secp256k1"]
+default = ["secp256k1", "ed25519"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-# use this feature to use secp256k1 for signature verification
+# use this feature to enable secp256k1 for signature verification
 secp256k1 = []
+# use this feature to enable ed25519 for signature verification
+ed25519 = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
