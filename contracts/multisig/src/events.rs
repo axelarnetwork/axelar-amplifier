@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
-use crate::key::NonRecoverable;
 use crate::{
     key::{PublicKey, Signature},
     types::{KeyID, MsgToSign},
@@ -21,7 +20,7 @@ pub enum Event {
     SignatureSubmitted {
         session_id: Uint64,
         participant: Addr,
-        signature: Signature<NonRecoverable>,
+        signature: Signature,
     },
     // Emitted when a signing session was completed
     SigningCompleted {

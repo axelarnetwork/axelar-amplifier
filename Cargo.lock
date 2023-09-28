@@ -7448,6 +7448,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "cw2 0.15.1",
+ "enum-display-derive",
  "error-stack",
  "getrandom 0.2.10",
  "k256 0.13.1",

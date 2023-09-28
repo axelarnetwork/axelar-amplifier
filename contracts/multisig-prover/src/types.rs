@@ -4,7 +4,7 @@ use axelar_wasm_std::{Participant, Snapshot};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::key::{PublicKey, Recoverability, Signature};
+use multisig::key::{PublicKey, Signature};
 use sha3::{Digest, Keccak256};
 
 use crate::{
@@ -90,23 +90,14 @@ pub struct CommandBatch {
 
 #[cw_serde]
 #[derive(Ord, PartialOrd, Eq)]
-pub struct Operator<T>
-where
-    T: Recoverability,
-{
+pub struct Operator {
     pub address: HexBinary,
     pub weight: Uint256,
-    pub signature: Option<Signature<T>>,
+    pub signature: Option<Signature>,
 }
 
-impl<T> Operator<T>
-where
-    T: Recoverability,
-{
-    pub fn with_signature<S>(self, sig: Signature<S>) -> Operator<S>
-    where
-        S: Recoverability,
-    {
+impl Operator {
+    pub fn with_signature(self, sig: Signature) -> Operator {
         Operator {
             address: self.address,
             weight: self.weight,
