@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
-    SubMsg, WasmQuery,
+    SubMsg, WasmMsg, WasmQuery,
 };
 use multisig::key::{KeyType, PublicKey};
 
@@ -223,7 +223,7 @@ fn internal_update_worker_set(
     querier: &QuerierWrapper,
     storage: &mut dyn Storage,
     builder: &mut CommandBatchBuilder,
-) -> Result<Option<Response>, ContractError> {
+) -> Result<Option<WasmMsg>, ContractError> {
     let config = CONFIG.load(storage)?;
     let workers_info = get_workers_info(querier, env, &config)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(storage)?;
@@ -232,7 +232,7 @@ fn internal_update_worker_set(
 
     match cur_worker_set {
         None => {
-            // if no worker set, just store it and return a response
+            // if no worker set, just store it and return a wasm message
             initialize_worker_set(storage, new_worker_set.clone())?;
             let key_gen_msg = make_keygen_msg(
                 new_worker_set.id(),
@@ -240,11 +240,7 @@ fn internal_update_worker_set(
                 new_worker_set.clone(),
             );
 
-            Ok(Some(Response::new().add_message(wasm_execute(
-                config.multisig,
-                &key_gen_msg,
-                vec![],
-            )?)))
+            Ok(Some(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
         Some(_cur_worker_set) => {
             // otherwise, add the new worker set to the command batch builder.
@@ -261,9 +257,9 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     let config = CONFIG.load(deps.storage)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
     let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-    let response = internal_update_worker_set(&env, &deps.querier, deps.storage, &mut builder)?;
+    let wasm_msg = internal_update_worker_set(&env, &deps.querier, deps.storage, &mut builder)?;
 
-    match response {
+    match wasm_msg {
         // if the response is None, then we are not initializing a worker set. So it was added to the command batch builder.
         None => {
             let batch = builder.build()?;
@@ -283,8 +279,8 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 START_MULTISIG_REPLY_ID,
             )))
         }
-        // if the response is Some(response), then we initialized the worker set and received the response for it.
-        Some(response) => Ok(response),
+        // if the response is Some(wasm_msg), then we initialized the worker set and received the wasm message for it.
+        Some(wasm_msg) => Ok(Response::new().add_message(wasm_msg)),
     }
 }
 
