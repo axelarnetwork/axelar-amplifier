@@ -324,8 +324,10 @@ mod tests {
 
         for sender in senders {
             let result = contract.route_messages(sender, msgs.clone());
-            assert!(result
-                .is_err_and(|err| matches!(current_context(), ContractError::DuplicateMessageIds)));
+            assert!(result.is_err_and(|err| matches!(
+                err.current_context(),
+                ContractError::DuplicateMessageIds
+            )));
         }
     }
 
