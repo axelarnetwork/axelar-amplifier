@@ -22,11 +22,17 @@ use crate::{
     types::{BatchID, WorkersInfo},
 };
 
-pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Response, ContractError> {
-    let key_id = KEY_ID.load(deps.storage)?;
+pub fn construct_proof(
+    deps: DepsMut,
+    env: Env,
+    message_ids: Vec<String>,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let workers_info = get_workers_info(&deps, &env, &config)?;
+    let new_worker_set = get_next_worker_set(&deps, &env, &config, false)?;
 
     let batch_id = BatchID::new(&message_ids, None);
+    let key_id = KEY_ID.load(deps.storage)?;
 
     let messages = get_messages(deps.querier, message_ids, config.gateway, config.chain_name)?;
 
@@ -34,6 +40,15 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
         Some(batch) => batch,
         None => {
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
+
+            match new_worker_set {
+                Some(new_worker_set) => {
+                    save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
+                    builder.add_new_worker_set(new_worker_set)?;
+                }
+                None => {}
+            };
+
             for msg in messages {
                 builder.add_message(msg)?;
             }
@@ -146,6 +161,7 @@ fn get_next_worker_set(
     deps: &DepsMut,
     env: &Env,
     config: &Config,
+    called_by_update_worker_set: bool,
 ) -> Result<Option<WorkerSet>, ContractError> {
     let workers_info = get_workers_info(deps, env, config)?;
 
@@ -168,7 +184,13 @@ fn get_next_worker_set(
                 Ok(None)
             }
         }
-        None => Ok(Some(new_worker_set)),
+        None => {
+            if called_by_update_worker_set {
+                Ok(Some(new_worker_set))
+            } else {
+                Err(ContractError::NoWorkerSet)
+            }
+        }
     }
 }
 
@@ -221,8 +243,8 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &env, &config)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
-    let new_worker_set =
-        get_next_worker_set(&deps, &env, &config)?.ok_or(ContractError::WorkerSetUnchanged)?;
+    let new_worker_set = get_next_worker_set(&deps, &env, &config, true)?
+        .ok_or(ContractError::WorkerSetUnchanged)?;
 
     match cur_worker_set {
         None => {
