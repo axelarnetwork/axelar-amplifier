@@ -40,12 +40,12 @@ cw-utils = "1.0.1"
 cw2 = "0.15.1"
 error-stack = { workspace = true }
 itertools = { workspace = true }
+mockall = "0.11.3"
 report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 thiserror = { workspace = true }
-mockall = "0.11.3"
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
