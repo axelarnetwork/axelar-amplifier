@@ -3,16 +3,29 @@ use crate::state::OUTGOING_MESSAGES;
 use connection_router::state::CrossChainId;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, QuerierWrapper, QueryRequest, WasmQuery};
 use error_stack::{Result, ResultExt};
+use mockall::automock;
 
-pub fn verify<'a>(
-    querier: QuerierWrapper<'a>,
-    verifier: &'a Addr,
-) -> impl FnMut(aggregate_verifier::msg::QueryMsg) -> Result<Vec<(CrossChainId, bool)>, ContractError> + 'a
-{
-    move |msg| {
-        querier
+#[automock]
+pub trait Verifier {
+    fn verify(
+        &self,
+        msg: aggregate_verifier::msg::QueryMsg,
+    ) -> Result<Vec<(CrossChainId, bool)>, ContractError>;
+}
+
+pub struct VerifierApi<'a> {
+    pub address: Addr,
+    pub querier: QuerierWrapper<'a>,
+}
+
+impl Verifier for VerifierApi<'_> {
+    fn verify(
+        &self,
+        msg: aggregate_verifier::msg::QueryMsg,
+    ) -> Result<Vec<(CrossChainId, bool)>, ContractError> {
+        self.querier
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: verifier.to_string(),
+                contract_addr: self.address.to_string(),
                 msg: to_binary(&msg).change_context(ContractError::QueryVerifier)?,
             }))
             .change_context(ContractError::QueryVerifier)

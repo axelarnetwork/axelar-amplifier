@@ -3,9 +3,9 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::contract::execute::Contract;
+use crate::state::Store;
 use crate::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state,
     state::{Config, CONFIG},
 };
 
@@ -34,14 +34,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let config = state::load_config(&deps);
-    let verifier = config.verifier.clone();
-    let mut contract = Contract {
-        config,
-        store_msg: state::save_outgoing_msg(deps.storage),
-        query_verifier: query::verify(deps.querier, &verifier),
-    };
-
+    let mut contract = Contract::new(deps);
     match msg {
         ExecuteMsg::VerifyMessages(msgs) => contract.verify_messages(msgs),
         ExecuteMsg::RouteMessages(msgs) => contract.route_messages(info.sender, msgs),
