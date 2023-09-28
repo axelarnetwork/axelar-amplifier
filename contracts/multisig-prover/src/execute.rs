@@ -246,7 +246,7 @@ fn internal_update_worker_set(
                 vec![],
             )?)))
         }
-        Some(cur_worker_set) => {
+        Some(_cur_worker_set) => {
             // otherwise, add the new worker set to the command batch builder.
             save_next_worker_set(storage, workers_info, new_worker_set.clone())?;
 
