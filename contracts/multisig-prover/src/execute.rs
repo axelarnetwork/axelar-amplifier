@@ -41,13 +41,10 @@ pub fn construct_proof(
         None => {
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
 
-            match new_worker_set {
-                Some(new_worker_set) => {
-                    save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
-                    builder.add_new_worker_set(new_worker_set)?;
-                }
-                None => {}
-            };
+            if let Some(new_worker_set) = new_worker_set {
+                save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
+                builder.add_new_worker_set(new_worker_set)?;
+            }
 
             for msg in messages {
                 builder.add_message(msg)?;
