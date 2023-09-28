@@ -105,7 +105,7 @@ where
 
         let (verified, unverified) = self.partition_by_verified(msgs)?;
 
-        let any_veryfied = !verified.is_empty();
+        let any_verified = !verified.is_empty();
 
         let mut response = Response::new()
             .add_events(
@@ -120,7 +120,7 @@ where
                     .map(|msg| GatewayEvent::MessageRoutingFailed { msg }.into()),
             );
 
-        if any_veryfied {
+        if any_verified {
             response = response.add_message(WasmMsg::Execute {
                 contract_addr: self.config.router.to_string(),
                 msg: to_binary(&connection_router::msg::ExecuteMsg::RouteMessages(verified))
@@ -153,6 +153,8 @@ where
 fn ensure_unique_ids(msgs: &[NewMessage]) -> Result<(), ContractError> {
     let duplicates: Vec<_> = msgs
         .iter()
+        // the following two map instructions are separated on purpose
+        // so the duplicate check is done on the typed id instead of just a string
         .map(|m| &m.cc_id)
         .duplicates()
         .map(|cc_id| cc_id.to_string())
@@ -322,10 +324,8 @@ mod tests {
 
         for sender in senders {
             let result = contract.route_messages(sender, msgs.clone());
-            assert!(result.is_err_and(|err| matches!(
-                err.current_context(),
-                ContractError::DuplicateMessageIds
-            )));
+            assert!(result
+                .is_err_and(|err| matches!(current_context(), ContractError::DuplicateMessageIds)));
         }
     }
 

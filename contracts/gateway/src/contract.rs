@@ -3,7 +3,6 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::contract::execute::Contract;
-use crate::state::Store;
 use crate::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{Config, CONFIG},
