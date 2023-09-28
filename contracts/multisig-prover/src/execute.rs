@@ -96,7 +96,7 @@ fn get_messages(
 }
 
 fn get_workers_info(
-    deps: &DepsMut,
+    querier: &QuerierWrapper,
     env: &Env,
     config: &Config,
 ) -> Result<WorkersInfo, ContractError> {
@@ -105,7 +105,7 @@ fn get_workers_info(
         chain_name: config.chain_name.to_string(),
     };
 
-    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let workers: Vec<Worker> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.service_registry.to_string(),
         msg: to_binary(&active_workers_query)?,
     }))?;
@@ -129,7 +129,7 @@ fn get_workers_info(
             worker_address: worker.address.to_string(),
             key_type: KeyType::Ecdsa,
         };
-        let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        let pub_key: PublicKey = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
             msg: to_binary(&pub_key_query)?,
         }))?;
@@ -143,13 +143,14 @@ fn get_workers_info(
 }
 
 fn get_next_worker_set(
-    deps: &DepsMut,
     env: &Env,
+    querier: &QuerierWrapper,
+    storage: &mut dyn Storage,
     config: &Config,
 ) -> Result<Option<WorkerSet>, ContractError> {
-    let workers_info = get_workers_info(deps, env, config)?;
+    let workers_info = get_workers_info(querier, env, config)?;
 
-    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(storage)?;
     let new_worker_set = WorkerSet::new(
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
@@ -217,38 +218,63 @@ fn make_keygen_msg(
     }
 }
 
-pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let workers_info = get_workers_info(&deps, &env, &config)?;
-    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
-    let new_worker_set =
-        get_next_worker_set(&deps, &env, &config)?.ok_or(ContractError::WorkerSetUnchanged)?;
+fn internal_update_worker_set(
+    env: &Env,
+    querier: &QuerierWrapper,
+    storage: &mut dyn Storage,
+    builder: &mut CommandBatchBuilder,
+) -> Result<Option<Response>, ContractError> {
+    let config = CONFIG.load(storage)?;
+    let workers_info = get_workers_info(querier, env, &config)?;
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(storage)?;
+    let new_worker_set = get_next_worker_set(env, querier, storage, &config)?
+        .ok_or(ContractError::WorkerSetUnchanged)?;
 
     match cur_worker_set {
         None => {
-            // if no worker set, just store it and return
-            initialize_worker_set(deps.storage, new_worker_set.clone())?;
+            // if no worker set, just store it and return a response
+            initialize_worker_set(storage, new_worker_set.clone())?;
             let key_gen_msg = make_keygen_msg(
                 new_worker_set.id(),
                 workers_info.snapshot,
                 new_worker_set.clone(),
             );
 
-            Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
+            Ok(Some(Response::new().add_message(wasm_execute(
+                config.multisig,
+                &key_gen_msg,
+                vec![],
+            )?)))
         }
         Some(cur_worker_set) => {
-            save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
+            // otherwise, add the new worker set to the command batch builder.
+            save_next_worker_set(storage, workers_info, new_worker_set.clone())?;
 
-            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
             builder.add_new_worker_set(new_worker_set)?;
 
+            Ok(None)
+        }
+    }
+}
+
+pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
+    let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
+    let response = internal_update_worker_set(&env, &deps.querier, deps.storage, &mut builder)?;
+
+    match response {
+        // if the response is None, then we are not initializing a worker set. So it was added to the command batch builder.
+        None => {
             let batch = builder.build()?;
 
             COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
             REPLY_BATCH.save(deps.storage, &batch.id)?;
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-                key_id: cur_worker_set.id(), // TODO remove the key_id
+                key_id: cur_worker_set
+                    .ok_or(ContractError::WorkerSetUnchanged)?
+                    .id(), // TODO remove the key_id
                 msg: batch.msg_digest(),
             };
 
@@ -257,6 +283,8 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 START_MULTISIG_REPLY_ID,
             )))
         }
+        // if the response is Some(response), then we initialized the worker set and received the response for it.
+        Some(response) => Ok(response),
     }
 }
 
