@@ -5,7 +5,6 @@ use cosmwasm_std::{Uint256, Uint64};
 
 use axelar_wasm_std::Snapshot;
 
-use crate::key::NonRecoverable;
 use crate::{
     key::Signature,
     types::{Key, KeyID, MsgToSign, MultisigState},

@@ -60,7 +60,6 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::key::NonRecoverable;
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,

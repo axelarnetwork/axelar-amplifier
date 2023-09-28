@@ -1,7 +1,7 @@
 use cosmwasm_crypto::secp256k1_verify;
 
 // TODO: Logic specific to secp256k1 will most likely be handled by core in the future.
-use crate::key::{NonRecoverable, Signature};
+use crate::key::Signature;
 use crate::ContractError;
 
 pub fn ecdsa_verify(
