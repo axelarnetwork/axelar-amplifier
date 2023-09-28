@@ -4,7 +4,6 @@ use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::msg::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
-use multisig::key::NonRecoverable;
 use multisig::{
     key::{KeyType, PublicKey, Signature},
     msg::Signer,

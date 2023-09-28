@@ -7,7 +7,6 @@ use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
 use connection_router::msg::Message;
-use multisig::key::NonRecoverable;
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{

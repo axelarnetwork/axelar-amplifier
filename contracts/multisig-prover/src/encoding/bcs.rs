@@ -7,10 +7,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use crate::{error::ContractError, state::WorkerSet};
 
 use itertools::Itertools;
-use multisig::{
-    key::{NonRecoverable, Recoverable, Signature},
-    msg::Signer,
-};
+use multisig::{key::Signature, msg::Signer};
 
 use crate::types::{CommandBatch, Operator};
 
@@ -203,14 +200,13 @@ fn u256_to_u64(chain_id: Uint256) -> u64 {
 #[cfg(test)]
 mod test {
 
-    use std::{marker::PhantomData, vec};
+    use std::vec;
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
     use connection_router::msg::Message;
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
-    use multisig::key::Recoverable;
     use multisig::{
         key::{PublicKey, Signature},
         msg::Signer,
@@ -224,7 +220,6 @@ mod test {
             },
             CommandBatchBuilder, Data,
         },
-        state::WorkerSet,
         test::test_data,
         types::{BatchID, Command, CommandBatch},
     };
