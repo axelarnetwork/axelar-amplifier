@@ -4,4 +4,4 @@ The Interchain Amplifier enables developers to permissionlessly set up connectio
 
 ### Documentation
 
-High level documentation and diagrams can be found in the [doc](./doc/) directory.
+High level documentation and diagrams can be found in the [doc](./doc/README.md) directory.
