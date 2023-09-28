@@ -1,17 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
-use error_stack::Report;
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
+use crate::contract::execute::Contract;
 use crate::{
-    error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{Config, CONFIG, OUTGOING_MESSAGES},
+    state::{Config, CONFIG},
 };
 
-use self::execute::{route_incoming_messages, route_outgoing_messages, verify_messages};
-
 mod execute;
+mod query;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -35,33 +33,22 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let mut contract = Contract::new(deps);
     match msg {
-        ExecuteMsg::VerifyMessages(msgs) => verify_messages(deps, msgs),
-        ExecuteMsg::RouteMessages(msgs) => {
-            let router = CONFIG.load(deps.storage)?.router;
-            if info.sender == router {
-                route_outgoing_messages(deps, msgs).map_err(Report::from)
-            } else {
-                route_incoming_messages(deps, msgs)
-            }
-        }
+        ExecuteMsg::VerifyMessages(msgs) => contract.verify_messages(msgs),
+        ExecuteMsg::RouteMessages(msgs) => contract.route_messages(info.sender, msgs),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
-        QueryMsg::GetMessages {
-            message_ids: cross_chain_ids,
-        } => {
-            let mut msgs = vec![];
-
-            for id in cross_chain_ids {
-                msgs.push(OUTGOING_MESSAGES.load(deps.storage, id)?);
-            }
-
-            to_binary(&msgs)
-        }
+        QueryMsg::GetMessages { message_ids } => query::get_messages(deps, message_ids),
     }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
