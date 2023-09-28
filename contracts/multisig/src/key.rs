@@ -82,12 +82,6 @@ impl Recoverable {
     const LEN: usize = 65;
 }
 
-impl Recoverable {
-    fn to_non_recoverable(&self) -> NonRecoverable {
-        NonRecoverable(HexBinary::from(&self.0.as_slice()[..NonRecoverable::LEN]))
-    }
-}
-
 impl AsRef<[u8]> for Recoverable {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
