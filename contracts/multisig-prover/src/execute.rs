@@ -145,7 +145,7 @@ fn get_workers_info(
 fn get_next_worker_set(
     env: &Env,
     querier: &QuerierWrapper,
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     config: &Config,
 ) -> Result<Option<WorkerSet>, ContractError> {
     let workers_info = get_workers_info(querier, env, config)?;
