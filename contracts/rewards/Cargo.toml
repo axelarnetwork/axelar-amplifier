@@ -27,7 +27,6 @@ optimize = """docker run --rm -v "$(pwd)":/code \
   cosmwasm/rust-optimizer:0.12.6
 """
 
-
 [dependencies]
 axelar-wasm-std = { workspace = true }
 cosmwasm-schema = "1.1.3"
