@@ -31,12 +31,10 @@ impl PartialEq<&Message> for &SuiEvent {
             return false;
         }
 
-        serde_json::from_value::<ContractCall>(self.parsed_json.clone()).unwrap();
-
         match serde_json::from_value::<ContractCall>(self.parsed_json.clone()) {
             Ok(contract_call) => {
                 contract_call.source_id == msg.source_address
-                    && contract_call.destination_chain == msg.destination_chain.to_string()
+                    && msg.destination_chain.eq(&contract_call.destination_chain)
                     && contract_call.destination_address == msg.destination_address
                     && contract_call.payload_hash == msg.payload_hash
             }
@@ -45,19 +43,20 @@ impl PartialEq<&Message> for &SuiEvent {
     }
 }
 
-fn get_event<'a>(
-    gateway_address: &SuiAddress,
+fn find_event<'a>(
     transaction_block: &'a SuiTransactionBlockResponse,
+    gateway_address: &SuiAddress,
     event_seq: u64,
 ) -> Option<&'a SuiEvent> {
-    if let Some(events) = transaction_block.events.as_ref() {
-        events.data.iter().find(|event| {
+    transaction_block
+        .events
+        .as_ref()
+        .iter()
+        .flat_map(|events| events.data.iter())
+        .find(|event| {
             event.id.event_seq == event_seq
-                && <ObjectID as Into<SuiAddress>>::into(event.package_id) == *gateway_address
+                && SuiAddress::from(event.package_id) == *gateway_address
         })
-    } else {
-        None
-    }
 }
 
 #[allow(dead_code)]
@@ -66,7 +65,7 @@ pub fn verify_message(
     transaction_block: &SuiTransactionBlockResponse,
     message: &Message,
 ) -> bool {
-    match get_event(gateway_address, transaction_block, message.event_index) {
+    match find_event(transaction_block, gateway_address, message.event_index) {
         Some(event) => transaction_block.digest == message.tx_id && event == message,
         None => false,
     }
@@ -74,8 +73,6 @@ pub fn verify_message(
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use ethers::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
@@ -87,56 +84,6 @@ mod tests {
     use crate::handlers::sui_verify_msg::Message;
     use crate::sui::verifier::verify_message;
     use crate::types::{EVMAddress, Hash};
-
-    fn get_matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
-        let gateway_address = SuiAddress::random_for_testing_only();
-
-        let msg = Message {
-            tx_id: TransactionDigest::random(),
-            event_index: 999,
-            source_address: SuiAddress::random_for_testing_only(),
-            destination_chain: "ethereum".parse().unwrap(),
-            destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-            payload_hash: Hash::random(),
-        };
-
-        let json_str = format!(
-            r#"{{"destination_address": "{}", "destination_chain": "{}",  "payload": "[1,2,3]",
-            "payload_hash": "{}",  "source_id": "{}"}}"#,
-            msg.destination_address,
-            msg.destination_chain,
-            msg.payload_hash.encode_hex(),
-            msg.source_address
-        );
-        let parsed: serde_json::Value = serde_json::from_str(json_str.as_str()).unwrap();
-
-        let event = SuiEvent {
-            id: EventID {
-                tx_digest: msg.tx_id,
-                event_seq: msg.event_index,
-            },
-            package_id: gateway_address.into(),
-            transaction_module: "gateway".parse().unwrap(),
-            sender: msg.source_address,
-            type_: StructTag {
-                address: gateway_address.into(),
-                module: "gateway".parse().unwrap(),
-                name: "ContractCall".parse().unwrap(),
-                type_params: vec![],
-            },
-            parsed_json: parsed,
-            bcs: vec![],
-            timestamp_ms: None,
-        };
-
-        let tx_block = SuiTransactionBlockResponse {
-            digest: msg.tx_id,
-            events: Some(SuiTransactionBlockEvents { data: vec![event] }),
-            ..Default::default()
-        };
-
-        (gateway_address, tx_block, msg)
-    }
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {
@@ -190,5 +137,55 @@ mod tests {
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_block, msg) = get_matching_msg_and_tx_block();
         assert!(verify_message(&gateway_address, &tx_block, &msg));
+    }
+
+    fn get_matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {
+        let gateway_address = SuiAddress::random_for_testing_only();
+
+        let msg = Message {
+            tx_id: TransactionDigest::random(),
+            event_index: 999,
+            source_address: SuiAddress::random_for_testing_only(),
+            destination_chain: "ethereum".parse().unwrap(),
+            destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
+            payload_hash: Hash::random(),
+        };
+
+        let json_str = format!(
+            r#"{{"destination_address": "{}", "destination_chain": "{}",  "payload": "[1,2,3]",
+            "payload_hash": "{}",  "source_id": "{}"}}"#,
+            msg.destination_address,
+            msg.destination_chain,
+            msg.payload_hash.encode_hex(),
+            msg.source_address
+        );
+        let parsed: serde_json::Value = serde_json::from_str(json_str.as_str()).unwrap();
+
+        let event = SuiEvent {
+            id: EventID {
+                tx_digest: msg.tx_id,
+                event_seq: msg.event_index,
+            },
+            package_id: gateway_address.into(),
+            transaction_module: "gateway".parse().unwrap(),
+            sender: msg.source_address,
+            type_: StructTag {
+                address: gateway_address.into(),
+                module: "gateway".parse().unwrap(),
+                name: "ContractCall".parse().unwrap(),
+                type_params: vec![],
+            },
+            parsed_json: parsed,
+            bcs: vec![],
+            timestamp_ms: None,
+        };
+
+        let tx_block = SuiTransactionBlockResponse {
+            digest: msg.tx_id,
+            events: Some(SuiTransactionBlockEvents { data: vec![event] }),
+            ..Default::default()
+        };
+
+        (gateway_address, tx_block, msg)
     }
 }
