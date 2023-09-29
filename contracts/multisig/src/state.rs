@@ -4,7 +4,7 @@ use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use crate::{
-    key::{KeyType, NonRecoverable, Signature},
+    key::{KeyType, Signature},
     signing::SigningSession,
     types::{Key, KeyID},
     ContractError,
@@ -14,11 +14,11 @@ pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_cou
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 
 /// Signatures by session id and signer address
-pub const SIGNATURES: Map<(u64, &str), Signature<NonRecoverable>> = Map::new("signatures");
+pub const SIGNATURES: Map<(u64, &str), Signature> = Map::new("signatures");
 pub fn session_signatures(
     store: &dyn Storage,
     session_id: u64,
-) -> StdResult<HashMap<String, Signature<NonRecoverable>>> {
+) -> StdResult<HashMap<String, Signature>> {
     SIGNATURES
         .prefix(session_id)
         .range(store, None, None, Order::Ascending)

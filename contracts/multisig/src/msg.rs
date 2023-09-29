@@ -4,7 +4,6 @@ use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
-use crate::key::NonRecoverable;
 use crate::{
     key::{KeyType, PublicKey, Signature},
     types::{KeyID, MultisigState},
@@ -61,5 +60,5 @@ pub struct Signer {
 pub struct Multisig {
     pub state: MultisigState,
     pub quorum: Uint256,
-    pub signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
+    pub signers: Vec<(Signer, Option<Signature>)>,
 }

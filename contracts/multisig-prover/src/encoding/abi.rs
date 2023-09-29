@@ -8,7 +8,6 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::operators::Operators;
-use multisig::key::{NonRecoverable, Recoverability, Recoverable};
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
@@ -63,20 +62,24 @@ pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
 pub fn encode_execute_data(
     command_batch: &CommandBatch,
     quorum: Uint256,
-    signers: Vec<(Signer, Option<Signature<NonRecoverable>>)>,
+    signers: Vec<(Signer, Option<Signature>)>,
 ) -> Result<HexBinary, ContractError> {
     let signers = signers
         .into_iter()
-        .map(|(signer, non_recoverable)| {
-            let recoverable = non_recoverable.and_then(|sig| {
-                sig.to_recoverable(
-                    command_batch.msg_digest().as_slice(),
-                    &signer.pub_key,
-                    add27,
-                )
-                .ok()
-            });
-            (signer, recoverable)
+        .map(|(signer, signature)| {
+            let mut signature = signature;
+            if let Some(Signature::Ecdsa(nonrecoverable)) = signature {
+                signature = nonrecoverable
+                    .to_recoverable(
+                        command_batch.msg_digest().as_slice(),
+                        &signer.pub_key,
+                        add27,
+                    )
+                    .map(Signature::EcdsaRecoverable)
+                    .ok();
+            }
+
+            (signer, signature)
         })
         .collect::<Vec<_>>();
 
@@ -96,7 +99,7 @@ pub fn encode_execute_data(
 
 fn encode_proof(
     quorum: Uint256,
-    signers: Vec<(Signer, Option<Signature<Recoverable>>)>,
+    signers: Vec<(Signer, Option<Signature>)>,
 ) -> Result<HexBinary, ContractError> {
     let mut operators = make_evm_operators_with_sigs(signers)?;
     operators.sort();
@@ -147,12 +150,9 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     }
 }
 
-fn make_evm_operators_with_sigs<T>(
-    signers_with_sigs: Vec<(Signer, Option<Signature<T>>)>,
-) -> Result<Vec<Operator<T>>, ContractError>
-where
-    T: Recoverability,
-{
+fn make_evm_operators_with_sigs(
+    signers_with_sigs: Vec<(Signer, Option<Signature>)>,
+) -> Result<Vec<Operator>, ContractError> {
     axelar_wasm_std::utils::try_map(signers_with_sigs, |(signer, sig)| {
         make_evm_operator(signer).map(|op| {
             if let Some(sig) = sig {
@@ -163,10 +163,7 @@ where
     })
 }
 
-fn make_evm_operator<T>(signer: Signer) -> Result<Operator<T>, ContractError>
-where
-    T: Recoverability,
-{
+fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
     Ok(Operator {
         address: evm_address(signer.pub_key.as_ref())?,
         weight: signer.weight,
@@ -534,7 +531,7 @@ mod test {
                     op.signature,
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature<NonRecoverable>>)>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         let execute_data = &batch.encode_execute_data(quorum, signers).unwrap();
 
@@ -613,7 +610,7 @@ mod test {
                     op.signature,
                 )
             })
-            .collect::<Vec<(Signer, Option<Signature<NonRecoverable>>)>>();
+            .collect::<Vec<(Signer, Option<Signature>)>>();
 
         let res = batch.encode_execute_data(quorum, signers).unwrap();
         assert_eq!(res, test_data::execute_data());
@@ -724,21 +721,22 @@ mod test {
             K256Signature::from_scalars(*gar, *gas).unwrap()
         };
 
-        let non_recoverable: Signature<NonRecoverable> =
-            (KeyType::Ecdsa, HexBinary::from(signature.to_vec()))
-                .try_into()
-                .unwrap();
-        let recoverable_signature = non_recoverable
-            .to_recoverable(
-                HexBinary::from_hex(digest).unwrap().as_slice(),
-                &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
-                add27,
-            )
+        let non_recoverable: Signature = (KeyType::Ecdsa, HexBinary::from(signature.to_vec()))
+            .try_into()
             .unwrap();
 
-        assert_eq!(
-            recoverable_signature.as_ref(),
-            ethers_signature.to_vec().as_slice()
-        );
+        if let Signature::Ecdsa(non_recoverable) = non_recoverable {
+            let recoverable = non_recoverable
+                .to_recoverable(
+                    HexBinary::from_hex(digest).unwrap().as_slice(),
+                    &multisig::key::PublicKey::Ecdsa(HexBinary::from(pub_key.to_vec())),
+                    add27,
+                )
+                .unwrap();
+
+            assert_eq!(recoverable.as_ref(), ethers_signature.to_vec().as_slice());
+        } else {
+            panic!("Invalid signature type")
+        }
     }
 }

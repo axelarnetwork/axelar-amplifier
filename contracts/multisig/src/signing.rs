@@ -5,7 +5,6 @@ use cosmwasm_std::{StdResult, Storage, Uint256, Uint64};
 
 use axelar_wasm_std::Snapshot;
 
-use crate::key::NonRecoverable;
 use crate::state::{session_signatures, SIGNATURES, SIGNING_SESSIONS};
 use crate::{
     key::Signature,
@@ -36,7 +35,7 @@ fn validate_session_signature(
     session: &SigningSession,
     key: &Key,
     signer: String,
-    signature: &Signature<NonRecoverable>,
+    signature: &Signature,
 ) -> Result<(), ContractError> {
     assert!(
         session.key_id == key.id,
@@ -70,7 +69,7 @@ fn validate_session_signature(
 }
 
 fn signers_weight(
-    signatures: HashMap<String, Signature<NonRecoverable>>,
+    signatures: HashMap<String, Signature>,
     snapshot: &Snapshot,
 ) -> StdResult<Uint256> {
     signatures
@@ -91,14 +90,14 @@ pub fn sign(
     session: &SigningSession,
     key: &Key,
     signer: String,
-    signature: Signature<NonRecoverable>,
-) -> Result<Signature<NonRecoverable>, ContractError> {
+    signature: Signature,
+) -> Result<Signature, ContractError> {
     validate_session_signature(session, key, signer.clone(), &signature)?;
 
     SIGNATURES.update(
         store,
         (session.id.u64(), &signer),
-        |sig| -> Result<Signature<NonRecoverable>, ContractError> {
+        |sig| -> Result<Signature, ContractError> {
             match sig {
                 Some(_) => Err(ContractError::DuplicateSignature {
                     session_id: session.id,
@@ -132,8 +131,8 @@ mod tests {
     use crate::{
         key::KeyType,
         state::{KEYS, SIGNING_SESSIONS},
-        test::common::test_data,
         test::common::{build_key, build_snapshot, TestSigner},
+        test::common::{ecdsa_test_data, ed25519_test_data},
     };
 
     use super::*;
@@ -143,22 +142,23 @@ mod tests {
         pub key_id: KeyID,
         pub message: MsgToSign,
         pub signers: Vec<TestSigner>,
+        pub key_type: KeyType,
     }
 
-    fn setup() -> TestConfig {
+    fn ecdsa_setup() -> TestConfig {
         let mut store = MockStorage::new();
 
-        let signers = test_data::signers();
+        let signers = ecdsa_test_data::signers();
         let snapshot = build_snapshot(&signers);
 
         let key_id = KeyID {
             owner: Addr::unchecked("owner"),
             subkey: "subkey".to_string(),
         };
-        let key = build_key(key_id, &signers, snapshot);
+        let key = build_key(KeyType::Ecdsa, key_id, &signers, snapshot);
         KEYS.save(&mut store, (&key.id).into(), &key).unwrap();
 
-        let message: MsgToSign = test_data::message().try_into().unwrap();
+        let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
 
         let session = SigningSession::new(Uint64::one(), key.id.clone(), message.clone());
         SIGNING_SESSIONS
@@ -170,6 +170,36 @@ mod tests {
             key_id: key.id,
             message,
             signers,
+            key_type: KeyType::Ecdsa,
+        }
+    }
+
+    fn ed25519_setup() -> TestConfig {
+        let mut store = MockStorage::new();
+
+        let signers = ed25519_test_data::signers();
+        let snapshot = build_snapshot(&signers);
+
+        let key_id = KeyID {
+            owner: Addr::unchecked("owner"),
+            subkey: "subkey".to_string(),
+        };
+        let key = build_key(KeyType::Ed25519, key_id, &signers, snapshot);
+        KEYS.save(&mut store, (&key.id).into(), &key).unwrap();
+
+        let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
+
+        let session = SigningSession::new(Uint64::one(), key.id.clone(), message.clone());
+        SIGNING_SESSIONS
+            .save(&mut store, session.id.u64(), &session)
+            .unwrap();
+
+        TestConfig {
+            store,
+            key_id: key.id,
+            message,
+            signers,
+            key_type: KeyType::Ed25519,
         }
     }
 
@@ -177,7 +207,7 @@ mod tests {
         session: &SigningSession,
         signer_ix: usize,
         config: &mut TestConfig,
-    ) -> Result<Signature<NonRecoverable>, ContractError> {
+    ) -> Result<Signature, ContractError> {
         let signer = config.signers[signer_ix].clone();
 
         let key = &KEYS.load(&config.store, (&session.key_id).into())?;
@@ -187,7 +217,7 @@ mod tests {
             session,
             key,
             signer.address.into_string(),
-            Signature::try_from((KeyType::Ecdsa, signer.signature)).unwrap(),
+            Signature::try_from((config.key_type, signer.signature.clone())).unwrap(),
         )
     }
 
@@ -202,157 +232,164 @@ mod tests {
 
     #[test]
     fn test_update_session_state() {
-        let mut config = setup();
+        for mut config in [ecdsa_setup(), ed25519_setup()] {
+            let session =
+                SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
-        let session =
-            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+            // first run
+            do_sign(&session, 0, &mut config).unwrap();
+            let result = do_update_session_state(session.clone(), &mut config);
+            assert!(result.is_ok());
 
-        // first run
-        do_sign(&session, 0, &mut config).unwrap();
-        let result = do_update_session_state(session.clone(), &mut config);
-        assert!(result.is_ok());
+            let result = result.unwrap();
+            let stored = SIGNING_SESSIONS
+                .load(&config.store, session.id.u64())
+                .unwrap();
 
-        let result = result.unwrap();
-        let stored = SIGNING_SESSIONS
-            .load(&config.store, session.id.u64())
-            .unwrap();
+            assert_eq!(result, MultisigState::Pending);
+            assert_eq!(stored.state, result);
 
-        assert_eq!(result, MultisigState::Pending);
-        assert_eq!(stored.state, result);
+            // second run
+            do_sign(&session, 1, &mut config).unwrap();
+            let result = do_update_session_state(session.clone(), &mut config);
+            assert!(result.is_ok());
 
-        // second run
-        do_sign(&session, 1, &mut config).unwrap();
-        let result = do_update_session_state(session.clone(), &mut config);
-        assert!(result.is_ok());
+            let result = result.unwrap();
+            let stored = SIGNING_SESSIONS
+                .load(&config.store, session.id.u64())
+                .unwrap();
 
-        let result = result.unwrap();
-        let stored = SIGNING_SESSIONS
-            .load(&config.store, session.id.u64())
-            .unwrap();
-
-        assert_eq!(result, MultisigState::Completed);
-        assert_eq!(stored.state, result);
+            assert_eq!(result, MultisigState::Completed);
+            assert_eq!(stored.state, result);
+        }
     }
 
     #[test]
     fn test_add_signature() {
-        let mut config = setup();
+        for mut config in [ecdsa_setup(), ed25519_setup()] {
+            let mut session =
+                SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
-        let mut session =
-            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+            // first run
+            let result = do_sign(&session, 0, &mut config);
+            let stored = SIGNING_SESSIONS
+                .load(&config.store, session.id.u64())
+                .unwrap();
+            let signatures = session_signatures(&config.store, session.id.u64()).unwrap();
 
-        // first run
-        let result = do_sign(&session, 0, &mut config);
-        let stored = SIGNING_SESSIONS
-            .load(&config.store, session.id.u64())
-            .unwrap();
-        let signatures = session_signatures(&config.store, session.id.u64()).unwrap();
+            assert!(result.is_ok());
+            assert_eq!(signatures.len(), 1);
+            assert_eq!(stored, session);
 
-        assert!(result.is_ok());
-        assert_eq!(signatures.len(), 1);
-        assert_eq!(stored, session);
+            // second run
+            let result = do_sign(&mut session, 0, &mut config);
+            let stored = SIGNING_SESSIONS
+                .load(&config.store, session.id.u64())
+                .unwrap();
+            let signatures = session_signatures(&config.store, session.id.u64()).unwrap();
 
-        // second run
-        let result = do_sign(&mut session, 0, &mut config);
-        let stored = SIGNING_SESSIONS
-            .load(&config.store, session.id.u64())
-            .unwrap();
-        let signatures = session_signatures(&config.store, session.id.u64()).unwrap();
-
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::DuplicateSignature {
-                session_id: session.id,
-                signer: config.signers[0].address.clone().into_string()
-            }
-        );
-        assert_eq!(signatures.len(), 1);
-        assert_eq!(stored, session);
+            assert_eq!(
+                result.unwrap_err(),
+                ContractError::DuplicateSignature {
+                    session_id: session.id,
+                    signer: config.signers[0].address.clone().into_string()
+                }
+            );
+            assert_eq!(signatures.len(), 1);
+            assert_eq!(stored, session);
+        }
     }
 
     #[test]
     fn test_add_signature_session_closed() {
-        let mut config = setup();
+        for mut config in [ecdsa_setup(), ed25519_setup()] {
+            let session = SIGNING_SESSIONS
+                .load(&config.store, Uint64::one().u64())
+                .unwrap();
+            do_sign(&session, 0, &mut config).unwrap();
+            do_update_session_state(session.clone(), &mut config).unwrap();
 
-        let session = SIGNING_SESSIONS
-            .load(&config.store, Uint64::one().u64())
-            .unwrap();
-        do_sign(&session, 0, &mut config).unwrap();
-        do_update_session_state(session.clone(), &mut config).unwrap();
+            let session = SIGNING_SESSIONS
+                .load(&config.store, Uint64::one().u64())
+                .unwrap();
+            do_sign(&session, 1, &mut config).unwrap();
+            do_update_session_state(session.clone(), &mut config).unwrap();
 
-        let session = SIGNING_SESSIONS
-            .load(&config.store, Uint64::one().u64())
-            .unwrap();
-        do_sign(&session, 1, &mut config).unwrap();
-        do_update_session_state(session.clone(), &mut config).unwrap();
+            let session = SIGNING_SESSIONS
+                .load(&config.store, Uint64::one().u64())
+                .unwrap();
+            let result = do_sign(&session, 2, &mut config);
 
-        let session = SIGNING_SESSIONS
-            .load(&config.store, Uint64::one().u64())
-            .unwrap();
-        let result = do_sign(&session, 2, &mut config);
-
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::SigningSessionClosed {
-                session_id: session.id,
-            }
-        );
+            assert_eq!(
+                result.unwrap_err(),
+                ContractError::SigningSessionClosed {
+                    session_id: session.id,
+                }
+            );
+        }
     }
 
     #[test]
     fn test_add_invalid_signature() {
-        let mut config = setup();
+        for mut config in [ecdsa_setup(), ed25519_setup()] {
+            let mut session =
+                SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
-        let session =
-            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+            let sig_bytes = match config.key_type {
+                KeyType::Ecdsa =>   "a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511",
+                KeyType::Ed25519 => "1fe264eb7258d48d8feedea4d237ccb20157fbe5eb412bc971d758d072b036a99b06d20853c1f23cdf82085917e08dda2fcfbb5d4d7ee17d74e4988ae81d0308",
+            };
 
-        let invalid_sig : Signature<NonRecoverable> = (KeyType::Ecdsa, HexBinary::from_hex("a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511")
-                .unwrap()).try_into().unwrap();
+            let invalid_sig: Signature = (config.key_type, HexBinary::from_hex(sig_bytes).unwrap())
+                .try_into()
+                .unwrap();
 
-        let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
+            let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
 
-        let result = sign(
-            &mut config.store,
-            &session,
-            &key,
-            config.signers[0].address.clone().into_string(),
-            invalid_sig,
-        );
+            let result = sign(
+                &mut config.store,
+                &session,
+                &key,
+                config.signers[0].address.clone().into_string(),
+                invalid_sig,
+            );
 
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::InvalidSignature {
-                session_id: session.id,
-                signer: config.signers[0].address.clone().into_string()
-            }
-        );
+            assert_eq!(
+                result.unwrap_err(),
+                ContractError::InvalidSignature {
+                    session_id: session.id,
+                    signer: config.signers[0].address.clone().into_string()
+                }
+            );
+        }
     }
 
     #[test]
     fn test_add_signature_not_participant() {
-        let mut config = setup();
+        for mut config in [ecdsa_setup(), ed25519_setup()] {
+            let session =
+                SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
-        let session =
-            SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+            let invalid_participant = "not_a_participant".to_string();
 
-        let invalid_participant = "not_a_participant".to_string();
+            let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
 
-        let key = KEYS.load(&config.store, (&session.key_id).into()).unwrap();
+            let result = sign(
+                &mut config.store,
+                &session,
+                &key,
+                invalid_participant.clone(),
+                Signature::try_from((config.key_type, config.signers[0].signature.clone()))
+                    .unwrap(),
+            );
 
-        let result = sign(
-            &mut config.store,
-            &session,
-            &key,
-            invalid_participant.clone(),
-            Signature::try_from((KeyType::Ecdsa, config.signers[0].signature.clone())).unwrap(),
-        );
-
-        assert_eq!(
-            result.unwrap_err(),
-            ContractError::NotAParticipant {
-                session_id: session.id,
-                signer: invalid_participant
-            }
-        );
+            assert_eq!(
+                result.unwrap_err(),
+                ContractError::NotAParticipant {
+                    session_id: session.id,
+                    signer: invalid_participant
+                }
+            );
+        }
     }
 }
