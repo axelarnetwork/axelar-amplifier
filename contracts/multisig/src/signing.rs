@@ -5,7 +5,7 @@ use cosmwasm_std::{StdResult, Storage, Uint256, Uint64};
 
 use axelar_wasm_std::Snapshot;
 
-use crate::state::{session_signatures, SIGNATURES, SIGNING_SESSIONS};
+use crate::state::{session_signatures, SIGNATURES};
 use crate::{
     key::Signature,
     types::{Key, KeyID, MsgToSign, MultisigState},
@@ -17,7 +17,6 @@ pub struct SigningSession {
     pub id: Uint64,
     pub key_id: KeyID,
     pub msg: MsgToSign,
-    pub state: MultisigState,
 }
 
 impl SigningSession {
@@ -26,12 +25,12 @@ impl SigningSession {
             id: session_id,
             key_id,
             msg,
-            state: MultisigState::Pending,
         }
     }
 }
 
 fn validate_session_signature(
+    store: &dyn Storage,
     session: &SigningSession,
     key: &Key,
     signer: String,
@@ -43,7 +42,7 @@ fn validate_session_signature(
     ); // TODO: correct way of handling this?
 
     // TODO: revisit again once expiration and/or rewards are introduced
-    if session.state == MultisigState::Completed {
+    if calculate_session_state(store, session, &key.snapshot)? == MultisigState::Completed {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
@@ -92,7 +91,7 @@ pub fn sign(
     signer: String,
     signature: Signature,
 ) -> Result<Signature, ContractError> {
-    validate_session_signature(session, key, signer.clone(), &signature)?;
+    validate_session_signature(store, session, key, signer.clone(), &signature)?;
 
     SIGNATURES.update(
         store,
@@ -109,19 +108,20 @@ pub fn sign(
     )
 }
 
-pub fn update_session_state(
-    store: &mut dyn Storage,
-    mut session: SigningSession,
+pub fn calculate_session_state(
+    store: &dyn Storage,
+    session: &SigningSession,
     snapshot: &Snapshot,
-) -> Result<MultisigState, ContractError> {
+) -> StdResult<MultisigState> {
     let signatures = session_signatures(store, session.id.u64())?;
 
-    if signers_weight(signatures, snapshot)? >= snapshot.quorum.into() {
-        session.state = MultisigState::Completed;
-        SIGNING_SESSIONS.save(store, session.id.u64(), &session)?;
-    }
+    let state = if signers_weight(signatures, snapshot)? >= snapshot.quorum.into() {
+        MultisigState::Completed
+    } else {
+        MultisigState::Pending
+    };
 
-    Ok(session.state)
+    Ok(state)
 }
 
 #[cfg(test)]
@@ -221,46 +221,28 @@ mod tests {
         )
     }
 
-    fn do_update_session_state(
-        session: SigningSession,
-        config: &mut TestConfig,
-    ) -> Result<MultisigState, ContractError> {
-        let key = &KEYS.load(&config.store, (&session.key_id).into())?;
-
-        update_session_state(&mut config.store, session, &key.snapshot)
-    }
-
     #[test]
-    fn test_update_session_state() {
+    fn test_calculate_session_state() {
         for mut config in [ecdsa_setup(), ed25519_setup()] {
             let session =
                 SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+            let key = &KEYS.load(&config.store, (&session.key_id).into()).unwrap();
 
             // first run
             do_sign(&session, 0, &mut config).unwrap();
-            let result = do_update_session_state(session.clone(), &mut config);
+            let result = calculate_session_state(&mut config.store, &session, &key.snapshot);
             assert!(result.is_ok());
 
             let result = result.unwrap();
-            let stored = SIGNING_SESSIONS
-                .load(&config.store, session.id.u64())
-                .unwrap();
-
             assert_eq!(result, MultisigState::Pending);
-            assert_eq!(stored.state, result);
 
             // second run
             do_sign(&session, 1, &mut config).unwrap();
-            let result = do_update_session_state(session.clone(), &mut config);
+            let result = calculate_session_state(&mut config.store, &session, &key.snapshot);
             assert!(result.is_ok());
 
             let result = result.unwrap();
-            let stored = SIGNING_SESSIONS
-                .load(&config.store, session.id.u64())
-                .unwrap();
-
             assert_eq!(result, MultisigState::Completed);
-            assert_eq!(stored.state, result);
         }
     }
 
@@ -307,13 +289,11 @@ mod tests {
                 .load(&config.store, Uint64::one().u64())
                 .unwrap();
             do_sign(&session, 0, &mut config).unwrap();
-            do_update_session_state(session.clone(), &mut config).unwrap();
 
             let session = SIGNING_SESSIONS
                 .load(&config.store, Uint64::one().u64())
                 .unwrap();
             do_sign(&session, 1, &mut config).unwrap();
-            do_update_session_state(session.clone(), &mut config).unwrap();
 
             let session = SIGNING_SESSIONS
                 .load(&config.store, Uint64::one().u64())
@@ -332,7 +312,7 @@ mod tests {
     #[test]
     fn test_add_invalid_signature() {
         for mut config in [ecdsa_setup(), ed25519_setup()] {
-            let mut session =
+            let session =
                 SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
             let sig_bytes = match config.key_type {
