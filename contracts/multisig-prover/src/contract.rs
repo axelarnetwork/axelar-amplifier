@@ -60,7 +60,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
+        ExecuteMsg::ConstructProof { message_ids } => {
+            execute::construct_proof(deps, env, message_ids)
+        }
         ExecuteMsg::UpdateWorkerSet {} => execute::update_worker_set(deps, env),
         ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps),
     }
@@ -543,6 +545,57 @@ mod tests {
             }
             _ => panic!("Expected proof status to be completed"), // multisig mock will always return completed multisig
         }
+    }
+
+    #[test]
+    fn test_construct_proof_updates_worker_set() {
+        let mut test_case = setup_test_case();
+        let res = execute_update_worker_set(&mut test_case);
+
+        assert!(res.is_ok());
+
+        let mut new_worker_set = test_data::operators();
+        new_worker_set.pop();
+        mocks::service_registry::set_active_workers(
+            &mut test_case.app,
+            test_case.service_registry_address.clone(),
+            new_worker_set,
+        );
+
+        // worker set will update in construct proof.
+        let res = execute_construct_proof(&mut test_case, None).unwrap();
+
+        let event = res
+            .events
+            .iter()
+            .find(|event| event.ty == "wasm-proof_under_construction");
+
+        assert!(event.is_some());
+
+        // check that worker set is updated.
+        let worker_set = query_get_worker_set(&mut test_case);
+        assert!(worker_set.is_ok());
+
+        let worker_set = worker_set.unwrap();
+
+        let expected_worker_set =
+            test_operators_to_worker_set(test_data::operators(), test_case.app.block_info().height);
+
+        assert_eq!(worker_set, expected_worker_set);
+    }
+
+    #[test]
+    fn test_construct_proof_no_worker_set() {
+        let mut test_case = setup_test_case();
+        let res = execute_construct_proof(&mut test_case, None);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap()
+                .to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::NoWorkerSet).to_string()
+        );
     }
 
     #[test]
