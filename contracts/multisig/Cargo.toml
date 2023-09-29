@@ -5,9 +5,9 @@ edition = "2021"
 description = "Multisig contract"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,13 +15,15 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["secp256k1"]
+default = ["secp256k1", "ed25519"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-# use this feature to use secp256k1 for signature verification
+# use this feature to enable secp256k1 for signature verification
 secp256k1 = []
+# use this feature to enable ed25519 for signature verification
+ed25519 = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -39,6 +41,7 @@ cosmwasm-std = "1.1.3"
 cosmwasm-storage = "1.1.3"
 cw-storage-plus = "1.0.1"
 cw2 = "0.15.1"
+enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
