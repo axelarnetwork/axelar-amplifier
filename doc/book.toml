@@ -1,0 +1,20 @@
+[book]
+language = "en"
+multilingual = false
+src = "src"
+title = "Amplifier Documentation"
+
+[build]
+build-dir = "../target/book"
+create-missing = false
+
+[preprocessor]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+
+[output.linkcheck]
+warning-policy = "error"
+traverse-parent-directories = true
