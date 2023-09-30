@@ -20,7 +20,7 @@ impl PartialEq<&Message> for IAxelarGatewayEventsWithLog<'_> {
                 log.transaction_hash == Some(msg.tx_id)
                     && log.log_index == Some(msg.event_index.into())
                     && event.sender == msg.source_address
-                    && event.destination_chain == msg.destination_chain.to_string()
+                    && msg.destination_chain == event.destination_chain
                     && event.destination_contract_address == msg.destination_address
                     && event.payload_hash == msg.payload_hash.as_bytes()
             }

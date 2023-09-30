@@ -34,7 +34,7 @@ impl PartialEq<&Message> for &SuiEvent {
         match serde_json::from_value::<ContractCall>(self.parsed_json.clone()) {
             Ok(contract_call) => {
                 contract_call.source_id == msg.source_address
-                    && msg.destination_chain.eq(&contract_call.destination_chain)
+                    && msg.destination_chain == contract_call.destination_chain
                     && contract_call.destination_address == msg.destination_address
                     && contract_call.payload_hash == msg.payload_hash
             }
