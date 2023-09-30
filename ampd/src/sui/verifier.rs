@@ -75,11 +75,14 @@ pub fn verify_message(
 mod tests {
     use ethers::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
+    use random_string::generate;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
     use sui_types::{
         base_types::{SuiAddress, TransactionDigest},
         event::EventID,
     };
+
+    use connection_router::state::ChainName;
 
     use crate::handlers::sui_verify_msg::Message;
     use crate::sui::verifier::verify_message;
@@ -97,7 +100,7 @@ mod tests {
     fn should_not_verify_msg_if_event_index_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
-        msg.event_index = 0;
+        msg.event_index = rand::random::<u64>();
         assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
@@ -113,7 +116,7 @@ mod tests {
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
-        msg.destination_chain = "some-other-chain".parse().unwrap();
+        msg.destination_chain = rand_chain_name();
         assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
     }
 
@@ -144,9 +147,9 @@ mod tests {
 
         let msg = Message {
             tx_id: TransactionDigest::random(),
-            event_index: 999,
+            event_index: rand::random::<u64>(),
             source_address: SuiAddress::random_for_testing_only(),
-            destination_chain: "ethereum".parse().unwrap(),
+            destination_chain: rand_chain_name(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
             payload_hash: Hash::random(),
         };
@@ -187,5 +190,10 @@ mod tests {
         };
 
         (gateway_address, tx_block, msg)
+    }
+
+    fn rand_chain_name() -> ChainName {
+        let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        generate(8, charset).parse().unwrap()
     }
 }
