@@ -4,6 +4,8 @@ use crate::nonempty::Error;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
+#[serde(try_from = "cosmwasm_std::Uint64")]
+#[serde(into = "cosmwasm_std::Uint64")]
 #[derive(Copy, PartialOrd)]
 pub struct Uint64(cosmwasm_std::Uint64);
 
