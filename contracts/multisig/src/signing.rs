@@ -36,11 +36,6 @@ fn validate_session_signature(
     signer: String,
     signature: &Signature,
 ) -> Result<(), ContractError> {
-    assert!(
-        session.key_id == key.id,
-        "violated invariant: key_id mismatch"
-    ); // TODO: correct way of handling this?
-
     // TODO: revisit again once expiration and/or rewards are introduced
     if calculate_session_state(signatures, &key.snapshot)? == MultisigState::Completed {
         return Err(ContractError::SigningSessionClosed {
