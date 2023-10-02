@@ -261,18 +261,16 @@ pub mod query {
                     .remove(&address)
                     .expect("violated invariant: pub_key not found");
 
-                Ok((
+                (
                     Signer {
                         address: participant.address,
                         weight: participant.weight.into(),
                         pub_key,
                     },
-                    session_signatures(deps.storage, session.id.u64())?
-                        .get(&address)
-                        .cloned(),
-                ))
+                    signatures.get(&address).cloned(),
+                )
             })
-            .collect::<StdResult<Vec<_>>>()?;
+            .collect::<Vec<_>>();
 
         Ok(Multisig {
             state,
