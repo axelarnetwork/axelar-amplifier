@@ -7657,6 +7657,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nexus-gateway"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "mockall",
+ "report",
+ "thiserror",
+]
+
+[[package]]
 name = "nibble_vec"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
