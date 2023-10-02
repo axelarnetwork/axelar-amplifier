@@ -22,18 +22,33 @@ use crate::{
     types::{BatchID, WorkersInfo},
 };
 
-pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Response, ContractError> {
-    let key_id = KEY_ID.load(deps.storage)?;
+pub fn construct_proof(
+    deps: DepsMut,
+    env: Env,
+    message_ids: Vec<String>,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
     let batch_id = BatchID::new(&message_ids, None);
 
-    let messages = get_messages(deps.querier, message_ids, config.gateway, config.chain_name)?;
+    let messages = get_messages(
+        deps.querier,
+        message_ids,
+        config.gateway.clone(),
+        config.chain_name.clone(),
+    )?;
 
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
+            let workers_info = get_workers_info(&deps, &env, &config)?;
+            let new_worker_set = get_next_worker_set(&deps, &env, &config)?;
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
+
+            if let Some(new_worker_set) = new_worker_set {
+                save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
+                builder.add_new_worker_set(new_worker_set)?;
+            }
+
             for msg in messages {
                 builder.add_message(msg)?;
             }
@@ -48,6 +63,7 @@ pub fn construct_proof(deps: DepsMut, message_ids: Vec<String>) -> Result<Respon
     // keep track of the batch id to use during submessage reply
     REPLY_BATCH.save(deps.storage, &command_batch.id)?;
 
+    let key_id = KEY_ID.load(deps.storage)?;
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         key_id,
         msg: command_batch.msg_digest(),
@@ -142,19 +158,22 @@ fn get_workers_info(
     })
 }
 
+fn make_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Result<WorkerSet, ContractError> {
+    let workers_info = get_workers_info(deps, env, config)?;
+    WorkerSet::new(
+        workers_info.pubkeys_by_participant,
+        workers_info.snapshot.quorum.into(),
+        env.block.height,
+    )
+}
+
 fn get_next_worker_set(
     deps: &DepsMut,
     env: &Env,
     config: &Config,
 ) -> Result<Option<WorkerSet>, ContractError> {
-    let workers_info = get_workers_info(deps, env, config)?;
-
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
-    let new_worker_set = WorkerSet::new(
-        workers_info.pubkeys_by_participant,
-        workers_info.snapshot.quorum.into(),
-        env.block.height,
-    )?;
+    let new_worker_set = make_worker_set(deps, env, config)?;
 
     match cur_worker_set {
         Some(cur_worker_set) => {
@@ -168,7 +187,7 @@ fn get_next_worker_set(
                 Ok(None)
             }
         }
-        None => Ok(Some(new_worker_set)),
+        None => Err(ContractError::NoWorkerSet),
     }
 }
 
@@ -221,12 +240,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &env, &config)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
-    let new_worker_set =
-        get_next_worker_set(&deps, &env, &config)?.ok_or(ContractError::WorkerSetUnchanged)?;
 
     match cur_worker_set {
         None => {
             // if no worker set, just store it and return
+            let new_worker_set = make_worker_set(&deps, &env, &config)?;
             initialize_worker_set(deps.storage, new_worker_set.clone())?;
             let key_gen_msg = make_keygen_msg(
                 new_worker_set.id(),
@@ -237,6 +255,9 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
         }
         Some(cur_worker_set) => {
+            let new_worker_set = get_next_worker_set(&deps, &env, &config)?
+                .ok_or(ContractError::WorkerSetUnchanged)?;
+
             save_next_worker_set(deps.storage, workers_info, new_worker_set.clone())?;
 
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
