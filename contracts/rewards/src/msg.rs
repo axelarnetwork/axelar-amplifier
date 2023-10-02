@@ -19,7 +19,7 @@ pub struct RewardsParams {
     /// 100k * 500 / 1 million (= 50) tokens are distributed to participating workers. The tokens to be distributed are split equally amongst the participating workers
     pool_duration: nonempty::Uint64,
 
-    /// Participation threshold workers must meet to receive rewards in a given epoch, specified as a fraction between 0 (exclusive) and 1 (exclusive). workers
+    /// Participation threshold workers must meet to receive rewards in a given epoch, specified as a fraction between 0 (exclusive) and 1 (exclusive). Workers
     /// must participate in at least this fraction of all events in a given epoch to receive rewards. So, if participation_threshold is 9/10,
     /// and there are 100 events in a given epoch, workers must have participated in at least 90 events to receive rewards.
     /// Participation is reset at the beginning of each epoch, so participation in previous epochs does not affect rewards for future epochs.
