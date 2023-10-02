@@ -63,7 +63,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: wasm
-          args: --locked --workspace --exclude ampd
         env:
           RUSTFLAGS: --cfg tracing_unstable -C link-arg=-s
 
