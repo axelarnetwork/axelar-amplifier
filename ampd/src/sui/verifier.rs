@@ -21,7 +21,6 @@ struct ContractCall {
 // event type is in the form of: <gateway_address>::gateway::ContractCall
 fn call_contract_type(gateway_address: &ObjectID) -> StructTag {
     format!("{}::{}", gateway_address, CONTRACT_CALL_EVENT)
-        .as_str()
         .parse()
         .expect("failed to parse struct tag")
 }
