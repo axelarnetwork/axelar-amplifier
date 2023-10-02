@@ -29,6 +29,7 @@ humantime-serde = "1.1.1"
 itertools = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.11.3"
+move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.9.1" }
 multisig = { workspace = true }
 prost = "0.11.9"
 report = { workspace = true }
@@ -36,7 +37,7 @@ serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 serde_with = "3.2.0"
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.9.1" }
-sui-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.9.1" }
+sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.9.1" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
 # Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
