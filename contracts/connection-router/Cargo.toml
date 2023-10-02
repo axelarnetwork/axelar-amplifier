@@ -30,11 +30,10 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 [dependencies]
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
-cosmwasm-schema = "1.1.3"
-cosmwasm-std = "1.1.3"
-cosmwasm-storage = "1.1.3"
-cw-storage-plus = "1.0.1"
-cw2 = "0.15.1"
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true }
+cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
 itertools = { workspace = true }
