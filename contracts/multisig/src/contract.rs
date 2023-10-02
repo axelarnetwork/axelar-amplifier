@@ -742,8 +742,8 @@ mod tests {
         for (_key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
-            do_sign(deps.as_mut(), session_id, &signer).unwrap();
+            do_sign(deps.as_mut(), session_id, signers.get(0).unwrap()).unwrap();
+            do_sign(deps.as_mut(), session_id, signers.get(1).unwrap()).unwrap();
 
             let msg = QueryMsg::GetMultisig { session_id };
 
@@ -759,10 +759,7 @@ mod tests {
                 .unwrap();
             let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-            assert_eq!(
-                query_res.state,
-                calculate_session_state(&signatures, &key.snapshot).unwrap()
-            );
+            assert_eq!(query_res.state, MultisigState::Completed);
             assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
             key.snapshot
                 .participants
