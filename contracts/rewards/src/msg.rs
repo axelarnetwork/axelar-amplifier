@@ -32,13 +32,13 @@ pub enum ExecuteMsg {
     StartRewardEvent { event_id: String },
 
     /// Log a specific worker as participating in a specific event
-    WorkerParticipated {
+    RecordParticipation {
         event_id: String,
         worker_address: String,
     },
 
     /// Process rewards for the most recent epoch, if not yet processed, and send the required number of tokens to each worker
-    ProcessRewards {
+    DistributeRewards {
         /// Address of contract for which to process rewards. For example, address of a voting verifier instance.
         contract_address: String,
     },
@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
     },
 
     /// Overwrites the currently stored params. Callable only by governance.
-    ModifyParams { params: RewardsParams },
+    UpdateParams { params: RewardsParams },
 }
 
 #[cw_serde]
