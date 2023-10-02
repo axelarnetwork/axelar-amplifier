@@ -6,6 +6,7 @@ use sui_types::base_types::{ObjectID, SuiAddress};
 use crate::handlers::sui_verify_msg::Message;
 use crate::types::Hash;
 
+// CONTRACT_CALL_EVENT is in form of <module name>::<event type>
 const CONTRACT_CALL_EVENT: &str = "gateway::ContractCall";
 
 // TODO: update after Sui gateway event finalization
