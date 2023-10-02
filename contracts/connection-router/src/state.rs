@@ -421,6 +421,12 @@ impl Display for ChainName {
     }
 }
 
+impl PartialEq<String> for ChainName {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == other.to_lowercase()
+    }
+}
+
 impl<'a> PrimaryKey<'a> for ChainName {
     type Prefix = ();
     type SubPrefix = ();
@@ -560,6 +566,18 @@ mod tests {
                 .unwrap_err()
                 .to_string()
         );
+    }
+
+    #[test]
+    fn chain_name_case_insensitive_comparison() {
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+
+        assert!(chain_name.eq(&"Ethereum".to_string()));
+        assert!(chain_name.eq(&"ETHEREUM".to_string()));
+        assert!(chain_name.eq(&"ethereum".to_string()));
+        assert!(chain_name.eq(&"ethEReum".to_string()));
+
+        assert!(!chain_name.eq(&"Ethereum-1".to_string()));
     }
 
     #[test]
