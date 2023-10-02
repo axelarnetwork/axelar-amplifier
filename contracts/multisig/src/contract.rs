@@ -60,7 +60,7 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::signing::{calculate_session_state, sign};
+    use crate::signing::sign;
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -132,9 +132,7 @@ pub mod execute {
 
         let signer = info.sender.clone().into();
 
-        let signature = sign(deps.storage, &session, &key, signer, signature)?;
-
-        let state = calculate_session_state(deps.storage, &session, &key.snapshot)?;
+        let (signature, state) = sign(deps.storage, &session, &key, signer, signature)?;
 
         let event = Event::SignatureSubmitted {
             session_id,
@@ -250,7 +248,8 @@ pub mod query {
 
         let mut key = KEYS.load(deps.storage, &session.key_id)?;
 
-        let state = calculate_session_state(deps.storage, &session, &key.snapshot)?;
+        let signatures = session_signatures(deps.storage, session.id.u64())?;
+        let state = calculate_session_state(&signatures, &key.snapshot)?;
 
         let signers_with_sigs = key
             .snapshot
@@ -578,7 +577,7 @@ mod tests {
             assert_eq!(session.msg, message.clone().try_into().unwrap());
             assert!(signatures.is_empty());
             assert_eq!(
-                calculate_session_state(deps.as_ref().storage, &session, &key.snapshot).unwrap(),
+                calculate_session_state(&signatures, &key.snapshot).unwrap(),
                 MultisigState::Pending
             );
 
@@ -653,7 +652,7 @@ mod tests {
                 &Signature::try_from((key_type, signer.signature.clone())).unwrap()
             );
             assert_eq!(
-                calculate_session_state(deps.as_ref().storage, &session, &key.snapshot).unwrap(),
+                calculate_session_state(&signatures, &key.snapshot).unwrap(),
                 MultisigState::Pending
             );
 
@@ -705,7 +704,7 @@ mod tests {
                 &Signature::try_from((key_type, signer.signature)).unwrap()
             );
             assert_eq!(
-                calculate_session_state(deps.as_ref().storage, &session, &key.snapshot).unwrap(),
+                calculate_session_state(&signatures, &key.snapshot).unwrap(),
                 MultisigState::Completed
             );
 
@@ -764,7 +763,7 @@ mod tests {
 
             assert_eq!(
                 query_res.state,
-                calculate_session_state(deps.as_ref().storage, &session, &key.snapshot).unwrap()
+                calculate_session_state(&signatures, &key.snapshot).unwrap()
             );
             assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
             key.snapshot

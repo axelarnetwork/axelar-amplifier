@@ -30,8 +30,8 @@ impl SigningSession {
 }
 
 fn validate_session_signature(
-    store: &dyn Storage,
     session: &SigningSession,
+    signatures: &HashMap<String, Signature>,
     key: &Key,
     signer: String,
     signature: &Signature,
@@ -42,7 +42,7 @@ fn validate_session_signature(
     ); // TODO: correct way of handling this?
 
     // TODO: revisit again once expiration and/or rewards are introduced
-    if calculate_session_state(store, session, &key.snapshot)? == MultisigState::Completed {
+    if calculate_session_state(signatures, &key.snapshot)? == MultisigState::Completed {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
@@ -68,7 +68,7 @@ fn validate_session_signature(
 }
 
 fn signers_weight(
-    signatures: HashMap<String, Signature>,
+    signatures: &HashMap<String, Signature>,
     snapshot: &Snapshot,
 ) -> StdResult<Uint256> {
     signatures
@@ -90,10 +90,11 @@ pub fn sign(
     key: &Key,
     signer: String,
     signature: Signature,
-) -> Result<Signature, ContractError> {
-    validate_session_signature(store, session, key, signer.clone(), &signature)?;
+) -> Result<(Signature, MultisigState), ContractError> {
+    let mut signatures = session_signatures(store, session.id.u64())?;
+    validate_session_signature(session, &signatures, key, signer.clone(), &signature)?;
 
-    SIGNATURES.update(
+    let signature = SIGNATURES.update(
         store,
         (session.id.u64(), &signer),
         |sig| -> Result<Signature, ContractError> {
@@ -105,16 +106,18 @@ pub fn sign(
                 None => Ok(signature),
             }
         },
-    )
+    )?;
+
+    signatures.insert(signer, signature.clone());
+    let state = calculate_session_state(&signatures, &key.snapshot)?;
+
+    Ok((signature, state))
 }
 
 pub fn calculate_session_state(
-    store: &dyn Storage,
-    session: &SigningSession,
+    signatures: &HashMap<String, Signature>,
     snapshot: &Snapshot,
 ) -> StdResult<MultisigState> {
-    let signatures = session_signatures(store, session.id.u64())?;
-
     let state = if signers_weight(signatures, snapshot)? >= snapshot.quorum.into() {
         MultisigState::Completed
     } else {
@@ -207,7 +210,7 @@ mod tests {
         session: &SigningSession,
         signer_ix: usize,
         config: &mut TestConfig,
-    ) -> Result<Signature, ContractError> {
+    ) -> Result<(Signature, MultisigState), ContractError> {
         let signer = config.signers[signer_ix].clone();
 
         let key = &KEYS.load(&config.store, (&session.key_id).into())?;
@@ -219,31 +222,6 @@ mod tests {
             signer.address.into_string(),
             Signature::try_from((config.key_type, signer.signature.clone())).unwrap(),
         )
-    }
-
-    #[test]
-    fn test_calculate_session_state() {
-        for mut config in [ecdsa_setup(), ed25519_setup()] {
-            let session =
-                SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
-            let key = &KEYS.load(&config.store, (&session.key_id).into()).unwrap();
-
-            // first run
-            do_sign(&session, 0, &mut config).unwrap();
-            let result = calculate_session_state(&mut config.store, &session, &key.snapshot);
-            assert!(result.is_ok());
-
-            let result = result.unwrap();
-            assert_eq!(result, MultisigState::Pending);
-
-            // second run
-            do_sign(&session, 1, &mut config).unwrap();
-            let result = calculate_session_state(&mut config.store, &session, &key.snapshot);
-            assert!(result.is_ok());
-
-            let result = result.unwrap();
-            assert_eq!(result, MultisigState::Completed);
-        }
     }
 
     #[test]
@@ -279,6 +257,22 @@ mod tests {
             );
             assert_eq!(signatures.len(), 1);
             assert_eq!(stored, session);
+        }
+    }
+
+    #[test]
+    fn test_calculate_session_state() {
+        for mut config in [ecdsa_setup(), ed25519_setup()] {
+            let session =
+                SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
+
+            // first run
+            let (_, result) = do_sign(&session, 0, &mut config).unwrap();
+            assert_eq!(result, MultisigState::Pending);
+
+            // second run
+            let (_, result) = do_sign(&session, 1, &mut config).unwrap();
+            assert_eq!(result, MultisigState::Completed);
         }
     }
 
