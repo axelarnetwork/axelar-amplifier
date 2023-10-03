@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use axelar_wasm_std::{nonempty, Threshold};
-use connection_router::state::NewMessage;
+use connection_router::state::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{
@@ -77,8 +77,8 @@ pub fn new_worker_set() -> WorkerSet {
     }
 }
 
-pub fn messages() -> Vec<NewMessage> {
-    vec![NewMessage {
+pub fn messages() -> Vec<Message> {
+    vec![Message {
         cc_id: "ganache-1:0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834:0"
             .parse()
             .unwrap(),

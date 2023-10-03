@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use multisig::key::{KeyType, PublicKey};
 
 use axelar_wasm_std::snapshot;
-use connection_router::state::{ChainName, CrossChainId, NewMessage};
+use connection_router::state::{ChainName, CrossChainId, Message};
 use service_registry::state::Worker;
 
 use crate::{
@@ -76,7 +76,7 @@ fn get_messages(
     message_ids: Vec<String>,
     gateway: Addr,
     chain_name: ChainName,
-) -> Result<Vec<NewMessage>, ContractError> {
+) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
     let ids = message_ids
@@ -87,7 +87,7 @@ fn get_messages(
         })
         .collect::<Vec<_>>();
     let query = gateway::msg::QueryMsg::GetMessages { message_ids: ids };
-    let messages: Vec<NewMessage> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,
     }))?;

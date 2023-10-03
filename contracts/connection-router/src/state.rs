@@ -88,7 +88,7 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 }
 
 #[cw_serde]
-pub struct NewMessage {
+pub struct Message {
     pub cc_id: CrossChainId,
     pub destination_address: Address,
     pub destination_chain: ChainName,
@@ -466,8 +466,8 @@ mod tests {
         assert_eq!(id, serde_json::from_str(&serialized).unwrap());
     }
 
-    fn dummy_message() -> NewMessage {
-        NewMessage {
+    fn dummy_message() -> Message {
+        Message {
             cc_id: CrossChainId {
                 id: "hash:index".parse().unwrap(),
                 chain: "chain".parse().unwrap(),

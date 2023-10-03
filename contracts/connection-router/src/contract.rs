@@ -72,7 +72,7 @@ pub mod execute {
     use axelar_wasm_std::flagset::FlagSet;
 
     use crate::events::{ChainFrozen, GatewayInfo, GatewayUpgraded, MessageRouted};
-    use crate::state::{ChainEndpoint, ChainName, Gateway, GatewayDirection, NewMessage};
+    use crate::state::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
     use super::*;
 
@@ -174,7 +174,7 @@ pub mod execute {
     pub fn route_message(
         deps: DepsMut,
         info: MessageInfo,
-        msgs: Vec<NewMessage>,
+        msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         let source_chain = find_chain_for_gateway(&deps, &info.sender)?
             .ok_or(ContractError::GatewayNotRegistered)?;

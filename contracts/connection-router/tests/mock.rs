@@ -1,15 +1,15 @@
-use connection_router::state::{CrossChainId, NewMessage};
+use connection_router::state::{CrossChainId, Message};
 use connection_router::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 
-const MOCK_GATEWAY_MESSAGES: Map<CrossChainId, NewMessage> = Map::new("gateway_messages");
+const MOCK_GATEWAY_MESSAGES: Map<CrossChainId, Message> = Map::new("gateway_messages");
 
 #[cw_serde]
 pub enum MockGatewayExecuteMsg {
-    RouteMessages(Vec<NewMessage>),
+    RouteMessages(Vec<Message>),
 }
 
 pub fn mock_gateway_execute(
@@ -51,8 +51,8 @@ pub fn mock_gateway_query(deps: Deps, _env: Env, msg: MockGatewayQueryMsg) -> St
 pub fn get_gateway_messages(
     app: &mut App,
     gateway_address: Addr,
-    msgs: &Vec<NewMessage>,
-) -> Vec<NewMessage> {
+    msgs: &Vec<Message>,
+) -> Vec<Message> {
     app.wrap()
         .query_wasm_smart(
             gateway_address,

@@ -6,7 +6,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
-use connection_router::state::NewMessage;
+use connection_router::state::Message;
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
@@ -22,7 +22,7 @@ pub enum Encoder {
     Bcs,
 }
 
-fn make_command(msg: NewMessage, encoding: Encoder) -> Result<Command, ContractError> {
+fn make_command(msg: Message, encoding: Encoder) -> Result<Command, ContractError> {
     Ok(Command {
         ty: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
         params: match encoding {
@@ -77,7 +77,7 @@ impl CommandBatchBuilder {
         }
     }
 
-    pub fn add_message(&mut self, msg: NewMessage) -> Result<(), ContractError> {
+    pub fn add_message(&mut self, msg: Message) -> Result<(), ContractError> {
         self.message_ids.push(msg.cc_id.to_string());
         self.commands.push(make_command(msg, self.encoding)?);
         Ok(())
