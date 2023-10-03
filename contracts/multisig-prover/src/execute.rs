@@ -4,11 +4,8 @@ use cosmwasm_std::{
 };
 use multisig::key::{KeyType, PublicKey};
 
-use std::str::FromStr;
-
 use axelar_wasm_std::snapshot;
-use connection_router::state::CrossChainId;
-use connection_router::{msg::Message, state::ChainName};
+use connection_router::state::{ChainName, CrossChainId, NewMessage};
 use service_registry::state::Worker;
 
 use crate::{
@@ -79,7 +76,7 @@ fn get_messages(
     message_ids: Vec<String>,
     gateway: Addr,
     chain_name: ChainName,
-) -> Result<Vec<Message>, ContractError> {
+) -> Result<Vec<NewMessage>, ContractError> {
     let length = message_ids.len();
 
     let ids = message_ids
@@ -90,7 +87,7 @@ fn get_messages(
         })
         .collect::<Vec<_>>();
     let query = gateway::msg::QueryMsg::GetMessages { message_ids: ids };
-    let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let messages: Vec<NewMessage> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,
     }))?;
@@ -100,11 +97,10 @@ fn get_messages(
         "violated invariant: returned gateway messages count mismatch"
     );
 
-    if messages.iter().any(|msg| {
-        ChainName::from_str(&msg.destination_chain)
-            .expect("violated invariant: message with invalid chain found")
-            != chain_name
-    }) {
+    if messages
+        .iter()
+        .any(|msg| msg.destination_chain != chain_name)
+    {
         panic!("violated invariant: messages from different chain found");
     }
 
