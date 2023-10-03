@@ -5,9 +5,9 @@ edition = "2021"
 description = "Multisig contract"
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-    "contract.wasm",
-    "hash.txt",
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -36,11 +36,10 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 cosmwasm-crypto = "1.2.7"
-cosmwasm-schema = "1.1.3"
-cosmwasm-std = "1.1.3"
-cosmwasm-storage = "1.1.3"
-cw-storage-plus = "1.0.1"
-cw2 = "0.15.1"
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true }
+cw-storage-plus = { workspace = true }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }

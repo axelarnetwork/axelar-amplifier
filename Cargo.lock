@@ -84,7 +84,6 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
- "cw2 0.15.1",
  "error-stack",
  "report",
  "schemars",
@@ -1560,7 +1559,6 @@ dependencies = [
  "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw2 0.15.1",
  "error-stack",
  "report",
  "thiserror",
@@ -2466,7 +2464,6 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
- "cw2 0.15.1",
  "error-stack",
  "flagset",
  "hex",
@@ -3149,18 +3146,6 @@ dependencies = [
  "cw2 1.1.0",
  "schemars",
  "semver 1.0.18",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw0"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ae676b6cced78a3d38ad4b01ab4ed66fc78ac191c3c0d6bfd5372cb2efd473b"
-dependencies = [
- "cosmwasm-std",
- "schemars",
  "serde",
  "thiserror",
 ]
@@ -4856,8 +4841,6 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
- "cw-utils 1.0.1",
- "cw2 0.15.1",
  "error-stack",
  "itertools 0.11.0",
  "mockall",
@@ -7448,7 +7431,6 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
- "cw2 0.15.1",
  "enum-display-derive",
  "error-stack",
  "getrandom 0.2.10",
@@ -7476,7 +7458,6 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
- "cw2 0.15.1",
  "either",
  "elliptic-curve 0.13.5",
  "error-stack",
@@ -10476,8 +10457,7 @@ dependencies = [
  "cosmwasm-std",
  "cosmwasm-storage",
  "cw-multi-test",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
+ "cw-storage-plus 1.1.0",
  "error-stack",
  "report",
  "schemars",
@@ -12790,8 +12770,6 @@ dependencies = [
  "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
- "cw0",
- "cw2 0.15.1",
  "either",
  "error-stack",
  "report",
