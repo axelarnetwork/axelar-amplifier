@@ -60,6 +60,7 @@ pub fn execute(
 }
 
 pub mod execute {
+    use crate::signing::sign;
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -110,7 +111,7 @@ pub mod execute {
         session_id: Uint64,
         signature: HexBinary,
     ) -> Result<Response, ContractError> {
-        let mut session = SIGNING_SESSIONS
+        let session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
@@ -129,9 +130,9 @@ pub mod execute {
             Some((_, pk)) => (pk.key_type(), signature).try_into()?,
         };
 
-        session.add_signature(key, info.sender.clone().into(), signature.clone())?;
+        let signer = info.sender.clone().into();
 
-        SIGNING_SESSIONS.save(deps.storage, session_id.u64(), &session)?;
+        let (signature, state) = sign(deps.storage, &session, &key, signer, signature)?;
 
         let event = Event::SignatureSubmitted {
             session_id,
@@ -139,7 +140,7 @@ pub mod execute {
             signature,
         };
 
-        if session.state == MultisigState::Completed {
+        if state == MultisigState::Completed {
             Ok(Response::new()
                 .add_event(event.into())
                 .add_event(Event::SigningCompleted { session_id }.into()))
@@ -236,7 +237,8 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        state::PUB_KEYS,
+        signing::calculate_session_state,
+        state::{session_signatures, PUB_KEYS},
     };
 
     use super::*;
@@ -245,6 +247,9 @@ pub mod query {
         let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
 
         let mut key = KEYS.load(deps.storage, &session.key_id)?;
+
+        let signatures = session_signatures(deps.storage, session.id.u64())?;
+        let state = calculate_session_state(&signatures, &key.snapshot)?;
 
         let signers_with_sigs = key
             .snapshot
@@ -262,13 +267,13 @@ pub mod query {
                         weight: participant.weight.into(),
                         pub_key,
                     },
-                    session.signatures.get(&address).cloned(),
+                    signatures.get(&address).cloned(),
                 )
             })
             .collect::<Vec<_>>();
 
         Ok(Multisig {
-            state: session.state,
+            state,
             quorum: key.snapshot.quorum.into(),
             signers: signers_with_sigs,
         })
@@ -291,6 +296,8 @@ mod tests {
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
+        signing::calculate_session_state,
+        state::session_signatures,
         test::common::{build_snapshot, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
         types::MultisigState,
@@ -561,12 +568,16 @@ mod tests {
                 ED25519_SUBKEY => ed25519_test_data::message(),
                 _ => panic!("unexpected subkey"),
             };
+            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
             assert_eq!(session.key_id, key.id);
             assert_eq!(session.msg, message.clone().try_into().unwrap());
-            assert!(session.signatures.is_empty());
-            assert_eq!(session.state, MultisigState::Pending);
+            assert!(signatures.is_empty());
+            assert_eq!(
+                calculate_session_state(&signatures, &key.snapshot).unwrap(),
+                MultisigState::Pending
+            );
 
             let res = res.unwrap();
             assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
@@ -628,16 +639,20 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
+            let key = get_key(deps.as_ref().storage, &session.key_id).unwrap();
+            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-            assert_eq!(session.signatures.len(), 1);
+            assert_eq!(signatures.len(), 1);
             assert_eq!(
-                session
-                    .signatures
+                signatures
                     .get(&signer.address.clone().into_string())
                     .unwrap(),
                 &Signature::try_from((key_type, signer.signature.clone())).unwrap()
             );
-            assert_eq!(session.state, MultisigState::Pending);
+            assert_eq!(
+                calculate_session_state(&signatures, &key.snapshot).unwrap(),
+                MultisigState::Pending
+            );
 
             let res = res.unwrap();
             assert_eq!(res.events.len(), 1);
@@ -678,16 +693,18 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
+            let key = get_key(deps.as_ref().storage, &session.key_id).unwrap();
+            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-            assert_eq!(session.signatures.len(), 2);
+            assert_eq!(signatures.len(), 2);
             assert_eq!(
-                session
-                    .signatures
-                    .get(&signer.address.into_string())
-                    .unwrap(),
+                signatures.get(&signer.address.into_string()).unwrap(),
                 &Signature::try_from((key_type, signer.signature)).unwrap()
             );
-            assert_eq!(session.state, MultisigState::Completed);
+            assert_eq!(
+                calculate_session_state(&signatures, &key.snapshot).unwrap(),
+                MultisigState::Completed
+            );
 
             let res = res.unwrap();
             assert_eq!(res.events.len(), 2);
@@ -725,8 +742,8 @@ mod tests {
         for (_key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
-            do_sign(deps.as_mut(), session_id, &signer).unwrap();
+            do_sign(deps.as_mut(), session_id, signers.get(0).unwrap()).unwrap();
+            do_sign(deps.as_mut(), session_id, signers.get(1).unwrap()).unwrap();
 
             let msg = QueryMsg::GetMultisig { session_id };
 
@@ -740,8 +757,9 @@ mod tests {
             let key = KEYS
                 .load(deps.as_ref().storage, (&session.key_id).into())
                 .unwrap();
+            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-            assert_eq!(query_res.state, session.state);
+            assert_eq!(query_res.state, MultisigState::Completed);
             assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
             key.snapshot
                 .participants
@@ -755,7 +773,7 @@ mod tests {
 
                     assert_eq!(signer.0.weight, Uint256::from(participant.weight));
                     assert_eq!(signer.0.pub_key, key.pub_keys.get(address).unwrap().clone());
-                    assert_eq!(signer.1, session.signatures.get(address).cloned());
+                    assert_eq!(signer.1, signatures.get(address).cloned());
                 });
         }
     }
