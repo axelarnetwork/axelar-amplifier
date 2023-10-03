@@ -59,7 +59,6 @@ fn find_event<'a>(
         })
 }
 
-#[allow(dead_code)]
 pub fn verify_message(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,
