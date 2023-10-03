@@ -29,10 +29,15 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let store = GatewayStore::new(deps.storage);
+    let config = store.load_config();
 
     match msg {
         ExecuteMsg::VerifyMessages(_) => unimplemented!(),
-        ExecuteMsg::RouteMessages(_msgs) if info.sender == store.load_config().nexus => todo!(),
+        ExecuteMsg::RouteMessages(_msgs)
+            if info.sender == config.nexus || info.sender == config.router =>
+        {
+            todo!()
+        }
         _ => Err(ContractError::Unauthorized),
     }
 }
