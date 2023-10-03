@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use axelar_wasm_std::{nonempty, Threshold};
-use connection_router::msg::Message;
+use connection_router::state::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{
@@ -79,12 +79,16 @@ pub fn new_worker_set() -> WorkerSet {
 
 pub fn messages() -> Vec<Message> {
     vec![Message {
-        id: "ganache-1:0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834:0"
-            .to_string(),
-        source_chain: "ganache-1".to_string(),
-        source_address: "0x52444f1835Adc02086c37Cb226561605e2E1699b".into(),
-        destination_address: "0xA4f10f76B86E01B98daF66A3d02a65e14adb0767".to_string(),
-        destination_chain: "ganache-0".to_string(),
+        cc_id: "ganache-1:0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834:0"
+            .parse()
+            .unwrap(),
+        source_address: "0x52444f1835Adc02086c37Cb226561605e2E1699b"
+            .parse()
+            .unwrap(),
+        destination_address: "0xA4f10f76B86E01B98daF66A3d02a65e14adb0767"
+            .parse()
+            .unwrap(),
+        destination_chain: "ganache-0".parse().unwrap(),
         payload_hash: HexBinary::from_hex(
             "8c3685dc41c2eca11426f8035742fb97ea9f14931152670a5703f18fe8b392f0",
         )

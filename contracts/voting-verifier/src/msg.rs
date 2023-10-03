@@ -6,7 +6,7 @@ use axelar_wasm_std::{
     voting::{PollID, PollResult},
     Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, MessageId, NewMessage};
+use connection_router::state::{ChainName, CrossChainId, Message, MessageId};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -38,7 +38,7 @@ pub enum ExecuteMsg {
     // returns a vector of true/false values, indicating current verification status for each message
     // starts a poll for any not yet verified messages
     VerifyMessages {
-        messages: Vec<NewMessage>,
+        messages: Vec<Message>,
     },
 
     // Starts a poll to confirm a worker set update on the external evm gateway
@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 pub struct Poll {
     poll_id: PollID,
-    messages: Vec<NewMessage>,
+    messages: Vec<Message>,
 }
 
 #[cw_serde]
@@ -61,7 +61,7 @@ pub enum QueryMsg {
     GetPoll { poll_id: PollID },
 
     #[returns(Vec<(CrossChainId, bool)>)]
-    IsVerified { messages: Vec<NewMessage> },
+    IsVerified { messages: Vec<Message> },
 
     #[returns(bool)]
     IsWorkerSetConfirmed { new_operators: Operators },

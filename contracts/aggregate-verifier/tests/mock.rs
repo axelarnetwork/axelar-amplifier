@@ -1,5 +1,5 @@
 use aggregate_verifier::error::ContractError;
-use connection_router::state::{CrossChainId, NewMessage};
+use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, DepsMut, Env, MessageInfo, Response};
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -9,8 +9,8 @@ const MOCK_VOTING_VERIFIER_MESSAGES: Map<CrossChainId, bool> = Map::new("voting_
 
 #[cw_serde]
 pub enum MockVotingVerifierExecuteMsg {
-    VerifyMessages { messages: Vec<NewMessage> },
-    MessagesVerified { messages: Vec<NewMessage> },
+    VerifyMessages { messages: Vec<Message> },
+    MessagesVerified { messages: Vec<Message> },
 }
 
 #[cw_serde]
@@ -42,11 +42,7 @@ pub fn mock_verifier_execute(
     }
 }
 
-pub fn mark_messages_as_verified(
-    app: &mut App,
-    voting_verifier_address: Addr,
-    msgs: Vec<NewMessage>,
-) {
+pub fn mark_messages_as_verified(app: &mut App, voting_verifier_address: Addr, msgs: Vec<Message>) {
     app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),

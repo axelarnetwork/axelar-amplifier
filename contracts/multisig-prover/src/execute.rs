@@ -4,11 +4,8 @@ use cosmwasm_std::{
 };
 use multisig::key::{KeyType, PublicKey};
 
-use std::str::FromStr;
-
 use axelar_wasm_std::snapshot;
-use connection_router::state::CrossChainId;
-use connection_router::{msg::Message, state::ChainName};
+use connection_router::state::{ChainName, CrossChainId, Message};
 use service_registry::state::Worker;
 
 use crate::{
@@ -100,11 +97,10 @@ fn get_messages(
         "violated invariant: returned gateway messages count mismatch"
     );
 
-    if messages.iter().any(|msg| {
-        ChainName::from_str(&msg.destination_chain)
-            .expect("violated invariant: message with invalid chain found")
-            != chain_name
-    }) {
+    if messages
+        .iter()
+        .any(|msg| msg.destination_chain != chain_name)
+    {
         panic!("violated invariant: messages from different chain found");
     }
 

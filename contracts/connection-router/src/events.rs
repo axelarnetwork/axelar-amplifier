@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, Attribute, Event};
 use std::ops::Deref;
 
-use crate::state::{ChainName, Message, NewMessage};
+use crate::state::{ChainName, Message};
 
 pub struct RouterInstantiated {
     pub admin: Addr,
@@ -39,7 +39,7 @@ pub struct ChainUnfrozen {
 }
 
 pub struct MessageRouted {
-    pub msg: NewMessage,
+    pub msg: Message,
 }
 
 impl From<RouterInstantiated> for Event {
@@ -100,8 +100,8 @@ impl From<ChainUnfrozen> for Event {
     }
 }
 
-impl From<NewMessage> for Vec<Attribute> {
-    fn from(other: NewMessage) -> Self {
+impl From<Message> for Vec<Attribute> {
+    fn from(other: Message) -> Self {
         vec![
             ("id", other.cc_id.id).into(),
             ("source_chain", other.cc_id.chain).into(),
@@ -113,25 +113,6 @@ impl From<NewMessage> for Vec<Attribute> {
     }
 }
 
-impl From<Message> for Vec<Attribute> {
-    fn from(other: Message) -> Self {
-        vec![
-            ("id", other.id).into(),
-            ("source_chain", other.source_chain).into(),
-            ("source_addresses", other.source_address).into(),
-            ("destination_chain", other.destination_chain).into(),
-            ("destination_addresses", other.destination_address).into(),
-            ("payload_hash", other.payload_hash.to_string()).into(),
-        ]
-    }
-}
-
-pub fn make_message_event_new(event_name: &str, msg: NewMessage) -> Event {
-    let attrs: Vec<Attribute> = msg.into();
-    Event::new(event_name).add_attributes(attrs)
-}
-
-#[deprecated(note = "use make_message_event_new instead")]
 pub fn make_message_event(event_name: &str, msg: Message) -> Event {
     let attrs: Vec<Attribute> = msg.into();
     Event::new(event_name).add_attributes(attrs)
@@ -139,6 +120,6 @@ pub fn make_message_event(event_name: &str, msg: Message) -> Event {
 
 impl From<MessageRouted> for Event {
     fn from(other: MessageRouted) -> Self {
-        make_message_event_new("message_routed", other.msg)
+        make_message_event("message_routed", other.msg)
     }
 }
