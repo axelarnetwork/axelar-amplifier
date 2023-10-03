@@ -19,6 +19,6 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<NewMessage>)]
+    #[returns(Vec<Message>)]
     GetMessages { message_ids: Vec<CrossChainId> },
 }
