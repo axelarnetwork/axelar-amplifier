@@ -46,14 +46,11 @@ pub fn execute(
 pub mod execute {
     use cosmwasm_std::{to_binary, SubMsg, WasmMsg};
 
-    use connection_router::state::NewMessage;
+    use connection_router::state::Message;
 
     use super::*;
 
-    pub fn verify_messages(
-        deps: DepsMut,
-        msgs: Vec<NewMessage>,
-    ) -> Result<Response, ContractError> {
+    pub fn verify_messages(deps: DepsMut, msgs: Vec<Message>) -> Result<Response, ContractError> {
         // Simply pass through to a single verifier for now. If there are multiple verification
         // methods in the future, as well as support for a callback when a message is actually
         // verified, we can store the verification status. But for now, simple pass through works

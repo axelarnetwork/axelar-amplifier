@@ -7,7 +7,7 @@ use itertools::Itertools;
 use crate::contract::query;
 use crate::contract::query::Verifier;
 use crate::error::ContractError;
-use connection_router::state::NewMessage;
+use connection_router::state::Message;
 
 use crate::events::GatewayEvent;
 use crate::state;
@@ -46,7 +46,7 @@ where
     V: Verifier,
     S: Store,
 {
-    pub fn verify_messages(&self, msgs: Vec<NewMessage>) -> Result<Response, ContractError> {
+    pub fn verify_messages(&self, msgs: Vec<Message>) -> Result<Response, ContractError> {
         // short circuit if there are no messages there is no need to interact with the verifier so it saves gas
         if msgs.is_empty() {
             return Ok(Response::new());
@@ -75,7 +75,7 @@ where
     pub fn route_messages(
         &mut self,
         sender: Addr,
-        msgs: Vec<NewMessage>,
+        msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
         if sender == self.config.router {
             self.route_outgoing_messages(msgs)
@@ -84,10 +84,7 @@ where
         }
     }
 
-    fn route_outgoing_messages(
-        &mut self,
-        msgs: Vec<NewMessage>,
-    ) -> Result<Response, ContractError> {
+    fn route_outgoing_messages(&mut self, msgs: Vec<Message>) -> Result<Response, ContractError> {
         ensure_unique_ids(&msgs)?;
 
         for msg in msgs.iter() {
@@ -100,7 +97,7 @@ where
         ))
     }
 
-    fn route_incoming_messages(&self, msgs: Vec<NewMessage>) -> Result<Response, ContractError> {
+    fn route_incoming_messages(&self, msgs: Vec<Message>) -> Result<Response, ContractError> {
         ensure_unique_ids(&msgs)?;
 
         let (verified, unverified) = self.partition_by_verified(msgs)?;
@@ -134,8 +131,8 @@ where
 
     fn partition_by_verified(
         &self,
-        msgs: Vec<NewMessage>,
-    ) -> Result<(Vec<NewMessage>, Vec<NewMessage>), ContractError> {
+        msgs: Vec<Message>,
+    ) -> Result<(Vec<Message>, Vec<Message>), ContractError> {
         let query_response =
             self.verifier
                 .verify(aggregate_verifier::msg::QueryMsg::IsVerified {
@@ -150,7 +147,7 @@ where
     }
 }
 
-fn ensure_unique_ids(msgs: &[NewMessage]) -> Result<(), ContractError> {
+fn ensure_unique_ids(msgs: &[Message]) -> Result<(), ContractError> {
     let duplicates: Vec<_> = msgs
         .iter()
         // the following two map instructions are separated on purpose
@@ -172,7 +169,7 @@ mod tests {
     use crate::contract::query;
     use crate::error::ContractError;
     use crate::state;
-    use connection_router::state::{CrossChainId, NewMessage, ID_SEPARATOR};
+    use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
     use cosmwasm_std::{Addr, CosmosMsg, SubMsg, WasmMsg};
     use error_stack::bail;
     use std::collections::HashMap;
@@ -476,7 +473,7 @@ mod tests {
     /// This uses a RwLock for the msg_store so it can also be used in assertions while it is borrowed by the contract
     fn create_contract(
         // the store mock requires a 'static type that can be moved into the closure, so we need to use an Arc<> here
-        msg_store: Arc<RwLock<HashMap<CrossChainId, NewMessage>>>,
+        msg_store: Arc<RwLock<HashMap<CrossChainId, Message>>>,
         is_verified: HashMap<CrossChainId, bool>,
     ) -> Contract<query::MockVerifier, state::MockStore> {
         let config = state::Config {
@@ -488,7 +485,7 @@ mod tests {
         store.expect_load_config().return_const(config.clone());
         store
             .expect_save_outgoing_msg()
-            .returning(move |key, msg: &NewMessage| {
+            .returning(move |key, msg: &Message| {
                 let mut msg_store = msg_store.write().unwrap();
                 msg_store.insert(key, msg.clone());
                 Ok(())
@@ -498,7 +495,7 @@ mod tests {
         verifier.expect_verify().returning(move |msg| match msg {
             aggregate_verifier::msg::QueryMsg::IsVerified { messages } => Ok(messages
                 .into_iter()
-                .map(|msg: NewMessage| {
+                .map(|msg: Message| {
                     (
                         msg.cc_id.clone(),
                         // if the msg is not know to the verifier, it is not verified
@@ -514,9 +511,9 @@ mod tests {
         }
     }
 
-    fn generate_messages(count: usize) -> Vec<NewMessage> {
+    fn generate_messages(count: usize) -> Vec<Message> {
         (0..count)
-            .map(|i| NewMessage {
+            .map(|i| Message {
                 cc_id: CrossChainId {
                     chain: "mock-chain".parse().unwrap(),
                     id: format!("{}{}{}", "hash", ID_SEPARATOR, i).parse().unwrap(),
@@ -532,7 +529,7 @@ mod tests {
     fn assert_correct_messages_verified(
         verified_msgs: Vec<SubMsg>,
         expected_verifier: &Addr,
-        expected_msgs: &[NewMessage],
+        expected_msgs: &[Message],
     ) {
         assert_eq!(verified_msgs.len(), 1);
         match verified_msgs[0].clone().msg {
@@ -556,7 +553,7 @@ mod tests {
     fn assert_correct_messages_routed(
         routed_msgs: Vec<SubMsg>,
         expected_router: &Addr,
-        expected_msgs: &[NewMessage],
+        expected_msgs: &[Message],
     ) {
         assert_eq!(routed_msgs.len(), 1);
         match routed_msgs[0].clone().msg {
@@ -579,8 +576,8 @@ mod tests {
     }
 
     fn assert_correct_messages_stored(
-        locked_msg_store: &RwLock<HashMap<CrossChainId, NewMessage>>,
-        expected_msgs: &[NewMessage],
+        locked_msg_store: &RwLock<HashMap<CrossChainId, Message>>,
+        expected_msgs: &[Message],
     ) {
         let msg_store = locked_msg_store.read().unwrap();
         assert_eq!((*msg_store).len(), expected_msgs.len());

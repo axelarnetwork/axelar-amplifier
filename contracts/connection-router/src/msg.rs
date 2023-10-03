@@ -1,4 +1,4 @@
-use crate::state::{GatewayDirection, NewMessage};
+use crate::state::{GatewayDirection, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
@@ -47,7 +47,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
-    RouteMessages(Vec<NewMessage>),
+    RouteMessages(Vec<Message>),
 }
 
 #[cw_serde]

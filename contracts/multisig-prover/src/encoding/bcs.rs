@@ -204,7 +204,7 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router::state::{CrossChainId, NewMessage};
+    use connection_router::state::{CrossChainId, Message};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
     use multisig::{
@@ -474,7 +474,7 @@ mod test {
     fn test_msg_to_sign() {
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
         let _ = builder
-            .add_message(NewMessage {
+            .add_message(Message {
                 cc_id: "ethereum:foobar:1".parse().unwrap(),
                 destination_address: "0F".repeat(32).parse().unwrap(),
                 destination_chain: "sui".parse().unwrap(),
@@ -488,7 +488,7 @@ mod test {
 
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
         let _ = builder
-            .add_message(NewMessage {
+            .add_message(Message {
                 cc_id: "ethereum:foobar:2".parse().unwrap(),
                 destination_address: "0A".repeat(32).parse().unwrap(),
                 destination_chain: "sui".parse().unwrap(),

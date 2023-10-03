@@ -1,6 +1,6 @@
 use aggregate_verifier::contract::*;
 use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
-use connection_router::state::{CrossChainId, NewMessage, ID_SEPARATOR};
+use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -8,12 +8,12 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
 pub mod mock;
 
-fn generate_messages(count: usize) -> Vec<NewMessage> {
+fn generate_messages(count: usize) -> Vec<Message> {
     let mut msgs = vec![];
     for x in 0..count {
         let src_chain = "mock-chain";
         let id = format!("tx_hash{}{}", ID_SEPARATOR, x);
-        msgs.push(NewMessage {
+        msgs.push(Message {
             cc_id: CrossChainId {
                 chain: src_chain.parse().unwrap(),
                 id: id.parse().unwrap(),
