@@ -6,7 +6,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
-use connection_router::msg::Message;
+use connection_router::state::Message;
 use multisig::{key::Signature, msg::Signer};
 
 use crate::{
@@ -27,19 +27,19 @@ fn make_command(msg: Message, encoding: Encoder) -> Result<Command, ContractErro
         ty: CommandType::ApproveContractCall, // TODO: this would change when other command types are supported
         params: match encoding {
             Encoder::Abi => abi::command_params(
-                msg.source_chain,
-                msg.source_address,
-                msg.destination_address,
+                msg.cc_id.chain.to_string(),
+                msg.source_address.to_string(),
+                msg.destination_address.to_string(),
                 msg.payload_hash,
             )?,
             Encoder::Bcs => bcs::command_params(
-                msg.source_chain,
-                msg.source_address,
-                msg.destination_address,
+                msg.cc_id.chain.to_string(),
+                msg.source_address.to_string(),
+                msg.destination_address.to_string(),
                 msg.payload_hash,
             )?,
         },
-        id: command_id(msg.id),
+        id: command_id(msg.cc_id.to_string()),
     })
 }
 
@@ -78,7 +78,7 @@ impl CommandBatchBuilder {
     }
 
     pub fn add_message(&mut self, msg: Message) -> Result<(), ContractError> {
-        self.message_ids.push(msg.id.clone());
+        self.message_ids.push(msg.cc_id.to_string());
         self.commands.push(make_command(msg, self.encoding)?);
         Ok(())
     }
@@ -164,7 +164,8 @@ mod test {
     #[test]
     fn test_batch_id() {
         let messages = test_data::messages();
-        let mut message_ids: Vec<String> = messages.iter().map(|msg| msg.id.clone()).collect();
+        let mut message_ids: Vec<String> =
+            messages.iter().map(|msg| msg.cc_id.to_string()).collect();
 
         message_ids.sort();
         let res = BatchID::new(&message_ids, None);
@@ -193,7 +194,7 @@ mod test {
         assert_eq!(res.ty, CommandType::ApproveContractCall);
 
         let mut router_message = router_message.to_owned();
-        router_message.destination_address = "FF".repeat(32);
+        router_message.destination_address = "FF".repeat(32).parse().unwrap();
         let res = make_command(router_message.to_owned(), Encoder::Bcs);
         assert!(res.is_ok());
 

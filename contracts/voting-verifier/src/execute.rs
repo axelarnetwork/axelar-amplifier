@@ -8,7 +8,7 @@ use axelar_wasm_std::{
     snapshot,
     voting::{Poll, WeightedPoll},
 };
-use connection_router::state::{ChainName, MessageId, NewMessage};
+use connection_router::state::{ChainName, Message, MessageId};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
@@ -26,8 +26,8 @@ use crate::state::{
 };
 
 enum VerificationStatus {
-    Verified(NewMessage),
-    Pending(NewMessage),
+    Verified(Message),
+    Pending(Message),
 }
 
 pub fn confirm_worker_set(
@@ -75,7 +75,7 @@ pub fn confirm_worker_set(
 pub fn verify_messages(
     deps: DepsMut,
     env: Env,
-    messages: Vec<NewMessage>,
+    messages: Vec<Message>,
 ) -> Result<Response, ContractError> {
     if messages.is_empty() {
         Err(ContractError::EmptyMessages)?;
@@ -115,7 +115,7 @@ pub fn verify_messages(
             .collect(),
     })?);
 
-    let pending_messages: Vec<NewMessage> = messages
+    let pending_messages: Vec<Message> = messages
         .into_iter()
         .filter_map(|status| match status {
             Pending(message) => Some(message),
@@ -208,7 +208,7 @@ fn end_poll_messages(
             true => Some(message),
             false => None,
         })
-        .collect::<Vec<&NewMessage>>();
+        .collect::<Vec<&Message>>();
 
     for message in messages {
         if !is_message_verified(deps.as_ref(), message)? {
@@ -335,7 +335,7 @@ fn create_messages_poll(
 fn remove_pending_message(
     store: &mut dyn Storage,
     poll_id: PollID,
-) -> Result<Vec<NewMessage>, ContractError> {
+) -> Result<Vec<Message>, ContractError> {
     let pending_messages = PENDING_MESSAGES
         .may_load(store, poll_id)?
         .ok_or(ContractError::PollNotFound)?;

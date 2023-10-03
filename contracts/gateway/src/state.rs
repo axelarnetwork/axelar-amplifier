@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use connection_router::state::{CrossChainId, NewMessage};
+use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
@@ -12,7 +12,7 @@ pub trait Store {
     fn save_outgoing_msg(
         &mut self,
         key: CrossChainId,
-        value: &NewMessage,
+        value: &Message,
     ) -> Result<(), ContractError>;
 }
 
@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const OUTGOING_MESSAGES: Map<CrossChainId, NewMessage> = Map::new("outgoing_messages");
+pub const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new("outgoing_messages");
 
 pub struct GatewayStore<'a> {
     pub storage: &'a mut dyn Storage,
@@ -39,7 +39,7 @@ impl Store for GatewayStore<'_> {
     fn save_outgoing_msg(
         &mut self,
         key: CrossChainId,
-        value: &NewMessage,
+        value: &Message,
     ) -> Result<(), ContractError> {
         OUTGOING_MESSAGES
             .save(self.storage, key, value)

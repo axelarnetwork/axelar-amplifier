@@ -359,9 +359,9 @@ mod test {
         let router_message = messages.first().unwrap().clone();
 
         let res = command_params(
-            router_message.source_chain,
-            router_message.source_address,
-            router_message.destination_address,
+            router_message.cc_id.chain.to_string(),
+            router_message.source_address.to_string(),
+            router_message.destination_address.to_string(),
             router_message.payload_hash,
         );
         assert!(res.is_ok());
@@ -381,12 +381,12 @@ mod test {
     #[test]
     fn test_command_from_router_message_invalid_dest_addr() {
         let mut router_message = test_data::messages().first().unwrap().clone();
-        router_message.destination_address = "invalid".into();
+        router_message.destination_address = "invalid".parse().unwrap();
 
         let res = command_params(
-            router_message.source_chain,
-            router_message.source_address,
-            router_message.destination_address,
+            router_message.cc_id.chain.to_string(),
+            router_message.source_address.to_string(),
+            router_message.destination_address.to_string(),
             router_message.payload_hash,
         );
         assert_eq!(
@@ -405,9 +405,9 @@ mod test {
                 .unwrap();
 
         let res = command_params(
-            router_message.source_chain,
-            router_message.source_address,
-            router_message.destination_address,
+            router_message.cc_id.chain.to_string(),
+            router_message.source_address.to_string(),
+            router_message.destination_address.to_string(),
             router_message.payload_hash,
         );
         assert_eq!(
@@ -471,7 +471,7 @@ mod test {
             res.message_ids,
             test_data::messages()
                 .into_iter()
-                .map(|msg| msg.id)
+                .map(|msg| msg.cc_id.to_string())
                 .collect::<Vec<String>>()
         );
         assert_eq!(

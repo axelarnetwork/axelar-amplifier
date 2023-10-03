@@ -204,7 +204,7 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router::msg::Message;
+    use connection_router::state::{CrossChainId, Message};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
     use multisig::{
@@ -475,11 +475,10 @@ mod test {
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
         let _ = builder
             .add_message(Message {
-                id: "ethereum:foobar".into(),
-                destination_address: "0F".repeat(32),
-                destination_chain: "sui".into(),
-                source_chain: "ethereum".into(),
-                source_address: "0x00".into(),
+                cc_id: "ethereum:foobar:1".parse().unwrap(),
+                destination_address: "0F".repeat(32).parse().unwrap(),
+                destination_chain: "sui".parse().unwrap(),
+                source_address: "0x00".parse().unwrap(),
                 payload_hash: HexBinary::from(vec![1; 32]),
             })
             .unwrap();
@@ -490,11 +489,10 @@ mod test {
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
         let _ = builder
             .add_message(Message {
-                id: "ethereum:foobar2".into(),
-                destination_address: "0A".repeat(32),
-                destination_chain: "sui".into(),
-                source_chain: "ethereum".into(),
-                source_address: "0x00".into(),
+                cc_id: "ethereum:foobar:2".parse().unwrap(),
+                destination_address: "0A".repeat(32).parse().unwrap(),
+                destination_chain: "sui".parse().unwrap(),
+                source_address: "0x00".parse().unwrap(),
                 payload_hash: HexBinary::from(vec![2; 32]),
             })
             .unwrap();

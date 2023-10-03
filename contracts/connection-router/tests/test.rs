@@ -7,7 +7,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use connection_router::contract::*;
 use connection_router::error::ContractError;
 use connection_router::msg::{ExecuteMsg, InstantiateMsg};
-use connection_router::state::{ChainName, CrossChainId, GatewayDirection, NewMessage};
+use connection_router::state::{ChainName, CrossChainId, GatewayDirection, Message};
 
 pub mod mock;
 
@@ -79,12 +79,12 @@ fn generate_messages(
     dest_chain: &Chain,
     nonce: &mut usize,
     count: usize,
-) -> Vec<NewMessage> {
+) -> Vec<Message> {
     let mut msgs = vec![];
     for x in 0..count {
         *nonce = *nonce + 1;
         let id = format!("tx_id:{}", nonce);
-        msgs.push(NewMessage {
+        msgs.push(Message {
             cc_id: CrossChainId {
                 id: id.parse().unwrap(),
                 chain: src_chain.chain_name.clone(),
