@@ -54,6 +54,7 @@ where
     C: SuiClient + Send + Sync,
     B: BroadcasterClient,
 {
+    #[allow(dead_code)]
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
@@ -133,21 +134,30 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::convert::TryInto;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use cosmrs::{cosmwasm::MsgExecuteContract, AccountId};
     use cosmwasm_std;
     use cosmwasm_std::HexBinary;
-    use error_stack::Result;
+    use error_stack::{Report, Result};
+    use ethers::providers::ProviderError;
+    use sui_json_rpc_types::SuiTransactionBlockResponse;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tendermint::abci;
+    use tokio::test as async_test;
 
-    use crate::types::EVMAddress;
     use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::PollStartedEvent;
+    use crate::event_processor::EventHandler;
+    use crate::handlers::errors::Error;
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
+    use crate::sui::json_rpc::MockSuiClient;
+    use crate::types::{EVMAddress, Hash, TMAddress};
 
     #[test]
     fn should_deserialize_correct_event() {
@@ -156,27 +166,153 @@ mod tests {
         assert!(event.is_ok());
     }
 
+    #[async_test]
+    async fn failed_to_get_tx_blocks() {
+        let mut sui_client = MockSuiClient::new();
+        sui_client.expect_transaction_blocks().returning(|_| {
+            Err(Report::from(ProviderError::CustomError(
+                "failed to get tx blocks".to_string(),
+            )))
+        });
+
+        let handler = super::Handler::new(
+            TMAddress::random(),
+            TMAddress::random(),
+            sui_client,
+            MockBroadcasterClient::new(),
+        );
+
+        assert!(matches!(
+            *handler
+                .transaction_blocks(vec![TransactionDigest::random()])
+                .await
+                .unwrap_err()
+                .current_context(),
+            Error::TxReceipts
+        ));
+    }
+
+    #[async_test]
+    async fn should_get_tx_blocks() {
+        let handler = super::Handler::new(
+            TMAddress::random(),
+            TMAddress::random(),
+            mock_sui_client(),
+            MockBroadcasterClient::new(),
+        );
+
+        let digests: Vec<_> = (0..10).map(|_| TransactionDigest::random()).collect();
+        let expected: HashMap<_, _> = digests
+            .clone()
+            .into_iter()
+            .map(|digest| {
+                let mut res = SuiTransactionBlockResponse::default();
+                res.digest = digest.clone();
+                (digest, res)
+            })
+            .collect();
+
+        assert_eq!(handler.transaction_blocks(digests).await.unwrap(), expected);
+    }
+
+    // should not handle event if it is not a poll started event
+    #[async_test]
+    async fn not_poll_started_event() {
+        let handler = super::Handler::new(
+            TMAddress::random(),
+            TMAddress::random(),
+            MockSuiClient::new(),
+            MockBroadcasterClient::new(),
+        );
+
+        let mut event: Event = get_poll_started_event();
+        match event {
+            Event::Abci {
+                ref mut event_type, ..
+            } => {
+                *event_type = "some other event".into();
+            }
+            _ => panic!("incorrect event type"),
+        }
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    // should not handle event if voting verifier address does not match
+    #[async_test]
+    async fn contract_address_mismatch() {
+        let handler = super::Handler::new(
+            TMAddress::random(),
+            TMAddress::random(),
+            MockSuiClient::new(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert!(handler.handle(&get_poll_started_event()).await.is_ok());
+    }
+
+    // should not handle event if worker is not a participant
+    #[async_test]
+    async fn not_a_participant() {
+        let event = get_poll_started_event();
+        let contract_address = match event {
+            Event::Abci { ref attributes, .. } => attributes["_contract_address"].as_str().unwrap(),
+            _ => panic!("incorrect event type"),
+        };
+
+        let handler = super::Handler::new(
+            TMAddress::random(),
+            contract_address.parse::<AccountId>().unwrap().into(),
+            MockSuiClient::new(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    #[async_test]
+    async fn should_vote() {
+        let event = get_poll_started_event();
+        let (contract, worker) = match event {
+            Event::Abci { ref attributes, .. } => (
+                attributes["_contract_address"].as_str().unwrap(),
+                attributes["participants"].as_array().unwrap()[0]
+                    .as_str()
+                    .unwrap(),
+            ),
+            _ => panic!("incorrect event type"),
+        };
+
+        let mut voter = MockBroadcasterClient::new();
+        voter
+            .expect_broadcast()
+            .once()
+            .returning(move |_: MsgExecuteContract| Ok(()));
+
+        let handler = super::Handler::new(
+            worker.parse::<AccountId>().unwrap().into(),
+            contract.parse::<AccountId>().unwrap().into(),
+            mock_sui_client(),
+            voter,
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
     fn get_poll_started_event() -> Event {
         let poll_started = PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "sui".parse().unwrap(),
-                source_gateway_address:
-                    "0xcb6c2771773d600a126a5a8c95bb3eeefcdf01863f4ad2a7c11bfe489bebeef6"
-                        .parse()
-                        .unwrap(),
+                source_gateway_address: SuiAddress::random_for_testing_only()
+                    .to_string()
+                    .parse()
+                    .unwrap(),
                 confirmation_height: 15,
                 expires_at: 100,
                 participants: vec![
-                    cosmwasm_std::Addr::unchecked(
-                        "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
-                    ),
-                    cosmwasm_std::Addr::unchecked(
-                        "axelarvaloper1tee73c83k2vqky9gt59jd3ztwxhqjm27l588q6",
-                    ),
-                    cosmwasm_std::Addr::unchecked(
-                        "axelarvaloper1ds9z59d9szmxlzt6f8f6l6sgaenxdyd6095gcg",
-                    ),
+                    cosmwasm_std::Addr::unchecked(TMAddress::random().to_string()),
+                    cosmwasm_std::Addr::unchecked(TMAddress::random().to_string()),
+                    cosmwasm_std::Addr::unchecked(TMAddress::random().to_string()),
                 ],
             },
             messages: vec![TxEventConfirmation {
@@ -193,10 +329,7 @@ mod tests {
         };
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute(
-            "_contract_address",
-            "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7",
-        );
+        event = event.add_attribute("_contract_address", TMAddress::random().to_string());
 
         abci::Event::new(
             event.ty,
@@ -209,5 +342,21 @@ mod tests {
         )
         .try_into()
         .unwrap()
+    }
+
+    fn mock_sui_client() -> MockSuiClient {
+        let mut sui_client = MockSuiClient::new();
+        sui_client.expect_transaction_blocks().returning(|digests| {
+            Ok(digests
+                .into_iter()
+                .map(|digest| {
+                    let mut res = SuiTransactionBlockResponse::default();
+                    res.digest = digest;
+                    res
+                })
+                .collect())
+        });
+
+        sui_client
     }
 }

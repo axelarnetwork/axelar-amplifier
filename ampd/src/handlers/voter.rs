@@ -22,6 +22,7 @@ impl<B> Voter<B>
 where
     B: BroadcasterClient,
 {
+    #[allow(dead_code)]
     pub fn new(worker: TMAddress, voting_verifier: TMAddress, broadcast_client: B) -> Self {
         Self {
             worker,
@@ -53,5 +54,53 @@ where
             .broadcast(tx)
             .await
             .change_context(Error::Broadcaster)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use cosmrs::cosmwasm::MsgExecuteContract;
+    use tokio::test as async_test;
+
+    use crate::handlers::voter::Voter;
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
+    use crate::types::TMAddress;
+
+    #[test]
+    fn should_get_worker() {
+        let worker = TMAddress::random();
+        let voter = Voter::new(
+            worker.clone(),
+            TMAddress::random(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert_eq!(voter.worker(), &worker);
+    }
+
+    #[test]
+    fn should_get_voting_verifier() {
+        let voting_verifier = TMAddress::random();
+        let voter = Voter::new(
+            TMAddress::random(),
+            voting_verifier.clone(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert_eq!(voter.voting_verifier(), &voting_verifier);
+    }
+
+    #[async_test]
+    async fn should_submit_vote() {
+        let mut broadcaster = MockBroadcasterClient::new();
+
+        broadcaster
+            .expect_broadcast()
+            .once()
+            .returning(move |_: MsgExecuteContract| Ok(()));
+
+        let voter = Voter::new(TMAddress::random(), TMAddress::random(), broadcaster);
+
+        assert!(voter.vote("1".parse().unwrap(), vec![true]).await.is_ok());
     }
 }

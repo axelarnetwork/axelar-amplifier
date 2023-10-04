@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, ProviderError};
+use mockall::automock;
 use sui_json_rpc_types::{SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions};
 use sui_types::digests::TransactionDigest;
 
@@ -7,6 +8,7 @@ use crate::json_rpc::Client;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
 
+#[automock]
 #[async_trait]
 pub trait SuiClient {
     async fn transaction_blocks(
