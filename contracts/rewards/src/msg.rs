@@ -32,7 +32,7 @@ pub enum ExecuteMsg {
         worker_address: String,
     },
 
-    /// Distribute rewards for epoch T - 2 (i.e. if we are currently in epoch 2, distribute rewards for epoch 0), if not yet distributed, and send the required number of tokens to each worker
+    /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
     DistributeRewards {
         /// Address of contract for which to process rewards. For example, address of a voting verifier instance.
         contract_address: String,
