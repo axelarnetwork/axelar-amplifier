@@ -2,9 +2,8 @@
 name = "gateway-api"
 version = "0.1.0"
 edition = "2021"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cosmwasm-schema = { workspace = true }
 connection-router-api ={ workspace = true }
+cosmwasm-schema = { workspace = true }
