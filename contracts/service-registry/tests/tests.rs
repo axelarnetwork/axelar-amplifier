@@ -1,4 +1,4 @@
-use std::{vec, str::FromStr};
+use std::{str::FromStr, vec};
 
 use connection_router::state::ChainName;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
