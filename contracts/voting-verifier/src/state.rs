@@ -8,7 +8,7 @@ use axelar_wasm_std::{
     voting::{PollID, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, NewMessage};
+use connection_router::state::{ChainName, CrossChainId, Message};
 
 #[cw_serde]
 pub struct Config {
@@ -31,9 +31,9 @@ pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 
-pub const PENDING_MESSAGES: Map<PollID, Vec<NewMessage>> = Map::new("pending_messages");
+pub const PENDING_MESSAGES: Map<PollID, Vec<Message>> = Map::new("pending_messages");
 
-pub const VERIFIED_MESSAGES: Map<&CrossChainId, NewMessage> = Map::new("verified_messages");
+pub const VERIFIED_MESSAGES: Map<&CrossChainId, Message> = Map::new("verified_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 

@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::PollID;
-use connection_router::state::{Address, ChainName, MessageId, NewMessage, ID_SEPARATOR};
+use connection_router::state::{Address, ChainName, Message, MessageId, ID_SEPARATOR};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -133,10 +133,10 @@ pub struct TxEventConfirmation {
     pub payload_hash: HexBinary,
 }
 
-impl TryFrom<NewMessage> for TxEventConfirmation {
+impl TryFrom<Message> for TxEventConfirmation {
     type Error = ContractError;
 
-    fn try_from(other: NewMessage) -> Result<Self, Self::Error> {
+    fn try_from(other: Message) -> Result<Self, Self::Error> {
         let (tx_id, event_index) = parse_message_id(&other.cc_id.id)?;
 
         Ok(TxEventConfirmation {

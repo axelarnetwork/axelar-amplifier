@@ -3,7 +3,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::{nonempty, Threshold};
-use connection_router::state::{ChainName, CrossChainId, MessageId, NewMessage, ID_SEPARATOR};
+use connection_router::state::{ChainName, CrossChainId, Message, MessageId, ID_SEPARATOR};
 use service_registry::state::Worker;
 use voting_verifier::{contract, error::ContractError, msg};
 
@@ -48,9 +48,9 @@ fn message_id(id: &str, index: u64) -> String {
     format!("{}{}{}", id, ID_SEPARATOR, index)
 }
 
-fn messages(len: u64) -> Vec<NewMessage> {
+fn messages(len: u64) -> Vec<Message> {
     (0..len)
-        .map(|i| NewMessage {
+        .map(|i| Message {
             cc_id: CrossChainId {
                 chain: source_chain(),
                 id: format!("id:{i}").parse().unwrap(),
@@ -74,7 +74,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
 
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: vec![
-            NewMessage {
+            Message {
                 cc_id: CrossChainId {
                     chain: source_chain(),
                     id: "id:1".parse().unwrap(),
@@ -84,7 +84,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
                 destination_address: "destination_address1".parse().unwrap(),
                 payload_hash: vec![0, 0, 0, 0].into(),
             },
-            NewMessage {
+            Message {
                 cc_id: CrossChainId {
                     chain: "other_chain".parse().unwrap(),
                     id: "id:2".parse().unwrap(),

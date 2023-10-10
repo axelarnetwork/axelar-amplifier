@@ -32,12 +32,11 @@ axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 bcs = "0.1.5"
 connection-router = { workspace = true, features = ["library"] }
-cosmwasm-schema = "1.1.3"
-cosmwasm-std = "1.1.3"
-cosmwasm-storage = "1.1.3"
-cw-storage-plus = "1.0.1"
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true }
+cw-storage-plus = { workspace = true }
 cw-utils = "1.0.1"
-cw2 = "0.15.1"
 either = "1.8.1"
 error-stack = { workspace = true }
 ethabi = { version = "18.0.0", default-features = false, features = [] }

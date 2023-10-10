@@ -1,4 +1,4 @@
-use connection_router::state::NewMessage;
+use connection_router::state::Message;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
@@ -9,10 +9,10 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     // Permissionless
-    VerifyMessages { messages: Vec<NewMessage> },
+    VerifyMessages { messages: Vec<Message> },
 }
 
 #[cw_serde]
 pub enum QueryMsg {
-    IsVerified { messages: Vec<NewMessage> },
+    IsVerified { messages: Vec<Message> },
 }

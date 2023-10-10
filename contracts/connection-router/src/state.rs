@@ -11,7 +11,7 @@ use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdError, StdResult};
 use cw_storage_plus::{
     Index, IndexList, IndexedMap, Item, Key, KeyDeserialize, MultiIndex, Prefixer, PrimaryKey,
 };
-use error_stack::{bail, Report, ResultExt};
+use error_stack::{Report, ResultExt};
 use flagset::flags;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::{nonempty, FnExt};
 
-use crate::{msg, ContractError};
+use crate::ContractError;
 
 pub const ID_SEPARATOR: char = ':';
 
@@ -88,153 +88,12 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 }
 
 #[cw_serde]
-pub struct NewMessage {
+pub struct Message {
     pub cc_id: CrossChainId,
     pub destination_address: Address,
     pub destination_chain: ChainName,
     pub source_address: Address,
     pub payload_hash: HexBinary,
-}
-
-/// temporary conversion until [Message] is removed
-impl TryFrom<NewMessage> for Message {
-    type Error = ContractError;
-
-    fn try_from(msg: NewMessage) -> Result<Self, Self::Error> {
-        Ok(Message {
-            id: format!("{}", msg.cc_id).parse()?,
-            destination_address: msg.destination_address.to_string(),
-            destination_chain: msg.destination_chain,
-            source_chain: msg.cc_id.chain,
-            source_address: msg.source_address.to_string(),
-            payload_hash: msg.payload_hash,
-        })
-    }
-}
-
-/// temporary conversion until [Message] is removed
-impl TryFrom<msg::Message> for NewMessage {
-    type Error = Report<ContractError>;
-
-    fn try_from(msg: msg::Message) -> Result<Self, Self::Error> {
-        let (_, id) = msg
-            .id
-            .split_once(ID_SEPARATOR)
-            .ok_or(ContractError::InvalidMessageId)?;
-
-        Ok(NewMessage {
-            cc_id: CrossChainId {
-                id: id.parse()?,
-                chain: msg.source_chain.parse()?,
-            },
-            destination_address: msg.destination_address.parse()?,
-            destination_chain: msg.destination_chain.parse()?,
-            source_address: msg.source_address.parse()?,
-            payload_hash: msg.payload_hash,
-        })
-    }
-}
-
-/// temporary conversion until [Message] is removed
-impl TryFrom<Message> for NewMessage {
-    type Error = Report<ContractError>;
-
-    fn try_from(msg: Message) -> Result<Self, Self::Error> {
-        let (chain, id) = msg
-            .id
-            .split_once(ID_SEPARATOR)
-            .ok_or(ContractError::InvalidMessageId)?;
-
-        if chain.parse::<ChainName>()? != msg.source_chain {
-            bail!(ContractError::InvalidMessageId);
-        }
-
-        Ok(NewMessage {
-            cc_id: CrossChainId {
-                id: id.parse()?,
-                chain: msg.source_chain,
-            },
-            destination_address: msg.destination_address.parse()?,
-            destination_chain: msg.destination_chain,
-            source_address: msg.source_address.parse()?,
-            payload_hash: msg.payload_hash,
-        })
-    }
-}
-
-// Message represents a message for which the fields have been successfully validated.
-// This should never be supplied by the user.
-#[cw_serde]
-#[deprecated(note = "use NewMessage instead")]
-pub struct Message {
-    pub id: MessageId, // globally unique
-    pub destination_address: String,
-    pub destination_chain: ChainName,
-    pub source_chain: ChainName,
-    pub source_address: String,
-    pub payload_hash: HexBinary,
-}
-
-impl Message {
-    pub fn new(
-        id: MessageId,
-        destination_address: String,
-        destination_chain: ChainName,
-        source_chain: ChainName,
-        source_address: String,
-        payload_hash: HexBinary,
-    ) -> Self {
-        Message {
-            id,
-            destination_address,
-            destination_chain,
-            source_chain,
-            source_address,
-            payload_hash,
-        }
-    }
-}
-
-impl TryFrom<msg::Message> for Message {
-    type Error = ContractError;
-    fn try_from(value: msg::Message) -> Result<Self, Self::Error> {
-        if value.destination_address.is_empty() {
-            return Err(ContractError::InvalidAddress);
-        }
-
-        if value.source_address.is_empty() {
-            return Err(ContractError::InvalidAddress);
-        }
-
-        if !value
-            .id
-            .starts_with(&format!("{}{}", value.source_chain, ID_SEPARATOR))
-        {
-            return Err(ContractError::InvalidMessageId);
-        }
-
-        Ok(Message::new(
-            value.id.parse()?,
-            value.destination_address,
-            value.destination_chain.parse()?,
-            value.source_chain.parse()?,
-            value.source_address,
-            value.payload_hash,
-        ))
-    }
-}
-
-impl From<Message> for msg::Message {
-    fn from(value: Message) -> Self {
-        msg::Message {
-            id: value.id.to_string(),
-            destination_address: value.destination_address,
-            destination_chain: value.destination_chain.into(),
-            source_address: value.source_address,
-            source_chain: value.source_chain.into(),
-            payload_hash: value.payload_hash,
-        }
-    }
 }
 
 #[cw_serde]
@@ -421,6 +280,12 @@ impl Display for ChainName {
     }
 }
 
+impl PartialEq<String> for ChainName {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == other.to_lowercase()
+    }
+}
+
 impl<'a> PrimaryKey<'a> for ChainName {
     type Prefix = ();
     type SubPrefix = ();
@@ -475,7 +340,7 @@ flags! {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use super::*;
 
     use cosmwasm_std::to_vec;
     use hex;
@@ -483,7 +348,6 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
 
-    use crate::state::{ChainName, CrossChainId, MessageId, NewMessage, ID_SEPARATOR};
     use crate::ContractError;
 
     #[test]
@@ -563,6 +427,18 @@ mod tests {
     }
 
     #[test]
+    fn chain_name_case_insensitive_comparison() {
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+
+        assert!(chain_name.eq(&"Ethereum".to_string()));
+        assert!(chain_name.eq(&"ETHEREUM".to_string()));
+        assert!(chain_name.eq(&"ethereum".to_string()));
+        assert!(chain_name.eq(&"ethEReum".to_string()));
+
+        assert!(!chain_name.eq(&"Ethereum-1".to_string()));
+    }
+
+    #[test]
     fn message_id_must_have_at_least_one_separator() {
         assert!(MessageId::from_str("source_chain:hash:id").is_ok());
         assert!(serde_json::from_str::<MessageId>("\"source_chain:hash:id\"").is_ok());
@@ -590,8 +466,8 @@ mod tests {
         assert_eq!(id, serde_json::from_str(&serialized).unwrap());
     }
 
-    fn dummy_message() -> NewMessage {
-        NewMessage {
+    fn dummy_message() -> Message {
+        Message {
             cc_id: CrossChainId {
                 id: "hash:index".parse().unwrap(),
                 chain: "chain".parse().unwrap(),

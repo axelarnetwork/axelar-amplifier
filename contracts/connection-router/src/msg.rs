@@ -1,19 +1,5 @@
-use crate::state::{GatewayDirection, NewMessage};
+use crate::state::{GatewayDirection, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::HexBinary;
-
-// Message is a type meant to be used in interfaces where the data can be provided by the user.
-// The fields have not necessarily been validated, and should be checked prior to further processing.
-#[cw_serde]
-#[deprecated(note = "use NewMessage instead")]
-pub struct Message {
-    pub id: String, // should be globally unique
-    pub source_address: String,
-    pub source_chain: String,
-    pub destination_address: String,
-    pub destination_chain: String,
-    pub payload_hash: HexBinary,
-}
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -61,7 +47,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
-    RouteMessages(Vec<NewMessage>),
+    RouteMessages(Vec<Message>),
 }
 
 #[cw_serde]

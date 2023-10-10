@@ -149,7 +149,7 @@ mod tests {
             Some(ids) => ids,
             None => test_data::messages()
                 .into_iter()
-                .map(|msg| msg.id.to_string())
+                .map(|msg| msg.cc_id.to_string())
                 .collect::<Vec<String>>(),
         };
 
