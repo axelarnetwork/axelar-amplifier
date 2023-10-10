@@ -9,7 +9,7 @@ on:
 
 jobs:
   coverage:
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
     steps:
