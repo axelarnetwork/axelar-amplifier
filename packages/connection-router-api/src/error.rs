@@ -11,6 +11,4 @@ pub enum Error {
     ChainNamePatternMismatch(String),
     #[error("address must not be empty")]
     EmptyAddress,
-    #[error("index must be smaller than 128 bits")]
-    IndexTooLarge,
 }
