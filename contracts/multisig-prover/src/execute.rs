@@ -114,7 +114,7 @@ fn get_workers_info(
 ) -> Result<WorkersInfo, ContractError> {
     let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
         service_name: config.service_name.clone(),
-        chain_name: config.chain_name.to_string(),
+        chain_name: config.chain_name.clone(),
     };
 
     let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
