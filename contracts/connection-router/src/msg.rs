@@ -1,4 +1,4 @@
-use crate::state::{GatewayDirection, Message};
+use crate::state::{ChainName, GatewayDirection, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
@@ -17,12 +17,12 @@ pub enum ExecuteMsg {
      */
     // Registers a new chain with the router
     RegisterChain {
-        chain: String,
+        chain: ChainName,
         gateway_address: String,
     },
     // Changes the gateway address associated with a particular chain
     UpgradeGateway {
-        chain: String,
+        chain: ChainName,
         contract_address: String,
     },
 
@@ -32,12 +32,12 @@ pub enum ExecuteMsg {
      */
     // Freezes a chain, in the specified direction.
     FreezeChain {
-        chain: String,
+        chain: ChainName,
         direction: GatewayDirection,
     },
     // Unfreezes a chain, in the specified direction.
     UnfreezeChain {
-        chain: String,
+        chain: ChainName,
         direction: GatewayDirection,
     },
 
