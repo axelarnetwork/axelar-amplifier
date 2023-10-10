@@ -32,7 +32,6 @@ mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.9.1" }
 multisig = { workspace = true }
 prost = "0.11.9"
-rand = "0.8.5"
 report = { workspace = true }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
@@ -63,6 +62,7 @@ voting-verifier = { workspace = true }
 [dev-dependencies]
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
+rand = "0.8.5"
 random-string = "1.0.0"
 
 [build-dependencies]

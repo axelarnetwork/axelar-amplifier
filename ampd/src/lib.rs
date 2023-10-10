@@ -39,6 +39,8 @@ mod tofnd;
 mod types;
 mod url;
 
+const PREFIX: &str = "axelar";
+
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
 pub async fn run(cfg: Config, state: State) -> (State, Result<(), Error>) {
@@ -88,7 +90,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     };
 
     let worker = pub_key
-        .account_id(types::PREFIX)
+        .account_id(PREFIX)
         .expect("failed to convert to account identifier")
         .into();
     let account = account(query_client, &worker)

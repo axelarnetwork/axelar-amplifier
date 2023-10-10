@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
@@ -13,8 +15,8 @@ type Result<T> = error_stack::Result<T, ProviderError>;
 pub trait SuiClient {
     async fn transaction_blocks(
         &self,
-        digests: Vec<TransactionDigest>,
-    ) -> Result<Vec<SuiTransactionBlockResponse>>;
+        digests: HashSet<TransactionDigest>,
+    ) -> Result<Vec<Option<SuiTransactionBlockResponse>>>;
 }
 
 #[async_trait]
@@ -24,18 +26,24 @@ where
 {
     async fn transaction_blocks(
         &self,
-        digests: Vec<TransactionDigest>,
-    ) -> Result<Vec<SuiTransactionBlockResponse>> {
+        digests: HashSet<TransactionDigest>,
+    ) -> Result<Vec<Option<SuiTransactionBlockResponse>>> {
         self.request(
             "sui_multiGetTransactionBlocks",
             (
                 digests
                     .iter()
-                    .map(|d| d.base58_encode())
+                    .map(TransactionDigest::base58_encode)
                     .collect::<Vec<_>>(),
                 SuiTransactionBlockResponseOptions::new().with_events(),
             ),
         )
         .await
+        .map(|vec: Vec<SuiTransactionBlockResponse>| {
+            vec.into_iter()
+                // None checkpoint means the transaction is not finalized
+                .map(|block| block.checkpoint.map(|_| block))
+                .collect()
+        })
     }
 }

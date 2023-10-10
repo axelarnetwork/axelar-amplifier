@@ -4,12 +4,8 @@ use std::hash::{Hash as StdHash, Hasher};
 use cosmrs::crypto;
 use cosmrs::AccountId;
 use cosmwasm_std::Uint256;
-use ecdsa::SigningKey;
 use ethers::types::{Address, H256};
-use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
-
-pub const PREFIX: &str = "axelar";
 
 pub type EVMAddress = Address;
 pub type Hash = H256;
@@ -36,16 +32,6 @@ impl AsRef<ethers::types::U256> for U256 {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TMAddress(AccountId);
 
-impl TMAddress {
-    pub fn random() -> Self {
-        Self(
-            PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
-                .account_id(PREFIX)
-                .expect("failed to convert to account identifier"),
-        )
-    }
-}
-
 impl StdHash for TMAddress {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.to_bytes().hash(state);
@@ -67,5 +53,23 @@ impl AsRef<AccountId> for TMAddress {
 impl fmt::Display for TMAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ecdsa::SigningKey;
+    use rand::rngs::OsRng;
+
+    use super::{PublicKey, TMAddress};
+
+    impl TMAddress {
+        pub fn random(prefix: &str) -> Self {
+            Self(
+                PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+                    .account_id(prefix)
+                    .expect("failed to convert to account identifier"),
+            )
+        }
     }
 }

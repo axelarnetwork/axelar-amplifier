@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
@@ -13,7 +13,6 @@ use events_derive::try_from;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::{errors::Error, voter::Voter};
-use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::sui::{json_rpc::SuiClient, verifier::verify_message};
 use crate::types::{Hash, TMAddress};
 
@@ -40,36 +39,28 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
-pub struct Handler<C, B>
+pub struct Handler<C, V>
 where
     C: SuiClient + Send + Sync,
-    B: BroadcasterClient,
+    V: Voter,
 {
-    voter: Voter<B>,
+    voter: V,
     rpc_client: C,
 }
 
-impl<C, B> Handler<C, B>
+impl<C, V> Handler<C, V>
 where
     C: SuiClient + Send + Sync,
-    B: BroadcasterClient,
+    V: Voter,
 {
     #[allow(dead_code)]
-    pub fn new(
-        worker: TMAddress,
-        voting_verifier: TMAddress,
-        rpc_client: C,
-        broadcast_client: B,
-    ) -> Self {
-        Self {
-            rpc_client,
-            voter: Voter::new(worker, voting_verifier, broadcast_client),
-        }
+    pub fn new(rpc_client: C, voter: V) -> Self {
+        Self { rpc_client, voter }
     }
 
     async fn transaction_blocks(
         &self,
-        digests: Vec<TransactionDigest>,
+        digests: HashSet<TransactionDigest>,
     ) -> Result<HashMap<TransactionDigest, SuiTransactionBlockResponse>> {
         Ok(self
             .rpc_client
@@ -77,16 +68,17 @@ where
             .await
             .change_context(Error::TxReceipts)?
             .into_iter()
+            .flatten()
             .map(|tx_block| (tx_block.digest, tx_block))
             .collect())
     }
 }
 
 #[async_trait]
-impl<C, B> EventHandler for Handler<C, B>
+impl<C, V> EventHandler for Handler<C, V>
 where
     C: SuiClient + Send + Sync,
-    B: BroadcasterClient + Send + Sync,
+    V: Voter + Send + Sync,
 {
     type Err = Error;
 
@@ -105,16 +97,21 @@ where
             event => event.change_context(Error::DeserializeEvent)?,
         };
 
-        if self.voter.voting_verifier() != &contract_address {
+        if !self.voter.is_voting_verifier(&contract_address) {
             return Ok(());
         }
 
-        if !participants.contains(self.voter.worker()) {
+        if !self.voter.is_one_of(&participants) {
             return Ok(());
         }
 
         let transaction_blocks = self
-            .transaction_blocks(messages.iter().map(|message| message.tx_id).collect())
+            .transaction_blocks(
+                messages
+                    .iter()
+                    .map(|message| message.tx_id)
+                    .collect::<HashSet<_>>(),
+            )
             .await?;
 
         let votes = messages
@@ -134,12 +131,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::convert::TryInto;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmrs::{cosmwasm::MsgExecuteContract, AccountId};
     use cosmwasm_std;
     use cosmwasm_std::HexBinary;
     use error_stack::{Report, Result};
@@ -155,9 +151,11 @@ mod tests {
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::errors::Error;
-    use crate::queue::queued_broadcaster::MockBroadcasterClient;
+    use crate::handlers::voter::MockVoter;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
+
+    const PREFIX: &str = "axelar";
 
     #[test]
     fn should_deserialize_correct_event() {
@@ -175,16 +173,11 @@ mod tests {
             )))
         });
 
-        let handler = super::Handler::new(
-            TMAddress::random(),
-            TMAddress::random(),
-            sui_client,
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler::new(sui_client, MockVoter::new());
 
         assert!(matches!(
             *handler
-                .transaction_blocks(vec![TransactionDigest::random()])
+                .transaction_blocks(vec![TransactionDigest::random()].into_iter().collect())
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -194,14 +187,9 @@ mod tests {
 
     #[async_test]
     async fn should_get_tx_blocks() {
-        let handler = super::Handler::new(
-            TMAddress::random(),
-            TMAddress::random(),
-            mock_sui_client(),
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler::new(mock_sui_client(), MockVoter::new());
 
-        let digests: Vec<_> = (0..10).map(|_| TransactionDigest::random()).collect();
+        let digests: HashSet<_> = (0..10).map(|_| TransactionDigest::random()).collect();
         let expected: HashMap<_, _> = digests
             .clone()
             .into_iter()
@@ -218,12 +206,7 @@ mod tests {
     // should not handle event if it is not a poll started event
     #[async_test]
     async fn not_poll_started_event() {
-        let handler = super::Handler::new(
-            TMAddress::random(),
-            TMAddress::random(),
-            MockSuiClient::new(),
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler::new(MockSuiClient::new(), MockVoter::new());
 
         let mut event: Event = get_poll_started_event();
         match event {
@@ -240,12 +223,10 @@ mod tests {
     // should not handle event if voting verifier address does not match
     #[async_test]
     async fn contract_address_mismatch() {
-        let handler = super::Handler::new(
-            TMAddress::random(),
-            TMAddress::random(),
-            MockSuiClient::new(),
-            MockBroadcasterClient::new(),
-        );
+        let mut voter = MockVoter::new();
+        voter.expect_is_voting_verifier().returning(|_| false);
+
+        let handler = super::Handler::new(MockSuiClient::new(), voter);
 
         assert!(handler.handle(&get_poll_started_event()).await.is_ok());
     }
@@ -253,49 +234,25 @@ mod tests {
     // should not handle event if worker is not a participant
     #[async_test]
     async fn not_a_participant() {
-        let event = get_poll_started_event();
-        let contract_address = match event {
-            Event::Abci { ref attributes, .. } => attributes["_contract_address"].as_str().unwrap(),
-            _ => panic!("incorrect event type"),
-        };
+        let mut voter = MockVoter::new();
+        voter.expect_is_voting_verifier().returning(|_| true);
+        voter.expect_is_one_of().returning(|_| false);
 
-        let handler = super::Handler::new(
-            TMAddress::random(),
-            contract_address.parse::<AccountId>().unwrap().into(),
-            MockSuiClient::new(),
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler::new(MockSuiClient::new(), voter);
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert!(handler.handle(&get_poll_started_event()).await.is_ok());
     }
 
     #[async_test]
     async fn should_vote() {
-        let event = get_poll_started_event();
-        let (contract, worker) = match event {
-            Event::Abci { ref attributes, .. } => (
-                attributes["_contract_address"].as_str().unwrap(),
-                attributes["participants"].as_array().unwrap()[0]
-                    .as_str()
-                    .unwrap(),
-            ),
-            _ => panic!("incorrect event type"),
-        };
+        let mut voter = MockVoter::new();
+        voter.expect_is_voting_verifier().returning(|_| true);
+        voter.expect_is_one_of().returning(|_| true);
+        voter.expect_vote().once().returning(|_, _| Ok(()));
 
-        let mut voter = MockBroadcasterClient::new();
-        voter
-            .expect_broadcast()
-            .once()
-            .returning(move |_: MsgExecuteContract| Ok(()));
+        let handler = super::Handler::new(mock_sui_client(), voter);
 
-        let handler = super::Handler::new(
-            worker.parse::<AccountId>().unwrap().into(),
-            contract.parse::<AccountId>().unwrap().into(),
-            mock_sui_client(),
-            voter,
-        );
-
-        assert!(handler.handle(&event).await.is_ok());
+        assert!(handler.handle(&get_poll_started_event()).await.is_ok());
     }
 
     fn get_poll_started_event() -> Event {
@@ -310,9 +267,9 @@ mod tests {
                 confirmation_height: 15,
                 expires_at: 100,
                 participants: vec![
-                    cosmwasm_std::Addr::unchecked(TMAddress::random().to_string()),
-                    cosmwasm_std::Addr::unchecked(TMAddress::random().to_string()),
-                    cosmwasm_std::Addr::unchecked(TMAddress::random().to_string()),
+                    cosmwasm_std::Addr::unchecked(TMAddress::random(PREFIX).to_string()),
+                    cosmwasm_std::Addr::unchecked(TMAddress::random(PREFIX).to_string()),
+                    cosmwasm_std::Addr::unchecked(TMAddress::random(PREFIX).to_string()),
                 ],
             },
             messages: vec![TxEventConfirmation {
@@ -329,7 +286,7 @@ mod tests {
         };
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", TMAddress::random().to_string());
+        event = event.add_attribute("_contract_address", TMAddress::random(PREFIX).to_string());
 
         abci::Event::new(
             event.ty,
@@ -352,7 +309,7 @@ mod tests {
                 .map(|digest| {
                     let mut res = SuiTransactionBlockResponse::default();
                     res.digest = digest;
-                    res
+                    Some(res)
                 })
                 .collect())
         });
