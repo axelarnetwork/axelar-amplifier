@@ -1,7 +1,6 @@
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{
-    to_binary, Addr, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest, Response, Storage,
-    WasmQuery,
+    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
 };
 
 use axelar_wasm_std::voting::{PollID, PollResult};
@@ -20,7 +19,7 @@ use crate::events::{
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::is_message_verified;
-use crate::state::{self, VOTED};
+use crate::state;
 use crate::state::{
     CONFIG, CONFIRMED_WORKER_SETS, PENDING_MESSAGES, PENDING_WORKER_SETS, POLLS, POLL_ID,
     VERIFIED_MESSAGES,
@@ -171,16 +170,10 @@ pub fn vote(
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
-
     match &mut poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => messages_poll_vote(
-            deps.storage,
-            env.block.height,
-            poll_id,
-            poll,
-            info.sender.clone(),
-            votes,
-        )?,
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+            poll.cast_vote(env.block.height, &info.sender, votes)?
+        }
     };
 
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -255,7 +248,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            end_messages_poll(deps.storage, env.block.height, poll_id, poll)?
+            poll.tally(env.block.height)?
         }
     };
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -350,48 +343,4 @@ fn remove_pending_message(
     PENDING_MESSAGES.remove(store, poll_id);
 
     Ok(pending_messages)
-}
-
-fn messages_poll_vote(
-    store: &mut dyn Storage,
-    block_height: u64,
-    poll_id: PollID,
-    poll: &mut WeightedPoll,
-    voter: Addr,
-    votes: Vec<bool>,
-) -> Result<(), ContractError> {
-    VOTED.update(
-        store,
-        (poll_id, voter.clone()),
-        |v| -> Result<(), ContractError> {
-            match v {
-                Some(_) => Err(ContractError::AlreadyVoted),
-                None => {
-                    poll.cast_vote(block_height, &voter, votes)?;
-                    Ok(())
-                }
-            }
-        },
-    )
-}
-
-fn end_messages_poll(
-    store: &mut dyn Storage,
-    block_height: u64,
-    poll_id: PollID,
-    poll: &mut WeightedPoll,
-) -> Result<PollResult, ContractError> {
-    let voters = VOTED
-        .prefix(poll_id)
-        .range(store, None, None, Order::Ascending)
-        .count();
-
-    if block_height < poll.expires_at
-            // can tally early if all participants voted
-            && voters < poll.snapshot.get_participants().len()
-    {
-        return Err(ContractError::PollNotEnded);
-    }
-
-    Ok(poll.tally()?)
 }

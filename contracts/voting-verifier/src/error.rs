@@ -40,12 +40,6 @@ pub enum ContractError {
 
     #[error("worker set already confirmed")]
     WorkerSetAlreadyConfirmed,
-
-    #[error("already voted")]
-    AlreadyVoted,
-
-    #[error("cannot tally before poll end")]
-    PollNotEnded,
 }
 
 impl From<ContractError> for StdError {

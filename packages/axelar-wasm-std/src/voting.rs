@@ -14,6 +14,7 @@
    on whether or not the transaction was successfully verified.
 */
 use std::array::TryFromSliceError;
+use std::collections::HashSet;
 use std::fmt;
 use std::ops::AddAssign;
 use std::ops::Mul;
@@ -21,7 +22,6 @@ use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
-use cw_storage_plus::Prefixer;
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
 use thiserror::Error;
@@ -36,8 +36,14 @@ pub enum Error {
     #[error("invalid vote size")]
     InvalidVoteSize,
 
+    #[error("already voted")]
+    AlreadyVoted,
+
     #[error("poll is not in progress")]
     PollNotInProgress,
+
+    #[error("cannot tally before poll end")]
+    PollNotEnded,
 
     #[error("poll has expired")]
     PollExpired,
@@ -103,12 +109,6 @@ impl<'a> PrimaryKey<'a> for PollID {
     }
 }
 
-impl<'a> Prefixer<'a> for PollID {
-    fn prefix(&self) -> Vec<Key> {
-        vec![Key::Val64(self.0.u64().to_cw_bytes())]
-    }
-}
-
 impl KeyDeserialize for PollID {
     type Output = Self;
 
@@ -128,8 +128,8 @@ impl fmt::Display for PollID {
 }
 
 pub trait Poll {
-    // errors if the poll is not in progress
-    fn tally(&mut self) -> Result<PollResult, Error>;
+    // errors if the poll is not finished
+    fn tally(&mut self, block_height: u64) -> Result<PollResult, Error>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
     fn cast_vote(
@@ -154,12 +154,13 @@ pub enum PollStatus {
 
 #[cw_serde]
 pub struct WeightedPoll {
-    pub poll_id: PollID,
-    pub snapshot: Snapshot,
-    pub expires_at: u64,
-    pub poll_size: u64,
-    pub votes: Vec<Uint256>, // running tally of weighted votes
-    pub status: PollStatus,
+    poll_id: PollID,
+    snapshot: Snapshot,
+    expires_at: u64,
+    poll_size: u64,
+    votes: Vec<Uint256>, // running tally of weighted votes
+    status: PollStatus,
+    voted: HashSet<Addr>,
 }
 
 impl WeightedPoll {
@@ -171,12 +172,20 @@ impl WeightedPoll {
             poll_size: poll_size as u64,
             votes: vec![Uint256::zero(); poll_size],
             status: PollStatus::InProgress,
+            voted: HashSet::new(),
         }
     }
 }
 
 impl Poll for WeightedPoll {
-    fn tally(&mut self) -> Result<PollResult, Error> {
+    fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
+        if block_height < self.expires_at
+            // can tally early if all participants voted
+            && self.voted.len() < self.snapshot.get_participants().len()
+        {
+            return Err(Error::PollNotEnded);
+        }
+
         if self.status == PollStatus::Finished {
             return Err(Error::PollNotInProgress);
         }
@@ -212,9 +221,15 @@ impl Poll for WeightedPoll {
             return Err(Error::InvalidVoteSize);
         }
 
+        if self.voted.contains(sender) {
+            return Err(Error::AlreadyVoted);
+        }
+
         if self.status != PollStatus::InProgress {
             return Err(Error::PollNotInProgress);
         }
+
+        self.voted.insert(sender.clone());
 
         self.votes
             .iter_mut()
@@ -285,6 +300,20 @@ mod tests {
     }
 
     #[test]
+    fn voter_already_voted() {
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let votes = vec![true, true];
+
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+        assert_eq!(
+            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
+            Err(Error::AlreadyVoted)
+        );
+    }
+
+    #[test]
     fn poll_is_not_in_progress() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
@@ -296,10 +325,16 @@ mod tests {
     }
 
     #[test]
+    fn tally_before_poll_end() {
+        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
+        assert_eq!(poll.tally(0), Err(Error::PollNotEnded));
+    }
+
+    #[test]
     fn tally_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         poll.status = PollStatus::Finished;
-        assert_eq!(poll.tally(), Err(Error::PollNotInProgress));
+        assert_eq!(poll.tally(2), Err(Error::PollNotInProgress));
     }
 
     #[test]
@@ -312,7 +347,7 @@ mod tests {
             .is_ok());
         assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
 
-        let result = poll.tally().unwrap();
+        let result = poll.tally(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
 
         assert_eq!(
