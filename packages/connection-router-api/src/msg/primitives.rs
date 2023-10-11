@@ -1,7 +1,7 @@
 use crate::error::*;
 use axelar_wasm_std::nonempty;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::{Deserialize, Serialize};
-use cosmwasm_schema::{cw_serde, serde};
 use error_stack::{Report, ResultExt};
 use flagset::flags;
 use regex::Regex;
