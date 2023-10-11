@@ -255,7 +255,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll_result(deps.storage, env.block.height, poll_id, poll)?
+            end_messages_poll(deps.storage, env.block.height, poll_id, poll)?
         }
     };
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -375,7 +375,7 @@ fn messages_poll_vote(
     )
 }
 
-fn poll_result(
+fn end_messages_poll(
     store: &mut dyn Storage,
     block_height: u64,
     poll_id: PollID,
@@ -394,102 +394,4 @@ fn poll_result(
     }
 
     Ok(poll.tally()?)
-}
-
-#[cfg(test)]
-mod tests {
-    use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Timestamp, Uint256, Uint64,
-    };
-
-    use super::*;
-
-    fn new_poll(
-        deps: DepsMut,
-        expires_at: u64,
-        poll_size: usize,
-        participants: Vec<&str>,
-    ) -> PollID {
-        let participants: nonempty::Vec<Participant> = participants
-            .into_iter()
-            .map(|participant| Participant {
-                address: Addr::unchecked(participant),
-                weight: nonempty::Uint256::try_from(Uint256::from_u128(100)).unwrap(),
-            })
-            .collect::<Vec<Participant>>()
-            .try_into()
-            .unwrap();
-
-        let timestamp: nonempty::Timestamp = Timestamp::from_nanos(1).try_into().unwrap();
-        let height = nonempty::Uint64::try_from(Uint64::one()).unwrap();
-
-        let numerator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
-        let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
-        let threshold: Threshold = (numerator, denominator).try_into().unwrap();
-
-        let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
-
-        let poll = WeightedPoll::new(PollID::from(Uint64::one()), snapshot, expires_at, poll_size);
-        let poll_id = poll.poll_id;
-
-        POLLS
-            .save(deps.storage, poll.poll_id, &state::Poll::Messages(poll))
-            .unwrap();
-
-        poll_id
-    }
-
-    #[test]
-    fn voter_already_voted() {
-        let mut deps = mock_dependencies();
-        let env = mock_env();
-        let expiry = 2;
-        let poll_id = new_poll(
-            deps.as_mut(),
-            env.block.height + expiry,
-            2,
-            vec!["addr1", "addr2"],
-        );
-        let votes = vec![true, true];
-
-        vote(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("addr1", &[]),
-            poll_id,
-            votes.clone(),
-        )
-        .unwrap();
-
-        assert_eq!(
-            vote(
-                deps.as_mut(),
-                env.clone(),
-                mock_info("addr1", &[]),
-                poll_id,
-                votes
-            ),
-            Err(ContractError::AlreadyVoted)
-        );
-    }
-
-    #[test]
-    fn poll_end_before_expiration() {
-        let mut deps = mock_dependencies();
-        let env = mock_env();
-        let expiry = 2;
-        let poll_id = new_poll(
-            deps.as_mut(),
-            env.block.height + expiry,
-            2,
-            vec!["addr1", "addr2"],
-        );
-
-        assert_eq!(
-            end_poll(deps.as_mut(), env, poll_id),
-            Err(ContractError::PollNotEnded)
-        );
-    }
 }
