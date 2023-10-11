@@ -20,10 +20,10 @@ use crate::events::{
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::is_message_verified;
-use crate::state::{self, VOTED};
+use crate::state;
 use crate::state::{
     CONFIG, CONFIRMED_WORKER_SETS, PENDING_MESSAGES, PENDING_WORKER_SETS, POLLS, POLL_ID,
-    VERIFIED_MESSAGES,
+    VERIFIED_MESSAGES, VOTED,
 };
 
 enum VerificationStatus {
@@ -173,14 +173,9 @@ pub fn vote(
         .ok_or(ContractError::PollNotFound)?;
 
     match &mut poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => messages_poll_vote(
-            deps.storage,
-            env.block.height,
-            poll_id,
-            poll,
-            info.sender.clone(),
-            votes,
-        )?,
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+            cast_vote(deps.storage, env.block.height, poll, &info.sender, votes)?
+        }
     };
 
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -255,7 +250,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll_result(deps.storage, env.block.height, poll_id, poll)?
+            poll_result(deps.storage, env.block.height, poll)?
         }
     };
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -352,22 +347,21 @@ fn remove_pending_message(
     Ok(pending_messages)
 }
 
-fn messages_poll_vote(
+fn cast_vote(
     store: &mut dyn Storage,
     block_height: u64,
-    poll_id: PollID,
     poll: &mut WeightedPoll,
-    voter: Addr,
+    voter: &Addr,
     votes: Vec<bool>,
 ) -> Result<(), ContractError> {
     VOTED.update(
         store,
-        (poll_id, voter.clone()),
+        (poll.poll_id, voter.clone()),
         |v| -> Result<(), ContractError> {
             match v {
                 Some(_) => Err(ContractError::AlreadyVoted),
                 None => {
-                    poll.cast_vote(block_height, &voter, votes)?;
+                    poll.cast_vote(block_height, voter, votes)?;
                     Ok(())
                 }
             }
@@ -378,11 +372,10 @@ fn messages_poll_vote(
 fn poll_result(
     store: &mut dyn Storage,
     block_height: u64,
-    poll_id: PollID,
     poll: &mut WeightedPoll,
 ) -> Result<PollResult, ContractError> {
     let voters = VOTED
-        .prefix(poll_id)
+        .prefix(poll.poll_id)
         .range(store, None, None, Order::Ascending)
         .count();
 
@@ -399,6 +392,7 @@ fn poll_result(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::{nonempty, Participant, Snapshot, Threshold};
+    use connection_router::state::CrossChainId;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         Timestamp, Uint256, Uint64,
@@ -411,6 +405,7 @@ mod tests {
         expires_at: u64,
         poll_size: usize,
         participants: Vec<&str>,
+        messages: &Vec<Message>,
     ) -> PollID {
         let participants: nonempty::Vec<Participant> = participants
             .into_iter()
@@ -438,6 +433,10 @@ mod tests {
             .save(deps.storage, poll.poll_id, &state::Poll::Messages(poll))
             .unwrap();
 
+        PENDING_MESSAGES
+            .save(deps.storage, poll_id, messages)
+            .unwrap();
+
         poll_id
     }
 
@@ -451,6 +450,7 @@ mod tests {
             env.block.height + expiry,
             2,
             vec!["addr1", "addr2"],
+            &vec![],
         );
         let votes = vec![true, true];
 
@@ -483,13 +483,37 @@ mod tests {
         let poll_id = new_poll(
             deps.as_mut(),
             env.block.height + expiry,
-            2,
+            1,
             vec!["addr1", "addr2"],
+            &vec![Message {
+                cc_id: CrossChainId {
+                    id: "hash:index".parse().unwrap(),
+                    chain: "chain".parse().unwrap(),
+                },
+                source_address: "source_address".parse().unwrap(),
+                destination_chain: "destination_chain".parse().unwrap(),
+                destination_address: "destination_address".parse().unwrap(),
+                payload_hash: [1; 32].into(),
+            }],
         );
+        let votes = vec![true];
 
         assert_eq!(
             end_poll(deps.as_mut(), env, poll_id),
             Err(ContractError::PollNotEnded)
         );
+
+        for voter in ["addr1", "addr2"] {
+            vote(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(voter, &[]),
+                poll_id,
+                votes.clone(),
+            )
+            .unwrap();
+        }
+
+        end_poll(deps.as_mut(), mock_env(), poll_id).unwrap();
     }
 }

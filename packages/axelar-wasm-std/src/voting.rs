@@ -21,8 +21,7 @@ use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
-use cw_storage_plus::Prefixer;
-use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
+use cw_storage_plus::{IntKey, Key, KeyDeserialize, Prefixer, PrimaryKey};
 use num_traits::One;
 use thiserror::Error;
 
