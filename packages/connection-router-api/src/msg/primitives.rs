@@ -66,15 +66,10 @@ impl FromStr for ChainName {
                 .is_match(s)
         }
 
-        s.parse::<nonempty::String>()
-            .change_context(Error::ChainNamePatternMismatch(s.to_string()))
-            .and_then(|chain_name| {
-                if matches_chain_name_pattern(&chain_name) {
-                    Ok(ChainName(chain_name))
-                } else {
-                    Err(report!(Error::ChainNamePatternMismatch(s.to_string())))
-                }
-            })
+        match s.parse::<nonempty::String>() {
+            Ok(chain_name) if matches_chain_name_pattern(&chain_name) => Ok(ChainName(chain_name)),
+            _ => Err(report!(Error::ChainNamePatternMismatch(s.to_string()))),
+        }
     }
 }
 
