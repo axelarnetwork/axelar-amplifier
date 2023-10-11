@@ -12,7 +12,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let nexus = deps.api.addr_validate(&msg.nexus)?;
     let router = deps.api.addr_validate(&msg.router)?;
 
@@ -27,7 +27,7 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, axelar_wasm_std::ContractError> {
     let store = GatewayStore::new(deps.storage);
     let config = store.load_config();
 
@@ -38,6 +38,6 @@ pub fn execute(
         {
             todo!()
         }
-        _ => Err(ContractError::Unauthorized),
+        _ => Err(ContractError::Unauthorized)?,
     }
 }
