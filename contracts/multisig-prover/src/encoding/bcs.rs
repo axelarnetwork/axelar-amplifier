@@ -204,7 +204,7 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router::state::{CrossChainId, Message};
+    use connection_router::state::Message;
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
     use multisig::{
