@@ -2,7 +2,7 @@ use crate::error::*;
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::serde::{Deserialize, Serialize};
 use cosmwasm_schema::{cw_serde, serde};
-use error_stack::{report, Report, ResultExt};
+use error_stack::{Report, ResultExt};
 use flagset::flags;
 use regex::Regex;
 use schemars::JsonSchema;
@@ -40,7 +40,7 @@ pub struct Message {
 #[serde(deny_unknown_fields, crate = "::cosmwasm_schema::serde")]
 #[schemars(crate = "::cosmwasm_schema::schemars")]
 #[serde(try_from = "String")]
-pub struct ChainName(nonempty::String);
+pub struct ChainName(String);
 
 impl Hash for ChainName {
     /// this is implemented manually because we want to ignore case when hashing
@@ -57,24 +57,25 @@ impl PartialEq for ChainName {
 }
 
 impl FromStr for ChainName {
-    type Err = Report<Error>;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(chain_name: &str) -> Result<Self, Self::Err> {
         fn matches_chain_name_pattern(s: &str) -> bool {
             Regex::new(CHAIN_NAME_REGEX)
                 .expect("invalid regex pattern for chain name")
                 .is_match(s)
         }
 
-        match s.parse::<nonempty::String>() {
-            Ok(chain_name) if matches_chain_name_pattern(&chain_name) => Ok(ChainName(chain_name)),
-            _ => Err(report!(Error::ChainNamePatternMismatch(s.to_string()))),
+        if matches_chain_name_pattern(chain_name) {
+            Ok(ChainName(chain_name.to_string()))
+        } else {
+            Err(Error::ChainNamePatternMismatch(chain_name.to_string()))
         }
     }
 }
 
 impl TryFrom<String> for ChainName {
-    type Error = Report<Error>;
+    type Error = Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.parse()
@@ -83,7 +84,7 @@ impl TryFrom<String> for ChainName {
 
 impl Display for ChainName {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(self.0.deref(), f)
+        Display::fmt(&self.0, f)
     }
 }
 
