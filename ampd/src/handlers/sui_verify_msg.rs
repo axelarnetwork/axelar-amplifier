@@ -177,12 +177,12 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            MockSuiClient::new(),
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler {
+            worker: TMAddress::random(PREFIX),
+            voting_verifier: TMAddress::random(PREFIX),
+            rpc_client: MockSuiClient::new(),
+            broadcast_client: MockBroadcasterClient::new(),
+        };
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -195,12 +195,12 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            TMAddress::random(PREFIX),
-            MockSuiClient::new(),
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler {
+            worker: TMAddress::random(PREFIX),
+            voting_verifier: TMAddress::random(PREFIX),
+            rpc_client: MockSuiClient::new(),
+            broadcast_client: MockBroadcasterClient::new(),
+        };
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -208,23 +208,23 @@ mod tests {
     // Should not handle event if worker is not a poll participant
     #[async_test]
     async fn worker_is_not_a_participant() {
-        let contract = TMAddress::random(PREFIX);
-        let event = get_event(poll_started_event(participants(5, None)), &contract);
+        let voting_verifier = TMAddress::random(PREFIX);
+        let event = get_event(poll_started_event(participants(5, None)), &voting_verifier);
 
-        let handler = super::Handler::new(
-            TMAddress::random(PREFIX),
-            contract,
-            MockSuiClient::new(),
-            MockBroadcasterClient::new(),
-        );
+        let handler = super::Handler {
+            worker: TMAddress::random(PREFIX),
+            voting_verifier,
+            rpc_client: MockSuiClient::new(),
+            broadcast_client: MockBroadcasterClient::new(),
+        };
 
         assert!(handler.handle(&event).await.is_ok());
     }
 
     #[async_test]
     async fn failed_to_get_finalized_tx_blocks() {
-        let mut sui_client = MockSuiClient::new();
-        sui_client
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
             .expect_finalized_transaction_blocks()
             .returning(|_| {
                 Err(Report::from(ProviderError::CustomError(
@@ -232,16 +232,20 @@ mod tests {
                 )))
             });
 
-        let contract = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
 
         let event = get_event(
             poll_started_event(participants(5, Some(worker.clone()))),
-            &contract,
+            &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, contract, sui_client, MockBroadcasterClient::new());
+        let handler = super::Handler {
+            worker,
+            voting_verifier,
+            rpc_client,
+            broadcast_client: MockBroadcasterClient::new(),
+        };
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
@@ -251,26 +255,31 @@ mod tests {
 
     #[async_test]
     async fn failed_to_broadcast() {
-        let mut sui_client = MockSuiClient::new();
-        sui_client
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
             .expect_finalized_transaction_blocks()
             .returning(|_| Ok(HashMap::new()));
 
-        let mut broadcaster = MockBroadcasterClient::new();
-        broadcaster
+        let mut broadcast_client = MockBroadcasterClient::new();
+        broadcast_client
             .expect_broadcast()
             .returning(move |_: MsgExecuteContract| {
                 Err(Report::from(queued_broadcaster::Error::Broadcast))
             });
 
-        let contract = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
         let event = get_event(
             poll_started_event(participants(5, Some(worker.clone()))),
-            &contract,
+            &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, contract, sui_client, broadcaster);
+        let handler = super::Handler {
+            worker,
+            voting_verifier,
+            rpc_client,
+            broadcast_client,
+        };
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
