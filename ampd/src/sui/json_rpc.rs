@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, ProviderError};
@@ -13,10 +13,10 @@ type Result<T> = error_stack::Result<T, ProviderError>;
 #[automock]
 #[async_trait]
 pub trait SuiClient {
-    async fn transaction_blocks(
+    async fn finalized_transaction_blocks(
         &self,
         digests: HashSet<TransactionDigest>,
-    ) -> Result<Vec<Option<SuiTransactionBlockResponse>>>;
+    ) -> Result<HashMap<TransactionDigest, SuiTransactionBlockResponse>>;
 }
 
 #[async_trait]
@@ -24,10 +24,10 @@ impl<P> SuiClient for Client<P>
 where
     P: JsonRpcClient + Send + Sync + 'static,
 {
-    async fn transaction_blocks(
+    async fn finalized_transaction_blocks(
         &self,
         digests: HashSet<TransactionDigest>,
-    ) -> Result<Vec<Option<SuiTransactionBlockResponse>>> {
+    ) -> Result<HashMap<TransactionDigest, SuiTransactionBlockResponse>> {
         self.request(
             "sui_multiGetTransactionBlocks",
             (
@@ -41,8 +41,9 @@ where
         .await
         .map(|vec: Vec<SuiTransactionBlockResponse>| {
             vec.into_iter()
-                // None checkpoint means the transaction is not finalized
-                .map(|block| block.checkpoint.map(|_| block))
+                // checkpoint number exits when this transaction was included and finalized.
+                .filter(|block| block.checkpoint.is_some())
+                .map(|block| (block.digest, block))
                 .collect()
         })
     }

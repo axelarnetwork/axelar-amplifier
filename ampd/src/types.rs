@@ -7,6 +7,8 @@ use cosmwasm_std::Uint256;
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
+mod tests;
+
 pub type EVMAddress = Address;
 pub type Hash = H256;
 pub type PublicKey = crypto::PublicKey;
@@ -53,23 +55,5 @@ impl AsRef<AccountId> for TMAddress {
 impl fmt::Display for TMAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use ecdsa::SigningKey;
-    use rand::rngs::OsRng;
-
-    use super::{PublicKey, TMAddress};
-
-    impl TMAddress {
-        pub fn random(prefix: &str) -> Self {
-            Self(
-                PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
-                    .account_id(prefix)
-                    .expect("failed to convert to account identifier"),
-            )
-        }
     }
 }
