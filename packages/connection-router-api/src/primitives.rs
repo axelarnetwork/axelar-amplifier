@@ -36,7 +36,6 @@ pub struct Message {
     Debug,
     ::cosmwasm_schema::schemars::JsonSchema,
 )]
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[serde(deny_unknown_fields, crate = "::cosmwasm_schema::serde")]
 #[schemars(crate = "::cosmwasm_schema::schemars")]
 #[serde(try_from = "String")]
