@@ -651,42 +651,13 @@ fn chain_already_registered() {
 
 #[test]
 fn invalid_chain_name() {
-    let mut config = setup();
-    let res = config
-        .app
-        .execute_contract(
-            config.governance_address.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RegisterChain {
-                chain: ChainName::from_str("bad:").unwrap(),
-                gateway_address: Addr::unchecked("incoming").to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        ChainName::from_str("bad:").unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::InvalidChainName).to_string()
     );
 
-    let res = config
-        .app
-        .execute_contract(
-            config.governance_address.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RegisterChain {
-                chain: ChainName::from_str("").unwrap(),
-                gateway_address: Addr::unchecked("incoming").to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
     assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        ChainName::from_str("").unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::InvalidChainName).to_string()
     );
 }
