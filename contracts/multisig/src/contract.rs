@@ -218,6 +218,33 @@ pub mod execute {
             .into(),
         ))
     }
+
+    pub fn require_valid_caller(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+	
+        let session_id = SIGNING_SESSION_COUNTER.load(deps.storage)?;
+    
+        let session = SIGNING_SESSIONS
+                .load(deps.storage, session_id.into())
+                .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
+    
+        let key = KEYS.load(deps.storage, &session.key_id)?;
+      
+        match key
+                    .pub_keys
+                    .iter()
+                    .find(|&(addr, _)| addr == &info.sender.to_string())
+            {
+                None => {
+                    return Err(ContractError::Unauthorized{ 
+                        contract_address: info.sender, 
+                    })
+                }
+                Some(key) => {
+                    Ok(())
+                }
+            }
+    }
+
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
