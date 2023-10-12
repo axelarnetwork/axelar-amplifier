@@ -282,6 +282,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn cast_vote() {
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let votes = vec![true, true];
+
+        assert_eq!(
+            poll.participation.get("addr1").unwrap(),
+            &Participation {
+                weight: nonempty::Uint256::try_from(Uint256::from(100u64)).unwrap(),
+                voted: false,
+            }
+        );
+
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+
+        assert_eq!(
+            poll.participation.get("addr1").unwrap(),
+            &Participation {
+                weight: nonempty::Uint256::try_from(Uint256::from(100u64)).unwrap(),
+                voted: true,
+            }
+        );
+    }
+
+    #[test]
     fn voter_not_a_participant() {
         let mut rng = thread_rng();
         let mut poll = new_poll(
