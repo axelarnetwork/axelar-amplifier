@@ -13,22 +13,22 @@ pub struct Config {
 
 #[cw_serde]
 pub struct EpochTally {
-    epoch_num: u64,
-    contract: Addr,
-    total_events: u64,
-    participation: HashMap<Addr, u64>,
-    distributed_rewards: bool,
+    pub epoch_num: u64,
+    pub contract: Addr,
+    pub total_events: u64,
+    pub participation: HashMap<Addr, u64>,
+    pub rewards_rate: Uint256,
 }
 
 impl EpochTally {
     #[allow(dead_code)]
-    pub fn new(epoch_num: u64, contract: Addr) -> Self {
+    pub fn new(epoch_num: u64, contract: Addr, rewards_rate: Uint256) -> Self {
         EpochTally {
             epoch_num,
             contract,
             total_events: 0,
             participation: HashMap::new(),
-            distributed_rewards: false,
+            rewards_rate,
         }
     }
 }
@@ -42,8 +42,8 @@ pub struct Event {
 
 #[cw_serde]
 pub struct Epoch {
-    epoch_num: u64,
-    block_height_started: u64,
+    pub epoch_num: u64,
+    pub block_height_started: u64,
 }
 
 #[cw_serde]
@@ -65,7 +65,9 @@ impl RewardsPool {
 pub trait Store {
     fn load_config(&self) -> Config;
 
-    fn load_current_epoch(&self) -> Result<Epoch, ContractError>;
+    fn load_last_checkpoint(&self) -> Result<Epoch, ContractError>;
+
+    fn load_rewards_watermark(&self) -> Result<Option<u64>, ContractError>;
 
     fn load_event(&self, event_id: String, contract: Addr) -> Result<Option<Event>, ContractError>;
 
@@ -79,7 +81,9 @@ pub trait Store {
 
     fn save_config(&mut self, config: &Config) -> Result<(), ContractError>;
 
-    fn save_current_epoch(&mut self, epoch: &Epoch) -> Result<(), ContractError>;
+    fn save_last_checkpoint(&mut self, epoch: &Epoch) -> Result<(), ContractError>;
+
+    fn save_rewards_watermark(&mut self, epoch_num: u64) -> Result<(), ContractError>;
 
     fn save_event(&mut self, event: &Event) -> Result<(), ContractError>;
 
@@ -90,13 +94,15 @@ pub trait Store {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-const CURRENT_EPOCH: Item<Epoch> = Item::new("current_epoch");
+const LAST_CHECKPOINT: Item<Epoch> = Item::new("current_epoch");
 
 const TALLIES: Map<(Addr, u64), EpochTally> = Map::new("tallies");
 
 const EVENTS: Map<(String, Addr), Event> = Map::new("events");
 
 const POOLS: Map<Addr, RewardsPool> = Map::new("pools");
+
+const WATERMARK: Item<u64> = Item::new("rewards_watermark");
 
 pub struct RewardsStore<'a> {
     pub storage: &'a mut dyn Storage,
@@ -109,8 +115,12 @@ impl Store for RewardsStore<'_> {
             .expect("config should be set during contract instantiation")
     }
 
-    fn load_current_epoch(&self) -> Result<Epoch, ContractError> {
-        Ok(CURRENT_EPOCH.load(self.storage)?)
+    fn load_last_checkpoint(&self) -> Result<Epoch, ContractError> {
+        Ok(LAST_CHECKPOINT.load(self.storage)?)
+    }
+
+    fn load_rewards_watermark(&self) -> Result<Option<u64>, ContractError> {
+        Ok(WATERMARK.may_load(self.storage)?)
     }
 
     fn load_event(&self, event_id: String, contract: Addr) -> Result<Option<Event>, ContractError> {
@@ -133,8 +143,12 @@ impl Store for RewardsStore<'_> {
         Ok(CONFIG.save(self.storage, config)?)
     }
 
-    fn save_current_epoch(&mut self, epoch: &Epoch) -> Result<(), ContractError> {
-        Ok(CURRENT_EPOCH.save(self.storage, epoch)?)
+    fn save_last_checkpoint(&mut self, epoch: &Epoch) -> Result<(), ContractError> {
+        Ok(LAST_CHECKPOINT.save(self.storage, epoch)?)
+    }
+
+    fn save_rewards_watermark(&mut self, epoch_num: u64) -> Result<(), ContractError> {
+        Ok(WATERMARK.save(self.storage, &epoch_num)?)
     }
 
     fn save_event(&mut self, event: &Event) -> Result<(), ContractError> {
@@ -160,7 +174,7 @@ impl Store for RewardsStore<'_> {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint256, Uint64};
 
     use crate::{msg::RewardsParams, state::Config};
 
@@ -197,7 +211,7 @@ mod test {
     }
 
     #[test]
-    fn save_and_load_current_epoch() {
+    fn save_and_load_last_checkpoint() {
         let mut mock_deps = mock_dependencies();
         let mut store = RewardsStore {
             storage: &mut mock_deps.storage,
@@ -207,10 +221,10 @@ mod test {
             block_height_started: 1000,
         };
         // save the first current epoch
-        let res = store.save_current_epoch(&epoch);
+        let res = store.save_last_checkpoint(&epoch);
         assert!(res.is_ok());
 
-        let loaded = store.load_current_epoch();
+        let loaded = store.load_last_checkpoint();
         assert!(loaded.is_ok());
         assert_eq!(loaded.unwrap(), epoch);
 
@@ -220,12 +234,47 @@ mod test {
             block_height_started: 2000,
         };
 
-        let res = store.save_current_epoch(&new_epoch);
+        let res = store.save_last_checkpoint(&new_epoch);
         assert!(res.is_ok());
 
-        let loaded = store.load_current_epoch();
+        let loaded = store.load_last_checkpoint();
         assert!(loaded.is_ok());
         assert_eq!(loaded.unwrap(), new_epoch);
+    }
+
+    #[test]
+    fn save_and_load_rewards_watermark() {
+        let mut mock_deps = mock_dependencies();
+        let mut store = RewardsStore {
+            storage: &mut mock_deps.storage,
+        };
+        let epoch = Epoch {
+            epoch_num: 10,
+            block_height_started: 1000,
+        };
+
+        // should be empty at first
+        let loaded = store.load_rewards_watermark();
+        assert!(loaded.is_ok());
+        assert!(loaded.unwrap().is_none());
+
+        // save the first water mark
+        let res = store.save_rewards_watermark(epoch.epoch_num);
+        assert!(res.is_ok());
+
+        let loaded = store.load_rewards_watermark();
+        assert!(loaded.is_ok());
+        assert!(loaded.as_ref().unwrap().is_some());
+        assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num);
+
+        // now store a new watermark, should overwrite
+        let res = store.save_rewards_watermark(epoch.epoch_num + 1);
+        assert!(res.is_ok());
+
+        let loaded = store.load_rewards_watermark();
+        assert!(loaded.is_ok());
+        assert!(loaded.as_ref().unwrap().is_some());
+        assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num + 1);
     }
 
     #[test]
@@ -281,7 +330,8 @@ mod test {
 
         let epoch_num = 10;
         let contract = Addr::unchecked("some contract");
-        let tally = EpochTally::new(epoch_num, contract.clone());
+        let rewards_rate = Uint256::from(100u128).try_into().unwrap();
+        let tally = EpochTally::new(epoch_num, contract.clone(), rewards_rate);
 
         let res = store.save_epoch_tally(&tally);
         assert!(res.is_ok());
