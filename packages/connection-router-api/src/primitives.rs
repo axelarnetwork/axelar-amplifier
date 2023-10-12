@@ -132,7 +132,7 @@ mod tests {
     use std::hash::Hasher;
 
     #[test]
-    fn parse_chain_name() {
+    fn chain_names_adhere_to_naming_scheme() {
         let test_cases = vec![
             ("Ethereum", true),
             ("ethereum", true),
@@ -177,5 +177,11 @@ mod tests {
         let hash_2 = hasher_2.finish();
 
         assert_eq!(hash_1, hash_2);
+    }
+
+    #[test]
+    fn address_cannot_be_empty() {
+        assert!("".parse::<Address>().is_err());
+        assert!("some_address".parse::<Address>().is_ok());
     }
 }
