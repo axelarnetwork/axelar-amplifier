@@ -22,17 +22,12 @@ impl<S> Contract<S>
 where
     S: Store,
 {
-    /// Updates internal state to the latest epoch based on current block height, and returns the latest epoch.
-    /// If the computed epoch is the same as what's stored, the function returns what is stored and doesn't change
-    /// the internal state.
-    /// Note, the stored epoch can increase by more than one, depending on when this is called. For example,
-    /// suppose we start epoch 0 at block 0, and the epoch duration is 100 blocks. If the next time this function
-    /// is called is block 500 (due to no activity on the contract), then the stored epoch will jump from 0 to 5.
-    /// This should be called before any operation on the contract, to ensure the correct epoch is being used. This
-    /// allows lazy computation of the epoch, and removes the need to call this at any regular interval
-    fn update_epoch(&mut self, cur_block_height: u64) -> Result<Epoch, ContractError> {
+    /// Returns the current epoch. The current epoch is computed dynamically based on the current
+    /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
+    /// in which the update occurs as the last checkpoint
+    fn get_current_epoch(&mut self, cur_block_height: u64) -> Result<Epoch, ContractError> {
         let epoch_duration: u64 = self.config.params.epoch_duration.into();
-        let epoch = self.store.load_current_epoch()?;
+        let epoch = self.store.load_last_checkpoint()?;
         if cur_block_height >= epoch.block_start() + epoch_duration {
             let new_epoch_num =
                 ((cur_block_height - epoch.block_start()) / epoch_duration) + epoch.epoch_num();
@@ -40,7 +35,6 @@ where
                 new_epoch_num,
                 cur_block_height - (cur_block_height % epoch_duration),
             );
-            self.store.save_current_epoch(&new_epoch)?;
             return Ok(new_epoch);
         }
         Ok(epoch)
@@ -51,27 +45,35 @@ where
         _event_id: String,
         _worker: Addr,
         _contract: Addr,
-        block_height: u64,
+        _block_height: u64,
     ) -> Result<(), ContractError> {
-        let _cur_epoch = self.update_epoch(block_height)?;
         todo!()
     }
 
     pub fn process_rewards(
         &mut self,
         _contract: Addr,
-        block_height: u64,
+        _block_height: u64,
+        _count: Option<u64>,
     ) -> Result<HashMap<Addr, Uint256>, ContractError> {
-        let _cur_epoch = self.update_epoch(block_height)?;
         todo!()
     }
 
     pub fn update_params(
         &mut self,
-        _new_params: RewardsParams,
+        new_params: RewardsParams,
         block_height: u64,
     ) -> Result<(), ContractError> {
-        let _cur_epoch = self.update_epoch(block_height)?;
+        // if the epoch duration is changing, we need to store a new checkpoint,
+        // so that way future epochs can be computed correctly
+        if new_params.epoch_duration != self.config.params.epoch_duration {
+            let cur_epoch = self.get_current_epoch(block_height)?;
+            let last_checkpoint = self.store.load_last_checkpoint()?;
+            if last_checkpoint != cur_epoch {
+                self.store.save_last_checkpoint(&cur_epoch)?;
+            }
+        }
+
         todo!()
     }
 
@@ -79,9 +81,8 @@ where
         &mut self,
         _contract: Addr,
         _amount: Uint256,
-        block_height: u64,
+        _block_height: u64,
     ) -> Result<(), ContractError> {
-        let _cur_epoch = self.update_epoch(block_height)?;
         todo!()
     }
 }
@@ -97,9 +98,9 @@ mod test {
 
     use super::Contract;
 
-    /// Tests that the new epoch is computed correctly based on block height and epoch duration
+    /// Tests that the current epoch is computed correctly based on block height and epoch duration
     #[test]
-    fn test_update_epoch() {
+    fn test_get_current_epoch() {
         let epoch_duration = 100u64;
         let config = Config {
             params: RewardsParams {
@@ -113,31 +114,31 @@ mod test {
 
         // epoch shouldn't change
         let new_epoch = contract
-            .update_epoch(current_epoch.block_start() + 1)
+            .get_current_epoch(current_epoch.block_start() + 1)
             .unwrap();
         assert_eq!(new_epoch, current_epoch);
 
         // epoch should increase by one
         let block = current_epoch.block_start() + u64::from(config.params.epoch_duration);
-        let new_epoch = contract.update_epoch(block).unwrap();
+        let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(Epoch::new(1, block), new_epoch);
 
         // epoch should increase by one, but start of epoch is in the past
         let block = current_epoch.block_start() + u64::from(config.params.epoch_duration) + 1;
-        let new_epoch = contract.update_epoch(block).unwrap();
+        let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(Epoch::new(1, block - 1), new_epoch);
 
         // epoch should increase by more than one
         let block = current_epoch.block_start() + u64::from(config.params.epoch_duration) * 4;
-        let new_epoch = contract.update_epoch(block).unwrap();
+        let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(Epoch::new(4, block), new_epoch);
 
         // epoch should increase by more than one, but start of epoch is in the past
         let block = current_epoch.block_start() + u64::from(config.params.epoch_duration) * 4 + 10;
-        let new_epoch = contract.update_epoch(block).unwrap();
+        let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(Epoch::new(4, block - 10), new_epoch);
     }
@@ -145,9 +146,9 @@ mod test {
     fn create_contract(config: Config, current_epoch: Epoch) -> Contract<state::MockStore> {
         let mut store = state::MockStore::new();
         store
-            .expect_load_current_epoch()
+            .expect_load_last_checkpoint()
             .returning(move || Ok(current_epoch.clone()));
-        store.expect_save_current_epoch().returning(|_| Ok(()));
+        store.expect_save_last_checkpoint().returning(|_| Ok(()));
         Contract { store, config }
     }
 }
