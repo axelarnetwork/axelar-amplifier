@@ -19,7 +19,7 @@ pub struct Message {
     /// 2. the ID must uniquely identify the message on the source chain, i.e. no two messages can have the same ID, and no single message can have multiple valid IDs.
     ///
     /// IMPORTANT: Verifier contracts must enforce these requirements.
-    pub id: Vec<u8>,
+    pub id: String,
     pub source_chain: ChainName,
     pub source_address: Address,
     pub destination_chain: ChainName,
