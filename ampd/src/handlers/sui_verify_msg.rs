@@ -57,21 +57,6 @@ where
     C: SuiClient + Send + Sync,
     B: BroadcasterClient,
 {
-    #[allow(dead_code)]
-    pub fn new(
-        worker: TMAddress,
-        voting_verifier: TMAddress,
-        rpc_client: C,
-        broadcast_client: B,
-    ) -> Self {
-        Self {
-            worker,
-            voting_verifier,
-            rpc_client,
-            broadcast_client,
-        }
-    }
-
     async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
             .expect("vote msg should serialize");
@@ -120,6 +105,8 @@ where
             return Ok(());
         }
 
+        // Does not assume voting verifier emits unique tx ids.
+        // RPC will throw an error if the input contains any duplicate, deduplicate tx ids to avoid unnecessary failures.
         let deduplicated_tx_ids: HashSet<_> = messages.iter().map(|msg| msg.tx_id).collect();
         let transaction_blocks = self
             .rpc_client
@@ -182,7 +169,7 @@ mod tests {
         assert!(event.is_ok());
     }
 
-    // should not handle event if it is not a poll started event
+    // Should not handle event if it is not a poll started event
     #[async_test]
     async fn not_poll_started_event() {
         let event = get_event(
@@ -200,7 +187,7 @@ mod tests {
         assert!(handler.handle(&event).await.is_ok());
     }
 
-    // should not handle event if it is not emitted from voting verifier
+    // Should not handle event if it is not emitted from voting verifier
     #[async_test]
     async fn contract_is_not_voting_verifier() {
         let event = get_event(
@@ -218,7 +205,7 @@ mod tests {
         assert!(handler.handle(&event).await.is_ok());
     }
 
-    // should not handle event if worker is not a poll participant
+    // Should not handle event if worker is not a poll participant
     #[async_test]
     async fn worker_is_not_a_participant() {
         let contract = TMAddress::random(PREFIX);

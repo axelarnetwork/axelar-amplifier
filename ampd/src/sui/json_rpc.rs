@@ -41,7 +41,7 @@ where
         .await
         .map(|vec: Vec<SuiTransactionBlockResponse>| {
             vec.into_iter()
-                // checkpoint number exits when this transaction was included and finalized.
+                // Checkpoint number exits when this transaction was included and finalized.
                 .filter(|block| block.checkpoint.is_some())
                 .map(|block| (block.digest, block))
                 .collect()
