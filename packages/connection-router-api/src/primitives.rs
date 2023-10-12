@@ -59,13 +59,11 @@ impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(chain_name: &str) -> Result<Self, Self::Err> {
-        fn matches_chain_name_pattern(s: &str) -> bool {
-            Regex::new(CHAIN_NAME_REGEX)
-                .expect("invalid regex pattern for chain name")
-                .is_match(s)
-        }
+        let is_chain_name_valid = Regex::new(CHAIN_NAME_REGEX)
+            .expect("invalid regex pattern for chain name")
+            .is_match(chain_name);
 
-        if matches_chain_name_pattern(chain_name) {
+        if is_chain_name_valid {
             Ok(ChainName(chain_name.to_string()))
         } else {
             Err(Error::ChainNamePatternMismatch(chain_name.to_string()))
