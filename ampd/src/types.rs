@@ -7,6 +7,8 @@ use cosmwasm_std::Uint256;
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
+mod tests;
+
 pub type EVMAddress = Address;
 pub type Hash = H256;
 pub type PublicKey = crypto::PublicKey;
