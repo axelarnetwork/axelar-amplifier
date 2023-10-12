@@ -102,7 +102,7 @@ impl FromStr for Address {
 impl TryFrom<String> for Address {
     type Error = Report<Error>;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Address::from_str(&value)
+        value.parse()
     }
 }
 
