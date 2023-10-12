@@ -10,4 +10,6 @@ pub enum Error {
     DeserializeEvent,
     #[error("failed to get signature from tofnd")]
     Sign,
+    #[error("failed to get transaction receipts")]
+    TxReceipts,
 }
