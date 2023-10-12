@@ -1,7 +1,5 @@
-mod primitives;
-
+use crate::primitives::*;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-pub use primitives::*;
 
 #[cw_serde]
 pub enum ExecuteMsg {
