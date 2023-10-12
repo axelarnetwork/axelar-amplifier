@@ -1,5 +1,5 @@
 use axelar_wasm_std_derive::IntoContractError;
-use cosmwasm_std::{StdError, Uint64};
+use cosmwasm_std::{StdError, Uint64, Addr};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -48,4 +48,7 @@ pub enum ContractError {
 
     #[error("key type mismatch")]
     KeyTypeMismatch,
+
+    #[error("caller is not authorized")]
+    Unauthorized { contract_address: Addr },
 }
