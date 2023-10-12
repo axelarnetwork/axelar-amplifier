@@ -14,7 +14,7 @@
    on whether or not the transaction was successfully verified.
 */
 use std::array::TryFromSliceError;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::AddAssign;
 use std::ops::Mul;
@@ -160,11 +160,19 @@ pub struct WeightedPoll {
     poll_size: u64,
     votes: Vec<Uint256>, // running tally of weighted votes
     status: PollStatus,
-    voted: HashSet<Addr>,
+    voted: HashMap<String, bool>,
 }
 
 impl WeightedPoll {
     pub fn new(poll_id: PollID, snapshot: Snapshot, expiry: u64, poll_size: usize) -> Self {
+        // initialize the map with all possible voters so it always have the same size and therefore
+        // all voters will use roughly the same amount of gas when casting a vote.
+        let voted = snapshot
+            .participants
+            .keys()
+            .map(|address| (address.to_owned(), false))
+            .collect();
+
         WeightedPoll {
             poll_id,
             snapshot,
@@ -172,16 +180,18 @@ impl WeightedPoll {
             poll_size: poll_size as u64,
             votes: vec![Uint256::zero(); poll_size],
             status: PollStatus::InProgress,
-            voted: HashSet::new(),
+            voted,
         }
     }
 }
 
 impl Poll for WeightedPoll {
     fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
+        let everyone_voted = self.voted.iter().all(|(_, voted)| *voted);
+
         if block_height < self.expires_at
             // can tally early if all participants voted
-            && self.voted.len() < self.snapshot.get_participants().len()
+            && !everyone_voted
         {
             return Err(Error::PollNotEnded);
         }
@@ -221,7 +231,7 @@ impl Poll for WeightedPoll {
             return Err(Error::InvalidVoteSize);
         }
 
-        if self.voted.contains(sender) {
+        if let Some(true) = self.voted.get(&sender.to_string()) {
             return Err(Error::AlreadyVoted);
         }
 
@@ -229,7 +239,7 @@ impl Poll for WeightedPoll {
             return Err(Error::PollNotInProgress);
         }
 
-        self.voted.insert(sender.clone());
+        self.voted.insert(sender.to_string(), true);
 
         self.votes
             .iter_mut()
