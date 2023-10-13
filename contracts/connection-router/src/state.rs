@@ -159,7 +159,7 @@ impl FromStr for CrossChainId {
 
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, ID_SEPARATOR, self.id.to_string())
+        write!(f, "{}{}{}", self.chain, ID_SEPARATOR, *self.id)
     }
 }
 
