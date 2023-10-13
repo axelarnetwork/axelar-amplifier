@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
@@ -11,34 +12,32 @@ use crate::{error::ContractError, msg::RewardsParams};
 pub struct StoredParams {
     pub params: RewardsParams,
     /// epoch in which the params were updated
-    pub updated: Epoch,
+    pub last_updated: Epoch,
 }
 
 #[cw_serde]
 pub struct EpochTally {
-    pub epoch_num: u64,
     pub contract: Addr,
     pub event_count: u64,
     pub participation: HashMap<Addr, u64>,
-    pub rewards_rate: Uint256,
+    pub epoch: Epoch,
 }
 
 impl EpochTally {
     #[allow(dead_code)]
-    pub fn new(epoch_num: u64, contract: Addr, rewards_rate: Uint256) -> Self {
+    pub fn new(contract: Addr, epoch: Epoch) -> Self {
         EpochTally {
-            epoch_num,
             contract,
             event_count: 0,
             participation: HashMap::new(),
-            rewards_rate,
+            epoch,
         }
     }
 }
 
 #[cw_serde]
 pub struct Event {
-    event_id: String,
+    event_id: nonempty::String,
     contract: Addr,
     epoch_num: u64,
 }
@@ -47,6 +46,7 @@ pub struct Event {
 pub struct Epoch {
     pub epoch_num: u64,
     pub block_height_started: u64,
+    pub rewards: nonempty::Uint256,
 }
 
 #[cw_serde]
@@ -82,7 +82,11 @@ pub trait Store {
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
 
-    fn save_rewards_watermark(&mut self, contract: Addr, epoch_num: u64) -> Result<(), ContractError>;
+    fn save_rewards_watermark(
+        &mut self,
+        contract: Addr,
+        epoch_num: u64,
+    ) -> Result<(), ContractError>;
 
     fn save_event(&mut self, event: &Event) -> Result<(), ContractError>;
 
@@ -105,7 +109,7 @@ const POOLS: Map<Addr, RewardsPool> = Map::new("pools");
 
 /// Maps a contract address to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
 /// have had rewards distributed already and all epochs after have not yet had rewards distributed for this contract
-const WATERMARKS: Map<Addr,u64> = Map::new("rewards_watermarks");
+const WATERMARKS: Map<Addr, u64> = Map::new("rewards_watermarks");
 
 pub struct RewardsStore<'a> {
     pub storage: &'a mut dyn Storage,
@@ -150,7 +154,11 @@ impl Store for RewardsStore<'_> {
             .change_context(ContractError::SaveParams)
     }
 
-    fn save_rewards_watermark(&mut self, contract: Addr, epoch_num: u64) -> Result<(), ContractError> {
+    fn save_rewards_watermark(
+        &mut self,
+        contract: Addr,
+        epoch_num: u64,
+    ) -> Result<(), ContractError> {
         WATERMARKS
             .save(self.storage, contract, &epoch_num)
             .change_context(ContractError::SaveRewardsWatermark)
@@ -160,7 +168,7 @@ impl Store for RewardsStore<'_> {
         EVENTS
             .save(
                 self.storage,
-                (event.event_id.clone(), event.contract.clone()),
+                (event.event_id.clone().into(), event.contract.clone()),
                 event,
             )
             .change_context(ContractError::SaveEvent)
@@ -170,7 +178,7 @@ impl Store for RewardsStore<'_> {
         TALLIES
             .save(
                 self.storage,
-                (tally.contract.clone(), tally.epoch_num),
+                (tally.contract.clone(), tally.epoch.epoch_num),
                 tally,
             )
             .change_context(ContractError::SaveEpochTally)
@@ -201,11 +209,12 @@ mod test {
             params: RewardsParams {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: 100u64.try_into().unwrap(),
-                rewards_rate: Uint256::from(1000u128).try_into().unwrap(),
+                rewards_per_epoch: Uint256::from(1000u128).try_into().unwrap(),
             },
-            updated: Epoch {
+            last_updated: Epoch {
                 epoch_num: 1,
                 block_height_started: 1,
+                rewards: Uint256::from(1000u128).try_into().unwrap(),
             },
         };
         // save an initial params, then load it
@@ -219,9 +228,10 @@ mod test {
                 epoch_duration: 200u64.try_into().unwrap(),
                 ..params.params
             },
-            updated: Epoch {
+            last_updated: Epoch {
                 epoch_num: 2,
                 block_height_started: 101,
+                rewards: params.params.rewards_per_epoch,
             },
         };
         assert!(store.save_params(&new_params).is_ok());
@@ -238,6 +248,7 @@ mod test {
         let epoch = Epoch {
             epoch_num: 10,
             block_height_started: 1000,
+            rewards: Uint256::from(100u128).try_into().unwrap(),
         };
         let contract = Addr::unchecked("some contract");
 
@@ -271,16 +282,14 @@ mod test {
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
-
         // save the first water mark for this contract
-        let res = store.save_rewards_watermark(diff_contract.clone(), epoch.epoch_num+7);
+        let res = store.save_rewards_watermark(diff_contract.clone(), epoch.epoch_num + 7);
         assert!(res.is_ok());
 
         let loaded = store.load_rewards_watermark(diff_contract.clone());
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
-        assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num+7);
-
+        assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num + 7);
     }
 
     #[test]
@@ -292,7 +301,7 @@ mod test {
 
         let event = Event {
             contract: Addr::unchecked("some contract"),
-            event_id: "some event".into(),
+            event_id: "some event".try_into().unwrap(),
             epoch_num: 2,
         };
 
@@ -300,7 +309,7 @@ mod test {
         assert!(res.is_ok());
 
         // check that we load the event that we just saved
-        let loaded = store.load_event(event.event_id.clone(), event.contract.clone());
+        let loaded = store.load_event(event.event_id.clone().into(), event.contract.clone());
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), event);
@@ -315,7 +324,7 @@ mod test {
 
         // same event id but different contract address, should still return none
         let loaded = store.load_event(
-            event.event_id.clone(),
+            event.event_id.clone().into(),
             Addr::unchecked("different contract"),
         );
         assert!(loaded.is_ok());
@@ -337,7 +346,12 @@ mod test {
         let epoch_num = 10;
         let contract = Addr::unchecked("some contract");
         let rewards_rate = Uint256::from(100u128).try_into().unwrap();
-        let tally = EpochTally::new(epoch_num, contract.clone(), rewards_rate);
+        let epoch = Epoch {
+            epoch_num,
+            block_height_started: 1,
+            rewards: rewards_rate,
+        };
+        let tally = EpochTally::new(contract.clone(), epoch);
 
         let res = store.save_epoch_tally(&tally);
         assert!(res.is_ok());

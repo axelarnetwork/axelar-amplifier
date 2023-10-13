@@ -15,7 +15,7 @@ pub struct RewardsParams {
     pub epoch_duration: nonempty::Uint64,
 
     /// Total number of tokens distributed as rewards per epoch. Tokens are split equally amongst all participating workers for a given epoch
-    pub rewards_rate: nonempty::Uint256,
+    pub rewards_per_epoch: nonempty::Uint256,
 
     /// Participation threshold workers must meet to receive rewards in a given epoch, specified as a fraction between 0 (exclusive) and 1 (exclusive). Workers
     /// must participate in at least this fraction of all events in a given epoch to receive rewards. So, if participation_threshold is 9/10,

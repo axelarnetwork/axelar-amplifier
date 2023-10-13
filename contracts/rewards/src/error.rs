@@ -29,4 +29,7 @@ pub enum ContractError {
 
     #[error("error loading rewards watermark")]
     LoadRewardsWatermark,
+
+    #[error("invalid event id")]
+    InvalidEventId,
 }
