@@ -18,7 +18,7 @@ struct ContractCall {
     pub payload_hash: Hash,
 }
 
-// event type is in the form of: <gateway_address>::gateway::ContractCall
+// Event type is in the form of: <gateway_address>::gateway::ContractCall
 fn call_contract_type(gateway_address: &ObjectID) -> StructTag {
     format!("{}::{}", gateway_address, CONTRACT_CALL_EVENT)
         .parse()
@@ -59,7 +59,6 @@ fn find_event<'a>(
         })
 }
 
-#[allow(dead_code)]
 pub fn verify_message(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,

@@ -3,6 +3,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use cosmrs::{tx::Msg, Any, Gas};
 use error_stack::{self, Report, ResultExt};
+use mockall::automock;
 use thiserror::Error;
 use tokio::time;
 use tokio::{select, sync::mpsc};
@@ -38,11 +39,12 @@ impl QueuedBroadcasterDriver {
     }
 }
 
+#[automock]
 #[async_trait]
 pub trait BroadcasterClient {
     async fn broadcast<T>(&self, tx: T) -> Result
     where
-        T: Msg + Send + Sync;
+        T: Msg + Send + Sync + 'static;
 }
 
 pub struct QueuedBroadcasterClient {
@@ -53,7 +55,7 @@ pub struct QueuedBroadcasterClient {
 impl BroadcasterClient for QueuedBroadcasterClient {
     async fn broadcast<T>(&self, tx: T) -> Result
     where
-        T: Msg + Send + Sync,
+        T: Msg + Send + Sync + 'static,
     {
         self.sender
             .send(

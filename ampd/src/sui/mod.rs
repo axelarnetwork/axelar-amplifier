@@ -1,2 +1,2 @@
-mod json_rpc;
-mod verifier;
+pub mod json_rpc;
+pub mod verifier;
