@@ -44,7 +44,7 @@ pub fn confirm_worker_set(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    let snapshot = take_snapshot(deps.as_ref(), &env, &config.source_chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.get_participants();
 
     let poll_id = create_worker_set_poll(
@@ -127,7 +127,7 @@ pub fn verify_messages(
         return Ok(response);
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &env, &pending_messages[0].cc_id.chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &pending_messages[0].cc_id.chain)?;
     let participants = snapshot.get_participants();
     let id = create_messages_poll(
         deps.storage,
@@ -271,11 +271,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         .set_data(to_binary(&EndPollResponse { poll_result })?))
 }
 
-fn take_snapshot(
-    deps: Deps,
-    env: &Env,
-    chain: &ChainName,
-) -> Result<snapshot::Snapshot, ContractError> {
+fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // todo: add chain param to query after service registry updated
@@ -296,8 +292,6 @@ fn take_snapshot(
         .collect::<Result<Vec<snapshot::Participant>, _>>()?;
 
     Ok(snapshot::Snapshot::new(
-        env.block.time.try_into()?,
-        env.block.height.try_into()?,
         config.voting_threshold,
         participants.try_into()?,
     ))

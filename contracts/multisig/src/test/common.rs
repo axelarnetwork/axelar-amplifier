@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::{Participant, Snapshot, Threshold};
-use cosmwasm_std::{Addr, HexBinary, Timestamp, Uint256, Uint64};
-use rand::Rng;
+use cosmwasm_std::{Addr, HexBinary, Uint256};
 
 use crate::{
     key::{KeyType, PublicKey},
@@ -95,8 +94,6 @@ pub mod ed25519_test_data {
 }
 
 pub fn build_snapshot(signers: &Vec<TestSigner>) -> Snapshot {
-    let mut rng = rand::thread_rng();
-
     let participants = signers
         .iter()
         .map(|signer| Participant {
@@ -106,8 +103,6 @@ pub fn build_snapshot(signers: &Vec<TestSigner>) -> Snapshot {
         .collect::<Vec<_>>();
 
     Snapshot::new(
-        Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-        Uint64::from(rng.gen::<u64>()).try_into().unwrap(),
         Threshold::try_from((2u64, 3u64)).unwrap(),
         participants.try_into().unwrap(),
     )

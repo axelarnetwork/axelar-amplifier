@@ -37,7 +37,7 @@ pub fn construct_proof(
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let workers_info = get_workers_info(&deps, &env, &config)?;
+            let workers_info = get_workers_info(&deps, &config)?;
             let new_worker_set = get_next_worker_set(&deps, &env, &config)?;
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
 
@@ -107,11 +107,7 @@ fn get_messages(
     Ok(messages)
 }
 
-fn get_workers_info(
-    deps: &DepsMut,
-    env: &Env,
-    config: &Config,
-) -> Result<WorkersInfo, ContractError> {
+fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, ContractError> {
     let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.to_string(),
@@ -128,12 +124,8 @@ fn get_workers_info(
         .map(service_registry::state::Worker::try_into)
         .collect::<Result<Vec<snapshot::Participant>, _>>()?;
 
-    let snapshot = snapshot::Snapshot::new(
-        env.block.time.try_into()?,
-        env.block.height.try_into()?,
-        config.signing_threshold,
-        participants.clone().try_into()?,
-    );
+    let snapshot =
+        snapshot::Snapshot::new(config.signing_threshold, participants.clone().try_into()?);
 
     let mut pub_keys = vec![];
     for worker in &workers {
@@ -155,7 +147,7 @@ fn get_workers_info(
 }
 
 fn make_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Result<WorkerSet, ContractError> {
-    let workers_info = get_workers_info(deps, env, config)?;
+    let workers_info = get_workers_info(deps, config)?;
     WorkerSet::new(
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
@@ -234,7 +226,7 @@ fn make_keygen_msg(
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let workers_info = get_workers_info(&deps, &env, &config)?;
+    let workers_info = get_workers_info(&deps, &config)?;
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
 
     match cur_worker_set {
@@ -342,7 +334,7 @@ fn different_set_in_progress(storage: &dyn Storage, new_worker_set: &WorkerSet) 
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::Snapshot;
-    use cosmwasm_std::{testing::mock_dependencies, Timestamp, Uint256, Uint64};
+    use cosmwasm_std::{testing::mock_dependencies, Uint256};
 
     use crate::{execute::should_update_worker_set, state::NEXT_WORKER_SET, test::test_data};
     use std::collections::{BTreeSet, HashMap};
@@ -437,9 +429,6 @@ mod tests {
 
     fn snapshot() -> Snapshot {
         Snapshot {
-            timestamp: Timestamp::from_nanos(1).try_into().unwrap(),
-            height: Uint64::one().try_into().unwrap(),
-            total_weight: Uint256::one().try_into().unwrap(),
             quorum: Uint256::one().try_into().unwrap(),
             participants: HashMap::new(),
         }
