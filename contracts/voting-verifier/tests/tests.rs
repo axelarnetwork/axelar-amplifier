@@ -281,7 +281,7 @@ fn should_confirm_worker_set() {
             service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
-                chain_name: source_chain().to_string(),
+                chain_name: source_chain(),
             },
         )
         .unwrap();
@@ -335,7 +335,7 @@ fn should_not_confirm_worker_set() {
             service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
-                chain_name: source_chain().to_string(),
+                chain_name: source_chain(),
             },
         )
         .unwrap();
@@ -389,7 +389,7 @@ fn should_confirm_worker_set_after_failed() {
             service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
-                chain_name: source_chain().to_string(),
+                chain_name: source_chain(),
             },
         )
         .unwrap();
@@ -475,7 +475,7 @@ fn should_not_confirm_twice() {
             service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
-                chain_name: source_chain().to_string(),
+                chain_name: source_chain(),
             },
         )
         .unwrap();
