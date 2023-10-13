@@ -39,16 +39,16 @@ mod tests {
     use std::str::FromStr;
 
     use cosmrs::AccountId;
-    use ecdsa::SigningKey;
-    use rand::rngs::OsRng;
 
     use crate::evm::ChainName;
     use crate::handlers::config::Chain;
     use crate::handlers::config::Config as HandlerConfig;
-    use crate::types::{PublicKey, TMAddress};
+    use crate::types::TMAddress;
     use crate::url::Url;
 
     use super::Config;
+
+    const PREFIX: &str = "axelar";
 
     #[test]
     fn deserialize_handlers() {
@@ -81,16 +81,22 @@ mod tests {
             [[handlers]]
             type = 'MultisigSigner'
             cosmwasm_contract = '{}'
+
+            [[handlers]]
+            type = 'SuiMsgVerifier'
+            cosmwasm_contract = '{}'
+            rpc_url = 'http://localhost:7545/'
             ",
-            rand_tm_address(),
-            rand_tm_address(),
-            rand_tm_address(),
-            rand_tm_address(),
-            rand_tm_address(),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 5);
+        assert_eq!(cfg.handlers.len(), 6);
     }
 
     #[test]
@@ -109,8 +115,8 @@ mod tests {
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7546/'
             ",
-            rand_tm_address(),
-            rand_tm_address(),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
@@ -132,8 +138,8 @@ mod tests {
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7546/'
             ",
-            rand_tm_address(),
-            rand_tm_address(),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
@@ -151,8 +157,8 @@ mod tests {
             type = 'MultisigSigner'
             cosmwasm_contract = '{}'
             ",
-            rand_tm_address(),
-            rand_tm_address(),
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
         );
 
         assert!(toml::from_str::<Config>(config_str.as_str()).is_err());
@@ -196,13 +202,6 @@ mod tests {
         assert_eq!(cfg.tofnd_config.url.as_str(), url);
         assert_eq!(cfg.tofnd_config.party_uid.as_str(), party_uid);
         assert_eq!(cfg.tofnd_config.key_uid.as_str(), key_uid);
-    }
-
-    fn rand_tm_address() -> TMAddress {
-        PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
-            .account_id("axelar")
-            .unwrap()
-            .into()
     }
 
     #[test]
@@ -258,6 +257,12 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
+                },
+                HandlerConfig::SuiMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
             ],
             ..Config::default()

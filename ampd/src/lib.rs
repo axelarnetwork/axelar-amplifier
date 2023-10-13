@@ -216,6 +216,18 @@ where
                             self.ecdsa_client.clone(),
                         ),
                     ),
+                handlers::config::Config::SuiMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.configure_handler(
+                    "sui-msg-verifier",
+                    handlers::sui_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        self.broadcaster.client(),
+                    ),
+                ),
             }
         }
 
