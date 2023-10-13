@@ -252,7 +252,11 @@ pub mod execute {
             .ok_or(ContractError::WorkerNotFound)?;
 
         for chain in chains {
-            WORKERS_PER_CHAIN.save(deps.storage, (&chain, &service_name, &info.sender), &())?;
+            WORKERS_PER_CHAIN.save(
+                deps.storage,
+                (&service_name, chain.clone(), &info.sender),
+                &(),
+            )?;
         }
 
         Ok(Response::new())
@@ -354,7 +358,7 @@ pub mod query {
             .ok_or(ContractError::ServiceNotFound)?;
 
         let workers = WORKERS_PER_CHAIN
-            .prefix((&chain_name, &service_name))
+            .prefix((&service_name, chain_name))
             .range(deps.storage, None, None, Order::Ascending)
             .map(|res| res.and_then(|(addr, _)| WORKERS.load(deps.storage, (&service_name, &addr))))
             .collect::<Result<Vec<Worker>, _>>()?
