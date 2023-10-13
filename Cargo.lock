@@ -7435,7 +7435,6 @@ dependencies = [
  "error-stack",
  "getrandom 0.2.10",
  "k256 0.13.1",
- "rand 0.8.5",
  "report",
  "schemars",
  "serde",
