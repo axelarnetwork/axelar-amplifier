@@ -9563,9 +9563,14 @@ name = "rewards"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "report",
  "serde",
+ "thiserror",
 ]
 
 [[package]]
