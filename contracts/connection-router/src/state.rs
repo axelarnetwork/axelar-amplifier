@@ -132,6 +132,12 @@ impl TryFrom<String> for Address {
 #[derive(Eq, Hash)]
 pub struct MessageId(String);
 
+impl MessageId {
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0.into_bytes()
+    }
+}
+
 impl FromStr for MessageId {
     type Err = ContractError;
 
@@ -305,6 +311,18 @@ impl<'a> Prefixer<'a> for ChainName {
 
 impl KeyDeserialize for ChainName {
     type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(ChainName::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
+impl KeyDeserialize for &ChainName {
+    type Output = ChainName;
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {

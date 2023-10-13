@@ -110,6 +110,8 @@ pub fn execute(
 }
 
 pub mod execute {
+    use connection_router::state::ChainName;
+
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 
     use super::*;
@@ -239,7 +241,7 @@ pub mod execute {
         deps: DepsMut,
         info: MessageInfo,
         service_name: String,
-        chains: Vec<String>,
+        chains: Vec<ChainName>,
     ) -> Result<Response, ContractError> {
         SERVICES
             .may_load(deps.storage, &service_name)?
@@ -336,6 +338,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 pub mod query {
+    use connection_router::state::ChainName;
+
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 
     use super::*;
@@ -343,7 +347,7 @@ pub mod query {
     pub fn get_active_workers(
         deps: Deps,
         service_name: String,
-        chain_name: String,
+        chain_name: ChainName,
     ) -> Result<Vec<Worker>, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?

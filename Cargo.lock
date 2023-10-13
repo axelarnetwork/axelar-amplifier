@@ -7460,7 +7460,6 @@ dependencies = [
  "error-stack",
  "getrandom 0.2.10",
  "k256 0.13.1",
- "rand 0.8.5",
  "report",
  "schemars",
  "serde",
@@ -7692,8 +7691,11 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 1.1.0",
  "error-stack",
+ "hex",
  "mockall",
  "report",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 
@@ -10506,6 +10508,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
