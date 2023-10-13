@@ -321,6 +321,18 @@ impl KeyDeserialize for ChainName {
     }
 }
 
+impl KeyDeserialize for &ChainName {
+    type Output = ChainName;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(ChainName::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
 #[cw_serde]
 pub struct Gateway {
     pub address: Addr,

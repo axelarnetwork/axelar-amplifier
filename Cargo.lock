@@ -10471,6 +10471,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",

@@ -278,7 +278,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     // query service registry for active workers
     let active_workers_query = QueryMsg::GetActiveWorkers {
         service_name: config.service_name.to_string(),
-        chain_name: chain.clone().into(),
+        chain_name: chain.clone(),
     };
 
     let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

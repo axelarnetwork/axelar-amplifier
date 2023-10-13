@@ -1,3 +1,4 @@
+use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -126,7 +127,7 @@ pub enum AuthorizationState {
 // maps service_name -> Service
 pub const SERVICES: Map<&str, Service> = Map::new("services");
 // maps (service_name, chain_name, worker_address) -> ()
-pub const WORKERS_PER_CHAIN: Map<(&str, &str, &Addr), ()> = Map::new("workers_per_chain");
+pub const WORKERS_PER_CHAIN: Map<(&str, &ChainName, &Addr), ()> = Map::new("workers_per_chain");
 // maps (service_name, worker_address) -> Worker
 pub const WORKERS: Map<(&str, &Addr), Worker> = Map::new("workers");
 
