@@ -51,13 +51,14 @@ impl TryFrom<RouterMessage> for Message {
     type Error = Report<ContractError>;
 
     fn try_from(msg: RouterMessage) -> Result<Self, ContractError> {
+        // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) = parse_message_id(&msg.cc_id.id).unwrap_or((
             msg.cc_id
                 .id
                 .into_bytes()
                 .try_into()
                 .expect("message ID must be non-empty"),
-            0,
+            u64::MAX,
         ));
         let payload_hash = <nonempty::Vec<u8>>::try_from(&msg.payload_hash)
             .change_context(ContractError::InvalidMessagePayloadHash(msg.payload_hash))?;
