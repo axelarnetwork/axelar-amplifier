@@ -68,7 +68,7 @@ impl RewardsPool {
 pub trait Store {
     fn load_params(&self) -> StoredParams;
 
-    fn load_rewards_watermark(&self) -> Result<Option<u64>, ContractError>;
+    fn load_rewards_watermark(&self, contract: Addr) -> Result<Option<u64>, ContractError>;
 
     fn load_event(&self, event_id: String, contract: Addr) -> Result<Option<Event>, ContractError>;
 
@@ -82,7 +82,7 @@ pub trait Store {
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
 
-    fn save_rewards_watermark(&mut self, epoch_num: u64) -> Result<(), ContractError>;
+    fn save_rewards_watermark(&mut self, contract: Addr, epoch_num: u64) -> Result<(), ContractError>;
 
     fn save_event(&mut self, event: &Event) -> Result<(), ContractError>;
 
@@ -103,9 +103,9 @@ const EVENTS: Map<(String, Addr), Event> = Map::new("events");
 /// Maps a contract address to the rewards pool for that contract
 const POOLS: Map<Addr, RewardsPool> = Map::new("pools");
 
-/// Epoch number of the most recent epoch for which rewards were distributed. All epochs prior
-/// have had rewards distributed already and all epochs after have not yet had rewards distributed.
-const WATERMARK: Item<u64> = Item::new("rewards_watermark");
+/// Maps a contract address to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
+/// have had rewards distributed already and all epochs after have not yet had rewards distributed for this contract
+const WATERMARKS: Map<Addr,u64> = Map::new("rewards_watermarks");
 
 pub struct RewardsStore<'a> {
     pub storage: &'a mut dyn Storage,
@@ -116,9 +116,9 @@ impl Store for RewardsStore<'_> {
         PARAMS.load(self.storage).expect("params should exist")
     }
 
-    fn load_rewards_watermark(&self) -> Result<Option<u64>, ContractError> {
-        WATERMARK
-            .may_load(self.storage)
+    fn load_rewards_watermark(&self, contract: Addr) -> Result<Option<u64>, ContractError> {
+        WATERMARKS
+            .may_load(self.storage, contract)
             .change_context(ContractError::LoadRewardsWatermark)
     }
 
@@ -150,9 +150,9 @@ impl Store for RewardsStore<'_> {
             .change_context(ContractError::SaveParams)
     }
 
-    fn save_rewards_watermark(&mut self, epoch_num: u64) -> Result<(), ContractError> {
-        WATERMARK
-            .save(self.storage, &epoch_num)
+    fn save_rewards_watermark(&mut self, contract: Addr, epoch_num: u64) -> Result<(), ContractError> {
+        WATERMARKS
+            .save(self.storage, contract, &epoch_num)
             .change_context(ContractError::SaveRewardsWatermark)
     }
 
@@ -239,29 +239,48 @@ mod test {
             epoch_num: 10,
             block_height_started: 1000,
         };
+        let contract = Addr::unchecked("some contract");
 
         // should be empty at first
-        let loaded = store.load_rewards_watermark();
+        let loaded = store.load_rewards_watermark(contract.clone());
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
         // save the first water mark
-        let res = store.save_rewards_watermark(epoch.epoch_num);
+        let res = store.save_rewards_watermark(contract.clone(), epoch.epoch_num);
         assert!(res.is_ok());
 
-        let loaded = store.load_rewards_watermark();
+        let loaded = store.load_rewards_watermark(contract.clone());
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num);
 
         // now store a new watermark, should overwrite
-        let res = store.save_rewards_watermark(epoch.epoch_num + 1);
+        let res = store.save_rewards_watermark(contract.clone(), epoch.epoch_num + 1);
         assert!(res.is_ok());
 
-        let loaded = store.load_rewards_watermark();
+        let loaded = store.load_rewards_watermark(contract);
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num + 1);
+
+        // check different contract
+        let diff_contract = Addr::unchecked("some other contract");
+        // should be empty at first
+        let loaded = store.load_rewards_watermark(diff_contract.clone());
+        assert!(loaded.is_ok());
+        assert!(loaded.unwrap().is_none());
+
+
+        // save the first water mark for this contract
+        let res = store.save_rewards_watermark(diff_contract.clone(), epoch.epoch_num+7);
+        assert!(res.is_ok());
+
+        let loaded = store.load_rewards_watermark(diff_contract.clone());
+        assert!(loaded.is_ok());
+        assert!(loaded.as_ref().unwrap().is_some());
+        assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num+7);
+
     }
 
     #[test]
