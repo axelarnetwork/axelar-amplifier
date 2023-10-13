@@ -57,6 +57,19 @@ where
     C: SuiClient + Send + Sync,
     B: BroadcasterClient,
 {
+    pub fn new(
+        worker: TMAddress,
+        voting_verifier: TMAddress,
+        rpc_client: C,
+        broadcast_client: B,
+    ) -> Self {
+        Self {
+            worker,
+            voting_verifier,
+            rpc_client,
+            broadcast_client,
+        }
+    }
     async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
             .expect("vote msg should serialize");
@@ -177,12 +190,12 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler {
-            worker: TMAddress::random(PREFIX),
-            voting_verifier: TMAddress::random(PREFIX),
-            rpc_client: MockSuiClient::new(),
-            broadcast_client: MockBroadcasterClient::new(),
-        };
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            MockSuiClient::new(),
+            MockBroadcasterClient::new(),
+        );
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -195,12 +208,12 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
 
-        let handler = super::Handler {
-            worker: TMAddress::random(PREFIX),
-            voting_verifier: TMAddress::random(PREFIX),
-            rpc_client: MockSuiClient::new(),
-            broadcast_client: MockBroadcasterClient::new(),
-        };
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            MockSuiClient::new(),
+            MockBroadcasterClient::new(),
+        );
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -211,12 +224,12 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let event = get_event(poll_started_event(participants(5, None)), &voting_verifier);
 
-        let handler = super::Handler {
-            worker: TMAddress::random(PREFIX),
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
             voting_verifier,
-            rpc_client: MockSuiClient::new(),
-            broadcast_client: MockBroadcasterClient::new(),
-        };
+            MockSuiClient::new(),
+            MockBroadcasterClient::new(),
+        );
 
         assert!(handler.handle(&event).await.is_ok());
     }
@@ -240,12 +253,12 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler {
+        let handler = super::Handler::new(
             worker,
             voting_verifier,
             rpc_client,
-            broadcast_client: MockBroadcasterClient::new(),
-        };
+            MockBroadcasterClient::new(),
+        );
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
@@ -274,12 +287,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler {
-            worker,
-            voting_verifier,
-            rpc_client,
-            broadcast_client,
-        };
+        let handler = super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client);
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),

@@ -28,6 +28,11 @@ chain_rpc_url = 'http://127.0.0.1/'
 type = 'MultisigSigner'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 
+[[handlers]]
+type = 'SuiMsgVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
 [tofnd_config]
 url = 'http://localhost:50051/'
 party_uid = 'ampd'
