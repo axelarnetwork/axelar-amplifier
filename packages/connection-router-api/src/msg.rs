@@ -5,7 +5,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 pub enum ExecuteMsg {
     /*
      * Governance Methods
-     * All of the below messages can only be called by governance
+     * All of the below messages should only be called by governance
      */
     // Registers a new chain with the router
     RegisterChain {
