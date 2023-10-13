@@ -20,7 +20,7 @@ pub enum ExecuteMsg {
 
     /*
      * Router Admin Methods
-     * All of the below messages can only be called by the router admin
+     * All of the below messages should only be called by the router admin
      */
     // Freezes a chain, in the specified direction.
     FreezeChain {
