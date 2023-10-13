@@ -14,7 +14,7 @@
    on whether or not the transaction was successfully verified.
 */
 use std::array::TryFromSliceError;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::AddAssign;
 use std::ops::Mul;
@@ -26,6 +26,7 @@ use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
 use thiserror::Error;
 
+use crate::nonempty;
 use crate::Snapshot;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -153,35 +154,62 @@ pub enum PollStatus {
 }
 
 #[cw_serde]
+pub struct Participation {
+    pub weight: nonempty::Uint256,
+    pub voted: bool,
+}
+
+#[cw_serde]
 pub struct WeightedPoll {
     poll_id: PollID,
-    snapshot: Snapshot,
+    quorum: nonempty::Uint256,
     expires_at: u64,
     poll_size: u64,
     votes: Vec<Uint256>, // running tally of weighted votes
     status: PollStatus,
-    voted: HashSet<Addr>,
+    participation: HashMap<String, Participation>,
 }
 
 impl WeightedPoll {
     pub fn new(poll_id: PollID, snapshot: Snapshot, expiry: u64, poll_size: usize) -> Self {
+        // initialize the map with all possible voters so it always have the same size and therefore
+        // all voters will use roughly the same amount of gas when casting a vote.
+        let participation = snapshot
+            .participants
+            .into_iter()
+            .map(|(address, participant)| {
+                (
+                    address,
+                    Participation {
+                        weight: participant.weight,
+                        voted: false,
+                    },
+                )
+            })
+            .collect();
+
         WeightedPoll {
             poll_id,
-            snapshot,
+            quorum: snapshot.quorum,
             expires_at: expiry,
             poll_size: poll_size as u64,
             votes: vec![Uint256::zero(); poll_size],
             status: PollStatus::InProgress,
-            voted: HashSet::new(),
+            participation,
         }
     }
 }
 
 impl Poll for WeightedPoll {
     fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
+        let everyone_voted = self
+            .participation
+            .iter()
+            .all(|(_, participation)| participation.voted);
+
         if block_height < self.expires_at
             // can tally early if all participants voted
-            && self.voted.len() < self.snapshot.get_participants().len()
+            && !everyone_voted
         {
             return Err(Error::PollNotEnded);
         }
@@ -197,7 +225,7 @@ impl Poll for WeightedPoll {
             results: self
                 .votes
                 .iter()
-                .map(|tally| *tally >= self.snapshot.quorum.into())
+                .map(|tally| *tally >= self.quorum.into())
                 .collect(),
         })
     }
@@ -208,9 +236,9 @@ impl Poll for WeightedPoll {
         sender: &Addr,
         votes: Vec<bool>,
     ) -> Result<PollStatus, Error> {
-        let participant = self
-            .snapshot
-            .get_participant(sender)
+        let participation = self
+            .participation
+            .get_mut(sender.as_str())
             .ok_or(Error::NotParticipant)?;
 
         if block_height >= self.expires_at {
@@ -221,7 +249,7 @@ impl Poll for WeightedPoll {
             return Err(Error::InvalidVoteSize);
         }
 
-        if self.voted.contains(sender) {
+        if participation.voted {
             return Err(Error::AlreadyVoted);
         }
 
@@ -229,14 +257,14 @@ impl Poll for WeightedPoll {
             return Err(Error::PollNotInProgress);
         }
 
-        self.voted.insert(sender.clone());
+        participation.voted = true;
 
         self.votes
             .iter_mut()
             .zip(votes.into_iter())
             .filter(|(_, vote)| *vote)
             .for_each(|(tally, _)| {
-                *tally += Uint256::from(participant.weight);
+                *tally += Uint256::from(participation.weight);
             });
 
         Ok(PollStatus::InProgress)
@@ -252,6 +280,32 @@ mod tests {
     use crate::{nonempty, Participant, Threshold};
 
     use super::*;
+
+    #[test]
+    fn cast_vote() {
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let votes = vec![true, true];
+
+        assert_eq!(
+            poll.participation.get("addr1").unwrap(),
+            &Participation {
+                weight: nonempty::Uint256::try_from(Uint256::from(100u64)).unwrap(),
+                voted: false,
+            }
+        );
+
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+
+        assert_eq!(
+            poll.participation.get("addr1").unwrap(),
+            &Participation {
+                weight: nonempty::Uint256::try_from(Uint256::from(100u64)).unwrap(),
+                voted: true,
+            }
+        );
+    }
 
     #[test]
     fn voter_not_a_participant() {

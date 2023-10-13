@@ -15,6 +15,9 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
+hex = "0.4.3"
 mockall = "0.11.4"
 report = { workspace = true }
+schemars = "0.8.15"
+serde = { version = "1.0.188", features = ["derive"] }
 thiserror = { workspace = true }
