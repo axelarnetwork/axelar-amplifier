@@ -252,11 +252,7 @@ pub mod execute {
             .ok_or(ContractError::WorkerNotFound)?;
 
         for chain in chains {
-            WORKERS_PER_CHAIN.save(
-                deps.storage,
-                (&service_name, &chain, &info.sender),
-                &(),
-            )?;
+            WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
         }
 
         Ok(Response::new())
