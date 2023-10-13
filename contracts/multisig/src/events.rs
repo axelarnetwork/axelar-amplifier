@@ -30,6 +30,12 @@ pub enum Event {
         worker: Addr,
         public_key: PublicKey,
     },
+    CallerAuthorized {
+        contract_address: Addr,
+    },
+    CallerUnauthorized {
+        contract_address: Addr,
+    },
 }
 
 impl From<Event> for cosmwasm_std::Event {
@@ -72,6 +78,14 @@ impl From<Event> for cosmwasm_std::Event {
                         "public_key",
                         to_string(&public_key).expect("failed to serialize public key"),
                     )
+            }
+            Event::CallerAuthorized { contract_address } => {
+                cosmwasm_std::Event::new("caller_authorized")
+                    .add_attribute("contract_address", contract_address)
+            }
+            Event::CallerUnauthorized { contract_address } => {
+                cosmwasm_std::Event::new("caller_unauthorized")
+                    .add_attribute("contract_address", contract_address)
             }
         }
     }

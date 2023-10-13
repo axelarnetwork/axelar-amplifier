@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 
 use axelar_wasm_std::Snapshot;
+use connection_router::contract::execute::require_governance;
 use std::collections::HashMap;
 
 use crate::{
@@ -39,13 +40,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id, msg } => execute::start_signing_session(
-            deps,
-            info,
-            key_id,
-            msg.try_into()
-                .map_err(axelar_wasm_std::ContractError::from)?,
-        ),
+        ExecuteMsg::StartSigningSession { key_id, msg } => {
+            execute::require_valid_caller(&deps, info.clone())?;
+            execute::start_signing_session(
+                deps,
+                info,
+                key_id,
+                msg.try_into()
+                    .map_err(axelar_wasm_std::ContractError::from)?,
+            )
+        }
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
@@ -58,6 +62,14 @@ pub fn execute(
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
         }
+        ExecuteMsg::AuthorizeCaller { contract_address } => {
+            require_governance(&deps, info.clone())?;
+            execute::authorize_caller(deps, info, contract_address)
+        }
+        ExecuteMsg::UnauthorizeCaller { contract_address } => {
+            require_governance(&deps, info.clone())?;
+            execute::remove_caller(deps, info, contract_address)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -67,7 +79,7 @@ pub mod execute {
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
-        state::PUB_KEYS,
+        state::{AUTHORIZED_CALLERS, PUB_KEYS},
     };
 
     use super::*;
@@ -220,31 +232,47 @@ pub mod execute {
     }
 
     pub fn require_valid_caller(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-	
         let session_id = SIGNING_SESSION_COUNTER.load(deps.storage)?;
-    
+
         let session = SIGNING_SESSIONS
-                .load(deps.storage, session_id.into())
-                .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-    
+            .load(deps.storage, session_id.into())
+            .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
+
         let key = KEYS.load(deps.storage, &session.key_id)?;
-      
+
         match key
-                    .pub_keys
-                    .iter()
-                    .find(|&(addr, _)| addr == &info.sender.to_string())
-            {
-                None => {
-                    return Err(ContractError::Unauthorized{ 
-                        contract_address: info.sender, 
-                    })
-                }
-                Some(key) => {
-                    Ok(())
-                }
+            .pub_keys
+            .iter()
+            .find(|&(addr, _)| addr == &info.sender.to_string())
+        {
+            None => {
+                return Err(ContractError::Unauthorized {
+                    contract_address: info.sender,
+                })
             }
+            Some(key) => Ok(()),
+        }
     }
 
+    pub fn authorize_caller(
+        deps: DepsMut,
+        info: MessageInfo,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.save(deps.storage, contract_address.clone(), &())?;
+
+        Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
+    }
+
+    pub fn remove_caller(
+        deps: DepsMut,
+        info: MessageInfo,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.remove(deps.storage, contract_address.clone());
+
+        Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

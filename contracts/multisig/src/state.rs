@@ -45,3 +45,5 @@ pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError
 
 // key type is part of the key so signers can register multiple keys with different types
 pub const PUB_KEYS: Map<(Addr, KeyType), HexBinary> = Map::new("registered_pub_keys");
+
+pub const AUTHORIZED_CALLERS: Map<Addr, ()> = Map::new("authorized_callers");

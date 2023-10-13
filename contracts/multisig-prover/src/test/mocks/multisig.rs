@@ -50,6 +50,8 @@ pub fn execute(
             )?;
             Ok(Response::default())
         }
+        ExecuteMsg::AuthorizeCaller { contract_address } => Ok(Response::default()),
+        ExecuteMsg::UnauthorizeCaller { contract_address } => Ok(Response::default()),
     }
 }
 

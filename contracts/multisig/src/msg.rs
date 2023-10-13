@@ -33,6 +33,12 @@ pub enum ExecuteMsg {
     RegisterPublicKey {
         public_key: PublicKey,
     },
+    AuthorizeCaller {
+        contract_address: Addr,
+    },
+    UnauthorizeCaller {
+        contract_address: Addr,
+    },
 }
 
 #[cw_serde]

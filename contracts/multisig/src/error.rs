@@ -1,5 +1,5 @@
 use axelar_wasm_std_derive::IntoContractError;
-use cosmwasm_std::{StdError, Uint64, Addr};
+use cosmwasm_std::{Addr, StdError, Uint64};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
