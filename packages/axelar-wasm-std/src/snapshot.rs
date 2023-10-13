@@ -13,20 +13,12 @@ pub struct Participant {
 
 #[cw_serde]
 pub struct Snapshot {
-    pub timestamp: nonempty::Timestamp,
-    pub height: nonempty::Uint64,
-    pub total_weight: nonempty::Uint256,
     pub quorum: nonempty::Uint256,
     pub participants: HashMap<String, Participant>,
 }
 
 impl Snapshot {
-    pub fn new(
-        timestamp: nonempty::Timestamp,
-        height: nonempty::Uint64,
-        quorum_threshold: Threshold,
-        participants: nonempty::Vec<Participant>,
-    ) -> Self {
+    pub fn new(quorum_threshold: Threshold, participants: nonempty::Vec<Participant>) -> Self {
         let mut total_weight = Uint256::zero();
 
         let participants: Vec<Participant> = participants.into();
@@ -43,13 +35,8 @@ impl Snapshot {
         // Shouldn't panic here since it's impossible to have zero values when using nonempty::Vec of Participants with NonZero weight
         let quorum = nonempty::Uint256::try_from(total_weight.mul_ceil(quorum_threshold))
             .expect("violated invariant: quorum is zero");
-        let total_weight = nonempty::Uint256::try_from(total_weight)
-            .expect("violated invariant: total_weight is zero");
 
         Self {
-            timestamp,
-            height,
-            total_weight,
             quorum,
             participants,
         }
@@ -76,8 +63,7 @@ impl Snapshot {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{from_binary, to_binary, Timestamp, Uint64};
-    use rand::Rng;
+    use cosmwasm_std::{from_binary, to_binary, Uint64};
 
     use super::*;
 
@@ -120,28 +106,12 @@ mod tests {
 
     #[test]
     fn test_valid_snapshot() {
-        let mut rng = rand::thread_rng();
-
-        let timestamp: nonempty::Timestamp = Timestamp::from_nanos(rng.gen()).try_into().unwrap();
-        let height = nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap();
-
         let numerator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
         let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
         let threshold: Threshold = (numerator, denominator).try_into().unwrap();
 
-        let result = Snapshot::new(
-            timestamp.clone(),
-            height.clone(),
-            threshold,
-            default_participants(),
-        );
+        let result = Snapshot::new(threshold, default_participants());
 
-        assert_eq!(result.timestamp, timestamp);
-        assert_eq!(result.height, height);
-        assert_eq!(
-            result.total_weight,
-            nonempty::Uint256::try_from(Uint256::from(2000u16)).unwrap()
-        );
         assert_eq!(
             result.quorum,
             nonempty::Uint256::try_from(Uint256::from(1334u16)).unwrap()
@@ -151,11 +121,7 @@ mod tests {
 
     #[test]
     fn test_snapshot_serialization() {
-        let mut rng = rand::thread_rng();
-
         let snapshot = Snapshot::new(
-            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-            nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((2u64, 3u64)).unwrap(),
             default_participants(),
         );
@@ -168,11 +134,7 @@ mod tests {
 
     #[test]
     fn test_quorum_one_third() {
-        let mut rng = rand::thread_rng();
-
         let snapshot = Snapshot::new(
-            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-            nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((1u64, 3u64)).unwrap(),
             default_participants(),
         );
@@ -184,23 +146,23 @@ mod tests {
     }
 
     #[test]
-    fn test_quorum_total_weight() {
-        let mut rng = rand::thread_rng();
+    fn test_quorum_is_total_weight() {
+        let total_weight = Into::<Vec<Participant>>::into(default_participants())
+            .iter()
+            .fold(Uint256::zero(), |acc, p| acc + Uint256::from(p.weight))
+            .try_into()
+            .unwrap();
 
         let snapshot = Snapshot::new(
-            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-            nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((1u64, 1u64)).unwrap(),
             default_participants(),
         );
 
-        assert_eq!(snapshot.quorum, snapshot.total_weight);
+        assert_eq!(snapshot.quorum, total_weight);
     }
 
     #[test]
     fn test_quorum_ceil() {
-        let mut rng = rand::thread_rng();
-
         // (total_weight, quorum)
         let test_data = [
             (Uint256::from(300u16), Uint256::from(200u16)),
@@ -219,12 +181,8 @@ mod tests {
                     nonempty::Uint256::try_from(total_weight).unwrap(),
                 )]);
 
-                let snapshot = Snapshot::new(
-                    Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-                    nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
-                    Threshold::try_from((2u64, 3u64)).unwrap(),
-                    participants,
-                );
+                let snapshot =
+                    Snapshot::new(Threshold::try_from((2u64, 3u64)).unwrap(), participants);
 
                 assert_eq!(
                     snapshot.quorum,
@@ -238,20 +196,16 @@ mod tests {
 
     #[test]
     fn test_quorum_no_overflow() {
-        let mut rng = rand::thread_rng();
-
         let participants = mock_participants(vec![(
             "participant",
             nonempty::Uint256::try_from(Uint256::MAX).unwrap(),
         )]);
 
         let snapshot = Snapshot::new(
-            Timestamp::from_nanos(rng.gen()).try_into().unwrap(),
-            nonempty::Uint64::try_from(rng.gen::<u64>()).unwrap(),
             Threshold::try_from((Uint64::MAX, Uint64::MAX)).unwrap(),
             participants,
         );
 
-        assert_eq!(snapshot.quorum, snapshot.total_weight);
+        assert_eq!(Uint256::from(snapshot.quorum), Uint256::MAX);
     }
 }
