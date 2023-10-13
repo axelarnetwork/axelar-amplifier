@@ -6,7 +6,7 @@ use axelar_wasm_std::{
     voting::{PollID, PollResult},
     Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, Message, MessageId};
+use connection_router::state::{ChainName, CrossChainId, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -43,7 +43,7 @@ pub enum ExecuteMsg {
 
     // Starts a poll to confirm a worker set update on the external evm gateway
     ConfirmWorkerSet {
-        message_id: MessageId,
+        message_id: nonempty::String,
         new_operators: Operators,
     },
 }

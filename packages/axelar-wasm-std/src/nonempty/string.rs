@@ -50,6 +50,12 @@ impl Deref for String {
     }
 }
 
+impl From<String> for crate::nonempty::Vec<u8> {
+    fn from(value: String) -> Self {
+        value.0.into_bytes().try_into().expect("cannot be empty")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::nonempty;

@@ -1,7 +1,5 @@
 use axelar_wasm_std::nonempty;
-use connection_router::state::{
-    Address, ChainName, Message as RouterMessage, MessageId, ID_SEPARATOR,
-};
+use connection_router::state::{Address, ChainName, Message as RouterMessage, ID_SEPARATOR};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
 use hex::FromHex;
@@ -27,22 +25,22 @@ pub struct Message {
 
 impl CustomMsg for Message {}
 
-fn parse_message_id(message_id: &MessageId) -> Result<(nonempty::Vec<u8>, u64), ContractError> {
+fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), ContractError> {
     // expected format: <tx_id>:<index>
     let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
 
     if components.len() != 2 {
-        return Err(ContractError::InvalidMessageId(message_id.clone()).into());
+        return Err(ContractError::InvalidMessageId(message_id.to_string()).into());
     }
 
     // TODO: decode differently depending on the chain?
     let tx_id = <Vec<u8>>::from_hex(components[0].trim_start_matches(ZEROX_PREFIX))
-        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.clone()))?;
+        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.to_string()))?;
     let tx_id: nonempty::Vec<u8> = <nonempty::Vec<u8>>::try_from(tx_id)
-        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.clone()))?;
+        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.to_string()))?;
     let index = components[1]
         .parse::<u64>()
-        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.clone()))?;
+        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.to_string()))?;
 
     Ok((tx_id, index))
 }
@@ -52,14 +50,8 @@ impl TryFrom<RouterMessage> for Message {
 
     fn try_from(msg: RouterMessage) -> Result<Self, ContractError> {
         // fallback to using the message ID as the tx ID if it's not in the expected format
-        let (source_tx_id, source_tx_index) = parse_message_id(&msg.cc_id.id).unwrap_or((
-            msg.cc_id
-                .id
-                .into_bytes()
-                .try_into()
-                .expect("message ID must be non-empty"),
-            u64::MAX,
-        ));
+        let (source_tx_id, source_tx_index) =
+            parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
         let payload_hash = <nonempty::Vec<u8>>::try_from(&msg.payload_hash)
             .change_context(ContractError::InvalidMessagePayloadHash(msg.payload_hash))?;
 
