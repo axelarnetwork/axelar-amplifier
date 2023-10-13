@@ -7666,8 +7666,11 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 1.1.0",
  "error-stack",
+ "hex",
  "mockall",
  "report",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 

@@ -4,7 +4,10 @@ use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
+use crate::nexus;
 use crate::state::{Config, GatewayStore, Store};
+
+mod execute;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -27,17 +30,18 @@ pub fn execute(
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
+) -> Result<Response<nexus::Message>, axelar_wasm_std::ContractError> {
     let store = GatewayStore::new(deps.storage);
     let config = store.load_config();
 
-    match msg {
+    let res = match msg {
         ExecuteMsg::VerifyMessages(_) => unimplemented!(),
-        ExecuteMsg::RouteMessages(_msgs)
-            if info.sender == config.nexus || info.sender == config.router =>
-        {
-            todo!()
+        ExecuteMsg::RouteMessages(_msgs) if info.sender == config.nexus => todo!(),
+        ExecuteMsg::RouteMessages(msgs) if info.sender == config.router => {
+            execute::route_to_nexus(msgs)?
         }
         _ => Err(ContractError::Unauthorized)?,
-    }
+    };
+
+    Ok(res)
 }
