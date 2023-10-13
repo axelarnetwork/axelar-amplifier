@@ -245,7 +245,7 @@ impl Poll for WeightedPoll {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Timestamp, Uint256, Uint64};
+    use cosmwasm_std::{Addr, Uint256, Uint64};
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
 
@@ -370,14 +370,11 @@ mod tests {
             .try_into()
             .unwrap();
 
-        let timestamp: nonempty::Timestamp = Timestamp::from_nanos(1).try_into().unwrap();
-        let height = nonempty::Uint64::try_from(Uint64::one()).unwrap();
-
         let numerator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
         let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
         let threshold: Threshold = (numerator, denominator).try_into().unwrap();
 
-        let snapshot = Snapshot::new(timestamp.clone(), height.clone(), threshold, participants);
+        let snapshot = Snapshot::new(threshold, participants);
 
         WeightedPoll::new(PollID::from(Uint64::one()), snapshot, expires_at, poll_size)
     }
