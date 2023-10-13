@@ -3,19 +3,22 @@ use std::collections::HashMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
+use error_stack::{Result, ResultExt};
 
 use crate::{error::ContractError, msg::RewardsParams};
 
 #[cw_serde]
-pub struct Config {
+pub struct StoredParams {
     pub params: RewardsParams,
+    /// epoch in which the params were updated
+    pub updated: Epoch,
 }
 
 #[cw_serde]
 pub struct EpochTally {
     pub epoch_num: u64,
     pub contract: Addr,
-    pub total_events: u64,
+    pub event_count: u64,
     pub participation: HashMap<Addr, u64>,
     pub rewards_rate: Uint256,
 }
@@ -26,7 +29,7 @@ impl EpochTally {
         EpochTally {
             epoch_num,
             contract,
-            total_events: 0,
+            event_count: 0,
             participation: HashMap::new(),
             rewards_rate,
         }
@@ -63,9 +66,7 @@ impl RewardsPool {
 }
 
 pub trait Store {
-    fn load_config(&self) -> Config;
-
-    fn load_last_checkpoint(&self) -> Result<Epoch, ContractError>;
+    fn load_params(&self) -> StoredParams;
 
     fn load_rewards_watermark(&self) -> Result<Option<u64>, ContractError>;
 
@@ -79,9 +80,7 @@ pub trait Store {
 
     fn load_rewards_pool(&self, contract: Addr) -> Result<Option<RewardsPool>, ContractError>;
 
-    fn save_config(&mut self, config: &Config) -> Result<(), ContractError>;
-
-    fn save_last_checkpoint(&mut self, epoch: &Epoch) -> Result<(), ContractError>;
+    fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
 
     fn save_rewards_watermark(&mut self, epoch_num: u64) -> Result<(), ContractError>;
 
@@ -92,16 +91,20 @@ pub trait Store {
     fn save_rewards_pool(&mut self, pool: &RewardsPool) -> Result<(), ContractError>;
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+/// Current rewards parameters, along with when the params were updated
+pub const PARAMS: Item<StoredParams> = Item::new("params");
 
-const LAST_CHECKPOINT: Item<Epoch> = Item::new("current_epoch");
-
+/// Maps a (contract address, epoch number) pair to a tally for that epoch and contract
 const TALLIES: Map<(Addr, u64), EpochTally> = Map::new("tallies");
 
+/// Maps an (event id, contract address) pair to an Event
 const EVENTS: Map<(String, Addr), Event> = Map::new("events");
 
+/// Maps a contract address to the rewards pool for that contract
 const POOLS: Map<Addr, RewardsPool> = Map::new("pools");
 
+/// Epoch number of the most recent epoch for which rewards were distributed. All epochs prior
+/// have had rewards distributed already and all epochs after have not yet had rewards distributed.
 const WATERMARK: Item<u64> = Item::new("rewards_watermark");
 
 pub struct RewardsStore<'a> {
@@ -109,22 +112,20 @@ pub struct RewardsStore<'a> {
 }
 
 impl Store for RewardsStore<'_> {
-    fn load_config(&self) -> Config {
-        CONFIG
-            .load(self.storage)
-            .expect("config should be set during contract instantiation")
-    }
-
-    fn load_last_checkpoint(&self) -> Result<Epoch, ContractError> {
-        Ok(LAST_CHECKPOINT.load(self.storage)?)
+    fn load_params(&self) -> StoredParams {
+        PARAMS.load(self.storage).expect("params should exist")
     }
 
     fn load_rewards_watermark(&self) -> Result<Option<u64>, ContractError> {
-        Ok(WATERMARK.may_load(self.storage)?)
+        WATERMARK
+            .may_load(self.storage)
+            .change_context(ContractError::LoadRewardsWatermark)
     }
 
     fn load_event(&self, event_id: String, contract: Addr) -> Result<Option<Event>, ContractError> {
-        Ok(EVENTS.may_load(self.storage, (event_id, contract))?)
+        EVENTS
+            .may_load(self.storage, (event_id, contract))
+            .change_context(ContractError::LoadEvent)
     }
 
     fn load_epoch_tally(
@@ -132,114 +133,100 @@ impl Store for RewardsStore<'_> {
         contract: Addr,
         epoch_num: u64,
     ) -> Result<Option<EpochTally>, ContractError> {
-        Ok(TALLIES.may_load(self.storage, (contract, epoch_num))?)
+        TALLIES
+            .may_load(self.storage, (contract, epoch_num))
+            .change_context(ContractError::LoadEpochTally)
     }
 
     fn load_rewards_pool(&self, contract: Addr) -> Result<Option<RewardsPool>, ContractError> {
-        Ok(POOLS.may_load(self.storage, contract)?)
+        POOLS
+            .may_load(self.storage, contract)
+            .change_context(ContractError::LoadRewardsPool)
     }
 
-    fn save_config(&mut self, config: &Config) -> Result<(), ContractError> {
-        Ok(CONFIG.save(self.storage, config)?)
-    }
-
-    fn save_last_checkpoint(&mut self, epoch: &Epoch) -> Result<(), ContractError> {
-        Ok(LAST_CHECKPOINT.save(self.storage, epoch)?)
+    fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError> {
+        PARAMS
+            .save(self.storage, params)
+            .change_context(ContractError::SaveParams)
     }
 
     fn save_rewards_watermark(&mut self, epoch_num: u64) -> Result<(), ContractError> {
-        Ok(WATERMARK.save(self.storage, &epoch_num)?)
+        WATERMARK
+            .save(self.storage, &epoch_num)
+            .change_context(ContractError::SaveRewardsWatermark)
     }
 
     fn save_event(&mut self, event: &Event) -> Result<(), ContractError> {
-        Ok(EVENTS.save(
-            self.storage,
-            (event.event_id.clone(), event.contract.clone()),
-            event,
-        )?)
+        EVENTS
+            .save(
+                self.storage,
+                (event.event_id.clone(), event.contract.clone()),
+                event,
+            )
+            .change_context(ContractError::SaveEvent)
     }
 
     fn save_epoch_tally(&mut self, tally: &EpochTally) -> Result<(), ContractError> {
-        Ok(TALLIES.save(
-            self.storage,
-            (tally.contract.clone(), tally.epoch_num),
-            tally,
-        )?)
+        TALLIES
+            .save(
+                self.storage,
+                (tally.contract.clone(), tally.epoch_num),
+                tally,
+            )
+            .change_context(ContractError::SaveEpochTally)
     }
 
     fn save_rewards_pool(&mut self, pool: &RewardsPool) -> Result<(), ContractError> {
-        Ok(POOLS.save(self.storage, pool.contract.clone(), pool)?)
+        POOLS
+            .save(self.storage, pool.contract.clone(), pool)
+            .change_context(ContractError::SaveRewardsPool)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint256, Uint64};
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
-    use crate::{msg::RewardsParams, state::Config};
+    use crate::{msg::RewardsParams, state::StoredParams};
 
     use super::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store};
 
     #[test]
-    fn save_and_load_config() {
+    fn save_and_load_params() {
         let mut mock_deps = mock_dependencies();
         let mut store = RewardsStore {
             storage: &mut mock_deps.storage,
         };
-        let config = Config {
+        let params = StoredParams {
             params: RewardsParams {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: 100u64.try_into().unwrap(),
                 rewards_rate: Uint256::from(1000u128).try_into().unwrap(),
             },
-        };
-        // save an initial config, then load it
-        assert!(store.save_config(&config).is_ok());
-        let loaded = store.load_config();
-        assert_eq!(loaded, config);
-
-        // now store a new config, and check that it was updated
-        let new_config = Config {
-            params: RewardsParams {
-                epoch_duration: 200u64.try_into().unwrap(),
-                ..config.params
+            updated: Epoch {
+                epoch_num: 1,
+                block_height_started: 1,
             },
         };
-        assert!(store.save_config(&new_config).is_ok());
-        let loaded = store.load_config();
-        assert_eq!(loaded, new_config);
-    }
+        // save an initial params, then load it
+        assert!(store.save_params(&params).is_ok());
+        let loaded = store.load_params();
+        assert_eq!(loaded, params);
 
-    #[test]
-    fn save_and_load_last_checkpoint() {
-        let mut mock_deps = mock_dependencies();
-        let mut store = RewardsStore {
-            storage: &mut mock_deps.storage,
+        // now store a new params, and check that it was updated
+        let new_params = StoredParams {
+            params: RewardsParams {
+                epoch_duration: 200u64.try_into().unwrap(),
+                ..params.params
+            },
+            updated: Epoch {
+                epoch_num: 2,
+                block_height_started: 101,
+            },
         };
-        let epoch = Epoch {
-            epoch_num: 10,
-            block_height_started: 1000,
-        };
-        // save the first current epoch
-        let res = store.save_last_checkpoint(&epoch);
-        assert!(res.is_ok());
-
-        let loaded = store.load_last_checkpoint();
-        assert!(loaded.is_ok());
-        assert_eq!(loaded.unwrap(), epoch);
-
-        // now store a new epoch and load it
-        let new_epoch = Epoch {
-            epoch_num: 11,
-            block_height_started: 2000,
-        };
-
-        let res = store.save_last_checkpoint(&new_epoch);
-        assert!(res.is_ok());
-
-        let loaded = store.load_last_checkpoint();
-        assert!(loaded.is_ok());
-        assert_eq!(loaded.unwrap(), new_epoch);
+        assert!(store.save_params(&new_params).is_ok());
+        let loaded = store.load_params();
+        assert_eq!(loaded, new_params);
     }
 
     #[test]
