@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{StdResult, Storage, Uint256, Uint64};
 
 use axelar_wasm_std::Snapshot;
 
-use crate::state::{session_signatures, SIGNATURES};
+use crate::state::{session_signatures, SIGNATURES, SIGNING_SESSIONS};
 use crate::{
     key::Signature,
     types::{Key, KeyID, MsgToSign, MultisigState},
@@ -17,6 +15,7 @@ pub struct SigningSession {
     pub id: Uint64,
     pub key_id: KeyID,
     pub msg: MsgToSign,
+    pub state: MultisigState,
 }
 
 impl SigningSession {
@@ -25,19 +24,19 @@ impl SigningSession {
             id: session_id,
             key_id,
             msg,
+            state: MultisigState::Pending,
         }
     }
 }
 
 fn validate_session_signature(
     session: &SigningSession,
-    signatures: &HashMap<String, Signature>,
     key: &Key,
     signer: String,
     signature: &Signature,
 ) -> Result<(), ContractError> {
     // TODO: revisit again once expiration and/or rewards are introduced
-    if calculate_session_state(signatures, &key.snapshot)? == MultisigState::Completed {
+    if let MultisigState::Completed { .. } = session.state {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
@@ -62,10 +61,9 @@ fn validate_session_signature(
     Ok(())
 }
 
-fn signers_weight(
-    signatures: &HashMap<String, Signature>,
-    snapshot: &Snapshot,
-) -> StdResult<Uint256> {
+fn signers_weight(store: &dyn Storage, session_id: u64, snapshot: &Snapshot) -> StdResult<Uint256> {
+    let signatures = session_signatures(store, session_id)?;
+
     signatures
         .keys()
         .map(|addr| -> StdResult<Uint256> {
@@ -81,13 +79,13 @@ fn signers_weight(
 
 pub fn sign(
     store: &mut dyn Storage,
-    session: &SigningSession,
+    block_height: u64,
+    session: &mut SigningSession,
     key: &Key,
     signer: String,
     signature: Signature,
-) -> Result<(Signature, MultisigState), ContractError> {
-    let mut signatures = session_signatures(store, session.id.u64())?;
-    validate_session_signature(session, &signatures, key, signer.clone(), &signature)?;
+) -> Result<Signature, ContractError> {
+    validate_session_signature(session, key, signer.clone(), &signature)?;
 
     let signature = SIGNATURES.update(
         store,
@@ -103,23 +101,15 @@ pub fn sign(
         },
     )?;
 
-    signatures.insert(signer, signature.clone());
-    let state = calculate_session_state(&signatures, &key.snapshot)?;
+    if signers_weight(store, session.id.u64(), &key.snapshot)? >= key.snapshot.quorum.into() {
+        session.state = MultisigState::Completed {
+            completed_at: block_height,
+        };
+    }
 
-    Ok((signature, state))
-}
+    SIGNING_SESSIONS.save(store, session.id.u64(), session)?;
 
-pub fn calculate_session_state(
-    signatures: &HashMap<String, Signature>,
-    snapshot: &Snapshot,
-) -> StdResult<MultisigState> {
-    let state = if signers_weight(signatures, snapshot)? >= snapshot.quorum.into() {
-        MultisigState::Completed
-    } else {
-        MultisigState::Pending
-    };
-
-    Ok(state)
+    Ok(signature)
 }
 
 #[cfg(test)]
@@ -202,16 +192,18 @@ mod tests {
     }
 
     fn do_sign(
-        session: &SigningSession,
+        session: &mut SigningSession,
         signer_ix: usize,
+        block_height: u64,
         config: &mut TestConfig,
-    ) -> Result<(Signature, MultisigState), ContractError> {
+    ) -> Result<Signature, ContractError> {
         let signer = config.signers[signer_ix].clone();
 
         let key = &KEYS.load(&config.store, (&session.key_id).into())?;
 
         sign(
             &mut config.store,
+            block_height,
             session,
             key,
             signer.address.into_string(),
@@ -226,7 +218,7 @@ mod tests {
                 SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
             // first run
-            let result = do_sign(&session, 0, &mut config);
+            let result = do_sign(&mut session, 0, 0, &mut config);
             let stored = SIGNING_SESSIONS
                 .load(&config.store, session.id.u64())
                 .unwrap();
@@ -237,7 +229,7 @@ mod tests {
             assert_eq!(stored, session);
 
             // second run
-            let result = do_sign(&mut session, 0, &mut config);
+            let result = do_sign(&mut session, 0, 0, &mut config);
             let stored = SIGNING_SESSIONS
                 .load(&config.store, session.id.u64())
                 .unwrap();
@@ -256,38 +248,44 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_session_state() {
+    fn test_correct_session_state() {
         for mut config in [ecdsa_setup(), ed25519_setup()] {
-            let session =
+            let mut session =
                 SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
             // first run
-            let (_, result) = do_sign(&session, 0, &mut config).unwrap();
-            assert_eq!(result, MultisigState::Pending);
+            do_sign(&mut session, 0, 0, &mut config).unwrap();
+            assert_eq!(session.state, MultisigState::Pending);
 
             // second run
-            let (_, result) = do_sign(&session, 1, &mut config).unwrap();
-            assert_eq!(result, MultisigState::Completed);
+            let block_height = 12345;
+            do_sign(&mut session, 1, block_height, &mut config).unwrap();
+            assert_eq!(
+                session.state,
+                MultisigState::Completed {
+                    completed_at: block_height
+                }
+            );
         }
     }
 
     #[test]
     fn test_add_signature_session_closed() {
         for mut config in [ecdsa_setup(), ed25519_setup()] {
-            let session = SIGNING_SESSIONS
+            let mut session = SIGNING_SESSIONS
                 .load(&config.store, Uint64::one().u64())
                 .unwrap();
-            do_sign(&session, 0, &mut config).unwrap();
+            do_sign(&mut session, 0, 0, &mut config).unwrap();
 
-            let session = SIGNING_SESSIONS
+            let mut session = SIGNING_SESSIONS
                 .load(&config.store, Uint64::one().u64())
                 .unwrap();
-            do_sign(&session, 1, &mut config).unwrap();
+            do_sign(&mut session, 1, 0, &mut config).unwrap();
 
-            let session = SIGNING_SESSIONS
+            let mut session = SIGNING_SESSIONS
                 .load(&config.store, Uint64::one().u64())
                 .unwrap();
-            let result = do_sign(&session, 2, &mut config);
+            let result = do_sign(&mut session, 2, 0, &mut config);
 
             assert_eq!(
                 result.unwrap_err(),
@@ -301,7 +299,7 @@ mod tests {
     #[test]
     fn test_add_invalid_signature() {
         for mut config in [ecdsa_setup(), ed25519_setup()] {
-            let session =
+            let mut session =
                 SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
             let sig_bytes = match config.key_type {
@@ -317,7 +315,8 @@ mod tests {
 
             let result = sign(
                 &mut config.store,
-                &session,
+                0,
+                &mut session,
                 &key,
                 config.signers[0].address.clone().into_string(),
                 invalid_sig,
@@ -336,7 +335,7 @@ mod tests {
     #[test]
     fn test_add_signature_not_participant() {
         for mut config in [ecdsa_setup(), ed25519_setup()] {
-            let session =
+            let mut session =
                 SigningSession::new(Uint64::one(), config.key_id.clone(), config.message.clone());
 
             let invalid_participant = "not_a_participant".to_string();
@@ -345,7 +344,8 @@ mod tests {
 
             let result = sign(
                 &mut config.store,
-                &session,
+                0,
+                &mut session,
                 &key,
                 invalid_participant.clone(),
                 Signature::try_from((config.key_type, config.signers[0].signature.clone()))

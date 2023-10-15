@@ -72,7 +72,9 @@ pub struct Key {
 #[cw_serde]
 pub enum MultisigState {
     Pending,
-    Completed,
+    Completed {
+        completed_at: u64, // block at which the session was completed
+    },
 }
 
 const MESSAGE_HASH_LEN: usize = 32;
