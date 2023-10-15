@@ -1,34 +1,26 @@
-use crate::state::{ChainName, GatewayDirection, Message};
+use crate::primitives::*;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-
-#[cw_serde]
-pub struct InstantiateMsg {
-    // admin controls freezing and unfreezing a chain
-    pub admin_address: String,
-    // governance votes on chains being added or upgraded
-    pub governance_address: String,
-}
 
 #[cw_serde]
 pub enum ExecuteMsg {
     /*
      * Governance Methods
-     * All of the below messages can only be called by governance
+     * All of the below messages should only be called by governance
      */
     // Registers a new chain with the router
     RegisterChain {
         chain: ChainName,
-        gateway_address: String,
+        gateway_address: Address,
     },
     // Changes the gateway address associated with a particular chain
     UpgradeGateway {
         chain: ChainName,
-        contract_address: String,
+        contract_address: Address,
     },
 
     /*
      * Router Admin Methods
-     * All of the below messages can only be called by the router admin
+     * All of the below messages should only be called by the router admin
      */
     // Freezes a chain, in the specified direction.
     FreezeChain {

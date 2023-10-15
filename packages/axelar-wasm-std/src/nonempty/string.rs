@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 #[cw_serde]
 #[serde(try_from = "std::string::String")]
+#[derive(Eq, Hash)]
 pub struct String(std::string::String);
 
 impl TryFrom<std::string::String> for String {

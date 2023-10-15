@@ -18,8 +18,13 @@ multisig = { version = "^0.1.0", path = "contracts/multisig" }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
+gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
+connection-router-api = { version = "^0.1.0", path = "packages/connection-router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
 thiserror = "1.0.47"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+serde_json = "1.0.89"
+schemars = "0.8.10"
 
 [profile.release]
 opt-level = 3

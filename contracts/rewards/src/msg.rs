@@ -12,16 +12,16 @@ pub struct InstantiateMsg {
 pub struct RewardsParams {
     /// How often rewards are calculated, specified in number of blocks. Participation is calculated over this window. So if epoch_duration is 500
     /// blocks, workers are rewarded for their participation within each 500 block window.
-    epoch_duration: nonempty::Uint64,
+    pub epoch_duration: nonempty::Uint64,
 
     /// Total number of tokens distributed as rewards per epoch. Tokens are split equally amongst all participating workers for a given epoch
-    rewards_rate: nonempty::Uint64,
+    pub rewards_per_epoch: nonempty::Uint256,
 
     /// Participation threshold workers must meet to receive rewards in a given epoch, specified as a fraction between 0 (exclusive) and 1 (exclusive). Workers
     /// must participate in at least this fraction of all events in a given epoch to receive rewards. So, if participation_threshold is 9/10,
     /// and there are 100 events in a given epoch, workers must have participated in at least 90 events to receive rewards.
     /// Participation is reset at the beginning of each epoch, so participation in previous epochs does not affect rewards for future epochs.
-    participation_threshold: Threshold,
+    pub participation_threshold: Threshold,
 }
 
 #[cw_serde]

@@ -1,3 +1,4 @@
+use connection_router::state::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 
@@ -33,7 +34,7 @@ pub enum ExecuteMsg {
     // Declares support for the specified chains. Called by the worker.
     DeclareChainSupport {
         service_name: String,
-        chains: Vec<String>,
+        chains: Vec<ChainName>,
     },
     // Locks up any funds sent with the message as stake. Called by the worker.
     BondWorker {
@@ -55,6 +56,6 @@ pub enum QueryMsg {
     #[returns(Vec<crate::state::Worker>)]
     GetActiveWorkers {
         service_name: String,
-        chain_name: String,
+        chain_name: ChainName,
     },
 }
