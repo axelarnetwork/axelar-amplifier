@@ -37,9 +37,9 @@ impl EpochTally {
 
 #[cw_serde]
 pub struct Event {
-    event_id: nonempty::String,
-    contract: Addr,
-    epoch_num: u64,
+    pub event_id: nonempty::String,
+    pub contract: Addr,
+    pub epoch_num: u64,
 }
 
 #[cw_serde]

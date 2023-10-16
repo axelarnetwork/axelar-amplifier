@@ -1,12 +1,13 @@
+use error_stack::Result;
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty::Uint256;
+use axelar_wasm_std::nonempty::{self, Uint256};
 use cosmwasm_std::Addr;
 
 use crate::{
     error::ContractError,
     msg::RewardsParams,
-    state::{Epoch, Store},
+    state::{Epoch, EpochTally, Event, Store},
 };
 
 pub struct Contract<S>
@@ -45,12 +46,54 @@ where
 
     pub fn record_participation(
         &mut self,
-        _event_id: String,
-        _worker: Addr,
-        _contract: Addr,
-        _block_height: u64,
+        event_id: nonempty::String,
+        worker: Addr,
+        contract: Addr,
+        block_height: u64,
     ) -> Result<(), ContractError> {
-        todo!()
+        let cur_epoch = self.get_current_epoch(block_height)?;
+
+        let event = self
+            .store
+            .load_event(event_id.to_string(), contract.clone())?;
+
+        let mut tally = match event {
+            Some(event) => self
+                .store
+                .load_epoch_tally(contract.clone(), event.epoch_num)?
+                .expect("couldn't find epoch tally for existing event"),
+            None => {
+                self.store.save_event(&Event {
+                    event_id,
+                    contract: contract.clone(),
+                    epoch_num: cur_epoch.epoch_num,
+                })?;
+
+                self.store
+                    .load_epoch_tally(contract.clone(), cur_epoch.epoch_num)?
+                    .map_or(
+                        EpochTally {
+                            event_count: 1,
+                            participation: HashMap::new(),
+                            contract,
+                            epoch: cur_epoch,
+                        },
+                        |tally| EpochTally {
+                            event_count: tally.event_count + 1,
+                            ..tally
+                        },
+                    )
+            }
+        };
+
+        tally
+            .participation
+            .entry(worker)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+        self.store.save_epoch_tally(&tally)?;
+
+        Ok(())
     }
 
     pub fn process_rewards(
@@ -82,12 +125,17 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, RwLock},
+    };
+
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::{Uint256, Uint64};
+    use cosmwasm_std::{Addr, Uint256, Uint64};
 
     use crate::{
         msg::RewardsParams,
-        state::{self, Epoch, StoredParams},
+        state::{self, Epoch, EpochTally, Event, StoredParams},
     };
 
     use super::Contract;
@@ -98,7 +146,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
         let new_epoch = contract.get_current_epoch(block_height_started).unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
@@ -122,7 +170,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         // elements are (height, expected epoch number, expected epoch start)
         let test_cases = vec![
@@ -156,18 +204,229 @@ mod test {
         }
     }
 
-    fn create_contract(stored_params: StoredParams) -> Contract<state::MockStore> {
+    /// Tests that multiple participation events for the same contract within a given epoch are recorded correctly
+    #[test]
+    fn record_participation_multiple_events() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let epoch_duration = 100u64;
+        let event_store = Arc::new(RwLock::new(HashMap::new()));
+        let tally_store = Arc::new(RwLock::new(HashMap::new()));
+
+        let mut contract = setup_with_stores(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            event_store.clone(),
+            tally_store.clone(),
+        );
+
+        let worker_contract = Addr::unchecked("some contract");
+
+        let mut participation = HashMap::new();
+        participation.insert(Addr::unchecked("worker_1"), 10);
+        participation.insert(Addr::unchecked("worker_2"), 5);
+        participation.insert(Addr::unchecked("worker_3"), 7);
+        let event_count = 10;
+        let mut cur_height = block_height_started;
+        for i in 0..event_count {
+            for (w, p) in &participation {
+                if i < *p {
+                    contract
+                        .record_participation(
+                            i.to_string().try_into().unwrap(),
+                            w.clone(),
+                            worker_contract.clone(),
+                            cur_height,
+                        )
+                        .unwrap();
+                }
+            }
+            cur_height = cur_height + 1;
+        }
+
+        {
+            let tally_store = tally_store.read().unwrap();
+            let tally = tally_store
+                .get(&(
+                    worker_contract.clone(),
+                    contract
+                        .get_current_epoch(block_height_started)
+                        .unwrap()
+                        .epoch_num,
+                ))
+                .unwrap();
+            assert_eq!(tally.event_count, event_count);
+            assert_eq!(tally.participation.len(), participation.len());
+            for (w, p) in participation {
+                assert_eq!(tally.participation.get(&w), Some(&p));
+            }
+        }
+    }
+
+    /// Tests that the participation event is recorded correctly when the event spans multiple epochs
+    #[test]
+    fn record_participation_epoch_boundary() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let epoch_duration = 100u64;
+        let event_store = Arc::new(RwLock::new(HashMap::new()));
+        let tally_store = Arc::new(RwLock::new(HashMap::new()));
+
+        let mut contract = setup_with_stores(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            event_store.clone(),
+            tally_store.clone(),
+        );
+
+        let worker_contract = Addr::unchecked("some contract");
+
+        let workers = vec![
+            Addr::unchecked("worker_1"),
+            Addr::unchecked("worker_2"),
+            Addr::unchecked("worker_3"),
+        ];
+        let mut cur_height = block_height_started + epoch_duration - 1;
+        let prev_epoch = contract.get_current_epoch(cur_height).unwrap();
+        for w in &workers {
+            contract
+                .record_participation(
+                    "some event".to_string().try_into().unwrap(),
+                    w.clone(),
+                    worker_contract.clone(),
+                    cur_height,
+                )
+                .unwrap();
+            cur_height = cur_height + 1;
+        }
+        let cur_epoch = contract.get_current_epoch(cur_height).unwrap();
+        assert_ne!(prev_epoch.epoch_num, cur_epoch.epoch_num);
+
+        {
+            let tally_store = tally_store.read().unwrap();
+            let tally = tally_store
+                .get(&(worker_contract.clone(), prev_epoch.epoch_num))
+                .unwrap();
+            assert_eq!(tally.event_count, 1);
+            assert_eq!(tally.participation.len(), workers.len());
+            for w in workers {
+                assert_eq!(tally.participation.get(&w), Some(&1));
+            }
+            let tally = tally_store.get(&(worker_contract.clone(), cur_epoch.epoch_num));
+            assert!(tally.is_none());
+        }
+    }
+
+    /// Tests that participation events for different contracts are recorded correctly
+    #[test]
+    fn record_participation_multiple_contracts() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let epoch_duration = 100u64;
+        let event_store = Arc::new(RwLock::new(HashMap::new()));
+        let tally_store = Arc::new(RwLock::new(HashMap::new()));
+
+        let mut contract = setup_with_stores(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            event_store.clone(),
+            tally_store.clone(),
+        );
+
+        let mut participation = HashMap::new();
+        participation.insert(
+            Addr::unchecked("worker_1"),
+            (Addr::unchecked("contract_1"), 3),
+        );
+        participation.insert(
+            Addr::unchecked("worker_2"),
+            (Addr::unchecked("contract_2"), 4),
+        );
+        participation.insert(
+            Addr::unchecked("worker_3"),
+            (Addr::unchecked("contract_3"), 2),
+        );
+        for (worker, (worker_contract, events_participated)) in &participation {
+            for i in 0..*events_participated {
+                contract
+                    .record_participation(
+                        i.to_string().try_into().unwrap(),
+                        worker.clone(),
+                        worker_contract.clone(),
+                        block_height_started,
+                    )
+                    .unwrap();
+            }
+        }
+
+        {
+            let tally_store = tally_store.read().unwrap();
+            for (worker, (worker_contract, events_participated)) in participation {
+                let tally = tally_store
+                    .get(&(
+                        worker_contract.clone(),
+                        contract
+                            .get_current_epoch(block_height_started)
+                            .unwrap()
+                            .epoch_num,
+                    ))
+                    .unwrap();
+                assert_eq!(tally.event_count, events_participated);
+                assert_eq!(tally.participation.len(), 1);
+                assert_eq!(tally.participation.get(&worker), Some(&events_participated));
+            }
+        }
+    }
+
+    fn create_contract(
+        stored_params: StoredParams,
+        events_store: Arc<RwLock<HashMap<(String, Addr), Event>>>,
+        tally_store: Arc<RwLock<HashMap<(Addr, u64), EpochTally>>>,
+    ) -> Contract<state::MockStore> {
         let mut store = state::MockStore::new();
         store
             .expect_load_params()
             .returning(move || stored_params.clone());
+        let events_store_cloned = events_store.clone();
+        store.expect_load_event().returning(move |id, contract| {
+            let events_store = events_store_cloned.read().unwrap();
+            Ok(events_store.get(&(id, contract)).cloned())
+        });
+        store.expect_save_event().returning(move |event| {
+            let mut events_store = events_store.write().unwrap();
+            events_store.insert(
+                (event.event_id.clone().into(), event.contract.clone()),
+                event.clone(),
+            );
+            Ok(())
+        });
+        let tally_store_cloned = tally_store.clone();
+        store
+            .expect_load_epoch_tally()
+            .returning(move |contract, epoch_num| {
+                let tally_store = tally_store_cloned.read().unwrap();
+                Ok(tally_store.get(&(contract, epoch_num)).cloned())
+            });
+        store.expect_save_epoch_tally().returning(move |tally| {
+            let mut tally_store = tally_store.write().unwrap();
+            tally_store.insert(
+                (tally.contract.clone(), tally.epoch.epoch_num.clone()),
+                tally.clone(),
+            );
+            Ok(())
+        });
         Contract { store }
     }
 
-    fn setup(
+    fn setup_with_stores(
         cur_epoch_num: u64,
         block_height_started: u64,
         epoch_duration: u64,
+        events_store: Arc<RwLock<HashMap<(String, Addr), Event>>>,
+        tally_store: Arc<RwLock<HashMap<(Addr, u64), EpochTally>>>,
     ) -> Contract<state::MockStore> {
         let rewards_per_epoch: nonempty::Uint256 = Uint256::from(100u128).try_into().unwrap();
         let current_epoch = Epoch {
@@ -185,6 +444,22 @@ mod test {
             last_updated: current_epoch.clone(),
         };
 
-        create_contract(stored_params.clone())
+        create_contract(stored_params.clone(), events_store, tally_store)
+    }
+
+    fn setup(
+        cur_epoch_num: u64,
+        block_height_started: u64,
+        epoch_duration: u64,
+    ) -> Contract<state::MockStore> {
+        let events_store = Arc::new(RwLock::new(HashMap::new()));
+        let tally_store = Arc::new(RwLock::new(HashMap::new()));
+        setup_with_stores(
+            cur_epoch_num,
+            block_height_started,
+            epoch_duration,
+            events_store,
+            tally_store,
+        )
     }
 }
