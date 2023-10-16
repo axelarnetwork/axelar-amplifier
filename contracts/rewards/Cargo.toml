@@ -32,8 +32,8 @@ axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-error-stack = { workspace = true }
 cw-storage-plus = { workspace = true }
+error-stack = { workspace = true }
 mockall = "0.11.3"
 report = { workspace = true }
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
