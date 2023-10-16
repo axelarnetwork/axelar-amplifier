@@ -6,7 +6,7 @@ use cosmwasm_std::Addr;
 use crate::{
     error::ContractError,
     msg::RewardsParams,
-    state::{Config, Epoch, Store},
+    state::{Epoch, Store},
 };
 
 pub struct Contract<S>
@@ -14,7 +14,6 @@ where
     S: Store,
 {
     pub store: S,
-    pub config: Config,
 }
 
 #[allow(dead_code)]
@@ -26,15 +25,17 @@ where
     /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
     /// in which the update occurs as the last checkpoint
     fn get_current_epoch(&mut self, cur_block_height: u64) -> Result<Epoch, ContractError> {
-        let epoch_duration: u64 = self.config.params.epoch_duration.into();
-        let epoch = self.store.load_last_checkpoint()?;
-        if cur_block_height >= epoch.block_start() + epoch_duration {
-            let new_epoch_num =
-                ((cur_block_height - epoch.block_start()) / epoch_duration) + epoch.epoch_num();
-            let new_epoch = Epoch::new(
-                new_epoch_num,
-                cur_block_height - (cur_block_height % epoch_duration),
-            );
+        let stored_params = self.store.load_params();
+        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
+        let epoch = stored_params.last_updated;
+        if cur_block_height >= epoch.block_height_started + epoch_duration {
+            let new_epoch_num = ((cur_block_height - epoch.block_height_started) / epoch_duration)
+                + epoch.epoch_num;
+            let new_epoch = Epoch {
+                epoch_num: new_epoch_num,
+                block_height_started: cur_block_height - (cur_block_height % epoch_duration),
+                rewards: epoch.rewards,
+            };
             return Ok(new_epoch);
         }
         Ok(epoch)
@@ -61,19 +62,9 @@ where
 
     pub fn update_params(
         &mut self,
-        new_params: RewardsParams,
-        block_height: u64,
+        _new_params: RewardsParams,
+        _block_height: u64,
     ) -> Result<(), ContractError> {
-        // if the epoch duration is changing, we need to store a new checkpoint,
-        // so that way future epochs can be computed correctly
-        if new_params.epoch_duration != self.config.params.epoch_duration {
-            let cur_epoch = self.get_current_epoch(block_height)?;
-            let last_checkpoint = self.store.load_last_checkpoint()?;
-            if last_checkpoint != cur_epoch {
-                self.store.save_last_checkpoint(&cur_epoch)?;
-            }
-        }
-
         todo!()
     }
 
@@ -89,11 +80,12 @@ where
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::nonempty;
     use cosmwasm_std::{Uint256, Uint64};
 
     use crate::{
         msg::RewardsParams,
-        state::{self, Config, Epoch},
+        state::{self, Epoch, StoredParams},
     };
 
     use super::Contract;
@@ -102,53 +94,91 @@ mod test {
     #[test]
     fn test_get_current_epoch() {
         let epoch_duration = 100u64;
-        let config = Config {
+        let rewards_per_epoch: nonempty::Uint256 = Uint256::from(100u128).try_into().unwrap();
+        let current_epoch = Epoch {
+            epoch_num: 0,
+            block_height_started: 0,
+            rewards: rewards_per_epoch.clone(),
+        };
+        let stored_params = StoredParams {
             params: RewardsParams {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: epoch_duration.try_into().unwrap(),
-                rewards_rate: Uint256::from(1000u128).try_into().unwrap(),
+                rewards_per_epoch,
             },
+            last_updated: current_epoch.clone(),
         };
-        let current_epoch = Epoch::new(0, 0);
-        let mut contract = create_contract(config.clone(), current_epoch.clone());
+        let mut contract = create_contract(stored_params.clone());
 
         // epoch shouldn't change
         let new_epoch = contract
-            .get_current_epoch(current_epoch.block_start() + 1)
+            .get_current_epoch(current_epoch.block_height_started + 1)
             .unwrap();
         assert_eq!(new_epoch, current_epoch);
 
         // epoch should increase by one
-        let block = current_epoch.block_start() + u64::from(config.params.epoch_duration);
+        let block =
+            current_epoch.block_height_started + u64::from(stored_params.params.epoch_duration);
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
-        assert_eq!(Epoch::new(1, block), new_epoch);
+        assert_eq!(
+            Epoch {
+                epoch_num: 1,
+                block_height_started: block,
+                rewards: current_epoch.rewards.clone()
+            },
+            new_epoch
+        );
 
         // epoch should increase by one, but start of epoch is in the past
-        let block = current_epoch.block_start() + u64::from(config.params.epoch_duration) + 1;
+        let block =
+            current_epoch.block_height_started + u64::from(stored_params.params.epoch_duration) + 1;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
-        assert_eq!(Epoch::new(1, block - 1), new_epoch);
+        assert_eq!(
+            Epoch {
+                epoch_num: 1,
+                block_height_started: block - 1,
+                rewards: current_epoch.rewards.clone()
+            },
+            new_epoch
+        );
 
         // epoch should increase by more than one
-        let block = current_epoch.block_start() + u64::from(config.params.epoch_duration) * 4;
+        let block =
+            current_epoch.block_height_started + u64::from(stored_params.params.epoch_duration) * 4;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
-        assert_eq!(Epoch::new(4, block), new_epoch);
+        assert_eq!(
+            Epoch {
+                epoch_num: 4,
+                block_height_started: block,
+                rewards: current_epoch.rewards.clone()
+            },
+            new_epoch
+        );
 
         // epoch should increase by more than one, but start of epoch is in the past
-        let block = current_epoch.block_start() + u64::from(config.params.epoch_duration) * 4 + 10;
+        let block = current_epoch.block_height_started
+            + u64::from(stored_params.params.epoch_duration) * 4
+            + 10;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
-        assert_eq!(Epoch::new(4, block - 10), new_epoch);
+        assert_eq!(
+            Epoch {
+                epoch_num: 4,
+                block_height_started: block - 10,
+                rewards: current_epoch.rewards.clone()
+            },
+            new_epoch
+        );
     }
 
-    fn create_contract(config: Config, current_epoch: Epoch) -> Contract<state::MockStore> {
+    fn create_contract(stored_params: StoredParams) -> Contract<state::MockStore> {
         let mut store = state::MockStore::new();
         store
-            .expect_load_last_checkpoint()
-            .returning(move || Ok(current_epoch.clone()));
-        store.expect_save_last_checkpoint().returning(|_| Ok(()));
-        Contract { store, config }
+            .expect_load_params()
+            .returning(move || stored_params.clone());
+        Contract { store }
     }
 }
