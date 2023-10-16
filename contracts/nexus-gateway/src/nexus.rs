@@ -18,7 +18,7 @@ pub struct Message {
     pub source_address: Address,
     pub destination_chain: ChainName,
     pub destination_address: Address,
-    pub payload_hash: nonempty::Vec<u8>,
+    pub payload_hash: [u8; 32],
     pub source_tx_id: nonempty::Vec<u8>,
     pub source_tx_index: u64,
 }
@@ -52,7 +52,9 @@ impl TryFrom<RouterMessage> for Message {
         // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
-        let payload_hash = <nonempty::Vec<u8>>::try_from(&msg.payload_hash)
+        let payload_hash: [u8; 32] = msg
+            .payload_hash
+            .to_array()
             .change_context(ContractError::InvalidMessagePayloadHash(msg.payload_hash))?;
 
         Ok(Self {
