@@ -135,11 +135,11 @@ pub mod execute {
 
         let signature = sign(
             deps.storage,
-            env.block.height,
             &mut session,
             &key,
             signer,
             signature,
+            env.block.height,
         )?;
 
         let event = Event::SignatureSubmitted {

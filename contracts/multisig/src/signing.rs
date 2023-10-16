@@ -77,13 +77,30 @@ fn signers_weight(store: &dyn Storage, session_id: u64, snapshot: &Snapshot) -> 
         .sum()
 }
 
+fn update_session_state(
+    store: &mut dyn Storage,
+    session: &mut SigningSession,
+    key: &Key,
+    block_height: u64,
+) -> StdResult<()> {
+    // weight must be loaded outside `if`, otherwise it could cause gas cost inconsistency among signers
+    let weight = signers_weight(store, session.id.u64(), &key.snapshot)?;
+    if session.state == MultisigState::Pending && weight >= key.snapshot.quorum.into() {
+        session.state = MultisigState::Completed {
+            completed_at: block_height,
+        };
+    }
+
+    SIGNING_SESSIONS.save(store, session.id.u64(), session)
+}
+
 pub fn sign(
     store: &mut dyn Storage,
-    block_height: u64,
     session: &mut SigningSession,
     key: &Key,
     signer: String,
     signature: Signature,
+    block_height: u64,
 ) -> Result<Signature, ContractError> {
     validate_session_signature(session, key, signer.clone(), &signature)?;
 
@@ -101,13 +118,7 @@ pub fn sign(
         },
     )?;
 
-    if signers_weight(store, session.id.u64(), &key.snapshot)? >= key.snapshot.quorum.into() {
-        session.state = MultisigState::Completed {
-            completed_at: block_height,
-        };
-    }
-
-    SIGNING_SESSIONS.save(store, session.id.u64(), session)?;
+    update_session_state(store, session, key, block_height)?;
 
     Ok(signature)
 }
@@ -203,11 +214,11 @@ mod tests {
 
         sign(
             &mut config.store,
-            block_height,
             session,
             key,
             signer.address.into_string(),
             Signature::try_from((config.key_type, signer.signature.clone())).unwrap(),
+            block_height,
         )
     }
 
@@ -315,11 +326,11 @@ mod tests {
 
             let result = sign(
                 &mut config.store,
-                0,
                 &mut session,
                 &key,
                 config.signers[0].address.clone().into_string(),
                 invalid_sig,
+                0,
             );
 
             assert_eq!(
@@ -344,12 +355,12 @@ mod tests {
 
             let result = sign(
                 &mut config.store,
-                0,
                 &mut session,
                 &key,
                 invalid_participant.clone(),
                 Signature::try_from((config.key_type, config.signers[0].signature.clone()))
                     .unwrap(),
+                0,
             );
 
             assert_eq!(

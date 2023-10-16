@@ -66,7 +66,7 @@ impl From<Event> for cosmwasm_std::Event {
                 completed_at,
             } => cosmwasm_std::Event::new("signing_completed")
                 .add_attribute("session_id", session_id)
-                .add_attribute("completed_at", Uint64::from(completed_at)),
+                .add_attribute("completed_at", completed_at.to_string()),
             Event::PublicKeyRegistered { worker, public_key } => {
                 cosmwasm_std::Event::new("public_key_registered")
                     .add_attribute(
