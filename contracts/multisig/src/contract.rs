@@ -493,6 +493,20 @@ mod tests {
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
 
+    fn do_authorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let config = connection_router::state::CONFIG.load(deps.storage)?;
+        let info = mock_info(config.governance.as_str(), &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::AuthorizeCaller {
+            contract_address,
+        };
+        execute(deps, env, info, msg)
+    }
+
     fn query_registered_public_key(
         deps: Deps,
         worker: Addr,
@@ -608,6 +622,7 @@ mod tests {
     #[test]
     fn test_start_signing_session() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), PROVER.into());
 
         for (i, subkey) in [ECDSA_SUBKEY, ED25519_SUBKEY].into_iter().enumerate() {
             let res = do_start_signing_session(deps.as_mut(), PROVER, subkey);
