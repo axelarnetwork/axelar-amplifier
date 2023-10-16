@@ -145,7 +145,7 @@ impl TryFrom<Message> for TxEventConfirmation {
             destination_address: other.destination_address,
             destination_chain: other.destination_chain,
             source_address: other.source_address,
-            payload_hash: other.payload_hash,
+            payload_hash: HexBinary::from(other.payload_hash),
         })
     }
 }

@@ -521,7 +521,7 @@ mod tests {
                 destination_address: "idc".parse().unwrap(),
                 destination_chain: "mock-chain-2".parse().unwrap(),
                 source_address: "idc".parse().unwrap(),
-                payload_hash: vec![i as u8, 0, 0, 0].into(),
+                payload_hash: [i as u8; 32],
             })
             .collect()
     }

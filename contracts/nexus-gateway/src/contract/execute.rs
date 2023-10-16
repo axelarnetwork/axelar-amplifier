@@ -47,7 +47,7 @@ mod test {
                     .parse()
                     .unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
-                payload_hash: decode("deadbeef").unwrap().into(),
+                payload_hash: [3u8; 32],
             },
             Message {
                 cc_id: CrossChainId {
@@ -63,7 +63,7 @@ mod test {
                     .parse()
                     .unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
-                payload_hash: decode("deadbeef").unwrap().into(),
+                payload_hash: [3u8; 32],
             },
         ];
         let res = route_to_nexus(msgs);
