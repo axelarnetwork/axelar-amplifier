@@ -33,7 +33,8 @@ where
                 + epoch.epoch_num;
             let new_epoch = Epoch {
                 epoch_num: new_epoch_num,
-                block_height_started: cur_block_height - (cur_block_height % epoch_duration),
+                block_height_started: cur_block_height
+                    - ((cur_block_height - epoch.block_height_started) % epoch_duration),
                 rewards: epoch.rewards,
             };
             return Ok(new_epoch);
@@ -96,8 +97,8 @@ mod test {
         let epoch_duration = 100u64;
         let rewards_per_epoch: nonempty::Uint256 = Uint256::from(100u128).try_into().unwrap();
         let current_epoch = Epoch {
-            epoch_num: 0,
-            block_height_started: 0,
+            epoch_num: 1,
+            block_height_started: 250,
             rewards: rewards_per_epoch.clone(),
         };
         let stored_params = StoredParams {
@@ -123,7 +124,7 @@ mod test {
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
             Epoch {
-                epoch_num: 1,
+                epoch_num: 2,
                 block_height_started: block,
                 rewards: current_epoch.rewards.clone()
             },
@@ -137,7 +138,7 @@ mod test {
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
             Epoch {
-                epoch_num: 1,
+                epoch_num: 2,
                 block_height_started: block - 1,
                 rewards: current_epoch.rewards.clone()
             },
@@ -151,7 +152,7 @@ mod test {
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
             Epoch {
-                epoch_num: 4,
+                epoch_num: 5,
                 block_height_started: block,
                 rewards: current_epoch.rewards.clone()
             },
@@ -166,7 +167,7 @@ mod test {
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
             Epoch {
-                epoch_num: 4,
+                epoch_num: 5,
                 block_height_started: block - 10,
                 rewards: current_epoch.rewards.clone()
             },
