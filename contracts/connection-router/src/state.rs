@@ -326,10 +326,7 @@ impl KeyDeserialize for &ChainName {
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        String::from_utf8(value)
-            .map_err(StdError::invalid_utf8)?
-            .then(ChainName::try_from)
-            .map_err(StdError::invalid_utf8)
+        ChainName::from_vec(value)
     }
 }
 
