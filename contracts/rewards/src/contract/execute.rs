@@ -91,35 +91,34 @@ mod test {
 
     use super::Contract;
 
-    /// Tests that the current epoch is computed correctly based on block height and epoch duration
+    /// Tests that the current epoch is correctly computed when a number of blocks less than the epoch duration passes.
+    /// The epoch number should not increase.
     #[test]
-    fn test_get_current_epoch() {
-        let epoch_duration = 100u64;
-        let rewards_per_epoch: nonempty::Uint256 = Uint256::from(100u128).try_into().unwrap();
-        let current_epoch = Epoch {
-            epoch_num: 1,
-            block_height_started: 250,
-            rewards: rewards_per_epoch.clone(),
-        };
-        let stored_params = StoredParams {
-            params: RewardsParams {
-                participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
-                epoch_duration: epoch_duration.try_into().unwrap(),
-                rewards_per_epoch,
-            },
-            last_updated: current_epoch.clone(),
-        };
-        let mut contract = create_contract(stored_params.clone());
-
+    fn test_get_current_epoch_same_epoch() {
+        let (mut contract, current_epoch, stored_params) = setup();
+        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         // epoch shouldn't change
         let new_epoch = contract
             .get_current_epoch(current_epoch.block_height_started + 1)
             .unwrap();
         assert_eq!(new_epoch, current_epoch);
 
+        // epoch still shouldn't change
+        let new_epoch = contract
+            .get_current_epoch(current_epoch.block_height_started + epoch_duration - 1)
+            .unwrap();
+        assert_eq!(new_epoch, current_epoch);
+    }
+
+    /// Tests that the current epoch is computed correctly when a number of blocks greater than or equal to the
+    /// epoch duration, but less than 2 times the epoch duration, passes. The epoch number should increase by one.
+    #[test]
+    fn test_get_current_epoch_next_epoch() {
+        let (mut contract, current_epoch, stored_params) = setup();
+        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
+
         // epoch should increase by one
-        let block =
-            current_epoch.block_height_started + u64::from(stored_params.params.epoch_duration);
+        let block = current_epoch.block_height_started + epoch_duration;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
@@ -132,22 +131,28 @@ mod test {
         );
 
         // epoch should increase by one, but start of epoch is in the past
-        let block =
-            current_epoch.block_height_started + u64::from(stored_params.params.epoch_duration) + 1;
+        let block = current_epoch.block_height_started + epoch_duration + epoch_duration / 2;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
             Epoch {
                 epoch_num: 2,
-                block_height_started: block - 1,
+                block_height_started: block - epoch_duration / 2,
                 rewards: current_epoch.rewards.clone()
             },
             new_epoch
         );
+    }
+
+    /// Tests that the current epoch is computed correctly when a number of blocks greater than 2 times the epoch duration passes.
+    /// The epoch number should increase by more than one.
+    #[test]
+    fn test_get_current_epoch_skip_epochs() {
+        let (mut contract, current_epoch, stored_params) = setup();
+        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
 
         // epoch should increase by more than one
-        let block =
-            current_epoch.block_height_started + u64::from(stored_params.params.epoch_duration) * 4;
+        let block = current_epoch.block_height_started + epoch_duration * 4;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
@@ -160,15 +165,13 @@ mod test {
         );
 
         // epoch should increase by more than one, but start of epoch is in the past
-        let block = current_epoch.block_height_started
-            + u64::from(stored_params.params.epoch_duration) * 4
-            + 10;
+        let block = current_epoch.block_height_started + epoch_duration * 4 + epoch_duration / 2;
         let new_epoch = contract.get_current_epoch(block).unwrap();
         assert_ne!(new_epoch, current_epoch);
         assert_eq!(
             Epoch {
                 epoch_num: 5,
-                block_height_started: block - 10,
+                block_height_started: block - epoch_duration / 2,
                 rewards: current_epoch.rewards.clone()
             },
             new_epoch
@@ -181,5 +184,28 @@ mod test {
             .expect_load_params()
             .returning(move || stored_params.clone());
         Contract { store }
+    }
+
+    fn setup() -> (Contract<state::MockStore>, Epoch, StoredParams) {
+        let epoch_duration = 100u64;
+        let rewards_per_epoch: nonempty::Uint256 = Uint256::from(100u128).try_into().unwrap();
+        let current_epoch = Epoch {
+            epoch_num: 1,
+            block_height_started: 250,
+            rewards: rewards_per_epoch.clone(),
+        };
+
+        let stored_params = StoredParams {
+            params: RewardsParams {
+                participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
+                epoch_duration: epoch_duration.try_into().unwrap(),
+                rewards_per_epoch,
+            },
+            last_updated: current_epoch.clone(),
+        };
+
+        let contract = create_contract(stored_params.clone());
+
+        (contract, current_epoch, stored_params)
     }
 }
