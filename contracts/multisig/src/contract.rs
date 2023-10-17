@@ -256,7 +256,6 @@ pub mod execute {
 
     pub fn authorize_caller(
         deps: DepsMut,
-        info: MessageInfo,
         contract_address: Addr,
     ) -> Result<Response, ContractError> {
         AUTHORIZED_CALLERS.save(deps.storage, contract_address.clone(), &())?;
@@ -266,7 +265,6 @@ pub mod execute {
 
     pub fn remove_caller(
         deps: DepsMut,
-        info: MessageInfo,
         contract_address: Addr,
     ) -> Result<Response, ContractError> {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address.clone());
@@ -497,7 +495,7 @@ mod tests {
         deps: DepsMut,
         contract_address: Addr,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let config = connection_router::state::CONFIG.load(deps.storage)?;
+        let config = CONFIG.load(deps.storage)?;
         let info = mock_info(config.governance.as_str(), &[]);
         let env = mock_env();
 
@@ -622,7 +620,7 @@ mod tests {
     #[test]
     fn test_start_signing_session() {
         let mut deps = setup();
-        do_authorize_caller(deps.as_mut(), PROVER.into());
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (i, subkey) in [ECDSA_SUBKEY, ED25519_SUBKEY].into_iter().enumerate() {
             let res = do_start_signing_session(deps.as_mut(), PROVER, subkey);
