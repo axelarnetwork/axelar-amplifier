@@ -24,14 +24,14 @@ where
     /// Returns the current epoch. The current epoch is computed dynamically based on the current
     /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
     /// in which the update occurs as the last checkpoint
-    fn get_current_epoch(&mut self, cur_block_height: u64) -> Result<Epoch, ContractError> {
+    fn get_current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
         let stored_params = self.store.load_params();
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         let epoch = stored_params.last_updated;
         if cur_block_height >= epoch.block_height_started + epoch_duration {
-            let elapsed = cur_block_height - epoch.block_height_started;
-            let epoch_num = ((elapsed) / epoch_duration) + epoch.epoch_num;
-            let block_height_started = cur_block_height - ((elapsed) % epoch_duration);
+            let epochs_elapsed = (cur_block_height - epoch.block_height_started) / epoch_duration;
+            let epoch_num = epochs_elapsed + epoch.epoch_num;
+            let block_height_started = epoch.block_height_started + epochs_elapsed * epoch_duration;
 
             let new_epoch = Epoch {
                 epoch_num,
