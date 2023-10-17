@@ -64,11 +64,11 @@ pub fn execute(
         }
         ExecuteMsg::AuthorizeCaller { contract_address } => {
             require_governance(&deps, info.clone())?;
-            execute::authorize_caller(deps, info, contract_address)
+            execute::authorize_caller(deps, contract_address)
         }
         ExecuteMsg::UnauthorizeCaller { contract_address } => {
             require_governance(&deps, info.clone())?;
-            execute::remove_caller(deps, info, contract_address)
+            execute::remove_caller(deps, contract_address)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -263,10 +263,7 @@ pub mod execute {
         Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
     }
 
-    pub fn remove_caller(
-        deps: DepsMut,
-        contract_address: Addr,
-    ) -> Result<Response, ContractError> {
+    pub fn remove_caller(deps: DepsMut, contract_address: Addr) -> Result<Response, ContractError> {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address.clone());
 
         Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
@@ -499,9 +496,7 @@ mod tests {
         let info = mock_info(config.governance.as_str(), &[]);
         let env = mock_env();
 
-        let msg = ExecuteMsg::AuthorizeCaller {
-            contract_address,
-        };
+        let msg = ExecuteMsg::AuthorizeCaller { contract_address };
         execute(deps, env, info, msg)
     }
 
