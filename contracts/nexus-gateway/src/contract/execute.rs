@@ -16,8 +16,6 @@ pub fn route_to_nexus(msgs: Vec<Message>) -> Result<Response<nexus::Message>, Co
 
 #[cfg(test)]
 mod test {
-    use hex::decode;
-
     use connection_router::state::{CrossChainId, Message};
 
     use super::*;

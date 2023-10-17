@@ -151,7 +151,6 @@ mod tests {
     use base64::Engine;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
-    use cosmwasm_std::HexBinary;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
@@ -320,7 +319,7 @@ mod tests {
                     .unwrap(),
                 destination_chain: "ethereum".parse().unwrap(),
                 destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                payload_hash: HexBinary::from(Hash::random().as_bytes()),
+                payload_hash: Hash::random().to_fixed_bytes(),
             }],
         }
     }

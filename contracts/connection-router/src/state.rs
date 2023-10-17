@@ -1,7 +1,5 @@
 #![allow(deprecated)]
 
-mod payload_hex;
-
 use core::panic;
 use std::any::type_name;
 use std::fmt;
@@ -98,7 +96,7 @@ pub struct Message {
     pub destination_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce it's format.
-    #[serde(with = "payload_hex")]
+    #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub payload_hash: [u8; 32],
 }
