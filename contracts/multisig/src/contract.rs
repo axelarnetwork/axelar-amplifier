@@ -6,7 +6,6 @@ use cosmwasm_std::{
 };
 
 use axelar_wasm_std::Snapshot;
-use connection_router::contract::execute::require_governance;
 use std::collections::HashMap;
 
 use crate::{
@@ -63,11 +62,11 @@ pub fn execute(
             execute::register_pub_key(deps, info, public_key)
         }
         ExecuteMsg::AuthorizeCaller { contract_address } => {
-            require_governance(&deps, info.clone())?;
+            execute::require_governance(&deps, info.clone())?;
             execute::authorize_caller(deps, contract_address)
         }
         ExecuteMsg::UnauthorizeCaller { contract_address } => {
-            require_governance(&deps, info.clone())?;
+            execute::require_governance(&deps, info.clone())?;
             execute::remove_caller(deps, contract_address)
         }
     }
@@ -232,26 +231,13 @@ pub mod execute {
     }
 
     pub fn require_valid_caller(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-        let session_id = SIGNING_SESSION_COUNTER.load(deps.storage)?;
+        AUTHORIZED_CALLERS
+            .load(deps.storage, info.sender.clone())
+            .map_err(|_| ContractError::Unauthorized {
+                contract_address: info.sender,
+            })?;
 
-        let session = SIGNING_SESSIONS
-            .load(deps.storage, session_id.into())
-            .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-
-        let key = KEYS.load(deps.storage, &session.key_id)?;
-
-        match key
-            .pub_keys
-            .iter()
-            .find(|&(addr, _)| addr == &info.sender.to_string())
-        {
-            None => {
-                return Err(ContractError::Unauthorized {
-                    contract_address: info.sender,
-                })
-            }
-            Some(key) => Ok(()),
-        }
+        Ok(())
     }
 
     pub fn authorize_caller(
@@ -267,6 +253,16 @@ pub mod execute {
         AUTHORIZED_CALLERS.remove(deps.storage, contract_address.clone());
 
         Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
+    }
+
+    pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.governance != info.sender {
+            return Err(ContractError::Unauthorized {
+                contract_address: info.sender,
+            });
+        }
+        Ok(())
     }
 }
 
@@ -528,6 +524,7 @@ mod tests {
         key_id: &str,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
         do_start_signing_session(deps.as_mut(), PROVER, key_id).unwrap();
         deps
     }
@@ -672,6 +669,7 @@ mod tests {
     #[test]
     fn test_start_signing_session_wrong_sender() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         let sender = "someone else";
 
@@ -680,12 +678,8 @@ mod tests {
 
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::NoActiveKeyFound {
-                    key_id: KeyID {
-                        owner: Addr::unchecked(sender),
-                        subkey: key_id.to_string(),
-                    }
-                    .to_string()
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized {
+                    contract_address: Addr::unchecked(sender)
                 })
                 .to_string()
             );
@@ -695,6 +689,7 @@ mod tests {
     #[test]
     fn test_submit_signature() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
@@ -745,6 +740,7 @@ mod tests {
     #[test]
     fn test_submit_signature_completed() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
@@ -806,6 +802,7 @@ mod tests {
     #[test]
     fn test_query_signing_session() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (_key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
