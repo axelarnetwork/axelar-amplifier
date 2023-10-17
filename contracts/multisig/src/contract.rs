@@ -60,7 +60,8 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::signing::sign;
+    use crate::signing::validate_session_signature;
+    use crate::state::{load_session_signatures, save_signature};
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -131,16 +132,12 @@ pub mod execute {
             Some((_, pk)) => (pk.key_type(), signature).try_into()?,
         };
 
-        let signer = info.sender.clone().into();
+        validate_session_signature(&session, &key, &info.sender, &signature)?;
+        let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
-        let signature = sign(
-            deps.storage,
-            &mut session,
-            &key,
-            signer,
-            signature,
-            env.block.height,
-        )?;
+        let signatures = load_session_signatures(deps.storage, session_id.u64())?;
+        session.recalculate_session_state(&signatures, &key, env.block.height);
+        SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
         let event = Event::SignatureSubmitted {
             session_id,
@@ -250,7 +247,7 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        state::{session_signatures, PUB_KEYS},
+        state::{load_session_signatures, PUB_KEYS},
     };
 
     use super::*;
@@ -260,7 +257,7 @@ pub mod query {
 
         let mut key = KEYS.load(deps.storage, &session.key_id)?;
 
-        let signatures = session_signatures(deps.storage, session.id.u64())?;
+        let signatures = load_session_signatures(deps.storage, session.id.u64())?;
 
         let signers_with_sigs = key
             .snapshot
@@ -307,7 +304,7 @@ mod tests {
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
-        state::session_signatures,
+        state::load_session_signatures,
         test::common::{build_snapshot, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
         types::MultisigState,
@@ -574,7 +571,8 @@ mod tests {
                 ED25519_SUBKEY => ed25519_test_data::message(),
                 _ => panic!("unexpected subkey"),
             };
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
             assert_eq!(session.key_id, key.id);
@@ -642,7 +640,8 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 1);
             assert_eq!(
@@ -695,7 +694,8 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 2);
             assert_eq!(
@@ -769,7 +769,8 @@ mod tests {
             let key = KEYS
                 .load(deps.as_ref().storage, (&session.key_id).into())
                 .unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(
                 query_res.state,

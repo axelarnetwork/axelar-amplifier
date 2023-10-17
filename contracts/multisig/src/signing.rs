@@ -1,9 +1,10 @@
+use std::collections::HashMap;
+
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{StdResult, Storage, Uint256, Uint64};
+use cosmwasm_std::{Addr, Uint256, Uint64};
 
 use axelar_wasm_std::Snapshot;
 
-use crate::state::{session_signatures, SIGNATURES, SIGNING_SESSIONS};
 use crate::{
     key::Signature,
     types::{Key, KeyID, MsgToSign, MultisigState},
@@ -27,12 +28,27 @@ impl SigningSession {
             state: MultisigState::Pending,
         }
     }
+
+    pub fn recalculate_session_state(
+        &mut self,
+        signatures: &HashMap<String, Signature>,
+        key: &Key,
+        block_height: u64,
+    ) {
+        let weight = signers_weight(signatures, &key.snapshot);
+
+        if self.state == MultisigState::Pending && weight >= key.snapshot.quorum.into() {
+            self.state = MultisigState::Completed {
+                completed_at: block_height,
+            };
+        }
+    }
 }
 
-fn validate_session_signature(
+pub fn validate_session_signature(
     session: &SigningSession,
     key: &Key,
-    signer: String,
+    signer: &Addr,
     signature: &Signature,
 ) -> Result<(), ContractError> {
     // TODO: revisit again once expiration and/or rewards are introduced
@@ -42,17 +58,17 @@ fn validate_session_signature(
         });
     }
 
-    match key.pub_keys.get(&signer) {
+    match key.pub_keys.get(signer.as_str()) {
         Some(pub_key) if !signature.verify(&session.msg, pub_key)? => {
             return Err(ContractError::InvalidSignature {
                 session_id: session.id,
-                signer,
+                signer: signer.into(),
             });
         }
         None => {
             return Err(ContractError::NotAParticipant {
                 session_id: session.id,
-                signer,
+                signer: signer.into(),
             });
         }
         _ => {}
@@ -61,66 +77,18 @@ fn validate_session_signature(
     Ok(())
 }
 
-fn signers_weight(store: &dyn Storage, session_id: u64, snapshot: &Snapshot) -> StdResult<Uint256> {
-    let signatures = session_signatures(store, session_id)?;
-
+fn signers_weight(signatures: &HashMap<String, Signature>, snapshot: &Snapshot) -> Uint256 {
     signatures
         .keys()
-        .map(|addr| -> StdResult<Uint256> {
-            Ok(snapshot
+        .map(|addr| -> Uint256 {
+            snapshot
                 .participants
                 .get(addr)
                 .expect("violated invariant: signature submitted by non-participant")
                 .weight
-                .into())
+                .into()
         })
         .sum()
-}
-
-fn update_session_state(
-    store: &mut dyn Storage,
-    session: &mut SigningSession,
-    key: &Key,
-    block_height: u64,
-) -> StdResult<()> {
-    // weight must be loaded outside `if`, otherwise it could cause gas cost inconsistency among signers
-    let weight = signers_weight(store, session.id.u64(), &key.snapshot)?;
-    if session.state == MultisigState::Pending && weight >= key.snapshot.quorum.into() {
-        session.state = MultisigState::Completed {
-            completed_at: block_height,
-        };
-    }
-
-    SIGNING_SESSIONS.save(store, session.id.u64(), session)
-}
-
-pub fn sign(
-    store: &mut dyn Storage,
-    session: &mut SigningSession,
-    key: &Key,
-    signer: String,
-    signature: Signature,
-    block_height: u64,
-) -> Result<Signature, ContractError> {
-    validate_session_signature(session, key, signer.clone(), &signature)?;
-
-    let signature = SIGNATURES.update(
-        store,
-        (session.id.u64(), &signer),
-        |sig| -> Result<Signature, ContractError> {
-            match sig {
-                Some(_) => Err(ContractError::DuplicateSignature {
-                    session_id: session.id,
-                    signer: signer.clone(),
-                }),
-                None => Ok(signature),
-            }
-        },
-    )?;
-
-    update_session_state(store, session, key, block_height)?;
-
-    Ok(signature)
 }
 
 #[cfg(test)]
@@ -129,7 +97,7 @@ mod tests {
 
     use crate::{
         key::KeyType,
-        state::{KEYS, SIGNING_SESSIONS},
+        state::{load_session_signatures, KEYS, SIGNING_SESSIONS},
         test::common::{build_key, build_snapshot, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
     };
@@ -233,7 +201,7 @@ mod tests {
             let stored = SIGNING_SESSIONS
                 .load(&config.store, session.id.u64())
                 .unwrap();
-            let signatures = session_signatures(&config.store, session.id.u64()).unwrap();
+            let signatures = load_session_signatures(&config.store, session.id.u64()).unwrap();
 
             assert!(result.is_ok());
             assert_eq!(signatures.len(), 1);
@@ -244,7 +212,7 @@ mod tests {
             let stored = SIGNING_SESSIONS
                 .load(&config.store, session.id.u64())
                 .unwrap();
-            let signatures = session_signatures(&config.store, session.id.u64()).unwrap();
+            let signatures = load_session_signatures(&config.store, session.id.u64()).unwrap();
 
             assert_eq!(
                 result.unwrap_err(),

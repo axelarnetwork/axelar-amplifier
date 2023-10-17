@@ -15,7 +15,8 @@ pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_session
 
 /// Signatures by session id and signer address
 pub const SIGNATURES: Map<(u64, &str), Signature> = Map::new("signatures");
-pub fn session_signatures(
+
+pub fn load_session_signatures(
     store: &dyn Storage,
     session_id: u64,
 ) -> StdResult<HashMap<String, Signature>> {
@@ -25,8 +26,27 @@ pub fn session_signatures(
         .collect()
 }
 
-// TODO: key management will change once keygen and key rotation are introduced
-// Map key is currently owner address, however this will change to some derivation of it once keygen and keyrotation are introduced
+pub fn save_signature(
+    store: &mut dyn Storage,
+    session_id: Uint64,
+    signature: Signature,
+    signer: &Addr,
+) -> Result<Signature, ContractError> {
+    SIGNATURES.update(
+        store,
+        (session_id.u64(), signer.as_ref()),
+        |sig| -> Result<Signature, ContractError> {
+            match sig {
+                Some(_) => Err(ContractError::DuplicateSignature {
+                    session_id,
+                    signer: signer.into(),
+                }),
+                None => Ok(signature),
+            }
+        },
+    )
+}
+
 pub const KEYS: Map<&KeyID, Key> = Map::new("keys");
 pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError> {
     KEYS.load(store, key_id)
