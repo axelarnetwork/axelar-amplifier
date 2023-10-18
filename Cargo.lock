@@ -7462,6 +7462,7 @@ dependencies = [
  "getrandom 0.2.10",
  "k256 0.13.1",
  "report",
+ "rewards",
  "schemars",
  "serde",
  "serde_json",

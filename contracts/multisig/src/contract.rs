@@ -22,10 +22,14 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
+    let config = Config {
+        governance: deps.api.addr_validate(&msg.governance_address)?,
+        rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
+        grace_period: msg.grace_period,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    CONFIG.save(deps.storage, &Config { governance })?;
+    SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
 
     Ok(Response::default())
 }
@@ -73,6 +77,8 @@ pub fn execute(
 }
 
 pub mod execute {
+    use cosmwasm_std::WasmMsg;
+
     use crate::signing::validate_session_signature;
     use crate::state::{load_session_signatures, save_signature};
     use crate::{
@@ -127,6 +133,7 @@ pub mod execute {
         session_id: Uint64,
         signature: HexBinary,
     ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
@@ -155,23 +162,35 @@ pub mod execute {
 
         let event = Event::SignatureSubmitted {
             session_id,
-            participant: info.sender,
+            participant: info.sender.clone(),
             signature,
         };
 
-        match session.state {
-            MultisigState::Pending => Ok(Response::new().add_event(event.into())),
-            MultisigState::Completed { completed_at } => {
-                // TODO: revisit again once signing late is implemented. Don't emit event when signing late
-                Ok(Response::new().add_event(event.into()).add_event(
-                    Event::SigningCompleted {
-                        session_id,
-                        completed_at,
-                    }
-                    .into(),
-                ))
-            }
+        let rewards_msg = WasmMsg::Execute {
+            contract_addr: config.rewards_contract.into_string(),
+            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                event_id: session_id.into(),
+                worker_address: info.sender.into(),
+            })?,
+            funds: vec![],
+        };
+
+        let mut response = Response::new()
+            .add_message(rewards_msg)
+            .add_event(event.into());
+
+        // TODO: revisit again once signing late is implemented. Don't emit event when signing late
+        if let MultisigState::Completed { completed_at } = session.state {
+            response = response.add_event(
+                Event::SigningCompleted {
+                    session_id,
+                    completed_at,
+                }
+                .into(),
+            )
         }
+
+        Ok(response)
     }
 
     pub fn key_gen(
@@ -381,6 +400,8 @@ mod tests {
 
         let msg = InstantiateMsg {
             governance_address: "governance".parse().unwrap(),
+            rewards_address: "rewards".to_string(),
+            grace_period: 2,
         };
 
         instantiate(deps, env, info, msg)
