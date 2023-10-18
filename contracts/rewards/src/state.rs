@@ -5,9 +5,9 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
+use mockall::automock;
 
 use crate::{error::ContractError, msg::RewardsParams};
-
 #[cw_serde]
 pub struct StoredParams {
     pub params: RewardsParams,
@@ -65,6 +65,7 @@ impl RewardsPool {
     }
 }
 
+#[automock]
 pub trait Store {
     fn load_params(&self) -> StoredParams;
 

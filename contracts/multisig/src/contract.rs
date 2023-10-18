@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, Multisig, QueryMsg},
-    state::{get_key, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    state::{get_key, Config, CONFIG, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
     types::{Key, KeyID, MsgToSign, MultisigState},
     ContractError,
 };
@@ -21,9 +21,12 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
+
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    CONFIG.save(deps.storage, &Config { governance })?;
 
     Ok(Response::default())
 }
@@ -322,7 +325,9 @@ mod tests {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
 
-        let msg = InstantiateMsg {};
+        let msg = InstantiateMsg {
+            governance_address: "governance".parse().unwrap(),
+        };
 
         instantiate(deps, env, info, msg)
     }

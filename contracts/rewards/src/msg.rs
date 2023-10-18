@@ -36,6 +36,8 @@ pub enum ExecuteMsg {
     DistributeRewards {
         /// Address of contract for which to process rewards. For example, address of a voting verifier instance.
         contract_address: String,
+        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest.
+        epoch_count: Option<u64>,
     },
 
     /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
