@@ -10,7 +10,10 @@ use crate::{
 };
 
 #[cw_serde]
-pub struct InstantiateMsg {}
+pub struct InstantiateMsg {
+    // governance votes on adding addresses to allowed caller list.
+    pub governance_address: String,
+}
 
 #[cw_serde]
 pub enum ExecuteMsg {
