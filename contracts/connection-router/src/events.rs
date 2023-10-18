@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Attribute, Event};
+use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 use std::ops::Deref;
 
 use crate::state::{ChainName, Message};
@@ -108,7 +108,11 @@ impl From<Message> for Vec<Attribute> {
             ("source_addresses", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_addresses", other.destination_address.deref()).into(),
-            ("payload_hash", other.payload_hash.to_string()).into(),
+            (
+                "payload_hash",
+                HexBinary::from(other.payload_hash).to_string(),
+            )
+                .into(),
         ]
     }
 }

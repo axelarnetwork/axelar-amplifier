@@ -1,7 +1,7 @@
 use std::vec::Vec;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
+use cosmwasm_std::{Addr, Attribute, Event};
 
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
@@ -130,7 +130,11 @@ pub struct TxEventConfirmation {
     pub destination_address: Address,
     pub destination_chain: ChainName,
     pub source_address: Address,
-    pub payload_hash: HexBinary,
+    /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
+    /// but internally, we treat it as raw bytes to enforce it's format.
+    #[serde(with = "axelar_wasm_std::hex")]
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub payload_hash: [u8; 32],
 }
 
 impl TryFrom<Message> for TxEventConfirmation {

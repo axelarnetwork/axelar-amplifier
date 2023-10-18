@@ -60,7 +60,7 @@ fn messages(len: u64) -> Vec<Message> {
             source_address: format!("source_address{i}").parse().unwrap(),
             destination_chain: format!("destination_chain{i}").parse().unwrap(),
             destination_address: format!("destination_address{i}").parse().unwrap(),
-            payload_hash: vec![0, 0, 0, 0].into(),
+            payload_hash: [0; 32],
         })
         .collect()
 }
@@ -84,7 +84,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
                 source_address: "source_address1".parse().unwrap(),
                 destination_chain: "destination_chain1".parse().unwrap(),
                 destination_address: "destination_address1".parse().unwrap(),
-                payload_hash: vec![0, 0, 0, 0].into(),
+                payload_hash: [0; 32],
             },
             Message {
                 cc_id: CrossChainId {
@@ -94,7 +94,7 @@ fn should_failed_if_messages_are_not_from_same_source() {
                 source_address: "source_address2".parse().unwrap(),
                 destination_chain: "destination_chain2".parse().unwrap(),
                 destination_address: "destination_address2".parse().unwrap(),
-                payload_hash: vec![0, 0, 0, 0].into(),
+                payload_hash: [0; 32],
             },
         ],
     };

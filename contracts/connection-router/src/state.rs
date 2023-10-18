@@ -8,7 +8,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, HexBinary, Order, StdError, StdResult};
+use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult};
 use cw_storage_plus::{
     Index, IndexList, IndexedMap, Item, Key, KeyDeserialize, MultiIndex, Prefixer, PrimaryKey,
 };
@@ -91,10 +91,14 @@ impl<'a> IndexList<ChainEndpoint> for ChainEndpointIndexes<'a> {
 #[cw_serde]
 pub struct Message {
     pub cc_id: CrossChainId,
-    pub destination_address: Address,
-    pub destination_chain: ChainName,
     pub source_address: Address,
-    pub payload_hash: HexBinary,
+    pub destination_chain: ChainName,
+    pub destination_address: Address,
+    /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
+    /// but internally, we treat it as raw bytes to enforce it's format.
+    #[serde(with = "axelar_wasm_std::hex")]
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
+    pub payload_hash: [u8; 32],
 }
 
 #[cw_serde]
@@ -311,7 +315,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "252e44129132a3bac9b26ee4d7f247453bd80b2aa0513050c274d5c5cf2f7153";
+            "9f9b9c55ccf5ce5a82f66385cae9e84e402a272fece5a2e22a199dbefc91d8bf";
 
         let msg = dummy_message();
 

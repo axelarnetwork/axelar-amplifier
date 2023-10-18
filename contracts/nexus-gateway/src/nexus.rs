@@ -52,17 +52,13 @@ impl TryFrom<RouterMessage> for Message {
         // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
-        let payload_hash: [u8; 32] = msg
-            .payload_hash
-            .to_array()
-            .change_context(ContractError::InvalidMessagePayloadHash(msg.payload_hash))?;
 
         Ok(Self {
             source_chain: msg.cc_id.chain,
             source_address: msg.source_address.clone(),
             destination_chain: msg.destination_chain,
             destination_address: msg.destination_address.clone(),
-            payload_hash,
+            payload_hash: msg.payload_hash,
             source_tx_id,
             source_tx_index,
         })
