@@ -52,7 +52,7 @@ pub fn validate_session_signature(
     signature: &Signature,
 ) -> Result<(), ContractError> {
     // TODO: revisit again once expiration and/or rewards are introduced
-    if let MultisigState::Completed { .. } = session.state {
+    if matches!(session.state, MultisigState::Completed { .. }) {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
@@ -60,21 +60,17 @@ pub fn validate_session_signature(
 
     match key.pub_keys.get(signer.as_str()) {
         Some(pub_key) if !signature.verify(&session.msg, pub_key)? => {
-            return Err(ContractError::InvalidSignature {
+            Err(ContractError::InvalidSignature {
                 session_id: session.id,
                 signer: signer.into(),
-            });
+            })
         }
-        None => {
-            return Err(ContractError::NotAParticipant {
-                session_id: session.id,
-                signer: signer.into(),
-            });
-        }
-        _ => {}
+        None => Err(ContractError::NotAParticipant {
+            session_id: session.id,
+            signer: signer.into(),
+        }),
+        _ => Ok(()),
     }
-
-    Ok(())
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, snapshot: &Snapshot) -> Uint256 {
