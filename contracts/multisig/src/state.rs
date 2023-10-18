@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Item, Map};
 
@@ -9,6 +10,13 @@ use crate::{
     types::{Key, KeyID},
     ContractError,
 };
+
+#[cw_serde]
+pub struct Config {
+    pub governance: Addr,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
 
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");

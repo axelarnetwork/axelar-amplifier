@@ -1,6 +1,7 @@
 #![allow(deprecated)]
 
 use core::panic;
+use std::any::type_name;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
@@ -128,81 +129,10 @@ impl TryFrom<String> for Address {
 }
 
 #[cw_serde]
-#[serde(try_from = "String")]
-#[derive(Eq, Hash)]
-pub struct MessageId(String);
-
-impl MessageId {
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.0.into_bytes()
-    }
-}
-
-impl FromStr for MessageId {
-    type Err = ContractError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // todo: should split in exactly 2 parts when migrated to state::NewMessage
-        let split: Vec<_> = s.split(ID_SEPARATOR).filter(|s| !s.is_empty()).collect();
-        if split.len() < 2 {
-            return Err(ContractError::InvalidMessageId);
-        }
-        Ok(MessageId(s.to_lowercase()))
-    }
-}
-
-impl TryFrom<String> for MessageId {
-    type Error = ContractError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        value.as_str().parse()
-    }
-}
-
-impl From<MessageId> for String {
-    fn from(d: MessageId) -> Self {
-        d.0
-    }
-}
-
-impl Deref for MessageId {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Display for MessageId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl<'a> PrimaryKey<'a> for MessageId {
-    type Prefix = ();
-    type SubPrefix = ();
-    type Suffix = Self;
-    type SuperSuffix = Self;
-
-    fn key(&self) -> Vec<Key> {
-        vec![Key::Ref(self.0.as_bytes())]
-    }
-}
-
-impl KeyDeserialize for MessageId {
-    type Output = Self;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self> {
-        let value = String::from_utf8(value).map_err(StdError::invalid_utf8)?;
-        Ok(Self(value))
-    }
-}
-
-#[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {
     pub chain: ChainName,
-    pub id: MessageId,
+    pub id: nonempty::String,
 }
 
 /// todo: remove this when state::NewMessage is used
@@ -212,7 +142,13 @@ impl FromStr for CrossChainId {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = s.split_once(ID_SEPARATOR);
         let (chain, id) = parts
-            .map(|(chain, id)| (chain.parse::<ChainName>(), id.parse::<MessageId>()))
+            .map(|(chain, id)| {
+                (
+                    chain.parse::<ChainName>(),
+                    id.parse::<nonempty::String>()
+                        .map_err(|_| ContractError::InvalidMessageId),
+                )
+            })
             .ok_or(ContractError::InvalidMessageId)?;
         Ok(CrossChainId {
             chain: chain?,
@@ -223,15 +159,15 @@ impl FromStr for CrossChainId {
 
 impl Display for CrossChainId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", &self.chain, ID_SEPARATOR, &self.id)
+        write!(f, "{}{}{}", self.chain, ID_SEPARATOR, *self.id)
     }
 }
 
 impl PrimaryKey<'_> for CrossChainId {
     type Prefix = ChainName;
     type SubPrefix = ();
-    type Suffix = MessageId;
-    type SuperSuffix = (ChainName, MessageId);
+    type Suffix = String;
+    type SuperSuffix = (ChainName, String);
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
@@ -244,8 +180,13 @@ impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(ChainName, MessageId)>::from_vec(value)?;
-        Ok(CrossChainId { chain, id })
+        let (chain, id) = <(ChainName, String)>::from_vec(value)?;
+        Ok(CrossChainId {
+            chain,
+            id: id
+                .try_into()
+                .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
+        })
     }
 }
 
@@ -326,10 +267,7 @@ impl KeyDeserialize for &ChainName {
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        String::from_utf8(value)
-            .map_err(StdError::invalid_utf8)?
-            .then(ChainName::try_from)
-            .map_err(StdError::invalid_utf8)
+        ChainName::from_vec(value)
     }
 }
 
@@ -367,13 +305,6 @@ mod tests {
     use sha3::{Digest, Sha3_256};
 
     use crate::ContractError;
-
-    #[test]
-    fn create_correct_global_message_id() {
-        let msg = dummy_message();
-
-        assert_eq!(msg.cc_id.to_string(), "chain:hash:index".to_string());
-    }
 
     #[test]
     // Any modifications to the Message struct fields or their types
@@ -454,34 +385,6 @@ mod tests {
         assert!(chain_name.eq(&"ethEReum".to_string()));
 
         assert!(!chain_name.eq(&"Ethereum-1".to_string()));
-    }
-
-    #[test]
-    fn message_id_must_have_at_least_one_separator() {
-        assert!(MessageId::from_str("source_chain:hash:id").is_ok());
-        assert!(serde_json::from_str::<MessageId>("\"source_chain:hash:id\"").is_ok());
-
-        assert!(MessageId::from_str("invalid_hash").is_err());
-        assert!(serde_json::from_str::<MessageId>("\"invalid_hash\"").is_err());
-
-        assert!(MessageId::from_str("invalid_hash:").is_err());
-    }
-
-    #[test]
-    fn message_id_is_lower_case() {
-        let msg_id = "HaSH:iD".parse::<MessageId>().unwrap();
-        assert_eq!(msg_id.to_string(), "hash:id");
-    }
-
-    #[test]
-    fn serialize_global_message_id() {
-        let id = CrossChainId {
-            chain: "ethereum".parse().unwrap(),
-            id: "hash:id".parse().unwrap(),
-        };
-
-        let serialized = serde_json::to_string(&id).unwrap();
-        assert_eq!(id, serde_json::from_str(&serialized).unwrap());
     }
 
     fn dummy_message() -> Message {

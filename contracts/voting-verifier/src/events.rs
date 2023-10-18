@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::PollID;
-use connection_router::state::{Address, ChainName, Message, MessageId, ID_SEPARATOR};
+use connection_router::state::{Address, ChainName, Message, ID_SEPARATOR};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -113,7 +113,7 @@ pub struct WorkerSetConfirmation {
 }
 
 impl WorkerSetConfirmation {
-    pub fn new(message_id: MessageId, operators: Operators) -> Result<Self, ContractError> {
+    pub fn new(message_id: nonempty::String, operators: Operators) -> Result<Self, ContractError> {
         let (tx_id, event_index) = parse_message_id(&message_id)?;
         Ok(Self {
             tx_id,
@@ -150,19 +150,21 @@ impl TryFrom<Message> for TxEventConfirmation {
     }
 }
 
-fn parse_message_id(message_id: &MessageId) -> Result<(nonempty::String, u64), ContractError> {
+fn parse_message_id(
+    message_id: &nonempty::String,
+) -> Result<(nonempty::String, u64), ContractError> {
     // expected format: <tx_id>:<index>
     let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
 
     if components.len() != 2 {
-        return Err(ContractError::InvalidMessageID(message_id.clone()));
+        return Err(ContractError::InvalidMessageID(message_id.to_string()));
     }
 
     Ok((
         components[0].try_into()?,
         components[1]
             .parse::<u64>()
-            .map_err(|_| ContractError::InvalidMessageID(message_id.clone()))?,
+            .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
     ))
 }
 

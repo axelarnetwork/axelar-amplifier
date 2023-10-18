@@ -1,4 +1,3 @@
-use connection_router::state::MessageId;
 use cosmwasm_std::HexBinary;
 use thiserror::Error;
 
@@ -10,7 +9,7 @@ pub enum ContractError {
     Unauthorized,
 
     #[error("invalid message id {0}")]
-    InvalidMessageId(MessageId),
+    InvalidMessageId(String),
 
     #[error("invalid payload hash {0}")]
     InvalidMessagePayloadHash(HexBinary),
