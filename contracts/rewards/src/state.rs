@@ -51,8 +51,8 @@ pub struct Epoch {
 
 #[cw_serde]
 pub struct RewardsPool {
-    contract: Addr,
-    balance: Uint256,
+    pub contract: Addr,
+    pub balance: Uint256,
 }
 
 impl RewardsPool {
