@@ -149,8 +149,16 @@ mod test {
         };
         store
             .expect_is_message_routed()
-            .times(2)
+            .once()
+            .returning(|_| Ok(false));
+        store
+            .expect_is_message_routed()
+            .once()
             .returning(|_| Ok(true));
+        store
+            .expect_set_message_routed()
+            .once()
+            .returning(|_| Ok(()));
         let contract = Contract { store, config };
 
         let msgs = vec![
@@ -185,6 +193,6 @@ mod test {
         ];
         let res = contract.route_messages(Addr::unchecked("router"), msgs);
 
-        assert!(res.is_ok_and(|res| res.messages.is_empty()));
+        assert!(res.is_ok_and(|res| res.messages.len() == 1));
     }
 }
