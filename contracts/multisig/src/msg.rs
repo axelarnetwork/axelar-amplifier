@@ -11,7 +11,7 @@ use crate::{
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    // governance votes on adding addresses to allowed caller list.
+    // governance modifies the addresses in the allowed caller list.
     pub governance_address: String,
 }
 
