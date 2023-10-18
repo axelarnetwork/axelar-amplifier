@@ -38,7 +38,7 @@ pub fn execute(
             chain,
             gateway_address,
         } => {
-            execute::require_governance(&deps, info.clone())?;
+            execute::require_governance(&deps, info)?;
             let gateway_address = deps.api.addr_validate(&gateway_address)?;
             execute::register_chain(deps, chain, gateway_address)
         }
@@ -46,7 +46,7 @@ pub fn execute(
             chain,
             contract_address,
         } => {
-            execute::require_governance(&deps, info.clone())?;
+            execute::require_governance(&deps, info)?;
             let contract_address = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_gateway(deps, chain, contract_address)
         }

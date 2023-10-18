@@ -34,9 +34,11 @@ pub enum ExecuteMsg {
         public_key: PublicKey,
     },
     AuthorizeCaller {
+        // Adds an address to AUTHORIZED_CALLERS, representing the addresses that can start a signing session.
         contract_address: Addr,
     },
     UnauthorizeCaller {
+        // Removes an address from AUTHORIZED_CALLERS
         contract_address: Addr,
     },
 }

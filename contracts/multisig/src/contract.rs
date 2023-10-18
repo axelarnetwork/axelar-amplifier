@@ -1,11 +1,10 @@
+use axelar_wasm_std::Snapshot;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
     Uint64,
 };
-
-use axelar_wasm_std::Snapshot;
 use std::collections::HashMap;
 
 use crate::{
@@ -40,7 +39,7 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::StartSigningSession { key_id, msg } => {
-            execute::require_valid_caller(&deps, info.clone())?;
+            execute::require_authorized_caller(&deps, info.sender.clone())?;
             execute::start_signing_session(
                 deps,
                 info,
@@ -62,12 +61,12 @@ pub fn execute(
             execute::register_pub_key(deps, info, public_key)
         }
         ExecuteMsg::AuthorizeCaller { contract_address } => {
-            execute::require_governance(&deps, info.clone())?;
+            execute::require_governance(&deps, info.sender)?;
             execute::authorize_caller(deps, contract_address)
         }
         ExecuteMsg::UnauthorizeCaller { contract_address } => {
-            execute::require_governance(&deps, info.clone())?;
-            execute::remove_caller(deps, contract_address)
+            execute::require_governance(&deps, info.sender)?;
+            execute::unauthorize_caller(deps, contract_address)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -80,6 +79,7 @@ pub mod execute {
         signing::SigningSession,
         state::{AUTHORIZED_CALLERS, PUB_KEYS},
     };
+    use error_stack::ResultExt;
 
     use super::*;
 
@@ -230,37 +230,37 @@ pub mod execute {
         ))
     }
 
-    pub fn require_valid_caller(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    pub fn require_authorized_caller(
+        deps: &DepsMut,
+        contract_address: Addr,
+    ) -> error_stack::Result<(), ContractError> {
         AUTHORIZED_CALLERS
-            .load(deps.storage, info.sender.clone())
-            .map_err(|_| ContractError::Unauthorized {
-                contract_address: info.sender,
-            })?;
-
-        Ok(())
+            .load(deps.storage, &contract_address)
+            .change_context(ContractError::Unauthorized)
     }
 
     pub fn authorize_caller(
         deps: DepsMut,
         contract_address: Addr,
     ) -> Result<Response, ContractError> {
-        AUTHORIZED_CALLERS.save(deps.storage, contract_address.clone(), &())?;
+        AUTHORIZED_CALLERS.save(deps.storage, &contract_address, &())?;
 
         Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
     }
 
-    pub fn remove_caller(deps: DepsMut, contract_address: Addr) -> Result<Response, ContractError> {
-        AUTHORIZED_CALLERS.remove(deps.storage, contract_address.clone());
+    pub fn unauthorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.remove(deps.storage, &contract_address);
 
         Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
     }
 
-    pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    pub fn require_governance(deps: &DepsMut, contract_address: Addr) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
-        if config.governance != info.sender {
-            return Err(ContractError::Unauthorized {
-                contract_address: info.sender,
-            });
+        if config.governance != contract_address {
+            return Err(ContractError::Unauthorized);
         }
         Ok(())
     }
@@ -678,10 +678,8 @@ mod tests {
 
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::Unauthorized {
-                    contract_address: Addr::unchecked(sender)
-                })
-                .to_string()
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+                    + ": () not found"
             );
         }
     }
