@@ -151,6 +151,7 @@ pub mod execute {
         match session.state {
             MultisigState::Pending => Ok(Response::new().add_event(event.into())),
             MultisigState::Completed { completed_at } => {
+                // TODO: revisit again once signing late is implemented. Don't emit event when signing late
                 Ok(Response::new().add_event(event.into()).add_event(
                     Event::SigningCompleted {
                         session_id,
