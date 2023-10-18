@@ -122,7 +122,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         // elements are (height, expected epoch number, expected epoch start)
         let test_cases = vec![
