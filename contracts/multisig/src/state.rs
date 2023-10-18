@@ -57,3 +57,63 @@ pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError
 
 // key type is part of the key so signers can register multiple keys with different types
 pub const PUB_KEYS: Map<(Addr, KeyType), HexBinary> = Map::new("registered_pub_keys");
+
+#[cfg(test)]
+mod tests {
+
+    use cosmwasm_std::testing::mock_dependencies;
+
+    use crate::test::common::ecdsa_test_data;
+
+    use super::*;
+
+    #[test]
+    fn test_save_and_load_signatures() {
+        let mut deps = mock_dependencies();
+        let session_id = 1u64;
+
+        for (i, signer) in ecdsa_test_data::signers().into_iter().enumerate() {
+            let signature = Signature::try_from((KeyType::Ecdsa, signer.signature)).unwrap();
+            assert!(save_signature(
+                deps.as_mut().storage,
+                session_id.into(),
+                signature.clone(),
+                &signer.address
+            )
+            .is_ok());
+
+            let signatures = load_session_signatures(deps.as_ref().storage, session_id).unwrap();
+            assert_eq!(signatures.len(), i + 1);
+        }
+    }
+
+    #[test]
+    fn test_duplicate_signature() {
+        let mut deps = mock_dependencies();
+        let session_id = 1u64;
+        let signer = ecdsa_test_data::signers().remove(0);
+        let signature = Signature::try_from((KeyType::Ecdsa, signer.signature)).unwrap();
+
+        assert!(save_signature(
+            deps.as_mut().storage,
+            session_id.into(),
+            signature.clone(),
+            &signer.address
+        )
+        .is_ok());
+
+        assert_eq!(
+            save_signature(
+                deps.as_mut().storage,
+                session_id.into(),
+                signature,
+                &signer.address
+            )
+            .unwrap_err(),
+            ContractError::DuplicateSignature {
+                session_id: session_id.into(),
+                signer: signer.address.into(),
+            }
+        );
+    }
+}
