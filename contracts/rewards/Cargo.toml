@@ -34,6 +34,7 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
+mockall = "0.11.3"
 report = { workspace = true }
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { workspace = true }
