@@ -21,7 +21,7 @@ fn generate_messages(count: usize) -> Vec<Message> {
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
             source_address: "idc".parse().unwrap(),
-            payload_hash: vec![x as u8, 0, 0, 0].into(),
+            payload_hash: [x as u8; 32],
         });
     }
     msgs

@@ -221,7 +221,7 @@ pub fn command_params(
     source_chain: String,
     source_address: String,
     destination_address: String,
-    payload_hash: HexBinary,
+    payload_hash: &[u8; 32],
 ) -> Result<HexBinary, ContractError> {
     let destination_address =
         ethereum_types::Address::from_str(&destination_address).map_err(|err| {
@@ -229,21 +229,11 @@ pub fn command_params(
                 reason: format!("destination_address is not a valid EVM address: {}", err),
             }
         })?;
-    let payload_hash: [u8; 32] =
-        payload_hash
-            .as_slice()
-            .try_into()
-            .map_err(|err| ContractError::InvalidMessage {
-                reason: format!(
-                    "payload_hash length is not a valid keccak256 hash length: {}",
-                    err
-                ),
-            })?;
     Ok(ethabi::encode(&[
         Token::String(source_chain),
         Token::String(source_address),
         Token::Address(destination_address),
-        Token::FixedBytes(payload_hash.into()),
+        Token::FixedBytes(payload_hash.to_vec()),
         Token::FixedBytes(vec![]), // TODO: Dummy data for now while Gateway is updated to not require these fields
         Token::Uint(ethereum_types::U256::zero()),
     ])
@@ -362,7 +352,7 @@ mod test {
             router_message.cc_id.chain.to_string(),
             router_message.source_address.to_string(),
             router_message.destination_address.to_string(),
-            router_message.payload_hash,
+            &router_message.payload_hash,
         );
         assert!(res.is_ok());
 
@@ -387,34 +377,12 @@ mod test {
             router_message.cc_id.chain.to_string(),
             router_message.source_address.to_string(),
             router_message.destination_address.to_string(),
-            router_message.payload_hash,
+            &router_message.payload_hash,
         );
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidMessage {
                 reason: "destination_address is not a valid EVM address: Invalid character 'i' at position 0".into()
-            }
-        );
-    }
-
-    #[test]
-    fn test_command_from_router_message_invalid_payload_hash() {
-        let mut router_message = test_data::messages().first().unwrap().clone();
-        router_message.payload_hash =
-            HexBinary::from_hex("df0e679e57348329e51e4337b7839882c29f21a3095a718c239f147b143ff8")
-                .unwrap();
-
-        let res = command_params(
-            router_message.cc_id.chain.to_string(),
-            router_message.source_address.to_string(),
-            router_message.destination_address.to_string(),
-            router_message.payload_hash,
-        );
-        assert_eq!(
-            res.unwrap_err(),
-            ContractError::InvalidMessage {
-                reason: "payload_hash length is not a valid keccak256 hash length: could not convert slice to array"
-                    .into()
             }
         );
     }

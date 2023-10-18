@@ -92,6 +92,8 @@ pub fn messages() -> Vec<Message> {
         payload_hash: HexBinary::from_hex(
             "8c3685dc41c2eca11426f8035742fb97ea9f14931152670a5703f18fe8b392f0",
         )
+        .unwrap()
+        .to_array::<32>()
         .unwrap(),
     }]
 }

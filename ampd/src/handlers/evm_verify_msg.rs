@@ -227,7 +227,6 @@ mod tests {
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use cosmwasm_std;
-    use cosmwasm_std::HexBinary;
     use error_stack::Result;
     use tendermint::abci;
 
@@ -268,7 +267,7 @@ mod tests {
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: HexBinary::from(Hash::random().as_bytes()),
+                    payload_hash: Hash::random().to_fixed_bytes(),
                 },
                 TxEventConfirmation {
                     tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
@@ -276,7 +275,7 @@ mod tests {
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: HexBinary::from(Hash::random().as_bytes()),
+                    payload_hash: Hash::random().to_fixed_bytes(),
                 },
                 TxEventConfirmation {
                     tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
@@ -284,7 +283,7 @@ mod tests {
                     source_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
                     destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
-                    payload_hash: HexBinary::from(Hash::random().as_bytes()),
+                    payload_hash: Hash::random().to_fixed_bytes(),
                 },
             ],
         };
