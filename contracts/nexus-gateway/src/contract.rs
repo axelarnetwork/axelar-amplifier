@@ -18,7 +18,9 @@ pub fn instantiate(
     let nexus = deps.api.addr_validate(&msg.nexus)?;
     let router = deps.api.addr_validate(&msg.router)?;
 
-    GatewayStore::new(deps.storage).save_config(Config { nexus, router })?;
+    GatewayStore::new(deps.storage)
+        .save_config(Config { nexus, router })
+        .expect("config must be saved");
 
     Ok(Response::default())
 }
@@ -31,7 +33,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<nexus::Message>, axelar_wasm_std::ContractError> {
     let store = GatewayStore::new(deps.storage);
-    let config = store.load_config()?;
+    let config = store.load_config().expect("config must be loaded");
     let contract = Contract { store, config };
 
     let res = match msg {
