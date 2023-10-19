@@ -79,7 +79,7 @@ pub fn execute(
 pub mod execute {
     use cosmwasm_std::WasmMsg;
 
-    use crate::signing::validate_session_signature;
+    use crate::signing::{signer_pub_key, validate_session_signature};
     use crate::state::{load_session_signatures, save_signature};
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
@@ -137,27 +137,16 @@ pub mod execute {
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-
         let key = KEYS.load(deps.storage, &session.key_id)?;
-        let signature: Signature = match key
-            .pub_keys
-            .iter()
-            .find(|&(addr, _)| addr == &info.sender.to_string())
-        {
-            None => {
-                return Err(ContractError::NotAParticipant {
-                    session_id,
-                    signer: info.sender.into(),
-                })
-            }
-            Some((_, pk)) => (pk.key_type(), signature).try_into()?,
-        };
+
+        let pub_key = signer_pub_key(&key, &info.sender, session.id)?;
+        let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
         validate_session_signature(
             &session,
-            &key,
             &info.sender,
             &signature,
+            pub_key,
             config.grace_period,
             env.block.height,
         )?;
