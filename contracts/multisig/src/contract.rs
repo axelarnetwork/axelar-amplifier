@@ -259,7 +259,7 @@ pub mod execute {
 
     pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
-        if config.governance != contract_address {
+        if config.governance != sender {
             return Err(ContractError::Unauthorized);
         }
         Ok(())
