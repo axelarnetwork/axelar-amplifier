@@ -496,6 +496,18 @@ mod tests {
         execute(deps, env, info, msg)
     }
 
+    fn do_unauthorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        let info = mock_info(config.governance.as_str(), &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::UnauthorizeCaller { contract_address };
+        execute(deps, env, info, msg)
+    }
+
     fn query_registered_public_key(
         deps: Deps,
         worker: Addr,
@@ -964,5 +976,31 @@ mod tests {
             PublicKey::try_from((KeyType::Ecdsa, new_pub_key)).unwrap(),
             from_binary::<PublicKey>(&res.unwrap()).unwrap()
         );
+    }
+
+    #[test]
+    fn test_authorize_and_unauthorize_caller() {
+        let mut deps = setup();
+
+        // authorize
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+
+            assert!(res.is_ok());
+        }
+
+        // unauthorize
+        do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+                    + ": () not found"
+            );
+        }
     }
 }
