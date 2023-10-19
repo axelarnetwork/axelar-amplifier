@@ -35,6 +35,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 [dependencies]
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
+connection-router = { workspace = true, features = ["library"] }
 cosmwasm-crypto = "1.2.7"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }

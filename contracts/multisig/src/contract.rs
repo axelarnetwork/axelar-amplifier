@@ -1,11 +1,10 @@
+use axelar_wasm_std::Snapshot;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
     Uint64,
 };
-
-use axelar_wasm_std::Snapshot;
 use std::collections::HashMap;
 
 use crate::{
@@ -39,13 +38,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id, msg } => execute::start_signing_session(
-            deps,
-            info,
-            key_id,
-            msg.try_into()
-                .map_err(axelar_wasm_std::ContractError::from)?,
-        ),
+        ExecuteMsg::StartSigningSession { key_id, msg } => {
+            execute::require_authorized_caller(&deps, info.sender.clone())?;
+            execute::start_signing_session(
+                deps,
+                info,
+                key_id,
+                msg.try_into()
+                    .map_err(axelar_wasm_std::ContractError::from)?,
+            )
+        }
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
@@ -58,6 +60,14 @@ pub fn execute(
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
         }
+        ExecuteMsg::AuthorizeCaller { contract_address } => {
+            execute::require_governance(&deps, info.sender)?;
+            execute::authorize_caller(deps, contract_address)
+        }
+        ExecuteMsg::UnauthorizeCaller { contract_address } => {
+            execute::require_governance(&deps, info.sender)?;
+            execute::unauthorize_caller(deps, contract_address)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -67,8 +77,9 @@ pub mod execute {
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
-        state::PUB_KEYS,
+        state::{AUTHORIZED_CALLERS, PUB_KEYS},
     };
+    use error_stack::ResultExt;
 
     use super::*;
 
@@ -217,6 +228,41 @@ pub mod execute {
             }
             .into(),
         ))
+    }
+
+    pub fn require_authorized_caller(
+        deps: &DepsMut,
+        contract_address: Addr,
+    ) -> error_stack::Result<(), ContractError> {
+        AUTHORIZED_CALLERS
+            .load(deps.storage, &contract_address)
+            .change_context(ContractError::Unauthorized)
+    }
+
+    pub fn authorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.save(deps.storage, &contract_address, &())?;
+
+        Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
+    }
+
+    pub fn unauthorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.remove(deps.storage, &contract_address);
+
+        Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
+    }
+
+    pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.governance != sender {
+            return Err(ContractError::Unauthorized);
+        }
+        Ok(())
     }
 }
 
@@ -438,6 +484,30 @@ mod tests {
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
 
+    fn do_authorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        let info = mock_info(config.governance.as_str(), &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::AuthorizeCaller { contract_address };
+        execute(deps, env, info, msg)
+    }
+
+    fn do_unauthorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        let info = mock_info(config.governance.as_str(), &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::UnauthorizeCaller { contract_address };
+        execute(deps, env, info, msg)
+    }
+
     fn query_registered_public_key(
         deps: Deps,
         worker: Addr,
@@ -466,6 +536,7 @@ mod tests {
         key_id: &str,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
         do_start_signing_session(deps.as_mut(), PROVER, key_id).unwrap();
         deps
     }
@@ -553,6 +624,7 @@ mod tests {
     #[test]
     fn test_start_signing_session() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (i, subkey) in [ECDSA_SUBKEY, ED25519_SUBKEY].into_iter().enumerate() {
             let res = do_start_signing_session(deps.as_mut(), PROVER, subkey);
@@ -609,6 +681,7 @@ mod tests {
     #[test]
     fn test_start_signing_session_wrong_sender() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         let sender = "someone else";
 
@@ -617,14 +690,8 @@ mod tests {
 
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::NoActiveKeyFound {
-                    key_id: KeyID {
-                        owner: Addr::unchecked(sender),
-                        subkey: key_id.to_string(),
-                    }
-                    .to_string()
-                })
-                .to_string()
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+                    + ": () not found"
             );
         }
     }
@@ -632,6 +699,7 @@ mod tests {
     #[test]
     fn test_submit_signature() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
@@ -682,6 +750,7 @@ mod tests {
     #[test]
     fn test_submit_signature_completed() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
@@ -743,6 +812,7 @@ mod tests {
     #[test]
     fn test_query_signing_session() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (_key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
@@ -905,6 +975,70 @@ mod tests {
         assert_eq!(
             PublicKey::try_from((KeyType::Ecdsa, new_pub_key)).unwrap(),
             from_binary::<PublicKey>(&res.unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_authorize_and_unauthorize_caller() {
+        let mut deps = setup();
+
+        // authorize
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+
+            assert!(res.is_ok());
+        }
+
+        // unauthorize
+        do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+                    + ": () not found"
+            );
+        }
+    }
+
+    #[test]
+    fn test_authorize_caller_wrong_caller() {
+        let mut deps = setup();
+
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let info = mock_info("user", &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::AuthorizeCaller {
+            contract_address: Addr::unchecked(PROVER),
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+        );
+    }
+
+    #[test]
+    fn test_unauthorize_caller_wrong_caller() {
+        let mut deps = setup();
+
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let info = mock_info("user", &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::UnauthorizeCaller {
+            contract_address: Addr::unchecked(PROVER),
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
         );
     }
 }

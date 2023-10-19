@@ -48,4 +48,7 @@ pub enum ContractError {
 
     #[error("key type mismatch")]
     KeyTypeMismatch,
+
+    #[error("caller is not authorized")]
+    Unauthorized,
 }
