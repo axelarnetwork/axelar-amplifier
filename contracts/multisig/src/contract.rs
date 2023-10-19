@@ -1003,4 +1003,42 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_authorize_caller_wrong_caller() {
+        let mut deps = setup();
+
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let info = mock_info("user", &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::AuthorizeCaller {
+            contract_address: Addr::unchecked(PROVER),
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+        );
+    }
+
+    #[test]
+    fn test_unauthorize_caller_wrong_caller() {
+        let mut deps = setup();
+
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let info = mock_info("user", &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::UnauthorizeCaller {
+            contract_address: Addr::unchecked(PROVER),
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+        );
+    }
 }
