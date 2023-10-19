@@ -153,7 +153,14 @@ pub mod execute {
             Some((_, pk)) => (pk.key_type(), signature).try_into()?,
         };
 
-        validate_session_signature(&session, &key, &info.sender, &signature)?;
+        validate_session_signature(
+            &session,
+            &key,
+            &info.sender,
+            &signature,
+            config.grace_period,
+            env.block.height,
+        )?;
         let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
         let signatures = load_session_signatures(deps.storage, session_id.u64())?;

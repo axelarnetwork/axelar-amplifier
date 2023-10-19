@@ -50,9 +50,11 @@ pub fn validate_session_signature(
     key: &Key,
     signer: &Addr,
     signature: &Signature,
+    grace_period: u64,
+    block_height: u64,
 ) -> Result<(), ContractError> {
-    // TODO: revisit again once expiration and/or rewards are introduced
-    if matches!(session.state, MultisigState::Completed { .. }) {
+    if matches!(session.state, MultisigState::Completed { completed_at } if completed_at + grace_period < block_height)
+    {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
@@ -90,6 +92,7 @@ fn signers_weight(signatures: &HashMap<String, Signature>, snapshot: &Snapshot) 
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{testing::MockStorage, Addr, HexBinary};
+    use k256::elliptic_curve::rand_core::block;
 
     use crate::{
         key::KeyType,
@@ -206,7 +209,31 @@ mod tests {
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
 
-            assert!(validate_session_signature(&session, &key, &signer, signature).is_ok());
+            assert!(validate_session_signature(&session, &key, &signer, signature, 0, 0).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_success_validation_grace_period() {
+        for config in [ecdsa_setup(), ed25519_setup()] {
+            let mut session = config.session;
+            let key = config.key;
+            let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
+            let signature = config.signatures.values().next().unwrap();
+            let completed_at = 12345;
+            let grace_period = 10;
+            let block_height = completed_at + grace_period; // inclusive
+
+            session.state = MultisigState::Completed { completed_at };
+            assert!(validate_session_signature(
+                &session,
+                &key,
+                &signer,
+                signature,
+                grace_period,
+                block_height
+            )
+            .is_ok());
         }
     }
 
@@ -217,11 +244,19 @@ mod tests {
             let key = config.key;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
+            let completed_at = 12345;
+            let grace_period = 10;
+            let block_height = completed_at + grace_period + 1;
 
-            session.state = MultisigState::Completed {
-                completed_at: 12345,
-            };
-            let result = validate_session_signature(&session, &key, &signer, signature);
+            session.state = MultisigState::Completed { completed_at };
+            let result = validate_session_signature(
+                &session,
+                &key,
+                &signer,
+                signature,
+                grace_period,
+                block_height,
+            );
 
             assert_eq!(
                 result.unwrap_err(),
@@ -248,7 +283,7 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &key, &signer, &invalid_sig);
+            let result = validate_session_signature(&session, &key, &signer, &invalid_sig, 0, 0);
 
             assert_eq!(
                 result.unwrap_err(),
@@ -269,7 +304,7 @@ mod tests {
             let signature = config.signatures.values().next().unwrap();
 
             let result =
-                validate_session_signature(&session, &key, &invalid_participant, &signature);
+                validate_session_signature(&session, &key, &invalid_participant, &signature, 0, 0);
 
             assert_eq!(
                 result.unwrap_err(),
