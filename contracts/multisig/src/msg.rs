@@ -11,12 +11,13 @@ use crate::{
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    // governance votes on adding addresses to allowed caller list.
+    // the governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    // Can only be called by an authorized contract.
     StartSigningSession {
         key_id: String,
         msg: HexBinary,
@@ -32,6 +33,14 @@ pub enum ExecuteMsg {
     },
     RegisterPublicKey {
         public_key: PublicKey,
+    },
+    // Authorizes a contract to call StartSigningSession.
+    AuthorizeCaller {
+        contract_address: Addr,
+    },
+    // Unauthorizes a contract so it can no longer call StartSigningSession.
+    UnauthorizeCaller {
+        contract_address: Addr,
     },
 }
 

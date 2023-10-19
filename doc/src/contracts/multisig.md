@@ -61,6 +61,12 @@ pub enum ExecuteMsg {
         session_id: Uint64,
         signature: HexBinary,
     },
+    AuthorizeCaller {
+        contract_address: Addr,
+    },
+    UnauthorizeCaller {
+        contract_address: Addr,
+    },
 }
 
 #[derive(QueryResponses)]
@@ -101,6 +107,14 @@ pub enum Event {
     // Emitted when a signing session was completed
     SigningCompleted {
         session_id: Uint64,
+    },
+    // Emitted when a StartSigningSession caller is authorized
+    CallerAuthorized {
+        contract_address: Addr,
+    },
+    // Emitted when a StartSigningSession caller is unauthorized
+    CallerUnauthorized {
+        contract_address: Addr,
     },
 }
 ```
