@@ -17,6 +17,7 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    // Can only be called by an authorized contract.
     StartSigningSession {
         key_id: String,
         msg: HexBinary,
@@ -33,12 +34,12 @@ pub enum ExecuteMsg {
     RegisterPublicKey {
         public_key: PublicKey,
     },
+    // Authorizes a contract to call StartSigningSession.
     AuthorizeCaller {
-        // Adds an address to AUTHORIZED_CALLERS, representing the addresses that can start a signing session.
         contract_address: Addr,
     },
+    // Unauthorizes a contract so it can no longer call StartSigningSession.
     UnauthorizeCaller {
-        // Removes an address from AUTHORIZED_CALLERS
         contract_address: Addr,
     },
 }
