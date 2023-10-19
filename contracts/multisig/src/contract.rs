@@ -257,7 +257,7 @@ pub mod execute {
         Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
     }
 
-    pub fn require_governance(deps: &DepsMut, contract_address: Addr) -> Result<(), ContractError> {
+    pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
         let config = CONFIG.load(deps.storage)?;
         if config.governance != contract_address {
             return Err(ContractError::Unauthorized);
