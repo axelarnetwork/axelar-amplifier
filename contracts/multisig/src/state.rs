@@ -23,7 +23,8 @@ pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_session
 
 /// Signatures by session id and signer address
 pub const SIGNATURES: Map<(u64, &str), Signature> = Map::new("signatures");
-pub fn session_signatures(
+
+pub fn load_session_signatures(
     store: &dyn Storage,
     session_id: u64,
 ) -> StdResult<HashMap<String, Signature>> {
@@ -33,8 +34,27 @@ pub fn session_signatures(
         .collect()
 }
 
-// TODO: key management will change once keygen and key rotation are introduced
-// Map key is currently owner address, however this will change to some derivation of it once keygen and keyrotation are introduced
+pub fn save_signature(
+    store: &mut dyn Storage,
+    session_id: Uint64,
+    signature: Signature,
+    signer: &Addr,
+) -> Result<Signature, ContractError> {
+    SIGNATURES.update(
+        store,
+        (session_id.u64(), signer.as_ref()),
+        |sig| -> Result<Signature, ContractError> {
+            match sig {
+                Some(_) => Err(ContractError::DuplicateSignature {
+                    session_id,
+                    signer: signer.into(),
+                }),
+                None => Ok(signature),
+            }
+        },
+    )
+}
+
 pub const KEYS: Map<&KeyID, Key> = Map::new("keys");
 pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError> {
     KEYS.load(store, key_id)
@@ -48,3 +68,63 @@ pub const PUB_KEYS: Map<(Addr, KeyType), HexBinary> = Map::new("registered_pub_k
 
 // The keys represent the addresses that can start a signing session.
 pub const AUTHORIZED_CALLERS: Map<&Addr, ()> = Map::new("authorized_callers");
+
+#[cfg(test)]
+mod tests {
+
+    use cosmwasm_std::testing::mock_dependencies;
+
+    use crate::test::common::ecdsa_test_data;
+
+    use super::*;
+
+    #[test]
+    fn test_save_and_load_signatures() {
+        let mut deps = mock_dependencies();
+        let session_id = 1u64;
+
+        for (i, signer) in ecdsa_test_data::signers().into_iter().enumerate() {
+            let signature = Signature::try_from((KeyType::Ecdsa, signer.signature)).unwrap();
+            assert!(save_signature(
+                deps.as_mut().storage,
+                session_id.into(),
+                signature.clone(),
+                &signer.address
+            )
+            .is_ok());
+
+            let signatures = load_session_signatures(deps.as_ref().storage, session_id).unwrap();
+            assert_eq!(signatures.len(), i + 1);
+        }
+    }
+
+    #[test]
+    fn test_duplicate_signature() {
+        let mut deps = mock_dependencies();
+        let session_id = 1u64;
+        let signer = ecdsa_test_data::signers().remove(0);
+        let signature = Signature::try_from((KeyType::Ecdsa, signer.signature)).unwrap();
+
+        assert!(save_signature(
+            deps.as_mut().storage,
+            session_id.into(),
+            signature.clone(),
+            &signer.address
+        )
+        .is_ok());
+
+        assert_eq!(
+            save_signature(
+                deps.as_mut().storage,
+                session_id.into(),
+                signature,
+                &signer.address
+            )
+            .unwrap_err(),
+            ContractError::DuplicateSignature {
+                session_id: session_id.into(),
+                signer: signer.address.into(),
+            }
+        );
+    }
+}

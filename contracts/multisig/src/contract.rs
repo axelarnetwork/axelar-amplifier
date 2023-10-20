@@ -33,7 +33,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
@@ -51,7 +51,7 @@ pub fn execute(
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
-        } => execute::submit_signature(deps, info, session_id, signature),
+        } => execute::submit_signature(deps, env, info, session_id, signature),
         ExecuteMsg::KeyGen {
             key_id,
             snapshot,
@@ -73,7 +73,8 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::signing::sign;
+    use crate::signing::validate_session_signature;
+    use crate::state::{load_session_signatures, save_signature};
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -121,11 +122,12 @@ pub mod execute {
 
     pub fn submit_signature(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
         session_id: Uint64,
         signature: HexBinary,
     ) -> Result<Response, ContractError> {
-        let session = SIGNING_SESSIONS
+        let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
@@ -144,9 +146,12 @@ pub mod execute {
             Some((_, pk)) => (pk.key_type(), signature).try_into()?,
         };
 
-        let signer = info.sender.clone().into();
+        validate_session_signature(&session, &key, &info.sender, &signature)?;
+        let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
-        let (signature, state) = sign(deps.storage, &session, &key, signer, signature)?;
+        let signatures = load_session_signatures(deps.storage, session_id.u64())?;
+        session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
+        SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
         let event = Event::SignatureSubmitted {
             session_id,
@@ -154,12 +159,18 @@ pub mod execute {
             signature,
         };
 
-        if state == MultisigState::Completed {
-            Ok(Response::new()
-                .add_event(event.into())
-                .add_event(Event::SigningCompleted { session_id }.into()))
-        } else {
-            Ok(Response::new().add_event(event.into()))
+        match session.state {
+            MultisigState::Pending => Ok(Response::new().add_event(event.into())),
+            MultisigState::Completed { completed_at } => {
+                // TODO: revisit again once signing late is implemented. Don't emit event when signing late
+                Ok(Response::new().add_event(event.into()).add_event(
+                    Event::SigningCompleted {
+                        session_id,
+                        completed_at,
+                    }
+                    .into(),
+                ))
+            }
         }
     }
 
@@ -286,8 +297,7 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        signing::calculate_session_state,
-        state::{session_signatures, PUB_KEYS},
+        state::{load_session_signatures, PUB_KEYS},
     };
 
     use super::*;
@@ -297,8 +307,7 @@ pub mod query {
 
         let mut key = KEYS.load(deps.storage, &session.key_id)?;
 
-        let signatures = session_signatures(deps.storage, session.id.u64())?;
-        let state = calculate_session_state(&signatures, &key.snapshot)?;
+        let signatures = load_session_signatures(deps.storage, session.id.u64())?;
 
         let signers_with_sigs = key
             .snapshot
@@ -322,7 +331,7 @@ pub mod query {
             .collect::<Vec<_>>();
 
         Ok(Multisig {
-            state,
+            state: session.state,
             quorum: key.snapshot.quorum.into(),
             signers: signers_with_sigs,
         })
@@ -345,8 +354,7 @@ mod tests {
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
-        signing::calculate_session_state,
-        state::session_signatures,
+        state::load_session_signatures,
         test::common::{build_snapshot, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
         types::MultisigState,
@@ -460,6 +468,7 @@ mod tests {
 
     fn do_sign(
         deps: DepsMut,
+        env: Env,
         session_id: Uint64,
         signer: &TestSigner,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
@@ -467,12 +476,7 @@ mod tests {
             session_id,
             signature: signer.signature.clone(),
         };
-        execute(
-            deps,
-            mock_env(),
-            mock_info(signer.address.as_str(), &[]),
-            msg,
-        )
+        execute(deps, env, mock_info(signer.address.as_str(), &[]), msg)
     }
 
     fn do_register_key(
@@ -645,16 +649,14 @@ mod tests {
                 ED25519_SUBKEY => ed25519_test_data::message(),
                 _ => panic!("unexpected subkey"),
             };
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
             assert_eq!(session.key_id, key.id);
             assert_eq!(session.msg, message.clone().try_into().unwrap());
             assert!(signatures.is_empty());
-            assert_eq!(
-                calculate_session_state(&signatures, &key.snapshot).unwrap(),
-                MultisigState::Pending
-            );
+            assert_eq!(session.state, MultisigState::Pending);
 
             let res = res.unwrap();
             assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
@@ -705,15 +707,15 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
-            let res = do_sign(deps.as_mut(), Uint64::from(session_id), &signer);
+            let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
 
             assert!(res.is_ok());
 
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let key = get_key(deps.as_ref().storage, &session.key_id).unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 1);
             assert_eq!(
@@ -722,10 +724,7 @@ mod tests {
                     .unwrap(),
                 &Signature::try_from((key_type, signer.signature.clone())).unwrap()
             );
-            assert_eq!(
-                calculate_session_state(&signatures, &key.snapshot).unwrap(),
-                MultisigState::Pending
-            );
+            assert_eq!(session.state, MultisigState::Pending);
 
             let res = res.unwrap();
             assert_eq!(res.events.len(), 1);
@@ -756,19 +755,22 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
-            do_sign(deps.as_mut(), session_id, &signer).unwrap();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
+            let env = mock_env();
+            let expected_completed_at = env.block.height;
+
             let signer = signers.get(1).unwrap().to_owned();
-            let res = do_sign(deps.as_mut(), session_id, &signer);
+            let res = do_sign(deps.as_mut(), env, session_id, &signer);
 
             assert!(res.is_ok());
 
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let key = get_key(deps.as_ref().storage, &session.key_id).unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 2);
             assert_eq!(
@@ -776,8 +778,10 @@ mod tests {
                 &Signature::try_from((key_type, signer.signature)).unwrap()
             );
             assert_eq!(
-                calculate_session_state(&signatures, &key.snapshot).unwrap(),
-                MultisigState::Completed
+                session.state,
+                MultisigState::Completed {
+                    completed_at: expected_completed_at
+                }
             );
 
             let res = res.unwrap();
@@ -798,7 +802,7 @@ mod tests {
 
         let invalid_session_id = Uint64::zero();
         let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
-        let res = do_sign(deps.as_mut(), invalid_session_id, &signer);
+        let res = do_sign(deps.as_mut(), mock_env(), invalid_session_id, &signer);
 
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -817,8 +821,17 @@ mod tests {
         for (_key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
-            do_sign(deps.as_mut(), session_id, signers.get(0).unwrap()).unwrap();
-            do_sign(deps.as_mut(), session_id, signers.get(1).unwrap()).unwrap();
+            do_sign(
+                deps.as_mut(),
+                mock_env(),
+                session_id,
+                signers.get(0).unwrap(),
+            )
+            .unwrap();
+
+            let env = mock_env();
+            let expected_completed_at = env.block.height;
+            do_sign(deps.as_mut(), env, session_id, signers.get(1).unwrap()).unwrap();
 
             let msg = QueryMsg::GetMultisig { session_id };
 
@@ -832,9 +845,15 @@ mod tests {
             let key = KEYS
                 .load(deps.as_ref().storage, (&session.key_id).into())
                 .unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-            assert_eq!(query_res.state, MultisigState::Completed);
+            assert_eq!(
+                query_res.state,
+                MultisigState::Completed {
+                    completed_at: expected_completed_at
+                }
+            );
             assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
             key.snapshot
                 .participants

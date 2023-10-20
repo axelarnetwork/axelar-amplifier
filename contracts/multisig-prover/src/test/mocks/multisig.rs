@@ -115,7 +115,9 @@ mod query {
             .collect::<Vec<_>>();
 
         Multisig {
-            state: MultisigState::Completed,
+            state: MultisigState::Completed {
+                completed_at: 12345,
+            },
             quorum,
             signers,
         }
