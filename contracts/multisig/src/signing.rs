@@ -178,7 +178,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correct_session_state() {
+    fn correct_session_state() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
             let key = config.key;
@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn test_success_validation() {
+    fn success_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
             let key = config.key;
@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signing_session_closed_validation() {
+    fn signing_session_closed_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
             let key = config.key;
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_signature_validation() {
+    fn invalid_signature_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
             let key = config.key;
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signer_not_a_participant_validation() {
+    fn signer_not_a_participant_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
             let key = config.key;
