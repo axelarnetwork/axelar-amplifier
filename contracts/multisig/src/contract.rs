@@ -157,39 +157,14 @@ pub mod execute {
             session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
-        let event = Event::SignatureSubmitted {
+        signing_response(
             session_id,
-            participant: info.sender.clone(),
+            session.state,
+            state_changed,
+            info.sender,
             signature,
-        };
-
-        let rewards_msg = WasmMsg::Execute {
-            contract_addr: config.rewards_contract.into_string(),
-            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                event_id: session_id.into(),
-                worker_address: info.sender.into(),
-            })?,
-            funds: vec![],
-        };
-
-        let mut response = Response::new()
-            .add_message(rewards_msg)
-            .add_event(event.into());
-
-        if let MultisigState::Completed { completed_at } = session.state {
-            if state_changed {
-                // only send event if state changed
-                response = response.add_event(
-                    Event::SigningCompleted {
-                        session_id,
-                        completed_at,
-                    }
-                    .into(),
-                )
-            }
-        }
-
-        Ok(response)
+            config.rewards_contract.into_string(),
+        )
     }
 
     pub fn key_gen(
@@ -292,6 +267,49 @@ pub mod execute {
             return Err(ContractError::Unauthorized);
         }
         Ok(())
+    }
+
+    fn signing_response(
+        session_id: Uint64,
+        session_state: MultisigState,
+        state_changed: bool,
+        signer: Addr,
+        signature: Signature,
+        rewards_contract: String,
+    ) -> Result<Response, ContractError> {
+        let rewards_msg = WasmMsg::Execute {
+            contract_addr: rewards_contract,
+            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                event_id: session_id.into(),
+                worker_address: signer.to_string(),
+            })?,
+            funds: vec![],
+        };
+
+        let event = Event::SignatureSubmitted {
+            session_id,
+            participant: signer,
+            signature,
+        };
+
+        let mut response = Response::new()
+            .add_message(rewards_msg)
+            .add_event(event.into());
+
+        if let MultisigState::Completed { completed_at } = session_state {
+            if state_changed {
+                // only send event if state changed
+                response = response.add_event(
+                    Event::SigningCompleted {
+                        session_id,
+                        completed_at,
+                    }
+                    .into(),
+                )
+            }
+        }
+
+        Ok(response)
     }
 }
 

@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_success_validation_grace_period() {
+    fn success_validation_grace_period() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
             let key = config.key;
