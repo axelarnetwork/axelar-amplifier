@@ -382,13 +382,14 @@ mod tests {
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint256,
+        Addr, Empty, OwnedDeps, Uint256, WasmMsg,
     };
 
     use serde_json::{from_str, to_string};
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
+    const REWARDS_CONTRACT: &str = "rewards";
 
     const ECDSA_SUBKEY: &str = "key_ecdsa";
     const ED25519_SUBKEY: &str = "key_ed25519";
@@ -399,7 +400,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             governance_address: "governance".parse().unwrap(),
-            rewards_address: "rewards".to_string(),
+            rewards_address: REWARDS_CONTRACT.to_string(),
             grace_period: 2,
         };
 
@@ -727,6 +728,18 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
+
+            let expected_rewards_msg = WasmMsg::Execute {
+                contract_addr: REWARDS_CONTRACT.to_string(),
+                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    event_id: session_id.into(),
+                    worker_address: signer.address.clone().into(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into();
+
             let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
 
             assert!(res.is_ok());
@@ -748,6 +761,8 @@ mod tests {
 
             let res = res.unwrap();
             assert_eq!(res.events.len(), 1);
+
+            assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
 
             let event = res.events.get(0).unwrap();
             assert_eq!(event.ty, "signature_submitted".to_string());
@@ -833,6 +848,18 @@ mod tests {
 
             // third signature, grace period
             let signer = signers.get(2).unwrap().to_owned();
+
+            let expected_rewards_msg = WasmMsg::Execute {
+                contract_addr: REWARDS_CONTRACT.to_string(),
+                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    event_id: session_id.into(),
+                    worker_address: signer.address.clone().into(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into();
+
             let mut env = mock_env();
             env.block.height += 1;
             let res = do_sign(deps.as_mut(), env, session_id, &signer).unwrap();
@@ -840,6 +867,7 @@ mod tests {
                 load_session_signatures(deps.as_ref().storage, session_id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 3);
+            assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
             assert!(!res
                 .events
                 .iter()
