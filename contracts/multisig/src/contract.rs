@@ -817,6 +817,68 @@ mod tests {
     }
 
     #[test]
+    fn test_submit_signature_during_grace_period() {
+        let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+
+            let signer = signers.get(0).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // second signature
+            let signer = signers.get(1).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // third signature, grace period
+            let signer = signers.get(2).unwrap().to_owned();
+            let mut env = mock_env();
+            env.block.height += 1;
+            let res = do_sign(deps.as_mut(), env, session_id, &signer).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session_id.u64()).unwrap();
+
+            assert_eq!(signatures.len(), 3);
+            assert!(!res
+                .events
+                .iter()
+                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted during grace period
+        }
+    }
+
+    #[test]
+    fn test_submit_signature_grace_period_over() {
+        let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+
+            let signer = signers.get(0).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // second signature
+            let signer = signers.get(1).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // third signature, grace period over
+            let signer = signers.get(2).unwrap().to_owned();
+            let mut env = mock_env();
+            env.block.height += 10;
+            let res = do_sign(deps.as_mut(), env, session_id, &signer);
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                axelar_wasm_std::ContractError::from(ContractError::SigningSessionClosed {
+                    session_id: session_id
+                })
+                .to_string()
+            )
+        }
+    }
+
+    #[test]
     fn test_submit_signature_wrong_session_id() {
         let mut deps = setup_with_session_started(ECDSA_SUBKEY);
 
