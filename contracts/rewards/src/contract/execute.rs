@@ -233,6 +233,7 @@ mod test {
             epoch_duration,
             rewards_store,
         );
+        // a vector of (worker contract, rewards amounts) pairs
         let test_data = vec![
             (Addr::unchecked("contract_1"), vec![100, 200, 50]),
             (Addr::unchecked("contract_2"), vec![25, 500, 70]),
