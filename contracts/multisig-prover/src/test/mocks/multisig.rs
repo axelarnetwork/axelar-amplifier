@@ -50,6 +50,12 @@ pub fn execute(
             )?;
             Ok(Response::default())
         }
+        ExecuteMsg::AuthorizeCaller {
+            contract_address: _,
+        } => Ok(Response::default()),
+        ExecuteMsg::UnauthorizeCaller {
+            contract_address: _,
+        } => Ok(Response::default()),
     }
 }
 
@@ -109,7 +115,9 @@ mod query {
             .collect::<Vec<_>>();
 
         Multisig {
-            state: MultisigState::Completed,
+            state: MultisigState::Completed {
+                completed_at: 12345,
+            },
             quorum,
             signers,
         }

@@ -1,11 +1,10 @@
+use axelar_wasm_std::Snapshot;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
     Uint64,
 };
-
-use axelar_wasm_std::Snapshot;
 use std::collections::HashMap;
 
 use crate::{
@@ -34,22 +33,25 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id, msg } => execute::start_signing_session(
-            deps,
-            info,
-            key_id,
-            msg.try_into()
-                .map_err(axelar_wasm_std::ContractError::from)?,
-        ),
+        ExecuteMsg::StartSigningSession { key_id, msg } => {
+            execute::require_authorized_caller(&deps, info.sender.clone())?;
+            execute::start_signing_session(
+                deps,
+                info,
+                key_id,
+                msg.try_into()
+                    .map_err(axelar_wasm_std::ContractError::from)?,
+            )
+        }
         ExecuteMsg::SubmitSignature {
             session_id,
             signature,
-        } => execute::submit_signature(deps, info, session_id, signature),
+        } => execute::submit_signature(deps, env, info, session_id, signature),
         ExecuteMsg::KeyGen {
             key_id,
             snapshot,
@@ -58,17 +60,27 @@ pub fn execute(
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
         }
+        ExecuteMsg::AuthorizeCaller { contract_address } => {
+            execute::require_governance(&deps, info.sender)?;
+            execute::authorize_caller(deps, contract_address)
+        }
+        ExecuteMsg::UnauthorizeCaller { contract_address } => {
+            execute::require_governance(&deps, info.sender)?;
+            execute::unauthorize_caller(deps, contract_address)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
 pub mod execute {
-    use crate::signing::sign;
+    use crate::signing::validate_session_signature;
+    use crate::state::{load_session_signatures, save_signature};
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
-        state::PUB_KEYS,
+        state::{AUTHORIZED_CALLERS, PUB_KEYS},
     };
+    use error_stack::ResultExt;
 
     use super::*;
 
@@ -110,11 +122,12 @@ pub mod execute {
 
     pub fn submit_signature(
         deps: DepsMut,
+        env: Env,
         info: MessageInfo,
         session_id: Uint64,
         signature: HexBinary,
     ) -> Result<Response, ContractError> {
-        let session = SIGNING_SESSIONS
+        let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
 
@@ -133,9 +146,12 @@ pub mod execute {
             Some((_, pk)) => (pk.key_type(), signature).try_into()?,
         };
 
-        let signer = info.sender.clone().into();
+        validate_session_signature(&session, &key, &info.sender, &signature)?;
+        let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
-        let (signature, state) = sign(deps.storage, &session, &key, signer, signature)?;
+        let signatures = load_session_signatures(deps.storage, session_id.u64())?;
+        session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
+        SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
         let event = Event::SignatureSubmitted {
             session_id,
@@ -143,12 +159,18 @@ pub mod execute {
             signature,
         };
 
-        if state == MultisigState::Completed {
-            Ok(Response::new()
-                .add_event(event.into())
-                .add_event(Event::SigningCompleted { session_id }.into()))
-        } else {
-            Ok(Response::new().add_event(event.into()))
+        match session.state {
+            MultisigState::Pending => Ok(Response::new().add_event(event.into())),
+            MultisigState::Completed { completed_at } => {
+                // TODO: revisit again once signing late is implemented. Don't emit event when signing late
+                Ok(Response::new().add_event(event.into()).add_event(
+                    Event::SigningCompleted {
+                        session_id,
+                        completed_at,
+                    }
+                    .into(),
+                ))
+            }
         }
     }
 
@@ -218,6 +240,41 @@ pub mod execute {
             .into(),
         ))
     }
+
+    pub fn require_authorized_caller(
+        deps: &DepsMut,
+        contract_address: Addr,
+    ) -> error_stack::Result<(), ContractError> {
+        AUTHORIZED_CALLERS
+            .load(deps.storage, &contract_address)
+            .change_context(ContractError::Unauthorized)
+    }
+
+    pub fn authorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.save(deps.storage, &contract_address, &())?;
+
+        Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
+    }
+
+    pub fn unauthorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, ContractError> {
+        AUTHORIZED_CALLERS.remove(deps.storage, &contract_address);
+
+        Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
+    }
+
+    pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        if config.governance != sender {
+            return Err(ContractError::Unauthorized);
+        }
+        Ok(())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -240,8 +297,7 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        signing::calculate_session_state,
-        state::{session_signatures, PUB_KEYS},
+        state::{load_session_signatures, PUB_KEYS},
     };
 
     use super::*;
@@ -251,8 +307,7 @@ pub mod query {
 
         let mut key = KEYS.load(deps.storage, &session.key_id)?;
 
-        let signatures = session_signatures(deps.storage, session.id.u64())?;
-        let state = calculate_session_state(&signatures, &key.snapshot)?;
+        let signatures = load_session_signatures(deps.storage, session.id.u64())?;
 
         let signers_with_sigs = key
             .snapshot
@@ -276,7 +331,7 @@ pub mod query {
             .collect::<Vec<_>>();
 
         Ok(Multisig {
-            state,
+            state: session.state,
             quorum: key.snapshot.quorum.into(),
             signers: signers_with_sigs,
         })
@@ -299,8 +354,7 @@ mod tests {
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
-        signing::calculate_session_state,
-        state::session_signatures,
+        state::load_session_signatures,
         test::common::{build_snapshot, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
         types::MultisigState,
@@ -414,6 +468,7 @@ mod tests {
 
     fn do_sign(
         deps: DepsMut,
+        env: Env,
         session_id: Uint64,
         signer: &TestSigner,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
@@ -421,12 +476,7 @@ mod tests {
             session_id,
             signature: signer.signature.clone(),
         };
-        execute(
-            deps,
-            mock_env(),
-            mock_info(signer.address.as_str(), &[]),
-            msg,
-        )
+        execute(deps, env, mock_info(signer.address.as_str(), &[]), msg)
     }
 
     fn do_register_key(
@@ -436,6 +486,30 @@ mod tests {
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let msg = ExecuteMsg::RegisterPublicKey { public_key };
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
+    }
+
+    fn do_authorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        let info = mock_info(config.governance.as_str(), &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::AuthorizeCaller { contract_address };
+        execute(deps, env, info, msg)
+    }
+
+    fn do_unauthorize_caller(
+        deps: DepsMut,
+        contract_address: Addr,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let config = CONFIG.load(deps.storage)?;
+        let info = mock_info(config.governance.as_str(), &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::UnauthorizeCaller { contract_address };
+        execute(deps, env, info, msg)
     }
 
     fn query_registered_public_key(
@@ -466,6 +540,7 @@ mod tests {
         key_id: &str,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
         do_start_signing_session(deps.as_mut(), PROVER, key_id).unwrap();
         deps
     }
@@ -553,6 +628,7 @@ mod tests {
     #[test]
     fn test_start_signing_session() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (i, subkey) in [ECDSA_SUBKEY, ED25519_SUBKEY].into_iter().enumerate() {
             let res = do_start_signing_session(deps.as_mut(), PROVER, subkey);
@@ -573,16 +649,14 @@ mod tests {
                 ED25519_SUBKEY => ed25519_test_data::message(),
                 _ => panic!("unexpected subkey"),
             };
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
             assert_eq!(session.key_id, key.id);
             assert_eq!(session.msg, message.clone().try_into().unwrap());
             assert!(signatures.is_empty());
-            assert_eq!(
-                calculate_session_state(&signatures, &key.snapshot).unwrap(),
-                MultisigState::Pending
-            );
+            assert_eq!(session.state, MultisigState::Pending);
 
             let res = res.unwrap();
             assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
@@ -609,6 +683,7 @@ mod tests {
     #[test]
     fn test_start_signing_session_wrong_sender() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         let sender = "someone else";
 
@@ -617,14 +692,8 @@ mod tests {
 
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::NoActiveKeyFound {
-                    key_id: KeyID {
-                        owner: Addr::unchecked(sender),
-                        subkey: key_id.to_string(),
-                    }
-                    .to_string()
-                })
-                .to_string()
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+                    + ": () not found"
             );
         }
     }
@@ -632,20 +701,21 @@ mod tests {
     #[test]
     fn test_submit_signature() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
-            let res = do_sign(deps.as_mut(), Uint64::from(session_id), &signer);
+            let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
 
             assert!(res.is_ok());
 
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let key = get_key(deps.as_ref().storage, &session.key_id).unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 1);
             assert_eq!(
@@ -654,10 +724,7 @@ mod tests {
                     .unwrap(),
                 &Signature::try_from((key_type, signer.signature.clone())).unwrap()
             );
-            assert_eq!(
-                calculate_session_state(&signatures, &key.snapshot).unwrap(),
-                MultisigState::Pending
-            );
+            assert_eq!(session.state, MultisigState::Pending);
 
             let res = res.unwrap();
             assert_eq!(res.events.len(), 1);
@@ -682,24 +749,28 @@ mod tests {
     #[test]
     fn test_submit_signature_completed() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
-            do_sign(deps.as_mut(), session_id, &signer).unwrap();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
+            let env = mock_env();
+            let expected_completed_at = env.block.height;
+
             let signer = signers.get(1).unwrap().to_owned();
-            let res = do_sign(deps.as_mut(), session_id, &signer);
+            let res = do_sign(deps.as_mut(), env, session_id, &signer);
 
             assert!(res.is_ok());
 
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let key = get_key(deps.as_ref().storage, &session.key_id).unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(signatures.len(), 2);
             assert_eq!(
@@ -707,8 +778,10 @@ mod tests {
                 &Signature::try_from((key_type, signer.signature)).unwrap()
             );
             assert_eq!(
-                calculate_session_state(&signatures, &key.snapshot).unwrap(),
-                MultisigState::Completed
+                session.state,
+                MultisigState::Completed {
+                    completed_at: expected_completed_at
+                }
             );
 
             let res = res.unwrap();
@@ -729,7 +802,7 @@ mod tests {
 
         let invalid_session_id = Uint64::zero();
         let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
-        let res = do_sign(deps.as_mut(), invalid_session_id, &signer);
+        let res = do_sign(deps.as_mut(), mock_env(), invalid_session_id, &signer);
 
         assert_eq!(
             res.unwrap_err().to_string(),
@@ -743,12 +816,22 @@ mod tests {
     #[test]
     fn test_query_signing_session() {
         let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (_key_type, subkey, signers, session_id) in signature_test_data() {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
-            do_sign(deps.as_mut(), session_id, signers.get(0).unwrap()).unwrap();
-            do_sign(deps.as_mut(), session_id, signers.get(1).unwrap()).unwrap();
+            do_sign(
+                deps.as_mut(),
+                mock_env(),
+                session_id,
+                signers.get(0).unwrap(),
+            )
+            .unwrap();
+
+            let env = mock_env();
+            let expected_completed_at = env.block.height;
+            do_sign(deps.as_mut(), env, session_id, signers.get(1).unwrap()).unwrap();
 
             let msg = QueryMsg::GetMultisig { session_id };
 
@@ -762,9 +845,15 @@ mod tests {
             let key = KEYS
                 .load(deps.as_ref().storage, (&session.key_id).into())
                 .unwrap();
-            let signatures = session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
-            assert_eq!(query_res.state, MultisigState::Completed);
+            assert_eq!(
+                query_res.state,
+                MultisigState::Completed {
+                    completed_at: expected_completed_at
+                }
+            );
             assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
             key.snapshot
                 .participants
@@ -905,6 +994,70 @@ mod tests {
         assert_eq!(
             PublicKey::try_from((KeyType::Ecdsa, new_pub_key)).unwrap(),
             from_binary::<PublicKey>(&res.unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_authorize_and_unauthorize_caller() {
+        let mut deps = setup();
+
+        // authorize
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+
+            assert!(res.is_ok());
+        }
+
+        // unauthorize
+        do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+                    + ": () not found"
+            );
+        }
+    }
+
+    #[test]
+    fn test_authorize_caller_wrong_caller() {
+        let mut deps = setup();
+
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let info = mock_info("user", &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::AuthorizeCaller {
+            contract_address: Addr::unchecked(PROVER),
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+        );
+    }
+
+    #[test]
+    fn test_unauthorize_caller_wrong_caller() {
+        let mut deps = setup();
+
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let info = mock_info("user", &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::UnauthorizeCaller {
+            contract_address: Addr::unchecked(PROVER),
+        };
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
         );
     }
 }
