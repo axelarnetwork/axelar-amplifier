@@ -1,8 +1,7 @@
-use error_stack::Result;
-use std::collections::HashMap;
-
 use axelar_wasm_std::nonempty::Uint256;
 use cosmwasm_std::Addr;
+use error_stack::Result;
+use std::collections::HashMap;
 
 use crate::{
     error::ContractError,
@@ -29,6 +28,9 @@ where
         let stored_params = self.store.load_params();
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         let epoch = stored_params.last_updated;
+        if cur_block_height < epoch.block_height_started {
+            return Err(ContractError::BlockHeightPassed.into());
+        }
         if cur_block_height >= epoch.block_height_started + epoch_duration {
             let epochs_elapsed = (cur_block_height - epoch.block_height_started) / epoch_duration;
             let epoch_num = epochs_elapsed + epoch.epoch_num;
@@ -68,22 +70,27 @@ where
         new_params: RewardsParams,
         block_height: u64,
     ) -> Result<(), ContractError> {
-        let mut cur_epoch = self.get_current_epoch(block_height)?;
+        let cur_epoch = self.get_current_epoch(block_height)?;
         // If the param update reduces the epoch duration such that the current epoch immediately ends,
         // start a new epoch at this block, incrementing the current epoch number by 1.
         // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
         // (i.e. we are in epoch 0, which started at block 0 and epoch duration is 1000. At epoch 500, the params
         // are updated to shorten the epoch duration to 100 blocks. We set the epoch number to 1, to prevent skipping
         // epochs 1-4, and so all events prior to the start of epoch 1 have an epoch number of 0)
-        if cur_epoch.block_height_started + u64::from(new_params.epoch_duration) < block_height {
-            cur_epoch = Epoch {
+        let should_end =
+            cur_epoch.block_height_started + u64::from(new_params.epoch_duration) < block_height;
+        let cur_epoch = if should_end {
+            Epoch {
                 block_height_started: block_height,
                 epoch_num: cur_epoch.epoch_num + 1,
                 rewards: new_params.rewards_per_epoch,
-            };
+            }
         } else {
-            cur_epoch.rewards = new_params.rewards_per_epoch;
-        }
+            Epoch {
+                rewards: new_params.rewards_per_epoch,
+                ..cur_epoch
+            }
+        };
         self.store.save_params(&StoredParams {
             params: new_params,
             last_updated: cur_epoch,
