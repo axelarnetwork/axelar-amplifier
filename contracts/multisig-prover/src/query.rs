@@ -26,7 +26,7 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
 
     let status = match multisig.state {
         MultisigState::Pending => ProofStatus::Pending,
-        MultisigState::Completed => {
+        MultisigState::Completed { .. } => {
             let execute_data = batch
                 .encode_execute_data(multisig.quorum, multisig.signers)
                 .map_err(|err| {

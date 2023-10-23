@@ -2,7 +2,6 @@ use std::str::FromStr;
 use std::{collections::HashMap, vec};
 
 use cosmwasm_std::Addr;
-use cosmwasm_std::HexBinary;
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use connection_router::contract::*;
@@ -93,7 +92,7 @@ fn generate_messages(
             destination_address: "idc".parse().unwrap(),
             destination_chain: dest_chain.chain_name.clone(),
             source_address: "idc".parse().unwrap(),
-            payload_hash: HexBinary::from(vec![x as u8; 256]),
+            payload_hash: [x as u8; 32],
         })
     }
     msgs

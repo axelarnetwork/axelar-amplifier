@@ -84,14 +84,8 @@ pub fn command_params(
     source_chain: String,
     source_address: String,
     destination_address: String,
-    payload_hash: HexBinary,
+    payload_hash: &[u8; 32],
 ) -> Result<HexBinary, ContractError> {
-    if payload_hash.len() != 32 {
-        return Err(ContractError::InvalidMessage {
-            reason: format!("payload hash is not 32 bytes {}", payload_hash.to_hex()),
-        });
-    }
-
     let destination_address = <[u8; 32]>::try_from(
         HexBinary::from_hex(&destination_address)?.to_vec(),
     )
@@ -373,7 +367,7 @@ mod test {
             "Ethereum".into(),
             "00".into(),
             "01".repeat(32).into(),
-            HexBinary::from_hex(&"02".repeat(32)).unwrap(),
+            &[2; 32],
         );
         assert!(res.is_ok());
 
@@ -400,12 +394,7 @@ mod test {
 
     #[test]
     fn test_invalid_destination_address() {
-        let res = command_params(
-            "Ethereum".into(),
-            "00".into(),
-            "01".into(),
-            HexBinary::from_hex("02").unwrap(),
-        );
+        let res = command_params("Ethereum".into(), "00".into(), "01".into(), &[2; 32]);
         assert!(!res.is_ok());
     }
 
@@ -414,7 +403,7 @@ mod test {
         let source_chain = "Ethereum";
         let source_address = "AA";
         let destination_address = "BB".repeat(32);
-        let payload_hash = HexBinary::from_hex(&"CC".repeat(32)).unwrap();
+        let payload_hash = [204u8; 32];
         let destination_chain_id = 1u64;
         let command_id = HexBinary::from_hex(&"FF".repeat(32)).unwrap();
         let data = Data {
@@ -426,7 +415,7 @@ mod test {
                     source_chain.into(),
                     source_address.into(),
                     destination_address.clone().into(),
-                    payload_hash.clone().into(),
+                    &payload_hash,
                 )
                 .unwrap(),
             }],
@@ -479,7 +468,7 @@ mod test {
                 destination_address: "0F".repeat(32).parse().unwrap(),
                 destination_chain: "sui".parse().unwrap(),
                 source_address: "0x00".parse().unwrap(),
-                payload_hash: HexBinary::from(vec![1; 32]),
+                payload_hash: [1; 32],
             })
             .unwrap();
         let batch = builder.build().unwrap();
@@ -493,7 +482,7 @@ mod test {
                 destination_address: "0A".repeat(32).parse().unwrap(),
                 destination_chain: "sui".parse().unwrap(),
                 source_address: "0x00".parse().unwrap(),
-                payload_hash: HexBinary::from(vec![2; 32]),
+                payload_hash: [2; 32],
             })
             .unwrap();
 
@@ -517,13 +506,8 @@ mod test {
                     )
                     .unwrap(),
                     ty: crate::types::CommandType::ApproveContractCall,
-                    params: command_params(
-                        "ETH".into(),
-                        "0x0".into(),
-                        zero_addr.clone(),
-                        HexBinary::from([0; 32]),
-                    )
-                    .unwrap(),
+                    params: command_params("ETH".into(), "0x0".into(), zero_addr.clone(), &[0; 32])
+                        .unwrap(),
                 },
                 Command {
                     id: HexBinary::from_hex(
@@ -531,13 +515,8 @@ mod test {
                     )
                     .unwrap(),
                     ty: crate::types::CommandType::ApproveContractCall,
-                    params: command_params(
-                        "AXELAR".into(),
-                        "0x1".into(),
-                        zero_addr,
-                        HexBinary::from([0; 32]),
-                    )
-                    .unwrap(),
+                    params: command_params("AXELAR".into(), "0x1".into(), zero_addr, &[0; 32])
+                        .unwrap(),
                 },
             ],
         };

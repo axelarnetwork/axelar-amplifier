@@ -52,11 +52,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use hex::decode;
-
     use connection_router::state::{CrossChainId, Message};
 
     use crate::state::{Config, MockStore};
+    use hex::decode;
 
     use super::*;
 
@@ -118,7 +117,8 @@ mod test {
                     "bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1",
                 )
                 .unwrap()
-                .into(),
+                .try_into()
+                .unwrap(),
             },
             Message {
                 cc_id: CrossChainId {
@@ -132,7 +132,8 @@ mod test {
                     "bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1",
                 )
                 .unwrap()
-                .into(),
+                .try_into()
+                .unwrap(),
             },
         ];
         let res = contract.route_messages(Addr::unchecked("router"), msgs);
@@ -174,7 +175,8 @@ mod test {
                     "bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1",
                 )
                 .unwrap()
-                .into(),
+                .try_into()
+                .unwrap(),
             },
             Message {
                 cc_id: CrossChainId {
@@ -188,7 +190,8 @@ mod test {
                     "bb9b5566c2f4876863333e481f4698350154259ffe6226e283b16ce18a64bcf1",
                 )
                 .unwrap()
-                .into(),
+                .try_into()
+                .unwrap(),
             },
         ];
         let res = contract.route_messages(Addr::unchecked("router"), msgs);
