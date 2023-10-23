@@ -153,7 +153,8 @@ pub mod execute {
         let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
         let signatures = load_session_signatures(deps.storage, session_id.u64())?;
-        session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
+        let state_changed =
+            session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
         let event = Event::SignatureSubmitted {
@@ -175,15 +176,17 @@ pub mod execute {
             .add_message(rewards_msg)
             .add_event(event.into());
 
-        // TODO: revisit again once signing late is implemented. Don't emit event when signing late
         if let MultisigState::Completed { completed_at } = session.state {
-            response = response.add_event(
-                Event::SigningCompleted {
-                    session_id,
-                    completed_at,
-                }
-                .into(),
-            )
+            if state_changed {
+                // only send event if state changed
+                response = response.add_event(
+                    Event::SigningCompleted {
+                        session_id,
+                        completed_at,
+                    }
+                    .into(),
+                )
+            }
         }
 
         Ok(response)

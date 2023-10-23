@@ -29,18 +29,24 @@ impl SigningSession {
         }
     }
 
+    /// returns true if session state was changed
     pub fn recalculate_session_state(
         &mut self,
         signatures: &HashMap<String, Signature>,
         snapshot: &Snapshot,
         block_height: u64,
-    ) {
+    ) -> bool {
         let weight = signers_weight(signatures, snapshot);
 
-        if self.state == MultisigState::Pending && weight >= snapshot.quorum.into() {
-            self.state = MultisigState::Completed {
-                completed_at: block_height,
-            };
+        match self.state {
+            MultisigState::Pending if weight >= snapshot.quorum.into() => {
+                self.state = MultisigState::Completed {
+                    completed_at: block_height,
+                };
+
+                true
+            }
+            _ => false,
         }
     }
 }
@@ -196,16 +202,19 @@ mod tests {
             let signatures = config.signatures;
             let block_height = 12345;
 
-            session.recalculate_session_state(&HashMap::new(), &key.snapshot, block_height);
+            let res =
+                session.recalculate_session_state(&HashMap::new(), &key.snapshot, block_height);
             assert_eq!(session.state, MultisigState::Pending);
+            assert!(!res);
 
-            session.recalculate_session_state(&signatures, &key.snapshot, block_height);
+            let res = session.recalculate_session_state(&signatures, &key.snapshot, block_height);
             assert_eq!(
                 session.state,
                 MultisigState::Completed {
                     completed_at: block_height
                 }
             );
+            assert!(res);
         }
     }
 
