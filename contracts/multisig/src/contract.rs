@@ -596,7 +596,7 @@ mod tests {
     }
 
     #[test]
-    fn test_instantiation() {
+    fn instantiation() {
         let mut deps = mock_dependencies();
 
         let res = do_instantiate(deps.as_mut());
@@ -609,7 +609,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_gen() {
+    fn key_gen() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
@@ -646,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    fn test_start_signing_session() {
+    fn start_signing_session() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -701,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    fn test_start_signing_session_wrong_sender() {
+    fn start_signing_session_wrong_sender() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -719,7 +719,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature() {
+    fn submit_signature() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -767,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature_completed() {
+    fn submit_signature_completes_session() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -817,7 +817,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature_during_grace_period() {
+    fn submit_signature_during_grace_period() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -848,7 +848,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature_grace_period_over() {
+    fn submit_signature_grace_period_over() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -879,7 +879,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature_wrong_session_id() {
+    fn submit_signature_wrong_session_id() {
         let mut deps = setup_with_session_started(ECDSA_SUBKEY);
 
         let invalid_session_id = Uint64::zero();
@@ -896,7 +896,7 @@ mod tests {
     }
 
     #[test]
-    fn test_query_signing_session() {
+    fn query_signing_session() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -955,7 +955,7 @@ mod tests {
     }
 
     #[test]
-    fn test_register_key() {
+    fn register_key() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
@@ -1014,7 +1014,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_key() {
+    fn update_key() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
         let signers = ecdsa_test_data::signers();
@@ -1080,7 +1080,7 @@ mod tests {
     }
 
     #[test]
-    fn test_authorize_and_unauthorize_caller() {
+    fn authorize_and_unauthorize_caller() {
         let mut deps = setup();
 
         // authorize
@@ -1106,10 +1106,9 @@ mod tests {
     }
 
     #[test]
-    fn test_authorize_caller_wrong_caller() {
+    fn authorize_caller_wrong_caller() {
         let mut deps = setup();
 
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let info = mock_info("user", &[]);
         let env = mock_env();
 
@@ -1125,10 +1124,9 @@ mod tests {
     }
 
     #[test]
-    fn test_unauthorize_caller_wrong_caller() {
+    fn unauthorize_caller_wrong_caller() {
         let mut deps = setup();
 
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let info = mock_info("user", &[]);
         let env = mock_env();
 
