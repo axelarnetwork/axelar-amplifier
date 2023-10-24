@@ -44,7 +44,11 @@ impl TryFrom<Worker> for Participant {
         match worker.bonding_state {
             BondingState::Bonded { amount: _ } => Ok(Self {
                 address: worker.address,
-                weight: Uint256::one() // Weight is set to one to ensure all workers have same weight. In future it should be derived from amount bonded
+                // Weight is set to one to ensure all workers have same weight. In future it should be derived from amount bonded
+                // Changing the weight to a non-constant value may impact optimization when constructing the proof because multisig does not
+                // wait for late signatures before emitting the session completed event. Is possible for a more optimal proof to be constructed if
+                // late signatures with more weigth would be considered.
+                weight: Uint256::one()
                     .try_into()
                     .expect("violated invariant: weight must not be zero"),
             }),
