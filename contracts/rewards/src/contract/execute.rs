@@ -29,7 +29,7 @@ where
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         let epoch = stored_params.last_updated;
         if cur_block_height < epoch.block_height_started {
-            return Err(ContractError::BlockHeightPassed.into());
+            return Err(ContractError::BlockHeightInPast.into());
         }
         if cur_block_height < epoch.block_height_started + epoch_duration {
             return Ok(epoch);

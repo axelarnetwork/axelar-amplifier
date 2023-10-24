@@ -34,5 +34,5 @@ pub enum ContractError {
     InvalidEventId,
 
     #[error("specified block has already passed")]
-    BlockHeightPassed,
+    BlockHeightInPast,
 }
