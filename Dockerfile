@@ -1,13 +1,7 @@
-FROM ubuntu:22.04
+FROM rust:latest as build
+WORKDIR /app
 
-# installing requirements to get and extract prebuilt binaries
-RUN apt-get update 
-RUN apt install clang
-RUN apt install protobuf-compiler
-RUN apt-get install libclang-dev
-# ENV LIBCLANG_PATH=/usr/lib/llvm-17/lib/
-
-FROM rust:1.72
+RUN apt-get update && apt-get install -y clang protobuf-compiler
 COPY . .
 RUN cargo build
 
