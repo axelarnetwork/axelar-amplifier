@@ -1,8 +1,8 @@
 use error_stack::Result;
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty::{self, Uint256};
-use cosmwasm_std::Addr;
+use axelar_wasm_std::nonempty;
+use cosmwasm_std::{Addr, Uint256};
 
 use crate::{
     error::ContractError,
@@ -57,40 +57,43 @@ where
             .store
             .load_event(event_id.to_string(), contract.clone())?;
 
+        let is_new_event = event.is_none();
+
+        if is_new_event {
+            self.store.save_event(&Event {
+                event_id,
+                contract: contract.clone(),
+                epoch_num: cur_epoch.epoch_num,
+            })?;
+        }
+
         let mut tally = match event {
             Some(event) => self
                 .store
                 .load_epoch_tally(contract.clone(), event.epoch_num)?
                 .expect("couldn't find epoch tally for existing event"),
-            None => {
-                self.store.save_event(&Event {
-                    event_id,
-                    contract: contract.clone(),
-                    epoch_num: cur_epoch.epoch_num,
-                })?;
-
-                self.store
-                    .load_epoch_tally(contract.clone(), cur_epoch.epoch_num)?
-                    .map_or(
-                        EpochTally {
-                            event_count: 1,
-                            participation: HashMap::new(),
-                            contract,
-                            epoch: cur_epoch,
-                        },
-                        |tally| EpochTally {
-                            event_count: tally.event_count + 1,
-                            ..tally
-                        },
-                    )
-            }
+            None => self
+                .store
+                .load_epoch_tally(contract.clone(), cur_epoch.epoch_num)?
+                .unwrap_or(EpochTally {
+                    // first event in this epoch, create the tally
+                    event_count: 0,
+                    participation: HashMap::new(),
+                    contract,
+                    epoch: cur_epoch,
+                }),
         };
+
+        if is_new_event {
+            tally.event_count += 1;
+        }
 
         tally
             .participation
             .entry(worker)
             .and_modify(|count| *count += 1)
             .or_insert(1);
+
         self.store.save_epoch_tally(&tally)?;
 
         Ok(())
@@ -116,7 +119,7 @@ where
     pub fn add_rewards(
         &mut self,
         _contract: Addr,
-        _amount: Uint256,
+        _amount: nonempty::Uint256,
         _block_height: u64,
     ) -> Result<(), ContractError> {
         todo!()
