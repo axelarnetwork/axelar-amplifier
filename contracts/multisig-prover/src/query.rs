@@ -58,6 +58,8 @@ pub fn get_worker_set(deps: Deps) -> StdResult<WorkerSet> {
     CURRENT_WORKER_SET.load(deps.storage)
 }
 
+/// Returns a new vector of signers with signatures containing the minimum amount of signatures required to reach quorum.
+/// The vector is sorted by weight and is iterated over, removing signatures after the quorum is reached.
 fn optimize_signers(
     quorum: Uint256,
     mut signers: Vec<(Signer, Option<Signature>)>,
@@ -66,20 +68,16 @@ fn optimize_signers(
 
     signers
         .into_iter()
-        .scan(Uint256::zero(), |acc, (signer, signature)| {
-            println!(
-                "acc: {}, weight: {}, quorum: {}",
-                acc, signer.weight, quorum
-            );
-
-            match signature {
+        .scan(
+            Uint256::zero(),
+            |acc, (signer, signature)| match signature {
                 Some(sig) if *acc < quorum => {
                     *acc += signer.weight;
                     Some((signer, Some(sig)))
                 }
                 _ => Some((signer, None)),
-            }
-        })
+            },
+        )
         .collect()
 }
 
