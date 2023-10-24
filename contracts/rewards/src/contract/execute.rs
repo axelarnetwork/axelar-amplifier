@@ -65,7 +65,7 @@ where
             ))?;
         }
 
-        let mut tally = match event {
+        let tally = match event {
             Some(event) => self
                 .store
                 .load_epoch_tally(contract_addr.clone(), event.epoch_num)?
@@ -74,11 +74,9 @@ where
                 .store
                 .load_epoch_tally(contract_addr.clone(), cur_epoch.epoch_num)?
                 .unwrap_or(EpochTally::new(contract_addr, cur_epoch)) // first event in this epoch
-                .increment_event_count()
-                .clone(),
-        };
-
-        tally.record_participation(worker);
+                .increment_event_count(),
+        }
+        .record_participation(worker);
 
         self.store.save_epoch_tally(&tally)?;
 

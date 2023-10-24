@@ -33,7 +33,7 @@ impl EpochTally {
         }
     }
 
-    pub fn record_participation(&mut self, worker: Addr) -> &Self {
+    pub fn record_participation(mut self, worker: Addr) -> Self {
         self.participation
             .entry(worker)
             .and_modify(|count| *count += 1)
@@ -41,7 +41,7 @@ impl EpochTally {
         self
     }
 
-    pub fn increment_event_count(&mut self) -> &Self {
+    pub fn increment_event_count(mut self) -> Self {
         self.event_count += 1;
         self
     }
