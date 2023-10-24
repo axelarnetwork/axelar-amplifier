@@ -57,14 +57,9 @@ where
             .store
             .load_event(event_id.to_string(), contract.clone())?;
 
-        let is_new_event = event.is_none();
-
-        if is_new_event {
-            self.store.save_event(&Event {
-                event_id,
-                contract: contract.clone(),
-                epoch_num: cur_epoch.epoch_num,
-            })?;
+        if event.is_none() {
+            self.store
+                .save_event(&Event::new(event_id, contract.clone(), cur_epoch.epoch_num))?;
         }
 
         let mut tally = match event {
@@ -75,24 +70,12 @@ where
             None => self
                 .store
                 .load_epoch_tally(contract.clone(), cur_epoch.epoch_num)?
-                .unwrap_or(EpochTally {
-                    // first event in this epoch, create the tally
-                    event_count: 0,
-                    participation: HashMap::new(),
-                    contract,
-                    epoch: cur_epoch,
-                }),
+                .unwrap_or(EpochTally::new(contract, cur_epoch)) // first event in this epoch
+                .increment_event_count()
+                .clone(),
         };
 
-        if is_new_event {
-            tally.event_count += 1;
-        }
-
-        tally
-            .participation
-            .entry(worker)
-            .and_modify(|count| *count += 1)
-            .or_insert(1);
+        tally.record_participation(worker);
 
         self.store.save_epoch_tally(&tally)?;
 
