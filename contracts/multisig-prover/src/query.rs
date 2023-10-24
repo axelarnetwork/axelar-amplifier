@@ -2,6 +2,7 @@ use cosmwasm_std::{
     to_binary, Deps, QueryRequest, StdError, StdResult, Uint256, Uint64, WasmQuery,
 };
 
+use itertools::Itertools;
 use multisig::{
     key::Signature,
     msg::{Multisig, Signer},
@@ -36,7 +37,7 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
             let execute_data = batch
                 .encode_execute_data(
                     multisig.quorum,
-                    optimize_signers(multisig.quorum, multisig.signers),
+                    optimize_signers(multisig.signers, multisig.quorum),
                 )
                 .map_err(|err| {
                     StdError::generic_err(format!("failed to encode execute data: {}", err))
@@ -58,16 +59,14 @@ pub fn get_worker_set(deps: Deps) -> StdResult<WorkerSet> {
     CURRENT_WORKER_SET.load(deps.storage)
 }
 
-/// Returns a new vector of signers with signatures containing the minimum amount of signatures required to reach quorum.
-/// The vector is sorted by weight and then is iterated over, removing signatures after the quorum is reached.
+/// Returns the minimum amount of signatures to satisfy the quorum, sorted by weight
 fn optimize_signers(
+    signers: Vec<(Signer, Option<Signature>)>,
     quorum: Uint256,
-    mut signers: Vec<(Signer, Option<Signature>)>,
 ) -> Vec<(Signer, Option<Signature>)> {
-    signers.sort_by(|(a, _), (b, _)| b.weight.cmp(&a.weight));
-
     signers
         .into_iter()
+        .sorted_by(|(a, _), (b, _)| b.weight.cmp(&a.weight))
         .scan(
             Uint256::zero(),
             |acc, (signer, signature)| match signature {
@@ -111,7 +110,7 @@ mod tests {
             make_signer("addr1", 1, false),
         ];
 
-        let optimized = optimize_signers(quorum, signers);
+        let optimized = optimize_signers(signers, quorum);
 
         assert_eq!(optimized, expected_signers);
     }
