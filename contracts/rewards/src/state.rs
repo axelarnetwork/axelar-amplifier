@@ -24,7 +24,6 @@ pub struct EpochTally {
 }
 
 impl EpochTally {
-    #[allow(dead_code)]
     pub fn new(contract: Addr, epoch: Epoch) -> Self {
         EpochTally {
             contract,
@@ -33,13 +32,36 @@ impl EpochTally {
             epoch,
         }
     }
+
+    pub fn record_participation(mut self, worker: Addr) -> Self {
+        self.participation
+            .entry(worker)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+        self
+    }
+
+    pub fn increment_event_count(mut self) -> Self {
+        self.event_count += 1;
+        self
+    }
 }
 
 #[cw_serde]
 pub struct Event {
-    event_id: nonempty::String,
-    contract: Addr,
-    epoch_num: u64,
+    pub event_id: nonempty::String,
+    pub contract: Addr,
+    pub epoch_num: u64,
+}
+
+impl Event {
+    pub fn new(event_id: nonempty::String, contract: Addr, epoch_num: u64) -> Self {
+        Self {
+            event_id,
+            contract,
+            epoch_num,
+        }
+    }
 }
 
 #[cw_serde]
