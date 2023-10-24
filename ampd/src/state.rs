@@ -134,7 +134,7 @@ mod tests {
 
     fn run_test<T>(state_path: impl AsRef<Path>, test: T)
     where
-        T: FnOnce() + panic::UnwindSafe,
+        T: FnOnce(),
     {
         let result = panic::catch_unwind(test);
         let _ = fs::remove_file(&state_path);
