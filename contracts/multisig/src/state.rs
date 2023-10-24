@@ -15,7 +15,7 @@ use crate::{
 pub struct Config {
     pub governance: Addr,
     pub rewards_contract: Addr,
-    pub grace_period: u64,
+    pub grace_period: u64, // TODO: add update mechanism to change this after instantiation
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
