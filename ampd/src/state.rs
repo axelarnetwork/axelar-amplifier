@@ -126,37 +126,36 @@ fn ensure_parent_dirs_exist(path: impl AsRef<Path>) -> Result<(), Error> {
 mod tests {
     use crate::state;
     use ecdsa::signature::rand_core::OsRng;
-    use std::path::{Path, PathBuf};
-    use std::{fs, panic};
+    use std::fs;
+    use std::path::Path;
     use tokio::sync::mpsc;
 
     use super::{State, StateUpdater};
 
-    fn run_test<T>(state_path: impl AsRef<Path>, test: T)
-    where
-        T: FnOnce(),
-    {
-        let result = panic::catch_unwind(test);
-        let _ = fs::remove_file(&state_path);
-        let _ = state_path.as_ref().parent().map(fs::remove_dir);
-        assert!(result.is_ok())
-    }
-
     #[test]
     fn can_load_and_flush_state() {
-        let path = PathBuf::from("./state_subfolder/can_load_and_flush_state.json");
-        run_test(&path, || {
-            let mut state = State::default();
-            state.pub_key = Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
-            state.set_handler_block_height("handler1", 10u16);
-            state.set_handler_block_height("handler2", 15u16);
-            state.set_handler_block_height("handler3", 7u16);
+        let path = Path::new("./state_subfolder/can_load_and_flush_state.json");
+        let mut state = State::default();
+        state.pub_key = Some(ecdsa::SigningKey::random(&mut OsRng).verifying_key().into());
+        state.set_handler_block_height("handler1", 10u16);
+        state.set_handler_block_height("handler2", 15u16);
+        state.set_handler_block_height("handler3", 7u16);
 
-            state::flush(&state, &path).unwrap();
-            let loaded_state = state::load(&path).unwrap();
+        let result = match state::flush(&state, path) {
+            Ok(_) => match state::load(path) {
+                Ok(loaded_state) => {
+                    assert_eq!(state, loaded_state);
+                    Ok(())
+                }
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        };
 
-            assert_eq!(state, loaded_state);
-        });
+        let _ = fs::remove_file(path);
+        let _ = path.parent().map(fs::remove_dir);
+
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
