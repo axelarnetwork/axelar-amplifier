@@ -31,19 +31,18 @@ where
         if cur_block_height < epoch.block_height_started {
             return Err(ContractError::BlockHeightPassed.into());
         }
-        if cur_block_height >= epoch.block_height_started + epoch_duration {
-            let epochs_elapsed = (cur_block_height - epoch.block_height_started) / epoch_duration;
-            let epoch_num = epochs_elapsed + epoch.epoch_num;
-            let block_height_started = epoch.block_height_started + epochs_elapsed * epoch_duration;
-
-            let new_epoch = Epoch {
-                epoch_num,
-                block_height_started,
-                rewards: epoch.rewards,
-            };
-            return Ok(new_epoch);
+        if cur_block_height < epoch.block_height_started + epoch_duration {
+            return Ok(epoch);
         }
-        Ok(epoch)
+        let epochs_elapsed = (cur_block_height - epoch.block_height_started) / epoch_duration;
+        let epoch_num = epochs_elapsed + epoch.epoch_num;
+        let block_height_started = epoch.block_height_started + epochs_elapsed * epoch_duration;
+
+        Ok(Epoch {
+            epoch_num,
+            block_height_started,
+            rewards: epoch.rewards,
+        })
     }
 
     pub fn record_participation(
