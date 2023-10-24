@@ -48,29 +48,32 @@ where
         &mut self,
         event_id: nonempty::String,
         worker: Addr,
-        contract: Addr,
+        contract_addr: Addr,
         block_height: u64,
     ) -> Result<(), ContractError> {
         let cur_epoch = self.get_current_epoch(block_height)?;
 
         let event = self
             .store
-            .load_event(event_id.to_string(), contract.clone())?;
+            .load_event(event_id.to_string(), contract_addr.clone())?;
 
         if event.is_none() {
-            self.store
-                .save_event(&Event::new(event_id, contract.clone(), cur_epoch.epoch_num))?;
+            self.store.save_event(&Event::new(
+                event_id,
+                contract_addr.clone(),
+                cur_epoch.epoch_num,
+            ))?;
         }
 
         let mut tally = match event {
             Some(event) => self
                 .store
-                .load_epoch_tally(contract.clone(), event.epoch_num)?
+                .load_epoch_tally(contract_addr.clone(), event.epoch_num)?
                 .expect("couldn't find epoch tally for existing event"),
             None => self
                 .store
-                .load_epoch_tally(contract.clone(), cur_epoch.epoch_num)?
-                .unwrap_or(EpochTally::new(contract, cur_epoch)) // first event in this epoch
+                .load_epoch_tally(contract_addr.clone(), cur_epoch.epoch_num)?
+                .unwrap_or(EpochTally::new(contract_addr, cur_epoch)) // first event in this epoch
                 .increment_event_count()
                 .clone(),
         };
@@ -121,7 +124,7 @@ mod test {
 
     use crate::{
         msg::RewardsParams,
-        state::{self, Epoch, EpochTally, Event, StoredParams},
+        state::{self, Epoch, EpochTally, Event, Store, StoredParams},
     };
 
     use super::Contract;
@@ -194,14 +197,14 @@ mod test {
     #[test]
     fn record_participation_multiple_events() {
         let cur_epoch_num = 1u64;
-        let block_height_started = 250u64;
+        let epoch_block_start = 250u64;
         let epoch_duration = 100u64;
         let event_store = Arc::new(RwLock::new(HashMap::new()));
         let tally_store = Arc::new(RwLock::new(HashMap::new()));
 
         let mut contract = setup_with_stores(
             cur_epoch_num,
-            block_height_started,
+            epoch_block_start,
             epoch_duration,
             event_store.clone(),
             tally_store.clone(),
@@ -209,19 +212,22 @@ mod test {
 
         let worker_contract = Addr::unchecked("some contract");
 
-        let mut participation = HashMap::new();
-        participation.insert(Addr::unchecked("worker_1"), 10);
-        participation.insert(Addr::unchecked("worker_2"), 5);
-        participation.insert(Addr::unchecked("worker_3"), 7);
+        let mut simulated_participation = HashMap::new();
+        simulated_participation.insert(Addr::unchecked("worker_1"), 10);
+        simulated_participation.insert(Addr::unchecked("worker_2"), 5);
+        simulated_participation.insert(Addr::unchecked("worker_3"), 7);
+
         let event_count = 10;
-        let mut cur_height = block_height_started;
+        let mut cur_height = epoch_block_start;
         for i in 0..event_count {
-            for (w, p) in &participation {
-                if i < *p {
+            for (worker, part_count) in &simulated_participation {
+                // simulates a worker participating in only part_count events
+                if i < *part_count {
+                    let event_id = i.to_string().try_into().unwrap();
                     contract
                         .record_participation(
-                            i.to_string().try_into().unwrap(),
-                            w.clone(),
+                            event_id,
+                            worker.clone(),
                             worker_contract.clone(),
                             cur_height,
                         )
@@ -231,36 +237,31 @@ mod test {
             cur_height = cur_height + 1;
         }
 
-        {
-            let tally_store = tally_store.read().unwrap();
-            let tally = tally_store
-                .get(&(
-                    worker_contract.clone(),
-                    contract
-                        .get_current_epoch(block_height_started)
-                        .unwrap()
-                        .epoch_num,
-                ))
-                .unwrap();
-            assert_eq!(tally.event_count, event_count);
-            assert_eq!(tally.participation.len(), participation.len());
-            for (w, p) in participation {
-                assert_eq!(tally.participation.get(&w), Some(&p));
-            }
+        let tally = contract
+            .store
+            .load_epoch_tally(worker_contract, cur_epoch_num)
+            .unwrap();
+        assert!(tally.is_some());
+
+        let tally = tally.unwrap();
+        assert_eq!(tally.event_count, event_count);
+        assert_eq!(tally.participation.len(), simulated_participation.len());
+        for (worker, part_count) in simulated_participation {
+            assert_eq!(tally.participation.get(&worker), Some(&part_count));
         }
     }
 
     /// Tests that the participation event is recorded correctly when the event spans multiple epochs
     #[test]
     fn record_participation_epoch_boundary() {
-        let cur_epoch_num = 1u64;
+        let starting_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let event_store = Arc::new(RwLock::new(HashMap::new()));
         let tally_store = Arc::new(RwLock::new(HashMap::new()));
 
         let mut contract = setup_with_stores(
-            cur_epoch_num,
+            starting_epoch_num,
             block_height_started,
             epoch_duration,
             event_store.clone(),
@@ -274,35 +275,42 @@ mod test {
             Addr::unchecked("worker_2"),
             Addr::unchecked("worker_3"),
         ];
-        let mut cur_height = block_height_started + epoch_duration - 1;
-        let prev_epoch = contract.get_current_epoch(cur_height).unwrap();
-        for w in &workers {
+        // this is the height just before the next epoch starts
+        let height_at_epoch_end = block_height_started + epoch_duration - 1;
+        // workers participate in consecutive blocks
+        for (i, workers) in workers.iter().enumerate() {
             contract
                 .record_participation(
                     "some event".to_string().try_into().unwrap(),
-                    w.clone(),
+                    workers.clone(),
                     worker_contract.clone(),
-                    cur_height,
+                    height_at_epoch_end + i as u64,
                 )
                 .unwrap();
-            cur_height = cur_height + 1;
         }
-        let cur_epoch = contract.get_current_epoch(cur_height).unwrap();
-        assert_ne!(prev_epoch.epoch_num, cur_epoch.epoch_num);
 
-        {
-            let tally_store = tally_store.read().unwrap();
-            let tally = tally_store
-                .get(&(worker_contract.clone(), prev_epoch.epoch_num))
-                .unwrap();
-            assert_eq!(tally.event_count, 1);
-            assert_eq!(tally.participation.len(), workers.len());
-            for w in workers {
-                assert_eq!(tally.participation.get(&w), Some(&1));
-            }
-            let tally = tally_store.get(&(worker_contract.clone(), cur_epoch.epoch_num));
-            assert!(tally.is_none());
+        let cur_epoch = contract.get_current_epoch(height_at_epoch_end).unwrap();
+        assert_ne!(starting_epoch_num + 1, cur_epoch.epoch_num);
+
+        let tally = contract
+            .store
+            .load_epoch_tally(worker_contract.clone(), starting_epoch_num)
+            .unwrap();
+        assert!(tally.is_some());
+
+        let tally = tally.unwrap();
+
+        assert_eq!(tally.event_count, 1);
+        assert_eq!(tally.participation.len(), workers.len());
+        for w in workers {
+            assert_eq!(tally.participation.get(&w), Some(&1));
         }
+
+        let tally = contract
+            .store
+            .load_epoch_tally(worker_contract, starting_epoch_num + 1)
+            .unwrap();
+        assert!(tally.is_none());
     }
 
     /// Tests that participation events for different contracts are recorded correctly
@@ -322,24 +330,26 @@ mod test {
             tally_store.clone(),
         );
 
-        let mut participation = HashMap::new();
-        participation.insert(
+        let mut simulated_participation = HashMap::new();
+        simulated_participation.insert(
             Addr::unchecked("worker_1"),
             (Addr::unchecked("contract_1"), 3),
         );
-        participation.insert(
+        simulated_participation.insert(
             Addr::unchecked("worker_2"),
             (Addr::unchecked("contract_2"), 4),
         );
-        participation.insert(
+        simulated_participation.insert(
             Addr::unchecked("worker_3"),
             (Addr::unchecked("contract_3"), 2),
         );
-        for (worker, (worker_contract, events_participated)) in &participation {
+
+        for (worker, (worker_contract, events_participated)) in &simulated_participation {
             for i in 0..*events_participated {
+                let event_id = i.to_string().try_into().unwrap();
                 contract
                     .record_participation(
-                        i.to_string().try_into().unwrap(),
+                        event_id,
                         worker.clone(),
                         worker_contract.clone(),
                         block_height_started,
@@ -348,22 +358,18 @@ mod test {
             }
         }
 
-        {
-            let tally_store = tally_store.read().unwrap();
-            for (worker, (worker_contract, events_participated)) in participation {
-                let tally = tally_store
-                    .get(&(
-                        worker_contract.clone(),
-                        contract
-                            .get_current_epoch(block_height_started)
-                            .unwrap()
-                            .epoch_num,
-                    ))
-                    .unwrap();
-                assert_eq!(tally.event_count, events_participated);
-                assert_eq!(tally.participation.len(), 1);
-                assert_eq!(tally.participation.get(&worker), Some(&events_participated));
-            }
+        for (worker, (worker_contract, events_participated)) in simulated_participation {
+            let tally = contract
+                .store
+                .load_epoch_tally(worker_contract.clone(), cur_epoch_num)
+                .unwrap();
+
+            assert!(tally.is_some());
+            let tally = tally.unwrap();
+
+            assert_eq!(tally.event_count, events_participated);
+            assert_eq!(tally.participation.len(), 1);
+            assert_eq!(tally.participation.get(&worker), Some(&events_participated));
         }
     }
 
