@@ -1,14 +1,14 @@
+use axelar_wasm_std::nonempty;
+use cosmwasm_std::{Addr, Fraction, Uint256};
 use error_stack::Result;
 use std::collections::HashMap;
-
-use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Uint256};
 
 use crate::{
     error::ContractError,
     msg::RewardsParams,
     state::{Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
 };
+
 
 pub struct Contract<S>
 where
@@ -25,7 +25,7 @@ where
     /// Returns the current epoch. The current epoch is computed dynamically based on the current
     /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
     /// in which the update occurs as the last checkpoint
-    fn get_current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
+    fn current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
         let stored_params = self.store.load_params();
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         let epoch = stored_params.last_updated;
@@ -42,7 +42,6 @@ where
         Ok(Epoch {
             epoch_num,
             block_height_started,
-            rewards: epoch.rewards,
         })
     }
 
@@ -53,7 +52,7 @@ where
         contract_addr: Addr,
         block_height: u64,
     ) -> Result<(), ContractError> {
-        let cur_epoch = self.get_current_epoch(block_height)?;
+        let cur_epoch = self.current_epoch(block_height)?;
 
         let event = self
             .store
@@ -75,7 +74,11 @@ where
             None => self
                 .store
                 .load_epoch_tally(contract_addr.clone(), cur_epoch.epoch_num)?
-                .unwrap_or(EpochTally::new(contract_addr, cur_epoch)) // first event in this epoch
+                .unwrap_or(EpochTally::new(
+                    contract_addr,
+                    cur_epoch,
+                    self.store.load_params().params,
+                )) // first event in this epoch
                 .increment_event_count(),
         }
         .record_participation(worker);
@@ -85,7 +88,7 @@ where
         Ok(())
     }
 
-    pub fn process_rewards(
+    pub fn distribute_rewards(
         &mut self,
         _contract: Addr,
         _block_height: u64,
@@ -94,12 +97,50 @@ where
         todo!()
     }
 
+    fn distribute_rewards_for_epoch(
+        &mut self,
+        contract: Addr,
+        epoch_num: u64,
+    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
+        match self.store.load_epoch_tally(contract.clone(), epoch_num)? {
+            None => Ok(HashMap::new()), // no rewards if there is no tally
+            Some(tally) => self.process_epoch_tally(tally),
+        }
+    }
+
+    fn process_epoch_tally(
+        &mut self,
+        tally: EpochTally,
+    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
+        match get_workers_to_reward(&tally) {
+            Ok(workers_to_reward) => {
+                let pool_balance = self.get_pool_balance(tally.contract.clone())?;
+                let rewards_per_epoch = tally.rewards_params.rewards_per_epoch;
+                let rewards_per_worker =
+                    get_rewards_per_worker(&workers_to_reward, rewards_per_epoch, pool_balance)?;
+
+                self.update_pool_balance(
+                    tally.contract,
+                    pool_balance,
+                    &workers_to_reward,
+                    rewards_per_worker,
+                )?;
+
+                Ok(Vec::<Addr>::from(workers_to_reward)
+                    .into_iter()
+                    .map(|worker| (worker, rewards_per_worker))
+                    .collect())
+            }
+            _ => Ok(HashMap::new()), // no workers to reward
+        }
+    }
+
     pub fn update_params(
         &mut self,
         new_params: RewardsParams,
         block_height: u64,
     ) -> Result<(), ContractError> {
-        let cur_epoch = self.get_current_epoch(block_height)?;
+        let cur_epoch = self.current_epoch(block_height)?;
         // If the param update reduces the epoch duration such that the current epoch immediately ends,
         // start a new epoch at this block, incrementing the current epoch number by 1.
         // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
@@ -112,13 +153,9 @@ where
             Epoch {
                 block_height_started: block_height,
                 epoch_num: cur_epoch.epoch_num + 1,
-                rewards: new_params.rewards_per_epoch,
             }
         } else {
-            Epoch {
-                rewards: new_params.rewards_per_epoch,
-                ..cur_epoch
-            }
+            Epoch { ..cur_epoch }
         };
         self.store.save_params(&StoredParams {
             params: new_params,
@@ -149,6 +186,67 @@ where
 
         Ok(())
     }
+
+    fn get_pool_balance(&self, contract_addr: Addr) -> Result<Uint256, ContractError> {
+        match self.store.load_rewards_pool(contract_addr.clone())? {
+            Some(pool) => Ok(pool.balance),
+            None => Ok(Uint256::zero()),
+        }
+    }
+
+    fn update_pool_balance(
+        &mut self,
+        contract: Addr,
+        old_balance: Uint256,
+        workers_to_reward: &nonempty::Vec<Addr>,
+        rewards_per_worker: Uint256,
+    ) -> Result<(), ContractError> {
+        self.store.save_rewards_pool(&RewardsPool {
+            contract,
+            balance: old_balance
+                - (rewards_per_worker * Uint256::from(workers_to_reward.len() as u128)),
+        })
+    }
+}
+
+fn get_workers_to_reward(
+    tally: &EpochTally,
+) -> Result<nonempty::Vec<Addr>, axelar_wasm_std::nonempty::Error> {
+    let params = &tally.rewards_params;
+
+    let cutoff = tally.event_count * u64::from(params.participation_threshold.numerator())
+        / u64::from(params.participation_threshold.denominator());
+
+    tally
+        .participation
+        .iter()
+        .filter_map(|(worker, participated)| {
+            if *participated >= cutoff {
+                Some(worker.clone())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<Addr>>()
+        .try_into()
+        .map_err(|err: axelar_wasm_std::nonempty::Error| err.into())
+}
+
+fn get_rewards_per_worker(
+    workers_to_reward: &nonempty::Vec<Addr>,
+    rewards_per_epoch: nonempty::Uint256,
+    pool_balance: Uint256,
+) -> Result<Uint256, ContractError> {
+    let rewards_per_epoch: cosmwasm_std::Uint256 = rewards_per_epoch.into();
+    if pool_balance < rewards_per_epoch {
+        return Err(ContractError::PoolBalanceInsufficient.into());
+    }
+    // A bit of a weird case. The rewards per epoch is too low to accomodate the number of workers to be rewarded
+    // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
+    if rewards_per_epoch < Uint256::from_u128(workers_to_reward.len() as u128) {
+        return Ok(Uint256::zero());
+    }
+    Ok(rewards_per_epoch.multiply_ratio(1u32, workers_to_reward.len() as u32))
 }
 
 #[cfg(test)]
@@ -170,23 +268,21 @@ mod test {
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
-    fn get_current_epoch_same_epoch_is_idempotent() {
+    fn current_epoch_same_epoch_is_idempotent() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
         let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
-        let new_epoch = contract.get_current_epoch(block_height_started).unwrap();
+        let new_epoch = contract.current_epoch(block_height_started).unwrap();
+        assert_eq!(new_epoch.epoch_num, cur_epoch_num);
+        assert_eq!(new_epoch.block_height_started, block_height_started);
+
+        let new_epoch = contract.current_epoch(block_height_started + 1).unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
 
         let new_epoch = contract
-            .get_current_epoch(block_height_started + 1)
-            .unwrap();
-        assert_eq!(new_epoch.epoch_num, cur_epoch_num);
-        assert_eq!(new_epoch.block_height_started, block_height_started);
-
-        let new_epoch = contract
-            .get_current_epoch(block_height_started + epoch_duration - 1)
+            .current_epoch(block_height_started + epoch_duration - 1)
             .unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
@@ -194,7 +290,7 @@ mod test {
 
     /// Tests that the current epoch is computed correctly when the expected epoch is different than the stored epoch
     #[test]
-    fn get_current_epoch_different_epoch() {
+    fn current_epoch_different_epoch() {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
@@ -225,7 +321,7 @@ mod test {
         ];
 
         for (height, expected_epoch_num, expected_block_start) in test_cases {
-            let new_epoch = contract.get_current_epoch(height).unwrap();
+            let new_epoch = contract.current_epoch(height).unwrap();
 
             assert_eq!(new_epoch.epoch_num, expected_epoch_num);
             assert_eq!(new_epoch.block_height_started, expected_block_start);
@@ -312,7 +408,7 @@ mod test {
                 .unwrap();
         }
 
-        let cur_epoch = contract.get_current_epoch(height_at_epoch_end).unwrap();
+        let cur_epoch = contract.current_epoch(height_at_epoch_end).unwrap();
         assert_ne!(starting_epoch_num + 1, cur_epoch.epoch_num);
 
         let tally = contract
@@ -415,7 +511,7 @@ mod test {
         };
 
         // the epoch shouldn't change when the params are updated, since we are not changing the epoch duration
-        let expected_epoch = contract.get_current_epoch(cur_height).unwrap();
+        let expected_epoch = contract.current_epoch(cur_height).unwrap();
 
         contract
             .update_params(new_params.clone(), cur_height)
@@ -424,7 +520,7 @@ mod test {
         assert_eq!(stored.params, new_params);
 
         // current epoch shouldn't have changed
-        let cur_epoch = contract.get_current_epoch(cur_height).unwrap();
+        let cur_epoch = contract.current_epoch(cur_height).unwrap();
         assert_eq!(expected_epoch.epoch_num, cur_epoch.epoch_num);
         assert_eq!(
             expected_epoch.block_height_started,
@@ -452,7 +548,7 @@ mod test {
         let cur_height = initial_epoch_start + initial_epoch_duration * epochs_elapsed + 10; // add 10 here just to be a little past the epoch boundary
 
         // epoch shouldn't change if we are extending the duration
-        let epoch_prior_to_update = contract.get_current_epoch(cur_height).unwrap();
+        let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
 
         let new_epoch_duration = initial_epoch_duration * 2;
         let new_params = RewardsParams {
@@ -465,18 +561,18 @@ mod test {
             .unwrap();
 
         // current epoch shouldn't change
-        let epoch = contract.get_current_epoch(cur_height).unwrap();
+        let epoch = contract.current_epoch(cur_height).unwrap();
         assert_eq!(epoch, epoch_prior_to_update);
 
         // we increased the epoch duration, so adding the initial epoch duration should leave us in the same epoch
         let epoch = contract
-            .get_current_epoch(cur_height + initial_epoch_duration)
+            .current_epoch(cur_height + initial_epoch_duration)
             .unwrap();
         assert_eq!(epoch, epoch_prior_to_update);
 
         // check that we can correctly compute the start of the next epoch
         let next_epoch = contract
-            .get_current_epoch(cur_height + new_epoch_duration)
+            .current_epoch(cur_height + new_epoch_duration)
             .unwrap();
         assert_eq!(next_epoch.epoch_num, epoch_prior_to_update.epoch_num + 1);
         assert_eq!(
@@ -503,7 +599,7 @@ mod test {
         let cur_height = initial_epoch_start + initial_epoch_duration * epochs_elapsed;
 
         let new_epoch_duration = initial_epoch_duration / 2;
-        let epoch_prior_to_update = contract.get_current_epoch(cur_height).unwrap();
+        let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
         // we are shortening the epoch, but not so much it causes the epoch number to change. We want to remain in the same epoch
         assert!(cur_height - epoch_prior_to_update.block_height_started < new_epoch_duration);
 
@@ -516,12 +612,12 @@ mod test {
             .unwrap();
 
         // current epoch shouldn't have changed
-        let epoch = contract.get_current_epoch(cur_height).unwrap();
+        let epoch = contract.current_epoch(cur_height).unwrap();
         assert_eq!(epoch_prior_to_update, epoch);
 
         // adding the new epoch duration should increase the epoch number by 1
         let epoch = contract
-            .get_current_epoch(cur_height + new_epoch_duration)
+            .current_epoch(cur_height + new_epoch_duration)
             .unwrap();
         assert_eq!(epoch.epoch_num, epoch_prior_to_update.epoch_num + 1);
         assert_eq!(
@@ -550,7 +646,7 @@ mod test {
         // simulate progressing far enough into the epoch such that shortening the epoch duration would change the epoch
         let cur_height =
             initial_epoch_start + initial_epoch_duration * epochs_elapsed + new_epoch_duration * 2;
-        let epoch_prior_to_update = contract.get_current_epoch(cur_height).unwrap();
+        let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
 
         let new_params = RewardsParams {
             epoch_duration: 10.try_into().unwrap(),
@@ -561,13 +657,13 @@ mod test {
             .unwrap();
 
         // should be in new epoch now
-        let epoch = contract.get_current_epoch(cur_height).unwrap();
+        let epoch = contract.current_epoch(cur_height).unwrap();
         assert_eq!(epoch.epoch_num, epoch_prior_to_update.epoch_num + 1);
         assert_eq!(epoch.block_height_started, cur_height);
 
         // moving forward the new epoch duration # of blocks should increment the epoch
         let epoch = contract
-            .get_current_epoch(cur_height + new_epoch_duration)
+            .current_epoch(cur_height + new_epoch_duration)
             .unwrap();
         assert_eq!(epoch.epoch_num, epoch_prior_to_update.epoch_num + 2);
         assert_eq!(epoch.block_height_started, cur_height + new_epoch_duration);
@@ -659,6 +755,7 @@ mod test {
         events_store: Arc<RwLock<HashMap<(String, Addr), Event>>>,
         tally_store: Arc<RwLock<HashMap<(Addr, u64), EpochTally>>>,
         rewards_store: Arc<RwLock<HashMap<Addr, RewardsPool>>>,
+        watermark_store: Arc<RwLock<HashMap<Addr, u64>>>,
     ) -> Contract<state::MockStore> {
         let mut store = state::MockStore::new();
         let params_store_cloned = params_store.clone();
@@ -709,6 +806,21 @@ mod test {
             rewards_store.insert(pool.contract.clone(), pool.clone());
             Ok(())
         });
+
+        let watermark_store_cloned = watermark_store.clone();
+        store
+            .expect_load_rewards_watermark()
+            .returning(move |contract| {
+                let watermark_store = watermark_store_cloned.read().unwrap();
+                Ok(watermark_store.get(&contract).cloned())
+            });
+        store
+            .expect_save_rewards_watermark()
+            .returning(move |contract, epoch_num| {
+                let mut watermark_store = watermark_store.write().unwrap();
+                watermark_store.insert(contract, epoch_num);
+                Ok(())
+            });
         Contract { store }
     }
 
@@ -717,8 +829,15 @@ mod test {
         events_store: Arc<RwLock<HashMap<(String, Addr), Event>>>,
         tally_store: Arc<RwLock<HashMap<(Addr, u64), EpochTally>>>,
         rewards_store: Arc<RwLock<HashMap<Addr, RewardsPool>>>,
+        watermark_store: Arc<RwLock<HashMap<Addr, u64>>>,
     ) -> Contract<state::MockStore> {
-        create_contract(params_store, events_store, tally_store, rewards_store)
+        create_contract(
+            params_store,
+            events_store,
+            tally_store,
+            rewards_store,
+            watermark_store,
+        )
     }
 
     fn setup_with_params(
@@ -734,7 +853,6 @@ mod test {
         let current_epoch = Epoch {
             epoch_num: cur_epoch_num,
             block_height_started,
-            rewards: rewards_per_epoch.clone(),
         };
 
         let stored_params = StoredParams {
@@ -749,7 +867,14 @@ mod test {
         let rewards_store = Arc::new(RwLock::new(HashMap::new()));
         let events_store = Arc::new(RwLock::new(HashMap::new()));
         let tally_store = Arc::new(RwLock::new(HashMap::new()));
-        setup_with_stores(stored_params, events_store, tally_store, rewards_store)
+        let watermark_store = Arc::new(RwLock::new(HashMap::new()));
+        setup_with_stores(
+            stored_params,
+            events_store,
+            tally_store,
+            rewards_store,
+            watermark_store,
+        )
     }
 
     fn setup(

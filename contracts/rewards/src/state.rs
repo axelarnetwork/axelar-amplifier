@@ -21,15 +21,17 @@ pub struct EpochTally {
     pub event_count: u64,
     pub participation: HashMap<Addr, u64>,
     pub epoch: Epoch,
+    pub rewards_params: RewardsParams,
 }
 
 impl EpochTally {
-    pub fn new(contract: Addr, epoch: Epoch) -> Self {
+    pub fn new(contract: Addr, epoch: Epoch, rewards_params: RewardsParams) -> Self {
         EpochTally {
             contract,
             event_count: 0,
             participation: HashMap::new(),
             epoch,
+            rewards_params,
         }
     }
 
@@ -68,7 +70,6 @@ impl Event {
 pub struct Epoch {
     pub epoch_num: u64,
     pub block_height_started: u64,
-    pub rewards: nonempty::Uint256,
 }
 
 #[cw_serde]
@@ -237,7 +238,6 @@ mod test {
             last_updated: Epoch {
                 epoch_num: 1,
                 block_height_started: 1,
-                rewards: Uint256::from(1000u128).try_into().unwrap(),
             },
         };
         // save an initial params, then load it
@@ -254,7 +254,6 @@ mod test {
             last_updated: Epoch {
                 epoch_num: 2,
                 block_height_started: 101,
-                rewards: params.params.rewards_per_epoch,
             },
         };
         assert!(store.save_params(&new_params).is_ok());
@@ -271,7 +270,6 @@ mod test {
         let epoch = Epoch {
             epoch_num: 10,
             block_height_started: 1000,
-            rewards: Uint256::from(100u128).try_into().unwrap(),
         };
         let contract = Addr::unchecked("some contract");
 
@@ -372,9 +370,16 @@ mod test {
         let epoch = Epoch {
             epoch_num,
             block_height_started: 1,
-            rewards: rewards_rate,
         };
-        let tally = EpochTally::new(contract.clone(), epoch);
+        let tally = EpochTally::new(
+            contract.clone(),
+            epoch,
+            RewardsParams {
+                epoch_duration: 100u64.try_into().unwrap(),
+                rewards_per_epoch: rewards_rate,
+                participation_threshold: (1, 2).try_into().unwrap(),
+            },
+        );
 
         let res = store.save_epoch_tally(&tally);
         assert!(res.is_ok());

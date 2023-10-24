@@ -32,6 +32,16 @@ impl<T> From<Vec<T>> for std::vec::Vec<T> {
     }
 }
 
+impl<T> Vec<T> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
