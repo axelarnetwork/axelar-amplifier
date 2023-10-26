@@ -126,6 +126,7 @@ fn ensure_parent_dirs_exist(path: impl AsRef<Path>) -> Result<(), Error> {
 mod tests {
     use crate::state;
     use ecdsa::signature::rand_core::OsRng;
+    use std::panic::UnwindSafe;
     use std::path::{Path, PathBuf};
     use std::{fs, panic};
     use tokio::sync::mpsc;
@@ -134,7 +135,7 @@ mod tests {
 
     fn run_test<T>(state_path: impl AsRef<Path>, test: T)
     where
-        T: FnOnce() + panic::UnwindSafe,
+        T: FnOnce() + UnwindSafe,
     {
         let result = panic::catch_unwind(test);
         let _ = fs::remove_file(&state_path);
