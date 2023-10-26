@@ -153,9 +153,12 @@ pub mod execute {
         let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
         let signatures = load_session_signatures(deps.storage, session_id.u64())?;
-        let state_changed =
-            session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
+
+        let old_state = session.state.clone();
+        session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
+
+        let state_changed = old_state != session.state;
 
         signing_response(
             session_id,
