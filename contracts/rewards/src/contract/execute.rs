@@ -9,7 +9,6 @@ use crate::{
     state::{Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
 };
 
-
 pub struct Contract<S>
 where
     S: Store,
