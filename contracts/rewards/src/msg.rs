@@ -3,9 +3,9 @@ use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    governance_address: String,
-    rewards_denom: String,
-    params: RewardsParams,
+    pub governance_address: String,
+    pub rewards_denom: String,
+    pub params: RewardsParams,
 }
 
 #[cw_serde]

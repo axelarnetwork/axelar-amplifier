@@ -35,4 +35,7 @@ pub enum ContractError {
 
     #[error("specified block has already passed")]
     BlockHeightInPast,
+
+    #[error("called is not authorized")]
+    Unauthorized,
 }

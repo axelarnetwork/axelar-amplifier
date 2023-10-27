@@ -7,7 +7,9 @@ use cosmwasm_std::{Addr, DepsMut, Uint256};
 use crate::{
     error::ContractError,
     msg::RewardsParams,
-    state::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store, StoredParams},
+    state::{
+        Config, Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store, StoredParams, CONFIG,
+    },
 };
 
 pub struct Contract<S>
@@ -15,14 +17,17 @@ where
     S: Store,
 {
     pub store: S,
+    pub config: Config,
 }
 
 impl<'a> Contract<RewardsStore<'a>> {
     pub fn new(deps: DepsMut) -> Contract<RewardsStore> {
+        let config = CONFIG.load(deps.storage).expect("couldn't load config");
         Contract {
             store: RewardsStore {
                 storage: deps.storage,
             },
+            config,
         }
     }
 }
@@ -54,6 +59,13 @@ where
             block_height_started,
             rewards: epoch.rewards,
         })
+    }
+
+    fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {
+        if self.config.governance != sender {
+            return Err(ContractError::Unauthorized.into());
+        }
+        Ok(())
     }
 
     pub fn record_participation(
@@ -108,7 +120,9 @@ where
         &mut self,
         new_params: RewardsParams,
         block_height: u64,
+        sender: Addr,
     ) -> Result<(), ContractError> {
+        self.require_governance(sender)?;
         let cur_epoch = self.get_current_epoch(block_height)?;
         // If the param update reduces the epoch duration such that the current epoch immediately ends,
         // start a new epoch at this block, incrementing the current epoch number by 1.
@@ -172,8 +186,9 @@ mod test {
     use cosmwasm_std::{Addr, Uint256, Uint64};
 
     use crate::{
+        error::ContractError,
         msg::RewardsParams,
-        state::{self, Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
+        state::{self, Config, Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
     };
 
     use super::Contract;
@@ -428,7 +443,11 @@ mod test {
         let expected_epoch = contract.get_current_epoch(cur_height).unwrap();
 
         contract
-            .update_params(new_params.clone(), cur_height)
+            .update_params(
+                new_params.clone(),
+                cur_height,
+                contract.config.governance.clone(),
+            )
             .unwrap();
         let stored = contract.store.load_params();
         assert_eq!(stored.params, new_params);
@@ -443,6 +462,32 @@ mod test {
 
         // last updated should be the current epoch
         assert_eq!(stored.last_updated, cur_epoch);
+    }
+
+    /// Test that rewards parameters cannot be updated by an address other than governance
+    #[test]
+    fn update_params_unauthorized() {
+        let initial_epoch_num = 1u64;
+        let initial_epoch_start = 250u64;
+        let epoch_duration = 100u64;
+        let mut contract = setup(initial_epoch_num, initial_epoch_start, epoch_duration);
+
+        let new_params = RewardsParams {
+            rewards_per_epoch: cosmwasm_std::Uint256::from(100u128).try_into().unwrap(),
+            participation_threshold: (Uint64::new(2), Uint64::new(3)).try_into().unwrap(),
+            epoch_duration: epoch_duration.try_into().unwrap(),
+        };
+
+        let res = contract.update_params(
+            new_params.clone(),
+            initial_epoch_start,
+            Addr::unchecked("some non governance address"),
+        );
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().current_context(),
+            &ContractError::Unauthorized
+        );
     }
 
     /// Test extending the epoch duration. This should not change the current epoch
@@ -471,7 +516,11 @@ mod test {
         };
 
         contract
-            .update_params(new_params.clone(), cur_height)
+            .update_params(
+                new_params.clone(),
+                cur_height,
+                contract.config.governance.clone(),
+            )
             .unwrap();
 
         // current epoch shouldn't change
@@ -522,7 +571,11 @@ mod test {
             ..contract.store.load_params().params
         };
         contract
-            .update_params(new_params.clone(), cur_height)
+            .update_params(
+                new_params.clone(),
+                cur_height,
+                contract.config.governance.clone(),
+            )
             .unwrap();
 
         // current epoch shouldn't have changed
@@ -567,7 +620,11 @@ mod test {
             ..contract.store.load_params().params
         };
         contract
-            .update_params(new_params.clone(), cur_height)
+            .update_params(
+                new_params.clone(),
+                cur_height,
+                contract.config.governance.clone(),
+            )
             .unwrap();
 
         // should be in new epoch now
@@ -719,7 +776,13 @@ mod test {
             rewards_store.insert(pool.contract.clone(), pool.clone());
             Ok(())
         });
-        Contract { store }
+        Contract {
+            store,
+            config: Config {
+                governance: Addr::unchecked("governance"),
+                rewards_denom: "AXL".to_string(),
+            },
+        }
     }
 
     fn setup_with_stores(
