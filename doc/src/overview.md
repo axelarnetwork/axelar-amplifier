@@ -71,7 +71,7 @@ Incoming Message Flow
 ```mermaid
 sequenceDiagram
     participant Relayer
-    box Blue Protocol
+    box LightYellow Protocol
     participant IncomingGateway
     participant Router
     participant Verifier
@@ -108,7 +108,7 @@ Outgoing Message Flow
 ```mermaid
 sequenceDiagram
     participant Relayer
-    box Blue Protocol
+    box LightYellow Protocol
     participant OutgoingGateway
     participant Router
     participant Prover
