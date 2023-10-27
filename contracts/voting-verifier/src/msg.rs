@@ -19,6 +19,10 @@ pub struct InstantiateMsg {
     pub block_expiry: u64,
     pub confirmation_height: u64,
     pub source_chain: ChainName,
+
+    // rewards
+    pub rewards_address: String,
+    pub grace_period: u64, // in blocks after session has been completed
 }
 
 #[cw_serde]

@@ -12,6 +12,7 @@ use crate::mock::make_mock_service_registry;
 pub mod mock;
 
 const SENDER: &str = "sender";
+const REWARDS_CONTRACT: &str = "rewards";
 fn source_chain() -> ChainName {
     "source_chain".parse().unwrap()
 }
@@ -25,6 +26,8 @@ fn initialize_contract(app: &mut App, service_registry_address: nonempty::String
         confirmation_height: 100,
         source_gateway_address: "gateway_address".parse().unwrap(),
         source_chain: source_chain(),
+        rewards_address: REWARDS_CONTRACT.to_string(),
+        grace_period: 2,
     };
 
     let code = ContractWrapper::new(contract::execute, contract::instantiate, contract::query);
