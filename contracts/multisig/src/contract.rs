@@ -22,10 +22,14 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
+    let config = Config {
+        governance: deps.api.addr_validate(&msg.governance_address)?,
+        rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
+        grace_period: msg.grace_period,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    CONFIG.save(deps.storage, &Config { governance })?;
+    SIGNING_SESSION_COUNTER.save(deps.storage, &Uint64::zero())?;
 
     Ok(Response::default())
 }
@@ -73,7 +77,9 @@ pub fn execute(
 }
 
 pub mod execute {
-    use crate::signing::validate_session_signature;
+    use cosmwasm_std::WasmMsg;
+
+    use crate::signing::{signer_pub_key, validate_session_signature};
     use crate::state::{load_session_signatures, save_signature};
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
@@ -127,51 +133,41 @@ pub mod execute {
         session_id: Uint64,
         signature: HexBinary,
     ) -> Result<Response, ContractError> {
+        let config = CONFIG.load(deps.storage)?;
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-
         let key = KEYS.load(deps.storage, &session.key_id)?;
-        let signature: Signature = match key
-            .pub_keys
-            .iter()
-            .find(|&(addr, _)| addr == &info.sender.to_string())
-        {
-            None => {
-                return Err(ContractError::NotAParticipant {
-                    session_id,
-                    signer: info.sender.into(),
-                })
-            }
-            Some((_, pk)) => (pk.key_type(), signature).try_into()?,
-        };
 
-        validate_session_signature(&session, &key, &info.sender, &signature)?;
+        let pub_key = signer_pub_key(&key, &info.sender, session.id)?;
+        let signature: Signature = (pub_key.key_type(), signature).try_into()?;
+
+        validate_session_signature(
+            &session,
+            &info.sender,
+            &signature,
+            pub_key,
+            config.grace_period,
+            env.block.height,
+        )?;
         let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
         let signatures = load_session_signatures(deps.storage, session_id.u64())?;
+
+        let old_state = session.state.clone();
         session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
-        let event = Event::SignatureSubmitted {
-            session_id,
-            participant: info.sender,
-            signature,
-        };
+        let state_changed = old_state != session.state;
 
-        match session.state {
-            MultisigState::Pending => Ok(Response::new().add_event(event.into())),
-            MultisigState::Completed { completed_at } => {
-                // TODO: revisit again once signing late is implemented. Don't emit event when signing late
-                Ok(Response::new().add_event(event.into()).add_event(
-                    Event::SigningCompleted {
-                        session_id,
-                        completed_at,
-                    }
-                    .into(),
-                ))
-            }
-        }
+        signing_response(
+            session_id,
+            session.state,
+            state_changed,
+            info.sender,
+            signature,
+            config.rewards_contract.into_string(),
+        )
     }
 
     pub fn key_gen(
@@ -275,6 +271,49 @@ pub mod execute {
         }
         Ok(())
     }
+
+    fn signing_response(
+        session_id: Uint64,
+        session_state: MultisigState,
+        state_changed: bool,
+        signer: Addr,
+        signature: Signature,
+        rewards_contract: String,
+    ) -> Result<Response, ContractError> {
+        let rewards_msg = WasmMsg::Execute {
+            contract_addr: rewards_contract,
+            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                event_id: session_id.into(),
+                worker_address: signer.to_string(),
+            })?,
+            funds: vec![],
+        };
+
+        let event = Event::SignatureSubmitted {
+            session_id,
+            participant: signer,
+            signature,
+        };
+
+        let mut response = Response::new()
+            .add_message(rewards_msg)
+            .add_event(event.into());
+
+        if let MultisigState::Completed { completed_at } = session_state {
+            if state_changed {
+                // only send event if state changed
+                response = response.add_event(
+                    Event::SigningCompleted {
+                        session_id,
+                        completed_at,
+                    }
+                    .into(),
+                )
+            }
+        }
+
+        Ok(response)
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -364,13 +403,14 @@ mod tests {
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint256,
+        Addr, Empty, OwnedDeps, Uint256, WasmMsg,
     };
 
     use serde_json::{from_str, to_string};
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
+    const REWARDS_CONTRACT: &str = "rewards";
 
     const ECDSA_SUBKEY: &str = "key_ecdsa";
     const ED25519_SUBKEY: &str = "key_ed25519";
@@ -381,6 +421,8 @@ mod tests {
 
         let msg = InstantiateMsg {
             governance_address: "governance".parse().unwrap(),
+            rewards_address: REWARDS_CONTRACT.to_string(),
+            grace_period: 2,
         };
 
         instantiate(deps, env, info, msg)
@@ -576,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    fn test_instantiation() {
+    fn instantiation() {
         let mut deps = mock_dependencies();
 
         let res = do_instantiate(deps.as_mut());
@@ -589,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_gen() {
+    fn key_gen() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
@@ -626,7 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn test_start_signing_session() {
+    fn start_signing_session() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -681,7 +723,7 @@ mod tests {
     }
 
     #[test]
-    fn test_start_signing_session_wrong_sender() {
+    fn start_signing_session_wrong_sender() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -699,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature() {
+    fn submit_signature() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -707,6 +749,18 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
+
+            let expected_rewards_msg = WasmMsg::Execute {
+                contract_addr: REWARDS_CONTRACT.to_string(),
+                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    event_id: session_id.into(),
+                    worker_address: signer.address.clone().into(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into();
+
             let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
 
             assert!(res.is_ok());
@@ -729,6 +783,8 @@ mod tests {
             let res = res.unwrap();
             assert_eq!(res.events.len(), 1);
 
+            assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
+
             let event = res.events.get(0).unwrap();
             assert_eq!(event.ty, "signature_submitted".to_string());
             assert_eq!(
@@ -747,7 +803,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature_completed() {
+    fn submit_signature_completes_session() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -797,7 +853,82 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_signature_wrong_session_id() {
+    fn submit_signature_during_grace_period() {
+        let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+
+            let signer = signers.get(0).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // second signature
+            let signer = signers.get(1).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // third signature, grace period
+            let signer = signers.get(2).unwrap().to_owned();
+
+            let expected_rewards_msg = WasmMsg::Execute {
+                contract_addr: REWARDS_CONTRACT.to_string(),
+                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    event_id: session_id.into(),
+                    worker_address: signer.address.clone().into(),
+                })
+                .unwrap(),
+                funds: vec![],
+            }
+            .into();
+
+            let mut env = mock_env();
+            env.block.height += 1;
+            let res = do_sign(deps.as_mut(), env, session_id, &signer).unwrap();
+            let signatures =
+                load_session_signatures(deps.as_ref().storage, session_id.u64()).unwrap();
+
+            assert_eq!(signatures.len(), 3);
+            assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
+            assert!(!res
+                .events
+                .iter()
+                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted during grace period
+        }
+    }
+
+    #[test]
+    fn submit_signature_grace_period_over() {
+        let mut deps = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+
+            let signer = signers.get(0).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // second signature
+            let signer = signers.get(1).unwrap().to_owned();
+            do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
+
+            // third signature, grace period over
+            let signer = signers.get(2).unwrap().to_owned();
+            let mut env = mock_env();
+            env.block.height += 10;
+            let res = do_sign(deps.as_mut(), env, session_id, &signer);
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                axelar_wasm_std::ContractError::from(ContractError::SigningSessionClosed {
+                    session_id: session_id
+                })
+                .to_string()
+            )
+        }
+    }
+
+    #[test]
+    fn submit_signature_wrong_session_id() {
         let mut deps = setup_with_session_started(ECDSA_SUBKEY);
 
         let invalid_session_id = Uint64::zero();
@@ -814,7 +945,7 @@ mod tests {
     }
 
     #[test]
-    fn test_query_signing_session() {
+    fn query_signing_session() {
         let mut deps = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -873,7 +1004,7 @@ mod tests {
     }
 
     #[test]
-    fn test_register_key() {
+    fn register_key() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
@@ -932,7 +1063,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_key() {
+    fn update_key() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
         let signers = ecdsa_test_data::signers();
@@ -998,7 +1129,7 @@ mod tests {
     }
 
     #[test]
-    fn test_authorize_and_unauthorize_caller() {
+    fn authorize_and_unauthorize_caller() {
         let mut deps = setup();
 
         // authorize
@@ -1024,10 +1155,9 @@ mod tests {
     }
 
     #[test]
-    fn test_authorize_caller_wrong_caller() {
+    fn authorize_caller_wrong_caller() {
         let mut deps = setup();
 
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let info = mock_info("user", &[]);
         let env = mock_env();
 
@@ -1043,10 +1173,9 @@ mod tests {
     }
 
     #[test]
-    fn test_unauthorize_caller_wrong_caller() {
+    fn unauthorize_caller_wrong_caller() {
         let mut deps = setup();
 
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let info = mock_info("user", &[]);
         let env = mock_env();
 
