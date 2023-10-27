@@ -2,12 +2,12 @@ use error_stack::Result;
 use std::collections::HashMap;
 
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::{Addr, DepsMut, Uint256};
 
 use crate::{
     error::ContractError,
     msg::RewardsParams,
-    state::{Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
+    state::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store, StoredParams},
 };
 
 pub struct Contract<S>
@@ -15,6 +15,16 @@ where
     S: Store,
 {
     pub store: S,
+}
+
+impl<'a> Contract<RewardsStore<'a>> {
+    pub fn new(deps: DepsMut) -> Contract<RewardsStore> {
+        Contract {
+            store: RewardsStore {
+                storage: deps.storage,
+            },
+        }
+    }
 }
 
 #[allow(dead_code)]
