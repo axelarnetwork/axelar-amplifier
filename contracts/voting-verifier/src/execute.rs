@@ -167,12 +167,14 @@ pub fn vote(
     poll_id: PollID,
     votes: Vec<bool>,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
     match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll.cast_vote(env.block.height, &info.sender, votes)?
+            poll.cast_vote(env.block.height, config.grace_period, &info.sender, votes)?
         }
     };
 

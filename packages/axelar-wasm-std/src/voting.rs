@@ -136,6 +136,7 @@ pub trait Poll {
     fn cast_vote(
         &mut self,
         block_height: u64,
+        grace_period: u64,
         sender: &Addr,
         votes: Vec<bool>,
     ) -> Result<PollStatus, Error>;
@@ -235,6 +236,7 @@ impl Poll for WeightedPoll {
     fn cast_vote(
         &mut self,
         block_height: u64,
+        grace_period: u64,
         sender: &Addr,
         votes: Vec<bool>,
     ) -> Result<PollStatus, Error> {
@@ -255,21 +257,28 @@ impl Poll for WeightedPoll {
             return Err(Error::AlreadyVoted);
         }
 
-        if self.status != PollStatus::InProgress {
-            return Err(Error::PollNotInProgress);
+        match self.status {
+            PollStatus::Finished { completed_at } => {
+                if completed_at + grace_period < block_height {
+                    return Err(Error::PollNotInProgress);
+                }
+
+                Ok(self.status.clone())
+            }
+            PollStatus::InProgress => {
+                participation.voted = true;
+
+                self.votes
+                    .iter_mut()
+                    .zip(votes.into_iter())
+                    .filter(|(_, vote)| *vote)
+                    .for_each(|(tally, _)| {
+                        *tally += Uint256::from(participation.weight);
+                    });
+
+                Ok(PollStatus::InProgress)
+            }
         }
-
-        participation.voted = true;
-
-        self.votes
-            .iter_mut()
-            .zip(votes.into_iter())
-            .filter(|(_, vote)| *vote)
-            .for_each(|(tally, _)| {
-                *tally += Uint256::from(participation.weight);
-            });
-
-        Ok(PollStatus::InProgress)
     }
 }
 
@@ -297,7 +306,7 @@ mod tests {
         );
 
         assert!(poll
-            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(1, 1, &Addr::unchecked("addr1"), votes.clone())
             .is_ok());
 
         assert_eq!(
@@ -326,7 +335,7 @@ mod tests {
             .collect();
 
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked(rand_addr.as_str()), votes),
+            poll.cast_vote(1, 1, &Addr::unchecked(rand_addr.as_str()), votes),
             Err(Error::NotParticipant)
         );
     }
@@ -340,7 +349,7 @@ mod tests {
         );
         let votes = vec![true, true];
         assert_eq!(
-            poll.cast_vote(2, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(2, 1, &Addr::unchecked("addr1"), votes),
             Err(Error::PollExpired)
         );
     }
@@ -350,7 +359,7 @@ mod tests {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true];
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(1, 1, &Addr::unchecked("addr1"), votes),
             Err(Error::InvalidVoteSize)
         );
     }
@@ -361,21 +370,21 @@ mod tests {
         let votes = vec![true, true];
 
         assert!(poll
-            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(1, 1, &Addr::unchecked("addr1"), votes.clone())
             .is_ok());
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(1, 1, &Addr::unchecked("addr1"), votes),
             Err(Error::AlreadyVoted)
         );
     }
 
     #[test]
     fn poll_is_not_in_progress() {
-        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let mut poll = new_poll(5, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
         poll.status = PollStatus::Finished { completed_at: 1 };
         assert_eq!(
-            poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
+            poll.cast_vote(3, 1, &Addr::unchecked("addr1"), votes),
             Err(Error::PollNotInProgress)
         );
     }
@@ -399,9 +408,11 @@ mod tests {
         let votes = vec![true, true];
 
         assert!(poll
-            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(1, 1, &Addr::unchecked("addr1"), votes.clone())
             .is_ok());
-        assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
+        assert!(poll
+            .cast_vote(1, 1, &Addr::unchecked("addr2"), votes)
+            .is_ok());
 
         let result = poll.tally(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished { completed_at: 2 });
