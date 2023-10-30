@@ -150,7 +150,7 @@ pub struct PollResult {
 #[cw_serde]
 pub enum PollStatus {
     InProgress,
-    Finished,
+    Finished { completed_at: u64 },
 }
 
 #[cw_serde]
@@ -214,11 +214,13 @@ impl Poll for WeightedPoll {
             return Err(Error::PollNotEnded);
         }
 
-        if self.status == PollStatus::Finished {
+        if matches!(self.status, PollStatus::Finished { .. }) {
             return Err(Error::PollNotInProgress);
         }
 
-        self.status = PollStatus::Finished;
+        self.status = PollStatus::Finished {
+            completed_at: block_height,
+        };
 
         Ok(PollResult {
             poll_id: self.poll_id,
@@ -371,7 +373,7 @@ mod tests {
     fn poll_is_not_in_progress() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
-        poll.status = PollStatus::Finished;
+        poll.status = PollStatus::Finished { completed_at: 1 };
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::PollNotInProgress)
@@ -387,7 +389,7 @@ mod tests {
     #[test]
     fn tally_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        poll.status = PollStatus::Finished;
+        poll.status = PollStatus::Finished { completed_at: 1 };
         assert_eq!(poll.tally(2), Err(Error::PollNotInProgress));
     }
 
@@ -402,7 +404,7 @@ mod tests {
         assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
 
         let result = poll.tally(2).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
+        assert_eq!(poll.status, PollStatus::Finished { completed_at: 2 });
 
         assert_eq!(
             result,
