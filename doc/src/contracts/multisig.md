@@ -26,7 +26,7 @@ b--GetSigningSession-->m
 ```mermaid
 sequenceDiagram
 participant Relayer
-box Axelar
+box LightYellow Axelar
 participant Prover
 participant Multisig
 end
