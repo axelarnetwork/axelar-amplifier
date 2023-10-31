@@ -110,13 +110,13 @@ pub mod execute {
             },
         )?;
 
-        let signing_session = SigningSession::new(session_id, key.clone().id, msg.clone());
+        let signing_session = SigningSession::new(session_id, key_id.clone(), msg.clone());
 
         SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
         let event = Event::SigningStarted {
             session_id,
-            key_id: key.id,
+            key_id,
             pub_keys: key.pub_keys,
             msg,
         };
