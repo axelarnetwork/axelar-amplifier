@@ -7,10 +7,10 @@ use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
 use mockall::automock;
 
-use crate::{error::ContractError, msg::RewardsParams};
+use crate::{error::ContractError, msg::Params};
 #[cw_serde]
 pub struct StoredParams {
-    pub params: RewardsParams,
+    pub params: Params,
     /// epoch in which the params were updated
     pub last_updated: Epoch,
 }
@@ -21,17 +21,17 @@ pub struct EpochTally {
     pub event_count: u64,
     pub participation: HashMap<Addr, u64>,
     pub epoch: Epoch,
-    pub rewards_params: RewardsParams,
+    pub params: Params,
 }
 
 impl EpochTally {
-    pub fn new(contract: Addr, epoch: Epoch, rewards_params: RewardsParams) -> Self {
+    pub fn new(contract: Addr, epoch: Epoch, rewards_params: Params) -> Self {
         EpochTally {
             contract,
             event_count: 0,
             participation: HashMap::new(),
             epoch,
-            rewards_params,
+            params: rewards_params,
         }
     }
 
@@ -219,7 +219,7 @@ impl Store for RewardsStore<'_> {
 mod test {
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
-    use crate::{msg::RewardsParams, state::StoredParams};
+    use crate::{msg::Params, state::StoredParams};
 
     use super::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store};
 
@@ -230,7 +230,7 @@ mod test {
             storage: &mut mock_deps.storage,
         };
         let params = StoredParams {
-            params: RewardsParams {
+            params: Params {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: 100u64.try_into().unwrap(),
                 rewards_per_epoch: Uint256::from(1000u128).try_into().unwrap(),
@@ -247,7 +247,7 @@ mod test {
 
         // now store a new params, and check that it was updated
         let new_params = StoredParams {
-            params: RewardsParams {
+            params: Params {
                 epoch_duration: 200u64.try_into().unwrap(),
                 ..params.params
             },
@@ -374,7 +374,7 @@ mod test {
         let tally = EpochTally::new(
             contract.clone(),
             epoch,
-            RewardsParams {
+            Params {
                 epoch_duration: 100u64.try_into().unwrap(),
                 rewards_per_epoch: rewards_rate,
                 participation_threshold: (1, 2).try_into().unwrap(),

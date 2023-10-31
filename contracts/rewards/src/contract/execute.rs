@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::{
     error::ContractError,
-    msg::RewardsParams,
+    msg::Params,
     state::{Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
 };
 
@@ -101,10 +101,9 @@ where
         contract: Addr,
         epoch_num: u64,
     ) -> Result<HashMap<Addr, Uint256>, ContractError> {
-        match self.store.load_epoch_tally(contract.clone(), epoch_num)? {
-            None => Ok(HashMap::new()), // no rewards if there is no tally
-            Some(tally) => self.process_epoch_tally(tally),
-        }
+        self.store
+            .load_epoch_tally(contract.clone(), epoch_num)?
+            .map_or(Ok(HashMap::new()), |tally| self.process_epoch_tally(tally))
     }
 
     fn process_epoch_tally(
@@ -114,7 +113,7 @@ where
         match get_workers_to_reward(&tally) {
             Ok(workers_to_reward) => {
                 let pool_balance = self.get_pool_balance(tally.contract.clone())?;
-                let rewards_per_epoch = tally.rewards_params.rewards_per_epoch;
+                let rewards_per_epoch = tally.params.rewards_per_epoch;
                 let rewards_per_worker =
                     get_rewards_per_worker(&workers_to_reward, rewards_per_epoch, pool_balance)?;
 
@@ -136,7 +135,7 @@ where
 
     pub fn update_params(
         &mut self,
-        new_params: RewardsParams,
+        new_params: Params,
         block_height: u64,
     ) -> Result<(), ContractError> {
         let cur_epoch = self.current_epoch(block_height)?;
@@ -154,7 +153,7 @@ where
                 epoch_num: cur_epoch.epoch_num + 1,
             }
         } else {
-            Epoch { ..cur_epoch }
+            cur_epoch
         };
         self.store.save_params(&StoredParams {
             params: new_params,
@@ -203,7 +202,7 @@ where
         self.store.save_rewards_pool(&RewardsPool {
             contract,
             balance: old_balance
-                - (rewards_per_worker * Uint256::from(workers_to_reward.len() as u128)),
+                - (rewards_per_worker * Uint256::from(workers_to_reward.as_ref().len() as u128)),
         })
     }
 }
@@ -211,7 +210,7 @@ where
 fn get_workers_to_reward(
     tally: &EpochTally,
 ) -> Result<nonempty::Vec<Addr>, axelar_wasm_std::nonempty::Error> {
-    let params = &tally.rewards_params;
+    let params = &tally.params;
 
     let cutoff = tally.event_count * u64::from(params.participation_threshold.numerator())
         / u64::from(params.participation_threshold.denominator());
@@ -242,10 +241,10 @@ fn get_rewards_per_worker(
     }
     // A bit of a weird case. The rewards per epoch is too low to accomodate the number of workers to be rewarded
     // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
-    if rewards_per_epoch < Uint256::from_u128(workers_to_reward.len() as u128) {
+    if rewards_per_epoch < Uint256::from_u128(workers_to_reward.as_ref().len() as u128) {
         return Ok(Uint256::zero());
     }
-    Ok(rewards_per_epoch.multiply_ratio(1u32, workers_to_reward.len() as u32))
+    Ok(rewards_per_epoch.multiply_ratio(1u32, workers_to_reward.as_ref().len() as u32))
 }
 
 #[cfg(test)]
@@ -259,7 +258,7 @@ mod test {
     use cosmwasm_std::{Addr, Uint256, Uint64};
 
     use crate::{
-        msg::RewardsParams,
+        msg::Params,
         state::{self, Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
     };
 
@@ -501,7 +500,7 @@ mod test {
         // simulate the below tests running at this block height
         let cur_height = initial_epoch_start + epoch_duration * 10 + 2;
 
-        let new_params = RewardsParams {
+        let new_params = Params {
             rewards_per_epoch: cosmwasm_std::Uint256::from(initial_rewards_per_epoch + 100)
                 .try_into()
                 .unwrap(),
@@ -550,7 +549,7 @@ mod test {
         let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
 
         let new_epoch_duration = initial_epoch_duration * 2;
-        let new_params = RewardsParams {
+        let new_params = Params {
             epoch_duration: (new_epoch_duration).try_into().unwrap(),
             ..contract.store.load_params().params // keep everything besides epoch duration the same
         };
@@ -602,7 +601,7 @@ mod test {
         // we are shortening the epoch, but not so much it causes the epoch number to change. We want to remain in the same epoch
         assert!(cur_height - epoch_prior_to_update.block_height_started < new_epoch_duration);
 
-        let new_params = RewardsParams {
+        let new_params = Params {
             epoch_duration: new_epoch_duration.try_into().unwrap(),
             ..contract.store.load_params().params
         };
@@ -647,7 +646,7 @@ mod test {
             initial_epoch_start + initial_epoch_duration * epochs_elapsed + new_epoch_duration * 2;
         let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
 
-        let new_params = RewardsParams {
+        let new_params = Params {
             epoch_duration: 10.try_into().unwrap(),
             ..contract.store.load_params().params
         };
@@ -855,7 +854,7 @@ mod test {
         };
 
         let stored_params = StoredParams {
-            params: RewardsParams {
+            params: Params {
                 participation_threshold: participation_threshold.try_into().unwrap(),
                 epoch_duration: epoch_duration.try_into().unwrap(),
                 rewards_per_epoch,
