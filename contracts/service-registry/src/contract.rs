@@ -334,6 +334,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             chain_name,
         } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
+        QueryMsg::GetWorker {
+            service_name,
+            worker,
+        } => to_binary(&query::get_worker(deps, worker, service_name)?).map_err(|err| err.into()),
+        QueryMsg::GetService { service_name } => {
+            to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+        }
     }
 }
 
@@ -367,5 +374,24 @@ pub mod query {
             .collect();
 
         Ok(workers)
+    }
+
+    pub fn get_worker(
+        deps: Deps,
+        service_name: String,
+        worker: String,
+    ) -> Result<Worker, ContractError> {
+        WORKERS
+            .may_load(
+                deps.storage,
+                (&service_name, &deps.api.addr_validate(&worker)?),
+            )?
+            .ok_or(ContractError::WorkerNotFound)
+    }
+
+    pub fn get_service(deps: Deps, service_name: String) -> Result<Service, ContractError> {
+        SERVICES
+            .may_load(deps.storage, &service_name)?
+            .ok_or(ContractError::ServiceNotFound)
     }
 }
