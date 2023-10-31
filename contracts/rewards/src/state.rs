@@ -8,6 +8,13 @@ use error_stack::{Result, ResultExt};
 use mockall::automock;
 
 use crate::{error::ContractError, msg::RewardsParams};
+
+#[cw_serde]
+pub struct Config {
+    pub governance: Addr,
+    pub rewards_denom: String,
+}
+
 #[cw_serde]
 pub struct StoredParams {
     pub params: RewardsParams,
@@ -133,6 +140,8 @@ const POOLS: Map<Addr, RewardsPool> = Map::new("pools");
 /// Maps a contract address to the epoch number of the most recent epoch for which rewards were distributed. All epochs prior
 /// have had rewards distributed already and all epochs after have not yet had rewards distributed for this contract
 const WATERMARKS: Map<Addr, u64> = Map::new("rewards_watermarks");
+
+pub const CONFIG: Item<Config> = Item::new("config");
 
 pub struct RewardsStore<'a> {
     pub storage: &'a mut dyn Storage,
