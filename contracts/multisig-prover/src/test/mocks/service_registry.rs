@@ -94,5 +94,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             to_binary(&workers)
         }
+        QueryMsg::GetService { .. } => todo!(),
+        QueryMsg::GetWorker { .. } => todo!(),
     }
 }
