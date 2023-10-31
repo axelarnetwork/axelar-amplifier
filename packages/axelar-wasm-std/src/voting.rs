@@ -207,12 +207,10 @@ impl Poll for WeightedPoll {
             .iter()
             .all(|(_, participation)| participation.voted);
 
-        let results: Vec<bool> = self
-            .votes
-            .iter()
-            .map(|tally| *tally >= self.quorum.into())
-            .collect();
+        let quorum: Uint256 = self.quorum.into();
+        let results: Vec<bool> = self.votes.iter().map(|tally| *tally >= quorum).collect();
 
+        // TODO: this can be improved further by checking if remaining votes can still change the outcome
         let quorum_satisfied = results.iter().all(|quorum| *quorum);
 
         if block_height < self.expires_at
