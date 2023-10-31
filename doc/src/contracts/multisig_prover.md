@@ -30,7 +30,7 @@ s--SubmitSignature-->m
 sequenceDiagram
 autonumber
 participant Relayer
-box Axelar
+box LightYellow Axelar
 participant Prover
 participant Gateway
 participant Multisig
