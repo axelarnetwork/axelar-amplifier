@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, Fraction, Uint256};
+use cosmwasm_std::{Addr, Uint256};
 use error_stack::Result;
 use std::collections::HashMap;
 
@@ -110,27 +110,26 @@ where
         &mut self,
         tally: EpochTally,
     ) -> Result<HashMap<Addr, Uint256>, ContractError> {
-        match get_workers_to_reward(&tally) {
-            Ok(workers_to_reward) => {
-                let pool_balance = self.get_pool_balance(tally.contract.clone())?;
-                let rewards_per_epoch = tally.params.rewards_per_epoch;
-                let rewards_per_worker =
-                    get_rewards_per_worker(&workers_to_reward, rewards_per_epoch, pool_balance)?;
+        let workers_to_reward = tally.workers_to_reward();
 
-                self.update_pool_balance(
-                    tally.contract,
-                    pool_balance,
-                    &workers_to_reward,
-                    rewards_per_worker,
-                )?;
+        let mut pool = self
+            .store
+            .load_rewards_pool(tally.contract.clone())?
+            .unwrap_or(RewardsPool {
+                contract: tally.contract,
+                balance: Uint256::zero(),
+            });
 
-                Ok(Vec::<Addr>::from(workers_to_reward)
-                    .into_iter()
-                    .map(|worker| (worker, rewards_per_worker))
-                    .collect())
-            }
-            _ => Ok(HashMap::new()), // no workers to reward
-        }
+        let rewards_per_worker =
+            rewards_per_worker(&workers_to_reward, tally.params.rewards_per_epoch)?;
+
+        pool.distribute_rewards(workers_to_reward.len() as u64, rewards_per_worker)?;
+        self.store.save_rewards_pool(&pool)?;
+
+        Ok(workers_to_reward
+            .into_iter()
+            .map(|worker| (worker, rewards_per_worker))
+            .collect())
     }
 
     pub fn update_params(
@@ -184,67 +183,23 @@ where
 
         Ok(())
     }
-
-    fn get_pool_balance(&self, contract_addr: Addr) -> Result<Uint256, ContractError> {
-        match self.store.load_rewards_pool(contract_addr.clone())? {
-            Some(pool) => Ok(pool.balance),
-            None => Ok(Uint256::zero()),
-        }
-    }
-
-    fn update_pool_balance(
-        &mut self,
-        contract: Addr,
-        old_balance: Uint256,
-        workers_to_reward: &nonempty::Vec<Addr>,
-        rewards_per_worker: Uint256,
-    ) -> Result<(), ContractError> {
-        self.store.save_rewards_pool(&RewardsPool {
-            contract,
-            balance: old_balance
-                - (rewards_per_worker * Uint256::from(workers_to_reward.as_ref().len() as u128)),
-        })
-    }
 }
 
-fn get_workers_to_reward(
-    tally: &EpochTally,
-) -> Result<nonempty::Vec<Addr>, axelar_wasm_std::nonempty::Error> {
-    let params = &tally.params;
-
-    let cutoff = tally.event_count * u64::from(params.participation_threshold.numerator())
-        / u64::from(params.participation_threshold.denominator());
-
-    tally
-        .participation
-        .iter()
-        .filter_map(|(worker, participated)| {
-            if *participated >= cutoff {
-                Some(worker.clone())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<Addr>>()
-        .try_into()
-        .map_err(|err: axelar_wasm_std::nonempty::Error| err.into())
-}
-
-fn get_rewards_per_worker(
-    workers_to_reward: &nonempty::Vec<Addr>,
+fn rewards_per_worker(
+    workers_to_reward: &Vec<Addr>,
     rewards_per_epoch: nonempty::Uint256,
-    pool_balance: Uint256,
 ) -> Result<Uint256, ContractError> {
     let rewards_per_epoch: cosmwasm_std::Uint256 = rewards_per_epoch.into();
-    if pool_balance < rewards_per_epoch {
-        return Err(ContractError::PoolBalanceInsufficient.into());
-    }
+
     // A bit of a weird case. The rewards per epoch is too low to accomodate the number of workers to be rewarded
     // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
-    if rewards_per_epoch < Uint256::from_u128(workers_to_reward.as_ref().len() as u128) {
+    if rewards_per_epoch < Uint256::from_u128(workers_to_reward.len() as u128) {
         return Ok(Uint256::zero());
     }
-    Ok(rewards_per_epoch.multiply_ratio(1u32, workers_to_reward.as_ref().len() as u32))
+
+    Ok(rewards_per_epoch
+        .checked_div(Uint256::from_u128(workers_to_reward.len() as u128))
+        .unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -262,7 +217,31 @@ mod test {
         state::{self, Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
     };
 
-    use super::Contract;
+    use super::{rewards_per_worker, Contract};
+
+    /// Tests that rewards_per_worker correctly calculates the rewards to be distributed to each worker
+    #[test]
+    fn calculate_rewards_per_worker() {
+        let workers = vec![
+            Addr::unchecked("worker1"),
+            Addr::unchecked("worker2"),
+            Addr::unchecked("worker3"),
+        ];
+        let rewards =
+            rewards_per_worker(&workers, Uint256::from_u128(301).try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint256::from_u128(100));
+
+        // more workers than rewards per epoch, should return zero
+        let rewards = rewards_per_worker(&workers, Uint256::one().try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint256::zero());
+    }
+
+    /// Tests that rewards_per_worker returns zero when there are no workers to reward
+    #[test]
+    fn calculate_rewards_per_worker_no_workers() {
+        let rewards = rewards_per_worker(&vec![], Uint256::one().try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint256::zero());
+    }
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
