@@ -1,6 +1,6 @@
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{
-    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
+    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
 use axelar_wasm_std::voting::{PollID, PollResult};
@@ -180,7 +180,16 @@ pub fn vote(
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    Ok(Response::new().add_event(
+    let rewards_msg = WasmMsg::Execute {
+        contract_addr: config.rewards_contract.into_string(),
+        msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+            event_id: poll_id.into(),
+            worker_address: info.sender.to_string(),
+        })?,
+        funds: vec![],
+    };
+
+    Ok(Response::new().add_message(rewards_msg).add_event(
         Voted {
             poll_id,
             voter: info.sender,
