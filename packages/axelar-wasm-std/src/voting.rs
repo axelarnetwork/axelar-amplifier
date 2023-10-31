@@ -415,15 +415,17 @@ mod tests {
         let votes = vec![false, false];
 
         assert!(poll
-            .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(0, 1, &Addr::unchecked("addr1"), votes.clone())
             .is_ok());
         assert!(poll
-            .cast_vote(0, &Addr::unchecked("addr2"), votes.clone())
+            .cast_vote(0, 1, &Addr::unchecked("addr2"), votes.clone())
             .is_ok());
-        assert!(poll.cast_vote(0, &Addr::unchecked("addr3"), votes).is_ok());
+        assert!(poll
+            .cast_vote(0, 1, &Addr::unchecked("addr3"), votes)
+            .is_ok());
 
         let result = poll.tally(0).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
+        assert_eq!(poll.status, PollStatus::Finished { completed_at: 0 });
 
         assert_eq!(
             result,
@@ -440,12 +442,14 @@ mod tests {
         let votes = vec![true, true];
 
         assert!(poll
-            .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
+            .cast_vote(0, 1, &Addr::unchecked("addr1"), votes.clone())
             .is_ok());
-        assert!(poll.cast_vote(0, &Addr::unchecked("addr2"), votes).is_ok());
+        assert!(poll
+            .cast_vote(0, 1, &Addr::unchecked("addr2"), votes)
+            .is_ok());
 
         let result = poll.tally(0).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
+        assert_eq!(poll.status, PollStatus::Finished { completed_at: 0 });
 
         assert_eq!(
             result,
