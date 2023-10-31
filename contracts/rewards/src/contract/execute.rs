@@ -32,7 +32,6 @@ impl<'a> Contract<RewardsStore<'a>> {
     }
 }
 
-
 #[allow(dead_code)]
 impl<S> Contract<S>
 where
