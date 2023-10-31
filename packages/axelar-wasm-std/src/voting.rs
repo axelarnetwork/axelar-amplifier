@@ -207,9 +207,15 @@ impl Poll for WeightedPoll {
             .iter()
             .all(|(_, participation)| participation.voted);
 
+        let quorum: Uint256 = self.quorum.into();
+        let results: Vec<bool> = self.votes.iter().map(|tally| *tally >= quorum).collect();
+
+        // TODO: this can be improved further by checking if remaining votes can still change the outcome
+        let quorum_satisfied = results.iter().all(|quorum| *quorum);
+
         if block_height < self.expires_at
-            // can tally early if all participants voted
-            && !everyone_voted
+            // can tally early if all participants voted or quorum was satisfied for all votes in poll
+            && !everyone_voted && !quorum_satisfied
         {
             return Err(Error::PollNotEnded);
         }
@@ -222,11 +228,7 @@ impl Poll for WeightedPoll {
 
         Ok(PollResult {
             poll_id: self.poll_id,
-            results: self
-                .votes
-                .iter()
-                .map(|tally| *tally >= self.quorum.into())
-                .collect(),
+            results,
         })
     }
 
@@ -382,6 +384,53 @@ mod tests {
     fn tally_before_poll_end() {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
         assert_eq!(poll.tally(0), Err(Error::PollNotEnded));
+    }
+
+    #[test]
+    fn tally_before_expiry_everyone_voted() {
+        let mut poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
+        let votes = vec![false, false];
+
+        assert!(poll
+            .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+        assert!(poll
+            .cast_vote(0, &Addr::unchecked("addr2"), votes.clone())
+            .is_ok());
+        assert!(poll.cast_vote(0, &Addr::unchecked("addr3"), votes).is_ok());
+
+        let result = poll.tally(0).unwrap();
+        assert_eq!(poll.status, PollStatus::Finished);
+
+        assert_eq!(
+            result,
+            PollResult {
+                poll_id: PollID::from(Uint64::one()),
+                results: vec![false, false],
+            }
+        );
+    }
+
+    #[test]
+    fn tally_before_expiry_quorum_satisfied() {
+        let mut poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
+        let votes = vec![true, true];
+
+        assert!(poll
+            .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+        assert!(poll.cast_vote(0, &Addr::unchecked("addr2"), votes).is_ok());
+
+        let result = poll.tally(0).unwrap();
+        assert_eq!(poll.status, PollStatus::Finished);
+
+        assert_eq!(
+            result,
+            PollResult {
+                poll_id: PollID::from(Uint64::one()),
+                results: vec![true, true],
+            }
+        );
     }
 
     #[test]
