@@ -390,6 +390,18 @@ mod tests {
     }
 
     #[test]
+    fn vote_during_grace_period() {
+        let mut poll = new_poll(5, 2, vec!["addr1", "addr2"]);
+        let votes = vec![true, true];
+        poll.status = PollStatus::Finished { completed_at: 1 };
+
+        assert!(poll
+            .cast_vote(2, 1, &Addr::unchecked("addr1"), votes)
+            .is_ok());
+        assert_eq!(poll.status, PollStatus::Finished { completed_at: 1 });
+    }
+
+    #[test]
     fn tally_before_poll_end() {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
         assert_eq!(poll.tally(0), Err(Error::PollNotEnded));
