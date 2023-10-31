@@ -81,3 +81,44 @@ pub fn make_mock_service_registry(app: &mut App) -> Addr {
         .unwrap();
     contract_address
 }
+
+#[cw_serde]
+pub struct MockRewardsInstantiateMsg;
+
+pub fn mock_rewards_execute(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: rewards::msg::ExecuteMsg,
+) -> Result<Response, ContractError> {
+    Ok(Response::new())
+}
+
+pub fn mock_rewards_query(
+    _deps: Deps,
+    _env: Env,
+    _msg: rewards::msg::QueryMsg,
+) -> StdResult<Binary> {
+    Ok(to_binary("")?)
+}
+
+pub fn make_mock_rewards(app: &mut App) -> Addr {
+    let code = ContractWrapper::new(
+        mock_rewards_execute,
+        |_, _, _, _: MockRewardsInstantiateMsg| Ok::<Response, ContractError>(Response::new()),
+        mock_rewards_query,
+    );
+    let code_id = app.store_code(Box::new(code));
+
+    let contract_address = app
+        .instantiate_contract(
+            code_id,
+            Addr::unchecked("sender"),
+            &MockRewardsInstantiateMsg,
+            &[],
+            "Contract",
+            None,
+        )
+        .unwrap();
+    contract_address
+}

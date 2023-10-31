@@ -4,6 +4,7 @@ use cw_multi_test::{App, ContractWrapper, Executor};
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::state::{ChainName, CrossChainId, Message, ID_SEPARATOR};
+use mock::make_mock_rewards;
 use service_registry::state::Worker;
 use voting_verifier::{contract, error::ContractError, msg};
 
@@ -12,12 +13,13 @@ use crate::mock::make_mock_service_registry;
 pub mod mock;
 
 const SENDER: &str = "sender";
-const REWARDS_CONTRACT: &str = "rewards";
 fn source_chain() -> ChainName {
     "source_chain".parse().unwrap()
 }
 
 fn initialize_contract(app: &mut App, service_registry_address: nonempty::String) -> Addr {
+    let rewards_address = make_mock_rewards(app).into();
+
     let msg = msg::InstantiateMsg {
         service_registry_address,
         service_name: "service_name".parse().unwrap(),
@@ -26,7 +28,7 @@ fn initialize_contract(app: &mut App, service_registry_address: nonempty::String
         confirmation_height: 100,
         source_gateway_address: "gateway_address".parse().unwrap(),
         source_chain: source_chain(),
-        rewards_address: REWARDS_CONTRACT.to_string(),
+        rewards_address,
         grace_period: 2,
     };
 
