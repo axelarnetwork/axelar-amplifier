@@ -64,7 +64,7 @@ pub enum QueryMsg {
 
     #[returns(crate::state::Worker)]
     GetWorker {
-        worker: String,
         service_name: String,
+        worker: String,
     },
 }

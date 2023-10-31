@@ -335,8 +335,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
         QueryMsg::GetWorker {
-            worker,
             service_name,
+            worker,
         } => to_binary(&query::get_worker(deps, worker, service_name)?).map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
             to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
@@ -378,8 +378,8 @@ pub mod query {
 
     pub fn get_worker(
         deps: Deps,
-        worker: String,
         service_name: String,
+        worker: String,
     ) -> Result<Worker, ContractError> {
         WORKERS
             .may_load(
