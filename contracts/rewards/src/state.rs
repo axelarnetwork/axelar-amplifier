@@ -281,10 +281,9 @@ mod test {
             },
         };
         let workers = tally.workers_to_reward();
-        assert_eq!(
-            workers,
-            vec![Addr::unchecked("worker1"), Addr::unchecked("worker3")]
-        )
+        assert_eq!(workers.len(), 2);
+        assert!(workers.contains(&Addr::unchecked("worker1")));
+        assert!(workers.contains(&Addr::unchecked("worker3")));
     }
 
     #[test]
