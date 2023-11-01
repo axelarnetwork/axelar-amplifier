@@ -26,7 +26,9 @@ where
         })
         .await
         .map_err(|report| match report.current_context().code() {
-            tonic::Code::NotFound => report.attach_printable("To proceed, please ensure the account is funded"),
+            tonic::Code::NotFound => {
+                report.attach_printable("to proceed, please ensure the account is funded")
+            }
             _ => report,
         })
         .change_context_lazy(|| Error::ResponseFailed {
