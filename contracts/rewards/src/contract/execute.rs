@@ -186,6 +186,16 @@ where
             .collect())
     }
 
+    fn distribute_rewards_for_epoch(
+        &mut self,
+        contract: Addr,
+        epoch_num: u64,
+    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
+        self.store
+            .load_epoch_tally(contract.clone(), epoch_num)?
+            .map_or(Ok(HashMap::new()), |tally| self.process_epoch_tally(tally))
+    }
+
     pub fn update_params(
         &mut self,
         new_params: Params,
