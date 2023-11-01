@@ -32,6 +32,12 @@ impl<T> From<Vec<T>> for std::vec::Vec<T> {
     }
 }
 
+impl<T> AsRef<std::vec::Vec<T>> for Vec<T> {
+    fn as_ref(&self) -> &std::vec::Vec<T> {
+        &self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
