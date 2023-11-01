@@ -1,6 +1,7 @@
 use crate::{
     contract::execute::Contract,
     msg::{ExecuteMsg, InstantiateMsg},
+    state::{Config, CONFIG},
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -10,12 +11,22 @@ mod execute;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    todo!()
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            governance,
+            rewards_denom: msg.rewards_denom,
+        },
+    )?;
+
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
