@@ -36,6 +36,12 @@ pub enum ContractError {
     #[error("specified block has already passed")]
     BlockHeightInPast,
 
+    #[error("rewards pool balance insufficient")]
+    PoolBalanceInsufficient,
+
+    #[error("no rewards to distribute")]
+    NoRewardsToDistribute,
+
     #[error("caller is not authorized")]
     Unauthorized,
 }

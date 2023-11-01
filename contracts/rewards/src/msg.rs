@@ -5,11 +5,11 @@ use cosmwasm_schema::cw_serde;
 pub struct InstantiateMsg {
     pub governance_address: String,
     pub rewards_denom: String,
-    pub params: RewardsParams,
+    pub params: Params,
 }
 
 #[cw_serde]
-pub struct RewardsParams {
+pub struct Params {
     /// How often rewards are calculated, specified in number of blocks. Participation is calculated over this window. So if epoch_duration is 500
     /// blocks, workers are rewarded for their participation within each 500 block window.
     pub epoch_duration: nonempty::Uint64,
@@ -48,7 +48,7 @@ pub enum ExecuteMsg {
     },
 
     /// Overwrites the currently stored params. Callable only by governance.
-    UpdateParams { params: RewardsParams },
+    UpdateParams { params: Params },
 }
 
 #[cw_serde]

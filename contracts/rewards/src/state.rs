@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage, Uint256};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
 use mockall::automock;
 
-use crate::{error::ContractError, msg::RewardsParams};
+use crate::{error::ContractError, msg::Params};
 
 #[cw_serde]
 pub struct Config {
@@ -17,7 +17,7 @@ pub struct Config {
 
 #[cw_serde]
 pub struct StoredParams {
-    pub params: RewardsParams,
+    pub params: Params,
     /// epoch in which the params were updated
     pub last_updated: Epoch,
 }
@@ -28,15 +28,17 @@ pub struct EpochTally {
     pub event_count: u64,
     pub participation: HashMap<Addr, u64>,
     pub epoch: Epoch,
+    pub params: Params,
 }
 
 impl EpochTally {
-    pub fn new(contract: Addr, epoch: Epoch) -> Self {
+    pub fn new(contract: Addr, epoch: Epoch, params: Params) -> Self {
         EpochTally {
             contract,
             event_count: 0,
             participation: HashMap::new(),
             epoch,
+            params,
         }
     }
 
@@ -51,6 +53,18 @@ impl EpochTally {
     pub fn increment_event_count(mut self) -> Self {
         self.event_count += 1;
         self
+    }
+
+    pub fn workers_to_reward(&self) -> Vec<Addr> {
+        self.participation
+            .iter()
+            .filter_map(|(worker, participated)| {
+                Threshold::try_from((*participated, self.event_count))
+                    .ok()
+                    .filter(|participation| participation >= &self.params.participation_threshold)
+                    .map(|_| worker.clone())
+            })
+            .collect()
     }
 }
 
@@ -75,7 +89,6 @@ impl Event {
 pub struct Epoch {
     pub epoch_num: u64,
     pub block_height_started: u64,
-    pub rewards: nonempty::Uint256,
 }
 
 #[cw_serde]
@@ -91,6 +104,19 @@ impl RewardsPool {
             contract,
             balance: Uint256::zero(),
         }
+    }
+
+    pub fn distribute_rewards(
+        &mut self,
+        worker_count: u64,
+        rewards_per_worker: Uint256,
+    ) -> Result<(), ContractError> {
+        let rewards = rewards_per_worker * Uint256::from(worker_count as u128);
+        if self.balance < rewards {
+            return Err(ContractError::PoolBalanceInsufficient.into());
+        }
+        self.balance -= rewards;
+        Ok(())
     }
 }
 
@@ -225,11 +251,71 @@ impl Store for RewardsStore<'_> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
-    use crate::{msg::RewardsParams, state::StoredParams};
+    use crate::{error::ContractError, msg::Params, state::StoredParams};
 
     use super::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store};
+
+    /// Tests that only workers that participated in a fraction of events greater than or equal to participation threshold are rewarded
+    #[test]
+    fn epoch_tally_workers_to_reward() {
+        let tally = EpochTally {
+            params: Params {
+                epoch_duration: 100u64.try_into().unwrap(),
+                rewards_per_epoch: Uint256::one().try_into().unwrap(),
+                participation_threshold: (1, 2).try_into().unwrap(),
+            },
+            contract: Addr::unchecked("worker contract"),
+            event_count: 101u64,
+            participation: HashMap::from([
+                (Addr::unchecked("worker1"), 75u64),
+                (Addr::unchecked("worker2"), 50u64),
+                (Addr::unchecked("worker3"), 51u64),
+            ]),
+            epoch: Epoch {
+                epoch_num: 1u64,
+                block_height_started: 0u64,
+            },
+        };
+        let workers = tally.workers_to_reward();
+        assert_eq!(
+            workers,
+            vec![Addr::unchecked("worker1"), Addr::unchecked("worker3")]
+        )
+    }
+
+    #[test]
+    fn rewards_pool_distribute_rewards() {
+        let mut pool = RewardsPool {
+            contract: Addr::unchecked("worker contract"),
+            balance: Uint256::from_u128(100),
+        };
+        let worker_count = 10;
+        let rewards_per_worker = 5;
+        pool.distribute_rewards(worker_count, Uint256::from_u128(rewards_per_worker))
+            .unwrap();
+        assert_eq!(pool.balance, Uint256::from_u128(50));
+    }
+
+    #[test]
+    fn rewards_pool_distribute_rewards_low_balance() {
+        let mut pool = RewardsPool {
+            contract: Addr::unchecked("worker contract"),
+            balance: Uint256::from_u128(100),
+        };
+        let worker_count = 10;
+        let rewards_per_worker = 100;
+        let err = pool
+            .distribute_rewards(worker_count, Uint256::from_u128(rewards_per_worker))
+            .unwrap_err();
+        assert_eq!(
+            err.current_context(),
+            &ContractError::PoolBalanceInsufficient
+        );
+    }
 
     #[test]
     fn save_and_load_params() {
@@ -238,7 +324,7 @@ mod test {
             storage: &mut mock_deps.storage,
         };
         let params = StoredParams {
-            params: RewardsParams {
+            params: Params {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: 100u64.try_into().unwrap(),
                 rewards_per_epoch: Uint256::from(1000u128).try_into().unwrap(),
@@ -246,7 +332,6 @@ mod test {
             last_updated: Epoch {
                 epoch_num: 1,
                 block_height_started: 1,
-                rewards: Uint256::from(1000u128).try_into().unwrap(),
             },
         };
         // save an initial params, then load it
@@ -256,14 +341,13 @@ mod test {
 
         // now store a new params, and check that it was updated
         let new_params = StoredParams {
-            params: RewardsParams {
+            params: Params {
                 epoch_duration: 200u64.try_into().unwrap(),
                 ..params.params
             },
             last_updated: Epoch {
                 epoch_num: 2,
                 block_height_started: 101,
-                rewards: params.params.rewards_per_epoch,
             },
         };
         assert!(store.save_params(&new_params).is_ok());
@@ -280,7 +364,6 @@ mod test {
         let epoch = Epoch {
             epoch_num: 10,
             block_height_started: 1000,
-            rewards: Uint256::from(100u128).try_into().unwrap(),
         };
         let contract = Addr::unchecked("some contract");
 
@@ -381,9 +464,16 @@ mod test {
         let epoch = Epoch {
             epoch_num,
             block_height_started: 1,
-            rewards: rewards_rate,
         };
-        let tally = EpochTally::new(contract.clone(), epoch);
+        let tally = EpochTally::new(
+            contract.clone(),
+            epoch,
+            Params {
+                epoch_duration: 100u64.try_into().unwrap(),
+                rewards_per_epoch: rewards_rate,
+                participation_threshold: (1, 2).try_into().unwrap(),
+            },
+        );
 
         let res = store.save_epoch_tally(&tally);
         assert!(res.is_ok());
