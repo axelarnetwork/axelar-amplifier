@@ -9569,6 +9569,7 @@ dependencies = [
  "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "error-stack",
  "mockall",

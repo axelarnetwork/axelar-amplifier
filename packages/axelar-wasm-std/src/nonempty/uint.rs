@@ -94,6 +94,28 @@ impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
     }
 }
 
+#[cw_serde]
+#[derive(Copy, PartialOrd, Eq)]
+pub struct Uint128(cosmwasm_std::Uint128);
+
+impl TryFrom<cosmwasm_std::Uint128> for Uint128 {
+    type Error = Error;
+
+    fn try_from(value: cosmwasm_std::Uint128) -> Result<Self, Self::Error> {
+        if value == cosmwasm_std::Uint128::zero() {
+            Err(Error::InvalidValue(value.into()))
+        } else {
+            Ok(Uint128(value))
+        }
+    }
+}
+
+impl From<Uint128> for cosmwasm_std::Uint128 {
+    fn from(value: Uint128) -> Self {
+        value.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
