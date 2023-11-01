@@ -14,10 +14,11 @@ use crate::{
 #[cw_serde]
 pub struct Config {
     pub governance: Addr,
+    pub rewards_contract: Addr,
+    pub grace_period: u64, // TODO: add update mechanism to change this after instantiation
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-
 pub const SIGNING_SESSION_COUNTER: Item<Uint64> = Item::new("signing_session_counter");
 pub const SIGNING_SESSIONS: Map<u64, SigningSession> = Map::new("signing_sessions");
 

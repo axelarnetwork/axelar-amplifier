@@ -40,6 +40,15 @@ impl Fraction<Uint64> for Threshold {
     }
 }
 
+impl PartialOrd for Threshold {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let self_normalized = self.numerator().full_mul(other.denominator());
+        let other_normalized = other.numerator().full_mul(self.denominator());
+
+        self_normalized.partial_cmp(&other_normalized)
+    }
+}
+
 impl From<Threshold> for (Uint64, Uint64) {
     fn from(value: Threshold) -> Self {
         (value.numerator.into(), value.denominator.into())
@@ -125,5 +134,13 @@ mod tests {
             Threshold::try_from((Uint64::MAX, Uint64::MAX - Uint64::one())).unwrap_err(),
             Error::OutOfInterval
         );
+    }
+
+    #[test]
+    fn partial_cmp() {
+        let t1 = Threshold::try_from((3, u64::MAX)).unwrap();
+        let t2 = Threshold::try_from((2, u64::MAX / 2)).unwrap();
+        assert!(t1 < t2);
+        assert!(t2 > t1);
     }
 }

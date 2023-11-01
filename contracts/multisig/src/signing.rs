@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Uint256, Uint64};
 use axelar_wasm_std::Snapshot;
 
 use crate::{
-    key::Signature,
+    key::{PublicKey, Signature},
     types::{Key, KeyID, MsgToSign, MultisigState},
     ContractError,
 };
@@ -47,29 +47,40 @@ impl SigningSession {
 
 pub fn validate_session_signature(
     session: &SigningSession,
-    key: &Key,
     signer: &Addr,
     signature: &Signature,
+    pub_key: &PublicKey,
+    grace_period: u64,
+    block_height: u64,
 ) -> Result<(), ContractError> {
-    // TODO: revisit again once expiration and/or rewards are introduced
-    if matches!(session.state, MultisigState::Completed { .. }) {
+    if matches!(session.state, MultisigState::Completed { completed_at } if completed_at + grace_period < block_height)
+    {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
 
-    match key.pub_keys.get(signer.as_str()) {
-        Some(pub_key) if !signature.verify(&session.msg, pub_key)? => {
-            Err(ContractError::InvalidSignature {
-                session_id: session.id,
-                signer: signer.into(),
-            })
-        }
-        None => Err(ContractError::NotAParticipant {
+    if !signature.verify(&session.msg, pub_key)? {
+        return Err(ContractError::InvalidSignature {
             session_id: session.id,
             signer: signer.into(),
+        });
+    }
+
+    Ok(())
+}
+
+pub fn signer_pub_key<'a>(
+    key: &'a Key,
+    signer: &'a Addr,
+    session_id: Uint64,
+) -> Result<&'a PublicKey, ContractError> {
+    match key.pub_keys.get(signer.as_str()) {
+        Some(pub_key) => Ok(pub_key),
+        None => Err(ContractError::NotAParticipant {
+            session_id,
+            signer: signer.into(),
         }),
-        _ => Ok(()),
     }
 }
 
@@ -205,8 +216,36 @@ mod tests {
             let key = config.key;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
+            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
 
-            assert!(validate_session_signature(&session, &key, &signer, signature).is_ok());
+            assert!(
+                validate_session_signature(&session, &signer, signature, pub_key, 0, 0).is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn success_validation_grace_period() {
+        for config in [ecdsa_setup(), ed25519_setup()] {
+            let mut session = config.session;
+            let key = config.key;
+            let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
+            let signature = config.signatures.values().next().unwrap();
+            let completed_at = 12345;
+            let grace_period = 10;
+            let block_height = completed_at + grace_period; // inclusive
+            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
+
+            session.state = MultisigState::Completed { completed_at };
+            assert!(validate_session_signature(
+                &session,
+                &signer,
+                signature,
+                pub_key,
+                grace_period,
+                block_height
+            )
+            .is_ok());
         }
     }
 
@@ -217,11 +256,20 @@ mod tests {
             let key = config.key;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
+            let completed_at = 12345;
+            let grace_period = 10;
+            let block_height = completed_at + grace_period + 1;
+            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
 
-            session.state = MultisigState::Completed {
-                completed_at: 12345,
-            };
-            let result = validate_session_signature(&session, &key, &signer, signature);
+            session.state = MultisigState::Completed { completed_at };
+            let result = validate_session_signature(
+                &session,
+                &signer,
+                signature,
+                pub_key,
+                grace_period,
+                block_height,
+            );
 
             assert_eq!(
                 result.unwrap_err(),
@@ -238,6 +286,7 @@ mod tests {
             let session = config.session;
             let key = config.key;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
+            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
 
             let sig_bytes = match config.key_type {
                 KeyType::Ecdsa =>   "a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511",
@@ -248,7 +297,7 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &key, &signer, &invalid_sig);
+            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, 0);
 
             assert_eq!(
                 result.unwrap_err(),
@@ -266,10 +315,8 @@ mod tests {
             let session = config.session;
             let key = config.key;
             let invalid_participant = Addr::unchecked("not_a_participant".to_string());
-            let signature = config.signatures.values().next().unwrap();
 
-            let result =
-                validate_session_signature(&session, &key, &invalid_participant, &signature);
+            let result = signer_pub_key(&key, &invalid_participant, session.id);
 
             assert_eq!(
                 result.unwrap_err(),

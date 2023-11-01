@@ -58,4 +58,13 @@ pub enum QueryMsg {
         service_name: String,
         chain_name: ChainName,
     },
+
+    #[returns(crate::state::Service)]
+    GetService { service_name: String },
+
+    #[returns(crate::state::Worker)]
+    GetWorker {
+        service_name: String,
+        worker: String,
+    },
 }

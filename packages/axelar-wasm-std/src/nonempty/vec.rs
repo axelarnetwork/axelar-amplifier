@@ -32,13 +32,9 @@ impl<T> From<Vec<T>> for std::vec::Vec<T> {
     }
 }
 
-impl<T> Vec<T> {
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        false
+impl<T> AsRef<std::vec::Vec<T>> for Vec<T> {
+    fn as_ref(&self) -> &std::vec::Vec<T> {
+        &self.0
     }
 }
 
