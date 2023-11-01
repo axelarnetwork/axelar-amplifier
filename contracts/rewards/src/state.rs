@@ -32,13 +32,13 @@ pub struct EpochTally {
 }
 
 impl EpochTally {
-    pub fn new(contract: Addr, epoch: Epoch, rewards_params: Params) -> Self {
+    pub fn new(contract: Addr, epoch: Epoch, params: Params) -> Self {
         EpochTally {
             contract,
             event_count: 0,
             participation: HashMap::new(),
             epoch,
-            params: rewards_params,
+            params,
         }
     }
 

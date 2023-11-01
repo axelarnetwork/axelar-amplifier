@@ -44,6 +44,7 @@ impl PartialOrd for Threshold {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         let self_normalized = self.numerator().full_mul(other.denominator());
         let other_normalized = other.numerator().full_mul(self.denominator());
+
         self_normalized.partial_cmp(&other_normalized)
     }
 }
