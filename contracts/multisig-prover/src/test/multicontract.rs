@@ -44,6 +44,8 @@ fn instantiate_mock_multisig(app: &mut App) -> Addr {
     let code_id = app.store_code(contract_multisig());
     let msg = multisig::msg::InstantiateMsg {
         governance_address: "governance".parse().unwrap(),
+        rewards_address: "rewards".to_string(),
+        grace_period: 2,
     };
 
     app.instantiate_contract(

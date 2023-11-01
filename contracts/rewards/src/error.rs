@@ -41,4 +41,7 @@ pub enum ContractError {
 
     #[error("no rewards to distribute")]
     NoRewardsToDistribute,
+
+    #[error("caller is not authorized")]
+    Unauthorized,
 }

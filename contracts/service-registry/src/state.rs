@@ -44,7 +44,11 @@ impl TryFrom<Worker> for Participant {
         match worker.bonding_state {
             BondingState::Bonded { amount: _ } => Ok(Self {
                 address: worker.address,
-                weight: Uint256::one() // Weight is set to one to ensure all workers have same weight. In future it should be derived from amount bonded
+                // Weight is set to one to ensure all workers have same weight. In future it should be derived from amount bonded
+                // If the weight is changed to a non-constant value, the signing session completed event from multisig and the signature
+                // optimization during proof construction may require re-evaluation, so that relayers could take advantage of late
+                // signatures to get a more optimized version of the proof.
+                weight: Uint256::one()
                     .try_into()
                     .expect("violated invariant: weight must not be zero"),
             }),
