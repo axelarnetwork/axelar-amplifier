@@ -259,7 +259,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll.tally(env.block.height)?
+            poll.complete(env.block.height)?
         }
     };
     POLLS.save(deps.storage, poll_id, &poll)?;

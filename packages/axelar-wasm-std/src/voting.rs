@@ -130,7 +130,7 @@ impl fmt::Display for PollID {
 
 pub trait Poll {
     // errors if the poll is not finished
-    fn tally(&mut self, block_height: u64) -> Result<PollResult, Error>;
+    fn complete(&mut self, block_height: u64) -> Result<PollResult, Error>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
     fn cast_vote(
@@ -166,7 +166,7 @@ pub struct WeightedPoll {
     quorum: nonempty::Uint256,
     expires_at: u64,
     poll_size: u64,
-    votes: Vec<Uint256>, // running tally of weighted votes
+    tallies: Vec<Uint256>, // running tally of weighted votes
     status: PollStatus,
     participation: HashMap<String, Participation>,
 }
@@ -194,7 +194,7 @@ impl WeightedPoll {
             quorum: snapshot.quorum,
             expires_at: expiry,
             poll_size: poll_size as u64,
-            votes: vec![Uint256::zero(); poll_size],
+            tallies: vec![Uint256::zero(); poll_size],
             status: PollStatus::InProgress,
             participation,
         }
@@ -202,14 +202,14 @@ impl WeightedPoll {
 }
 
 impl Poll for WeightedPoll {
-    fn tally(&mut self, block_height: u64) -> Result<PollResult, Error> {
+    fn complete(&mut self, block_height: u64) -> Result<PollResult, Error> {
         let everyone_voted = self
             .participation
             .iter()
             .all(|(_, participation)| participation.voted);
 
         let quorum: Uint256 = self.quorum.into();
-        let results: Vec<bool> = self.votes.iter().map(|tally| *tally >= quorum).collect();
+        let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
 
         // TODO: this can be improved further by checking if remaining votes can still change the outcome
         let quorum_satisfied = results.iter().all(|quorum| *quorum);
@@ -270,7 +270,7 @@ impl Poll for WeightedPoll {
             PollStatus::InProgress => {
                 participation.voted = true;
 
-                self.votes
+                self.tallies
                     .iter_mut()
                     .zip(votes.into_iter())
                     .filter(|(_, vote)| *vote)
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn tally_before_poll_end() {
         let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
-        assert_eq!(poll.tally(0), Err(Error::PollNotEnded));
+        assert_eq!(poll.complete(0), Err(Error::PollNotEnded));
     }
 
     #[test]
@@ -424,7 +424,7 @@ mod tests {
             .cast_vote(0, 1, &Addr::unchecked("addr3"), votes)
             .is_ok());
 
-        let result = poll.tally(0).unwrap();
+        let result = poll.complete(0).unwrap();
         assert_eq!(poll.status, PollStatus::Finished { completed_at: 0 });
 
         assert_eq!(
@@ -448,7 +448,7 @@ mod tests {
             .cast_vote(0, 1, &Addr::unchecked("addr2"), votes)
             .is_ok());
 
-        let result = poll.tally(0).unwrap();
+        let result = poll.complete(0).unwrap();
         assert_eq!(poll.status, PollStatus::Finished { completed_at: 0 });
 
         assert_eq!(
@@ -464,7 +464,7 @@ mod tests {
     fn tally_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         poll.status = PollStatus::Finished { completed_at: 1 };
-        assert_eq!(poll.tally(2), Err(Error::PollNotInProgress));
+        assert_eq!(poll.complete(2), Err(Error::PollNotInProgress));
     }
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
             .cast_vote(1, 1, &Addr::unchecked("addr2"), votes)
             .is_ok());
 
-        let result = poll.tally(2).unwrap();
+        let result = poll.complete(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished { completed_at: 2 });
 
         assert_eq!(
