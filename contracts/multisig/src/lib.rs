@@ -6,6 +6,7 @@ pub mod msg;
 pub mod signing;
 pub mod state;
 pub mod types;
+pub mod workerset;
 
 #[cfg(feature = "secp256k1")]
 mod secp256k1;
