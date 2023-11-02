@@ -24,7 +24,6 @@ pub fn instantiate(
         confirmation_height: msg.confirmation_height,
         source_chain: msg.source_chain,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
-        grace_period: msg.grace_period,
     };
     CONFIG.save(deps.storage, &config)?;
 

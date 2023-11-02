@@ -29,7 +29,6 @@ fn initialize_contract(app: &mut App, service_registry_address: nonempty::String
         source_gateway_address: "gateway_address".parse().unwrap(),
         source_chain: source_chain(),
         rewards_address,
-        grace_period: 2,
     };
 
     let code = ContractWrapper::new(contract::execute, contract::instantiate, contract::query);
