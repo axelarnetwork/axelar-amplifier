@@ -268,18 +268,16 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let rewards_msgs = poll_result
         .consensus_participants
         .iter()
-        .map(|address| -> Result<WasmMsg, ContractError> {
-            Ok(WasmMsg::Execute {
-                contract_addr: config.rewards_contract.to_string(),
-                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                    event_id: poll_id.into(),
-                    worker_address: address.to_string(),
-                })
-                .expect("failed to serialize message for rewards contract"),
-                funds: vec![],
+        .map(|address| WasmMsg::Execute {
+            contract_addr: config.rewards_contract.to_string(),
+            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                event_id: poll_id.into(),
+                worker_address: address.to_string(),
             })
+            .expect("failed to serialize message for rewards contract"),
+            funds: vec![],
         })
-        .collect::<Result<Vec<WasmMsg>, ContractError>>()?;
+        .collect::<Vec<_>>();
 
     Ok(Response::new()
         .add_messages(rewards_msgs)
