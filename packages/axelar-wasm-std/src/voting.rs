@@ -204,6 +204,10 @@ impl WeightedPoll {
 
 impl Poll for WeightedPoll {
     fn complete(&mut self, block_height: u64) -> Result<PollResult, Error> {
+        if matches!(self.status, PollStatus::Finished { .. }) {
+            return Err(Error::PollNotInProgress);
+        }
+
         let everyone_voted = self
             .participation
             .iter()
@@ -220,10 +224,6 @@ impl Poll for WeightedPoll {
             && !everyone_voted && !quorum_satisfied
         {
             return Err(Error::PollNotEnded);
-        }
-
-        if matches!(self.status, PollStatus::Finished { .. }) {
-            return Err(Error::PollNotInProgress);
         }
 
         let consensus_participants = self
@@ -273,15 +273,18 @@ impl Poll for WeightedPoll {
         }
 
         // late votes are not tallied
-        if self.status == PollStatus::InProgress {
-            self.tallies
-                .iter_mut()
-                .zip(votes.iter())
-                .filter(|(_, vote)| **vote)
-                .for_each(|(tally, _)| {
-                    *tally += Uint256::from(participation.weight);
-                });
+        if self.status != PollStatus::InProgress {
+            participation.vote = Some(votes);
+            return Ok(());
         }
+
+        self.tallies
+            .iter_mut()
+            .zip(votes.iter())
+            .filter(|(_, vote)| **vote)
+            .for_each(|(tally, _)| {
+                *tally += Uint256::from(participation.weight);
+            });
 
         participation.vote = Some(votes);
 

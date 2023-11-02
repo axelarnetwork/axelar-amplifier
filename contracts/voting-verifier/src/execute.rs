@@ -274,7 +274,8 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     event_id: poll_id.into(),
                     worker_address: address.to_string(),
-                })?,
+                })
+                .expect("failed to serialize message for rewards contract"),
                 funds: vec![],
             })
         })
