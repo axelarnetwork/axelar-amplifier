@@ -1,9 +1,10 @@
-use crate::broadcaster::clients::AccountQueryClient;
-use crate::types::TMAddress;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
 use cosmos_sdk_proto::traits::Message;
-use error_stack::{FutureExt, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use thiserror::Error;
+
+use crate::broadcaster::clients::AccountQueryClient;
+use crate::types::TMAddress;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -23,10 +24,16 @@ where
         .account(QueryAccountRequest {
             address: address.to_string(),
         })
+        .await
+        .map_err(|report| match report.current_context().code() {
+            tonic::Code::NotFound => {
+                report.attach_printable("to proceed, please ensure the account is funded")
+            }
+            _ => report,
+        })
         .change_context_lazy(|| Error::ResponseFailed {
             address: address.clone(),
-        })
-        .await?;
+        })?;
 
     let account = response
         .account
