@@ -14,7 +14,7 @@
    on whether or not the transaction was successfully verified.
 */
 use std::array::TryFromSliceError;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::AddAssign;
 use std::ops::Mul;
@@ -145,6 +145,8 @@ pub trait Poll {
 pub struct PollResult {
     pub poll_id: PollID,
     pub results: Vec<bool>,
+    /// List of participants who voted for the winning result
+    pub consensus_participants: Vec<String>,
 }
 
 #[cw_serde]
@@ -167,7 +169,7 @@ pub struct WeightedPoll {
     poll_size: u64,
     tallies: Vec<Uint256>, // running tally of weighted votes
     status: PollStatus,
-    participation: HashMap<String, Participation>,
+    participation: BTreeMap<String, Participation>,
 }
 
 impl WeightedPoll {
@@ -224,11 +226,26 @@ impl Poll for WeightedPoll {
             return Err(Error::PollNotInProgress);
         }
 
+        let consensus_participants = self
+            .participation
+            .iter()
+            .filter_map(|(address, participation)| {
+                participation.vote.as_ref().and_then(|vote| {
+                    if *vote == results {
+                        Some(address.to_owned())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
         self.status = PollStatus::Finished;
 
         Ok(PollResult {
             poll_id: self.poll_id,
             results,
+            consensus_participants,
         })
     }
 
@@ -407,6 +424,11 @@ mod tests {
             PollResult {
                 poll_id: PollID::from(Uint64::one()),
                 results: vec![false, false],
+                consensus_participants: vec![
+                    "addr1".to_string(),
+                    "addr2".to_string(),
+                    "addr3".to_string()
+                ],
             }
         );
     }
@@ -429,6 +451,7 @@ mod tests {
             PollResult {
                 poll_id: PollID::from(Uint64::one()),
                 results: vec![true, true],
+                consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
             }
         );
     }
@@ -458,6 +481,7 @@ mod tests {
             PollResult {
                 poll_id: PollID::from(Uint64::one()),
                 results: vec![true, true],
+                consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
             }
         );
     }

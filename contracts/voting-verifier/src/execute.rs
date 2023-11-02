@@ -167,29 +167,20 @@ pub fn vote(
     poll_id: PollID,
     votes: Vec<bool>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
     match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll.cast_vote(env.block.height, config.grace_period, &info.sender, votes)?
+            poll.cast_vote(env.block.height, &info.sender, votes)?
         }
     };
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let rewards_msg = WasmMsg::Execute {
-        contract_addr: config.rewards_contract.into_string(),
-        msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-            event_id: poll_id.into(),
-            worker_address: info.sender.to_string(),
-        })?,
-        funds: vec![],
-    };
+    // TODO: add rewards for late voters
 
-    Ok(Response::new().add_message(rewards_msg).add_event(
+    Ok(Response::new().add_event(
         Voted {
             poll_id,
             voter: info.sender,
@@ -253,6 +244,8 @@ fn end_poll_worker_set(
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
@@ -271,7 +264,24 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         state::Poll::ConfirmWorkerSet(_) => end_poll_worker_set(deps, poll_id, &poll_result)?,
     };
 
+    // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
+    let rewards_msgs = poll_result
+        .consensus_participants
+        .iter()
+        .map(|address| -> Result<WasmMsg, ContractError> {
+            Ok(WasmMsg::Execute {
+                contract_addr: config.rewards_contract.to_string(),
+                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    event_id: poll_id.into(),
+                    worker_address: address.to_string(),
+                })?,
+                funds: vec![],
+            })
+        })
+        .collect::<Result<Vec<WasmMsg>, ContractError>>()?;
+
     Ok(Response::new()
+        .add_messages(rewards_msgs)
         .add_event(
             PollEnded {
                 poll_id: poll_result.poll_id,
