@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use axelar_wasm_std::Participant;
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint256, StdError};
 use crate::key::PublicKey;
 use crate::msg::Signer;
+use axelar_wasm_std::Participant;
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{HexBinary, StdError, Uint256};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]

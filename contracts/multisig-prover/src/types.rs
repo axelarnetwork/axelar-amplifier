@@ -4,7 +4,10 @@ use axelar_wasm_std::{Participant, Snapshot};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::{key::{PublicKey, Signature}, workerset::WorkerSet};
+use multisig::{
+    key::{PublicKey, Signature},
+    workerset::WorkerSet,
+};
 use sha3::{Digest, Keccak256};
 
 use crate::encoding::{Data, Encoder};
@@ -66,7 +69,6 @@ impl KeyDeserialize for BatchID {
 }
 
 impl BatchID {
-    
     pub fn new(message_ids: &[String], new_worker_set: Option<WorkerSet>) -> BatchID {
         let mut message_ids = message_ids.to_vec();
         message_ids.sort();

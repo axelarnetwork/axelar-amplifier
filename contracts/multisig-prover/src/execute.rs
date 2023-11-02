@@ -3,7 +3,10 @@ use cosmwasm_std::{
     SubMsg, WasmQuery,
 };
 
-use multisig::{key::{KeyType, PublicKey}, workerset::WorkerSet};
+use multisig::{
+    key::{KeyType, PublicKey},
+    workerset::WorkerSet,
+};
 
 use axelar_wasm_std::snapshot;
 use connection_router::state::{ChainName, CrossChainId, Message};
@@ -14,8 +17,7 @@ use crate::{
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{
-        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
-        REPLY_BATCH,
+        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET, REPLY_BATCH,
     },
     types::{BatchID, WorkersInfo},
 };
