@@ -155,7 +155,7 @@ fn make_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Result<WorkerS
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
         env.block.height,
-    )?)
+    ))
 }
 
 fn get_next_worker_set(

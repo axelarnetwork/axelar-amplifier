@@ -4,7 +4,7 @@ use crate::key::PublicKey;
 use crate::msg::Signer;
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, StdError, Uint256};
+use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
@@ -21,7 +21,7 @@ impl WorkerSet {
         participants: Vec<(Participant, PublicKey)>,
         threshold: Uint256,
         block_height: u64,
-    ) -> Result<Self, StdError> {
+    ) -> Self {
         let signers = participants
             .into_iter()
             .map(|(participant, pub_key)| Signer {
@@ -31,11 +31,11 @@ impl WorkerSet {
             })
             .collect();
 
-        Ok(WorkerSet {
+        WorkerSet {
             signers,
             threshold,
             created_at: block_height,
-        })
+        }
     }
 
     pub fn hash(&self) -> HexBinary {
