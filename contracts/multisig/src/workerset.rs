@@ -16,7 +16,6 @@ pub struct WorkerSet {
     pub created_at: u64,
     // TODO: add nonce
     // https://github.com/axelarnetwork/axelar-amplifier/pull/70#discussion_r1323454223
-    
 }
 
 impl WorkerSet {
