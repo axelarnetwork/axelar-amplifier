@@ -276,8 +276,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
             })
             .expect("failed to serialize message for rewards contract"),
             funds: vec![],
-        })
-        .collect::<Vec<_>>();
+        });
 
     Ok(Response::new()
         .add_messages(rewards_msgs)
