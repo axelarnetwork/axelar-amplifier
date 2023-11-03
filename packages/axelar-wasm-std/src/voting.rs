@@ -489,6 +489,33 @@ mod tests {
         );
     }
 
+    #[test]
+    fn result_filters_non_consensus_voters() {
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
+        let votes = vec![true, true];
+        let wrong_votes = vec![false, false];
+
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
+            .is_ok());
+        assert!(poll
+            .cast_vote(1, &Addr::unchecked("addr2"), wrong_votes)
+            .is_ok());
+        assert!(poll.cast_vote(1, &Addr::unchecked("addr3"), votes).is_ok());
+
+        let result = poll.complete(2).unwrap();
+        assert_eq!(poll.status, PollStatus::Finished);
+
+        assert_eq!(
+            result,
+            PollResult {
+                poll_id: PollID::from(Uint64::one()),
+                results: vec![true, true],
+                consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
+            }
+        );
+    }
+
     fn new_poll(expires_at: u64, poll_size: usize, participants: Vec<&str>) -> WeightedPoll {
         let participants: nonempty::Vec<Participant> = participants
             .into_iter()
