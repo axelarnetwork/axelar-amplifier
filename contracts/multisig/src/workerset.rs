@@ -14,7 +14,8 @@ pub struct WorkerSet {
     // for hash uniqueness. The same exact worker set could be in use at two different times,
     // and we need to be able to distinguish between the two
     pub created_at: u64,
-    // TODO: add nonce
+    // TODO: add nonce to the voting verifier and to the evm gateway.
+    // Without a nonce, updating to a worker set that is the exact same as a worker set in the past will be immediately confirmed. 
     // https://github.com/axelarnetwork/axelar-amplifier/pull/70#discussion_r1323454223
 }
 
