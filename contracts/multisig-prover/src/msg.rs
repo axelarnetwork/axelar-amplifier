@@ -34,7 +34,7 @@ pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
 
-    #[returns(multisig::workerset::WorkerSet)]
+    #[returns(multisig::worker_set::WorkerSet)]
     GetWorkerSet,
 }
 

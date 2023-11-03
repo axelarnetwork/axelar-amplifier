@@ -7,7 +7,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{
     key::{KeyType, PublicKey, Signature},
     msg::Signer,
-    workerset::WorkerSet,
+    worker_set::WorkerSet,
 };
 
 pub fn new_worker_set() -> WorkerSet {

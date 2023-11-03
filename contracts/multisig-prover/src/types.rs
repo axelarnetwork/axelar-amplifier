@@ -6,7 +6,7 @@ use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::{
     key::{PublicKey, Signature},
-    workerset::WorkerSet,
+    worker_set::WorkerSet,
 };
 use sha3::{Digest, Keccak256};
 

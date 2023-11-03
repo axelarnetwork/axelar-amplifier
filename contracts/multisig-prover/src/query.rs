@@ -7,7 +7,7 @@ use multisig::{
     key::Signature,
     msg::{Multisig, Signer},
     types::MultisigState,
-    workerset::WorkerSet,
+    worker_set::WorkerSet,
 };
 
 use crate::{

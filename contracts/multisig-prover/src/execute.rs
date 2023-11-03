@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use multisig::{
     key::{KeyType, PublicKey},
-    workerset::WorkerSet,
+    worker_set::WorkerSet,
 };
 
 use axelar_wasm_std::snapshot;

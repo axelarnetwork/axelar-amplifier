@@ -3,7 +3,7 @@ use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
-use multisig::workerset::WorkerSet;
+use multisig::worker_set::WorkerSet;
 
 use crate::encoding::Encoder;
 use crate::types::{BatchID, CommandBatch};

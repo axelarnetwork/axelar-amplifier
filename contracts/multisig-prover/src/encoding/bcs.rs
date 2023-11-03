@@ -7,7 +7,7 @@ use cosmwasm_std::{HexBinary, Uint256};
 use crate::error::ContractError;
 
 use itertools::Itertools;
-use multisig::{key::Signature, msg::Signer, workerset::WorkerSet};
+use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
 
 use crate::types::{CommandBatch, Operator};
 

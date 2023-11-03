@@ -101,7 +101,7 @@ mod tests {
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
-    use multisig::{msg::Signer, workerset::WorkerSet};
+    use multisig::{msg::Signer, worker_set::WorkerSet};
 
     use crate::{
         encoding::Encoder,
