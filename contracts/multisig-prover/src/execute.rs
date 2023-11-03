@@ -2,7 +2,11 @@ use cosmwasm_std::{
     to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
     SubMsg, WasmQuery,
 };
-use multisig::key::{KeyType, PublicKey};
+
+use multisig::{
+    key::{KeyType, PublicKey},
+    worker_set::WorkerSet,
+};
 
 use axelar_wasm_std::snapshot;
 use connection_router::state::{ChainName, CrossChainId, Message};
@@ -13,8 +17,7 @@ use crate::{
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{
-        Config, WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET,
-        REPLY_BATCH,
+        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET, REPLY_BATCH,
     },
     types::{BatchID, WorkersInfo},
 };
@@ -148,11 +151,11 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
 
 fn make_worker_set(deps: &DepsMut, env: &Env, config: &Config) -> Result<WorkerSet, ContractError> {
     let workers_info = get_workers_info(deps, config)?;
-    WorkerSet::new(
+    Ok(WorkerSet::new(
         workers_info.pubkeys_by_participant,
         workers_info.snapshot.quorum.into(),
         env.block.height,
-    )
+    ))
 }
 
 fn get_next_worker_set(

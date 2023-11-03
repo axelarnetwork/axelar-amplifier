@@ -1,16 +1,11 @@
-use std::collections::BTreeSet;
-
-use axelar_wasm_std::{Participant, Snapshot, Threshold};
+use axelar_wasm_std::{Snapshot, Threshold};
 use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, Uint256};
+use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
-use multisig::key::PublicKey;
-use multisig::msg::Signer;
-use sha3::{Digest, Keccak256};
+use multisig::worker_set::WorkerSet;
 
 use crate::encoding::Encoder;
-use crate::error::ContractError;
 use crate::types::{BatchID, CommandBatch};
 
 #[cw_serde]
@@ -34,48 +29,6 @@ pub const COMMANDS_BATCH: Map<&BatchID, CommandBatch> = Map::new("command_batch"
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchID> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");
-
-#[cw_serde]
-pub struct WorkerSet {
-    pub signers: BTreeSet<Signer>,
-    pub threshold: Uint256,
-    // for hash uniqueness. The same exact worker set could be in use at two different times,
-    // and we need to be able to distinguish between the two
-    pub created_at: u64,
-}
-
-impl WorkerSet {
-    pub fn new(
-        participants: Vec<(Participant, PublicKey)>,
-        threshold: Uint256,
-        block_height: u64,
-    ) -> Result<Self, ContractError> {
-        let signers = participants
-            .into_iter()
-            .map(|(participant, pub_key)| Signer {
-                address: participant.address.clone(),
-                weight: participant.weight.into(),
-                pub_key,
-            })
-            .collect();
-
-        Ok(WorkerSet {
-            signers,
-            threshold,
-            created_at: block_height,
-        })
-    }
-
-    pub fn hash(&self) -> HexBinary {
-        Keccak256::digest(serde_json::to_vec(&self).expect("couldn't serialize worker set"))
-            .as_slice()
-            .into()
-    }
-
-    pub fn id(&self) -> String {
-        self.hash().to_hex()
-    }
-}
 
 pub const CURRENT_WORKER_SET: Item<WorkerSet> = Item::new("current_worker_set");
 pub const NEXT_WORKER_SET: Item<(WorkerSet, Snapshot)> = Item::new("next_worker_set");

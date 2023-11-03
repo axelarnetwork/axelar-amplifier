@@ -7,9 +7,8 @@ use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{
     key::{KeyType, PublicKey, Signature},
     msg::Signer,
+    worker_set::WorkerSet,
 };
-
-use crate::state::WorkerSet;
 
 pub fn new_worker_set() -> WorkerSet {
     let signers = vec![

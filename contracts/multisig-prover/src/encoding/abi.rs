@@ -8,11 +8,10 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::operators::Operators;
-use multisig::{key::Signature, msg::Signer};
+use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
 
 use crate::{
     error::ContractError,
-    state::WorkerSet,
     types::{CommandBatch, Operator},
 };
 
