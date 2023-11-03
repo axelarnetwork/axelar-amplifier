@@ -101,12 +101,11 @@ mod tests {
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
-    use multisig::msg::Signer;
+    use multisig::{msg::Signer, worker_set::WorkerSet};
 
     use crate::{
         encoding::Encoder,
         msg::{GetProofResponse, ProofStatus},
-        state::WorkerSet,
         test::{
             mocks,
             multicontract::{setup_test_case, TestCaseConfig},

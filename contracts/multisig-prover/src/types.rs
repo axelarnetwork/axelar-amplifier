@@ -4,13 +4,13 @@ use axelar_wasm_std::{Participant, Snapshot};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::key::{PublicKey, Signature};
+use multisig::{
+    key::{PublicKey, Signature},
+    worker_set::WorkerSet,
+};
 use sha3::{Digest, Keccak256};
 
-use crate::{
-    encoding::{Data, Encoder},
-    state::WorkerSet,
-};
+use crate::encoding::{Data, Encoder};
 
 #[cw_serde]
 pub enum CommandType {

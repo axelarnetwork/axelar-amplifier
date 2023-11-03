@@ -4,10 +4,10 @@ use axelar_wasm_std::operators::Operators;
 use bcs::to_bytes;
 use cosmwasm_std::{HexBinary, Uint256};
 
-use crate::{error::ContractError, state::WorkerSet};
+use crate::error::ContractError;
 
 use itertools::Itertools;
-use multisig::{key::Signature, msg::Signer};
+use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
 
 use crate::types::{CommandBatch, Operator};
 
