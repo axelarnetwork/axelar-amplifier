@@ -14,6 +14,9 @@ pub struct WorkerSet {
     // for hash uniqueness. The same exact worker set could be in use at two different times,
     // and we need to be able to distinguish between the two
     pub created_at: u64,
+    // TODO: add nonce
+    // https://github.com/axelarnetwork/axelar-amplifier/pull/70#discussion_r1323454223
+    
 }
 
 impl WorkerSet {
