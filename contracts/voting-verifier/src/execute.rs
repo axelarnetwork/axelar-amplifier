@@ -1,6 +1,6 @@
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{
-    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmQuery,
+    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
 use axelar_wasm_std::voting::{PollID, PollResult};
@@ -178,6 +178,8 @@ pub fn vote(
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
+    // TODO: add rewards for late voters
+
     Ok(Response::new().add_event(
         Voted {
             poll_id,
@@ -242,13 +244,15 @@ fn end_poll_worker_set(
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
     let mut poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
 
     let poll_result = match &mut poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll.tally(env.block.height)?
+            poll.complete(env.block.height)?
         }
     };
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -260,7 +264,22 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         state::Poll::ConfirmWorkerSet(_) => end_poll_worker_set(deps, poll_id, &poll_result)?,
     };
 
+    // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
+    let rewards_msgs = poll_result
+        .consensus_participants
+        .iter()
+        .map(|address| WasmMsg::Execute {
+            contract_addr: config.rewards_contract.to_string(),
+            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                event_id: poll_id.into(),
+                worker_address: address.to_string(),
+            })
+            .expect("failed to serialize message for rewards contract"),
+            funds: vec![],
+        });
+
     Ok(Response::new()
+        .add_messages(rewards_msgs)
         .add_event(
             PollEnded {
                 poll_id: poll_result.poll_id,

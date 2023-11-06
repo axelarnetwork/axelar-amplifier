@@ -12838,6 +12838,7 @@ dependencies = [
  "either",
  "error-stack",
  "report",
+ "rewards",
  "schemars",
  "serde",
  "serde_json",

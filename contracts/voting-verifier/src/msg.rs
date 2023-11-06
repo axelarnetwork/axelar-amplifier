@@ -19,6 +19,7 @@ pub struct InstantiateMsg {
     pub block_expiry: u64,
     pub confirmation_height: u64,
     pub source_chain: ChainName,
+    pub rewards_address: String,
 }
 
 #[cw_serde]

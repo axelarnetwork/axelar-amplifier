@@ -19,6 +19,7 @@ pub struct Config {
     pub block_expiry: u64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
     pub source_chain: ChainName,
+    pub rewards_contract: Addr,
 }
 
 #[cw_serde]
