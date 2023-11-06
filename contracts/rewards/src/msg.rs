@@ -27,7 +27,7 @@ pub struct Params {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Log a specific worker as participating in a specific event
-    /// 
+    ///
     /// TODO: For batched voting, treating the entire batch as a single event can be problematic.
     /// A worker may vote correctly for 9 out of 10 messages in a batch, but the worker's participation
     /// will not be recorded, because of the one message that the worker voted incorrectly for. Or the voting
