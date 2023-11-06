@@ -7,11 +7,12 @@ use multisig::{
     key::Signature,
     msg::{Multisig, Signer},
     types::MultisigState,
+    worker_set::WorkerSet,
 };
 
 use crate::{
     msg::{GetProofResponse, ProofStatus},
-    state::{WorkerSet, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, MULTISIG_SESSION_BATCH},
+    state::{COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, MULTISIG_SESSION_BATCH},
 };
 
 pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofResponse> {

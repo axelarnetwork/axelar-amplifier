@@ -7,11 +7,10 @@ use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
 use connection_router::state::Message;
-use multisig::{key::Signature, msg::Signer};
+use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
 
 use crate::{
     error::ContractError,
-    state::WorkerSet,
     types::{BatchID, Command, CommandBatch, CommandType},
 };
 

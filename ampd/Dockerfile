@@ -7,4 +7,4 @@ RUN cargo build --release
 FROM debian:bookworm-slim AS final
 COPY --from=build /app/target/release/ampd /usr/local/bin/ampd
 WORKDIR /usr/local/bin
-CMD ["ampd"]
+ENTRYPOINT ["ampd"]
