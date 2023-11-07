@@ -122,6 +122,10 @@ mod tests {
 
     use super::{execute, instantiate};
 
+    /// Tests that the contract entry points (instantiate and execute) work as expected.
+    /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.
+    /// Adds rewards to the contract, updates the rewards params, records some participation
+    /// events and then distributes the rewards.
     #[test]
     fn test_rewards_flow() {
         let user = Addr::unchecked("user");
@@ -211,6 +215,7 @@ mod tests {
         );
         assert!(res.is_ok());
 
+        // need to change the block height so we can claim rewards
         let old_height = app.block_info().height;
         app.set_block(BlockInfo {
             height: old_height + u64::from(initial_params.epoch_duration) * 2,
@@ -228,6 +233,7 @@ mod tests {
         );
         assert!(res.is_ok());
 
+        // worker should have been sent the appropriate rewards
         let balance = app.wrap().query_balance(worker, AXL_DENOMINATION).unwrap();
         assert_eq!(balance.amount, Uint128::from(150u128));
     }
