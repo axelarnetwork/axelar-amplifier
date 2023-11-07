@@ -31,7 +31,7 @@ pub enum Poll {
 }
 
 impl Poll {
-    pub fn map_poll<F, E>(self, func: F) -> Result<Self, E>
+    pub fn map<F, E>(self, func: F) -> Result<Self, E>
     where
         F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
         E: From<ContractError>,

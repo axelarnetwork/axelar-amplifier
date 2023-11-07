@@ -170,7 +170,7 @@ pub fn vote(
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?
-        .map_poll(
+        .map(
             |poll: WeightedPoll| -> Result<WeightedPoll, ContractError> {
                 Ok(poll.cast_vote(env.block.height, &info.sender, votes)?)
             },
@@ -247,7 +247,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?
-        .map_poll(
+        .map(
             |poll: WeightedPoll| -> Result<WeightedPoll, ContractError> {
                 Ok(poll.finish(env.block.height)?)
             },
