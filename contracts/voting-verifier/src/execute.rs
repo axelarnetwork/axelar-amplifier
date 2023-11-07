@@ -170,11 +170,7 @@ pub fn vote(
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?
-        .map(
-            |poll: WeightedPoll| -> Result<WeightedPoll, ContractError> {
-                Ok(poll.cast_vote(env.block.height, &info.sender, votes)?)
-            },
-        )?;
+        .cast_vote(env.block.height, &info.sender, votes)?;
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
@@ -247,17 +243,11 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?
-        .map(
-            |poll: WeightedPoll| -> Result<WeightedPoll, ContractError> {
-                Ok(poll.finish(env.block.height)?)
-            },
-        )?;
+        .finish(env.block.height)?;
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let poll_result = match &poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => poll.result(),
-    };
+    let poll_result = poll.result();
 
     match poll {
         state::Poll::Messages(_) => end_poll_messages(deps, poll_id, &poll_result)?,

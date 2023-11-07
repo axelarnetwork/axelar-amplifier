@@ -129,15 +129,17 @@ impl fmt::Display for PollID {
 }
 
 pub trait Poll {
+    type E;
+
     // errors if the poll cannot be finished
-    fn finish(self, block_height: u64) -> Result<Self, Error>
+    fn finish(self, block_height: u64) -> Result<Self, Self::E>
     where
         Self: Sized;
     // returns the cumulated poll result
     fn result(&self) -> PollResult;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
-    fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Error>
+    fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Self::E>
     where
         Self: Sized;
 }
@@ -204,6 +206,8 @@ impl WeightedPoll {
 }
 
 impl Poll for WeightedPoll {
+    type E = Error;
+
     fn finish(mut self, block_height: u64) -> Result<Self, Error> {
         if matches!(self.status, PollStatus::Finished { .. }) {
             return Err(Error::PollNotInProgress);
