@@ -167,18 +167,16 @@ pub fn vote(
     poll_id: PollID,
     votes: Vec<bool>,
 ) -> Result<Response, ContractError> {
-    let mut poll = POLLS
+    let poll = POLLS
         .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound)?;
-    match &mut poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll.cast_vote(env.block.height, &info.sender, votes)?
-        }
-    };
+        .ok_or(ContractError::PollNotFound)?
+        .map_poll(
+            |poll: WeightedPoll| -> Result<WeightedPoll, ContractError> {
+                Ok(poll.cast_vote(env.block.height, &info.sender, votes)?)
+            },
+        )?;
 
     POLLS.save(deps.storage, poll_id, &poll)?;
-
-    // TODO: add rewards for late voters
 
     Ok(Response::new().add_event(
         Voted {

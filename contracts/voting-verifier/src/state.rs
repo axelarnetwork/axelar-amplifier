@@ -10,6 +10,8 @@ use axelar_wasm_std::{
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 
+use crate::error::ContractError;
+
 #[cw_serde]
 pub struct Config {
     pub service_registry_contract: Addr,
@@ -26,6 +28,19 @@ pub struct Config {
 pub enum Poll {
     Messages(WeightedPoll),
     ConfirmWorkerSet(WeightedPoll),
+}
+
+impl Poll {
+    pub fn map_poll<F, E>(self, func: F) -> Result<Self, E>
+    where
+        F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
+        E: From<ContractError>,
+    {
+        match self {
+            Poll::Messages(poll) => Ok(Poll::Messages(func(poll)?)),
+            Poll::ConfirmWorkerSet(poll) => Ok(Poll::ConfirmWorkerSet(func(poll)?)),
+        }
+    }
 }
 
 pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");

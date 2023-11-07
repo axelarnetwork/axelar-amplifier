@@ -133,12 +133,9 @@ pub trait Poll {
     fn complete(&mut self, block_height: u64) -> Result<PollResult, Error>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
-    fn cast_vote(
-        &mut self,
-        block_height: u64,
-        sender: &Addr,
-        votes: Vec<bool>,
-    ) -> Result<(), Error>;
+    fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 #[cw_serde]
@@ -250,11 +247,11 @@ impl Poll for WeightedPoll {
     }
 
     fn cast_vote(
-        &mut self,
+        mut self,
         block_height: u64,
         sender: &Addr,
         votes: Vec<bool>,
-    ) -> Result<(), Error> {
+    ) -> Result<Self, Error> {
         let participation = self
             .participation
             .get_mut(sender.as_str())
@@ -275,7 +272,7 @@ impl Poll for WeightedPoll {
         // late votes are not tallied
         if self.status != PollStatus::InProgress {
             participation.vote = Some(votes);
-            return Ok(());
+            return Ok(self);
         }
 
         self.tallies
@@ -288,7 +285,7 @@ impl Poll for WeightedPoll {
 
         participation.vote = Some(votes);
 
-        Ok(())
+        Ok(self)
     }
 }
 
@@ -304,7 +301,7 @@ mod tests {
 
     #[test]
     fn cast_vote() {
-        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
 
         assert_eq!(
@@ -315,9 +312,9 @@ mod tests {
             }
         );
 
-        assert!(poll
+        let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
-            .is_ok());
+            .unwrap();
 
         assert_eq!(
             poll.participation.get("addr1").unwrap(),
@@ -331,7 +328,7 @@ mod tests {
     #[test]
     fn voter_not_a_participant() {
         let mut rng = thread_rng();
-        let mut poll = new_poll(
+        let poll = new_poll(
             rng.gen::<u64>(),
             rng.gen_range(1..50),
             vec!["addr1", "addr2"],
@@ -352,7 +349,7 @@ mod tests {
 
     #[test]
     fn poll_expired() {
-        let mut poll = new_poll(
+        let poll = new_poll(
             1,
             rand::thread_rng().gen_range(1..50),
             vec!["addr1", "addr2"],
@@ -366,7 +363,7 @@ mod tests {
 
     #[test]
     fn vote_size_is_invalid() {
-        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true];
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
@@ -376,12 +373,12 @@ mod tests {
 
     #[test]
     fn voter_already_voted() {
-        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         let votes = vec![true, true];
 
-        assert!(poll
+        let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
-            .is_ok());
+            .unwrap();
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::AlreadyVoted)
@@ -395,7 +392,7 @@ mod tests {
         poll.status = PollStatus::Finished;
         let tallies = poll.tallies.clone();
 
-        assert!(poll.cast_vote(2, &Addr::unchecked("addr1"), votes).is_ok());
+        let poll = poll.cast_vote(2, &Addr::unchecked("addr1"), votes).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
         assert_eq!(poll.tallies, tallies)
     }
@@ -408,16 +405,16 @@ mod tests {
 
     #[test]
     fn tally_before_expiry_everyone_voted() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
+        let poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![false, false];
 
-        assert!(poll
+        let mut poll = poll
             .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
-            .is_ok());
-        assert!(poll
+            .unwrap()
             .cast_vote(0, &Addr::unchecked("addr2"), votes.clone())
-            .is_ok());
-        assert!(poll.cast_vote(0, &Addr::unchecked("addr3"), votes).is_ok());
+            .unwrap()
+            .cast_vote(0, &Addr::unchecked("addr3"), votes)
+            .unwrap();
 
         let result = poll.complete(0).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
@@ -438,13 +435,14 @@ mod tests {
 
     #[test]
     fn tally_before_expiry_quorum_satisfied() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
+        let poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
 
-        assert!(poll
+        let mut poll = poll
             .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
-            .is_ok());
-        assert!(poll.cast_vote(0, &Addr::unchecked("addr2"), votes).is_ok());
+            .unwrap()
+            .cast_vote(0, &Addr::unchecked("addr2"), votes)
+            .unwrap();
 
         let result = poll.complete(0).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
@@ -468,13 +466,14 @@ mod tests {
 
     #[test]
     fn should_conclude_poll() {
-        let mut poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
+        let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
 
-        assert!(poll
+        let mut poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
-            .is_ok());
-        assert!(poll.cast_vote(1, &Addr::unchecked("addr2"), votes).is_ok());
+            .unwrap()
+            .cast_vote(1, &Addr::unchecked("addr2"), votes)
+            .unwrap();
 
         let result = poll.complete(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
@@ -491,17 +490,17 @@ mod tests {
 
     #[test]
     fn result_filters_non_consensus_voters() {
-        let mut poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
+        let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
         let wrong_votes = vec![false, false];
 
-        assert!(poll
+        let mut poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
-            .is_ok());
-        assert!(poll
+            .unwrap()
             .cast_vote(1, &Addr::unchecked("addr2"), wrong_votes)
-            .is_ok());
-        assert!(poll.cast_vote(1, &Addr::unchecked("addr3"), votes).is_ok());
+            .unwrap()
+            .cast_vote(1, &Addr::unchecked("addr3"), votes)
+            .unwrap();
 
         let result = poll.complete(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
