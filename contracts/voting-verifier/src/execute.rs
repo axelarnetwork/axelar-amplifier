@@ -244,21 +244,23 @@ fn end_poll_worker_set(
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let mut poll = POLLS
+    let poll = POLLS
         .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound)?;
+        .ok_or(ContractError::PollNotFound)?
+        .map_poll(
+            |poll: WeightedPoll| -> Result<WeightedPoll, ContractError> {
+                Ok(poll.finish(env.block.height)?)
+            },
+        )?;
 
-    let poll_result = match &mut poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-            poll.complete(env.block.height)?
-        }
-    };
     POLLS.save(deps.storage, poll_id, &poll)?;
 
+    let poll_result = match &poll {
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => poll.result()?,
+    };
+
     match poll {
-        state::Poll::Messages(_) => {
-            end_poll_messages(deps, poll_id, &poll_result)?;
-        }
+        state::Poll::Messages(_) => end_poll_messages(deps, poll_id, &poll_result)?,
         state::Poll::ConfirmWorkerSet(_) => end_poll_worker_set(deps, poll_id, &poll_result)?,
     };
 

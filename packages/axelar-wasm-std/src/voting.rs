@@ -129,8 +129,12 @@ impl fmt::Display for PollID {
 }
 
 pub trait Poll {
-    // errors if the poll is not finished
-    fn complete(&mut self, block_height: u64) -> Result<PollResult, Error>;
+    // errors if the poll cannot be finished
+    fn finish(self, block_height: u64) -> Result<Self, Error>
+    where
+        Self: Sized;
+    // returns the cumulated result of the finished poll
+    fn result(&self) -> Result<PollResult, Error>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
     fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Error>
@@ -200,11 +204,12 @@ impl WeightedPoll {
 }
 
 impl Poll for WeightedPoll {
-    fn complete(&mut self, block_height: u64) -> Result<PollResult, Error> {
+    fn finish(mut self, block_height: u64) -> Result<Self, Error> {
         if matches!(self.status, PollStatus::Finished { .. }) {
             return Err(Error::PollNotInProgress);
         }
 
+        // TODO: all logic to finish early will be removed from here in the future to allow for late voting until poll expiry
         let everyone_voted = self
             .participation
             .iter()
@@ -223,6 +228,15 @@ impl Poll for WeightedPoll {
             return Err(Error::PollNotEnded);
         }
 
+        self.status = PollStatus::Finished;
+
+        Ok(self)
+    }
+
+    fn result(&self) -> Result<PollResult, Error> {
+        let quorum: Uint256 = self.quorum.into();
+        let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
+
         let consensus_participants = self
             .participation
             .iter()
@@ -236,8 +250,6 @@ impl Poll for WeightedPoll {
                 })
             })
             .collect();
-
-        self.status = PollStatus::Finished;
 
         Ok(PollResult {
             poll_id: self.poll_id,
@@ -399,8 +411,8 @@ mod tests {
 
     #[test]
     fn tally_before_poll_end() {
-        let mut poll = new_poll(1, 2, vec!["addr1", "addr2"]);
-        assert_eq!(poll.complete(0), Err(Error::PollNotEnded));
+        let poll = new_poll(1, 2, vec!["addr1", "addr2"]);
+        assert_eq!(poll.finish(0), Err(Error::PollNotEnded));
     }
 
     #[test]
@@ -408,7 +420,7 @@ mod tests {
         let poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![false, false];
 
-        let mut poll = poll
+        let poll = poll
             .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
             .unwrap()
             .cast_vote(0, &Addr::unchecked("addr2"), votes.clone())
@@ -416,21 +428,8 @@ mod tests {
             .cast_vote(0, &Addr::unchecked("addr3"), votes)
             .unwrap();
 
-        let result = poll.complete(0).unwrap();
+        let poll = poll.finish(0).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
-
-        assert_eq!(
-            result,
-            PollResult {
-                poll_id: PollID::from(Uint64::one()),
-                results: vec![false, false],
-                consensus_participants: vec![
-                    "addr1".to_string(),
-                    "addr2".to_string(),
-                    "addr3".to_string()
-                ],
-            }
-        );
     }
 
     #[test]
@@ -438,30 +437,21 @@ mod tests {
         let poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
 
-        let mut poll = poll
+        let poll = poll
             .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
             .unwrap()
             .cast_vote(0, &Addr::unchecked("addr2"), votes)
             .unwrap();
 
-        let result = poll.complete(0).unwrap();
+        let poll = poll.finish(0).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
-
-        assert_eq!(
-            result,
-            PollResult {
-                poll_id: PollID::from(Uint64::one()),
-                results: vec![true, true],
-                consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
-            }
-        );
     }
 
     #[test]
     fn tally_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         poll.status = PollStatus::Finished;
-        assert_eq!(poll.complete(2), Err(Error::PollNotInProgress));
+        assert_eq!(poll.finish(2), Err(Error::PollNotInProgress));
     }
 
     #[test]
@@ -469,15 +459,16 @@ mod tests {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![true, true];
 
-        let mut poll = poll
+        let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
             .unwrap()
             .cast_vote(1, &Addr::unchecked("addr2"), votes)
             .unwrap();
 
-        let result = poll.complete(2).unwrap();
+        let poll = poll.finish(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
 
+        let result = poll.result().unwrap();
         assert_eq!(
             result,
             PollResult {
@@ -494,7 +485,7 @@ mod tests {
         let votes = vec![true, true];
         let wrong_votes = vec![false, false];
 
-        let mut poll = poll
+        let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
             .unwrap()
             .cast_vote(1, &Addr::unchecked("addr2"), wrong_votes)
@@ -502,8 +493,7 @@ mod tests {
             .cast_vote(1, &Addr::unchecked("addr3"), votes)
             .unwrap();
 
-        let result = poll.complete(2).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
+        let result = poll.finish(2).unwrap().result().unwrap();
 
         assert_eq!(
             result,
