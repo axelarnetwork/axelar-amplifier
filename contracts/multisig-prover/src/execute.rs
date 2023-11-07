@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use multisig::{
-    key::{KeyType, PublicKey},
+    key::{KeyTyped, PublicKey},
     worker_set::WorkerSet,
 };
 
@@ -134,7 +134,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     for worker in &workers {
         let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
             worker_address: worker.address.to_string(),
-            key_type: KeyType::Ecdsa,
+            key_type: config.key_type,
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
@@ -220,7 +220,7 @@ fn make_keygen_msg(
             .map(|signer| {
                 (
                     signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
+                    (signer.pub_key.key_type(), signer.pub_key.as_ref().into()),
                 )
             })
             .collect(),
@@ -303,7 +303,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
             .map(|signer| {
                 (
                     signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
+                    (signer.pub_key.key_type(), signer.pub_key.as_ref().into()),
                 )
             })
             .collect(),
