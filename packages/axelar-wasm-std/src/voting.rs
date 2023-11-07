@@ -133,7 +133,7 @@ pub trait Poll {
     fn finish(self, block_height: u64) -> Result<Self, Error>
     where
         Self: Sized;
-    // returns the cumulated result of the finished poll
+    // returns the cumulated poll result
     fn result(&self) -> Result<PollResult, Error>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
