@@ -114,17 +114,17 @@ where
     pub fn distribute_rewards(
         &mut self,
         contract: Addr,
-        block_height: u64,
-        count: Option<u64>,
+        cur_block_height: u64,
+        epoch_process_limit: Option<u64>,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let count = count.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
-        let cur_epoch = self.current_epoch(block_height)?;
+        let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
+        let cur_epoch = self.current_epoch(cur_block_height)?;
         let from = self
             .store
             .load_rewards_watermark(contract.clone())?
             .map_or(0, |last_processed| last_processed + 1);
         let to = std::cmp::min(
-            (from + count).saturating_sub(1),
+            (from + epoch_process_limit).saturating_sub(1),
             cur_epoch.epoch_num.saturating_sub(2),
         );
         if to < from || cur_epoch.epoch_num < 2 {
