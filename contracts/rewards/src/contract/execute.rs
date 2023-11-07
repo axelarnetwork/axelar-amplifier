@@ -147,7 +147,7 @@ where
             return Ok(rewards);
         }
         let new_rewards = self.process_rewards_for_epoch(contract.clone(), from)?;
-        self.process_rewards_for_epochs(contract, from + 1, to, fold_rewards(rewards, new_rewards))
+        self.process_rewards_for_epochs(contract, from + 1, to, merge_rewards(rewards, new_rewards))
     }
 
     pub fn process_rewards_for_epoch(
@@ -258,12 +258,12 @@ fn rewards_per_worker(
         .unwrap_or_default())
 }
 
-/// Folds rewards_2 into rewards_1. For each (address, amount) pair in rewards_2,
+/// Merges rewards_2 into rewards_1. For each (address, amount) pair in rewards_2,
 /// adds the rewards amount to the existing rewards amount in rewards_1. If the
 /// address is not yet in rewards_1, initializes the rewards amount to the amount in
 /// rewards_2
 /// Performs a number of inserts equal to the length of rewards_2
-fn fold_rewards(
+fn merge_rewards(
     rewards_1: HashMap<Addr, Uint128>,
     rewards_2: HashMap<Addr, Uint128>,
 ) -> HashMap<Addr, Uint128> {

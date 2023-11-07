@@ -4,7 +4,7 @@ use crate::{
     msg::{ExecuteMsg, InstantiateMsg},
     state::{Config, Epoch, StoredParams, CONFIG, PARAMS},
 };
-use axelar_wasm_std::{self, nonempty};
+use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, MessageInfo, Response};
@@ -58,7 +58,7 @@ pub fn execute(
             let worker_address = deps.api.addr_validate(&worker_address)?;
             Contract::new(deps)
                 .record_participation(
-                    axelar_wasm_std::nonempty::String::try_from(event_id)
+                    nonempty::String::try_from(event_id)
                         .change_context(ContractError::InvalidEventId)?,
                     worker_address,
                     info.sender,
@@ -75,6 +75,7 @@ pub fn execute(
                 .funds
                 .iter()
                 .find(|coin| coin.denom == contract.config.rewards_denom)
+                .filter(|_| info.funds.len() == 1)
                 .ok_or(ContractError::WrongDenom)?
                 .amount;
 
