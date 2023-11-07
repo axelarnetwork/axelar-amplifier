@@ -256,7 +256,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     let poll_result = match &poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => poll.result()?,
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => poll.result(),
     };
 
     match poll {

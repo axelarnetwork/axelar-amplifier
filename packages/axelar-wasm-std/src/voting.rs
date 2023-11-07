@@ -134,7 +134,7 @@ pub trait Poll {
     where
         Self: Sized;
     // returns the cumulated poll result
-    fn result(&self) -> Result<PollResult, Error>;
+    fn result(&self) -> PollResult;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
     fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Error>
@@ -233,7 +233,7 @@ impl Poll for WeightedPoll {
         Ok(self)
     }
 
-    fn result(&self) -> Result<PollResult, Error> {
+    fn result(&self) -> PollResult {
         let quorum: Uint256 = self.quorum.into();
         let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
 
@@ -251,11 +251,11 @@ impl Poll for WeightedPoll {
             })
             .collect();
 
-        Ok(PollResult {
+        PollResult {
             poll_id: self.poll_id,
             results,
             consensus_participants,
-        })
+        }
     }
 
     fn cast_vote(
@@ -281,6 +281,7 @@ impl Poll for WeightedPoll {
             return Err(Error::AlreadyVoted);
         }
 
+        // TODO: this won't be needed anymore once we allow late voting until poll expiry
         // late votes are not tallied
         if self.status != PollStatus::InProgress {
             participation.vote = Some(votes);
@@ -468,7 +469,7 @@ mod tests {
         let poll = poll.finish(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
 
-        let result = poll.result().unwrap();
+        let result = poll.result();
         assert_eq!(
             result,
             PollResult {
@@ -493,7 +494,7 @@ mod tests {
             .cast_vote(1, &Addr::unchecked("addr3"), votes)
             .unwrap();
 
-        let result = poll.finish(2).unwrap().result().unwrap();
+        let result = poll.finish(2).unwrap().result();
 
         assert_eq!(
             result,
