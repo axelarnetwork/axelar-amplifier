@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::state::Message;
@@ -64,9 +64,9 @@ pub fn new_worker_set() -> WorkerSet {
         },
     ];
 
-    let mut btree_signers = BTreeSet::new();
+    let mut btree_signers = BTreeMap::new();
     for signer in signers {
-        btree_signers.insert(signer);
+        btree_signers.insert(signer.address.clone(), signer);
     }
 
     WorkerSet {

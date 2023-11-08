@@ -217,7 +217,7 @@ fn make_keygen_msg(
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
-            .map(|signer| {
+            .map(|(_, signer)| {
                 (
                     signer.address.to_string(),
                     (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
@@ -300,7 +300,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
-            .map(|signer| {
+            .map(|(_, signer)| {
                 (
                     signer.address.to_string(),
                     (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
@@ -317,9 +317,31 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    new_workers.signers.difference(&cur_workers.signers).count()
-        + cur_workers.signers.difference(&new_workers.signers).count()
-        > max_diff
+    let mut diff = 0 as usize;
+
+    let _ = new_workers.signers.iter().map(|(address, signer)| {
+        match cur_workers.signers.get(address) {
+            Some(other_signer) => {
+                if signer != other_signer {
+                    diff += 1;
+                }
+            }
+            None => diff += 1,
+        };
+    });
+
+    let _ = cur_workers.signers.iter().map(|(address, signer)| {
+        match new_workers.signers.get(address) {
+            Some(other_signer) => {
+                if signer != other_signer {
+                    diff += 1;
+                }
+            }
+            None => diff += 1,
+        };
+    });
+
+    diff > max_diff
 }
 
 // Returns true if there is a different worker set pending for confirmation, false if there is no
@@ -340,7 +362,7 @@ mod tests {
     use cosmwasm_std::{testing::mock_dependencies, Uint256};
 
     use crate::{execute::should_update_worker_set, state::NEXT_WORKER_SET, test::test_data};
-    use std::collections::{BTreeSet, HashMap};
+    use std::collections::{BTreeMap, HashMap};
 
     use super::different_set_in_progress;
 
@@ -379,9 +401,9 @@ mod tests {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
         let mut signers = new_worker_set.signers.into_iter().collect::<Vec<_>>();
-        signers[0].pub_key = signers[1].pub_key.clone();
-        signers[1].pub_key = signers[0].pub_key.clone();
-        new_worker_set.signers = BTreeSet::from_iter(signers);
+        signers[0].1.pub_key = signers[1].1.pub_key.clone();
+        signers[1].1.pub_key = signers[0].1.pub_key.clone();
+        new_worker_set.signers = BTreeMap::from_iter(signers);
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 
