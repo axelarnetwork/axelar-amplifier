@@ -7,8 +7,8 @@ use cosmwasm_std::{
 
 use multisig::{
     key::{KeyType, PublicKey},
-    worker_set::WorkerSet,
     msg::Signer,
+    worker_set::WorkerSet,
 };
 
 use axelar_wasm_std::snapshot;
