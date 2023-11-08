@@ -34,7 +34,7 @@ impl voting::Poll for Poll {
     type E = ContractError;
 
     fn finish(self, block_height: u64) -> Result<Self, ContractError> {
-        self.map(|poll| poll.finish(block_height).map_err(ContractError::from))
+        self.try_map(|poll| poll.finish(block_height).map_err(ContractError::from))
     }
 
     fn result(&self) -> voting::PollResult {
@@ -49,7 +49,7 @@ impl voting::Poll for Poll {
         sender: &Addr,
         votes: Vec<bool>,
     ) -> Result<Self, ContractError> {
-        self.map(|poll| {
+        self.try_map(|poll| {
             poll.cast_vote(block_height, sender, votes)
                 .map_err(ContractError::from)
         })
@@ -57,7 +57,7 @@ impl voting::Poll for Poll {
 }
 
 impl Poll {
-    pub fn map<F, E>(self, func: F) -> Result<Self, E>
+    fn try_map<F, E>(self, func: F) -> Result<Self, E>
     where
         F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
         E: From<ContractError>,
