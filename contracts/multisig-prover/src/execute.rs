@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
     SubMsg, WasmQuery,
@@ -6,6 +8,7 @@ use cosmwasm_std::{
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
+    msg::Signer,
 };
 
 use axelar_wasm_std::snapshot;
@@ -317,31 +320,21 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    let mut diff = 0 as usize;
+    let new_workers_signers = new_workers
+        .signers
+        .iter()
+        .map(|(_, signer)| signer.clone())
+        .collect::<BTreeSet<Signer>>();
 
-    let _ = new_workers.signers.iter().map(|(address, signer)| {
-        match cur_workers.signers.get(address) {
-            Some(other_signer) => {
-                if signer != other_signer {
-                    diff += 1;
-                }
-            }
-            None => diff += 1,
-        };
-    });
+    let cur_workers_signers = cur_workers
+        .signers
+        .iter()
+        .map(|(_, signer)| signer.clone())
+        .collect::<BTreeSet<Signer>>();
 
-    let _ = cur_workers.signers.iter().map(|(address, signer)| {
-        match new_workers.signers.get(address) {
-            Some(other_signer) => {
-                if signer != other_signer {
-                    diff += 1;
-                }
-            }
-            None => diff += 1,
-        };
-    });
-
-    diff > max_diff
+    new_workers_signers.difference(&cur_workers_signers).count()
+        + cur_workers_signers.difference(&new_workers_signers).count()
+        > max_diff
 }
 
 // Returns true if there is a different worker set pending for confirmation, false if there is no
