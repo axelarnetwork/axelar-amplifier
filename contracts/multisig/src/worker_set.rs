@@ -9,6 +9,7 @@ use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct WorkerSet {
+    // An ordered map with the signer's address as the key, and the signer as the value.
     pub signers: BTreeMap<String, Signer>,
     pub threshold: Uint256,
     // for hash uniqueness. The same exact worker set could be in use at two different times,
