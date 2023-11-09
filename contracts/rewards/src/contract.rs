@@ -92,7 +92,7 @@ pub fn execute(
                 .distribute_rewards(contract_address, env.block.height, epoch_count)
                 .map_err(axelar_wasm_std::ContractError::from)?;
 
-            let msgs: Vec<BankMsg> = rewards
+            let msgs = rewards
                 .into_iter()
                 .sorted()
                 .map(|(addr, amount)| BankMsg::Send {
@@ -101,8 +101,7 @@ pub fn execute(
                         denom: contract.config.rewards_denom.clone(),
                         amount,
                     }],
-                })
-                .collect();
+                });
 
             Ok(Response::new().add_messages(msgs))
         }
