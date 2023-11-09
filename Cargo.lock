@@ -5742,6 +5742,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
+name = "integration-tests"
+version = "0.1.0"
+dependencies = [
+ "aggregate-verifier",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "gateway",
+ "itertools 0.11.0",
+ "mockall",
+ "multisig",
+ "multisig-prover",
+ "report",
+ "rewards",
+ "schemars",
+ "serde",
+ "serde_json",
+ "service-registry",
+ "thiserror",
+ "voting-verifier",
+]
+
+[[package]]
 name = "internment"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
