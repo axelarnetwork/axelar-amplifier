@@ -133,8 +133,8 @@ fn encode_proof(
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
-        .map(|(_, signer)| {
+        .values()
+        .map(|signer| {
             (
                 evm_address(signer.pub_key.as_ref())
                     .expect("couldn't convert pubkey to evm address"),
@@ -177,8 +177,8 @@ fn add27(recovery_byte: u8) -> u8 {
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
-        .map(|(_, signer)| {
+        .values()
+        .map(|signer| {
             (
                 evm_address(signer.pub_key.as_ref())
                     .expect("couldn't convert pubkey to evm address"),

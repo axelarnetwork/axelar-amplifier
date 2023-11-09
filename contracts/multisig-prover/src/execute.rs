@@ -219,8 +219,8 @@ fn make_keygen_msg(
         snapshot,
         pub_keys_by_address: worker_set
             .signers
-            .into_iter()
-            .map(|(_, signer)| {
+            .into_values()
+            .map(|signer| {
                 (
                     signer.address.to_string(),
                     (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
@@ -302,8 +302,8 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         snapshot, // TODO: refactor this to just pass the WorkerSet struct
         pub_keys_by_address: worker_set
             .signers
-            .into_iter()
-            .map(|(_, signer)| {
+            .into_values()
+            .map(|signer| {
                 (
                     signer.address.to_string(),
                     (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
@@ -322,14 +322,14 @@ pub fn should_update_worker_set(
 ) -> bool {
     let new_workers_signers = new_workers
         .signers
-        .iter()
-        .map(|(_, signer)| signer.clone())
+        .values()
+        .map(|signer| signer.clone())
         .collect::<BTreeSet<Signer>>();
 
     let cur_workers_signers = cur_workers
         .signers
-        .iter()
-        .map(|(_, signer)| signer.clone())
+        .values()
+        .map(|signer| signer.clone())
         .collect::<BTreeSet<Signer>>();
 
     new_workers_signers.difference(&cur_workers_signers).count()
