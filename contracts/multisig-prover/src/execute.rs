@@ -323,13 +323,13 @@ pub fn should_update_worker_set(
     let new_workers_signers = new_workers
         .signers
         .values()
-        .map(|signer| signer.clone())
+        .cloned()
         .collect::<BTreeSet<Signer>>();
 
     let cur_workers_signers = cur_workers
         .signers
         .values()
-        .map(|signer| signer.clone())
+        .cloned()
         .collect::<BTreeSet<Signer>>();
 
     new_workers_signers.difference(&cur_workers_signers).count()
