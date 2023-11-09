@@ -4,12 +4,12 @@ use crate::key::PublicKey;
 use crate::msg::Signer;
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, Uint256};
+use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct WorkerSet {
-    pub signers: BTreeMap<Addr, Signer>,
+    pub signers: BTreeMap<String, Signer>,
     pub threshold: Uint256,
     // for hash uniqueness. The same exact worker set could be in use at two different times,
     // and we need to be able to distinguish between the two
@@ -29,9 +29,9 @@ impl WorkerSet {
             .into_iter()
             .map(|(participant, pub_key)| {
                 (
-                    participant.address.clone(),
+                    participant.address.clone().to_string(),
                     Signer {
-                        address: participant.address.clone(),
+                        address: participant.address,
                         weight: participant.weight.into(),
                         pub_key,
                     },

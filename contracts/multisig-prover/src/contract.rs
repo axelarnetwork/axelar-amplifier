@@ -252,7 +252,7 @@ mod tests {
                 .into_iter()
                 .map(|op| {
                     (
-                        op.address.clone(),
+                        op.address.clone().to_string(),
                         Signer {
                             address: op.address,
                             pub_key: op.pub_key,
