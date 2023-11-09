@@ -283,7 +283,10 @@ pub mod execute {
         let rewards_msg = WasmMsg::Execute {
             contract_addr: rewards_contract,
             msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                event_id: session_id.into(),
+                event_id: session_id
+                    .to_string()
+                    .try_into()
+                    .expect("couldn't convert session_id to nonempty string"),
                 worker_address: signer.to_string(),
             })?,
             funds: vec![],
@@ -753,7 +756,7 @@ mod tests {
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                    event_id: session_id.into(),
+                    event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
                 })
                 .unwrap(),
@@ -873,7 +876,7 @@ mod tests {
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                    event_id: session_id.into(),
+                    event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
                 })
                 .unwrap(),

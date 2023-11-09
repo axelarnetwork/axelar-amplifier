@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use cosmwasm_std::{Addr, DepsMut, Uint256};
+use cosmwasm_std::{Addr, DepsMut, Uint128};
 use error_stack::Result;
 use std::collections::HashMap;
 
@@ -114,17 +114,17 @@ where
     pub fn distribute_rewards(
         &mut self,
         contract: Addr,
-        block_height: u64,
-        count: Option<u64>,
-    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
-        let count = count.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
-        let cur_epoch = self.current_epoch(block_height)?;
+        cur_block_height: u64,
+        epoch_process_limit: Option<u64>,
+    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
+        let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
+        let cur_epoch = self.current_epoch(cur_block_height)?;
         let from = self
             .store
             .load_rewards_watermark(contract.clone())?
             .map_or(0, |last_processed| last_processed + 1);
         let to = std::cmp::min(
-            (from + count).saturating_sub(1),
+            (from + epoch_process_limit).saturating_sub(1),
             cur_epoch.epoch_num.saturating_sub(2),
         );
         if to < from || cur_epoch.epoch_num < 2 {
@@ -141,20 +141,20 @@ where
         contract: Addr,
         from: u64,
         to: u64,
-        rewards: HashMap<Addr, Uint256>,
-    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
+        rewards: HashMap<Addr, Uint128>,
+    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
         if from > to {
             return Ok(rewards);
         }
         let new_rewards = self.process_rewards_for_epoch(contract.clone(), from)?;
-        self.process_rewards_for_epochs(contract, from + 1, to, fold_rewards(rewards, new_rewards))
+        self.process_rewards_for_epochs(contract, from + 1, to, merge_rewards(rewards, new_rewards))
     }
 
     pub fn process_rewards_for_epoch(
         &mut self,
         contract: Addr,
         epoch_num: u64,
-    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
+    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
         self.store
             .load_epoch_tally(contract, epoch_num)?
             .map_or(Ok(HashMap::new()), |tally| self.process_epoch_tally(tally))
@@ -163,7 +163,7 @@ where
     fn process_epoch_tally(
         &mut self,
         tally: EpochTally,
-    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
+    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
         let workers_to_reward = tally.workers_to_reward();
 
         let mut pool = self
@@ -171,7 +171,7 @@ where
             .load_rewards_pool(tally.contract.clone())?
             .unwrap_or(RewardsPool {
                 contract: tally.contract,
-                balance: Uint256::zero(),
+                balance: Uint128::zero(),
             });
 
         let rewards_per_worker =
@@ -184,16 +184,6 @@ where
             .into_iter()
             .map(|worker| (worker, rewards_per_worker))
             .collect())
-    }
-
-    fn distribute_rewards_for_epoch(
-        &mut self,
-        contract: Addr,
-        epoch_num: u64,
-    ) -> Result<HashMap<Addr, Uint256>, ContractError> {
-        self.store
-            .load_epoch_tally(contract.clone(), epoch_num)?
-            .map_or(Ok(HashMap::new()), |tally| self.process_epoch_tally(tally))
     }
 
     pub fn update_params(
@@ -230,13 +220,13 @@ where
     pub fn add_rewards(
         &mut self,
         contract: Addr,
-        amount: nonempty::Uint256,
+        amount: nonempty::Uint128,
     ) -> Result<(), ContractError> {
         let pool = self.store.load_rewards_pool(contract.clone())?;
 
         let updated_pool = match pool {
             Some(pool) => RewardsPool {
-                balance: pool.balance + cosmwasm_std::Uint256::from(amount),
+                balance: pool.balance + Uint128::from(amount),
                 ..pool
             },
             None => RewardsPool {
@@ -253,30 +243,30 @@ where
 
 fn rewards_per_worker(
     workers_to_reward: &Vec<Addr>,
-    rewards_per_epoch: nonempty::Uint256,
-) -> Result<Uint256, ContractError> {
-    let rewards_per_epoch: cosmwasm_std::Uint256 = rewards_per_epoch.into();
+    rewards_per_epoch: nonempty::Uint128,
+) -> Result<Uint128, ContractError> {
+    let rewards_per_epoch: cosmwasm_std::Uint128 = rewards_per_epoch.into();
 
     // A bit of a weird case. The rewards per epoch is too low to accomodate the number of workers to be rewarded
     // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
-    if rewards_per_epoch < Uint256::from_u128(workers_to_reward.len() as u128) {
-        return Ok(Uint256::zero());
+    if rewards_per_epoch < Uint128::from(workers_to_reward.len() as u128) {
+        return Ok(Uint128::zero());
     }
 
     Ok(rewards_per_epoch
-        .checked_div(Uint256::from_u128(workers_to_reward.len() as u128))
+        .checked_div(Uint128::from(workers_to_reward.len() as u128))
         .unwrap_or_default())
 }
 
-/// Folds rewards_2 into rewards_1. For each (address, amount) pair in rewards_2,
+/// Merges rewards_2 into rewards_1. For each (address, amount) pair in rewards_2,
 /// adds the rewards amount to the existing rewards amount in rewards_1. If the
 /// address is not yet in rewards_1, initializes the rewards amount to the amount in
 /// rewards_2
 /// Performs a number of inserts equal to the length of rewards_2
-fn fold_rewards(
-    rewards_1: HashMap<Addr, Uint256>,
-    rewards_2: HashMap<Addr, Uint256>,
-) -> HashMap<Addr, Uint256> {
+fn merge_rewards(
+    rewards_1: HashMap<Addr, Uint128>,
+    rewards_2: HashMap<Addr, Uint128>,
+) -> HashMap<Addr, Uint128> {
     rewards_2
         .into_iter()
         .fold(rewards_1, |mut rewards, (addr, amt)| {
@@ -293,7 +283,7 @@ mod test {
     };
 
     use axelar_wasm_std::nonempty;
-    use cosmwasm_std::{Addr, Uint256, Uint64};
+    use cosmwasm_std::{Addr, Uint128, Uint64};
 
     use crate::{
         error::ContractError,
@@ -312,19 +302,19 @@ mod test {
             Addr::unchecked("worker3"),
         ];
         let rewards =
-            rewards_per_worker(&workers, Uint256::from_u128(301).try_into().unwrap()).unwrap();
-        assert_eq!(rewards, Uint256::from_u128(100));
+            rewards_per_worker(&workers, Uint128::from(301u128).try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint128::from(100u128));
 
         // more workers than rewards per epoch, should return zero
-        let rewards = rewards_per_worker(&workers, Uint256::one().try_into().unwrap()).unwrap();
-        assert_eq!(rewards, Uint256::zero());
+        let rewards = rewards_per_worker(&workers, Uint128::one().try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint128::zero());
     }
 
     /// Tests that rewards_per_worker returns zero when there are no workers to reward
     #[test]
     fn calculate_rewards_per_worker_no_workers() {
-        let rewards = rewards_per_worker(&vec![], Uint256::one().try_into().unwrap()).unwrap();
-        assert_eq!(rewards, Uint256::zero());
+        let rewards = rewards_per_worker(&vec![], Uint128::one().try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint128::zero());
     }
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
@@ -435,7 +425,10 @@ mod test {
         assert_eq!(tally.event_count, event_count);
         assert_eq!(tally.participation.len(), simulated_participation.len());
         for (worker, part_count) in simulated_participation {
-            assert_eq!(tally.participation.get(&worker), Some(&part_count));
+            assert_eq!(
+                tally.participation.get(&worker.to_string()),
+                Some(&part_count)
+            );
         }
     }
 
@@ -483,7 +476,7 @@ mod test {
         assert_eq!(tally.event_count, 1);
         assert_eq!(tally.participation.len(), workers.len());
         for w in workers {
-            assert_eq!(tally.participation.get(&w), Some(&1));
+            assert_eq!(tally.participation.get(&w.to_string()), Some(&1));
         }
 
         let tally = contract
@@ -540,7 +533,10 @@ mod test {
 
             assert_eq!(tally.event_count, events_participated);
             assert_eq!(tally.participation.len(), 1);
-            assert_eq!(tally.participation.get(&worker), Some(&events_participated));
+            assert_eq!(
+                tally.participation.get(&worker.to_string()),
+                Some(&events_participated)
+            );
         }
     }
     /// Test that rewards parameters are updated correctly. In this test we don't change the epoch duration, so
@@ -564,7 +560,7 @@ mod test {
         let cur_height = initial_epoch_start + epoch_duration * 10 + 2;
 
         let new_params = Params {
-            rewards_per_epoch: cosmwasm_std::Uint256::from(initial_rewards_per_epoch + 100)
+            rewards_per_epoch: cosmwasm_std::Uint128::from(initial_rewards_per_epoch + 100)
                 .try_into()
                 .unwrap(),
             participation_threshold: (Uint64::new(2), Uint64::new(3)).try_into().unwrap(),
@@ -605,7 +601,7 @@ mod test {
         let mut contract = setup(initial_epoch_num, initial_epoch_start, epoch_duration);
 
         let new_params = Params {
-            rewards_per_epoch: cosmwasm_std::Uint256::from(100u128).try_into().unwrap(),
+            rewards_per_epoch: cosmwasm_std::Uint128::from(100u128).try_into().unwrap(),
             participation_threshold: (Uint64::new(2), Uint64::new(3)).try_into().unwrap(),
             epoch_duration: epoch_duration.try_into().unwrap(),
         };
@@ -787,7 +783,7 @@ mod test {
             .unwrap();
         assert!(pool.is_none());
 
-        let initial_amount = Uint256::from(100u128);
+        let initial_amount = Uint128::from(100u128);
         contract
             .add_rewards(worker_contract.clone(), initial_amount.try_into().unwrap())
             .unwrap();
@@ -799,7 +795,7 @@ mod test {
         assert!(pool.is_some());
         assert_eq!(pool.unwrap().balance, initial_amount);
 
-        let added_amount = Uint256::from(500u128);
+        let added_amount = Uint128::from(500u128);
         contract
             .add_rewards(worker_contract.clone(), added_amount.try_into().unwrap())
             .unwrap();
@@ -832,7 +828,7 @@ mod test {
                 contract
                     .add_rewards(
                         worker_contract.clone(),
-                        cosmwasm_std::Uint256::from(*amount as u128)
+                        cosmwasm_std::Uint128::from(*amount as u128)
                             .try_into()
                             .unwrap(),
                     )
@@ -848,7 +844,7 @@ mod test {
                 .unwrap();
             assert_eq!(
                 pool.balance,
-                cosmwasm_std::Uint256::from(rewards.iter().sum::<u128>())
+                cosmwasm_std::Uint128::from(rewards.iter().sum::<u128>())
             );
         }
     }
@@ -923,7 +919,7 @@ mod test {
         let rewards_added = 2 * rewards_per_epoch;
         let _ = contract.add_rewards(
             contract_addr.clone(),
-            Uint256::from(rewards_added).try_into().unwrap(),
+            Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let rewards_claimed = contract
@@ -937,7 +933,7 @@ mod test {
         assert_eq!(rewards_claimed.len(), worker_participation_per_epoch.len());
         for (worker, rewards) in expected_rewards_per_worker {
             assert!(rewards_claimed.contains_key(&worker));
-            assert_eq!(rewards_claimed.get(&worker), Some(&Uint256::from(rewards)));
+            assert_eq!(rewards_claimed.get(&worker), Some(&Uint128::from(rewards)));
         }
     }
 
@@ -973,7 +969,7 @@ mod test {
         let rewards_added = 1000u128;
         let _ = contract.add_rewards(
             contract_addr.clone(),
-            Uint256::from(rewards_added).try_into().unwrap(),
+            Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         // this puts us in epoch 10
@@ -1036,7 +1032,7 @@ mod test {
         let rewards_added = 1000u128;
         let _ = contract.add_rewards(
             contract_addr.clone(),
-            Uint256::from(rewards_added).try_into().unwrap(),
+            Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         // too early, still in the same epoch
@@ -1107,7 +1103,7 @@ mod test {
         let rewards_added = 10u128;
         let _ = contract.add_rewards(
             contract_addr.clone(),
-            Uint256::from(rewards_added).try_into().unwrap(),
+            Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let err = contract
@@ -1125,7 +1121,7 @@ mod test {
         let rewards_added = 90u128;
         let _ = contract.add_rewards(
             contract_addr.clone(),
-            Uint256::from(rewards_added).try_into().unwrap(),
+            Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let result = contract.distribute_rewards(
@@ -1166,7 +1162,7 @@ mod test {
         let rewards_added = 1000u128;
         let _ = contract.add_rewards(
             contract_addr.clone(),
-            Uint256::from(rewards_added).try_into().unwrap(),
+            Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let rewards_claimed = contract
@@ -1292,7 +1288,7 @@ mod test {
         rewards_per_epoch: u128,
         participation_threshold: (u64, u64),
     ) -> Contract<state::MockStore> {
-        let rewards_per_epoch: nonempty::Uint256 = cosmwasm_std::Uint256::from(rewards_per_epoch)
+        let rewards_per_epoch: nonempty::Uint128 = cosmwasm_std::Uint128::from(rewards_per_epoch)
             .try_into()
             .unwrap();
         let current_epoch = Epoch {
