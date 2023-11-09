@@ -35,7 +35,7 @@ pub enum ExecuteMsg {
     /// A possible solution to this is to add a weight to each event, where the voting verifier specifies the number
     /// of messages in a batch as well as the number of messages a particular worker actually participated in.
     RecordParticipation {
-        event_id: String,
+        event_id: nonempty::String,
         worker_address: String,
     },
 

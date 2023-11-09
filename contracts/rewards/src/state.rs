@@ -42,7 +42,8 @@ impl EpochTally {
         }
     }
 
-    /// IMPORTANT: worker must be a valid address
+    /// IMPORTANT: worker address must be validated before calling this function
+    /// TODO: panic if address is invalid?
     pub fn record_participation(mut self, worker: Addr) -> Self {
         self.participation
             .entry(worker.to_string())

@@ -10,6 +10,8 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 
+use itertools::Itertools;
+
 mod execute;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -57,13 +59,7 @@ pub fn execute(
         } => {
             let worker_address = deps.api.addr_validate(&worker_address)?;
             Contract::new(deps)
-                .record_participation(
-                    nonempty::String::try_from(event_id)
-                        .change_context(ContractError::InvalidEventId)?,
-                    worker_address,
-                    info.sender,
-                    env.block.height,
-                )
+                .record_participation(event_id, worker_address, info.sender, env.block.height)
                 .map_err(axelar_wasm_std::ContractError::from)?;
 
             Ok(Response::new())
@@ -75,7 +71,7 @@ pub fn execute(
                 .funds
                 .iter()
                 .find(|coin| coin.denom == contract.config.rewards_denom)
-                .filter(|_| info.funds.len() == 1)
+                .filter(|_| info.funds.len() == 1) // filter here to make sure expected denom is the only one attached to this message, and other funds aren't silently swallowed
                 .ok_or(ContractError::WrongDenom)?
                 .amount;
 
@@ -96,16 +92,17 @@ pub fn execute(
                 .distribute_rewards(contract_address, env.block.height, epoch_count)
                 .map_err(axelar_wasm_std::ContractError::from)?;
 
-            let mut msgs = vec![];
-            for (addr, amount) in rewards {
-                msgs.push(BankMsg::Send {
+            let msgs: Vec<BankMsg> = rewards
+                .into_iter()
+                .sorted()
+                .map(|(addr, amount)| BankMsg::Send {
                     to_address: addr.into(),
                     amount: vec![Coin {
                         denom: contract.config.rewards_denom.clone(),
                         amount,
                     }],
                 })
-            }
+                .collect();
 
             Ok(Response::new().add_messages(msgs))
         }

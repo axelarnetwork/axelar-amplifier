@@ -9572,6 +9572,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "error-stack",
+ "itertools 0.11.0",
  "mockall",
  "report",
  "serde",
