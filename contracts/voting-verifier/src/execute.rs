@@ -261,7 +261,10 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
         .map(|address| WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
             msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                event_id: poll_id.into(),
+                event_id: poll_id
+                    .to_string()
+                    .try_into()
+                    .expect("couldn't convert poll id to nonempty string"),
                 worker_address: address.to_string(),
             })
             .expect("failed to serialize message for rewards contract"),
