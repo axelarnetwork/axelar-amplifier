@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use crate::key::PublicKey;
-use crate::msg::Signer;
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
