@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 
 use multisig::{
-    key::{KeyType, PublicKey},
+    key::{KeyTyped, PublicKey},
     msg::Signer,
     worker_set::WorkerSet,
 };
@@ -137,7 +137,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     for worker in &workers {
         let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
             worker_address: worker.address.to_string(),
-            key_type: KeyType::Ecdsa,
+            key_type: config.key_type,
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
@@ -219,8 +219,13 @@ fn make_keygen_msg(
         snapshot,
         pub_keys_by_address: worker_set
             .signers
-            .iter()
-            .map(|(address, signer)| (address.clone(), (KeyType::Ecdsa, signer.1.as_ref().into())))
+            .into_iter()
+            .map(|(address, signer)| {
+                (
+                    address.clone(),
+                    (signer.1.key_type(), signer.1.as_ref().into()),
+                )
+            })
             .collect(),
     }
 }
@@ -297,8 +302,13 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         snapshot, // TODO: refactor this to just pass the WorkerSet struct
         pub_keys_by_address: worker_set
             .signers
-            .iter()
-            .map(|(address, signer)| (address.clone(), (KeyType::Ecdsa, signer.1.as_ref().into())))
+            .into_iter()
+            .map(|(address, signer)| {
+                (
+                    address.clone(),
+                    (signer.1.key_type(), signer.1.as_ref().into()),
+                )
+            })
             .collect(),
     };
 

@@ -3,6 +3,7 @@ use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
+use multisig::key::KeyType;
 use multisig::worker_set::WorkerSet;
 
 use crate::encoding::Encoder;
@@ -21,6 +22,7 @@ pub struct Config {
     pub chain_name: ChainName,
     pub worker_set_diff_threshold: u32,
     pub encoder: Encoder,
+    pub key_type: KeyType,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

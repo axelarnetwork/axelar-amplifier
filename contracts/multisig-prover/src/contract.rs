@@ -45,6 +45,7 @@ pub fn instantiate(
             .map_err(|_| ContractError::InvalidChainName)?,
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
         encoder: msg.encoder,
+        key_type: msg.key_type,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -101,7 +102,7 @@ mod tests {
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
-    use multisig::{msg::Signer, worker_set::WorkerSet};
+    use multisig::worker_set::WorkerSet;
 
     use crate::{
         encoding::Encoder,
@@ -218,6 +219,7 @@ mod tests {
                 chain_name: "Ethereum".to_string(),
                 worker_set_diff_threshold: 0,
                 encoder: encoding.clone(),
+                key_type: multisig::key::KeyType::Ecdsa,
             };
 
             let res = instantiate(deps.as_mut(), env, info, msg);
