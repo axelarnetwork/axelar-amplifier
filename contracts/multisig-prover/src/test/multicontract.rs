@@ -166,6 +166,7 @@ fn instantiate_prover(
         chain_name: "ganache-0".to_string(),
         worker_set_diff_threshold: 0,
         encoder: crate::encoding::Encoder::Abi,
+        key_type: multisig::key::KeyType::Ecdsa,
     };
 
     app.instantiate_contract(
