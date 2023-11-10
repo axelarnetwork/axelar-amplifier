@@ -136,9 +136,8 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
         .values()
         .map(|signer| {
             (
-                evm_address(signer.pub_key.as_ref())
-                    .expect("couldn't convert pubkey to evm address"),
-                signer.weight,
+                evm_address(signer.1.as_ref()).expect("couldn't convert pubkey to evm address"),
+                signer.0,
             )
         })
         .collect();
@@ -180,9 +179,8 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
         .values()
         .map(|signer| {
             (
-                evm_address(signer.pub_key.as_ref())
-                    .expect("couldn't convert pubkey to evm address"),
-                signer.weight,
+                evm_address(signer.1.as_ref()).expect("couldn't convert pubkey to evm address"),
+                signer.0,
             )
         })
         .collect();
@@ -241,6 +239,7 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
+    use cosmwasm_std::Addr;
     use elliptic_curve::consts::U32;
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
@@ -396,7 +395,11 @@ mod test {
         let mut signers: Vec<Signer> = new_worker_set
             .signers
             .into_iter()
-            .map(|(_, worker_set_signer)| worker_set_signer)
+            .map(|(address, worker_set_signer)| Signer {
+                address: Addr::unchecked(address),
+                weight: worker_set_signer.0,
+                pub_key: worker_set_signer.1,
+            })
             .collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
         let mut i = 0;

@@ -66,7 +66,10 @@ pub fn new_worker_set() -> WorkerSet {
 
     let mut btree_signers = BTreeMap::new();
     for signer in signers {
-        btree_signers.insert(signer.address.clone().to_string(), signer);
+        btree_signers.insert(
+            signer.address.clone().to_string(),
+            (signer.weight, signer.pub_key),
+        );
     }
 
     WorkerSet {

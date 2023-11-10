@@ -21,7 +21,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
+        .map(|signer| (signer.1.clone().into(), signer.0))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
     Operators {
@@ -34,7 +34,7 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|s| (s.pub_key.clone().into(), s.weight))
+        .map(|s| (s.1.clone().into(), s.0))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
     let (addresses, weights): (Vec<Vec<u8>>, Vec<_>) = operators
@@ -234,7 +234,7 @@ mod test {
         let mut expected: Vec<(Vec<u8>, u128)> = worker_set
             .signers
             .into_iter()
-            .map(|(_, s)| (s.pub_key.as_ref().to_vec(), u256_to_u128(s.weight)))
+            .map(|(_, s)| (s.1.as_ref().to_vec(), u256_to_u128(s.0)))
             .collect();
         expected.sort_by_key(|op| op.0.clone());
         let (operators_expected, weights_expected): (Vec<Vec<u8>>, Vec<u128>) =
@@ -252,7 +252,7 @@ mod test {
             .clone()
             .signers
             .into_iter()
-            .map(|(_, s)| (s.pub_key.into(), s.weight))
+            .map(|(_, s)| (s.1.into(), s.0))
             .collect();
         expected.sort_by_key(|op| op.0.clone());
 

@@ -9,8 +9,8 @@ use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct WorkerSet {
-    // An ordered map with the signer's address as the key, and the signer as the value.
-    pub signers: BTreeMap<String, Signer>,
+    // An ordered map with the signer's address as the key, and the signer's weight and public key as the value.
+    pub signers: BTreeMap<String, (Uint256, PublicKey)>,
     pub threshold: Uint256,
     // for hash uniqueness. The same exact worker set could be in use at two different times,
     // and we need to be able to distinguish between the two
@@ -31,11 +31,7 @@ impl WorkerSet {
             .map(|(participant, pub_key)| {
                 (
                     participant.address.clone().to_string(),
-                    Signer {
-                        address: participant.address,
-                        weight: participant.weight.into(),
-                        pub_key,
-                    },
+                    (participant.weight.into(), pub_key),
                 )
             })
             .collect();

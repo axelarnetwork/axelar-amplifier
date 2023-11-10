@@ -219,13 +219,8 @@ fn make_keygen_msg(
         snapshot,
         pub_keys_by_address: worker_set
             .signers
-            .into_values()
-            .map(|signer| {
-                (
-                    signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
-                )
-            })
+            .iter()
+            .map(|(address, signer)| (address.clone(), (KeyType::Ecdsa, signer.1.as_ref().into())))
             .collect(),
     }
 }
@@ -302,13 +297,8 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         snapshot, // TODO: refactor this to just pass the WorkerSet struct
         pub_keys_by_address: worker_set
             .signers
-            .into_values()
-            .map(|signer| {
-                (
-                    signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
-                )
-            })
+            .iter()
+            .map(|(address, signer)| (address.clone(), (KeyType::Ecdsa, signer.1.as_ref().into())))
             .collect(),
     };
 
@@ -322,14 +312,22 @@ pub fn should_update_worker_set(
 ) -> bool {
     let new_workers_signers = new_workers
         .signers
-        .values()
-        .cloned()
+        .iter()
+        .map(|(address, signer)| Signer {
+            address: Addr::unchecked(address.clone()),
+            weight: signer.clone().0,
+            pub_key: signer.clone().1,
+        })
         .collect::<BTreeSet<Signer>>();
 
     let cur_workers_signers = cur_workers
         .signers
-        .values()
-        .cloned()
+        .iter()
+        .map(|(address, signer)| Signer {
+            address: Addr::unchecked(address.clone()),
+            weight: signer.clone().0,
+            pub_key: signer.clone().1,
+        })
         .collect::<BTreeSet<Signer>>();
 
     new_workers_signers.difference(&cur_workers_signers).count()
@@ -394,8 +392,9 @@ mod tests {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
         let mut signers = new_worker_set.signers.into_iter().collect::<Vec<_>>();
-        signers[0].1.pub_key = signers[1].1.pub_key.clone();
-        signers[1].1.pub_key = signers[0].1.pub_key.clone();
+        // swap public keys
+        signers[0].1 .1 = signers[1].1 .1.clone();
+        signers[1].1 .1 = signers[0].1 .1.clone();
         new_worker_set.signers = BTreeMap::from_iter(signers);
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
