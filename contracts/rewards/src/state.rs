@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Storage, Uint256};
+use cosmwasm_std::{Addr, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
 use mockall::automock;
@@ -26,7 +26,7 @@ pub struct StoredParams {
 pub struct EpochTally {
     pub contract: Addr,
     pub event_count: u64,
-    pub participation: HashMap<Addr, u64>,
+    pub participation: HashMap<String, u64>, // maps a worker address to participation count. Can't use Addr as key else deserialization will fail
     pub epoch: Epoch,
     pub params: Params,
 }
@@ -42,9 +42,11 @@ impl EpochTally {
         }
     }
 
+    /// IMPORTANT: worker address must be validated before calling this function
+    /// TODO: panic if address is invalid?
     pub fn record_participation(mut self, worker: Addr) -> Self {
         self.participation
-            .entry(worker)
+            .entry(worker.to_string())
             .and_modify(|count| *count += 1)
             .or_insert(1);
         self
@@ -62,7 +64,7 @@ impl EpochTally {
                 Threshold::try_from((*participated, self.event_count))
                     .ok()
                     .filter(|participation| participation >= &self.params.participation_threshold)
-                    .map(|_| worker.clone())
+                    .map(|_| Addr::unchecked(worker)) // Ok to convert unchecked here, since we only store valid addresses
             })
             .collect()
     }
@@ -94,7 +96,7 @@ pub struct Epoch {
 #[cw_serde]
 pub struct RewardsPool {
     pub contract: Addr,
-    pub balance: Uint256,
+    pub balance: Uint128,
 }
 
 impl RewardsPool {
@@ -102,16 +104,16 @@ impl RewardsPool {
     pub fn new(contract: Addr) -> Self {
         RewardsPool {
             contract,
-            balance: Uint256::zero(),
+            balance: Uint128::zero(),
         }
     }
 
     pub fn distribute_rewards(
         &mut self,
         worker_count: u64,
-        rewards_per_worker: Uint256,
+        rewards_per_worker: Uint128,
     ) -> Result<(), ContractError> {
-        let rewards = rewards_per_worker * Uint256::from(worker_count as u128);
+        let rewards = rewards_per_worker * Uint128::from(worker_count as u128);
         if self.balance < rewards {
             return Err(ContractError::PoolBalanceInsufficient.into());
         }
@@ -253,7 +255,7 @@ impl Store for RewardsStore<'_> {
 mod test {
     use std::collections::HashMap;
 
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
 
     use crate::{error::ContractError, msg::Params, state::StoredParams};
 
@@ -265,15 +267,15 @@ mod test {
         let tally = EpochTally {
             params: Params {
                 epoch_duration: 100u64.try_into().unwrap(),
-                rewards_per_epoch: Uint256::one().try_into().unwrap(),
+                rewards_per_epoch: Uint128::one().try_into().unwrap(),
                 participation_threshold: (1, 2).try_into().unwrap(),
             },
             contract: Addr::unchecked("worker contract"),
             event_count: 101u64,
             participation: HashMap::from([
-                (Addr::unchecked("worker1"), 75u64),
-                (Addr::unchecked("worker2"), 50u64),
-                (Addr::unchecked("worker3"), 51u64),
+                ("worker1".into(), 75u64),
+                ("worker2".into(), 50u64),
+                ("worker3".into(), 51u64),
             ]),
             epoch: Epoch {
                 epoch_num: 1u64,
@@ -290,25 +292,25 @@ mod test {
     fn rewards_pool_distribute_rewards() {
         let mut pool = RewardsPool {
             contract: Addr::unchecked("worker contract"),
-            balance: Uint256::from_u128(100),
+            balance: Uint128::from(100u128),
         };
         let worker_count = 10;
-        let rewards_per_worker = 5;
-        pool.distribute_rewards(worker_count, Uint256::from_u128(rewards_per_worker))
+        let rewards_per_worker = 5u128;
+        pool.distribute_rewards(worker_count, Uint128::from(rewards_per_worker))
             .unwrap();
-        assert_eq!(pool.balance, Uint256::from_u128(50));
+        assert_eq!(pool.balance, Uint128::from(50u128));
     }
 
     #[test]
     fn rewards_pool_distribute_rewards_low_balance() {
         let mut pool = RewardsPool {
             contract: Addr::unchecked("worker contract"),
-            balance: Uint256::from_u128(100),
+            balance: Uint128::from(100u128),
         };
         let worker_count = 10;
-        let rewards_per_worker = 100;
+        let rewards_per_worker = 100u128;
         let err = pool
-            .distribute_rewards(worker_count, Uint256::from_u128(rewards_per_worker))
+            .distribute_rewards(worker_count, Uint128::from(rewards_per_worker))
             .unwrap_err();
         assert_eq!(
             err.current_context(),
@@ -326,7 +328,7 @@ mod test {
             params: Params {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: 100u64.try_into().unwrap(),
-                rewards_per_epoch: Uint256::from(1000u128).try_into().unwrap(),
+                rewards_per_epoch: Uint128::from(1000u128).try_into().unwrap(),
             },
             last_updated: Epoch {
                 epoch_num: 1,
@@ -459,12 +461,12 @@ mod test {
 
         let epoch_num = 10;
         let contract = Addr::unchecked("some contract");
-        let rewards_rate = Uint256::from(100u128).try_into().unwrap();
+        let rewards_rate = Uint128::from(100u128).try_into().unwrap();
         let epoch = Epoch {
             epoch_num,
             block_height_started: 1,
         };
-        let tally = EpochTally::new(
+        let mut tally = EpochTally::new(
             contract.clone(),
             epoch,
             Params {
@@ -473,6 +475,8 @@ mod test {
                 participation_threshold: (1, 2).try_into().unwrap(),
             },
         );
+
+        tally = tally.record_participation(Addr::unchecked("worker"));
 
         let res = store.save_epoch_tally(&tally);
         assert!(res.is_ok());

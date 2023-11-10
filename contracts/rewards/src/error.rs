@@ -44,4 +44,10 @@ pub enum ContractError {
 
     #[error("caller is not authorized")]
     Unauthorized,
+
+    #[error("wrong denom for rewards")]
+    WrongDenom,
+
+    #[error("rewards amount is zero")]
+    ZeroRewards,
 }
