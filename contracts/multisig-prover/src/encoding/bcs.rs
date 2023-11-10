@@ -34,7 +34,7 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|(weight, pub_key)| (pub_key.clone().into(), weight.clone()))
+        .map(|(weight, pub_key)| (pub_key.clone().into(), *weight))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
     let (addresses, weights): (Vec<Vec<u8>>, Vec<_>) = operators

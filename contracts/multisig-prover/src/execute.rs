@@ -323,7 +323,7 @@ pub fn should_update_worker_set(
         .iter()
         .map(|(address, (weight, pub_key))| Signer {
             address: Addr::unchecked(address.clone()),
-            weight: weight.clone(),
+            weight: *weight,
             pub_key: pub_key.clone(),
         })
         .collect::<Vec<Signer>>();
@@ -333,7 +333,7 @@ pub fn should_update_worker_set(
         .iter()
         .map(|(address, (weight, pub_key))| Signer {
             address: Addr::unchecked(address.clone()),
-            weight: weight.clone(),
+            weight: *weight,
             pub_key: pub_key.clone(),
         })
         .collect::<Vec<Signer>>();

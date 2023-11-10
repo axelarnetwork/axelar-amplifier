@@ -138,7 +138,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
             (
                 evm_address(pub_key.clone().as_ref())
                     .expect("couldn't convert pubkey to evm address"),
-                weight.clone(),
+                *weight,
             )
         })
         .collect();
@@ -182,7 +182,7 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
             (
                 evm_address(pub_key.clone().as_ref())
                     .expect("couldn't convert pubkey to evm address"),
-                weight.clone(),
+                *weight,
             )
         })
         .collect();
