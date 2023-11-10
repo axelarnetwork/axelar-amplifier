@@ -57,7 +57,27 @@ impl EpochTally {
         self
     }
 
-    pub fn workers_to_reward(&self) -> Vec<Addr> {
+    pub fn rewards_by_worker(&self) -> HashMap<Addr, Uint128> {
+        let workers_to_reward = self.workers_to_reward();
+        let total_rewards: Uint128 = self.params.rewards_per_epoch.into();
+
+        let rewards_per_worker = total_rewards
+            .checked_div(Uint128::from(workers_to_reward.len()))
+            .unwrap_or_default();
+
+        // A bit of a weird case. The rewards per epoch is too low to accommodate the number of workers to be rewarded
+        // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
+        if rewards_per_worker.is_zero() {
+            return HashMap::new();
+        }
+
+        workers_to_reward
+            .into_iter()
+            .map(|worker| (worker, rewards_per_worker))
+            .collect()
+    }
+
+    fn workers_to_reward(&self) -> Vec<Addr> {
         self.participation
             .iter()
             .filter_map(|(worker, participated)| {
@@ -108,17 +128,12 @@ impl RewardsPool {
         }
     }
 
-    pub fn distribute_rewards(
-        &mut self,
-        worker_count: u64,
-        rewards_per_worker: Uint128,
-    ) -> Result<(), ContractError> {
-        let rewards = rewards_per_worker * Uint128::from(worker_count as u128);
-        if self.balance < rewards {
+    pub fn sub_reward(mut self, reward: Uint128) -> Result<Self, ContractError> {
+        if self.balance < reward {
             return Err(ContractError::PoolBalanceInsufficient.into());
         }
-        self.balance -= rewards;
-        Ok(())
+        self.balance -= reward;
+        Ok(self)
     }
 }
 
@@ -296,7 +311,7 @@ mod test {
         };
         let worker_count = 10;
         let rewards_per_worker = 5u128;
-        pool.distribute_rewards(worker_count, Uint128::from(rewards_per_worker))
+        pool.sub_reward(worker_count, Uint128::from(rewards_per_worker))
             .unwrap();
         assert_eq!(pool.balance, Uint128::from(50u128));
     }
@@ -310,7 +325,7 @@ mod test {
         let worker_count = 10;
         let rewards_per_worker = 100u128;
         let err = pool
-            .distribute_rewards(worker_count, Uint128::from(rewards_per_worker))
+            .sub_reward(worker_count, Uint128::from(rewards_per_worker))
             .unwrap_err();
         assert_eq!(
             err.current_context(),

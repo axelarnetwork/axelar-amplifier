@@ -1,6 +1,7 @@
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, DepsMut, Uint128};
 use error_stack::Result;
+use std::collections::hash_map::IntoIter;
 use std::collections::HashMap;
 
 use crate::{
@@ -12,6 +13,7 @@ use crate::{
 };
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
+const EPOCH_PAYOUT_DELAY: u64 = 2;
 
 pub struct Contract<S>
 where
@@ -44,21 +46,19 @@ where
     fn current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
         let stored_params = self.store.load_params();
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
-        let epoch = stored_params.last_updated;
-        if cur_block_height < epoch.block_height_started {
-            return Err(ContractError::BlockHeightInPast.into());
-        }
-        if cur_block_height < epoch.block_height_started + epoch_duration {
-            return Ok(epoch);
-        }
-        let epochs_elapsed = (cur_block_height - epoch.block_height_started) / epoch_duration;
-        let epoch_num = epochs_elapsed + epoch.epoch_num;
-        let block_height_started = epoch.block_height_started + epochs_elapsed * epoch_duration;
+        let last_updated_epoch = stored_params.last_updated;
 
-        Ok(Epoch {
-            epoch_num,
-            block_height_started,
-        })
+        let blocks_elapsed = (cur_block_height as i64)
+            .saturating_sub_unsigned(last_updated_epoch.block_height_started);
+
+        match blocks_elapsed {
+            ..=-1 => Err(ContractError::BlockHeightInPast.into()),
+            0 => Ok(last_updated_epoch),
+            1.. => Ok(Epoch {
+                epoch_num: last_updated_epoch.epoch_num + (blocks_elapsed / epoch_duration),
+                block_height_started: last_updated_epoch.block_height_started + blocks_elapsed,
+            }),
+        }
     }
 
     fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {
@@ -79,111 +79,92 @@ where
 
         let event = self
             .store
-            .load_event(event_id.to_string(), contract_addr.clone())?;
+            .load_event(event_id.to_string(), contract_addr.clone())?
+            .unwrap_or_else(|| {
+                let event = Event::new(event_id, contract_addr.clone(), cur_epoch.epoch_num);
+                self.store.save_event(&event)?;
+                event
+            });
 
-        if event.is_none() {
-            self.store.save_event(&Event::new(
-                event_id,
-                contract_addr.clone(),
-                cur_epoch.epoch_num,
-            ))?;
-        }
-
-        let tally = match event {
-            Some(event) => self
-                .store
-                .load_epoch_tally(contract_addr.clone(), event.epoch_num)?
-                .expect("couldn't find epoch tally for existing event"),
-            None => self
-                .store
-                .load_epoch_tally(contract_addr.clone(), cur_epoch.epoch_num)?
-                .unwrap_or(EpochTally::new(
-                    contract_addr,
-                    cur_epoch,
-                    self.store.load_params().params,
-                )) // first event in this epoch
-                .increment_event_count(),
-        }
-        .record_participation(worker);
-
-        self.store.save_epoch_tally(&tally)?;
-
-        Ok(())
+        self.store
+            .load_epoch_tally(contract_addr.clone(), event.epoch_num)?
+            .unwrap_or(EpochTally::new(
+                contract_addr,
+                cur_epoch,
+                self.store.load_params().params,
+            )) // first event in this epoch
+            .increment_event_count()
+            .record_participation(worker)
+            .then(|tally| self.store.save_epoch_tally(&tally))
     }
 
     pub fn distribute_rewards(
         &mut self,
-        contract: Addr,
+        contract_addr: Addr,
         cur_block_height: u64,
         epoch_process_limit: Option<u64>,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
         let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
         let cur_epoch = self.current_epoch(cur_block_height)?;
+
         let from = self
             .store
-            .load_rewards_watermark(contract.clone())?
+            .load_rewards_watermark(contract_addr.clone())?
             .map_or(0, |last_processed| last_processed + 1);
+
         let to = std::cmp::min(
-            (from + epoch_process_limit).saturating_sub(1),
-            cur_epoch.epoch_num.saturating_sub(2),
+            (from + epoch_process_limit).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
+            cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
         );
-        if to < from || cur_epoch.epoch_num < 2 {
+
+        if to < from || cur_epoch.epoch_num < EPOCH_PAYOUT_DELAY {
             return Err(ContractError::NoRewardsToDistribute.into());
         }
-        let rewards =
-            self.process_rewards_for_epochs(contract.clone(), from, to, HashMap::new())?;
-        self.store.save_rewards_watermark(contract, to)?;
+
+        let rewards = self.process_rewards_for_epochs(contract_addr.clone(), from, to)?;
+        self.store.save_rewards_watermark(contract_addr, to)?;
         Ok(rewards)
     }
 
     fn process_rewards_for_epochs(
         &mut self,
-        contract: Addr,
+        contract_addr: Addr,
         from: u64,
         to: u64,
-        rewards: HashMap<Addr, Uint128>,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        if from > to {
-            return Ok(rewards);
-        }
-        let new_rewards = self.process_rewards_for_epoch(contract.clone(), from)?;
-        self.process_rewards_for_epochs(contract, from + 1, to, merge_rewards(rewards, new_rewards))
-    }
-
-    pub fn process_rewards_for_epoch(
-        &mut self,
-        contract: Addr,
-        epoch_num: u64,
-    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        self.store
-            .load_epoch_tally(contract, epoch_num)?
-            .map_or(Ok(HashMap::new()), |tally| self.process_epoch_tally(tally))
-    }
-
-    fn process_epoch_tally(
-        &mut self,
-        tally: EpochTally,
-    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let workers_to_reward = tally.workers_to_reward();
-
         let mut pool = self
             .store
-            .load_rewards_pool(tally.contract.clone())?
+            .load_rewards_pool(contract_addr.clone())?
             .unwrap_or(RewardsPool {
-                contract: tally.contract,
+                contract: contract_addr,
                 balance: Uint128::zero(),
             });
 
-        let rewards_per_worker =
-            rewards_per_worker(&workers_to_reward, tally.params.rewards_per_epoch)?;
+        let rewards = self
+            .cumulate_rewards(&contract_addr, from, to)
+            .inspect(|(_, reward)| pool = pool.sub_reward(*reward)?)
+            .collect();
 
-        pool.distribute_rewards(workers_to_reward.len() as u64, rewards_per_worker)?;
         self.store.save_rewards_pool(&pool)?;
 
-        Ok(workers_to_reward
+        Ok(rewards)
+    }
+
+    fn cumulate_rewards(
+        &mut self,
+        contract_addr: &Addr,
+        from: u64,
+        to: u64,
+    ) -> IntoIter<Addr, Uint128> {
+        (from..=to)
+            .filter_map(|epoch_num| {
+                self.store
+                    .load_epoch_tally(contract_addr.clone(), epoch_num)?
+            })
+            .fold(HashMap::new(), |rewards, tally| {
+                merge_rewards(rewards, tally.rewards_by_worker())
+            })
             .into_iter()
-            .map(|worker| (worker, rewards_per_worker))
-            .collect())
     }
 
     pub fn update_params(
@@ -239,23 +220,6 @@ where
 
         Ok(())
     }
-}
-
-fn rewards_per_worker(
-    workers_to_reward: &Vec<Addr>,
-    rewards_per_epoch: nonempty::Uint128,
-) -> Result<Uint128, ContractError> {
-    let rewards_per_epoch: cosmwasm_std::Uint128 = rewards_per_epoch.into();
-
-    // A bit of a weird case. The rewards per epoch is too low to accomodate the number of workers to be rewarded
-    // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
-    if rewards_per_epoch < Uint128::from(workers_to_reward.len() as u128) {
-        return Ok(Uint128::zero());
-    }
-
-    Ok(rewards_per_epoch
-        .checked_div(Uint128::from(workers_to_reward.len() as u128))
-        .unwrap_or_default())
 }
 
 /// Merges rewards_2 into rewards_1. For each (address, amount) pair in rewards_2,
