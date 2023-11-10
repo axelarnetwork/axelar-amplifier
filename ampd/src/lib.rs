@@ -19,6 +19,7 @@ use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
+use multiversx_sdk::blockchain::{CommunicationProxy};
 
 use crate::config::Config;
 use crate::state::State;
@@ -225,6 +226,18 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        self.broadcaster.client(),
+                    ),
+                ),
+                handlers::config::Config::MvxMsgVerifier {
+                    cosmwasm_contract,
+                    proxy_url,
+                } => self.configure_handler(
+                    "mvx-msg-verifier",
+                    handlers::mvx_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        CommunicationProxy::new(proxy_url.to_string()),
                         self.broadcaster.client(),
                     ),
                 ),

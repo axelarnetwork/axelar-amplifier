@@ -16,3 +16,5 @@
 *.iml
 .idea
 .vscode
+
+config.toml
