@@ -48,6 +48,9 @@ pub enum Error {
 
     #[error("poll has expired")]
     PollExpired,
+
+    #[error("message index out of bounds")]
+    MessageIndexOutOfBounds,
 }
 
 #[cw_serde]
@@ -137,6 +140,8 @@ pub trait Poll {
         Self: Sized;
     // returns the cumulated poll result
     fn result(&self) -> PollResult;
+    // returns the consensus for the message at the given index
+    fn consensus(&self, idx: usize) -> Result<bool, Self::E>;
     // errors if sender is not a participant, if sender already voted, if the poll is finished or
     // if the number of votes doesn't match the poll size
     fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Self::E>
@@ -171,7 +176,7 @@ pub struct WeightedPoll {
     expires_at: u64,
     poll_size: u64,
     tallies: Vec<Uint256>, // running tally of weighted votes
-    status: PollStatus,
+    pub status: PollStatus,
     participation: BTreeMap<String, Participation>,
 }
 
@@ -213,22 +218,7 @@ impl Poll for WeightedPoll {
             return Err(Error::PollNotInProgress);
         }
 
-        // TODO: all logic to finish early will be removed from here in the future to allow for late voting until poll expiry
-        let everyone_voted = self
-            .participation
-            .iter()
-            .all(|(_, participation)| participation.vote.is_some());
-
-        let quorum: Uint256 = self.quorum.into();
-        let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
-
-        // TODO: this can be improved further by checking if remaining votes can still change the outcome
-        let quorum_satisfied = results.iter().all(|quorum| *quorum);
-
-        if block_height < self.expires_at
-            // can tally early if all participants voted or quorum was satisfied for all votes in poll
-            && !everyone_voted && !quorum_satisfied
-        {
+        if block_height < self.expires_at {
             return Err(Error::PollNotEnded);
         }
 
@@ -260,6 +250,16 @@ impl Poll for WeightedPoll {
             results,
             consensus_participants,
         }
+    }
+
+    // TODO: Right now we use `true` for verified message and `false` for rejected/unknown.
+    // This function logic should change once we change votes from bool to enum to return the specific consensus result (if any)
+    fn consensus(&self, idx: usize) -> Result<bool, Error> {
+        Ok(*self
+            .tallies
+            .get(idx)
+            .ok_or(Error::MessageIndexOutOfBounds)?
+            >= self.quorum.into())
     }
 
     fn cast_vote(

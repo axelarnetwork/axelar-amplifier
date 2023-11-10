@@ -18,7 +18,7 @@ use crate::events::{
 };
 use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::query::is_message_verified;
+use crate::query::message_status;
 use crate::state;
 use crate::state::{
     CONFIG, CONFIRMED_WORKER_SETS, PENDING_MESSAGES, PENDING_WORKER_SETS, POLLS, POLL_ID,
@@ -95,7 +95,7 @@ pub fn verify_messages(
     let messages = messages
         .into_iter()
         .map(|message| {
-            is_message_verified(deps.as_ref(), &message).map(|verified| {
+            message_status(deps.as_ref(), &message).map(|verified| {
                 if verified {
                     Verified(message)
                 } else {
@@ -207,7 +207,7 @@ fn end_poll_messages(
         .collect::<Vec<&Message>>();
 
     for message in messages {
-        if !is_message_verified(deps.as_ref(), message)? {
+        if !message_status(deps.as_ref(), message)? {
             VERIFIED_MESSAGES.save(deps.storage, &message.cc_id, message)?;
         }
     }

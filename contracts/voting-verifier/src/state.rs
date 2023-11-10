@@ -43,6 +43,14 @@ impl voting::Poll for Poll {
         }
     }
 
+    fn consensus(&self, idx: usize) -> Result<bool, ContractError> {
+        match self {
+            Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => {
+                poll.consensus(idx).map_err(ContractError::from)
+            }
+        }
+    }
+
     fn cast_vote(
         self,
         block_height: u64,
@@ -69,6 +77,13 @@ impl Poll {
     }
 }
 
+#[cw_serde]
+pub struct PollMessage {
+    pub msg: Message,
+    pub poll_id: PollID,
+    pub index_in_poll: usize,
+}
+
 pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
@@ -76,6 +91,8 @@ pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 pub const PENDING_MESSAGES: Map<PollID, Vec<Message>> = Map::new("pending_messages");
 
 pub const VERIFIED_MESSAGES: Map<&CrossChainId, Message> = Map::new("verified_messages");
+
+pub const POLL_MESSAGES: Map<&CrossChainId, PollMessage> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
