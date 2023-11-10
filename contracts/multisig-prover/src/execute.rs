@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
     SubMsg, WasmQuery,
@@ -328,7 +326,7 @@ pub fn should_update_worker_set(
             weight: weight.clone(),
             pub_key: pub_key.clone(),
         })
-        .collect::<BTreeSet<Signer>>();
+        .collect::<Vec<Signer>>();
 
     let cur_workers_signers = cur_workers
         .signers
@@ -338,10 +336,16 @@ pub fn should_update_worker_set(
             weight: weight.clone(),
             pub_key: pub_key.clone(),
         })
-        .collect::<BTreeSet<Signer>>();
+        .collect::<Vec<Signer>>();
 
-    new_workers_signers.difference(&cur_workers_signers).count()
-        + cur_workers_signers.difference(&new_workers_signers).count()
+    new_workers_signers
+        .iter()
+        .filter(|item| !cur_workers_signers.contains(item))
+        .count()
+        + cur_workers_signers
+            .iter()
+            .filter(|item| !new_workers_signers.contains(item))
+            .count()
         > max_diff
 }
 

@@ -234,7 +234,12 @@ mod test {
         let mut expected: Vec<(Vec<u8>, u128)> = worker_set
             .signers
             .values()
-            .map(|(weight, pub_key)| (pub_key.clone().as_ref().to_vec(), u256_to_u128(weight.clone())))
+            .map(|(weight, pub_key)| {
+                (
+                    pub_key.clone().as_ref().to_vec(),
+                    u256_to_u128(weight.clone()),
+                )
+            })
             .collect();
         expected.sort_by_key(|op| op.0.clone());
         let (operators_expected, weights_expected): (Vec<Vec<u8>>, Vec<u128>) =
