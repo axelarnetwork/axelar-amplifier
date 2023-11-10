@@ -220,10 +220,10 @@ fn make_keygen_msg(
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
-            .map(|(address, signer)| {
+            .map(|(address, (_, pub_key))| {
                 (
                     address.clone(),
-                    (signer.1.key_type(), signer.1.as_ref().into()),
+                    (pub_key.key_type(), pub_key.as_ref().into()),
                 )
             })
             .collect(),
@@ -303,10 +303,10 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         pub_keys_by_address: worker_set
             .signers
             .into_iter()
-            .map(|(address, signer)| {
+            .map(|(address, (_, pub_key))| {
                 (
                     address.clone(),
-                    (signer.1.key_type(), signer.1.as_ref().into()),
+                    (pub_key.key_type(), pub_key.as_ref().into()),
                 )
             })
             .collect(),
@@ -323,20 +323,20 @@ pub fn should_update_worker_set(
     let new_workers_signers = new_workers
         .signers
         .iter()
-        .map(|(address, signer)| Signer {
+        .map(|(address, (weight, pub_key))| Signer {
             address: Addr::unchecked(address.clone()),
-            weight: signer.clone().0,
-            pub_key: signer.clone().1,
+            weight: weight.clone(),
+            pub_key: pub_key.clone(),
         })
         .collect::<BTreeSet<Signer>>();
 
     let cur_workers_signers = cur_workers
         .signers
         .iter()
-        .map(|(address, signer)| Signer {
+        .map(|(address, (weight, pub_key))| Signer {
             address: Addr::unchecked(address.clone()),
-            weight: signer.clone().0,
-            pub_key: signer.clone().1,
+            weight: weight.clone(),
+            pub_key: pub_key.clone(),
         })
         .collect::<BTreeSet<Signer>>();
 

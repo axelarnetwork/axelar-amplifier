@@ -134,10 +134,10 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|signer| {
+        .map(|(weight, pub_key)| {
             (
-                evm_address(signer.1.as_ref()).expect("couldn't convert pubkey to evm address"),
-                signer.0,
+                evm_address(pub_key.clone().as_ref()).expect("couldn't convert pubkey to evm address"),
+                weight.clone(),
             )
         })
         .collect();
@@ -177,10 +177,10 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|signer| {
+        .map(|(weight, pub_key)| {
             (
-                evm_address(signer.1.as_ref()).expect("couldn't convert pubkey to evm address"),
-                signer.0,
+                evm_address(pub_key.clone().as_ref()).expect("couldn't convert pubkey to evm address"),
+                weight.clone(),
             )
         })
         .collect();
@@ -395,10 +395,10 @@ mod test {
         let mut signers: Vec<Signer> = new_worker_set
             .signers
             .into_iter()
-            .map(|(address, worker_set_signer)| Signer {
+            .map(|(address, (weight, pub_key))| Signer {
                 address: Addr::unchecked(address),
-                weight: worker_set_signer.0,
-                pub_key: worker_set_signer.1,
+                weight,
+                pub_key,
             })
             .collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
