@@ -259,29 +259,29 @@ mod test {
 
     use super::Contract;
 
-    // /// Tests that rewards_per_worker correctly calculates the rewards to be distributed to each worker
-    // #[test]
-    // fn calculate_rewards_per_worker() {
-    //     let workers = vec![
-    //         Addr::unchecked("worker1"),
-    //         Addr::unchecked("worker2"),
-    //         Addr::unchecked("worker3"),
-    //     ];
-    //     let rewards =
-    //         rewards_per_worker(&workers, Uint128::from(301u128).try_into().unwrap()).unwrap();
-    //     assert_eq!(rewards, Uint128::from(100u128));
-    //
-    //     // more workers than rewards per epoch, should return zero
-    //     let rewards = rewards_per_worker(&workers, Uint128::one().try_into().unwrap()).unwrap();
-    //     assert_eq!(rewards, Uint128::zero());
-    // }
-    //
-    // /// Tests that rewards_per_worker returns zero when there are no workers to reward
-    // #[test]
-    // fn calculate_rewards_per_worker_no_workers() {
-    //     let rewards = rewards_per_worker(&vec![], Uint128::one().try_into().unwrap()).unwrap();
-    //     assert_eq!(rewards, Uint128::zero());
-    // }
+    /// Tests that rewards_per_worker correctly calculates the rewards to be distributed to each worker
+    #[test]
+    fn calculate_rewards_per_worker() {
+        let workers = vec![
+            Addr::unchecked("worker1"),
+            Addr::unchecked("worker2"),
+            Addr::unchecked("worker3"),
+        ];
+        let rewards =
+            rewards_per_worker(&workers, Uint128::from(301u128).try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint128::from(100u128));
+
+        // more workers than rewards per epoch, should return zero
+        let rewards = rewards_per_worker(&workers, Uint128::one().try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint128::zero());
+    }
+
+    /// Tests that rewards_per_worker returns zero when there are no workers to reward
+    #[test]
+    fn calculate_rewards_per_worker_no_workers() {
+        let rewards = rewards_per_worker(&vec![], Uint128::one().try_into().unwrap()).unwrap();
+        assert_eq!(rewards, Uint128::zero());
+    }
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
