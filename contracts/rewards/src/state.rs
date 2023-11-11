@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
@@ -62,7 +63,7 @@ impl EpochTally {
         let total_rewards: Uint128 = self.params.rewards_per_epoch.into();
 
         let rewards_per_worker = total_rewards
-            .checked_div(Uint128::from(workers_to_reward.len()))
+            .checked_div(Uint128::from(workers_to_reward.len() as u128))
             .unwrap_or_default();
 
         // A bit of a weird case. The rewards per epoch is too low to accommodate the number of workers to be rewarded
@@ -151,7 +152,7 @@ pub trait Store {
         epoch_num: u64,
     ) -> Result<Option<EpochTally>, ContractError>;
 
-    fn load_rewards_pool(&self, contract: Addr) -> Result<Option<RewardsPool>, ContractError>;
+    fn load_rewards_pool(&self, contract: Addr) -> Result<RewardsPool, ContractError>;
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
 
@@ -217,10 +218,16 @@ impl Store for RewardsStore<'_> {
             .change_context(ContractError::LoadEpochTally)
     }
 
-    fn load_rewards_pool(&self, contract: Addr) -> Result<Option<RewardsPool>, ContractError> {
+    fn load_rewards_pool(&self, contract: Addr) -> Result<RewardsPool, ContractError> {
         POOLS
-            .may_load(self.storage, contract)
+            .may_load(self.storage, contract.clone())
             .change_context(ContractError::LoadRewardsPool)
+            .map(|pool| {
+                pool.unwrap_or(RewardsPool {
+                    contract,
+                    balance: Uint128::zero(),
+                })
+            })
     }
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError> {
@@ -263,6 +270,22 @@ impl Store for RewardsStore<'_> {
         POOLS
             .save(self.storage, pool.contract.clone(), pool)
             .change_context(ContractError::SaveRewardsPool)
+    }
+}
+
+pub(crate) enum LoadState<T> {
+    Loaded(T),
+    New(T),
+}
+
+impl<T> Deref for LoadState<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            LoadState::Loaded(value) => value,
+            LoadState::New(value) => value,
+        }
     }
 }
 
