@@ -1,7 +1,7 @@
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
-use sui_types::base_types::{ObjectID, SuiAddress};
+use sui_types::base_types::SuiAddress;
 
 use crate::handlers::sui_verify_msg::Message;
 use crate::types::Hash;
@@ -19,7 +19,7 @@ struct ContractCall {
 }
 
 // Event type is in the form of: <gateway_address>::gateway::ContractCall
-fn call_contract_type(gateway_address: &ObjectID) -> StructTag {
+fn call_contract_type(gateway_address: &SuiAddress) -> StructTag {
     format!("{}::{}", gateway_address, CONTRACT_CALL_EVENT)
         .parse()
         .expect("failed to parse struct tag")
@@ -27,10 +27,6 @@ fn call_contract_type(gateway_address: &ObjectID) -> StructTag {
 
 impl PartialEq<&Message> for &SuiEvent {
     fn eq(&self, msg: &&Message) -> bool {
-        if self.type_ != call_contract_type(&self.package_id) {
-            return false;
-        }
-
         match serde_json::from_value::<ContractCall>(self.parsed_json.clone()) {
             Ok(contract_call) => {
                 contract_call.source_id == msg.source_address
@@ -43,20 +39,16 @@ impl PartialEq<&Message> for &SuiEvent {
     }
 }
 
-fn find_event<'a>(
-    transaction_block: &'a SuiTransactionBlockResponse,
-    gateway_address: &SuiAddress,
+fn find_event(
+    transaction_block: &SuiTransactionBlockResponse,
     event_seq: u64,
-) -> Option<&'a SuiEvent> {
+) -> Option<&SuiEvent> {
     transaction_block
         .events
         .as_ref()
         .iter()
         .flat_map(|events| events.data.iter())
-        .find(|event| {
-            event.id.event_seq == event_seq
-                && SuiAddress::from(event.package_id) == *gateway_address
-        })
+        .find(|event| event.id.event_seq == event_seq)
 }
 
 pub fn verify_message(
@@ -64,8 +56,12 @@ pub fn verify_message(
     transaction_block: &SuiTransactionBlockResponse,
     message: &Message,
 ) -> bool {
-    match find_event(transaction_block, gateway_address, message.event_index) {
-        Some(event) => transaction_block.digest == message.tx_id && event == message,
+    match find_event(transaction_block, message.event_index) {
+        Some(event) => {
+            transaction_block.digest == message.tx_id
+                && event.type_ == call_contract_type(gateway_address)
+                && event == message
+        }
         None => false,
     }
 }
