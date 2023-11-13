@@ -415,45 +415,13 @@ mod tests {
     }
 
     #[test]
-    fn tally_before_poll_end() {
+    fn finish_before_poll_expiry() {
         let poll = new_poll(1, 2, vec!["addr1", "addr2"]);
         assert_eq!(poll.finish(0), Err(Error::PollNotEnded));
     }
 
     #[test]
-    fn tally_before_expiry_everyone_voted() {
-        let poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
-        let votes = vec![false, false];
-
-        let poll = poll
-            .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
-            .unwrap()
-            .cast_vote(0, &Addr::unchecked("addr2"), votes.clone())
-            .unwrap()
-            .cast_vote(0, &Addr::unchecked("addr3"), votes)
-            .unwrap();
-
-        let poll = poll.finish(0).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
-    }
-
-    #[test]
-    fn tally_before_expiry_quorum_satisfied() {
-        let poll = new_poll(1, 2, vec!["addr1", "addr2", "addr3"]);
-        let votes = vec![true, true];
-
-        let poll = poll
-            .cast_vote(0, &Addr::unchecked("addr1"), votes.clone())
-            .unwrap()
-            .cast_vote(0, &Addr::unchecked("addr2"), votes)
-            .unwrap();
-
-        let poll = poll.finish(0).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
-    }
-
-    #[test]
-    fn tally_after_poll_conclude() {
+    fn finish_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
         poll.status = PollStatus::Finished;
         assert_eq!(poll.finish(2), Err(Error::PollNotInProgress));

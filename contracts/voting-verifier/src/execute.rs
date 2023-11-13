@@ -16,19 +16,13 @@ use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
-use crate::execute::VerificationStatus::{Pending, Verified};
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::query::message_status;
-use crate::state;
+use crate::query::{verification_status, VerificationStatus};
+use crate::state::{self, POLL_MESSAGES};
 use crate::state::{
     CONFIG, CONFIRMED_WORKER_SETS, PENDING_MESSAGES, PENDING_WORKER_SETS, POLLS, POLL_ID,
     VERIFIED_MESSAGES,
 };
-
-enum VerificationStatus {
-    Verified(Message),
-    Pending(Message),
-}
 
 pub fn confirm_worker_set(
     deps: DepsMut,
@@ -94,52 +88,55 @@ pub fn verify_messages(
 
     let messages = messages
         .into_iter()
-        .map(|message| {
-            message_status(deps.as_ref(), &message).map(|verified| {
-                if verified {
-                    Verified(message)
-                } else {
-                    Pending(message)
-                }
-            })
-        })
-        .collect::<Result<Vec<VerificationStatus>, ContractError>>()?;
+        .map(|message| verification_status(deps.as_ref(), &message).map(|status| (status, message)))
+        .collect::<Result<Vec<(VerificationStatus, Message)>, ContractError>>()?;
 
     let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
         verification_statuses: messages
             .iter()
-            .map(|status| match status {
-                Verified(message) => (message.cc_id.clone(), true),
-                Pending(message) => (message.cc_id.clone(), false),
+            .map(|(status, message)| match status {
+                VerificationStatus::Verified => (message.cc_id.clone(), true),
+                _ => (message.cc_id.clone(), false),
             })
             .collect(),
     })?);
 
-    let pending_messages: Vec<Message> = messages
+    let msgs_to_verify: Vec<Message> = messages
         .into_iter()
-        .filter_map(|status| match status {
-            Pending(message) => Some(message),
-            Verified(_) => None,
+        .filter_map(|(status, message)| match status {
+            VerificationStatus::NotVerified | VerificationStatus::None => Some(message),
+            _ => None,
         })
         .collect();
 
-    if pending_messages.is_empty() {
+    if msgs_to_verify.is_empty() {
         return Ok(response);
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &pending_messages[0].cc_id.chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
     let participants = snapshot.get_participants();
     let id = create_messages_poll(
         deps.storage,
         env.block.height,
         config.block_expiry,
         snapshot,
-        pending_messages.len(),
+        msgs_to_verify.len(),
     )?;
 
-    PENDING_MESSAGES.save(deps.storage, id, &pending_messages)?;
+    for (idx, message) in msgs_to_verify.iter().enumerate() {
+        POLL_MESSAGES.save(
+            deps.storage,
+            &message.cc_id,
+            &state::PollMessage {
+                msg: message.clone(),
+                poll_id: id,
+                index_in_poll: idx,
+            },
+        )?;
+    }
+    PENDING_MESSAGES.save(deps.storage, id, &msgs_to_verify)?;
 
-    let evm_messages = pending_messages
+    let evm_messages = msgs_to_verify
         .into_iter()
         .map(TryInto::try_into)
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
@@ -207,7 +204,10 @@ fn end_poll_messages(
         .collect::<Vec<&Message>>();
 
     for message in messages {
-        if !message_status(deps.as_ref(), message)? {
+        if matches!(
+            verification_status(deps.as_ref(), message)?,
+            VerificationStatus::Verified
+        ) {
             VERIFIED_MESSAGES.save(deps.storage, &message.cc_id, message)?;
         }
     }

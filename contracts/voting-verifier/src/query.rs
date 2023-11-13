@@ -5,22 +5,19 @@ use cosmwasm_std::{Deps, StdResult};
 use crate::error::ContractError;
 use crate::state::{self, POLLS, POLL_MESSAGES};
 
-enum MessageStatus {
+pub enum VerificationStatus {
     Verified,
     NotVerified,
-    Pending, // still in an open poll
-    None,
+    InProgress, // still in an open poll
+    None,       // not in a poll
 }
 
-pub fn verification_statuses(
-    deps: Deps,
-    messages: Vec<Message>,
-) -> StdResult<Vec<(CrossChainId, bool)>> {
+pub fn is_verified(deps: Deps, messages: Vec<Message>) -> StdResult<Vec<(CrossChainId, bool)>> {
     messages
         .into_iter()
         .map(|message| {
-            message_status(deps, &message).map(|status| match status {
-                MessageStatus::Verified => (message.cc_id, true),
+            verification_status(deps, &message).map(|status| match status {
+                VerificationStatus::Verified => (message.cc_id, true),
                 _ => (message.cc_id, false),
             })
         })
@@ -28,7 +25,10 @@ pub fn verification_statuses(
         .map_err(Into::into)
 }
 
-pub fn message_status(deps: Deps, message: &Message) -> Result<MessageStatus, ContractError> {
+pub fn verification_status(
+    deps: Deps,
+    message: &Message,
+) -> Result<VerificationStatus, ContractError> {
     match POLL_MESSAGES.may_load(deps.storage, &message.cc_id)? {
         Some(stored) if stored.msg != *message => {
             Err(ContractError::MessageMismatch(message.cc_id.to_string()))
@@ -38,10 +38,10 @@ pub fn message_status(deps: Deps, message: &Message) -> Result<MessageStatus, Co
                 .load(deps.storage, stored.poll_id)
                 .expect("invalid invariant: message poll not found");
 
-            match poll {
+            match &poll {
                 state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
                     if poll.status == PollStatus::InProgress {
-                        return Ok(MessageStatus::Pending);
+                        return Ok(VerificationStatus::InProgress);
                     }
                 }
             }
@@ -51,10 +51,10 @@ pub fn message_status(deps: Deps, message: &Message) -> Result<MessageStatus, Co
                 .expect("invalid invariant: message not found in poll");
 
             match consensus {
-                true => Ok(MessageStatus::Verified),
-                false => Ok(MessageStatus::NotVerified),
+                true => Ok(VerificationStatus::Verified),
+                false => Ok(VerificationStatus::NotVerified),
             }
         }
-        None => Ok(MessageStatus::None),
+        None => Ok(VerificationStatus::None),
     }
 }

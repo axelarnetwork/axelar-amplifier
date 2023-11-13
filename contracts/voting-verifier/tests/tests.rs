@@ -13,6 +13,7 @@ use crate::mock::make_mock_service_registry;
 pub mod mock;
 
 const SENDER: &str = "sender";
+const POLL_BLOCK_EXPIRY: u64 = 100;
 fn source_chain() -> ChainName {
     "source_chain".parse().unwrap()
 }
@@ -24,7 +25,7 @@ fn initialize_contract(app: &mut App, service_registry_address: nonempty::String
         service_registry_address,
         service_name: "service_name".parse().unwrap(),
         voting_threshold: Threshold::try_from((1u64, 2u64)).unwrap(),
-        block_expiry: 100,
+        block_expiry: POLL_BLOCK_EXPIRY,
         confirmation_height: 100,
         source_gateway_address: "gateway_address".parse().unwrap(),
         source_chain: source_chain(),
@@ -223,6 +224,8 @@ fn should_query_message_statuses() {
     )
     .unwrap();
 
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
+
     let msg: msg::ExecuteMsg = msg::ExecuteMsg::EndPoll {
         poll_id: Uint64::one().into(),
     };
@@ -312,6 +315,8 @@ fn should_confirm_worker_set() {
         assert!(res.is_ok());
     }
 
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
+
     let msg = msg::ExecuteMsg::EndPoll {
         poll_id: 1u64.into(),
     };
@@ -365,6 +370,8 @@ fn should_not_confirm_worker_set() {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
         assert!(res.is_ok());
     }
+
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
     let msg = msg::ExecuteMsg::EndPoll {
         poll_id: 1u64.into(),
@@ -420,6 +427,8 @@ fn should_confirm_worker_set_after_failed() {
         assert!(res.is_ok());
     }
 
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
+
     let msg = msg::ExecuteMsg::EndPoll {
         poll_id: 1u64.into(),
     };
@@ -451,6 +460,8 @@ fn should_confirm_worker_set_after_failed() {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
         assert!(res.is_ok());
     }
+
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
     let msg = msg::ExecuteMsg::EndPoll {
         poll_id: 2u64.into(),
@@ -505,6 +516,8 @@ fn should_not_confirm_twice() {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
         assert!(res.is_ok());
     }
+
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
     let msg = msg::ExecuteMsg::EndPoll {
         poll_id: 1u64.into(),
