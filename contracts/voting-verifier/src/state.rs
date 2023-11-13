@@ -84,6 +84,16 @@ pub struct PollMessage {
     pub index_in_poll: usize,
 }
 
+impl PollMessage {
+    pub fn new(msg: Message, poll_id: PollID, index_in_poll: usize) -> Self {
+        Self {
+            msg,
+            poll_id,
+            index_in_poll,
+        }
+    }
+}
+
 pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");

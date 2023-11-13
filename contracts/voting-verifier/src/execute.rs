@@ -124,11 +124,7 @@ pub fn verify_messages(
         POLL_MESSAGES.save(
             deps.storage,
             &message.cc_id,
-            &state::PollMessage {
-                msg: message.clone(),
-                poll_id: id,
-                index_in_poll: idx,
-            },
+            &state::PollMessage::new(message.clone(), id, idx),
         )?;
     }
 
