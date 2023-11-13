@@ -233,11 +233,11 @@ mod test {
 
         let mut expected: Vec<(Vec<u8>, u128)> = worker_set
             .signers
-            .values()
+            .into_values()
             .map(|signer| {
                 (
-                    signer.pub_key.clone().as_ref().to_vec(),
-                    u256_to_u128(signer.weight.clone()),
+                    signer.pub_key.as_ref().to_vec(),
+                    u256_to_u128(signer.weight),
                 )
             })
             .collect();
@@ -256,8 +256,8 @@ mod test {
         let mut expected: Vec<(HexBinary, _)> = worker_set
             .clone()
             .signers
-            .values()
-            .map(|signer| (signer.pub_key.clone().into(), signer.weight))
+            .into_values()
+            .map(|signer| (signer.pub_key.into(), signer.weight))
             .collect();
         expected.sort_by_key(|op| op.0.clone());
 

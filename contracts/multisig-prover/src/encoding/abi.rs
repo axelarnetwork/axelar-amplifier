@@ -136,7 +136,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
         .values()
         .map(|signer| {
             (
-                evm_address(signer.pub_key.clone().as_ref())
+                evm_address(signer.pub_key.as_ref())
                     .expect("couldn't convert pubkey to evm address"),
                 signer.weight,
             )
@@ -180,7 +180,7 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
         .values()
         .map(|signer| {
             (
-                evm_address(signer.pub_key.clone().as_ref())
+                evm_address(signer.pub_key.as_ref())
                     .expect("couldn't convert pubkey to evm address"),
                 signer.weight,
             )
@@ -393,11 +393,7 @@ mod test {
         assert!(res.is_ok());
 
         let tokens = decode_operator_transfer_command_params(res.unwrap());
-        let mut signers: Vec<Signer> = new_worker_set
-            .signers
-            .into_values()
-            .map(|signer| signer)
-            .collect();
+        let mut signers: Vec<Signer> = new_worker_set.signers.into_values().collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
         let mut i = 0;
         for signer in signers {
