@@ -88,10 +88,6 @@ pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 
-pub const PENDING_MESSAGES: Map<PollID, Vec<Message>> = Map::new("pending_messages");
-
-pub const VERIFIED_MESSAGES: Map<&CrossChainId, Message> = Map::new("verified_messages");
-
 pub const POLL_MESSAGES: Map<&CrossChainId, PollMessage> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");

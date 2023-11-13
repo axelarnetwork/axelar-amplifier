@@ -19,10 +19,7 @@ use crate::events::{
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::{verification_status, VerificationStatus};
 use crate::state::{self, POLL_MESSAGES};
-use crate::state::{
-    CONFIG, CONFIRMED_WORKER_SETS, PENDING_MESSAGES, PENDING_WORKER_SETS, POLLS, POLL_ID,
-    VERIFIED_MESSAGES,
-};
+use crate::state::{CONFIG, CONFIRMED_WORKER_SETS, PENDING_WORKER_SETS, POLLS, POLL_ID};
 
 pub fn confirm_worker_set(
     deps: DepsMut,
@@ -134,7 +131,6 @@ pub fn verify_messages(
             },
         )?;
     }
-    PENDING_MESSAGES.save(deps.storage, id, &msgs_to_verify)?;
 
     let evm_messages = msgs_to_verify
         .into_iter()
@@ -180,41 +176,6 @@ pub fn vote(
     ))
 }
 
-fn end_poll_messages(
-    deps: DepsMut,
-    poll_id: PollID,
-    poll_result: &PollResult,
-) -> Result<(), ContractError> {
-    let messages = remove_pending_message(deps.storage, poll_id)?;
-
-    assert_eq!(
-        messages.len(),
-        poll_result.results.len(),
-        "poll {} results and pending messages have different length",
-        poll_id
-    );
-
-    let messages = messages
-        .iter()
-        .zip(poll_result.results.iter())
-        .filter_map(|(message, verified)| match *verified {
-            true => Some(message),
-            false => None,
-        })
-        .collect::<Vec<&Message>>();
-
-    for message in messages {
-        if matches!(
-            verification_status(deps.as_ref(), message)?,
-            VerificationStatus::Verified
-        ) {
-            VERIFIED_MESSAGES.save(deps.storage, &message.cc_id, message)?;
-        }
-    }
-
-    Ok(())
-}
-
 fn end_poll_worker_set(
     deps: DepsMut,
     poll_id: PollID,
@@ -249,10 +210,9 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
 
     let poll_result = poll.result();
 
-    match poll {
-        state::Poll::Messages(_) => end_poll_messages(deps, poll_id, &poll_result)?,
-        state::Poll::ConfirmWorkerSet(_) => end_poll_worker_set(deps, poll_id, &poll_result)?,
-    };
+    if matches!(poll, state::Poll::ConfirmWorkerSet(_)) {
+        end_poll_worker_set(deps, poll_id, &poll_result)?;
+    }
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
     let rewards_msgs = poll_result
@@ -333,17 +293,4 @@ fn create_messages_poll(
     POLLS.save(store, id, &state::Poll::Messages(poll))?;
 
     Ok(id)
-}
-
-fn remove_pending_message(
-    store: &mut dyn Storage,
-    poll_id: PollID,
-) -> Result<Vec<Message>, ContractError> {
-    let pending_messages = PENDING_MESSAGES
-        .may_load(store, poll_id)?
-        .ok_or(ContractError::PollNotFound)?;
-
-    PENDING_MESSAGES.remove(store, poll_id);
-
-    Ok(pending_messages)
 }
