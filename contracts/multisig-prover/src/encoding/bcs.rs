@@ -20,7 +20,7 @@ use sha3::{Digest, Keccak256};
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
+        .values()
         .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
@@ -33,8 +33,8 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
-        .map(|s| (s.pub_key.clone().into(), s.weight))
+        .values()
+        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
     let (addresses, weights): (Vec<Vec<u8>>, Vec<_>) = operators
@@ -233,8 +233,13 @@ mod test {
 
         let mut expected: Vec<(Vec<u8>, u128)> = worker_set
             .signers
-            .into_iter()
-            .map(|s| (s.pub_key.as_ref().to_vec(), u256_to_u128(s.weight)))
+            .into_values()
+            .map(|signer| {
+                (
+                    signer.pub_key.as_ref().to_vec(),
+                    u256_to_u128(signer.weight),
+                )
+            })
             .collect();
         expected.sort_by_key(|op| op.0.clone());
         let (operators_expected, weights_expected): (Vec<Vec<u8>>, Vec<u128>) =
@@ -251,8 +256,8 @@ mod test {
         let mut expected: Vec<(HexBinary, _)> = worker_set
             .clone()
             .signers
-            .into_iter()
-            .map(|s| (s.pub_key.into(), s.weight))
+            .into_values()
+            .map(|signer| (signer.pub_key.into(), signer.weight))
             .collect();
         expected.sort_by_key(|op| op.0.clone());
 

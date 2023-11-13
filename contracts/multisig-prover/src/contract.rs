@@ -252,10 +252,15 @@ mod tests {
         WorkerSet {
             signers: operators
                 .into_iter()
-                .map(|op| Signer {
-                    address: op.address,
-                    pub_key: op.pub_key,
-                    weight: op.weight,
+                .map(|op| {
+                    (
+                        op.address.clone().to_string(),
+                        Signer {
+                            address: op.address,
+                            pub_key: op.pub_key,
+                            weight: op.weight,
+                        },
+                    )
                 })
                 .collect(),
             threshold: quorum,
@@ -633,16 +638,22 @@ mod tests {
     fn should_update_worker_set_diff_pub_key() {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
-        let first = new_worker_set.signers.pop_first();
-        let last = new_worker_set.signers.pop_last();
-        new_worker_set.signers.insert(Signer {
-            pub_key: first.clone().unwrap().pub_key,
-            ..last.clone().unwrap()
-        });
-        new_worker_set.signers.insert(Signer {
-            pub_key: last.unwrap().pub_key,
-            ..first.unwrap()
-        });
+        let (first_key, first) = new_worker_set.signers.pop_first().unwrap();
+        let (last_key, last) = new_worker_set.signers.pop_last().unwrap();
+        new_worker_set.signers.insert(
+            last_key,
+            Signer {
+                pub_key: first.clone().pub_key,
+                ..last.clone()
+            },
+        );
+        new_worker_set.signers.insert(
+            first_key,
+            Signer {
+                pub_key: last.pub_key,
+                ..first
+            },
+        );
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 }
