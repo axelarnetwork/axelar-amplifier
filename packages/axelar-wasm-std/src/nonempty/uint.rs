@@ -121,39 +121,60 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_non_zero_uint64() {
-        assert!(Uint64::try_from(cosmwasm_std::Uint64::one()).is_ok());
-        assert!(Uint64::try_from(1u64).is_ok());
-    }
-
-    #[test]
-    fn test_zero_non_zero_uint64() {
-        assert_eq!(
-            Uint64::try_from(cosmwasm_std::Uint64::zero()).unwrap_err(),
-            Error::InvalidValue("0".into())
-        );
+    fn convert_from_u64_to_uint64() {
+        // zero
         assert_eq!(
             Uint64::try_from(0u64).unwrap_err(),
             Error::InvalidValue("0".into())
         );
+
+        // non-zero
+        let val = 100u64;
+        assert!(Uint64::try_from(val).is_ok());
+        assert_eq!(val, u64::from(Uint64::try_from(val).unwrap()));
     }
 
     #[test]
-    fn test_non_zero_uint256() {
-        assert!(Uint256::try_from(cosmwasm_std::Uint256::one()).is_ok());
+    fn convert_from_cosmwasm_uint64_to_uint64() {
+        // zero
+        assert_eq!(
+            Uint64::try_from(cosmwasm_std::Uint64::zero()).unwrap_err(),
+            Error::InvalidValue("0".into())
+        );
+
+        // non-zero
+        assert!(Uint64::try_from(cosmwasm_std::Uint64::one()).is_ok());
     }
 
     #[test]
-    fn test_zero_non_zero_uint256() {
+    fn convert_from_cosmwasm_uint256_to_uint256() {
+        // zero
         assert_eq!(
             Uint256::try_from(cosmwasm_std::Uint256::zero()).unwrap_err(),
             Error::InvalidValue("0".into())
         );
+
+        // non-zero
+        assert!(Uint256::try_from(cosmwasm_std::Uint256::one()).is_ok());
     }
 
     #[test]
-    fn test_from_u64() {
-        let val = 100u64;
-        assert_eq!(val, u64::from(Uint64::try_from(val).unwrap()));
+    fn convert_from_cosmwasm_uint128_to_uint256() {
+        // zero
+        let val = cosmwasm_std::Uint128::zero();
+        assert_eq!(
+            Uint256::try_from(val).unwrap_err(),
+            Error::InvalidValue(val.into())
+        );
+
+        // non-zero
+        assert!(Uint256::try_from(cosmwasm_std::Uint128::one()).is_ok());
+    }
+
+    #[test]
+    fn convert_from_uint64_to_reference_cosmwasm_uint64() {
+        let val = Uint64(cosmwasm_std::Uint64::one());
+        let converted: &cosmwasm_std::Uint64 = (&val).into();
+        assert_eq!(&val.0, converted);
     }
 }
