@@ -102,7 +102,7 @@ mod tests {
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
-    use multisig::worker_set::WorkerSet;
+    use multisig::{msg::Signer, worker_set::WorkerSet};
 
     use crate::{
         encoding::Encoder,
@@ -252,7 +252,16 @@ mod tests {
         WorkerSet {
             signers: operators
                 .into_iter()
-                .map(|op| (op.address.to_string(), (op.weight, op.pub_key)))
+                .map(|op| {
+                    (
+                        op.address.clone().to_string(),
+                        Signer {
+                            address: op.address,
+                            pub_key: op.pub_key,
+                            weight: op.weight,
+                        },
+                    )
+                })
                 .collect(),
             threshold: quorum,
             created_at: nonce,
@@ -631,8 +640,20 @@ mod tests {
         let mut new_worker_set = worker_set.clone();
         let (first_key, first) = new_worker_set.signers.pop_first().unwrap();
         let (last_key, last) = new_worker_set.signers.pop_last().unwrap();
-        new_worker_set.signers.insert(last_key, (last.0, first.1));
-        new_worker_set.signers.insert(first_key, (first.0, last.1));
+        new_worker_set.signers.insert(
+            last_key,
+            Signer {
+                pub_key: first.clone().pub_key,
+                ..last.clone()
+            },
+        );
+        new_worker_set.signers.insert(
+            first_key,
+            Signer {
+                pub_key: last.pub_key,
+                ..first
+            },
+        );
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 }

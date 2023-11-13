@@ -134,11 +134,11 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|(weight, pub_key)| {
+        .map(|signer| {
             (
-                evm_address(pub_key.clone().as_ref())
+                evm_address(signer.pub_key.clone().as_ref())
                     .expect("couldn't convert pubkey to evm address"),
-                *weight,
+                signer.weight,
             )
         })
         .collect();
@@ -178,11 +178,11 @@ pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary,
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
-        .map(|(weight, pub_key)| {
+        .map(|signer| {
             (
-                evm_address(pub_key.clone().as_ref())
+                evm_address(signer.pub_key.clone().as_ref())
                     .expect("couldn't convert pubkey to evm address"),
-                *weight,
+                signer.weight,
             )
         })
         .collect();
@@ -241,7 +241,6 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::Addr;
     use elliptic_curve::consts::U32;
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
@@ -396,12 +395,8 @@ mod test {
         let tokens = decode_operator_transfer_command_params(res.unwrap());
         let mut signers: Vec<Signer> = new_worker_set
             .signers
-            .into_iter()
-            .map(|(address, (weight, pub_key))| Signer {
-                address: Addr::unchecked(address),
-                weight,
-                pub_key,
-            })
+            .into_values()
+            .map(|signer| signer)
             .collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
         let mut i = 0;
