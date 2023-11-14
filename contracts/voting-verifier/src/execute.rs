@@ -17,7 +17,7 @@ use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::query::{verification_status, VerificationStatus};
+use crate::query::{is_verified, verification_status, VerificationStatus};
 use crate::state::{self, POLL_MESSAGES};
 use crate::state::{CONFIG, CONFIRMED_WORKER_SETS, PENDING_WORKER_SETS, POLLS, POLL_ID};
 
@@ -83,20 +83,14 @@ pub fn verify_messages(
 
     let config = CONFIG.load(deps.storage)?;
 
+    let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
+        verification_statuses: is_verified(deps.as_ref(), &messages)?,
+    })?);
+
     let messages = messages
         .into_iter()
         .map(|message| verification_status(deps.as_ref(), &message).map(|status| (status, message)))
         .collect::<Result<Vec<(VerificationStatus, Message)>, ContractError>>()?;
-
-    let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
-        verification_statuses: messages
-            .iter()
-            .map(|(status, message)| match status {
-                VerificationStatus::Verified => (message.cc_id.clone(), true),
-                _ => (message.cc_id.clone(), false),
-            })
-            .collect(),
-    })?);
 
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()

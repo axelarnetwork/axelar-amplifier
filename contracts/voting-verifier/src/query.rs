@@ -14,13 +14,13 @@ pub enum VerificationStatus {
     None,       // not in a poll
 }
 
-pub fn is_verified(deps: Deps, messages: Vec<Message>) -> StdResult<Vec<(CrossChainId, bool)>> {
+pub fn is_verified(deps: Deps, messages: &[Message]) -> StdResult<Vec<(CrossChainId, bool)>> {
     messages
-        .into_iter()
+        .iter()
         .map(|message| {
-            verification_status(deps, &message).map(|status| match status {
-                VerificationStatus::Verified => (message.cc_id, true),
-                _ => (message.cc_id, false),
+            verification_status(deps, message).map(|status| match status {
+                VerificationStatus::Verified => (message.cc_id.to_owned(), true),
+                _ => (message.cc_id.to_owned(), false),
             })
         })
         .collect::<Result<Vec<(_, _)>, _>>()
@@ -132,7 +132,7 @@ mod tests {
         );
         assert_eq!(
             vec![(msg.cc_id.clone(), false)],
-            is_verified(deps.as_ref(), vec![msg]).unwrap()
+            is_verified(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -167,7 +167,7 @@ mod tests {
         );
         assert_eq!(
             vec![(msg.cc_id.clone(), true)],
-            is_verified(deps.as_ref(), vec![msg]).unwrap()
+            is_verified(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -202,7 +202,7 @@ mod tests {
         );
         assert_eq!(
             vec![(msg.cc_id.clone(), false)],
-            is_verified(deps.as_ref(), vec![msg]).unwrap()
+            is_verified(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -217,7 +217,7 @@ mod tests {
         );
         assert_eq!(
             vec![(msg.cc_id.clone(), false)],
-            is_verified(deps.as_ref(), vec![msg]).unwrap()
+            is_verified(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
