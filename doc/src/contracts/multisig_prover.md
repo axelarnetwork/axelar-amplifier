@@ -60,11 +60,11 @@ Prover->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Prover: reply with status, current signatures vector and snapshot
 Prover-->>-Relayer: returns GetProofResponse
 Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
-Voting Verifier->>-Relayer: returns Response
+Voting Verifier-->>-Relayer: returns Response
 Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
-Prover-->>+Voting Verifier:QueryMsg::IsWorkerSetConfirmed
+Prover->>+Voting Verifier:QueryMsg::IsWorkerSetConfirmed
 Voting Verifier-->>-Prover: query result
-Prover-->>+Multisig: ExecuteMsg::KeyGen
+Prover->>+Multisig: ExecuteMsg::KeyGen
 Multisig-->>-Prover: returns Response
 Prover-->>-Relayer: returns AppResponse
 ```
