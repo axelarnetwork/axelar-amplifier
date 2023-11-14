@@ -171,13 +171,13 @@ pub struct Participation {
 
 #[cw_serde]
 pub struct WeightedPoll {
-    poll_id: PollID,
-    quorum: nonempty::Uint256,
-    expires_at: u64,
-    poll_size: u64,
-    tallies: Vec<Uint256>, // running tally of weighted votes
+    pub poll_id: PollID,
+    pub quorum: nonempty::Uint256,
+    pub expires_at: u64,
+    pub poll_size: u64,
+    pub tallies: Vec<Uint256>, // running tally of weighted votes
     pub status: PollStatus,
-    participation: BTreeMap<String, Participation>,
+    pub participation: BTreeMap<String, Participation>,
 }
 
 impl WeightedPoll {
