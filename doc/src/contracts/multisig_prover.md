@@ -41,7 +41,7 @@ Relayer->>+Prover: ExecuteMsg::ConstructProof
 alt batch not created previously
   Prover->>+Gateway: QueryMsg::GetMessages
   Gateway-->>-Prover: query result
-  Prover->>Prover: updates WorkerSet
+  Prover->>Prover: update next WorkerSet
 else previously created batch found
   Prover->>Prover: retrieves batch from storage
 end
@@ -63,11 +63,64 @@ Prover-->>-Relayer: returns GetProofResponse
 1. Relayer asks Prover contract to construct proof providing a list of messages IDs
 2. If no batch for the given messages was previously created, it queries the gateway for the messages to construct it
 3. With the retrieved messages, the Prover contract transforms them into a batch of commands and generates the binary message that needs to be signed by the multisig.
-4. If a newer `WorkerSet` was found, a `TransferOperatorship` command is added to the batch. 
-5. The Multisig contract is called asking to sign the binary message
-6. Multisig emits event indicating a new multisig session has started
-7. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
-8. If previous batch was found for the given messages IDs, the Prover retrieves it from storage instead of querying the gateway and build it again.
+4. If a newer `WorkerSet` was found, a `TransferOperatorship` command is added to the batch. The new `WorkerSet` is stored as the next `WorkerSet`.
+5. If previous batch was found for the given messages IDs, the Prover retrieves it from storage instead of querying the gateway and build it again.
+6. The Multisig contract is called asking to sign the binary message
+7. Multisig emits event `SigningStarted` indicating a new multisig session has started
+8. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
+9. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
+10. Signers submit their signatures until threshold is reached
+11. Multisig emits event indicating the multisig session has been completed
+12. Relayer queries Prover for the proof, using the proof ID
+13. Prover queries Multisig for the multisig session, using the session ID
+14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
+15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+
+<br>
+<br>
+
+## UpdateWorkerSet sequence diagram
+
+```mermaid
+sequenceDiagram
+autonumber
+participant Relayer
+box LightYellow Axelar
+participant Prover
+participant Multisig
+end
+
+Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
+alt no WorkerSet stored
+  Prover->>Prover: save new WorkerSet
+  Prover->>+Multisig: ExecuteMsg::KeyGen
+  Multisig-->>-Prover: returns Response
+else existing WorkerSet stored
+  Prover->>Prover: save new WorkerSet as the next WorkerSet
+  Prover->>+Multisig: ExecuteMsg::StartSigningSession
+  Multisig-->>Signers: emit SigningStarted event
+  Multisig->>-Prover: reply with session ID
+  Prover-->>Relayer: emit ProofUnderConstruction event
+  deactivate Prover
+  loop Collect signatures
+	Signers->>+Multisig: signature collection
+  end
+Multisig-->>-Relayer: emit SigningCompleted event
+Relayer->>+Prover: QueryMsg::GetProof
+Prover->>+Multisig: QueryMsg::GetSigningSession
+Multisig-->>-Prover: reply with status, current signatures vector and snapshot
+Prover-->>-Relayer: returns GetProofResponse
+end
+```
+
+1. The Relayer calls Prover to update the `WorkerSet`.
+2. Replaces the current `WorkerSet` by saving the new `WorkerSet`.
+3. The new `WorkerSet` is also saved in Multisig.
+4. Default Response is returned.
+5. If a newer `WorkerSet` was found, a `TransferOperatorship` command is added to the batch. The new `WorkerSet` is stored as the next `WorkerSet`.
+6. The Multisig contract is called asking to sign the binary message
+7. Multisig emits event `SigningStarted` indicating a new multisig session has started
+8. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
 9. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
 10. Signers submit their signatures until threshold is reached
 11. Multisig emits event indicating the multisig session has been completed
@@ -90,8 +143,6 @@ participant Prover
 participant Voting Verifier
 participant Multisig
 end
-actor Signers
-
 Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
 Voting Verifier-->>-Relayer: returns Response
 Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
