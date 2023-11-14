@@ -76,8 +76,6 @@ Prover-->>-Relayer: returns GetProofResponse
 14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
 15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
 
-<br>
-<br>
 
 ## UpdateWorkerSet sequence diagram
 
@@ -130,8 +128,6 @@ end
 14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
 15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
 
-<br>
-<br>
 
 ## ConfirmWorkerSet sequence diagram
 
