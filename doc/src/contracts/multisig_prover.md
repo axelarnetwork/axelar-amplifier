@@ -41,12 +41,13 @@ Relayer->>+Prover: ExecuteMsg::ConstructProof
 alt batch not created previously
   Prover->>+Gateway: QueryMsg::GetMessages
   Gateway-->>-Prover: query result
-  Prover->>+Multisig: ExecuteMsg::StartSigningSession
-  Multisig-->>Signers: emit SigningStarted event
-  Multisig->>-Prover: reply with session ID
+  Prover->>Prover: updates WorkerSet
 else previously created batch found
   Prover->>Prover: retrieves batch from storage
 end
+Prover->>+Multisig: ExecuteMsg::StartSigningSession
+Multisig-->>Signers: emit SigningStarted event
+Multisig->>-Prover: reply with session ID
 Prover-->>Relayer: emit ProofUnderConstruction event
 deactivate Prover
 loop Collect signatures
@@ -57,22 +58,27 @@ Relayer->>+Prover: QueryMsg::GetProof
 Prover->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Prover: reply with status, current signatures vector and snapshot
 Prover-->>-Relayer: returns GetProofResponse
+Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
+Prover->>+Multisig: ExecuteMsg::KeyGen
 ```
 
 1. Relayer asks Prover contract to construct proof providing a list of messages IDs
 2. If no batch for the given messages was previously created, it queries the gateway for the messages to construct it
 3. With the retrieved messages, the Prover contract transforms them into a batch of commands and generates the binary message that needs to be signed by the multisig.
-4. The Multisig contract is called asking to sign the binary message
-5. Multisig emits event indicating a new multisig session has started
-6. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
-7. If previous batch was found for the given messages IDs, the Prover retrieves it from storage instead of querying the gateway and build it again.
-8. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
-9. Signers submit their signatures until threshold is reached
-10. Multisig emits event indicating the multisig session has been completed
-11. Relayer queries Prover for the proof, using the proof ID
-12. Prover queries Multisig for the multisig session, using the session ID
-13. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
-14. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+4. If a newer `WorkerSet` was found, a `TransferOperatorship` command is added to the batch. 
+5. The Multisig contract is called asking to sign the binary message
+6. Multisig emits event indicating a new multisig session has started
+7. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
+8. If previous batch was found for the given messages IDs, the Prover retrieves it from storage instead of querying the gateway and build it again.
+9. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
+10. Signers submit their signatures until threshold is reached
+11. Multisig emits event indicating the multisig session has been completed
+12. Relayer queries Prover for the proof, using the proof ID
+13. Prover queries Multisig for the multisig session, using the session ID
+14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
+15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+16. Once the destination gateway emits a `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to complete a poll. Once completed, the Relayer calls the Prover to confirm the `WorkerSet` was updated.
+17. The `WorkerSet` is also stored in Multisig.
 
 ## Interface
 
