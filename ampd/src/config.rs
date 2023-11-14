@@ -90,7 +90,7 @@ mod tests {
             [[handlers]]
             type = 'MvxMsgVerifier'
             cosmwasm_contract = '{}'
-            proxy_url = 'http://localhost:7545/'
+            proxy_url = 'http://localhost:7545'
             ",
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
