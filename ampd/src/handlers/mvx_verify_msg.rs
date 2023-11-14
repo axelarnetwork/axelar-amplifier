@@ -167,12 +167,93 @@ where
             .collect();
 
         self.broadcast_votes(poll_id, votes).await
+    }
+}
 
-        // TODO
-        // let tx_hash = "49edb289892a655a0e988b360c19326c21107f9696c6197b435667c6e8c6e1a3";
-        //
-        // self.blockchain.get_transaction_info_with_results(tx_hash).await
+#[cfg(test)]
+mod tests {
+    use std::convert::TryInto;
 
-        // Ok(())
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    use cosmwasm_std;
+    use error_stack::{Result};
+    use tendermint::abci;
+
+    use events::Event;
+    use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
+
+    use super::PollStartedEvent;
+    use crate::types::{EVMAddress, Hash, TMAddress};
+
+    const PREFIX: &str = "axelar";
+
+    #[test]
+    fn should_deserialize_poll_started_event() {
+        let event: Result<PollStartedEvent, events::Error> = get_event(
+            poll_started_event(participants(5, None)),
+            &TMAddress::random(PREFIX),
+        )
+        .try_into();
+
+        assert!(event.is_ok());
+    }
+
+    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
+        let mut event: cosmwasm_std::Event = event.into();
+
+        event.ty = format!("wasm-{}", event.ty);
+        event = event.add_attribute("_contract_address", contract_address.to_string());
+
+        abci::Event::new(
+            event.ty,
+            event
+                .attributes
+                .into_iter()
+                .map(|cosmwasm_std::Attribute { key, value }| {
+                    (STANDARD.encode(key), STANDARD.encode(value))
+                }),
+        )
+        .try_into()
+        .unwrap()
+    }
+
+    fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
+        PollStarted::Messages {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: "multiversx".parse().unwrap(),
+                source_gateway_address:
+                    "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx"
+                        .parse()
+                        .unwrap(),
+                confirmation_height: 15,
+                expires_at: 100,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            messages: vec![TxEventConfirmation {
+                tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
+                    .parse()
+                    .unwrap(),
+                event_index: 0,
+                source_address: "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"
+                    .parse()
+                    .unwrap(),
+                destination_chain: "ethereum".parse().unwrap(),
+                destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
+                payload_hash: Hash::random().to_fixed_bytes(),
+            }],
+        }
+    }
+
+    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
+        (0..n)
+            .into_iter()
+            .map(|_| TMAddress::random(PREFIX))
+            .chain(worker.into_iter())
+            .collect()
     }
 }
