@@ -33,6 +33,7 @@ participant Relayer
 box LightYellow Axelar
 participant Prover
 participant Gateway
+participant Voting Verifier
 participant Multisig
 end
 actor Signers
@@ -58,8 +59,14 @@ Relayer->>+Prover: QueryMsg::GetProof
 Prover->>+Multisig: QueryMsg::GetSigningSession
 Multisig-->>-Prover: reply with status, current signatures vector and snapshot
 Prover-->>-Relayer: returns GetProofResponse
+Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+Voting Verifier->>-Relayer: returns Response
 Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
-Prover->>+Multisig: ExecuteMsg::KeyGen
+Prover-->>+Voting Verifier:QueryMsg::IsWorkerSetConfirmed
+Voting Verifier-->>-Prover: query result
+Prover-->>+Multisig: ExecuteMsg::KeyGen
+Multisig-->>-Prover: returns Response
+Prover-->>-Relayer: returns AppResponse
 ```
 
 1. Relayer asks Prover contract to construct proof providing a list of messages IDs
@@ -77,8 +84,14 @@ Prover->>+Multisig: ExecuteMsg::KeyGen
 13. Prover queries Multisig for the multisig session, using the session ID
 14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
 15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
-16. Once the destination gateway emits a `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to complete a poll. Once completed, the Relayer calls the Prover to confirm the `WorkerSet` was updated.
-17. The `WorkerSet` is also stored in Multisig.
+16. Once the destination gateway emits a `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
+17. Default Response is returned.
+18. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
+19. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
+20. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
+21. The `WorkerSet` is also stored in Multisig.
+22. Default response is returned.
+23. AppResponse is returned.
 
 ## Interface
 
