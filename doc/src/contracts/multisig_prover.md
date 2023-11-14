@@ -89,6 +89,7 @@ box LightYellow Axelar
 participant Prover
 participant Multisig
 end
+actor Signers
 
 Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
 alt no WorkerSet stored
