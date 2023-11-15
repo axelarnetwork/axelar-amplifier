@@ -99,6 +99,8 @@ alt no WorkerSet stored
 else existing WorkerSet stored
   Prover->>Prover: save new WorkerSet as the next WorkerSet
   Prover->>+Multisig: ExecuteMsg::StartSigningSession
+  Multisig-->>Signers: emit SigningStarted event
+  Multisig->>-Prover: reply with session ID
 end
 ```
 
