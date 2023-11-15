@@ -107,6 +107,9 @@ else existing WorkerSet stored
   end
   Multisig-->>-Relayer: emit SigningCompleted event
   Relayer->>+Prover: QueryMsg::GetProof
+  Prover->>+Multisig: QueryMsg::GetSigningSession
+  Multisig-->>-Prover: reply with status, current signatures vector and snapshot
+  Prover-->>-Relayer: returns GetProofResponse
 end
 ```
 
