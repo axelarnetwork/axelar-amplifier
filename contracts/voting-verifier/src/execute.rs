@@ -96,7 +96,7 @@ pub fn verify_messages(
         .into_iter()
         .filter_map(|(status, message)| match status {
             VerificationStatus::NotVerified | VerificationStatus::None => Some(message),
-            _ => None,
+            VerificationStatus::InProgress | VerificationStatus::Verified => None,
         })
         .collect();
 
