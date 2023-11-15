@@ -111,6 +111,17 @@ else existing WorkerSet stored
   Multisig-->>-Prover: reply with status, current signatures vector and snapshot
   Prover-->>-Relayer: returns GetProofResponse
   Relayer-->>External Chain: send proof and data
+  External Chain->>+Relayer: emit OperatorshipTransferred event
+  Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+  Voting Verifier-->>-Relayer: returns Response
+  Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
+  Voting Verifier-->>-Relayer: emit PollEnded event
+  Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
+  Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
+  Voting Verifier-->>-Prover: query result
+  Prover->>+Multisig: ExecuteMsg::KeyGen
+  Multisig-->>-Prover: returns Response
+  Prover-->>-Relayer: returns Response
 end
 ```
 
