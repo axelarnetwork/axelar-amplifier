@@ -2,6 +2,52 @@
 
 The prover contract is responsible for transforming gateway messages into a command batch that is ready to be sent to the destination gateway. It calls the multisig contract to generate the signature proof and finally encodes both the data and proof so that relayers can take it and send it to the destination chain gateway.
 
+## Interface
+
+```Rust
+pub enum ExecuteMsg {
+    // Start building a proof that includes specified messages
+    // Queries the gateway for actual message contents
+    ConstructProof {
+        message_ids: Vec<String>,
+    },
+}
+
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(GetProofResponse)]
+    GetProof { multisig_session_id: Uint64 },
+}
+
+pub enum ProofStatus {
+    Pending,
+    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
+}
+
+pub struct GetProofResponse {
+    pub multisig_session_id: Uint64,
+    pub message_ids: Vec<String>,
+    pub data: Data,
+    pub status: ProofStatus,
+}
+```
+
+## Events
+
+```Rust
+pub enum Event {
+    ProofUnderConstruction {
+        multisig_session_id: Uint64,
+    },
+    SnapshotRotated {
+        key_id: String,
+        snapshot: Snapshot,
+        pub_keys: HashMap<String, HexBinary>,
+    },
+}
+```
+
+
 ```mermaid
 graph TD
 
@@ -181,49 +227,3 @@ end
 26. The new `WorkerSet` is stored in Multisig.
 27. Default response is returned.
 28. Response is returned.
-
-
-## Interface
-
-```Rust
-pub enum ExecuteMsg {
-    // Start building a proof that includes specified messages
-    // Queries the gateway for actual message contents
-    ConstructProof {
-        message_ids: Vec<String>,
-    },
-}
-
-#[derive(QueryResponses)]
-pub enum QueryMsg {
-    #[returns(GetProofResponse)]
-    GetProof { multisig_session_id: Uint64 },
-}
-
-pub enum ProofStatus {
-    Pending,
-    Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
-}
-
-pub struct GetProofResponse {
-    pub multisig_session_id: Uint64,
-    pub message_ids: Vec<String>,
-    pub data: Data,
-    pub status: ProofStatus,
-}
-```
-
-## Events
-
-```Rust
-pub enum Event {
-    ProofUnderConstruction {
-        multisig_session_id: Uint64,
-    },
-    SnapshotRotated {
-        key_id: String,
-        snapshot: Snapshot,
-        pub_keys: HashMap<String, HexBinary>,
-    },
-}
-```
