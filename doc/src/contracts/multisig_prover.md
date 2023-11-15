@@ -91,11 +91,14 @@ participant Multisig
 end
 actor Signers
 Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
+alt no WorkerSet stored
   Prover->>Prover: save new WorkerSet
   Prover->>+Multisig: ExecuteMsg::KeyGen
   Multisig-->>-Prover: returns Response
   Prover-->>-Relayer: returns Response
-
+else existing WorkerSet stored
+  Prover->>Prover: save new WorkerSet as the next WorkerSet
+end
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
