@@ -87,7 +87,12 @@ pub fn command_params(
     payload_hash: &[u8; 32],
 ) -> Result<HexBinary, ContractError> {
     let destination_address = <[u8; 32]>::try_from(
-        HexBinary::from_hex(&destination_address)?.to_vec(),
+        HexBinary::from_hex(
+            destination_address
+                .strip_prefix("0x")
+                .unwrap_or(&destination_address),
+        )?
+        .to_vec(),
     )
     .map_err(|_| ContractError::InvalidMessage {
         reason: format!(
@@ -364,6 +369,17 @@ mod test {
     #[should_panic]
     fn test_make_command_id_fails_too_large() {
         make_command_id(&HexBinary::from(vec![0; 30]));
+    }
+
+    #[test]
+    fn destination_address_starting_with_0x_should_be_valid_for_command_params() {
+        let res = command_params(
+            "Ethereum".into(),
+            "0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331".into(),
+            "0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331".into(),
+            &[2; 32],
+        );
+        assert!(res.is_ok());
     }
 
     #[test]
