@@ -1,10 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
-use futures::future::join_all;
 use serde::Deserialize;
 
 use axelar_wasm_std::voting::PollID;
@@ -17,10 +16,9 @@ use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{Hash, TMAddress};
 
+use crate::mvx::proxy::MvxProxy;
 use crate::mvx::verifier::verify_message;
-use multiversx_sdk::blockchain::CommunicationProxy;
 use multiversx_sdk::data::address::Address;
-use multiversx_sdk::data::transaction::TransactionOnNetwork;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -45,24 +43,26 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
-pub struct Handler<B>
+pub struct Handler<P, B>
 where
+    P: MvxProxy + Send + Sync,
     B: BroadcasterClient,
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
-    blockchain: CommunicationProxy,
+    blockchain: P,
     broadcast_client: B,
 }
 
-impl<B> Handler<B>
+impl<P, B> Handler<P, B>
 where
+    P: MvxProxy + Send + Sync,
     B: BroadcasterClient,
 {
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
-        blockchain: CommunicationProxy,
+        blockchain: P,
         broadcast_client: B,
     ) -> Self {
         Self {
@@ -71,32 +71,6 @@ where
             blockchain,
             broadcast_client,
         }
-    }
-
-    async fn transactions_info_with_results(
-        &self,
-        tx_hashes: HashSet<String>,
-    ) -> Result<HashMap<String, TransactionOnNetwork>> {
-        Ok(join_all(tx_hashes.iter().map(|tx_hash| {
-            self.blockchain
-                .get_transaction_info_with_results(tx_hash.as_str())
-        }))
-        .await
-        .into_iter()
-        .filter_map(|tx| {
-            if !tx.is_ok() {
-                return None;
-            }
-
-            let tx = tx.unwrap();
-
-            if tx.hash.is_none() {
-                return None;
-            }
-
-            Some((tx.hash.clone().unwrap(), tx))
-        })
-        .collect())
     }
 
     async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
@@ -117,8 +91,9 @@ where
 }
 
 #[async_trait]
-impl<B> EventHandler for Handler<B>
+impl<P, B> EventHandler for Handler<P, B>
 where
+    P: MvxProxy + Send + Sync,
     B: BroadcasterClient + Send + Sync,
 {
     type Err = Error;
@@ -151,6 +126,7 @@ where
             .map(|message| message.tx_id.clone())
             .collect();
         let transactions_info = self
+            .blockchain
             .transactions_info_with_results(tx_hashes)
             .await
             .change_context(Error::TxReceipts)?;
@@ -172,19 +148,28 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use crate::handlers::errors::Error;
+    use crate::mvx::proxy::MockMvxProxy;
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
-    use error_stack::{Result};
+    use error_stack::{Report, Result};
     use tendermint::abci;
+    use tokio::test as async_test;
 
     use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::PollStartedEvent;
+    use crate::event_processor::EventHandler;
+    use crate::queue::queued_broadcaster;
     use crate::types::{EVMAddress, Hash, TMAddress};
+
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
 
     const PREFIX: &str = "axelar";
 
@@ -197,6 +182,131 @@ mod tests {
         .try_into();
 
         assert!(event.is_ok());
+
+        let event = event.unwrap();
+
+        assert!(event.poll_id == 100u64.into());
+        assert!(
+            event.source_gateway_address.to_bech32_string().unwrap()
+                == "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx"
+        );
+
+        let message = event.messages.get(0).unwrap();
+
+        assert!(
+            message.tx_id == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
+        );
+        assert!(message.event_index == 1usize);
+        assert!(message.destination_chain.to_string() == "ethereum");
+        assert!(
+            message.source_address.to_bech32_string().unwrap()
+                == "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"
+        );
+    }
+
+    // Should not handle event if it is not a poll started event
+    #[async_test]
+    async fn not_poll_started_event() {
+        let event = get_event(
+            cosmwasm_std::Event::new("transfer"),
+            &TMAddress::random(PREFIX),
+        );
+
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            MockMvxProxy::new(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    // Should not handle event if it is not emitted from voting verifier
+    #[async_test]
+    async fn contract_is_not_voting_verifier() {
+        let event = get_event(
+            poll_started_event(participants(5, None)),
+            &TMAddress::random(PREFIX),
+        );
+
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
+            MockMvxProxy::new(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    // Should not handle event if worker is not a poll participant
+    #[async_test]
+    async fn worker_is_not_a_participant() {
+        let voting_verifier = TMAddress::random(PREFIX);
+        let event = get_event(poll_started_event(participants(5, None)), &voting_verifier);
+
+        let handler = super::Handler::new(
+            TMAddress::random(PREFIX),
+            voting_verifier,
+            MockMvxProxy::new(),
+            MockBroadcasterClient::new(),
+        );
+
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    #[async_test]
+    async fn failed_to_get_transactions_info_with_results() {
+        let mut proxy = MockMvxProxy::new();
+        proxy
+            .expect_transactions_info_with_results()
+            .returning(|_| Err(Report::from(Error::DeserializeEvent)));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+
+        let event = get_event(
+            poll_started_event(participants(5, Some(worker.clone()))),
+            &voting_verifier,
+        );
+
+        let handler =
+            super::Handler::new(worker, voting_verifier, proxy, MockBroadcasterClient::new());
+
+        assert!(matches!(
+            *handler.handle(&event).await.unwrap_err().current_context(),
+            Error::TxReceipts
+        ));
+    }
+
+    #[async_test]
+    async fn failed_to_broadcast() {
+        let mut proxy = MockMvxProxy::new();
+        proxy
+            .expect_transactions_info_with_results()
+            .returning(|_| Ok(HashMap::new()));
+
+        let mut broadcast_client = MockBroadcasterClient::new();
+        broadcast_client
+            .expect_broadcast()
+            .returning(move |_: MsgExecuteContract| {
+                Err(Report::from(queued_broadcaster::Error::Broadcast))
+            });
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = get_event(
+            poll_started_event(participants(5, Some(worker.clone()))),
+            &voting_verifier,
+        );
+
+        let handler = super::Handler::new(worker, voting_verifier, proxy, broadcast_client);
+
+        assert!(matches!(
+            *handler.handle(&event).await.unwrap_err().current_context(),
+            Error::Broadcaster
+        ));
     }
 
     fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
@@ -238,7 +348,7 @@ mod tests {
                 tx_id: "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
                     .parse()
                     .unwrap(),
-                event_index: 0,
+                event_index: 1,
                 source_address: "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7"
                     .parse()
                     .unwrap(),
