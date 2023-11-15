@@ -89,7 +89,6 @@ participant Voting Verifier
 participant Multisig
 end
 actor Signers
-end
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
