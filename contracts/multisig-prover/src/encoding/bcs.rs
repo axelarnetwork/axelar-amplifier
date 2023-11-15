@@ -381,6 +381,7 @@ mod test {
         );
         assert!(res.is_ok());
     }
+    
     #[test]
     fn test_command_params() {
         let res = command_params(
