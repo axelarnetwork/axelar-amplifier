@@ -110,8 +110,7 @@ else existing WorkerSet stored
   Prover->>+Multisig: QueryMsg::GetSigningSession
   Multisig-->>-Prover: reply with status, current signatures vector and snapshot
   Prover-->>-Relayer: returns GetProofResponse
-  Relayer-->>-External Chain: sends proof and data
-  External Chain->>+Relayer: emit OperatorshipTransferred event
+  Relayer-->>External Chain: send proof and data
 end
 ```
 
