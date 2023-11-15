@@ -101,6 +101,8 @@ else existing WorkerSet stored
   Prover->>+Multisig: ExecuteMsg::StartSigningSession
   Multisig-->>Signers: emit SigningStarted event
   Multisig->>-Prover: reply with session ID
+  Prover-->>Relayer: emit ProofUnderConstruction event
+  deactivate Prover
 end
 ```
 
