@@ -76,6 +76,34 @@ Prover-->>-Relayer: returns GetProofResponse
 14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
 15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
 
+## Update and confirm WorkerSet graph
+
+```mermaid
+graph TD
+
+e[External Chain]
+r[Relayer]
+subgraph Axelar
+b[Prover]
+v[Voting Verifier]
+m[Multisig]
+end
+s[Signer]
+
+r--UpdateWorkerSet-->b
+b--RegisterWorkerSet-->m
+b--StartSigningSession-->m
+r--GetProof-->b
+b--GetSigningSession-->m
+s--SubmitSignature-->m
+r-.->e
+e-.->r
+r--ConfirmWorkerSet-->v
+r--EndPoll-->v
+r--ConfirmWorkerSet-->b
+b--IsWorkerSetConfirmed-->v
+```
+
 
 ## Update and confirm WorkerSet sequence diagram
 
