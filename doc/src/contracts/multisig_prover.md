@@ -91,6 +91,38 @@ participant Multisig
 end
 actor Signers
 Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
+alt no WorkerSet stored
+  Prover->>Prover: save new WorkerSet
+  Prover->>+Multisig: ExecuteMsg::KeyGen
+  Multisig-->>-Prover: returns Response
+  Relayer-->>-Multisig: returns Response
+else existing WorkerSet stored
+  Prover->>Prover: save new WorkerSet as the next WorkerSet
+  Prover->>+Multisig: ExecuteMsg::StartSigningSession
+  Multisig-->>Signers: emit SigningStarted event
+  Multisig->>-Prover: reply with session ID
+  Prover-->>Relayer: emit ProofUnderConstruction event
+  loop Collect signatures
+	  Signers->>+Multisig: signature collection
+  end
+  Multisig-->>-Relayer: emit SigningCompleted event
+  Relayer->>+Prover: QueryMsg::GetProof
+  Prover->>+Multisig: QueryMsg::GetSigningSession
+  Multisig-->>-Prover: reply with status, current signatures vector and snapshot
+  Prover-->>-Relayer: returns GetProofResponse
+  Relayer-->>-External Chain: sends proof and data
+  External Chain-->>+Relayer: emit OperatorshipTransferred event
+  Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+  Voting Verifier-->>-Relayer: returns Response
+  Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
+  Voting Verifier-->>-Relayer: emit PollEnded event
+  Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
+  Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
+  Voting Verifier-->>-Prover: query result
+  Prover->>+Multisig: ExecuteMsg::KeyGen
+  Multisig-->>-Prover: returns Response
+  Prover-->>-Relayer: returns Response
+end
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
