@@ -104,7 +104,7 @@ else existing WorkerSet stored
   Prover-->>-Relayer: emit ProofUnderConstruction event
   deactivate Prover
   loop Collect signatures
-	  Signers->>+Multisig: signature collection
+	  Signers->>-Multisig: signature collection
   end
   Multisig-->>-Relayer: emit SigningCompleted event
   Relayer->>+Prover: QueryMsg::GetProof
