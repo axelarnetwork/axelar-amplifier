@@ -91,22 +91,6 @@ participant Multisig
 end
 actor Signers
 Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
-alt no WorkerSet stored
-  Prover->>Prover: save new WorkerSet
-  Prover->>+Multisig: ExecuteMsg::KeyGen
-  Multisig-->>-Prover: returns Response
-  Relayer-->>-Multisig: returns Response
-else existing WorkerSet stored
-  Prover->>Prover: save new WorkerSet as the next WorkerSet
-  Prover->>+Multisig: ExecuteMsg::StartSigningSession
-  Multisig-->>Signers: emit SigningStarted event
-  Multisig->>-Prover: reply with session ID
-  Prover-->>Relayer: emit ProofUnderConstruction event
-  deactivate Prover
-  loop Collect signatures
-	  Signers->>+Multisig: signature collection
-  end
-end
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
