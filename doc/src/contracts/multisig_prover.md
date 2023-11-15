@@ -121,7 +121,7 @@ actor Signers
 Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
 alt no WorkerSet stored
   Prover->>Prover: save new WorkerSet
-  Prover->>+Multisig: ExecuteMsg::KeyGen
+  Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
   Multisig-->>-Prover: returns Response
   Prover-->>-Relayer: returns Response
 else existing WorkerSet stored
@@ -147,7 +147,7 @@ else existing WorkerSet stored
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
   Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
   Voting Verifier-->>-Prover: query result
-  Prover->>+Multisig: ExecuteMsg::KeyGen
+  Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
   Multisig-->>-Prover: returns Response
   Prover-->>-Relayer: returns Response
 end
