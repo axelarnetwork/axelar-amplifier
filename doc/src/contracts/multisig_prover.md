@@ -102,6 +102,9 @@ else existing WorkerSet stored
   Multisig-->>Signers: emit SigningStarted event
   Multisig->>-Prover: reply with session ID
   Prover-->>Relayer: emit ProofUnderConstruction event
+  loop Collect signatures
+	  Signers->>+Multisig: signature collection
+  end
 end
 ```
 
