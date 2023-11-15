@@ -99,9 +99,10 @@ alt no WorkerSet stored
 else existing WorkerSet stored
   Prover->>Prover: save new WorkerSet as the next WorkerSet
   Prover->>+Multisig: ExecuteMsg::StartSigningSession
-  Multisig-->>Signers: emit SigningStarted event
+  Multisig-->>+Signers: emit SigningStarted event
   Multisig->>-Prover: reply with session ID
-  Prover-->>Relayer: emit ProofUnderConstruction event
+  Prover-->>-Relayer: emit ProofUnderConstruction event
+  deactivate Prover
   loop Collect signatures
 	  Signers->>+Multisig: signature collection
   end
