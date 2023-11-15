@@ -6,6 +6,7 @@ use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::state::{ChainName, CrossChainId, Message, ID_SEPARATOR};
 use mock::make_mock_rewards;
 use service_registry::state::Worker;
+use voting_verifier::events::TxEventConfirmation;
 use voting_verifier::{contract, error::ContractError, msg};
 
 use crate::mock::make_mock_service_registry;
@@ -153,6 +154,112 @@ fn should_verify_messages_if_not_verified() {
             ),
         ]
     );
+}
+
+#[test]
+fn should_not_verify_messages_if_in_progress() {
+    let mut app = App::default();
+    let messages_in_progress = 3;
+    let new_messages = 2;
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.as_ref().parse().unwrap());
+
+    app.execute_contract(
+        Addr::unchecked(SENDER),
+        contract_address.clone(),
+        &msg::ExecuteMsg::VerifyMessages {
+            messages: messages(messages_in_progress),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let res = app
+        .execute_contract(
+            Addr::unchecked(SENDER),
+            contract_address,
+            &msg::ExecuteMsg::VerifyMessages {
+                messages: messages(messages_in_progress + new_messages), // creates the same messages + some new ones
+            },
+            &[],
+        )
+        .unwrap();
+
+    let messages: Vec<TxEventConfirmation> = serde_json::from_str(
+        &res.events
+            .into_iter()
+            .find(|event| event.ty == "wasm-messages_poll_started")
+            .unwrap()
+            .attributes
+            .into_iter()
+            .find_map(|attribute| {
+                if attribute.key == "messages" {
+                    Some(attribute.value)
+                } else {
+                    None
+                }
+            })
+            .unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(messages.len() as u64, new_messages);
+}
+
+#[test]
+fn should_retry_if_message_not_verified() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.as_ref().parse().unwrap());
+
+    let msg = msg::ExecuteMsg::VerifyMessages {
+        messages: messages(1),
+    };
+    app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
+        .unwrap();
+
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
+
+    app.execute_contract(
+        Addr::unchecked(SENDER),
+        contract_address.clone(),
+        &msg::ExecuteMsg::EndPoll {
+            poll_id: Uint64::one().into(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // retries same message
+    let res = app
+        .execute_contract(Addr::unchecked(SENDER), contract_address, &msg, &[])
+        .unwrap();
+
+    let messages: Vec<TxEventConfirmation> = serde_json::from_str(
+        &res.events
+            .into_iter()
+            .find(|event| event.ty == "wasm-messages_poll_started")
+            .unwrap()
+            .attributes
+            .into_iter()
+            .find_map(|attribute| {
+                if attribute.key == "messages" {
+                    Some(attribute.value)
+                } else {
+                    None
+                }
+            })
+            .unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(messages.len() as u64, 1);
 }
 
 #[test]
