@@ -32,32 +32,35 @@ pub fn verification_status(
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
     match POLL_MESSAGES.may_load(deps.storage, &message.cc_id)? {
-        Some(stored) if stored.msg != *message => {
-            Err(ContractError::MessageMismatch(message.cc_id.to_string()))
-        }
         Some(stored) => {
             let poll = POLLS
                 .load(deps.storage, stored.poll_id)
                 .expect("invalid invariant: message poll not found");
 
-            if poll
+            let verified = poll
                 .consensus(stored.index_in_poll)
-                .expect("invalid invariant: message not found in poll")
-            {
-                return Ok(VerificationStatus::Verified);
-            }
+                .expect("invalid invariant: message not found in poll");
 
-            match &poll {
-                state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
-                    if poll.status == PollStatus::InProgress {
-                        Ok(VerificationStatus::InProgress)
-                    } else {
-                        Ok(VerificationStatus::NotVerified)
-                    }
+            if verified {
+                if stored.msg != *message {
+                    return Err(ContractError::MessageMismatch(message.cc_id.to_string()));
                 }
+                Ok(VerificationStatus::Verified)
+            } else if is_finished(&poll) {
+                Ok(VerificationStatus::NotVerified)
+            } else {
+                Ok(VerificationStatus::InProgress)
             }
         }
         None => Ok(VerificationStatus::None),
+    }
+}
+
+fn is_finished(poll: &Poll) -> bool {
+    match poll {
+        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+            poll.status == PollStatus::Finished
+        }
     }
 }
 
