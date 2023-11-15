@@ -47,6 +47,7 @@ pub enum Event {
 }
 ```
 
+## Proof construction graph
 
 ```mermaid
 graph TD
