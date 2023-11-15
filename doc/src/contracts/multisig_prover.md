@@ -82,7 +82,6 @@ Prover-->>-Relayer: returns GetProofResponse
 ```mermaid
 sequenceDiagram
 autonumber
-participant External Chain
 participant Relayer
 box LightYellow Axelar
 participant Prover
@@ -90,8 +89,7 @@ participant Voting Verifier
 participant Multisig
 end
 actor Signers
-
-Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
+end
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
