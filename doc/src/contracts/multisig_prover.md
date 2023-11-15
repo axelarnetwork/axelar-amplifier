@@ -98,6 +98,7 @@ alt no WorkerSet stored
   Prover-->>-Relayer: returns Response
 else existing WorkerSet stored
   Prover->>Prover: save new WorkerSet as the next WorkerSet
+  Prover->>+Multisig: ExecuteMsg::StartSigningSession
 end
 ```
 
