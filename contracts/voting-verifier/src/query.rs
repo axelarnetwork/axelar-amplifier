@@ -56,7 +56,7 @@ pub fn verification_status(
     }
 }
 
-fn is_finished(poll: &Poll) -> bool {
+fn is_finished(poll: &state::Poll) -> bool {
     match poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
             poll.status == PollStatus::Finished
@@ -82,7 +82,9 @@ mod tests {
         let mut deps = mock_dependencies();
         let idx = 0;
 
-        let poll = poll();
+        let mut poll = poll();
+        poll.tallies[idx] = Uint256::from(5u64);
+
         POLLS
             .save(
                 deps.as_mut().storage,
