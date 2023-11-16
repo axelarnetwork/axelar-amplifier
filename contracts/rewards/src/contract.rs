@@ -197,7 +197,7 @@ mod tests {
             worker_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
-                event_id: "some event".to_string(),
+                event_id: "some event".to_string().try_into().unwrap(),
                 worker_address: worker.to_string(),
             },
             &[],
@@ -208,7 +208,7 @@ mod tests {
             worker_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
-                event_id: "some other event".to_string(),
+                event_id: "some other event".to_string().try_into().unwrap(),
                 worker_address: worker.to_string(),
             },
             &[],
