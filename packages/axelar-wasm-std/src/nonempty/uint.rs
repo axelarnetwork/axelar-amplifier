@@ -29,12 +29,6 @@ impl TryFrom<u64> for Uint64 {
     }
 }
 
-impl<'a> From<&'a Uint64> for &'a cosmwasm_std::Uint64 {
-    fn from(value: &'a Uint64) -> Self {
-        &value.0
-    }
-}
-
 impl From<Uint64> for cosmwasm_std::Uint64 {
     fn from(value: Uint64) -> Self {
         value.0
@@ -73,12 +67,6 @@ impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
 impl From<Uint256> for cosmwasm_std::Uint256 {
     fn from(value: Uint256) -> Self {
         value.0
-    }
-}
-
-impl<'a> From<&'a Uint256> for &'a cosmwasm_std::Uint256 {
-    fn from(value: &'a Uint256) -> Self {
-        &value.0
     }
 }
 
@@ -169,12 +157,5 @@ mod tests {
 
         // non-zero
         assert!(Uint256::try_from(cosmwasm_std::Uint128::one()).is_ok());
-    }
-
-    #[test]
-    fn convert_from_uint64_to_reference_cosmwasm_uint64() {
-        let val = Uint64(cosmwasm_std::Uint64::one());
-        let converted: &cosmwasm_std::Uint64 = (&val).into();
-        assert_eq!(&val.0, converted);
     }
 }
