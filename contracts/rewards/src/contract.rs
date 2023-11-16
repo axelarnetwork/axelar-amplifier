@@ -112,3 +112,129 @@ pub fn execute(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::{coins, Addr, Binary, BlockInfo, Deps, Env, StdResult, Uint128};
+    use cw_multi_test::{App, ContractWrapper, Executor};
+
+    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg};
+
+    use super::{execute, instantiate};
+
+    /// Tests that the contract entry points (instantiate and execute) work as expected.
+    /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.
+    /// Adds rewards to the contract, updates the rewards params, records some participation
+    /// events and then distributes the rewards.
+    #[test]
+    fn test_rewards_flow() {
+        let user = Addr::unchecked("user");
+        let worker = Addr::unchecked("worker");
+        let worker_contract = Addr::unchecked("worker contract");
+        const AXL_DENOMINATION: &str = "uaxl";
+        let mut app = App::new(|router, _, storage| {
+            router
+                .bank
+                .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
+                .unwrap()
+        });
+        let code = ContractWrapper::new(
+            execute,
+            instantiate,
+            |_deps: Deps, _env: Env, _msg: QueryMsg| -> StdResult<Binary> { todo!() },
+        );
+        let code_id = app.store_code(Box::new(code));
+
+        let governance_address = Addr::unchecked("governance");
+        let initial_params = Params {
+            epoch_duration: 10u64.try_into().unwrap(),
+            rewards_per_epoch: Uint128::one().try_into().unwrap(),
+            participation_threshold: (1, 2).try_into().unwrap(),
+        };
+        let contract_address = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("router"),
+                &InstantiateMsg {
+                    governance_address: governance_address.to_string(),
+                    rewards_denom: AXL_DENOMINATION.to_string(),
+                    params: Params {
+                        epoch_duration: 10u64.try_into().unwrap(),
+                        rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
+                        participation_threshold: (1, 2).try_into().unwrap(),
+                    },
+                },
+                &[],
+                "Contract",
+                None,
+            )
+            .unwrap();
+
+        let res = app.execute_contract(
+            user.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::AddRewards {
+                contract_address: worker_contract.to_string(),
+            },
+            &coins(200, AXL_DENOMINATION),
+        );
+        assert!(res.is_ok());
+
+        let res = app.execute_contract(
+            governance_address,
+            contract_address.clone(),
+            &ExecuteMsg::UpdateParams {
+                params: Params {
+                    rewards_per_epoch: Uint128::from(150u128).try_into().unwrap(),
+                    ..initial_params
+                },
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        let res = app.execute_contract(
+            worker_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                event_id: "some event".to_string().try_into().unwrap(),
+                worker_address: worker.to_string(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        let res = app.execute_contract(
+            worker_contract.clone(),
+            contract_address.clone(),
+            &ExecuteMsg::RecordParticipation {
+                event_id: "some other event".to_string().try_into().unwrap(),
+                worker_address: worker.to_string(),
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        // need to change the block height so we can claim rewards
+        let old_height = app.block_info().height;
+        app.set_block(BlockInfo {
+            height: old_height + u64::from(initial_params.epoch_duration) * 2,
+            ..app.block_info()
+        });
+
+        let res = app.execute_contract(
+            user,
+            contract_address.clone(),
+            &ExecuteMsg::DistributeRewards {
+                contract_address: worker_contract.to_string(),
+                epoch_count: None,
+            },
+            &[],
+        );
+        assert!(res.is_ok());
+
+        // worker should have been sent the appropriate rewards
+        let balance = app.wrap().query_balance(worker, AXL_DENOMINATION).unwrap();
+        assert_eq!(balance.amount, Uint128::from(150u128));
+    }
+}
