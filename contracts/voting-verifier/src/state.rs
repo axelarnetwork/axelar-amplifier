@@ -8,7 +8,7 @@ use axelar_wasm_std::{
     voting::{self, PollID, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router::state::{ChainName, Message};
 
 use crate::error::ContractError;
 
@@ -98,7 +98,8 @@ pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 
-pub const POLL_MESSAGES: Map<&CrossChainId, PollMessage> = Map::new("poll_messages");
+// message hash to `PollMessage`
+pub const POLL_MESSAGES: Map<&[u8; 32], PollMessage> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 

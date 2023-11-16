@@ -31,7 +31,7 @@ pub fn verification_status(
     deps: Deps,
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
-    match POLL_MESSAGES.may_load(deps.storage, &message.cc_id)? {
+    match POLL_MESSAGES.may_load(deps.storage, &message.hash_id())? {
         Some(stored) => {
             let poll = POLLS
                 .load(deps.storage, stored.poll_id)
@@ -97,7 +97,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.cc_id,
+                &msg.hash_id(),
                 &PollMessage::new(message(2), poll.poll_id, idx),
             )
             .unwrap();
@@ -126,7 +126,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.cc_id,
+                &msg.hash_id(),
                 &PollMessage::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
@@ -161,7 +161,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.cc_id,
+                &msg.hash_id(),
                 &PollMessage::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
@@ -196,7 +196,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.cc_id,
+                &msg.hash_id(),
                 &PollMessage::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();

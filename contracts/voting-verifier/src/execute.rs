@@ -117,7 +117,7 @@ pub fn verify_messages(
     for (idx, message) in msgs_to_verify.iter().enumerate() {
         POLL_MESSAGES.save(
             deps.storage,
-            &message.cc_id,
+            &message.hash_id(),
             &state::PollMessage::new(message.clone(), id, idx),
         )?;
     }

@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::{nonempty, FnExt};
+use sha3::{Digest, Keccak256};
 
 use crate::ContractError;
 
@@ -99,6 +100,18 @@ pub struct Message {
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub payload_hash: [u8; 32],
+}
+
+impl Message {
+    pub fn hash_id(&self) -> [u8; 32] {
+        let mut hasher = Keccak256::new();
+        hasher.update(self.cc_id.to_string());
+        hasher.update(self.source_address.as_str());
+        hasher.update(self.destination_chain.as_str());
+        hasher.update(self.destination_address.as_str());
+        hasher.update(self.payload_hash);
+        hasher.finalize().into()
+    }
 }
 
 #[cw_serde]
@@ -272,6 +285,12 @@ impl KeyDeserialize for &ChainName {
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         ChainName::from_vec(value)
+    }
+}
+
+impl ChainName {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 
