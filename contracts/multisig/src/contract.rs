@@ -312,7 +312,7 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        state::{load_session_signatures, PUB_KEYS},
+        state::{load_session_signatures, PUB_KEYS}, worker_set::WorkerSet,
     };
 
     use super::*;
@@ -938,7 +938,7 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let key = WORKER_SETS
+            let worker_set = WORKER_SETS
                 .load(deps.as_ref().storage, (&session.key_id).into())
                 .unwrap();
             let signatures =
@@ -950,19 +950,18 @@ mod tests {
                     completed_at: expected_completed_at
                 }
             );
-            assert_eq!(query_res.signers.len(), key.snapshot.participants.len());
-            key.snapshot
-                .participants
+            assert_eq!(query_res.signers.len(), worker_set.signers.len());
+            worker_set.signers
                 .iter()
-                .for_each(|(address, participant)| {
+                .for_each(|(address, worker_set_signer)| {
                     let signer = query_res
                         .signers
                         .iter()
-                        .find(|signer| signer.0.address == participant.address)
+                        .find(|signer| signer.0.address == worker_set_signer.address)
                         .unwrap();
 
-                    assert_eq!(signer.0.weight, Uint256::from(participant.weight));
-                    assert_eq!(signer.0.pub_key, key.pub_keys.get(address).unwrap().clone());
+                    assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
+                    assert_eq!(signer.0.pub_key, worker_set.get_pub_keys_from_signer().get(address).unwrap().clone());
                     assert_eq!(signer.1, signatures.get(address).cloned());
                 });
         }
