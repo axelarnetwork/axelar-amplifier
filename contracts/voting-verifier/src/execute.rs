@@ -95,7 +95,7 @@ pub fn verify_messages(
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
         .filter_map(|(status, message)| match status {
-            VerificationStatus::NotVerified | VerificationStatus::None => Some(message),
+            VerificationStatus::FailedToVerify | VerificationStatus::NotVerified => Some(message),
             VerificationStatus::InProgress | VerificationStatus::Verified => None,
         })
         .collect();

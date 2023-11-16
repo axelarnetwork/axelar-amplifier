@@ -9,9 +9,9 @@ use crate::state::{self, POLLS, POLL_MESSAGES};
 #[cw_serde]
 pub enum VerificationStatus {
     Verified,
-    NotVerified,
-    InProgress, // still in an open poll
-    None,       // not in a poll
+    FailedToVerify,
+    InProgress,  // still in an open poll
+    NotVerified, // not in a poll
 }
 
 pub fn is_verified(deps: Deps, messages: &[Message]) -> StdResult<Vec<(CrossChainId, bool)>> {
@@ -47,12 +47,12 @@ pub fn verification_status(
                 }
                 Ok(VerificationStatus::Verified)
             } else if is_finished(&poll) {
-                Ok(VerificationStatus::NotVerified)
+                Ok(VerificationStatus::FailedToVerify)
             } else {
                 Ok(VerificationStatus::InProgress)
             }
         }
-        None => Ok(VerificationStatus::None),
+        None => Ok(VerificationStatus::NotVerified),
     }
 }
 
@@ -203,7 +203,7 @@ mod tests {
 
         assert_eq!(
             verification_status(deps.as_ref(), &msg).unwrap(),
-            VerificationStatus::NotVerified
+            VerificationStatus::FailedToVerify
         );
         assert_eq!(
             vec![(msg.cc_id.clone(), false)],
@@ -218,7 +218,7 @@ mod tests {
 
         assert_eq!(
             verification_status(deps.as_ref(), &msg).unwrap(),
-            VerificationStatus::None
+            VerificationStatus::NotVerified
         );
         assert_eq!(
             vec![(msg.cc_id.clone(), false)],
