@@ -95,11 +95,11 @@ pub mod execute {
         key_id: String,
         msg: MsgToSign,
     ) -> Result<Response, ContractError> {
-        let key_id = WorkerSetID {
+        let worker_set_id = WorkerSetID {
             owner: info.sender,
             subkey: key_id,
         };
-        let key = get_worker_set(deps.storage, &key_id)?;
+        let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
 
         let session_id = SIGNING_SESSION_COUNTER.update(
             deps.storage,
@@ -109,14 +109,14 @@ pub mod execute {
             },
         )?;
 
-        let signing_session = SigningSession::new(session_id, key_id.clone(), msg.clone());
+        let signing_session = SigningSession::new(session_id, worker_set_id.clone(), msg.clone());
 
         SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
         let event = Event::SigningStarted {
             session_id,
-            key_id,
-            pub_keys: key.pub_keys,
+            key_id: worker_set_id,
+            pub_keys: worker_set.get_pub_keys_from_signer(),
             msg,
         };
 
@@ -136,9 +136,9 @@ pub mod execute {
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-        let key = WORKER_SETS.load(deps.storage, &session.key_id)?;
+        let worker_set = WORKER_SETS.load(deps.storage, &session.key_id)?;
 
-        let pub_key = signer_pub_key(&key, &info.sender, session.id)?;
+        let pub_key = signer_pub_key(&worker_set, &info.sender, session.id)?;
         let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
         validate_session_signature(
@@ -154,7 +154,7 @@ pub mod execute {
         let signatures = load_session_signatures(deps.storage, session_id.u64())?;
 
         let old_state = session.state.clone();
-        session.recalculate_session_state(&signatures, &key.snapshot, env.block.height);
+        session.recalculate_session_state(&signatures, &worker_set, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
         let state_changed = old_state != session.state;
