@@ -8,7 +8,7 @@ use axelar_wasm_std::Snapshot;
 use crate::{
     key::{PublicKey, Signature},
     types::{Key, WorkerSetID, MsgToSign, MultisigState},
-    ContractError,
+    ContractError, worker_set::WorkerSet,
 };
 
 #[cw_serde]
@@ -71,11 +71,11 @@ pub fn validate_session_signature(
 }
 
 pub fn signer_pub_key<'a>(
-    key: &'a Key,
+    worker_set: &'a WorkerSet,
     signer: &'a Addr,
     session_id: Uint64,
 ) -> Result<&'a PublicKey, ContractError> {
-    match key.pub_keys.get(signer.as_str()) {
+    match worker_set.get_pub_keys_from_signer().get(signer.as_str()) {
         Some(pub_key) => Ok(pub_key),
         None => Err(ContractError::NotAParticipant {
             session_id,
