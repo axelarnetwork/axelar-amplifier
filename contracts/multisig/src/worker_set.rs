@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{key::PublicKey, msg::Signer};
 use axelar_wasm_std::Participant;
@@ -54,5 +54,14 @@ impl WorkerSet {
 
     pub fn id(&self) -> String {
         self.hash().to_hex()
+    }
+
+    pub fn get_pub_keys_from_signer(&self) -> HashMap<String, PublicKey>{
+        let mut pub_keys = HashMap::new();
+        for (address, signer) in self.signers {
+            let public_key = signer.pub_key;
+            pub_keys.insert(address, public_key);
+        }
+        pub_keys
     }
 }
