@@ -207,27 +207,6 @@ fn initialize_worker_set(
     Ok(())
 }
 
-fn make_keygen_msg(
-    key_id: String,
-    snapshot: axelar_wasm_std::Snapshot,
-    worker_set: WorkerSet,
-) -> multisig::msg::ExecuteMsg {
-    multisig::msg::ExecuteMsg::RegisterWorkerSet {
-        key_id,
-        snapshot,
-        pub_keys_by_address: worker_set
-            .signers
-            .into_values()
-            .map(|signer| {
-                (
-                    signer.address.to_string(),
-                    (signer.pub_key.key_type(), signer.pub_key.as_ref().into()),
-                )
-            })
-            .collect(),
-    }
-}
-
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &config)?;
@@ -238,13 +217,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             // if no worker set, just store it and return
             let new_worker_set = make_worker_set(&deps, &env, &config)?;
             initialize_worker_set(deps.storage, new_worker_set.clone())?;
-            let key_gen_msg = make_keygen_msg(
-                new_worker_set.id(),
-                workers_info.snapshot,
-                new_worker_set.clone(),
-            );
+            let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                worker_set,
+            };
 
-            Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
+            Ok(Response::new().add_message(wasm_execute(config.multisig, &register_worker_set_msg, vec![])?))
         }
         Some(cur_worker_set) => {
             let new_worker_set = get_next_worker_set(&deps, &env, &config)?
