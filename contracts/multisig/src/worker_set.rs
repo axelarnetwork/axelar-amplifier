@@ -56,7 +56,7 @@ impl WorkerSet {
         self.hash().to_hex()
     }
 
-    pub fn get_pub_keys_from_signer(&self) -> HashMap<String, PublicKey>{
+    pub fn get_pub_keys(&self) -> HashMap<String, PublicKey>{
         let mut pub_keys = HashMap::new();
         self.signers.iter().map(|(address, signer)| {
             pub_keys.insert(address.clone(), signer.pub_key.clone());

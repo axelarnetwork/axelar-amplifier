@@ -116,7 +116,7 @@ pub mod execute {
         let event = Event::SigningStarted {
             session_id,
             key_id: worker_set_id,
-            pub_keys: worker_set.get_pub_keys_from_signer(),
+            pub_keys: worker_set.get_pub_keys(),
             msg,
         };
 
@@ -680,7 +680,7 @@ mod tests {
                 to_string(&session.key_id).unwrap()
             );
             assert_eq!(
-                worker_set.get_pub_keys_from_signer(),
+                worker_set.get_pub_keys(),
                 from_str(get_event_attribute(event, "pub_keys").unwrap()).unwrap()
             );
             assert_eq!(get_event_attribute(event, "msg").unwrap(), message.to_hex());
@@ -961,7 +961,7 @@ mod tests {
                         .unwrap();
 
                     assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
-                    assert_eq!(signer.0.pub_key, worker_set.get_pub_keys_from_signer().get(address).unwrap().clone());
+                    assert_eq!(signer.0.pub_key, worker_set.get_pub_keys().get(address).unwrap().clone());
                     assert_eq!(signer.1, signatures.get(address).cloned());
                 });
         }
