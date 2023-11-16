@@ -7,8 +7,8 @@ use cw_storage_plus::{Item, Map};
 use crate::{
     key::{KeyType, Signature},
     signing::SigningSession,
-    types::{Key, KeyID},
-    ContractError,
+    types::WorkerSetID,
+    ContractError, worker_set::WorkerSet,
 };
 
 #[cw_serde]
@@ -56,11 +56,11 @@ pub fn save_signature(
     )
 }
 
-pub const KEYS: Map<&KeyID, Key> = Map::new("keys");
-pub fn get_key(store: &dyn Storage, key_id: &KeyID) -> Result<Key, ContractError> {
-    KEYS.load(store, key_id)
-        .map_err(|_| ContractError::NoActiveKeyFound {
-            key_id: key_id.to_string(),
+pub const WORKER_SETS: Map<&WorkerSetID, WorkerSet> = Map::new("worker_sets");
+pub fn get_worker_set(store: &dyn Storage, worker_set_id: &WorkerSetID) -> Result<WorkerSet, ContractError> {
+    WORKER_SETS.load(store, worker_set_id)
+        .map_err(|_| ContractError::NoActiveWorkerSetFound {
+            worker_set_id: worker_set_id.to_string(),
         })
 }
 

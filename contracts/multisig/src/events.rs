@@ -5,14 +5,14 @@ use serde_json::to_string;
 
 use crate::{
     key::{PublicKey, Signature},
-    types::{KeyID, MsgToSign},
+    types::{WorkerSetID, MsgToSign},
 };
 
 pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         session_id: Uint64,
-        key_id: KeyID,
+        key_id: WorkerSetID,
         pub_keys: HashMap<String, PublicKey>,
         msg: MsgToSign,
     },

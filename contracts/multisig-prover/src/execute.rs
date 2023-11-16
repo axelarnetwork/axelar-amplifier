@@ -212,7 +212,7 @@ fn make_keygen_msg(
     snapshot: axelar_wasm_std::Snapshot,
     worker_set: WorkerSet,
 ) -> multisig::msg::ExecuteMsg {
-    multisig::msg::ExecuteMsg::KeyGen {
+    multisig::msg::ExecuteMsg::RegisterWorkerSet {
         key_id,
         snapshot,
         pub_keys_by_address: worker_set
@@ -295,19 +295,8 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     NEXT_WORKER_SET.remove(deps.storage);
     KEY_ID.save(deps.storage, &worker_set.id())?;
 
-    let key_gen_msg = multisig::msg::ExecuteMsg::KeyGen {
-        key_id: worker_set.id(),
-        snapshot, // TODO: refactor this to just pass the WorkerSet struct
-        pub_keys_by_address: worker_set
-            .signers
-            .into_values()
-            .map(|signer| {
-                (
-                    signer.address.to_string(),
-                    (signer.pub_key.key_type(), signer.pub_key.as_ref().into()),
-                )
-            })
-            .collect(),
+    let key_gen_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet {
+        worker_set
     };
 
     Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))

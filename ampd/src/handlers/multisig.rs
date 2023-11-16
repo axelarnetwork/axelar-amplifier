@@ -189,7 +189,7 @@ mod test {
 
     use multisig::events::Event::SigningStarted;
     use multisig::key::PublicKey;
-    use multisig::types::{KeyID, MsgToSign};
+    use multisig::types::{WorkerSetID, MsgToSign};
 
     use crate::broadcaster::MockBroadcaster;
     use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};
@@ -226,7 +226,7 @@ mod test {
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
-            key_id: KeyID {
+            key_id: WorkerSetID {
                 owner: Addr::unchecked("sender"),
                 subkey: "key_id".to_string(),
             },

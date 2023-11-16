@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, Multisig, QueryMsg},
-    state::{get_key, Config, CONFIG, KEYS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
-    types::{Key, KeyID, MsgToSign, MultisigState},
+    state::{get_worker_set, Config, CONFIG, WORKER_SETS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    types::{WorkerSetID, MsgToSign, MultisigState},
     ContractError,
 };
 
@@ -56,11 +56,9 @@ pub fn execute(
             session_id,
             signature,
         } => execute::submit_signature(deps, env, info, session_id, signature),
-        ExecuteMsg::KeyGen {
-            key_id,
-            snapshot,
-            pub_keys_by_address,
-        } => execute::key_gen(deps, info, key_id, snapshot, pub_keys_by_address),
+        ExecuteMsg::RegisterWorkerSet {
+            worker_set,
+        } => execute::register_worker_set(deps, info, worker_set),
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
         }
@@ -81,6 +79,7 @@ pub mod execute {
 
     use crate::signing::{signer_pub_key, validate_session_signature};
     use crate::state::{load_session_signatures, save_signature};
+    use crate::worker_set::WorkerSet;
     use crate::{
         key::{KeyType, KeyTyped, PublicKey, Signature},
         signing::SigningSession,
@@ -96,11 +95,11 @@ pub mod execute {
         key_id: String,
         msg: MsgToSign,
     ) -> Result<Response, ContractError> {
-        let key_id = KeyID {
+        let key_id = WorkerSetID {
             owner: info.sender,
             subkey: key_id,
         };
-        let key = get_key(deps.storage, &key_id)?;
+        let key = get_worker_set(deps.storage, &key_id)?;
 
         let session_id = SIGNING_SESSION_COUNTER.update(
             deps.storage,
@@ -137,7 +136,7 @@ pub mod execute {
         let mut session = SIGNING_SESSIONS
             .load(deps.storage, session_id.into())
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-        let key = KEYS.load(deps.storage, &session.key_id)?;
+        let key = WORKER_SETS.load(deps.storage, &session.key_id)?;
 
         let pub_key = signer_pub_key(&key, &info.sender, session.id)?;
         let signature: Signature = (pub_key.key_type(), signature).try_into()?;
@@ -170,47 +169,21 @@ pub mod execute {
         )
     }
 
-    pub fn key_gen(
+    pub fn register_worker_set(
         deps: DepsMut,
         info: MessageInfo,
-        key_id: String,
-        snapshot: Snapshot,
-        pub_keys_by_address: HashMap<String, (KeyType, HexBinary)>,
+        worker_set: WorkerSet,
     ) -> Result<Response, ContractError> {
-        if snapshot.participants.len() != pub_keys_by_address.len() {
-            return Err(ContractError::PublicKeysMismatchParticipants);
-        }
 
-        for participant in snapshot.participants.keys() {
-            if !pub_keys_by_address.contains_key(participant) {
-                return Err(ContractError::MissingPublicKey {
-                    participant: participant.to_owned(),
-                });
-            }
-        }
-
-        let key_id = KeyID {
+        let worker_set_id = WorkerSetID {
             owner: info.sender,
-            subkey: key_id,
-        };
-        let key = Key {
-            id: key_id.clone(),
-            snapshot,
-            pub_keys: pub_keys_by_address
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        PublicKey::try_from(v).expect("failed to decode public key"),
-                    )
-                })
-                .collect(),
+            subkey: worker_set.id(),
         };
 
-        KEYS.update(deps.storage, &key_id, |existing| match existing {
-            None => Ok(key),
-            _ => Err(ContractError::DuplicateKeyID {
-                key_id: key_id.to_string(),
+        WORKER_SETS.update(deps.storage, &worker_set_id, |existing| match existing {
+            None => Ok(worker_set),
+            _ => Err(ContractError::DuplicateWorkerSetID {
+                worker_set_id: worker_set_id.to_string(),
             }),
         })?;
 
@@ -323,7 +296,7 @@ pub mod execute {
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
-        QueryMsg::GetKey { key_id } => to_binary(&query::get_key(deps, key_id)?),
+        QueryMsg::GetKey { key_id } => to_binary(&query::get_worker_set(deps, key_id)?),
         QueryMsg::GetPublicKey {
             worker_address,
             key_type,
@@ -347,7 +320,7 @@ pub mod query {
     pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
         let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
 
-        let mut key = KEYS.load(deps.storage, &session.key_id)?;
+        let mut key = WORKER_SETS.load(deps.storage, &session.key_id)?;
 
         let signatures = load_session_signatures(deps.storage, session.id.u64())?;
 
@@ -379,8 +352,8 @@ pub mod query {
         })
     }
 
-    pub fn get_key(deps: Deps, key_id: KeyID) -> StdResult<Key> {
-        KEYS.load(deps.storage, &key_id)
+    pub fn get_worker_set(deps: Deps, worker_set_id: WorkerSetID) -> StdResult<WorkerSet> {
+        WORKER_SETS.load(deps.storage, &worker_set_id)
     }
 
     pub fn get_public_key(deps: Deps, worker: Addr, key_type: KeyType) -> StdResult<PublicKey> {
@@ -456,7 +429,7 @@ mod tests {
 
         let subkey = subkey.to_string();
         let snapshot = build_snapshot(&signers);
-        let msg = ExecuteMsg::KeyGen {
+        let msg = ExecuteMsg::RegisterWorkerSet {
             key_id: subkey.clone(),
             snapshot: snapshot.clone(),
             pub_keys_by_address: pub_keys.clone(),
@@ -466,7 +439,7 @@ mod tests {
             (
                 res,
                 Key {
-                    id: KeyID {
+                    id: WorkerSetID {
                         owner: info.sender,
                         subkey,
                     },
@@ -487,7 +460,7 @@ mod tests {
             deps,
             env,
             QueryMsg::GetKey {
-                key_id: KeyID {
+                key_id: WorkerSetID {
                     owner: info.sender,
                     subkey: subkey.to_string(),
                 },
@@ -658,8 +631,8 @@ mod tests {
             let res = do_key_gen(key_type, "key1", deps.as_mut());
             assert_eq!(
                 res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::DuplicateKeyID {
-                    key_id: KeyID {
+                axelar_wasm_std::ContractError::from(ContractError::DuplicateWorkerSetID {
+                    key_id: WorkerSetID {
                         owner: Addr::unchecked(PROVER),
                         subkey: "key1".to_string(),
                     }
@@ -684,11 +657,11 @@ mod tests {
                 .load(deps.as_ref().storage, i as u64 + 1)
                 .unwrap();
 
-            let key_id: KeyID = KeyID {
+            let key_id: WorkerSetID = WorkerSetID {
                 owner: Addr::unchecked(PROVER),
                 subkey: subkey.to_string(),
             };
-            let key = get_key(deps.as_ref().storage, &key_id).unwrap();
+            let key = get_worker_set(deps.as_ref().storage, &key_id).unwrap();
             let message = match subkey {
                 ECDSA_SUBKEY => ecdsa_test_data::message(),
                 ED25519_SUBKEY => ed25519_test_data::message(),
@@ -976,7 +949,7 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let key = KEYS
+            let key = WORKER_SETS
                 .load(deps.as_ref().storage, (&session.key_id).into())
                 .unwrap();
             let signatures =

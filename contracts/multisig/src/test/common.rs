@@ -5,7 +5,7 @@ use cosmwasm_std::{Addr, HexBinary, Uint256};
 
 use crate::{
     key::{KeyType, PublicKey},
-    types::{Key, KeyID},
+    types::{Key, WorkerSetID},
 };
 
 #[derive(Clone)]
@@ -110,7 +110,7 @@ pub fn build_snapshot(signers: &Vec<TestSigner>) -> Snapshot {
 
 pub fn build_key(
     key_type: KeyType,
-    key_id: KeyID,
+    key_id: WorkerSetID,
     signers: &Vec<TestSigner>,
     snapshot: Snapshot,
 ) -> Key {
