@@ -650,7 +650,7 @@ mod tests {
                 owner: Addr::unchecked(PROVER),
                 subkey: subkey.to_string(),
             };
-            let key = get_worker_set(deps.as_ref().storage, &key_id).unwrap();
+            let worker_set = get_worker_set(deps.as_ref().storage, &key_id).unwrap();
             let message = match subkey {
                 ECDSA_SUBKEY => ecdsa_test_data::message(),
                 ED25519_SUBKEY => ed25519_test_data::message(),
@@ -660,7 +660,7 @@ mod tests {
                 load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
-            assert_eq!(session.key_id, key.id);
+            assert_eq!(session.key_id, key_id);
             assert_eq!(session.msg, message.clone().try_into().unwrap());
             assert!(signatures.is_empty());
             assert_eq!(session.state, MultisigState::Pending);
@@ -680,7 +680,7 @@ mod tests {
                 to_string(&session.key_id).unwrap()
             );
             assert_eq!(
-                key.pub_keys,
+                worker_set.get_pub_keys_from_signer(),
                 from_str(get_event_attribute(event, "pub_keys").unwrap()).unwrap()
             );
             assert_eq!(get_event_attribute(event, "msg").unwrap(), message.to_hex());
