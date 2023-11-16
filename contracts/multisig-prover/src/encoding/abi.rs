@@ -133,7 +133,7 @@ fn encode_proof(
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
+        .values()
         .map(|signer| {
             (
                 evm_address(signer.pub_key.as_ref())
@@ -177,7 +177,7 @@ fn add27(recovery_byte: u8) -> u8 {
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
+        .values()
         .map(|signer| {
             (
                 evm_address(signer.pub_key.as_ref())
@@ -393,7 +393,7 @@ mod test {
         assert!(res.is_ok());
 
         let tokens = decode_operator_transfer_command_params(res.unwrap());
-        let mut signers: Vec<Signer> = new_worker_set.signers.into_iter().collect();
+        let mut signers: Vec<Signer> = new_worker_set.signers.into_values().collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
         let mut i = 0;
         for signer in signers {

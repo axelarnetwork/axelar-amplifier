@@ -4,7 +4,8 @@ use cosmwasm_std::{
 };
 
 use multisig::{
-    key::{KeyType, PublicKey},
+    key::{KeyTyped, PublicKey},
+    msg::Signer,
     worker_set::WorkerSet,
 };
 
@@ -134,7 +135,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     for worker in &workers {
         let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
             worker_address: worker.address.to_string(),
-            key_type: KeyType::Ecdsa,
+            key_type: config.key_type,
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
@@ -216,11 +217,11 @@ fn make_keygen_msg(
         snapshot,
         pub_keys_by_address: worker_set
             .signers
-            .into_iter()
+            .into_values()
             .map(|signer| {
                 (
                     signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
+                    (signer.pub_key.key_type(), signer.pub_key.as_ref().into()),
                 )
             })
             .collect(),
@@ -299,11 +300,11 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
         snapshot, // TODO: refactor this to just pass the WorkerSet struct
         pub_keys_by_address: worker_set
             .signers
-            .into_iter()
+            .into_values()
             .map(|signer| {
                 (
                     signer.address.to_string(),
-                    (KeyType::Ecdsa, signer.pub_key.as_ref().into()),
+                    (signer.pub_key.key_type(), signer.pub_key.as_ref().into()),
                 )
             })
             .collect(),
@@ -317,8 +318,26 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    new_workers.signers.difference(&cur_workers.signers).count()
-        + cur_workers.signers.difference(&new_workers.signers).count()
+    let new_workers_signers = new_workers
+        .signers
+        .values()
+        .cloned()
+        .collect::<Vec<Signer>>();
+
+    let cur_workers_signers = cur_workers
+        .signers
+        .values()
+        .cloned()
+        .collect::<Vec<Signer>>();
+
+    new_workers_signers
+        .iter()
+        .filter(|item| !cur_workers_signers.contains(item))
+        .count()
+        + cur_workers_signers
+            .iter()
+            .filter(|item| !new_workers_signers.contains(item))
+            .count()
         > max_diff
 }
 
@@ -340,7 +359,7 @@ mod tests {
     use cosmwasm_std::{testing::mock_dependencies, Uint256};
 
     use crate::{execute::should_update_worker_set, state::NEXT_WORKER_SET, test::test_data};
-    use std::collections::{BTreeSet, HashMap};
+    use std::collections::{BTreeMap, HashMap};
 
     use super::different_set_in_progress;
 
@@ -379,9 +398,10 @@ mod tests {
         let worker_set = test_data::new_worker_set();
         let mut new_worker_set = worker_set.clone();
         let mut signers = new_worker_set.signers.into_iter().collect::<Vec<_>>();
-        signers[0].pub_key = signers[1].pub_key.clone();
-        signers[1].pub_key = signers[0].pub_key.clone();
-        new_worker_set.signers = BTreeSet::from_iter(signers);
+        // swap public keys
+        signers[0].1.pub_key = signers[1].1.pub_key.clone();
+        signers[1].1.pub_key = signers[0].1.pub_key.clone();
+        new_worker_set.signers = BTreeMap::from_iter(signers);
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
     }
 
