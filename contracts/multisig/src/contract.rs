@@ -320,26 +320,15 @@ pub mod query {
     pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
         let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
 
-        let mut key = WORKER_SETS.load(deps.storage, &session.key_id)?;
-
+        let worker_set = WORKER_SETS.load(deps.storage, &session.key_id)?;
         let signatures = load_session_signatures(deps.storage, session.id.u64())?;
 
-        let signers_with_sigs = key
-            .snapshot
-            .participants
+        let signers_with_sigs = worker_set
+            .signers
             .into_iter()
-            .map(|(address, participant)| {
-                let pub_key = key
-                    .pub_keys
-                    .remove(&address)
-                    .expect("violated invariant: pub_key not found");
-
+            .map(|(address, signer)| {
                 (
-                    Signer {
-                        address: participant.address,
-                        weight: participant.weight.into(),
-                        pub_key,
-                    },
+                    signer,
                     signatures.get(&address).cloned(),
                 )
             })
@@ -347,7 +336,7 @@ pub mod query {
 
         Ok(Multisig {
             state: session.state,
-            quorum: key.snapshot.quorum.into(),
+            quorum: worker_set.threshold.into(),
             signers: signers_with_sigs,
         })
     }
