@@ -32,12 +32,12 @@ impl SigningSession {
     pub fn recalculate_session_state(
         &mut self,
         signatures: &HashMap<String, Signature>,
-        snapshot: &Snapshot,
+        worker_set: &WorkerSet,
         block_height: u64,
     ) {
-        let weight = signers_weight(signatures, snapshot);
+        let weight = signers_weight(signatures, worker_set);
 
-        if self.state == MultisigState::Pending && weight >= snapshot.quorum.into() {
+        if self.state == MultisigState::Pending && weight >= worker_set.threshold.into() {
             self.state = MultisigState::Completed {
                 completed_at: block_height,
             };
@@ -84,12 +84,12 @@ pub fn signer_pub_key<'a>(
     }
 }
 
-fn signers_weight(signatures: &HashMap<String, Signature>, snapshot: &Snapshot) -> Uint256 {
+fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint256 {
     signatures
         .keys()
         .map(|addr| -> Uint256 {
-            snapshot
-                .participants
+            worker_set
+                .signers
                 .get(addr)
                 .expect("violated invariant: signature submitted by non-participant")
                 .weight
