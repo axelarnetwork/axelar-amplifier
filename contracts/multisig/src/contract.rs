@@ -42,12 +42,12 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id, msg } => {
+        ExecuteMsg::StartSigningSession { worker_set_id, msg } => {
             execute::require_authorized_caller(&deps, info.sender.clone())?;
             execute::start_signing_session(
                 deps,
                 info,
-                key_id,
+                worker_set_id,
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
             )
@@ -370,9 +370,6 @@ mod tests {
     const PROVER: &str = "prover";
     const REWARDS_CONTRACT: &str = "rewards";
 
-    const ECDSA_SUBKEY: &str = "key_ecdsa";
-    const ED25519_SUBKEY: &str = "key_ed25519";
-
     fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
@@ -425,14 +422,14 @@ mod tests {
     fn do_start_signing_session(
         deps: DepsMut,
         sender: &str,
-        key_id: &str,
+        worker_set_id: &str,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
 
         let message = ecdsa_test_data::message();
         let msg = ExecuteMsg::StartSigningSession {
-            key_id: key_id.to_string(),
+            worker_set_id: worker_set_id.to_string(),
             msg: message.clone(),
         };
         execute(deps, env, info, msg)
@@ -500,20 +497,23 @@ mod tests {
         )
     }
 
-    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+    fn setup() -> (OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>, String, String) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        do_worker_set_gen(KeyType::Ecdsa, ECDSA_SUBKEY, deps.as_mut()).unwrap();
-        do_worker_set_gen(KeyType::Ed25519, ED25519_SUBKEY, deps.as_mut()).unwrap();
-        deps
+        let worker_set_ecdsa = do_worker_set_gen(KeyType::Ecdsa, deps.as_mut()).unwrap().1;
+        let worker_set_ed25519 = do_worker_set_gen(KeyType::Ed25519, deps.as_mut()).unwrap().1;
+        let ecdsa_subkey = worker_set_ecdsa.id();
+        let ed25519_subkey = worker_set_ed25519.id();
+        
+        (deps, ecdsa_subkey, ed25519_subkey)
     }
 
     fn setup_with_session_started(
-        key_id: &str,
+        worker_set_id: &str,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
-        let mut deps = setup();
+        let mut deps = setup().0;
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
-        do_start_signing_session(deps.as_mut(), PROVER, key_id).unwrap();
+        do_start_signing_session(deps.as_mut(), PROVER, worker_set_id).unwrap();
         deps
     }
 
@@ -530,17 +530,17 @@ mod tests {
     }
 
     // Returns a list of (key_type, subkey, signers, session_id)
-    fn signature_test_data() -> Vec<(KeyType, &'static str, Vec<TestSigner>, Uint64)> {
+    fn signature_test_data<'a>(ecdsa_subkey: &'a String, ed25519_subkey: &'a String) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
         vec![
             (
                 KeyType::Ecdsa,
-                ECDSA_SUBKEY,
+                ecdsa_subkey,
                 ecdsa_test_data::signers(),
                 Uint64::from(1u64),
             ),
             (
                 KeyType::Ed25519,
-                ED25519_SUBKEY,
+                ed25519_subkey,
                 ed25519_test_data::signers(),
                 Uint64::from(2u64),
             ),
@@ -583,7 +583,7 @@ mod tests {
 
         for key_type in [KeyType::Ecdsa, KeyType::Ed25519] {
             let res = do_worker_set_gen(key_type, deps.as_mut());
-            let worker_set = res.unwrap().1;
+            let worker_set = res.as_ref().unwrap().clone().1;
             assert_eq!(
                 res.unwrap_err().to_string(),
                 axelar_wasm_std::ContractError::from(ContractError::DuplicateWorkerSetID {
@@ -596,11 +596,11 @@ mod tests {
 
     #[test]
     fn start_signing_session() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (i, subkey) in [ECDSA_SUBKEY, ED25519_SUBKEY].into_iter().enumerate() {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, subkey);
+        for (i, subkey) in [ecdsa_subkey, ed25519_subkey].into_iter().enumerate() {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, &subkey);
 
             assert!(res.is_ok());
 
@@ -648,13 +648,13 @@ mod tests {
 
     #[test]
     fn start_signing_session_wrong_sender() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         let sender = "someone else";
 
-        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
-            let res = do_start_signing_session(deps.as_mut(), sender, key_id);
+        for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
+            let res = do_start_signing_session(deps.as_mut(), sender, &worker_set_id);
 
             assert_eq!(
                 res.unwrap_err().to_string(),
@@ -666,11 +666,11 @@ mod tests {
 
     #[test]
     fn submit_signature() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (key_type, subkey, signers, session_id) in signature_test_data() {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+        for (key_type, worker_set_id, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+            do_start_signing_session(deps.as_mut(), PROVER, worker_set_id).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
 
@@ -728,10 +728,10 @@ mod tests {
 
     #[test]
     fn submit_signature_completes_session() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (key_type, subkey, signers, session_id) in signature_test_data() {
+        for (key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -778,10 +778,10 @@ mod tests {
 
     #[test]
     fn submit_signature_during_grace_period() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+        for (_key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -822,10 +822,10 @@ mod tests {
 
     #[test]
     fn submit_signature_grace_period_over() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+        for (_key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -853,7 +853,9 @@ mod tests {
 
     #[test]
     fn submit_signature_wrong_session_id() {
-        let mut deps = setup_with_session_started(ECDSA_SUBKEY);
+        let (mut deps, ecdsa_subkey, _) = setup();
+        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_start_signing_session(deps.as_mut(), PROVER, &ecdsa_subkey).unwrap();
 
         let invalid_session_id = Uint64::zero();
         let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
@@ -870,10 +872,10 @@ mod tests {
 
     #[test]
     fn query_signing_session() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (_key_type, subkey, signers, session_id) in signature_test_data() {
+        for (_key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             do_sign(
@@ -1053,21 +1055,21 @@ mod tests {
 
     #[test]
     fn authorize_and_unauthorize_caller() {
-        let mut deps = setup();
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
 
         // authorize
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+        for worker_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, &worker_set_id);
 
             assert!(res.is_ok());
         }
 
         // unauthorize
         do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
-        for key_id in [ECDSA_SUBKEY, ED25519_SUBKEY] {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, key_id);
+        for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
+            let res = do_start_signing_session(deps.as_mut(), PROVER, &worker_set_id);
 
             assert_eq!(
                 res.unwrap_err().to_string(),
@@ -1079,7 +1081,7 @@ mod tests {
 
     #[test]
     fn authorize_caller_wrong_caller() {
-        let mut deps = setup();
+        let mut deps = setup().0;
 
         let info = mock_info("user", &[]);
         let env = mock_env();
@@ -1097,7 +1099,7 @@ mod tests {
 
     #[test]
     fn unauthorize_caller_wrong_caller() {
-        let mut deps = setup();
+        let mut deps = setup().0;
 
         let info = mock_info("user", &[]);
         let env = mock_env();

@@ -30,7 +30,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id: _, msg: _ } => {
+        ExecuteMsg::StartSigningSession { worker_set_id: _, msg: _ } => {
             Ok(Response::new().set_data(to_binary(&Uint64::one())?))
         }
         ExecuteMsg::SubmitSignature {
@@ -74,7 +74,7 @@ pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<Tes
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
-        QueryMsg::GetWorkerSet { key_id: _ } => unimplemented!(),
+        QueryMsg::GetWorkerSet { worker_set_id: _ } => unimplemented!(),
         QueryMsg::GetPublicKey {
             worker_address,
             key_type,

@@ -64,9 +64,9 @@ pub fn construct_proof(
     // keep track of the batch id to use during submessage reply
     REPLY_BATCH.save(deps.storage, &command_batch.id)?;
 
-    let key_id = KEY_ID.load(deps.storage)?;
+    let worker_set_id = KEY_ID.load(deps.storage)?;
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        key_id,
+        worker_set_id,
         msg: command_batch.msg_digest(),
     };
 
@@ -218,7 +218,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             let new_worker_set = make_worker_set(&deps, &env, &config)?;
             initialize_worker_set(deps.storage, new_worker_set.clone())?;
             let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet {
-                worker_set,
+                worker_set: new_worker_set,
             };
 
             Ok(Response::new().add_message(wasm_execute(config.multisig, &register_worker_set_msg, vec![])?))
@@ -238,7 +238,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             REPLY_BATCH.save(deps.storage, &batch.id)?;
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-                key_id: cur_worker_set.id(), // TODO remove the key_id
+                worker_set_id: cur_worker_set.id(), // TODO remove the key_id
                 msg: batch.msg_digest(),
             };
 
