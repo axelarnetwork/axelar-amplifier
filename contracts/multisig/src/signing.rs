@@ -70,20 +70,6 @@ pub fn validate_session_signature(
     Ok(())
 }
 
-pub fn signer_pub_key<'a>(
-    worker_set: &'a WorkerSet,
-    signer: &'a Addr,
-    session_id: Uint64,
-) -> Result<&'a PublicKey, ContractError> {
-    match worker_set.get_pub_keys().get(signer.as_str()) {
-        Some(pub_key) => Ok(pub_key),
-        None => Err(ContractError::NotAParticipant {
-            session_id,
-            signer: signer.into(),
-        }),
-    }
-}
-
 fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint256 {
     signatures
         .keys()
