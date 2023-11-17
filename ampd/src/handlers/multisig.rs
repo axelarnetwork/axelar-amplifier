@@ -189,7 +189,7 @@ mod test {
 
     use multisig::events::Event::SigningStarted;
     use multisig::key::PublicKey;
-    use multisig::types::{WorkerSetID, MsgToSign};
+    use multisig::types::{MsgToSign, WorkerSetID};
 
     use crate::broadcaster::MockBroadcaster;
     use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{key::PublicKey, msg::Signer, ContractError};
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint256, Addr, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
@@ -56,7 +56,7 @@ impl WorkerSet {
         self.hash().to_hex()
     }
 
-    pub fn get_pub_keys(&self) -> HashMap<String, PublicKey>{
+    pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
         let mut pub_keys = HashMap::new();
         let _ = self.signers.iter().map(|(address, signer)| {
             pub_keys.insert(address.clone(), signer.pub_key.clone());
@@ -64,7 +64,11 @@ impl WorkerSet {
         pub_keys
     }
 
-    pub fn get_signers_pub_key(&self, signer: &Addr, session_id: Uint64) -> Result<&PublicKey, ContractError>  {
+    pub fn get_signers_pub_key(
+        &self,
+        signer: &Addr,
+        session_id: Uint64,
+    ) -> Result<&PublicKey, ContractError> {
         match self.signers.get(&signer.to_string()) {
             Some(signer) => Ok(&signer.pub_key),
             None => Err(ContractError::NotAParticipant {

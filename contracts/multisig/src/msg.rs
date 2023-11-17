@@ -6,7 +6,8 @@ use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
 use crate::{
     key::{KeyType, PublicKey, Signature},
-    types::{WorkerSetID, MultisigState}, worker_set::WorkerSet,
+    types::{MultisigState, WorkerSetID},
+    worker_set::WorkerSet,
 };
 
 #[cw_serde]

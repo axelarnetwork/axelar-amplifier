@@ -221,7 +221,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 worker_set: new_worker_set,
             };
 
-            Ok(Response::new().add_message(wasm_execute(config.multisig, &register_worker_set_msg, vec![])?))
+            Ok(Response::new().add_message(wasm_execute(
+                config.multisig,
+                &register_worker_set_msg,
+                vec![],
+            )?))
         }
         Some(cur_worker_set) => {
             let new_worker_set = get_next_worker_set(&deps, &env, &config)?
@@ -272,9 +276,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     NEXT_WORKER_SET.remove(deps.storage);
     KEY_ID.save(deps.storage, &worker_set.id())?;
 
-    let key_gen_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet {
-        worker_set
-    };
+    let key_gen_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set };
 
     Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
 }

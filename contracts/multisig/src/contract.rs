@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use crate::{
     events::Event,
     msg::{ExecuteMsg, InstantiateMsg, Multisig, QueryMsg},
-    state::{get_worker_set, Config, CONFIG, WORKER_SETS, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER},
+    state::{
+        get_worker_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, WORKER_SETS,
+    },
     types::{MsgToSign, MultisigState},
     ContractError,
 };
@@ -56,9 +58,9 @@ pub fn execute(
             session_id,
             signature,
         } => execute::submit_signature(deps, env, info, session_id, signature),
-        ExecuteMsg::RegisterWorkerSet {
-            worker_set,
-        } => execute::register_worker_set(deps, info, worker_set),
+        ExecuteMsg::RegisterWorkerSet { worker_set } => {
+            execute::register_worker_set(deps, info, worker_set)
+        }
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
         }
@@ -170,7 +172,6 @@ pub mod execute {
         info: MessageInfo,
         worker_set: WorkerSet,
     ) -> Result<Response, ContractError> {
-
         let worker_set_id = worker_set.id();
 
         WORKER_SETS.update(deps.storage, &worker_set_id, |existing| match existing {
@@ -289,7 +290,9 @@ pub mod execute {
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
-        QueryMsg::GetWorkerSet { worker_set_id } => to_binary(&query::get_worker_set(deps, worker_set_id)?),
+        QueryMsg::GetWorkerSet { worker_set_id } => {
+            to_binary(&query::get_worker_set(deps, worker_set_id)?)
+        }
         QueryMsg::GetPublicKey {
             worker_address,
             key_type,
@@ -305,7 +308,8 @@ pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
         msg::Signer,
-        state::{load_session_signatures, PUB_KEYS}, worker_set::WorkerSet,
+        state::{load_session_signatures, PUB_KEYS},
+        worker_set::WorkerSet,
     };
 
     use super::*;
@@ -319,12 +323,7 @@ pub mod query {
         let signers_with_sigs = worker_set
             .signers
             .into_iter()
-            .map(|(address, signer)| {
-                (
-                    signer,
-                    signatures.get(&address).cloned(),
-                )
-            })
+            .map(|(address, signer)| (signer, signatures.get(&address).cloned()))
             .collect::<Vec<_>>();
 
         Ok(Multisig {
@@ -352,9 +351,10 @@ mod tests {
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
         state::load_session_signatures,
-        test::common::{build_snapshot, TestSigner, build_worker_set},
+        test::common::{build_snapshot, build_worker_set, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
-        types::MultisigState, worker_set::{WorkerSet, self},
+        types::MultisigState,
+        worker_set::{self, WorkerSet},
     };
 
     use super::*;
@@ -400,12 +400,7 @@ mod tests {
             worker_set: worker_set.clone(),
         };
 
-        execute(deps, env, info.clone(), msg).map(|res| {
-            (
-                res,
-                worker_set,
-            )
-        })
+        execute(deps, env, info.clone(), msg).map(|res| (res, worker_set))
     }
 
     fn query_worker_set(worker_set_id: &str, deps: Deps) -> StdResult<Binary> {
@@ -497,14 +492,20 @@ mod tests {
         )
     }
 
-    fn setup() -> (OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>, String, String) {
+    fn setup() -> (
+        OwnedDeps<MockStorage, MockApi, MockQuerier, Empty>,
+        String,
+        String,
+    ) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
         let worker_set_ecdsa = do_worker_set_gen(KeyType::Ecdsa, deps.as_mut()).unwrap().1;
-        let worker_set_ed25519 = do_worker_set_gen(KeyType::Ed25519, deps.as_mut()).unwrap().1;
+        let worker_set_ed25519 = do_worker_set_gen(KeyType::Ed25519, deps.as_mut())
+            .unwrap()
+            .1;
         let ecdsa_subkey = worker_set_ecdsa.id();
         let ed25519_subkey = worker_set_ed25519.id();
-        
+
         (deps, ecdsa_subkey, ed25519_subkey)
     }
 
@@ -530,7 +531,10 @@ mod tests {
     }
 
     // Returns a list of (key_type, subkey, signers, session_id)
-    fn signature_test_data<'a>(ecdsa_subkey: &'a String, ed25519_subkey: &'a String) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
+    fn signature_test_data<'a>(
+        ecdsa_subkey: &'a String,
+        ed25519_subkey: &'a String,
+    ) -> Vec<(KeyType, &'a String, Vec<TestSigner>, Uint64)> {
         vec![
             (
                 KeyType::Ecdsa,
@@ -669,7 +673,9 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (key_type, worker_set_id, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+        for (key_type, worker_set_id, signers, session_id) in
+            signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+        {
             do_start_signing_session(deps.as_mut(), PROVER, worker_set_id).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -731,7 +737,9 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+        for (key_type, subkey, signers, session_id) in
+            signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+        {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -781,7 +789,9 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (_key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+        for (_key_type, subkey, signers, session_id) in
+            signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+        {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -825,7 +835,9 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (_key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+        for (_key_type, subkey, signers, session_id) in
+            signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+        {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
@@ -875,7 +887,9 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (_key_type, subkey, signers, session_id) in signature_test_data(&ecdsa_subkey, &ed25519_subkey) {
+        for (_key_type, subkey, signers, session_id) in
+            signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+        {
             do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
 
             do_sign(
@@ -912,7 +926,8 @@ mod tests {
                 }
             );
             assert_eq!(query_res.signers.len(), worker_set.signers.len());
-            worker_set.signers
+            worker_set
+                .signers
                 .iter()
                 .for_each(|(address, worker_set_signer)| {
                     let signer = query_res
@@ -922,7 +937,13 @@ mod tests {
                         .unwrap();
 
                     assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
-                    assert_eq!(signer.0.pub_key, worker_set.get_signers_pub_key(&Addr::unchecked(address), session_id).unwrap().clone());
+                    assert_eq!(
+                        signer.0.pub_key,
+                        worker_set
+                            .get_signers_pub_key(&Addr::unchecked(address), session_id)
+                            .unwrap()
+                            .clone()
+                    );
                     assert_eq!(signer.1, signatures.get(address).cloned());
                 });
         }

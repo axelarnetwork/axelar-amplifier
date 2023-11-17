@@ -8,7 +8,8 @@ use crate::{
     key::{KeyType, Signature},
     signing::SigningSession,
     types::WorkerSetID,
-    ContractError, worker_set::WorkerSet,
+    worker_set::WorkerSet,
+    ContractError,
 };
 
 #[cw_serde]
@@ -57,8 +58,12 @@ pub fn save_signature(
 }
 
 pub const WORKER_SETS: Map<&String, WorkerSet> = Map::new("worker_sets");
-pub fn get_worker_set(store: &dyn Storage, worker_set_id: &String) -> Result<WorkerSet, ContractError> {
-    WORKER_SETS.load(store, worker_set_id)
+pub fn get_worker_set(
+    store: &dyn Storage,
+    worker_set_id: &String,
+) -> Result<WorkerSet, ContractError> {
+    WORKER_SETS
+        .load(store, worker_set_id)
         .map_err(|_| ContractError::NoActiveWorkerSetFound {
             worker_set_id: worker_set_id.to_string(),
         })

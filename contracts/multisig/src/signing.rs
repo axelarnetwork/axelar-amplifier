@@ -8,7 +8,8 @@ use axelar_wasm_std::Snapshot;
 use crate::{
     key::{PublicKey, Signature},
     types::{MsgToSign, MultisigState},
-    ContractError, worker_set::WorkerSet,
+    worker_set::WorkerSet,
+    ContractError,
 };
 
 #[cw_serde]
@@ -91,7 +92,8 @@ mod tests {
     use crate::{
         key::KeyType,
         test::common::{build_key, build_snapshot, build_worker_set},
-        test::common::{ecdsa_test_data, ed25519_test_data}, worker_set,
+        test::common::{ecdsa_test_data, ed25519_test_data},
+        worker_set,
     };
 
     use super::*;
@@ -147,7 +149,6 @@ mod tests {
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
         let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
 
-        
         let signatures: HashMap<String, Signature> = signers
             .iter()
             .map(|signer| {

@@ -49,10 +49,7 @@ impl From<Event> for cosmwasm_std::Event {
                 msg,
             } => cosmwasm_std::Event::new("signing_started")
                 .add_attribute("session_id", session_id)
-                .add_attribute(
-                    "worker_set_id",
-                    worker_set_id,
-                )
+                .add_attribute("worker_set_id", worker_set_id)
                 .add_attribute(
                     "pub_keys",
                     to_string(&pub_keys)

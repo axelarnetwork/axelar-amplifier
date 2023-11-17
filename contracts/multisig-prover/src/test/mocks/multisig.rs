@@ -30,16 +30,15 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::StartSigningSession { worker_set_id: _, msg: _ } => {
-            Ok(Response::new().set_data(to_binary(&Uint64::one())?))
-        }
+        ExecuteMsg::StartSigningSession {
+            worker_set_id: _,
+            msg: _,
+        } => Ok(Response::new().set_data(to_binary(&Uint64::one())?)),
         ExecuteMsg::SubmitSignature {
             session_id: _,
             signature: _,
         } => unimplemented!(),
-        ExecuteMsg::RegisterWorkerSet {
-            worker_set: _,
-        } => Ok(Response::default()),
+        ExecuteMsg::RegisterWorkerSet { worker_set: _ } => Ok(Response::default()),
         ExecuteMsg::RegisterPublicKey { public_key } => {
             PUB_KEYS.save(
                 deps.storage,

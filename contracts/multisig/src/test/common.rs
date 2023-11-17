@@ -5,7 +5,8 @@ use cosmwasm_std::{Addr, HexBinary, Uint256};
 
 use crate::{
     key::{KeyType, PublicKey},
-    types::{Key, WorkerSetID}, worker_set::WorkerSet,
+    types::{Key, WorkerSetID},
+    worker_set::WorkerSet,
 };
 
 #[derive(Clone)]
@@ -131,27 +132,19 @@ pub fn build_key(
     }
 }
 
-pub fn build_worker_set(
-    key_type: KeyType,
-    signers: &Vec<TestSigner>,
-) -> WorkerSet {
+pub fn build_worker_set(key_type: KeyType, signers: &Vec<TestSigner>) -> WorkerSet {
     let participants = signers
         .iter()
         .map(|signer| {
             (
-            Participant {
-                address: signer.address.clone(),
-                weight: Uint256::one().try_into().unwrap(),
-            },
-            PublicKey::try_from((key_type, signer.pub_key.clone())).unwrap(),
+                Participant {
+                    address: signer.address.clone(),
+                    weight: Uint256::one().try_into().unwrap(),
+                },
+                PublicKey::try_from((key_type, signer.pub_key.clone())).unwrap(),
             )
-        }
-    )
+        })
         .collect::<Vec<_>>();
 
-    WorkerSet::new(
-        participants,
-        Uint256::one(),
-        0,
-    )
+    WorkerSet::new(participants, Uint256::one(), 0)
 }
