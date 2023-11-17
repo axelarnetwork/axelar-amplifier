@@ -51,7 +51,7 @@ pub enum QueryMsg {
     GetMultisig { session_id: Uint64 },
 
     #[returns(crate::types::Key)]
-    GetKey { key_id: WorkerSetID },
+    GetWorkerSet { worker_set_id: String },
 
     #[returns(PublicKey)]
     GetPublicKey {

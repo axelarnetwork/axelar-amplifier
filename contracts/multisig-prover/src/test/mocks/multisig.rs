@@ -74,7 +74,7 @@ pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<Tes
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
-        QueryMsg::GetKey { key_id: _ } => unimplemented!(),
+        QueryMsg::GetWorkerSet { key_id: _ } => unimplemented!(),
         QueryMsg::GetPublicKey {
             worker_address,
             key_type,

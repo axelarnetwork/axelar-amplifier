@@ -7,23 +7,23 @@ use axelar_wasm_std::Snapshot;
 
 use crate::{
     key::{PublicKey, Signature},
-    types::{Key, WorkerSetID, MsgToSign, MultisigState},
+    types::{MsgToSign, MultisigState},
     ContractError, worker_set::WorkerSet,
 };
 
 #[cw_serde]
 pub struct SigningSession {
     pub id: Uint64,
-    pub key_id: WorkerSetID,
+    pub worker_set_id: String,
     pub msg: MsgToSign,
     pub state: MultisigState,
 }
 
 impl SigningSession {
-    pub fn new(session_id: Uint64, key_id: WorkerSetID, msg: MsgToSign) -> Self {
+    pub fn new(session_id: Uint64, worker_set_id: String, msg: MsgToSign) -> Self {
         Self {
             id: session_id,
-            key_id,
+            worker_set_id,
             msg,
             state: MultisigState::Pending,
         }
@@ -109,15 +109,12 @@ mod tests {
 
         let signers = ecdsa_test_data::signers();
 
-        let key_id = WorkerSetID {
-            owner: Addr::unchecked("owner"),
-            subkey: "subkey".to_string(),
-        };
+        let worker_set_id = "subkey".to_string();
         let key_type = KeyType::Ecdsa;
         let worker_set = build_worker_set(KeyType::Ecdsa, &signers);
 
         let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), key_id, message.clone());
+        let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
@@ -143,15 +140,12 @@ mod tests {
 
         let signers = ed25519_test_data::signers();
 
-        let key_id = WorkerSetID {
-            owner: Addr::unchecked("owner"),
-            subkey: "subkey".to_string(),
-        };
+        let worker_set_id = "subkey".to_string();
         let key_type = KeyType::Ed25519;
         let worker_set = build_worker_set(key_type, &signers);
 
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), key_id, message.clone());
+        let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
 
         
         let signatures: HashMap<String, Signature> = signers
