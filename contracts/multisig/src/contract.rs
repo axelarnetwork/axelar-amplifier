@@ -603,11 +603,11 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (i, subkey) in [ecdsa_subkey, ed25519_subkey].into_iter().enumerate() {
+        for (i, subkey) in [ecdsa_subkey.clone(), ed25519_subkey.clone()].into_iter().enumerate() {
             let res = do_start_signing_session(deps.as_mut(), PROVER, &subkey);
 
             assert!(res.is_ok());
-
+            
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, i as u64 + 1)
                 .unwrap();
@@ -615,8 +615,8 @@ mod tests {
             let worker_set_id = subkey.to_string();
             let worker_set = get_worker_set(deps.as_ref().storage, &worker_set_id).unwrap();
             let message = match subkey {
-                ECDSA_SUBKEY => ecdsa_test_data::message(),
-                ED25519_SUBKEY => ed25519_test_data::message(),
+                _ if subkey == ecdsa_subkey => ecdsa_test_data::message(),
+                _ if subkey == ed25519_subkey => ed25519_test_data::message(),
                 _ => panic!("unexpected subkey"),
             };
             let signatures =
@@ -640,7 +640,7 @@ mod tests {
             );
             assert_eq!(
                 get_event_attribute(event, "worker_set_id").unwrap(),
-                to_string(&session.worker_set_id).unwrap()
+                session.worker_set_id
             );
             assert_eq!(
                 worker_set.get_pub_keys(),
