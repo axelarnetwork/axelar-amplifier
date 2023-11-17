@@ -226,10 +226,7 @@ mod test {
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
-            key_id: WorkerSetID {
-                owner: Addr::unchecked("sender"),
-                subkey: "key_id".to_string(),
-            },
+            worker_set_id: "worker_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
         };
