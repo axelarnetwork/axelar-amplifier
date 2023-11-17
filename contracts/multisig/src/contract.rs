@@ -509,15 +509,6 @@ mod tests {
         (deps, ecdsa_subkey, ed25519_subkey)
     }
 
-    fn setup_with_session_started(
-        worker_set_id: &str,
-    ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
-        let mut deps = setup().0;
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
-        do_start_signing_session(deps.as_mut(), PROVER, worker_set_id).unwrap();
-        deps
-    }
-
     // TODO: move to external crate?
     fn get_event_attribute<'a>(
         event: &'a cosmwasm_std::Event,
