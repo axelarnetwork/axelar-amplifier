@@ -141,7 +141,7 @@ pub mod execute {
             &session,
             &info.sender,
             &signature,
-            &pub_key,
+            pub_key,
             config.grace_period,
             env.block.height,
         )?;
@@ -920,7 +920,7 @@ mod tests {
                         .unwrap();
 
                     assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
-                    assert_eq!(signer.0.pub_key, worker_set.get_signers_pub_key(&Addr::unchecked(address), session_id).unwrap());
+                    assert_eq!(signer.0.pub_key, worker_set.get_signers_pub_key(&Addr::unchecked(address), session_id).unwrap().clone());
                     assert_eq!(signer.1, signatures.get(address).cloned());
                 });
         }

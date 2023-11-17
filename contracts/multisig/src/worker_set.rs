@@ -58,15 +58,15 @@ impl WorkerSet {
 
     pub fn get_pub_keys(&self) -> HashMap<String, PublicKey>{
         let mut pub_keys = HashMap::new();
-        self.signers.iter().map(|(address, signer)| {
+        let _ = self.signers.iter().map(|(address, signer)| {
             pub_keys.insert(address.clone(), signer.pub_key.clone());
         });
         pub_keys
     }
 
-    pub fn get_signers_pub_key(&self, signer: &Addr, session_id: Uint64) -> Result<PublicKey, ContractError>  {
+    pub fn get_signers_pub_key(&self, signer: &Addr, session_id: Uint64) -> Result<&PublicKey, ContractError>  {
         match self.signers.get(&signer.to_string()) {
-            Some(signer) => Ok(signer.pub_key),
+            Some(signer) => Ok(&signer.pub_key),
             None => Err(ContractError::NotAParticipant {
                 session_id,
                 signer: signer.to_string(),

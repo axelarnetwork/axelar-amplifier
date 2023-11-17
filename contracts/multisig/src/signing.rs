@@ -198,7 +198,7 @@ mod tests {
             let pub_key = worker_set.get_signers_pub_key(&signer, session.id).unwrap();
 
             assert!(
-                validate_session_signature(&session, &signer, signature, &pub_key, 0, 0).is_ok()
+                validate_session_signature(&session, &signer, signature, pub_key, 0, 0).is_ok()
             );
         }
     }
@@ -220,7 +220,7 @@ mod tests {
                 &session,
                 &signer,
                 signature,
-                &pub_key,
+                pub_key,
                 grace_period,
                 block_height
             )
@@ -245,7 +245,7 @@ mod tests {
                 &session,
                 &signer,
                 signature,
-                &pub_key,
+                pub_key,
                 grace_period,
                 block_height,
             );
@@ -276,7 +276,7 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &signer, &invalid_sig, &pub_key, 0, 0);
+            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, 0);
 
             assert_eq!(
                 result.unwrap_err(),
