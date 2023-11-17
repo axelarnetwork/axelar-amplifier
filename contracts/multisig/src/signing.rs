@@ -90,15 +90,15 @@ mod tests {
 
     use crate::{
         key::KeyType,
-        test::common::{build_key, build_snapshot},
-        test::common::{ecdsa_test_data, ed25519_test_data},
+        test::common::{build_key, build_snapshot, build_worker_set},
+        test::common::{ecdsa_test_data, ed25519_test_data}, worker_set,
     };
 
     use super::*;
 
     pub struct TestConfig {
         pub store: MockStorage,
-        pub key: Key,
+        pub worker_set: WorkerSet,
         pub session: SigningSession,
         pub signatures: HashMap<String, Signature>,
         pub key_type: KeyType,
@@ -108,18 +108,17 @@ mod tests {
         let store = MockStorage::new();
 
         let signers = ecdsa_test_data::signers();
-        let snapshot = build_snapshot(&signers);
 
         let key_id = WorkerSetID {
             owner: Addr::unchecked("owner"),
             subkey: "subkey".to_string(),
         };
-        let key = build_key(KeyType::Ecdsa, key_id, &signers, snapshot);
+        let key_type = KeyType::Ecdsa;
+        let worker_set = build_worker_set(KeyType::Ecdsa, &signers);
 
         let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), key.id.clone(), message.clone());
+        let session = SigningSession::new(Uint64::one(), key_id, message.clone());
 
-        let key_type = KeyType::Ecdsa;
         let signatures: HashMap<String, Signature> = signers
             .iter()
             .map(|signer| {
@@ -132,7 +131,7 @@ mod tests {
 
         TestConfig {
             store,
-            key,
+            worker_set,
             session,
             signatures,
             key_type,
@@ -143,18 +142,18 @@ mod tests {
         let store = MockStorage::new();
 
         let signers = ed25519_test_data::signers();
-        let snapshot = build_snapshot(&signers);
 
         let key_id = WorkerSetID {
             owner: Addr::unchecked("owner"),
             subkey: "subkey".to_string(),
         };
-        let key = build_key(KeyType::Ed25519, key_id, &signers, snapshot);
+        let key_type = KeyType::Ed25519;
+        let worker_set = build_worker_set(key_type, &signers);
 
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), key.id.clone(), message.clone());
+        let session = SigningSession::new(Uint64::one(), key_id, message.clone());
 
-        let key_type = KeyType::Ed25519;
+        
         let signatures: HashMap<String, Signature> = signers
             .iter()
             .map(|signer| {
@@ -167,7 +166,7 @@ mod tests {
 
         TestConfig {
             store,
-            key,
+            worker_set,
             session,
             signatures,
             key_type,
@@ -178,14 +177,14 @@ mod tests {
     fn correct_session_state() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
-            let key = config.key;
+            let worker_set = config.worker_set;
             let signatures = config.signatures;
             let block_height = 12345;
 
-            session.recalculate_session_state(&HashMap::new(), &key.snapshot, block_height);
+            session.recalculate_session_state(&HashMap::new(), &worker_set, block_height);
             assert_eq!(session.state, MultisigState::Pending);
 
-            session.recalculate_session_state(&signatures, &key.snapshot, block_height);
+            session.recalculate_session_state(&signatures, &worker_set, block_height);
             assert_eq!(
                 session.state,
                 MultisigState::Completed {
@@ -199,13 +198,13 @@ mod tests {
     fn success_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let key = config.key;
+            let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
+            let pub_key = worker_set.get_signers_pub_key(&signer, session.id).unwrap();
 
             assert!(
-                validate_session_signature(&session, &signer, signature, pub_key, 0, 0).is_ok()
+                validate_session_signature(&session, &signer, signature, &pub_key, 0, 0).is_ok()
             );
         }
     }
@@ -214,20 +213,20 @@ mod tests {
     fn success_validation_grace_period() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
-            let key = config.key;
+            let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
             let completed_at = 12345;
             let grace_period = 10;
             let block_height = completed_at + grace_period; // inclusive
-            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
+            let pub_key = worker_set.get_signers_pub_key(&signer, session.id).unwrap();
 
             session.state = MultisigState::Completed { completed_at };
             assert!(validate_session_signature(
                 &session,
                 &signer,
                 signature,
-                pub_key,
+                &pub_key,
                 grace_period,
                 block_height
             )
@@ -239,20 +238,20 @@ mod tests {
     fn signing_session_closed_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
-            let key = config.key;
+            let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
             let completed_at = 12345;
             let grace_period = 10;
             let block_height = completed_at + grace_period + 1;
-            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
+            let pub_key = worker_set.get_signers_pub_key(&signer, session.id).unwrap();
 
             session.state = MultisigState::Completed { completed_at };
             let result = validate_session_signature(
                 &session,
                 &signer,
                 signature,
-                pub_key,
+                &pub_key,
                 grace_period,
                 block_height,
             );
@@ -270,9 +269,9 @@ mod tests {
     fn invalid_signature_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let key = config.key;
+            let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
-            let pub_key = signer_pub_key(&key, &signer, session.id).unwrap();
+            let pub_key = worker_set.get_signers_pub_key(&signer, session.id).unwrap();
 
             let sig_bytes = match config.key_type {
                 KeyType::Ecdsa =>   "a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511",
@@ -283,7 +282,7 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, 0);
+            let result = validate_session_signature(&session, &signer, &invalid_sig, &pub_key, 0, 0);
 
             assert_eq!(
                 result.unwrap_err(),
@@ -299,10 +298,10 @@ mod tests {
     fn signer_not_a_participant_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let key = config.key;
+            let worker_set = config.worker_set;
             let invalid_participant = Addr::unchecked("not_a_participant".to_string());
 
-            let result = signer_pub_key(&key, &invalid_participant, session.id);
+            let result = worker_set.get_signers_pub_key(&invalid_participant, session.id);
 
             assert_eq!(
                 result.unwrap_err(),

@@ -64,12 +64,12 @@ impl WorkerSet {
         pub_keys
     }
 
-    pub fn get_signers_pub_key(&self, signer: &String, session_id: Uint64) -> Result<PublicKey, ContractError>  {
-        match self.signers.get(signer) {
+    pub fn get_signers_pub_key(&self, signer: &Addr, session_id: Uint64) -> Result<PublicKey, ContractError>  {
+        match self.signers.get(&signer.to_string()) {
             Some(signer) => Ok(signer.pub_key),
             None => Err(ContractError::NotAParticipant {
                 session_id,
-                signer: signer.clone(),
+                signer: signer.to_string(),
             }),
         }
     }
