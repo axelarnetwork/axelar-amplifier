@@ -20,7 +20,7 @@ use sha3::{Digest, Keccak256};
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
+        .values()
         .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
@@ -33,8 +33,8 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
     let mut operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
-        .iter()
-        .map(|s| (s.pub_key.clone().into(), s.weight))
+        .values()
+        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
     operators.sort_by_key(|op| op.0.clone());
     let (addresses, weights): (Vec<Vec<u8>>, Vec<_>) = operators
@@ -87,7 +87,12 @@ pub fn command_params(
     payload_hash: &[u8; 32],
 ) -> Result<HexBinary, ContractError> {
     let destination_address = <[u8; 32]>::try_from(
-        HexBinary::from_hex(&destination_address)?.to_vec(),
+        HexBinary::from_hex(
+            destination_address
+                .strip_prefix("0x")
+                .unwrap_or(&destination_address),
+        )?
+        .to_vec(),
     )
     .map_err(|_| ContractError::InvalidMessage {
         reason: format!(
@@ -233,8 +238,13 @@ mod test {
 
         let mut expected: Vec<(Vec<u8>, u128)> = worker_set
             .signers
-            .into_iter()
-            .map(|s| (s.pub_key.as_ref().to_vec(), u256_to_u128(s.weight)))
+            .into_values()
+            .map(|signer| {
+                (
+                    signer.pub_key.as_ref().to_vec(),
+                    u256_to_u128(signer.weight),
+                )
+            })
             .collect();
         expected.sort_by_key(|op| op.0.clone());
         let (operators_expected, weights_expected): (Vec<Vec<u8>>, Vec<u128>) =
@@ -251,8 +261,8 @@ mod test {
         let mut expected: Vec<(HexBinary, _)> = worker_set
             .clone()
             .signers
-            .into_iter()
-            .map(|s| (s.pub_key.into(), s.weight))
+            .into_values()
+            .map(|signer| (signer.pub_key.into(), signer.weight))
             .collect();
         expected.sort_by_key(|op| op.0.clone());
 
@@ -359,6 +369,17 @@ mod test {
     #[should_panic]
     fn test_make_command_id_fails_too_large() {
         make_command_id(&HexBinary::from(vec![0; 30]));
+    }
+
+    #[test]
+    fn destination_address_starting_with_0x_should_be_valid_for_command_params() {
+        let res = command_params(
+            "Ethereum".into(),
+            "0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331".into(),
+            "0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331".into(),
+            &[2; 32],
+        );
+        assert!(res.is_ok());
     }
 
     #[test]
