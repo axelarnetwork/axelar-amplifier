@@ -354,7 +354,7 @@ mod tests {
         state::load_session_signatures,
         test::common::{build_snapshot, TestSigner, build_worker_set},
         test::common::{ecdsa_test_data, ed25519_test_data},
-        types::MultisigState, worker_set::WorkerSet,
+        types::MultisigState, worker_set::{WorkerSet, self},
     };
 
     use super::*;
@@ -388,7 +388,6 @@ mod tests {
 
     fn do_worker_set_gen(
         key_type: KeyType,
-        subkey: &str,
         deps: DepsMut,
     ) -> Result<(Response, WorkerSet), axelar_wasm_std::ContractError> {
         let info = mock_info(PROVER, &[]);
@@ -413,7 +412,6 @@ mod tests {
     }
 
     fn query_worker_set(worker_set_id: &str, deps: Deps) -> StdResult<Binary> {
-        let info = mock_info(PROVER, &[]);
         let env = mock_env();
         query(
             deps,
@@ -563,32 +561,33 @@ mod tests {
     }
 
     #[test]
-    fn key_gen() {
+    fn worker_set_gen() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
-        let res = do_worker_set_gen(KeyType::Ecdsa, "key1", deps.as_mut());
+        let res = do_worker_set_gen(KeyType::Ecdsa, deps.as_mut());
         assert!(res.is_ok());
-        let key1 = res.unwrap().1;
+        let worker_set_1 = res.unwrap().1;
 
-        let res = do_worker_set_gen(KeyType::Ed25519, "key2", deps.as_mut());
+        let res = do_worker_set_gen(KeyType::Ed25519, deps.as_mut());
         assert!(res.is_ok());
-        let key2 = res.unwrap().1;
+        let worker_set_2 = res.unwrap().1;
 
-        let res = query_worker_set("key1", deps.as_ref());
+        let res = query_worker_set(&worker_set_1.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(key1, from_binary(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_1, from_binary(&res.unwrap()).unwrap());
 
-        let res = query_worker_set("key2", deps.as_ref());
+        let res = query_worker_set(&worker_set_2.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(key2, from_binary(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_2, from_binary(&res.unwrap()).unwrap());
 
         for key_type in [KeyType::Ecdsa, KeyType::Ed25519] {
-            let res = do_worker_set_gen(key_type, "key1", deps.as_mut());
+            let res = do_worker_set_gen(key_type, deps.as_mut());
+            let worker_set = res.unwrap().1;
             assert_eq!(
                 res.unwrap_err().to_string(),
                 axelar_wasm_std::ContractError::from(ContractError::DuplicateWorkerSetID {
-                    worker_set_id: "key1".to_string()
+                    worker_set_id: worker_set.id()
                 })
                 .to_string()
             );
