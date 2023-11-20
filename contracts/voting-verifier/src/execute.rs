@@ -87,7 +87,7 @@ pub fn verify_messages(
     let messages = messages
         .into_iter()
         .map(|message| verification_status(deps.as_ref(), &message).map(|status| (status, message)))
-        .collect::<Result<Vec<(VerificationStatus, Message)>, ContractError>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
@@ -119,14 +119,14 @@ pub fn verify_messages(
         )?;
     }
 
-    let evm_messages = msgs_to_verify
+    let messages = msgs_to_verify
         .into_iter()
         .map(TryInto::try_into)
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
     Ok(response.add_event(
         PollStarted::Messages {
-            messages: evm_messages,
+            messages,
             metadata: PollMetadata {
                 poll_id: id,
                 source_chain: config.source_chain,
