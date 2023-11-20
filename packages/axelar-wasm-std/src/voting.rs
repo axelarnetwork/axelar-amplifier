@@ -132,7 +132,7 @@ impl fmt::Display for PollID {
 }
 
 #[cw_serde]
-pub struct PollResult {
+pub struct PollState {
     pub poll_id: PollID,
     pub results: Vec<bool>,
     /// List of participants who voted for the winning result
@@ -205,7 +205,7 @@ impl WeightedPoll {
         Ok(self)
     }
 
-    pub fn result(&self) -> PollResult {
+    pub fn state(&self) -> PollState {
         let quorum: Uint256 = self.quorum.into();
         let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
 
@@ -223,7 +223,7 @@ impl WeightedPoll {
             })
             .collect();
 
-        PollResult {
+        PollState {
             poll_id: self.poll_id,
             results,
             consensus_participants,
@@ -232,7 +232,7 @@ impl WeightedPoll {
 
     // TODO: Right now we use `true` for verified message and `false` for rejected/unknown.
     // This function logic should change once we change votes from bool to enum to return the specific consensus result (if any)
-    pub fn consensus(&self, idx: usize) -> Result<bool, Error> {
+    pub fn has_consensus(&self, idx: usize) -> Result<bool, Error> {
         Ok(*self
             .tallies
             .get(idx)
@@ -419,10 +419,10 @@ mod tests {
         let poll = poll.finish(2).unwrap();
         assert_eq!(poll.status, PollStatus::Finished);
 
-        let result = poll.result();
+        let result = poll.state();
         assert_eq!(
             result,
-            PollResult {
+            PollState {
                 poll_id: PollID::from(Uint64::one()),
                 results: vec![true, true],
                 consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
@@ -444,11 +444,11 @@ mod tests {
             .cast_vote(1, &Addr::unchecked("addr3"), votes)
             .unwrap();
 
-        let result = poll.finish(2).unwrap().result();
+        let result = poll.finish(2).unwrap().state();
 
         assert_eq!(
             result,
-            PollResult {
+            PollState {
                 poll_id: PollID::from(Uint64::one()),
                 results: vec![true, true],
                 consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],

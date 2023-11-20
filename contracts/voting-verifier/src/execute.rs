@@ -3,7 +3,7 @@ use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
-use axelar_wasm_std::voting::{PollID, PollResult};
+use axelar_wasm_std::voting::{PollID, PollState};
 use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
@@ -169,7 +169,7 @@ pub fn vote(
 fn end_poll_worker_set(
     deps: DepsMut,
     poll_id: PollID,
-    poll_result: &PollResult,
+    poll_result: &PollState,
 ) -> Result<(), ContractError> {
     assert_eq!(
         poll_result.results.len(),
@@ -199,7 +199,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.result(),
+        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.state(),
     };
 
     if matches!(poll, state::Poll::ConfirmWorkerSet(_)) {
