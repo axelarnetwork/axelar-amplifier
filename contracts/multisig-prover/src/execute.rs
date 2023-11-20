@@ -14,7 +14,7 @@ use crate::{
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{
-        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, KEY_ID, NEXT_WORKER_SET, REPLY_BATCH,
+        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH,
     },
     types::{BatchID, WorkersInfo},
 };
@@ -60,7 +60,7 @@ pub fn construct_proof(
     // keep track of the batch id to use during submessage reply
     REPLY_BATCH.save(deps.storage, &command_batch.id)?;
 
-    let worker_set_id = KEY_ID.load(deps.storage)?;
+    let worker_set_id = CURRENT_WORKER_SET.load(deps.storage)?.id();
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         worker_set_id,
         msg: command_batch.msg_digest(),
@@ -195,10 +195,8 @@ fn initialize_worker_set(
     storage: &mut dyn Storage,
     new_worker_set: WorkerSet,
 ) -> Result<(), ContractError> {
-    let key_id = new_worker_set.id(); // this is really just the worker_set_id
 
     CURRENT_WORKER_SET.save(storage, &new_worker_set)?;
-    KEY_ID.save(storage, &key_id)?;
 
     Ok(())
 }
@@ -238,7 +236,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             REPLY_BATCH.save(deps.storage, &batch.id)?;
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-                worker_set_id: cur_worker_set.id(), // TODO remove the key_id
+                worker_set_id: cur_worker_set.id(),
                 msg: batch.msg_digest(),
             };
 
@@ -270,11 +268,10 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
     NEXT_WORKER_SET.remove(deps.storage);
-    KEY_ID.save(deps.storage, &worker_set.id())?;
 
-    let key_gen_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set };
+    let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set };
 
-    Ok(Response::new().add_message(wasm_execute(config.multisig, &key_gen_msg, vec![])?))
+    Ok(Response::new().add_message(wasm_execute(config.multisig, &register_worker_set_msg, vec![])?))
 }
 
 pub fn should_update_worker_set(
