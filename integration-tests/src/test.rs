@@ -7,6 +7,7 @@ mod test {
     use cw_multi_test::{App, ContractWrapper, Executor};
 
     use multisig::key::PublicKey;
+    use tofn::ecdsa::KeyPair;
 
     const AXL_DENOMINATION: &str = "uaxl";
     #[test]
@@ -17,8 +18,16 @@ mod test {
             "Polygon".to_string().try_into().unwrap(),
         ];
         let workers = vec![
-            (Addr::unchecked("worker1"), chains.clone()),
-            (Addr::unchecked("worker2"), chains.clone()),
+            Worker {
+                addr: Addr::unchecked("worker1"),
+                supported_chains: chains.clone(),
+                key_pair: generate_key(0),
+            },
+            Worker {
+                addr: Addr::unchecked("worker2"),
+                supported_chains: chains.clone(),
+                key_pair: generate_key(1),
+            },
         ];
         register_workers(
             &mut protocol.app,
@@ -26,7 +35,7 @@ mod test {
             protocol.multisig_address.clone(),
             protocol.service_name.clone(),
             protocol.governance_address.clone(),
-            workers.clone(),
+            &workers,
             protocol.genesis.clone(),
         );
         let _chain1 = setup_chain(
@@ -124,13 +133,30 @@ mod test {
         }
     }
 
+    // return the all-zero array with the first bytes set to the bytes of `index`
+    fn generate_key(seed: usize) -> KeyPair {
+        let index_bytes = seed.to_be_bytes();
+        let mut result = [0; 64];
+        for (i, &b) in index_bytes.iter().enumerate() {
+            result[i] = b;
+        }
+        let secret_recovery_key = result.as_slice().try_into().unwrap();
+        tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap()
+    }
+
+    struct Worker {
+        addr: Addr,
+        supported_chains: Vec<ChainName>,
+        key_pair: KeyPair,
+    }
+
     fn register_workers(
         app: &mut App,
         service_registry: Addr,
         multisig: Addr,
         service_name: nonempty::String,
         governance_addr: Addr,
-        workers: Vec<(Addr, Vec<ChainName>)>,
+        workers: &Vec<Worker>,
         genesis: Addr,
     ) {
         let min_worker_bond = Uint128::new(100);
@@ -157,7 +183,7 @@ mod test {
             &service_registry::msg::ExecuteMsg::AuthorizeWorkers {
                 workers: workers
                     .iter()
-                    .map(|(worker, _)| worker.to_string())
+                    .map(|worker| worker.addr.to_string())
                     .collect(),
                 service_name: service_name.to_string(),
             },
@@ -165,15 +191,15 @@ mod test {
         )
         .unwrap();
 
-        for (worker, chains) in workers {
+        for worker in workers {
             app.send_tokens(
                 genesis.clone(),
-                worker.clone(),
+                worker.addr.clone(),
                 &coins(min_worker_bond.u128(), AXL_DENOMINATION),
             )
             .unwrap();
             app.execute_contract(
-                worker.clone(),
+                worker.addr.clone(),
                 service_registry.clone(),
                 &service_registry::msg::ExecuteMsg::BondWorker {
                     service_name: service_name.to_string(),
@@ -183,27 +209,23 @@ mod test {
             .unwrap();
 
             app.execute_contract(
-                worker.clone(),
+                worker.addr.clone(),
                 service_registry.clone(),
                 &service_registry::msg::ExecuteMsg::DeclareChainSupport {
                     service_name: service_name.to_string(),
-                    chains: chains.clone(),
+                    chains: worker.supported_chains.clone(),
                 },
                 &[],
             )
             .unwrap();
 
             app.execute_contract(
-                worker.clone(),
+                worker.addr.clone(),
                 multisig.clone(),
                 &multisig::msg::ExecuteMsg::RegisterPublicKey {
-                    // TODO: figure out key generation and signing
-                    public_key: PublicKey::Ecdsa(
-                        HexBinary::from_hex(
-                            "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
-                        )
-                        .unwrap(),
-                    ),
+                    public_key: PublicKey::Ecdsa(HexBinary::from(
+                        worker.key_pair.encoded_verifying_key(),
+                    )),
                 },
                 &[],
             )
