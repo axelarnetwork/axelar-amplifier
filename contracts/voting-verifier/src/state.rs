@@ -5,7 +5,7 @@ use cw_storage_plus::{Item, Map};
 use axelar_wasm_std::{
     counter, nonempty,
     operators::Operators,
-    voting::{self, PollID, WeightedPoll},
+    voting::{PollID, WeightedPoll},
     Threshold,
 };
 use connection_router::state::{ChainName, Message};
@@ -31,37 +31,7 @@ pub enum Poll {
 }
 
 impl Poll {
-    pub fn finish(self, block_height: u64) -> Result<Self, ContractError> {
-        self.try_map(|poll| poll.finish(block_height).map_err(ContractError::from))
-    }
-
-    pub fn result(&self) -> voting::PollResult {
-        match self {
-            Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.result(),
-        }
-    }
-
-    pub fn consensus(&self, idx: usize) -> Result<bool, ContractError> {
-        match self {
-            Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => {
-                poll.consensus(idx).map_err(ContractError::from)
-            }
-        }
-    }
-
-    pub fn cast_vote(
-        self,
-        block_height: u64,
-        sender: &Addr,
-        votes: Vec<bool>,
-    ) -> Result<Self, ContractError> {
-        self.try_map(|poll| {
-            poll.cast_vote(block_height, sender, votes)
-                .map_err(ContractError::from)
-        })
-    }
-
-    fn try_map<F, E>(self, func: F) -> Result<Self, E>
+    pub fn try_map<F, E>(self, func: F) -> Result<Self, E>
     where
         F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
         E: From<ContractError>,

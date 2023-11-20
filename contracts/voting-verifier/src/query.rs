@@ -4,7 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Deps, StdResult};
 
 use crate::error::ContractError;
-use crate::state::{self, POLLS, POLL_MESSAGES};
+use crate::state::{self, Poll, POLLS, POLL_MESSAGES};
 
 #[cw_serde]
 pub enum VerificationStatus {
@@ -37,9 +37,11 @@ pub fn verification_status(
                 .load(deps.storage, stored.poll_id)
                 .expect("invalid invariant: message poll not found");
 
-            let verified = poll
-                .consensus(stored.index_in_poll)
-                .expect("invalid invariant: message not found in poll");
+            let verified = match &poll {
+                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
+                    .consensus(stored.index_in_poll)
+                    .expect("invalid invariant: message not found in poll"),
+            };
 
             if verified {
                 if stored.msg != *message {

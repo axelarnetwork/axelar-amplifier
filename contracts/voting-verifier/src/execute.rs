@@ -15,7 +15,7 @@ use crate::events::{
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::{is_verified, verification_status, VerificationStatus};
-use crate::state::{self, POLL_MESSAGES};
+use crate::state::{self, Poll, POLL_MESSAGES};
 use crate::state::{CONFIG, CONFIRMED_WORKER_SETS, PENDING_WORKER_SETS, POLLS, POLL_ID};
 
 pub fn confirm_worker_set(
@@ -150,7 +150,10 @@ pub fn vote(
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?
-        .cast_vote(env.block.height, &info.sender, votes)?;
+        .try_map(|poll| {
+            poll.cast_vote(env.block.height, &info.sender, votes)
+                .map_err(ContractError::from)
+        })?;
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
@@ -191,11 +194,13 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?
-        .finish(env.block.height)?;
+        .try_map(|poll| poll.finish(env.block.height).map_err(ContractError::from))?;
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let poll_result = poll.result();
+    let poll_result = match &poll {
+        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.result(),
+    };
 
     if matches!(poll, state::Poll::ConfirmWorkerSet(_)) {
         end_poll_worker_set(deps, poll_id, &poll_result)?;
