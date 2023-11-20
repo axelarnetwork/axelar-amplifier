@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
-use clap::{Parser, ValueEnum};
+use clap::{arg, command, Parser, Subcommand, ValueEnum};
 use config::ConfigError;
 use error_stack::{Report, ResultExt};
 use thiserror::Error;
@@ -12,7 +12,7 @@ use tracing::{error, info};
 use valuable::Valuable;
 
 use ampd::config::Config;
-use ampd::{run, state};
+use ampd::{cli, run, state};
 use axelar_wasm_std::utils::InspectorResult;
 use report::LoggableError;
 
@@ -30,6 +30,9 @@ struct Args {
     /// Set the output style of the logs
     #[arg(short, long, value_enum, default_value_t = Output::Json)]
     pub output: Output,
+
+    #[clap(subcommand)]
+    pub cmd: Option<SubCommand>,
 }
 
 #[derive(Debug, Clone, Parser, ValueEnum, Valuable)]
@@ -38,26 +41,41 @@ enum Output {
     Json,
 }
 
+#[derive(Debug, Subcommand, Valuable)]
+enum SubCommand {
+    /// Run the ampd daemon process (default)
+    Daemon,
+    /// Query the worker address
+    WorkerAddress,
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
-    info!(args = args.as_value(), "starting daemon");
-    let result = run_daemon(&args)
-        .await
-        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report:#}"));
-    info!("shutting down");
+    match args.cmd {
+        Some(SubCommand::WorkerAddress) => worker_address(&args).await,
+        Some(SubCommand::Daemon) | None => {
+            info!(args = args.as_value(), "starting daemon");
 
-    match result {
-        Ok(_) => ExitCode::SUCCESS,
-        Err(report) => {
-            // print detailed error report as the last output if in text mode
-            if matches!(args.output, Output::Text) {
-                eprintln!("{report:?}");
+            let result = run_daemon(&args).await.tap_err(|report| {
+                error!(err = LoggableError::from(report).as_value(), "{report:#}")
+            });
+
+            info!("shutting down");
+
+            match result {
+                Ok(_) => ExitCode::SUCCESS,
+                Err(report) => {
+                    // print detailed error report as the last output if in text mode
+                    if matches!(args.output, Output::Text) {
+                        eprintln!("{report:?}");
+                    }
+
+                    ExitCode::FAILURE
+                }
             }
-
-            ExitCode::FAILURE
         }
     }
 }
@@ -149,4 +167,28 @@ enum Error {
     LoadConfig,
     #[error("fatal failure")]
     Fatal,
+}
+
+async fn worker_address(args: &Args) -> ExitCode {
+    let config = init_config(&args.config);
+    let state_path = expand_home_dir(&args.state);
+
+    let state = match state::load(&state_path).change_context(Error::Fatal) {
+        Ok(state) => state,
+        Err(report) => {
+            eprintln!("{report:?}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match cli::worker_address(config.tofnd_config, state).await {
+        Ok(pub_key) => {
+            println!("Worker address: {}", pub_key);
+            ExitCode::SUCCESS
+        }
+        Err(report) => {
+            eprintln!("{report:?}");
+            ExitCode::FAILURE
+        }
+    }
 }

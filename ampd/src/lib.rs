@@ -24,6 +24,7 @@ use crate::config::Config;
 use crate::state::State;
 
 mod broadcaster;
+pub mod cli;
 pub mod config;
 pub mod error;
 mod event_processor;
