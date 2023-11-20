@@ -533,6 +533,15 @@ mod tests {
             .find(|event| event.ty == "wasm-proof_under_construction");
 
         assert!(event.is_some());
+
+        // test case where there is an existing batch
+        let res = execute_construct_proof(&mut test_case, None).unwrap();
+        let event = res
+            .events
+            .iter()
+            .find(|event| event.ty == "wasm-proof_under_construction");
+
+        assert!(event.is_some());
     }
 
     #[test]
