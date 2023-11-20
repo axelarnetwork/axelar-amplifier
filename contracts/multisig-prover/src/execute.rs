@@ -191,16 +191,6 @@ fn save_next_worker_set(
     Ok(NEXT_WORKER_SET.save(storage, &(new_worker_set, workers_info.snapshot))?)
 }
 
-fn initialize_worker_set(
-    storage: &mut dyn Storage,
-    new_worker_set: WorkerSet,
-) -> Result<(), ContractError> {
-
-    CURRENT_WORKER_SET.save(storage, &new_worker_set)?;
-
-    Ok(())
-}
-
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let workers_info = get_workers_info(&deps, &config)?;
@@ -210,7 +200,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
         None => {
             // if no worker set, just store it and return
             let new_worker_set = make_worker_set(&deps, &env, &config)?;
-            initialize_worker_set(deps.storage, new_worker_set.clone())?;
+            CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
             let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet {
                 worker_set: new_worker_set,
             };
