@@ -565,10 +565,12 @@ mod tests {
         let res = do_worker_set_gen(KeyType::Ecdsa, deps.as_mut());
         assert!(res.is_ok());
         let worker_set_1 = res.unwrap().1;
+        let worker_set_1_id = worker_set_1.id();
 
         let res = do_worker_set_gen(KeyType::Ed25519, deps.as_mut());
         assert!(res.is_ok());
         let worker_set_2 = res.unwrap().1;
+        let worker_set_2_id = worker_set_2.id();
 
         let res = query_worker_set(&worker_set_1.id(), deps.as_ref());
         assert!(res.is_ok());
@@ -578,13 +580,12 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(worker_set_2, from_binary(&res.unwrap()).unwrap());
 
-        for key_type in [KeyType::Ecdsa, KeyType::Ed25519] {
+        for (key_type, worker_set_id) in [(KeyType::Ecdsa, worker_set_1_id), (KeyType::Ed25519, worker_set_2_id)] {
             let res = do_worker_set_gen(key_type, deps.as_mut());
-            let worker_set = res.as_ref().unwrap().clone().1;
             assert_eq!(
                 res.unwrap_err().to_string(),
                 axelar_wasm_std::ContractError::from(ContractError::DuplicateWorkerSetID {
-                    worker_set_id: worker_set.id()
+                    worker_set_id,
                 })
                 .to_string()
             );
