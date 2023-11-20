@@ -108,7 +108,7 @@ impl Message {
         let mut hasher = Keccak256::new();
         hasher.update(self.cc_id.to_string());
         hasher.update(self.source_address.as_str());
-        hasher.update(self.destination_chain.as_str());
+        hasher.update(self.destination_chain.as_ref());
         hasher.update(self.destination_address.as_str());
         hasher.update(self.payload_hash);
         hasher.finalize().into()
@@ -289,8 +289,8 @@ impl KeyDeserialize for &ChainName {
     }
 }
 
-impl ChainName {
-    pub fn as_str(&self) -> &str {
+impl AsRef<str> for ChainName {
+    fn as_ref(&self) -> &str {
         self.0.as_str()
     }
 }
