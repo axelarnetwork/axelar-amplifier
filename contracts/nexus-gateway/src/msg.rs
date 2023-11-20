@@ -1,4 +1,3 @@
-use connection_router::state::Message;
 use cosmwasm_schema::cw_serde;
 
 use crate::nexus;
@@ -11,6 +10,6 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RouteMessagesToNexus(Vec<Message>),
+    RouteMessagesToNexus(Vec<connection_router::Message>),
     RouteMessagesToRouter(Vec<nexus::Message>),
 }

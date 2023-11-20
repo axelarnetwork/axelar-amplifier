@@ -1,4 +1,3 @@
-use connection_router::state::Message;
 use cosmwasm_std::{to_binary, Addr, Response, WasmMsg};
 use error_stack::report;
 
@@ -40,7 +39,7 @@ where
     pub fn route_to_nexus(
         mut self,
         sender: Addr,
-        msgs: Vec<Message>,
+        msgs: Vec<connection_router::Message>,
     ) -> Result<Response<nexus::Message>> {
         if sender != self.config.router {
             return Err(report!(ContractError::Unauthorized));
