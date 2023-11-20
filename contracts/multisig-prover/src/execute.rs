@@ -13,9 +13,7 @@ use crate::{
     contract::START_MULTISIG_REPLY_ID,
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
-    state::{
-        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH,
-    },
+    state::{Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH},
     types::{BatchID, WorkersInfo},
 };
 
@@ -261,7 +259,11 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set };
 
-    Ok(Response::new().add_message(wasm_execute(config.multisig, &register_worker_set_msg, vec![])?))
+    Ok(Response::new().add_message(wasm_execute(
+        config.multisig,
+        &register_worker_set_msg,
+        vec![],
+    )?))
 }
 
 pub fn should_update_worker_set(
