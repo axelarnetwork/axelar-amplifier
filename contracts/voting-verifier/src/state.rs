@@ -60,9 +60,7 @@ impl Poll {
                 .map_err(ContractError::from)
         })
     }
-}
 
-impl Poll {
     fn try_map<F, E>(self, func: F) -> Result<Self, E>
     where
         F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
