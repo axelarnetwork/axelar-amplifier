@@ -107,9 +107,11 @@ pub fn build_snapshot(signers: &Vec<TestSigner>) -> Snapshot {
 }
 
 pub fn build_worker_set(key_type: KeyType, signers: &Vec<TestSigner>) -> WorkerSet {
+    let mut total_weight = Uint256::zero();
     let participants = signers
         .iter()
         .map(|signer| {
+            total_weight += Uint256::one();
             (
                 Participant {
                     address: signer.address.clone(),
@@ -120,5 +122,5 @@ pub fn build_worker_set(key_type: KeyType, signers: &Vec<TestSigner>) -> WorkerS
         })
         .collect::<Vec<_>>();
 
-    WorkerSet::new(participants, Uint256::one(), 0)
+    WorkerSet::new(participants, total_weight.mul_ceil((2u64, 3u64)), 0)
 }
