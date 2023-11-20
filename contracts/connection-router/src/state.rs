@@ -103,6 +103,7 @@ pub struct Message {
 }
 
 impl Message {
+    // TODO: pending to finalize the design of the message hash
     pub fn hash_id(&self) -> [u8; 32] {
         let mut hasher = Keccak256::new();
         hasher.update(self.cc_id.to_string());
