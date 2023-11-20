@@ -1,11 +1,7 @@
-use std::{collections::HashMap, fmt};
-
-use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_binary, Addr, HexBinary, StdResult};
-use cw_storage_plus::{KeyDeserialize, PrimaryKey};
+use cosmwasm_std::HexBinary;
 
-use crate::key::PublicKey;
+
 use crate::ContractError;
 
 #[cw_serde]
@@ -27,46 +23,6 @@ impl MsgToSign {
     pub fn unchecked(hex: HexBinary) -> Self {
         Self(hex)
     }
-}
-
-#[cw_serde]
-pub struct WorkerSetID {
-    pub owner: Addr,
-    pub subkey: String,
-}
-
-impl<'a> PrimaryKey<'a> for &WorkerSetID {
-    type Prefix = Addr;
-    type SubPrefix = ();
-    type Suffix = String;
-    type SuperSuffix = WorkerSetID;
-
-    fn key(&self) -> std::vec::Vec<cw_storage_plus::Key<'_>> {
-        let mut keys = self.owner.key();
-        keys.extend(self.subkey.key());
-        keys
-    }
-}
-
-impl KeyDeserialize for WorkerSetID {
-    type Output = WorkerSetID;
-
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        Ok(from_binary(&value.into()).expect("violated invariant: KeyID is not deserializable"))
-    }
-}
-
-impl fmt::Display for WorkerSetID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.owner, self.subkey)
-    }
-}
-
-#[cw_serde]
-pub struct Key {
-    pub id: WorkerSetID,
-    pub snapshot: Snapshot,
-    pub pub_keys: HashMap<String, PublicKey>,
 }
 
 #[cw_serde]
@@ -95,23 +51,9 @@ impl TryFrom<HexBinary> for MsgToSign {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::to_binary;
-
     use crate::test::common::ecdsa_test_data;
 
     use super::*;
-
-    #[test]
-    fn test_key_deserialize() {
-        let key = WorkerSetID {
-            owner: Addr::unchecked("owner".to_string()),
-            subkey: "subkey".to_string(),
-        };
-
-        let serialized = to_binary(&key).unwrap();
-
-        assert_eq!(key, WorkerSetID::from_vec(serialized.into()).unwrap());
-    }
 
     #[test]
     fn test_try_from_hexbinary_to_message() {

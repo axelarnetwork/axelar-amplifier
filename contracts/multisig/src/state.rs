@@ -7,7 +7,6 @@ use cw_storage_plus::{Item, Map};
 use crate::{
     key::{KeyType, Signature},
     signing::SigningSession,
-    types::WorkerSetID,
     worker_set::WorkerSet,
     ContractError,
 };

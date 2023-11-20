@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use axelar_wasm_std::{Participant, Snapshot, Threshold};
 use cosmwasm_std::{Addr, HexBinary, Uint256};
 
 use crate::{
     key::{KeyType, PublicKey},
-    types::{Key, WorkerSetID},
     worker_set::WorkerSet,
 };
 
@@ -107,29 +104,6 @@ pub fn build_snapshot(signers: &Vec<TestSigner>) -> Snapshot {
         Threshold::try_from((2u64, 3u64)).unwrap(),
         participants.try_into().unwrap(),
     )
-}
-
-pub fn build_key(
-    key_type: KeyType,
-    key_id: WorkerSetID,
-    signers: &Vec<TestSigner>,
-    snapshot: Snapshot,
-) -> Key {
-    let pub_keys = signers
-        .iter()
-        .map(|signer| {
-            (
-                signer.address.clone().to_string(),
-                PublicKey::try_from((key_type, signer.pub_key.clone())).unwrap(),
-            )
-        })
-        .collect::<HashMap<String, PublicKey>>();
-
-    Key {
-        id: key_id,
-        snapshot,
-        pub_keys,
-    }
 }
 
 pub fn build_worker_set(key_type: KeyType, signers: &Vec<TestSigner>) -> WorkerSet {

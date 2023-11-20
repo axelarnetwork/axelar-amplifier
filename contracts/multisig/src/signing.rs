@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
 
-use axelar_wasm_std::Snapshot;
-
 use crate::{
     key::{PublicKey, Signature},
     types::{MsgToSign, MultisigState},
@@ -91,9 +89,8 @@ mod tests {
 
     use crate::{
         key::KeyType,
-        test::common::{build_key, build_snapshot, build_worker_set},
+        test::common::build_worker_set,
         test::common::{ecdsa_test_data, ed25519_test_data},
-        worker_set,
     };
 
     use super::*;
