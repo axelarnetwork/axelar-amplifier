@@ -131,24 +131,6 @@ impl fmt::Display for PollID {
     }
 }
 
-pub trait Poll {
-    type E;
-
-    // errors if the poll cannot be finished
-    fn finish(self, block_height: u64) -> Result<Self, Self::E>
-    where
-        Self: Sized;
-    // returns the cumulated poll result
-    fn result(&self) -> PollResult;
-    // returns the consensus for the message at the given index
-    fn consensus(&self, idx: usize) -> Result<bool, Self::E>;
-    // errors if sender is not a participant, if sender already voted, if the poll is finished or
-    // if the number of votes doesn't match the poll size
-    fn cast_vote(self, block_height: u64, sender: &Addr, votes: Vec<bool>) -> Result<Self, Self::E>
-    where
-        Self: Sized;
-}
-
 #[cw_serde]
 pub struct PollResult {
     pub poll_id: PollID,
@@ -208,12 +190,8 @@ impl WeightedPoll {
             participation,
         }
     }
-}
 
-impl Poll for WeightedPoll {
-    type E = Error;
-
-    fn finish(mut self, block_height: u64) -> Result<Self, Error> {
+    pub fn finish(mut self, block_height: u64) -> Result<Self, Error> {
         if matches!(self.status, PollStatus::Finished { .. }) {
             return Err(Error::PollNotInProgress);
         }
@@ -227,7 +205,7 @@ impl Poll for WeightedPoll {
         Ok(self)
     }
 
-    fn result(&self) -> PollResult {
+    pub fn result(&self) -> PollResult {
         let quorum: Uint256 = self.quorum.into();
         let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
 
@@ -254,7 +232,7 @@ impl Poll for WeightedPoll {
 
     // TODO: Right now we use `true` for verified message and `false` for rejected/unknown.
     // This function logic should change once we change votes from bool to enum to return the specific consensus result (if any)
-    fn consensus(&self, idx: usize) -> Result<bool, Error> {
+    pub fn consensus(&self, idx: usize) -> Result<bool, Error> {
         Ok(*self
             .tallies
             .get(idx)
@@ -262,7 +240,7 @@ impl Poll for WeightedPoll {
             >= self.quorum.into())
     }
 
-    fn cast_vote(
+    pub fn cast_vote(
         mut self,
         block_height: u64,
         sender: &Addr,

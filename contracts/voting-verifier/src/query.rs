@@ -1,4 +1,4 @@
-use axelar_wasm_std::voting::{Poll, PollStatus};
+use axelar_wasm_std::voting::PollStatus;
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Deps, StdResult};

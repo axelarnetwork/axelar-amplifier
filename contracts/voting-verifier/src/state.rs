@@ -30,20 +30,18 @@ pub enum Poll {
     ConfirmWorkerSet(WeightedPoll),
 }
 
-impl voting::Poll for Poll {
-    type E = ContractError;
-
-    fn finish(self, block_height: u64) -> Result<Self, ContractError> {
+impl Poll {
+    pub fn finish(self, block_height: u64) -> Result<Self, ContractError> {
         self.try_map(|poll| poll.finish(block_height).map_err(ContractError::from))
     }
 
-    fn result(&self) -> voting::PollResult {
+    pub fn result(&self) -> voting::PollResult {
         match self {
             Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.result(),
         }
     }
 
-    fn consensus(&self, idx: usize) -> Result<bool, ContractError> {
+    pub fn consensus(&self, idx: usize) -> Result<bool, ContractError> {
         match self {
             Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => {
                 poll.consensus(idx).map_err(ContractError::from)
@@ -51,7 +49,7 @@ impl voting::Poll for Poll {
         }
     }
 
-    fn cast_vote(
+    pub fn cast_vote(
         self,
         block_height: u64,
         sender: &Addr,

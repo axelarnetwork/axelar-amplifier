@@ -4,10 +4,7 @@ use cosmwasm_std::{
 };
 
 use axelar_wasm_std::voting::{PollID, PollResult};
-use axelar_wasm_std::{
-    nonempty, snapshot,
-    voting::{Poll, WeightedPoll},
-};
+use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
