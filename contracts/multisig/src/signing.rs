@@ -36,7 +36,7 @@ impl SigningSession {
     ) {
         let weight = signers_weight(signatures, worker_set);
 
-        if self.state == MultisigState::Pending && weight >= worker_set.threshold.into() {
+        if self.state == MultisigState::Pending && weight >= worker_set.threshold {
             self.state = MultisigState::Completed {
                 completed_at: block_height,
             };
@@ -78,7 +78,6 @@ fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSe
                 .get(addr)
                 .expect("violated invariant: signature submitted by non-participant")
                 .weight
-                .into()
         })
         .sum()
 }

@@ -324,7 +324,7 @@ pub mod query {
 
         Ok(Multisig {
             state: session.state,
-            quorum: worker_set.threshold.into(),
+            quorum: worker_set.threshold,
             signers: signers_with_sigs,
         })
     }
