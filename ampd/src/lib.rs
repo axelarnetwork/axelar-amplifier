@@ -242,6 +242,18 @@ where
                         self.broadcaster.client(),
                     ),
                 ),
+                handlers::config::Config::MvxWorkerSetVerifier {
+                    cosmwasm_contract,
+                    proxy_url,
+                } => self.configure_handler(
+                    "mvx-worker-set-verifier",
+                    handlers::mvx_verify_worker_set::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        CommunicationProxy::new(proxy_url.to_string()),
+                        self.broadcaster.client(),
+                    ),
+                ),
             }
         }
 

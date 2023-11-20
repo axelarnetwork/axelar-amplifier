@@ -91,7 +91,13 @@ mod tests {
             type = 'MvxMsgVerifier'
             cosmwasm_contract = '{}'
             proxy_url = 'http://localhost:7545'
+
+            [[handlers]]
+            type = 'MvxWorkerSetVerifier'
+            cosmwasm_contract = '{}'
+            proxy_url = 'http://localhost:7545'
             ",
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -102,7 +108,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 7);
+        assert_eq!(cfg.handlers.len(), 8);
     }
 
     #[test]
@@ -271,6 +277,12 @@ mod tests {
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
                 HandlerConfig::MvxMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
+                },
+                HandlerConfig::MvxWorkerSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

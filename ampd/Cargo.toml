@@ -59,6 +59,7 @@ valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 multiversx-sdk = "0.2.0"
+multiversx-sc-codec = "0.18.1"
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"
