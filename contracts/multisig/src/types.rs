@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::HexBinary;
 
-
 use crate::ContractError;
 
 #[cw_serde]

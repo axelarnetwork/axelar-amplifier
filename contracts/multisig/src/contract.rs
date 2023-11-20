@@ -152,7 +152,7 @@ pub mod execute {
         let signatures = load_session_signatures(deps.storage, session_id.u64())?;
 
         let old_state = session.state.clone();
-        
+
         session.recalculate_session_state(&signatures, &worker_set, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
         println!("old state: {:?}", old_state);
@@ -580,7 +580,10 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(worker_set_2, from_binary(&res.unwrap()).unwrap());
 
-        for (key_type, worker_set_id) in [(KeyType::Ecdsa, worker_set_1_id), (KeyType::Ed25519, worker_set_2_id)] {
+        for (key_type, worker_set_id) in [
+            (KeyType::Ecdsa, worker_set_1_id),
+            (KeyType::Ed25519, worker_set_2_id),
+        ] {
             let res = do_worker_set_gen(key_type, deps.as_mut());
             assert_eq!(
                 res.unwrap_err().to_string(),
@@ -597,11 +600,14 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for (i, subkey) in [ecdsa_subkey.clone(), ed25519_subkey.clone()].into_iter().enumerate() {
+        for (i, subkey) in [ecdsa_subkey.clone(), ed25519_subkey.clone()]
+            .into_iter()
+            .enumerate()
+        {
             let res = do_start_signing_session(deps.as_mut(), PROVER, &subkey);
 
             assert!(res.is_ok());
-            
+
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, i as u64 + 1)
                 .unwrap();
