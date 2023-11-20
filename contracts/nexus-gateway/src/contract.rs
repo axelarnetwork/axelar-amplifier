@@ -37,10 +37,10 @@ pub fn execute(
     let contract = Contract::new(GatewayStore::new(deps.storage));
 
     let res = match msg {
-        ExecuteMsg::RouteMessagesToNexus(msgs) => contract
+        ExecuteMsg::RouteMessages(msgs) => contract
             .route_to_nexus(info.sender, msgs)
             .change_context(ContractError::RouteToNexus)?,
-        ExecuteMsg::RouteMessagesToRouter(msgs) => contract
+        ExecuteMsg::RouteMessagesFromNexus(msgs) => contract
             .route_to_router(info.sender, msgs)
             .change_context(ContractError::RouteToRouter)?,
     };

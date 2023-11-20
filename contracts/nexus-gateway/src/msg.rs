@@ -10,6 +10,6 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RouteMessagesToNexus(Vec<connection_router::Message>),
-    RouteMessagesToRouter(Vec<nexus::Message>),
+    RouteMessages(Vec<connection_router::Message>),
+    RouteMessagesFromNexus(Vec<nexus::Message>),
 }
