@@ -3,11 +3,7 @@ use cosmwasm_std::{
     SubMsg, WasmQuery,
 };
 
-use multisig::{
-    key::{KeyTyped, PublicKey},
-    msg::Signer,
-    worker_set::WorkerSet,
-};
+use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::snapshot;
 use connection_router::state::{ChainName, CrossChainId, Message};
@@ -257,7 +253,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let (worker_set, snapshot) = NEXT_WORKER_SET.load(deps.storage)?;
+    let (worker_set, _) = NEXT_WORKER_SET.load(deps.storage)?;
 
     let query = voting_verifier::msg::QueryMsg::IsWorkerSetConfirmed {
         new_operators: make_operators(worker_set.clone(), config.encoder),

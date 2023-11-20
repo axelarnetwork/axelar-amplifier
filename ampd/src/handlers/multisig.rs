@@ -181,7 +181,7 @@ mod test {
     use base64::Engine;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::{AccountId, Gas};
-    use cosmwasm_std::{Addr, HexBinary, Uint64};
+    use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
     use rand::rngs::OsRng;

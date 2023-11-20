@@ -1,11 +1,9 @@
-use axelar_wasm_std::Snapshot;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
     Uint64,
 };
-use std::collections::HashMap;
 
 use crate::{
     events::Event,
@@ -45,10 +43,9 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::StartSigningSession { worker_set_id, msg } => {
-            execute::require_authorized_caller(&deps, info.sender.clone())?;
+            execute::require_authorized_caller(&deps, info.sender)?;
             execute::start_signing_session(
                 deps,
-                info,
                 worker_set_id,
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
@@ -59,7 +56,7 @@ pub fn execute(
             signature,
         } => execute::submit_signature(deps, env, info, session_id, signature),
         ExecuteMsg::RegisterWorkerSet { worker_set } => {
-            execute::register_worker_set(deps, info, worker_set)
+            execute::register_worker_set(deps, worker_set)
         }
         ExecuteMsg::RegisterPublicKey { public_key } => {
             execute::register_pub_key(deps, info, public_key)
@@ -83,7 +80,7 @@ pub mod execute {
     use crate::state::{load_session_signatures, save_signature};
     use crate::worker_set::WorkerSet;
     use crate::{
-        key::{KeyType, KeyTyped, PublicKey, Signature},
+        key::{KeyTyped, PublicKey, Signature},
         signing::SigningSession,
         state::{AUTHORIZED_CALLERS, PUB_KEYS},
     };
@@ -93,7 +90,6 @@ pub mod execute {
 
     pub fn start_signing_session(
         deps: DepsMut,
-        info: MessageInfo,
         worker_set_id: String,
         msg: MsgToSign,
     ) -> Result<Response, ContractError> {
@@ -171,7 +167,6 @@ pub mod execute {
 
     pub fn register_worker_set(
         deps: DepsMut,
-        info: MessageInfo,
         worker_set: WorkerSet,
     ) -> Result<Response, ContractError> {
         let worker_set_id = worker_set.id();
@@ -309,7 +304,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub mod query {
     use crate::{
         key::{KeyType, PublicKey},
-        msg::Signer,
         state::{load_session_signatures, PUB_KEYS},
         worker_set::WorkerSet,
     };
@@ -353,10 +347,10 @@ mod tests {
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
         state::load_session_signatures,
-        test::common::{build_snapshot, build_worker_set, TestSigner},
+        test::common::{build_worker_set, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
         types::MultisigState,
-        worker_set::{self, WorkerSet},
+        worker_set::WorkerSet,
     };
 
     use super::*;
@@ -366,7 +360,7 @@ mod tests {
         Addr, Empty, OwnedDeps, Uint256, WasmMsg,
     };
 
-    use serde_json::{from_str, to_string};
+    use serde_json::from_str;
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
