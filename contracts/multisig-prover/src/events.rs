@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
-use axelar_wasm_std::Snapshot;
-use cosmwasm_std::{HexBinary, Uint64};
+use cosmwasm_std::Uint64;
 use serde_json::to_string;
 
 use crate::types::BatchID;
