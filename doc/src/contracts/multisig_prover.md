@@ -45,11 +45,6 @@ pub enum Event {
         command_batch_id: BatchID,
         multisig_session_id: Uint64,
     },
-    SnapshotRotated {
-        key_id: String,
-        snapshot: Snapshot,
-        pub_keys: HashMap<String, HexBinary>,
-    },
 }
 ```
 <br>
