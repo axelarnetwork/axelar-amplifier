@@ -37,9 +37,6 @@ pub enum ContractError {
     #[error("signing session {session_id:?} not found")]
     SigningSessionNotFound { session_id: Uint64 },
 
-    #[error("worker set ID {worker_set_id:?} already exists")]
-    DuplicateWorkerSetID { worker_set_id: String },
-
     #[error("number of participants does not match number of public keys")]
     PublicKeysMismatchParticipants,
 

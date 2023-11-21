@@ -169,13 +169,7 @@ pub mod execute {
         worker_set: WorkerSet,
     ) -> Result<Response, ContractError> {
         let worker_set_id = worker_set.id();
-
-        WORKER_SETS.update(deps.storage, &worker_set_id, |existing| match existing {
-            None => Ok(worker_set),
-            _ => Err(ContractError::DuplicateWorkerSetID {
-                worker_set_id: worker_set_id.to_string(),
-            }),
-        })?;
+        WORKER_SETS.save(deps.storage, &worker_set_id, &worker_set)?;
 
         Ok(Response::default())
     }
@@ -573,18 +567,12 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(worker_set_2, from_binary(&res.unwrap()).unwrap());
 
-        for (key_type, worker_set_id) in [
+        for (key_type, _) in [
             (KeyType::Ecdsa, worker_set_1_id),
             (KeyType::Ed25519, worker_set_2_id),
         ] {
             let res = do_worker_set_gen(key_type, deps.as_mut());
-            assert_eq!(
-                res.unwrap_err().to_string(),
-                axelar_wasm_std::ContractError::from(ContractError::DuplicateWorkerSetID {
-                    worker_set_id,
-                })
-                .to_string()
-            );
+            assert!(res.is_ok());
         }
     }
 
