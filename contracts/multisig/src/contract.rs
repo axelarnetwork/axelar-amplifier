@@ -372,7 +372,7 @@ mod tests {
         instantiate(deps, env, info, msg)
     }
 
-    fn do_worker_set_gen(
+    fn generate_worker_set(
         key_type: KeyType,
         deps: DepsMut,
     ) -> Result<(Response, WorkerSet), axelar_wasm_std::ContractError> {
@@ -488,8 +488,8 @@ mod tests {
     ) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        let worker_set_ecdsa = do_worker_set_gen(KeyType::Ecdsa, deps.as_mut()).unwrap().1;
-        let worker_set_ed25519 = do_worker_set_gen(KeyType::Ed25519, deps.as_mut())
+        let worker_set_ecdsa = generate_worker_set(KeyType::Ecdsa, deps.as_mut()).unwrap().1;
+        let worker_set_ed25519 = generate_worker_set(KeyType::Ed25519, deps.as_mut())
             .unwrap()
             .1;
         let ecdsa_subkey = worker_set_ecdsa.id();
@@ -545,16 +545,16 @@ mod tests {
     }
 
     #[test]
-    fn worker_set_gen() {
+    fn update_worker_set() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
-        let res = do_worker_set_gen(KeyType::Ecdsa, deps.as_mut());
+        let res = generate_worker_set(KeyType::Ecdsa, deps.as_mut());
         assert!(res.is_ok());
         let worker_set_1 = res.unwrap().1;
         let worker_set_1_id = worker_set_1.id();
 
-        let res = do_worker_set_gen(KeyType::Ed25519, deps.as_mut());
+        let res = generate_worker_set(KeyType::Ed25519, deps.as_mut());
         assert!(res.is_ok());
         let worker_set_2 = res.unwrap().1;
         let worker_set_2_id = worker_set_2.id();
@@ -571,7 +571,7 @@ mod tests {
             (KeyType::Ecdsa, worker_set_1_id),
             (KeyType::Ed25519, worker_set_2_id),
         ] {
-            let res = do_worker_set_gen(key_type, deps.as_mut());
+            let res = generate_worker_set(key_type, deps.as_mut());
             assert!(res.is_ok());
         }
     }
