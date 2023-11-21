@@ -57,9 +57,10 @@ impl WorkerSet {
     }
 
     pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
-        self.signers.iter().map(|(address, signer)| {
-            (address.clone(), signer.pub_key.clone())
-        }).collect()
+        self.signers
+            .iter()
+            .map(|(address, signer)| (address.clone(), signer.pub_key.clone()))
+            .collect()
     }
 
     pub fn get_signers_pub_key(
