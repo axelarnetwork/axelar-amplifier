@@ -178,7 +178,7 @@ else existing WorkerSet stored
   Prover->>+Multisig: QueryMsg::GetSigningSession
   Multisig-->>-Prover: reply with status, current signatures vector and snapshot
   Prover-->>-Relayer: returns GetProofResponse
-  Relayer-->>External Chain: send proof and data
+  Relayer-->>External Chain: send new workerset to the gateway, signed by old workerset
   External Chain-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
   Voting Verifier-->>-Relayer: returns Response
