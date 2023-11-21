@@ -131,25 +131,15 @@ Prover-->>-Relayer: returns GetProofResponse
 ```mermaid
 graph TD
 
-e[External Chain]
 r[Relayer]
 subgraph Axelar
 b[Prover]
 v[Voting Verifier]
 m[Multisig]
 end
-s[Signer]
 
 r--UpdateWorkerSet-->b
 b--RegisterWorkerSet-->m
-b--StartSigningSession-->m
-r--GetProof-->b
-b--GetSigningSession-->m
-s--SubmitSignature-->m
-r-.->e
-e-.->r
-r--ConfirmWorkerSet-->v
-r--EndPoll-->v
 r--ConfirmWorkerSet-->b
 b--IsWorkerSetConfirmed-->v
 ```
