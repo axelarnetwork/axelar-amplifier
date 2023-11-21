@@ -57,11 +57,9 @@ impl WorkerSet {
     }
 
     pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
-        let mut pub_keys = HashMap::new();
-        let _ = self.signers.iter().map(|(address, signer)| {
-            pub_keys.insert(address.clone(), signer.pub_key.clone());
-        });
-        pub_keys
+        self.signers.iter().map(|(address, signer)| {
+            (address.clone(), signer.pub_key.clone())
+        }).collect()
     }
 
     pub fn get_signers_pub_key(
