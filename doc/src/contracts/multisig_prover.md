@@ -150,7 +150,7 @@ b--IsWorkerSetConfirmed-->v
 ```mermaid
 sequenceDiagram
 autonumber
-participant External Chain
+participant External Gateway
 participant Relayer
 box LightYellow Axelar
 participant Prover
