@@ -162,8 +162,6 @@ Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
 alt no WorkerSet stored
   Prover->>Prover: save new WorkerSet
   Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
-  Multisig-->>-Prover: returns Response
-  Prover-->>-Relayer: returns Response
 else existing WorkerSet stored
   Prover->>Prover: save new WorkerSet as the next WorkerSet
   Prover->>+Multisig: ExecuteMsg::StartSigningSession (for operatorship transferred message)
@@ -181,43 +179,35 @@ else existing WorkerSet stored
   Relayer-->>External Chain: send new workerset to the gateway, signed by old workerset
   External Chain-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
-  Voting Verifier-->>-Relayer: returns Response
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
   Voting Verifier-->>-Relayer: emit PollEnded event
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
   Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
   Voting Verifier-->>-Prover: query result
   Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
-  Multisig-->>-Prover: returns Response
-  Prover-->>-Relayer: returns Response
 end
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
 2. Replaces the current `WorkerSet` by saving the new `WorkerSet`.
 3. The new `WorkerSet` is also saved in Multisig.
-4. Default Response is returned from Multisig.
-5. Response is returned from Prover.
-6. If a newer `WorkerSet` was found, a `TransferOperatorship` command is added to the batch. The new `WorkerSet` is stored as the next `WorkerSet`.
-7. The Multisig contract is called asking to sign the binary message
-8. Multisig emits event `SigningStarted` indicating a new multisig session has started
-9. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
-10. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
-11. Signers submit their signatures until threshold is reached
-12. Multisig emits event indicating the multisig session has been completed
-13. Relayer queries Prover for the proof, using the proof ID
-14. Prover queries Multisig for the multisig session, using the session ID
-15. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
-16. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
-17. Relayer sends proof and data to the external chain.
-18. The gateway on the External Chain proccesses the commands in the data and emits event `OperatorshipTransferred`.
-19. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
-20. Default Response is returned.
-21. The Relayer calls the Voting Verifier to end the poll.
-22. The Voting Verifier emits event `PollEnded`.
-23. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
-24. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
-25. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
-26. The new `WorkerSet` is stored in Multisig.
-27. Default response is returned.
-28. Response is returned.
+4. If a newer `WorkerSet` was found, a `TransferOperatorship` command is added to the batch. The new `WorkerSet` is stored as the next `WorkerSet`.
+5. The Multisig contract is called asking to sign the binary message
+6. Multisig emits event `SigningStarted` indicating a new multisig session has started
+7. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
+8. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
+9. Signers submit their signatures until threshold is reached
+10. Multisig emits event indicating the multisig session has been completed
+11. Relayer queries Prover for the proof, using the proof ID
+12. Prover queries Multisig for the multisig session, using the session ID
+13. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
+14. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+15. Relayer sends proof and data to the external chain.
+16. The gateway on the External Chain proccesses the commands in the data and emits event `OperatorshipTransferred`.
+17. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
+18. The Relayer calls the Voting Verifier to end the poll.
+19. The Voting Verifier emits event `PollEnded`.
+20. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
+21. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
+22. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
+23. The new `WorkerSet` is stored in Multisig.
