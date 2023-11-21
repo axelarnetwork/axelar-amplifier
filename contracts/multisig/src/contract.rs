@@ -488,7 +488,9 @@ mod tests {
     ) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        let worker_set_ecdsa = generate_worker_set(KeyType::Ecdsa, deps.as_mut()).unwrap().1;
+        let worker_set_ecdsa = generate_worker_set(KeyType::Ecdsa, deps.as_mut())
+            .unwrap()
+            .1;
         let worker_set_ed25519 = generate_worker_set(KeyType::Ed25519, deps.as_mut())
             .unwrap()
             .1;
