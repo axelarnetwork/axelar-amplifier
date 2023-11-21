@@ -11,12 +11,17 @@ pub enum ExecuteMsg {
     ConstructProof {
         message_ids: Vec<String>,
     },
+    UpdateWorkerSet,
+    ConfirmWorkerSet,
 }
 
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
+
+    #[returns(multisig::worker_set::WorkerSet)]
+    GetWorkerSet,
 }
 
 pub enum ProofStatus {
@@ -37,6 +42,7 @@ pub struct GetProofResponse {
 ```Rust
 pub enum Event {
     ProofUnderConstruction {
+        command_batch_id: BatchID,
         multisig_session_id: Uint64,
     },
     SnapshotRotated {
