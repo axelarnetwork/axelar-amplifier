@@ -31,26 +31,26 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
-connection-router = { workspace = true}
+connection-router = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
+gateway = { workspace = true }
 itertools = { workspace = true }
 mockall = "0.11.3"
+multisig = { workspace = true }
+multisig-prover = { workspace = true }
 report = { workspace = true }
+rewards = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
-service-registry = { workspace = true}
-gateway = {workspace = true}
-rewards = {workspace = true}
-voting-verifier = {workspace = true}
-multisig = {workspace = true}
-multisig-prover = {workspace = true}
+service-registry = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
-tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps"}
+tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["ampd", "contracts/*", "packages/*", "integration-tests"]
+members = ["ampd", "contracts/*", "integration-tests", "packages/*"]
 
 [workspace.dependencies]
 connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
