@@ -52,9 +52,7 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::IsVerified { messages } => {
-            to_binary(&query::verification_statuses(deps, messages)?)
-        }
+        QueryMsg::IsVerified { messages } => to_binary(&query::is_verified(deps, &messages)?),
 
         QueryMsg::GetPoll { poll_id: _ } => {
             todo!()
