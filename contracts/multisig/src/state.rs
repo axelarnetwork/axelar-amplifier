@@ -56,6 +56,7 @@ pub fn save_signature(
     )
 }
 
+// the map's key is the WorkerSet's id
 pub const WORKER_SETS: Map<&String, WorkerSet> = Map::new("worker_sets");
 pub fn get_worker_set(
     store: &dyn Storage,

@@ -151,8 +151,7 @@ pub mod execute {
 
         session.recalculate_session_state(&signatures, &worker_set, env.block.height);
         SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
-        println!("old state: {:?}", old_state);
-        println!("new state: {:?}", session.state);
+
         let state_changed = old_state != session.state;
 
         signing_response(

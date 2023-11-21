@@ -1,4 +1,4 @@
-use axelar_wasm_std::{Participant, Snapshot, Threshold};
+use axelar_wasm_std::Participant;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
 
 use crate::{
