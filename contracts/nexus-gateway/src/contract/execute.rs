@@ -20,24 +20,20 @@ where
     ) -> Result<Response<nexus::Message>> {
         match sender {
             sender if sender == self.config.nexus => self
-                .route_to_router(
-                    msgs.into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<Vec<_>>>()?,
-                )
+                .route_to_router(msgs)
                 .change_context(ContractError::RouteToRouter),
             sender if sender == self.config.router => self
-                .route_to_nexus(msgs.into_iter().map(Into::into))
+                .route_to_nexus(msgs)
                 .change_context(ContractError::RouteToNexus),
             _ => Err(report!(ContractError::Unauthorized)),
         }
     }
 
-    fn route_to_router(
-        self,
-        msgs: impl IntoIterator<Item = nexus::Message>,
-    ) -> Result<Response<nexus::Message>> {
-        let msgs: Vec<_> = msgs.into_iter().map(Into::into).collect();
+    fn route_to_router(self, msgs: Vec<msg::Message>) -> Result<Response<nexus::Message>> {
+        let msgs: Vec<_> = msgs
+            .into_iter()
+            .map(connection_router::Message::from)
+            .collect();
         if msgs.is_empty() {
             return Ok(Response::default());
         }
@@ -50,12 +46,10 @@ where
         }))
     }
 
-    fn route_to_nexus(
-        mut self,
-        msgs: impl IntoIterator<Item = connection_router::Message>,
-    ) -> Result<Response<nexus::Message>> {
+    fn route_to_nexus(mut self, msgs: Vec<msg::Message>) -> Result<Response<nexus::Message>> {
         let msgs = msgs
             .into_iter()
+            .map(connection_router::Message::from)
             .filter_map(|msg| match self.store.is_message_routed(&msg.cc_id) {
                 Ok(true) => None,
                 Ok(false) => Some(Ok(msg)),
@@ -66,10 +60,7 @@ where
         msgs.iter()
             .try_for_each(|msg| self.store.set_message_routed(&msg.cc_id))?;
 
-        let msgs = msgs
-            .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<Vec<nexus::Message>>>()?;
+        let msgs: Vec<nexus::Message> = msgs.into_iter().map(Into::into).collect();
 
         Ok(Response::new().add_messages(msgs))
     }
@@ -176,14 +167,17 @@ mod test {
                     contract_addr,
                     msg,
                     funds,
-                }) => match from_binary(msg) {
-                    Ok(connection_router::msg::ExecuteMsg::RouteMessages(msgs)) => {
-                        *contract_addr == Addr::unchecked("router")
+                }) => {
+                    if let Ok(connection_router::msg::ExecuteMsg::RouteMessages(msgs)) =
+                        from_binary(msg)
+                    {
+                        return *contract_addr == Addr::unchecked("router")
                             && msgs.len() == 2
-                            && funds.is_empty()
+                            && funds.is_empty();
                     }
-                    _ => false,
-                },
+
+                    false
+                }
                 _ => false,
             }
         }));

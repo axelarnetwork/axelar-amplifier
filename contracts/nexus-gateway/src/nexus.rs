@@ -1,7 +1,7 @@
 use axelar_wasm_std::nonempty;
 use connection_router::state::{Address, ChainName, CrossChainId, ID_SEPARATOR};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
-use error_stack::{Report, Result, ResultExt};
+use error_stack::{Result, ResultExt};
 use hex::{FromHex, ToHex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -45,15 +45,13 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Contra
     Ok((tx_id, index))
 }
 
-impl TryFrom<connection_router::Message> for Message {
-    type Error = Report<ContractError>;
-
-    fn try_from(msg: connection_router::Message) -> Result<Self, ContractError> {
+impl From<connection_router::Message> for Message {
+    fn from(msg: connection_router::Message) -> Self {
         // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
 
-        Ok(Self {
+        Self {
             source_chain: msg.cc_id.chain,
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
@@ -61,7 +59,7 @@ impl TryFrom<connection_router::Message> for Message {
             payload_hash: msg.payload_hash,
             source_tx_id,
             source_tx_index,
-        })
+        }
     }
 }
 

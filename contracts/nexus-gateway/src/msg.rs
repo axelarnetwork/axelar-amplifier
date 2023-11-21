@@ -1,9 +1,8 @@
 use cosmwasm_schema::cw_serde;
-use error_stack::{Report, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{error::ContractError, nexus};
+use crate::nexus;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -27,13 +26,11 @@ impl From<Message> for connection_router::Message {
     }
 }
 
-impl TryFrom<Message> for nexus::Message {
-    type Error = Report<ContractError>;
-
-    fn try_from(msg: Message) -> Result<Self, ContractError> {
+impl From<Message> for nexus::Message {
+    fn from(msg: Message) -> Self {
         match msg {
-            Message::RouterMessage(msg) => msg.try_into(),
-            Message::NexusMessage(msg) => Ok(msg),
+            Message::RouterMessage(msg) => msg.into(),
+            Message::NexusMessage(msg) => msg,
         }
     }
 }
