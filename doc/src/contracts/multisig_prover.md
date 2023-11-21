@@ -88,7 +88,9 @@ Relayer->>+Prover: ExecuteMsg::ConstructProof
 alt batch not created previously
   Prover->>+Gateway: QueryMsg::GetMessages
   Gateway-->>-Prover: query result
-  Prover->>Prover: update next WorkerSet
+  alt newer WorkerSet exists
+    Prover->>Prover: update next WorkerSet
+  end
 else previously created batch found
   Prover->>Prover: retrieves batch from storage
 end
