@@ -196,13 +196,12 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             // if no worker set, just store it and return
             let new_worker_set = make_worker_set(&deps, &env, &config)?;
             CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
-            let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet {
-                worker_set: new_worker_set,
-            };
 
             Ok(Response::new().add_message(wasm_execute(
                 config.multisig,
-                &register_worker_set_msg,
+                &multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                    worker_set: new_worker_set,
+                },
                 vec![],
             )?))
         }
@@ -254,11 +253,9 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
     NEXT_WORKER_SET.remove(deps.storage);
 
-    let register_worker_set_msg = multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set };
-
     Ok(Response::new().add_message(wasm_execute(
         config.multisig,
-        &register_worker_set_msg,
+        &multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set },
         vec![],
     )?))
 }
