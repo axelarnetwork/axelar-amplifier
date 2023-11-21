@@ -166,7 +166,7 @@ alt no WorkerSet stored
   Prover-->>-Relayer: returns Response
 else existing WorkerSet stored
   Prover->>Prover: save new WorkerSet as the next WorkerSet
-  Prover->>+Multisig: ExecuteMsg::StartSigningSession
+  Prover->>+Multisig: ExecuteMsg::StartSigningSession (for operatorship transferred message)
   Multisig-->>Signers: emit SigningStarted event
   Multisig->>-Prover: reply with session ID
   Prover-->>Relayer: emit ProofUnderConstruction event
