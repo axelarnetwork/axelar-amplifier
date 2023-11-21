@@ -1,10 +1,10 @@
-use axelar_wasm_std::voting::PollStatus;
+use axelar_wasm_std::voting::{PollID, PollStatus};
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
-use crate::state::{self, Poll, POLLS, POLL_MESSAGES};
+use crate::state::{self, OperatorsHash, Poll, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 
 #[cw_serde]
 pub enum VerificationStatus {
@@ -21,7 +21,7 @@ pub fn is_verified(
     messages
         .iter()
         .map(|message| {
-            verification_status(deps, message).map(|status| {
+            msg_verification_status(deps, message).map(|status| {
                 (
                     message.cc_id.to_owned(),
                     matches!(status, VerificationStatus::Verified),
@@ -31,36 +31,47 @@ pub fn is_verified(
         .collect::<Result<Vec<_>, _>>()
 }
 
-pub fn verification_status(
+pub fn msg_verification_status(
     deps: Deps,
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
     match POLL_MESSAGES.may_load(deps.storage, &message.hash_id())? {
-        Some(stored) => {
-            let poll = POLLS
-                .load(deps.storage, stored.poll_id)
-                .expect("invalid invariant: message poll not found");
-
-            let verified = match &poll {
-                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
-                    .has_consensus(stored.index_in_poll)
-                    .expect("invalid invariant: message not found in poll"),
-            };
-
-            if verified {
-                assert_eq!(
-                    stored.msg, *message,
-                    "invalid invariant: message mismatch with verified message"
-                );
-
-                Ok(VerificationStatus::Verified)
-            } else if is_finished(&poll) {
-                Ok(VerificationStatus::FailedToVerify)
-            } else {
-                Ok(VerificationStatus::InProgress)
-            }
-        }
+        Some(stored) => Ok(verification_status(
+            deps,
+            stored.poll_id,
+            stored.index_in_poll,
+        )),
         None => Ok(VerificationStatus::NotVerified),
+    }
+}
+
+pub fn worker_set_verification_status(
+    deps: Deps,
+    operators_hash: &OperatorsHash,
+) -> Result<VerificationStatus, ContractError> {
+    match POLL_WORKER_SETS.may_load(deps.storage, operators_hash)? {
+        Some(stored) => Ok(verification_status(deps, stored, 0)),
+        None => Ok(VerificationStatus::NotVerified),
+    }
+}
+
+fn verification_status(deps: Deps, poll_id: PollID, index_in_poll: usize) -> VerificationStatus {
+    let poll = POLLS
+        .load(deps.storage, poll_id)
+        .expect("invalid invariant: message poll not found");
+
+    let verified = match &poll {
+        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
+            .has_consensus(index_in_poll)
+            .expect("invalid invariant: message not found in poll"),
+    };
+
+    if verified {
+        VerificationStatus::Verified
+    } else if is_finished(&poll) {
+        VerificationStatus::FailedToVerify
+    } else {
+        VerificationStatus::InProgress
     }
 }
 
@@ -109,7 +120,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::InProgress
         );
         assert_eq!(
@@ -144,7 +155,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::Verified
         );
         assert_eq!(
@@ -179,7 +190,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::FailedToVerify
         );
         assert_eq!(
@@ -194,7 +205,7 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::NotVerified
         );
         assert_eq!(

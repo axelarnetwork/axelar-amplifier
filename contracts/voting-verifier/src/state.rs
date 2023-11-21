@@ -68,7 +68,9 @@ pub const POLL_MESSAGES: Map<&MessageHash, PollMessage> = Map::new("poll_message
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-type OperatorsHash = Vec<u8>;
+pub type OperatorsHash = Vec<u8>;
 pub const CONFIRMED_WORKER_SETS: Map<OperatorsHash, ()> = Map::new("confirmed_worker_sets");
 
 pub const PENDING_WORKER_SETS: Map<PollID, Operators> = Map::new("pending_worker_sets");
+
+pub const POLL_WORKER_SETS: Map<&OperatorsHash, PollID> = Map::new("poll_worker_sets");
