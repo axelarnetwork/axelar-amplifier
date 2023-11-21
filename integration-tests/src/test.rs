@@ -11,7 +11,7 @@ mod test {
 
     const AXL_DENOMINATION: &str = "uaxl";
     #[test]
-    fn test() {
+    fn test_protocol_setup() {
         let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
         let chains = vec![
             "Ethereum".to_string().try_into().unwrap(),
@@ -134,12 +134,10 @@ mod test {
     }
 
     // return the all-zero array with the first bytes set to the bytes of `index`
-    fn generate_key(seed: usize) -> KeyPair {
+    fn generate_key(seed: u32) -> KeyPair {
         let index_bytes = seed.to_be_bytes();
         let mut result = [0; 64];
-        for (i, &b) in index_bytes.iter().enumerate() {
-            result[i] = b;
-        }
+        result[0..index_bytes.len()].copy_from_slice(index_bytes.as_slice());
         let secret_recovery_key = result.as_slice().try_into().unwrap();
         tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap()
     }
