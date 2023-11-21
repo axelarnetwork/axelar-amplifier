@@ -26,9 +26,6 @@ pub enum ContractError {
     #[error("all messages must have the same source chain {0}")]
     SourceChainMismatch(ChainName),
 
-    #[error("message {0} mismatch with verified message")]
-    MessageMismatch(String),
-
     #[error("invalid message id {0}")]
     InvalidMessageID(String),
 
