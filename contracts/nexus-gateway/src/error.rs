@@ -19,4 +19,7 @@ pub enum ContractError {
 
     #[error("failed routing messages to the nexus module")]
     RouteToNexus,
+
+    #[error("failed routing messages to the router")]
+    RouteToRouter,
 }
