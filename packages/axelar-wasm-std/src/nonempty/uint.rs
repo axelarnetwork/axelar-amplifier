@@ -82,6 +82,12 @@ impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
     }
 }
 
+impl AsRef<cosmwasm_std::Uint256> for Uint256 {
+    fn as_ref(&self) -> &cosmwasm_std::Uint256 {
+        &self.0
+    }
+}
+
 #[cw_serde]
 #[derive(Copy, PartialOrd, Eq)]
 pub struct Uint128(cosmwasm_std::Uint128);
@@ -157,5 +163,12 @@ mod tests {
 
         // non-zero
         assert!(Uint256::try_from(cosmwasm_std::Uint128::one()).is_ok());
+    }
+
+    #[test]
+    fn convert_from_uint256_to_reference_cosmwasm_uint256() {
+        let val = Uint256(cosmwasm_std::Uint256::one());
+        let converted: &cosmwasm_std::Uint256 = val.as_ref();
+        assert_eq!(&val.0, converted);
     }
 }
