@@ -56,11 +56,11 @@ pub fn save_signature(
     )
 }
 
-type WorkerSetID = String;
-pub const WORKER_SETS: Map<&WorkerSetID, WorkerSet> = Map::new("worker_sets");
+type WorkerSetId = str;
+pub const WORKER_SETS: Map<&WorkerSetId, WorkerSet> = Map::new("worker_sets");
 pub fn get_worker_set(
     store: &dyn Storage,
-    worker_set_id: &String,
+    worker_set_id: &str,
 ) -> Result<WorkerSet, ContractError> {
     WORKER_SETS
         .load(store, worker_set_id)

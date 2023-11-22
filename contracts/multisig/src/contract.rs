@@ -904,7 +904,7 @@ mod tests {
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
             let worker_set = WORKER_SETS
-                .load(deps.as_ref().storage, (&session.worker_set_id).into())
+                .load(deps.as_ref().storage, session.worker_set_id.as_str())
                 .unwrap();
             let signatures =
                 load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
