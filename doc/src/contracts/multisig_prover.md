@@ -181,9 +181,11 @@ else existing WorkerSet stored
   Prover->>+Multisig: QueryMsg::GetSigningSession
   Multisig-->>-Prover: reply with status, current signatures vector and snapshot
   Prover-->>-Relayer: returns GetProofResponse
-  Relayer-->>External Chain: send new workerset to the gateway, signed by old workerset
+  Relayer-->>External Chain: send new WorkerSet to the gateway, signed by old WorkerSet
   External Chain-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+  Voting Verifier-->>-Relayer: emit PollStarted event
+  Relayer->>+Voting Verifier: ExecuteMsg::Vote
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
   Voting Verifier-->>-Relayer: emit PollEnded event
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
@@ -212,9 +214,11 @@ end
 17. Relayer sends proof and data to the external chain.
 18. The gateway on the External Chain proccesses the commands in the data and emits event `OperatorshipTransferred`.
 19. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
-20. The Relayer calls the Voting Verifier to end the poll.
-21. The Voting Verifier emits event `PollEnded`.
-22. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
-23. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
-24. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
-25. The new `WorkerSet` is stored in Multisig.
+20. The event `PollStarted` is emitted to the Relayer
+21. The workers see the `PollStarted` event and vote on the poll.
+22. The Relayer calls the Voting Verifier to end the poll.
+23. The Voting Verifier emits event `PollEnded`.
+24. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
+25. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
+26. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
+27. The new `WorkerSet` is stored in Multisig.
