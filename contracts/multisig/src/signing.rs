@@ -192,14 +192,7 @@ mod tests {
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let pub_key = match worker_set.signers.get(&signer.to_string()) {
-                Some(signer) => Ok(&signer.pub_key),
-                None => Err(ContractError::NotAParticipant {
-                    session_id: session.id,
-                    signer: signer.to_string(),
-                }),
-            }
-            .unwrap();
+            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
             assert!(
                 validate_session_signature(&session, &signer, signature, pub_key, 0, 0).is_ok()
@@ -217,14 +210,7 @@ mod tests {
             let completed_at = 12345;
             let grace_period = 10;
             let block_height = completed_at + grace_period; // inclusive
-            let pub_key = match worker_set.signers.get(&signer.to_string()) {
-                Some(signer) => Ok(&signer.pub_key),
-                None => Err(ContractError::NotAParticipant {
-                    session_id: session.id,
-                    signer: signer.to_string(),
-                }),
-            }
-            .unwrap();
+            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
             session.state = MultisigState::Completed { completed_at };
             assert!(validate_session_signature(
@@ -249,14 +235,7 @@ mod tests {
             let completed_at = 12345;
             let grace_period = 10;
             let block_height = completed_at + grace_period + 1;
-            let pub_key = match worker_set.signers.get(&signer.to_string()) {
-                Some(signer) => Ok(&signer.pub_key),
-                None => Err(ContractError::NotAParticipant {
-                    session_id: session.id,
-                    signer: signer.to_string(),
-                }),
-            }
-            .unwrap();
+            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
             session.state = MultisigState::Completed { completed_at };
             let result = validate_session_signature(
@@ -283,14 +262,7 @@ mod tests {
             let session = config.session;
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
-            let pub_key = match worker_set.signers.get(&signer.to_string()) {
-                Some(signer) => Ok(&signer.pub_key),
-                None => Err(ContractError::NotAParticipant {
-                    session_id: session.id,
-                    signer: signer.to_string(),
-                }),
-            }
-            .unwrap();
+            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
             let sig_bytes = match config.key_type {
                 KeyType::Ecdsa =>   "a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511",

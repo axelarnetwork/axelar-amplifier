@@ -929,15 +929,7 @@ mod tests {
                     assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
                     assert_eq!(
                         signer.0.pub_key,
-                        match worker_set.signers.get(address) {
-                            Some(signer) => Ok(&signer.pub_key),
-                            None => Err(ContractError::NotAParticipant {
-                                session_id,
-                                signer: address.to_string(),
-                            }),
-                        }
-                        .unwrap()
-                        .clone()
+                        worker_set.signers.get(address).unwrap().pub_key
                     );
                     assert_eq!(signer.1, signatures.get(address).cloned());
                 });
