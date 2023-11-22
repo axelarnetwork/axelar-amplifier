@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     nonempty,
     operators::Operators,
-    voting::{PollID, PollResult},
+    voting::{PollID, PollState},
     Threshold,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
@@ -75,5 +75,5 @@ pub struct VerifyMessagesResponse {
 
 #[cw_serde]
 pub struct EndPollResponse {
-    pub poll_result: PollResult,
+    pub poll_result: PollState,
 }
