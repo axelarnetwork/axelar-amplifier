@@ -5,10 +5,10 @@ use cw_storage_plus::{Item, Map};
 use axelar_wasm_std::{
     counter, nonempty,
     operators::Operators,
-    voting::{self, PollID, WeightedPoll},
+    voting::{PollID, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router::state::{ChainName, Message, MessageHash};
 
 use crate::error::ContractError;
 
@@ -30,34 +30,8 @@ pub enum Poll {
     ConfirmWorkerSet(WeightedPoll),
 }
 
-impl voting::Poll for Poll {
-    type E = ContractError;
-
-    fn finish(self, block_height: u64) -> Result<Self, ContractError> {
-        self.try_map(|poll| poll.finish(block_height).map_err(ContractError::from))
-    }
-
-    fn result(&self) -> voting::PollResult {
-        match self {
-            Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.result(),
-        }
-    }
-
-    fn cast_vote(
-        self,
-        block_height: u64,
-        sender: &Addr,
-        votes: Vec<bool>,
-    ) -> Result<Self, ContractError> {
-        self.try_map(|poll| {
-            poll.cast_vote(block_height, sender, votes)
-                .map_err(ContractError::from)
-        })
-    }
-}
-
 impl Poll {
-    fn try_map<F, E>(self, func: F) -> Result<Self, E>
+    pub fn try_map<F, E>(self, func: F) -> Result<Self, E>
     where
         F: FnOnce(WeightedPoll) -> Result<WeightedPoll, E>,
         E: From<ContractError>,
@@ -69,13 +43,28 @@ impl Poll {
     }
 }
 
+#[cw_serde]
+pub struct PollMessage {
+    pub msg: Message,
+    pub poll_id: PollID,
+    pub index_in_poll: usize,
+}
+
+impl PollMessage {
+    pub fn new(msg: Message, poll_id: PollID, index_in_poll: usize) -> Self {
+        Self {
+            msg,
+            poll_id,
+            index_in_poll,
+        }
+    }
+}
+
 pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
 
-pub const PENDING_MESSAGES: Map<PollID, Vec<Message>> = Map::new("pending_messages");
-
-pub const VERIFIED_MESSAGES: Map<&CrossChainId, Message> = Map::new("verified_messages");
+pub const POLL_MESSAGES: Map<&MessageHash, PollMessage> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
