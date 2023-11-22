@@ -25,7 +25,7 @@ pub fn confirm_worker_set(
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
     if CONFIRMED_WORKER_SETS
-        .may_load(deps.storage, new_operators.hash())?
+        .may_load(deps.storage, new_operators.hash_id())?
         .is_some()
     {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
@@ -182,7 +182,7 @@ fn end_poll_worker_set(
 
     let worker_set = PENDING_WORKER_SETS.load(deps.storage, poll_id)?;
     if poll_result.results[0] {
-        CONFIRMED_WORKER_SETS.save(deps.storage, worker_set.hash(), &())?;
+        CONFIRMED_WORKER_SETS.save(deps.storage, worker_set.hash_id(), &())?;
     }
 
     PENDING_WORKER_SETS.remove(deps.storage, poll_id);

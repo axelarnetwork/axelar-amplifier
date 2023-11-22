@@ -1,4 +1,4 @@
-use axelar_wasm_std::operators::Operators;
+use axelar_wasm_std::operators::{Operators, OperatorsHash};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
@@ -13,7 +13,7 @@ pub struct InstantiateMsg {}
 
 use crate::test::test_data::TestOperator;
 
-pub const CONFIRMED_WORKER_SETS: Map<Vec<u8>, ()> = Map::new("confirmed_worker_sets");
+pub const CONFIRMED_WORKER_SETS: Map<&OperatorsHash, ()> = Map::new("confirmed_worker_sets");
 pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
@@ -34,7 +34,7 @@ pub fn execute(
             message_id: _,
             new_operators,
         } => {
-            CONFIRMED_WORKER_SETS.save(deps.storage, new_operators.hash(), &())?;
+            CONFIRMED_WORKER_SETS.save(deps.storage, &new_operators.hash_id(), &())?;
             Ok(Response::new())
         }
         _ => unimplemented!(),
@@ -71,7 +71,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::IsWorkerSetConfirmed { new_operators } => to_binary(
             &CONFIRMED_WORKER_SETS
-                .may_load(deps.storage, new_operators.hash())?
+                .may_load(deps.storage, &new_operators.hash_id())?
                 .is_some(),
         ),
         _ => unimplemented!(),

@@ -59,7 +59,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::IsWorkerSetConfirmed { new_operators } => to_binary(
             &CONFIRMED_WORKER_SETS
-                .may_load(deps.storage, new_operators.hash())?
+                .may_load(deps.storage, new_operators.hash_id())?
                 .is_some(),
         ),
     }

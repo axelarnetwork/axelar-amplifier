@@ -4,7 +4,7 @@ use cw_storage_plus::{Item, Map};
 
 use axelar_wasm_std::{
     counter, nonempty,
-    operators::Operators,
+    operators::{Operators, OperatorsHash},
     voting::{PollID, WeightedPoll},
     Threshold,
 };
@@ -45,7 +45,7 @@ impl Poll {
 
 #[cw_serde]
 pub struct PollMessage {
-    pub msg: Message,
+    pub msg: Message, // message is stored for migration purposes in case the hash changes
     pub poll_id: PollID,
     pub index_in_poll: usize,
 }
@@ -60,6 +60,18 @@ impl PollMessage {
     }
 }
 
+#[cw_serde]
+pub struct PollWorkerSet {
+    pub operators: Operators, // operators are stored for migration purposes in case the hash changes
+    pub poll_id: PollID,
+}
+
+impl PollWorkerSet {
+    pub fn new(operators: Operators, poll_id: PollID) -> Self {
+        Self { operators, poll_id }
+    }
+}
+
 pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollID, Poll> = Map::new("polls");
@@ -68,9 +80,8 @@ pub const POLL_MESSAGES: Map<&MessageHash, PollMessage> = Map::new("poll_message
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub type OperatorsHash = Vec<u8>;
 pub const CONFIRMED_WORKER_SETS: Map<OperatorsHash, ()> = Map::new("confirmed_worker_sets");
 
 pub const PENDING_WORKER_SETS: Map<PollID, Operators> = Map::new("pending_worker_sets");
 
-pub const POLL_WORKER_SETS: Map<&OperatorsHash, PollID> = Map::new("poll_worker_sets");
+pub const POLL_WORKER_SETS: Map<&OperatorsHash, PollWorkerSet> = Map::new("poll_worker_sets");

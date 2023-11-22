@@ -1,10 +1,11 @@
+use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollID, PollStatus};
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
-use crate::state::{self, OperatorsHash, Poll, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{self, Poll, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 
 #[cw_serde]
 pub enum VerificationStatus {
@@ -36,21 +37,35 @@ pub fn msg_verification_status(
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
     match POLL_MESSAGES.may_load(deps.storage, &message.hash_id())? {
-        Some(stored) => Ok(verification_status(
-            deps,
-            stored.poll_id,
-            stored.index_in_poll,
-        )),
+        Some(stored) => {
+            assert_eq!(
+                stored.msg, *message,
+                "invalid invariant: message mismatch with stored one"
+            );
+
+            Ok(verification_status(
+                deps,
+                stored.poll_id,
+                stored.index_in_poll,
+            ))
+        }
         None => Ok(VerificationStatus::NotVerified),
     }
 }
 
 pub fn worker_set_verification_status(
     deps: Deps,
-    operators_hash: &OperatorsHash,
+    operators: &Operators,
 ) -> Result<VerificationStatus, ContractError> {
-    match POLL_WORKER_SETS.may_load(deps.storage, operators_hash)? {
-        Some(stored) => Ok(verification_status(deps, stored, 0)),
+    match POLL_WORKER_SETS.may_load(deps.storage, &operators.hash_id())? {
+        Some(stored) => {
+            assert_eq!(
+                stored.operators, *operators,
+                "invalid invariant: operators mismatch with stored one"
+            );
+
+            Ok(verification_status(deps, stored.poll_id, 0))
+        }
         None => Ok(VerificationStatus::NotVerified),
     }
 }
