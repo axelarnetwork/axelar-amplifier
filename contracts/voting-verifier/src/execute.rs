@@ -3,7 +3,7 @@ use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
-use axelar_wasm_std::voting::{PollID, PollState};
+use axelar_wasm_std::voting::PollID;
 use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
@@ -14,9 +14,11 @@ use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::query::{is_verified, msg_verification_status, VerificationStatus};
-use crate::state::{self, Poll, POLL_MESSAGES};
-use crate::state::{CONFIG, CONFIRMED_WORKER_SETS, PENDING_WORKER_SETS, POLLS, POLL_ID};
+use crate::query::{
+    is_verified, is_worker_set_confirmed, msg_verification_status, VerificationStatus,
+};
+use crate::state::{self, Poll, PollWorkerSet, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{CONFIG, POLLS, POLL_ID};
 
 pub fn confirm_worker_set(
     deps: DepsMut,
@@ -24,10 +26,7 @@ pub fn confirm_worker_set(
     message_id: nonempty::String,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
-    if CONFIRMED_WORKER_SETS
-        .may_load(deps.storage, new_operators.hash_id())?
-        .is_some()
-    {
+    if is_worker_set_confirmed(deps.as_ref(), &new_operators)? {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 
@@ -42,7 +41,11 @@ pub fn confirm_worker_set(
         snapshot,
     )?;
 
-    PENDING_WORKER_SETS.save(deps.storage, poll_id, &new_operators)?;
+    POLL_WORKER_SETS.save(
+        deps.storage,
+        &new_operators.hash_id(),
+        &PollWorkerSet::new(new_operators.clone(), poll_id),
+    )?;
 
     Ok(Response::new().add_event(
         PollStarted::WorkerSet {
@@ -168,28 +171,6 @@ pub fn vote(
     ))
 }
 
-fn end_poll_worker_set(
-    deps: DepsMut,
-    poll_id: PollID,
-    poll_result: &PollState,
-) -> Result<(), ContractError> {
-    assert_eq!(
-        poll_result.results.len(),
-        1,
-        "poll {} results for worker set is not length 1",
-        poll_id
-    );
-
-    let worker_set = PENDING_WORKER_SETS.load(deps.storage, poll_id)?;
-    if poll_result.results[0] {
-        CONFIRMED_WORKER_SETS.save(deps.storage, worker_set.hash_id(), &())?;
-    }
-
-    PENDING_WORKER_SETS.remove(deps.storage, poll_id);
-
-    Ok(())
-}
-
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -203,10 +184,6 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let poll_result = match &poll {
         Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.state(),
     };
-
-    if matches!(poll, state::Poll::ConfirmWorkerSet(_)) {
-        end_poll_worker_set(deps, poll_id, &poll_result)?;
-    }
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
     let rewards_msgs = poll_result

@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, CONFIG, CONFIRMED_WORKER_SETS};
+use crate::state::{Config, CONFIG};
 use crate::{execute, query};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -57,10 +57,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetPoll { poll_id: _ } => {
             todo!()
         }
-        QueryMsg::IsWorkerSetConfirmed { new_operators } => to_binary(
-            &CONFIRMED_WORKER_SETS
-                .may_load(deps.storage, new_operators.hash_id())?
-                .is_some(),
-        ),
+        QueryMsg::IsWorkerSetConfirmed { new_operators } => {
+            to_binary(&query::is_worker_set_confirmed(deps, &new_operators)?)
+        }
     }
 }
