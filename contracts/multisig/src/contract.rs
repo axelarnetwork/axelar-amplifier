@@ -132,7 +132,14 @@ pub mod execute {
             .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
         let worker_set = WORKER_SETS.load(deps.storage, &session.worker_set_id)?;
 
-        let pub_key = worker_set.get_signers_pub_key(&info.sender, session.id)?;
+        let pub_key = match worker_set.signers.get(&info.sender.to_string()) {
+            Some(signer) => Ok(&signer.pub_key),
+            None => Err(ContractError::NotAParticipant {
+                session_id,
+                signer: info.sender.to_string(),
+            }),
+        }?;
+
         let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
         validate_session_signature(
@@ -922,10 +929,15 @@ mod tests {
                     assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
                     assert_eq!(
                         signer.0.pub_key,
-                        worker_set
-                            .get_signers_pub_key(&Addr::unchecked(address), session_id)
-                            .unwrap()
-                            .clone()
+                        match worker_set.signers.get(address) {
+                            Some(signer) => Ok(&signer.pub_key),
+                            None => Err(ContractError::NotAParticipant {
+                                session_id,
+                                signer: address.to_string(),
+                            }),
+                        }
+                        .unwrap()
+                        .clone()
                     );
                     assert_eq!(signer.1, signatures.get(address).cloned());
                 });
