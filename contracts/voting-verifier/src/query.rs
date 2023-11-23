@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn verification_status_not_verified() {
+    fn verification_status_failed_to_verify() {
         let mut deps = mock_dependencies();
         let idx = 0;
 
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn verification_status_none() {
+    fn verification_status_not_verified() {
         let deps = mock_dependencies();
         let msg = message(1);
 
