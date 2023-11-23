@@ -141,6 +141,19 @@ mod tests {
     }
 
     #[test]
+    fn convert_from_cosmwasm_uint128_to_uint128() {
+        // zero
+        let val = cosmwasm_std::Uint128::zero();
+        assert_eq!(
+            Uint128::try_from(val).unwrap_err(),
+            Error::InvalidValue(val.into())
+        );
+
+        // non-zero
+        assert!(Uint128::try_from(cosmwasm_std::Uint128::one()).is_ok());
+    }
+
+    #[test]
     fn convert_from_cosmwasm_uint256_to_uint256() {
         // zero
         assert_eq!(
