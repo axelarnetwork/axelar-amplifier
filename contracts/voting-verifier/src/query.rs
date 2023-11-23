@@ -47,7 +47,7 @@ pub fn msg_verification_status(
         Some(stored) => {
             assert_eq!(
                 stored.msg, *message,
-                "invalid invariant: message mismatch with stored one"
+                "invalid invariant: message mismatch with the stored one"
             );
 
             Ok(verification_status(
@@ -68,7 +68,7 @@ pub fn worker_set_verification_status(
         Some(stored) => {
             assert_eq!(
                 stored.operators, *operators,
-                "invalid invariant: operators mismatch with stored one"
+                "invalid invariant: operators mismatch with the stored ones"
             );
 
             Ok(verification_status(deps, stored.poll_id, 0))

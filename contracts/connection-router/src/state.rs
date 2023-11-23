@@ -347,6 +347,17 @@ mod tests {
         );
     }
 
+    // If this test fails, it means the message hash has changed and therefore a migration is needed.
+    #[test]
+    fn hash_id_unchaged() {
+        let expected_message_hash =
+            "0135c407f6a58fdcfb879f8d9eae19f870a89f8619537dcde265b4599361a7b6";
+
+        let msg = dummy_message();
+
+        assert_eq!(hex::encode(msg.hash_id()), expected_message_hash);
+    }
+
     #[test]
     fn should_fail_to_parse_invalid_chain_name() {
         // empty
