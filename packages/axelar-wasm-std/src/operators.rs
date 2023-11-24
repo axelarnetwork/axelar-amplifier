@@ -30,7 +30,7 @@ mod tests {
 
     // If this test fails, it means the operator hash has changed and therefore a migration is needed.
     #[test]
-    fn hash_id_unchaged() {
+    fn hash_id_unchanged() {
         let expected_operators_hash =
             "a80417c50895c34c73dee98112e288a3b8dce0d9d77d42cbfbf6bbe29433770b";
 

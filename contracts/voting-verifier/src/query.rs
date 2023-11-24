@@ -1,5 +1,5 @@
 use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::voting::{PollID, PollStatus};
+use axelar_wasm_std::voting::{PollId, PollStatus};
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
@@ -46,7 +46,7 @@ pub fn msg_verification_status(
     match POLL_MESSAGES.may_load(deps.storage, &message.hash_id())? {
         Some(stored) => {
             assert_eq!(
-                stored.msg, *message,
+                stored.content, *message,
                 "invalid invariant: message mismatch with the stored one"
             );
 
@@ -67,17 +67,21 @@ pub fn worker_set_verification_status(
     match POLL_WORKER_SETS.may_load(deps.storage, &operators.hash_id())? {
         Some(stored) => {
             assert_eq!(
-                stored.operators, *operators,
+                stored.content, *operators,
                 "invalid invariant: operators mismatch with the stored ones"
             );
 
-            Ok(verification_status(deps, stored.poll_id, 0))
+            Ok(verification_status(
+                deps,
+                stored.poll_id,
+                stored.index_in_poll,
+            ))
         }
         None => Ok(VerificationStatus::NotVerified),
     }
 }
 
-fn verification_status(deps: Deps, poll_id: PollID, index_in_poll: usize) -> VerificationStatus {
+fn verification_status(deps: Deps, poll_id: PollId, index_in_poll: usize) -> VerificationStatus {
     let poll = POLLS
         .load(deps.storage, poll_id)
         .expect("invalid invariant: message poll not found");
@@ -109,12 +113,12 @@ fn is_finished(poll: &state::Poll) -> bool {
 mod tests {
     use axelar_wasm_std::{
         nonempty,
-        voting::{PollID, WeightedPoll},
+        voting::{PollId, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
-    use crate::state::PollMessage;
+    use crate::state::PollContent;
 
     use super::*;
 
@@ -137,7 +141,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &msg.hash_id(),
-                &PollMessage::new(msg.clone(), poll.poll_id, idx),
+                &PollContent::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
@@ -172,7 +176,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &msg.hash_id(),
-                &PollMessage::new(msg.clone(), poll.poll_id, idx),
+                &PollContent::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
@@ -207,7 +211,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &msg.hash_id(),
-                &PollMessage::new(msg.clone(), poll.poll_id, idx),
+                &PollContent::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
@@ -266,6 +270,6 @@ mod tests {
 
         let snapshot = Snapshot::new(threshold, participants);
 
-        WeightedPoll::new(PollID::from(Uint64::one()), snapshot, 0, 5)
+        WeightedPoll::new(PollId::from(Uint64::one()), snapshot, 0, 5)
     }
 }

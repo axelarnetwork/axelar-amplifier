@@ -5,7 +5,7 @@ use cw_storage_plus::{Item, Map};
 use axelar_wasm_std::{
     counter, nonempty,
     operators::{Operators, OperatorsHash},
-    voting::{PollID, WeightedPoll},
+    voting::{PollId, WeightedPoll},
     Threshold,
 };
 use connection_router::state::{ChainName, Message, MessageHash};
@@ -44,40 +44,29 @@ impl Poll {
 }
 
 #[cw_serde]
-pub struct PollMessage {
-    pub msg: Message, // message is stored for migration purposes in case the hash changes
-    pub poll_id: PollID,
+pub struct PollContent<T> {
+    pub content: T, // content is stored for migration purposes in case the hash changes
+    pub poll_id: PollId,
     pub index_in_poll: usize,
 }
 
-impl PollMessage {
-    pub fn new(msg: Message, poll_id: PollID, index_in_poll: usize) -> Self {
+impl<T> PollContent<T> {
+    pub fn new(content: T, poll_id: PollId, index_in_poll: usize) -> Self {
         Self {
-            msg,
+            content,
             poll_id,
             index_in_poll,
         }
     }
 }
 
-#[cw_serde]
-pub struct PollWorkerSet {
-    pub operators: Operators, // operators are stored for migration purposes in case the hash changes
-    pub poll_id: PollID,
-}
+pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
-impl PollWorkerSet {
-    pub fn new(operators: Operators, poll_id: PollID) -> Self {
-        Self { operators, poll_id }
-    }
-}
+pub const POLLS: Map<PollId, Poll> = Map::new("polls");
 
-pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
-
-pub const POLLS: Map<PollID, Poll> = Map::new("polls");
-
-pub const POLL_MESSAGES: Map<&MessageHash, PollMessage> = Map::new("poll_messages");
+pub const POLL_MESSAGES: Map<&MessageHash, PollContent<Message>> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const POLL_WORKER_SETS: Map<&OperatorsHash, PollWorkerSet> = Map::new("poll_worker_sets");
+pub const POLL_WORKER_SETS: Map<&OperatorsHash, PollContent<Operators>> =
+    Map::new("poll_worker_sets");

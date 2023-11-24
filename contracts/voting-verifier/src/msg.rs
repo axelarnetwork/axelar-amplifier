@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     nonempty,
     operators::Operators,
-    voting::{PollID, PollState},
+    voting::{PollId, PollState},
     Threshold,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
@@ -27,12 +27,12 @@ pub enum ExecuteMsg {
     // Computes the results of a poll
     // For all verified messages, calls MessagesVerified on the verifier
     EndPoll {
-        poll_id: PollID,
+        poll_id: PollId,
     },
 
     // Casts votes for specified poll
     Vote {
-        poll_id: PollID,
+        poll_id: PollId,
         votes: Vec<bool>,
     },
 
@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 pub struct Poll {
-    poll_id: PollID,
+    poll_id: PollId,
     messages: Vec<Message>,
 }
 
@@ -59,7 +59,7 @@ pub struct Poll {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Poll)]
-    GetPoll { poll_id: PollID },
+    GetPoll { poll_id: PollId },
 
     #[returns(Vec<(connection_router::state::CrossChainId, bool)>)]
     IsVerified { messages: Vec<Message> },

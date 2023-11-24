@@ -3,7 +3,7 @@ use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
-use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::voting::PollId;
 use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
@@ -17,7 +17,7 @@ use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::{
     is_verified, is_worker_set_confirmed, msg_verification_status, VerificationStatus,
 };
-use crate::state::{self, Poll, PollWorkerSet, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 
 pub fn confirm_worker_set(
@@ -44,7 +44,7 @@ pub fn confirm_worker_set(
     POLL_WORKER_SETS.save(
         deps.storage,
         &new_operators.hash_id(),
-        &PollWorkerSet::new(new_operators.clone(), poll_id),
+        &PollContent::new(new_operators.clone(), poll_id, 0),
     )?;
 
     Ok(Response::new().add_event(
@@ -120,7 +120,7 @@ pub fn verify_messages(
         POLL_MESSAGES.save(
             deps.storage,
             &message.hash_id(),
-            &state::PollMessage::new(message.clone(), id, idx),
+            &state::PollContent::new(message.clone(), id, idx),
         )?;
     }
 
@@ -149,7 +149,7 @@ pub fn vote(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    poll_id: PollID,
+    poll_id: PollId,
     votes: Vec<bool>,
 ) -> Result<Response, ContractError> {
     let poll = POLLS
@@ -171,7 +171,7 @@ pub fn vote(
     ))
 }
 
-pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
+pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let poll = POLLS
@@ -245,7 +245,7 @@ fn create_worker_set_poll(
     block_height: u64,
     expiry: u64,
     snapshot: snapshot::Snapshot,
-) -> Result<PollID, ContractError> {
+) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, block_height + expiry, 1);
@@ -260,7 +260,7 @@ fn create_messages_poll(
     expiry: u64,
     snapshot: snapshot::Snapshot,
     poll_size: usize,
-) -> Result<PollID, ContractError> {
+) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, block_height + expiry, poll_size);

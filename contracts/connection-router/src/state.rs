@@ -349,7 +349,7 @@ mod tests {
 
     // If this test fails, it means the message hash has changed and therefore a migration is needed.
     #[test]
-    fn hash_id_unchaged() {
+    fn hash_id_unchanged() {
         let expected_message_hash =
             "0135c407f6a58fdcfb879f8d9eae19f870a89f8619537dcde265b4599361a7b6";
 
