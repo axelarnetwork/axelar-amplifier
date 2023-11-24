@@ -29,12 +29,6 @@ impl TryFrom<u64> for Uint64 {
     }
 }
 
-impl<'a> From<&'a Uint64> for &'a cosmwasm_std::Uint64 {
-    fn from(value: &'a Uint64) -> Self {
-        &value.0
-    }
-}
-
 impl From<Uint64> for cosmwasm_std::Uint64 {
     fn from(value: Uint64) -> Self {
         value.0
@@ -76,12 +70,6 @@ impl From<Uint256> for cosmwasm_std::Uint256 {
     }
 }
 
-impl<'a> From<&'a Uint256> for &'a cosmwasm_std::Uint256 {
-    fn from(value: &'a Uint256) -> Self {
-        &value.0
-    }
-}
-
 impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
     type Error = Error;
 
@@ -91,6 +79,12 @@ impl TryFrom<cosmwasm_std::Uint128> for Uint256 {
         } else {
             Ok(Uint256(value.into()))
         }
+    }
+}
+
+impl AsRef<cosmwasm_std::Uint256> for Uint256 {
+    fn as_ref(&self) -> &cosmwasm_std::Uint256 {
+        &self.0
     }
 }
 
@@ -147,6 +141,19 @@ mod tests {
     }
 
     #[test]
+    fn convert_from_cosmwasm_uint128_to_uint128() {
+        // zero
+        let val = cosmwasm_std::Uint128::zero();
+        assert_eq!(
+            Uint128::try_from(val).unwrap_err(),
+            Error::InvalidValue(val.into())
+        );
+
+        // non-zero
+        assert!(Uint128::try_from(cosmwasm_std::Uint128::one()).is_ok());
+    }
+
+    #[test]
     fn convert_from_cosmwasm_uint256_to_uint256() {
         // zero
         assert_eq!(
@@ -172,9 +179,9 @@ mod tests {
     }
 
     #[test]
-    fn convert_from_uint64_to_reference_cosmwasm_uint64() {
-        let val = Uint64(cosmwasm_std::Uint64::one());
-        let converted: &cosmwasm_std::Uint64 = (&val).into();
+    fn convert_from_uint256_to_reference_cosmwasm_uint256() {
+        let val = Uint256(cosmwasm_std::Uint256::one());
+        let converted: &cosmwasm_std::Uint256 = val.as_ref();
         assert_eq!(&val.0, converted);
     }
 }

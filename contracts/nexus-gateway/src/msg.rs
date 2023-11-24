@@ -1,4 +1,4 @@
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -39,3 +39,7 @@ impl From<Message> for nexus::Message {
 pub enum ExecuteMsg {
     RouteMessages(Vec<Message>),
 }
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {}
