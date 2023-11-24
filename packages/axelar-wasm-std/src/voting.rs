@@ -168,6 +168,12 @@ impl Tallies {
             },
         )
     }
+
+    pub fn tally(mut self, vote: Vote, weigth: Uint256) -> Tallies {
+        *self.0.get_mut(&vote).unwrap_or(&mut Uint256::zero()) += weigth;
+
+        self
+    }
 }
 
 #[cw_serde]
@@ -276,18 +282,19 @@ impl WeightedPoll {
     // TODO: Right now we use `true` for verified message and `false` for rejected/unknown.
     // This function logic should change once we change votes from bool to enum to return the specific consensus result (if any)
     pub fn has_consensus(&self, idx: usize) -> Result<bool, Error> {
-        Ok(*self
+        Ok(self
             .tallies
             .get(idx)
             .ok_or(Error::MessageIndexOutOfBounds)?
-            >= self.quorum.into())
+            .consensus(self.quorum.into())
+            .is_some())
     }
 
     pub fn cast_vote(
         mut self,
         block_height: u64,
         sender: &Addr,
-        votes: Vec<bool>,
+        votes: Vec<Vote>,
     ) -> Result<Self, Error> {
         let participation = self
             .participation
@@ -306,19 +313,11 @@ impl WeightedPoll {
             return Err(Error::AlreadyVoted);
         }
 
-        // TODO: this won't be needed anymore once we allow late voting until poll expiry
-        // late votes are not tallied
-        if self.status != PollStatus::InProgress {
-            participation.vote = Some(votes);
-            return Ok(self);
-        }
-
         self.tallies
             .iter_mut()
             .zip(votes.iter())
-            .filter(|(_, vote)| **vote)
-            .for_each(|(tally, _)| {
-                *tally += Uint256::from(participation.weight);
+            .for_each(|(tally, vote)| {
+                tally.tally(*vote, participation.weight.into());
             });
 
         participation.vote = Some(votes);
