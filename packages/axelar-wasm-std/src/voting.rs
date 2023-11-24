@@ -24,6 +24,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
+use strum::EnumIter;
+use strum::IntoEnumIterator;
 use thiserror::Error;
 
 use crate::nonempty;
@@ -132,9 +134,46 @@ impl fmt::Display for PollId {
 }
 
 #[cw_serde]
+#[derive(Eq, Hash, Ord, PartialOrd, EnumIter)]
+pub enum Vote {
+    Success,
+    Failure,
+    Unknown,
+}
+
+#[cw_serde]
+pub struct Tallies(BTreeMap<Vote, Uint256>);
+
+impl Default for Tallies {
+    fn default() -> Self {
+        let mut tallies = BTreeMap::new();
+
+        Vote::iter().for_each(|vote| {
+            tallies.insert(vote, Uint256::zero());
+        });
+
+        Self(tallies)
+    }
+}
+
+impl Tallies {
+    pub fn consensus(&self, quorum: Uint256) -> Option<Vote> {
+        self.0.into_iter().find_map(
+            |(vote, tally)| {
+                if tally >= quorum {
+                    Some(vote)
+                } else {
+                    None
+                }
+            },
+        )
+    }
+}
+
+#[cw_serde]
 pub struct PollState {
     pub poll_id: PollId,
-    pub results: Vec<bool>,
+    pub results: Vec<Option<Vote>>,
     /// List of participants who voted for the winning result
     pub consensus_participants: Vec<String>,
 }
@@ -148,7 +187,7 @@ pub enum PollStatus {
 #[cw_serde]
 pub struct Participation {
     pub weight: nonempty::Uint256,
-    pub vote: Option<Vec<bool>>,
+    pub vote: Option<Vec<Vote>>,
 }
 
 #[cw_serde]
@@ -157,7 +196,7 @@ pub struct WeightedPoll {
     pub quorum: nonempty::Uint256,
     pub expires_at: u64,
     pub poll_size: u64,
-    pub tallies: Vec<Uint256>, // running tally of weighted votes
+    pub tallies: Vec<Tallies>, // running tally of weighted votes
     pub status: PollStatus,
     pub participation: BTreeMap<String, Participation>,
 }
@@ -185,7 +224,7 @@ impl WeightedPoll {
             quorum: snapshot.quorum,
             expires_at: expiry,
             poll_size: poll_size as u64,
-            tallies: vec![Uint256::zero(); poll_size],
+            tallies: vec![Tallies::default(); poll_size],
             status: PollStatus::InProgress,
             participation,
         }
@@ -207,7 +246,11 @@ impl WeightedPoll {
 
     pub fn state(&self) -> PollState {
         let quorum: Uint256 = self.quorum.into();
-        let results: Vec<bool> = self.tallies.iter().map(|tally| *tally >= quorum).collect();
+        let results: Vec<Option<Vote>> = self
+            .tallies
+            .iter()
+            .map(|tallies| tallies.consensus(quorum))
+            .collect();
 
         let consensus_participants = self
             .participation
