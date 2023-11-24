@@ -1,11 +1,11 @@
 use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::voting::{PollId, PollStatus};
+use axelar_wasm_std::voting::PollStatus;
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
-use crate::state::{self, Poll, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 
 #[cw_serde]
 pub enum VerificationStatus {
@@ -43,61 +43,49 @@ pub fn msg_verification_status(
     deps: Deps,
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
-    match POLL_MESSAGES.may_load(deps.storage, &message.hash_id())? {
-        Some(stored) => {
-            assert_eq!(
-                stored.content, *message,
-                "invalid invariant: message mismatch with the stored one"
-            );
-
-            Ok(verification_status(
-                deps,
-                stored.poll_id,
-                stored.index_in_poll,
-            ))
-        }
-        None => Ok(VerificationStatus::NotVerified),
-    }
+    let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash_id())?;
+    Ok(verification_status(deps, loaded_poll_content, message))
 }
 
 pub fn worker_set_verification_status(
     deps: Deps,
     operators: &Operators,
 ) -> Result<VerificationStatus, ContractError> {
-    match POLL_WORKER_SETS.may_load(deps.storage, &operators.hash_id())? {
-        Some(stored) => {
-            assert_eq!(
-                stored.content, *operators,
-                "invalid invariant: operators mismatch with the stored ones"
-            );
-
-            Ok(verification_status(
-                deps,
-                stored.poll_id,
-                stored.index_in_poll,
-            ))
-        }
-        None => Ok(VerificationStatus::NotVerified),
-    }
+    let poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash_id())?;
+    Ok(verification_status(deps, poll_content, operators))
 }
 
-fn verification_status(deps: Deps, poll_id: PollId, index_in_poll: usize) -> VerificationStatus {
-    let poll = POLLS
-        .load(deps.storage, poll_id)
-        .expect("invalid invariant: message poll not found");
+fn verification_status<T: PartialEq + std::fmt::Debug>(
+    deps: Deps,
+    stored_poll_content: Option<PollContent<T>>,
+    content: &T,
+) -> VerificationStatus {
+    match stored_poll_content {
+        Some(stored) => {
+            assert_eq!(
+                stored.content, *content,
+                "invalid invariant: content mismatch with the stored one"
+            );
 
-    let verified = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
-            .has_consensus(index_in_poll)
-            .expect("invalid invariant: message not found in poll"),
-    };
+            let poll = POLLS
+                .load(deps.storage, stored.poll_id)
+                .expect("invalid invariant: message poll not found");
 
-    if verified {
-        VerificationStatus::Verified
-    } else if is_finished(&poll) {
-        VerificationStatus::FailedToVerify
-    } else {
-        VerificationStatus::InProgress
+            let verified = match &poll {
+                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
+                    .has_consensus(stored.index_in_poll)
+                    .expect("invalid invariant: message not found in poll"),
+            };
+
+            if verified {
+                VerificationStatus::Verified
+            } else if is_finished(&poll) {
+                VerificationStatus::FailedToVerify
+            } else {
+                VerificationStatus::InProgress
+            }
+        }
+        None => VerificationStatus::NotVerified,
     }
 }
 
