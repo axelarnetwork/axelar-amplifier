@@ -101,7 +101,7 @@ fn is_finished(poll: &state::Poll) -> bool {
 mod tests {
     use axelar_wasm_std::{
         nonempty,
-        voting::{PollId, WeightedPoll},
+        voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
@@ -149,7 +149,8 @@ mod tests {
         let idx = 0;
 
         let mut poll = poll();
-        poll.tallies[idx] = Uint256::from(5u64);
+        poll.tallies[idx] = Tallies::default();
+        poll.tallies[idx].tally(&Vote::Success, &Uint256::from(5u64));
 
         POLLS
             .save(

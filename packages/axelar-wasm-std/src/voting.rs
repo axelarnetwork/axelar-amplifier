@@ -158,21 +158,17 @@ impl Default for Tallies {
 
 impl Tallies {
     pub fn consensus(&self, quorum: Uint256) -> Option<Vote> {
-        self.0.into_iter().find_map(
-            |(vote, tally)| {
-                if tally >= quorum {
-                    Some(vote)
-                } else {
-                    None
-                }
-            },
-        )
+        self.0.iter().find_map(|(vote, tally)| {
+            if *tally >= quorum {
+                Some(vote.clone())
+            } else {
+                None
+            }
+        })
     }
 
-    pub fn tally(mut self, vote: Vote, weigth: Uint256) -> Tallies {
+    pub fn tally(&mut self, vote: &Vote, weigth: &Uint256) {
         *self.0.get_mut(&vote).unwrap_or(&mut Uint256::zero()) += weigth;
-
-        self
     }
 }
 
@@ -262,8 +258,16 @@ impl WeightedPoll {
             .participation
             .iter()
             .filter_map(|(address, participation)| {
-                participation.vote.as_ref().and_then(|vote| {
-                    if *vote == results {
+                participation.vote.as_ref().and_then(|votes| {
+                    let voted_consensus = votes.iter().zip(results.iter()).all(|(vote, result)| {
+                        if let Some(result) = result {
+                            vote == result
+                        } else {
+                            true // if there was no consensus, we don't care about the vote
+                        }
+                    });
+
+                    if voted_consensus {
                         Some(address.to_owned())
                     } else {
                         None
@@ -316,8 +320,8 @@ impl WeightedPoll {
         self.tallies
             .iter_mut()
             .zip(votes.iter())
-            .for_each(|(tally, vote)| {
-                tally.tally(*vote, participation.weight.into());
+            .for_each(|(tallies, vote)| {
+                tallies.tally(vote, &participation.weight.into());
             });
 
         participation.vote = Some(votes);
@@ -339,7 +343,7 @@ mod tests {
     #[test]
     fn cast_vote() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![true, true];
+        let votes = vec![Vote::Success, Vote::Success];
 
         assert_eq!(
             poll.participation.get("addr1").unwrap(),
@@ -370,7 +374,7 @@ mod tests {
             rng.gen_range(1..50),
             vec!["addr1", "addr2"],
         );
-        let votes = vec![true, true];
+        let votes = vec![Vote::Success, Vote::Success];
 
         let rand_addr: String = thread_rng()
             .sample_iter(&Alphanumeric)
@@ -391,7 +395,7 @@ mod tests {
             rand::thread_rng().gen_range(1..50),
             vec!["addr1", "addr2"],
         );
-        let votes = vec![true, true];
+        let votes = vec![Vote::Success, Vote::Success];
         assert_eq!(
             poll.cast_vote(2, &Addr::unchecked("addr1"), votes),
             Err(Error::PollExpired)
@@ -401,7 +405,7 @@ mod tests {
     #[test]
     fn vote_size_is_invalid() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![true];
+        let votes = vec![Vote::Success];
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::InvalidVoteSize)
@@ -411,7 +415,7 @@ mod tests {
     #[test]
     fn voter_already_voted() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![true, true];
+        let votes = vec![Vote::Success, Vote::Success];
 
         let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
@@ -425,7 +429,7 @@ mod tests {
     #[test]
     fn vote_during_grace_period() {
         let mut poll = new_poll(5, 2, vec!["addr1", "addr2"]);
-        let votes = vec![true, true];
+        let votes = vec![Vote::Success, Vote::Success];
         poll.status = PollStatus::Finished;
         let tallies = poll.tallies.clone();
 
@@ -450,7 +454,7 @@ mod tests {
     #[test]
     fn should_conclude_poll() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
-        let votes = vec![true, true];
+        let votes = vec![Vote::Success, Vote::Success];
 
         let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
@@ -466,7 +470,7 @@ mod tests {
             result,
             PollState {
                 poll_id: PollId::from(Uint64::one()),
-                results: vec![true, true],
+                results: vec![Some(Vote::Success), Some(Vote::Success)],
                 consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
             }
         );
@@ -475,8 +479,8 @@ mod tests {
     #[test]
     fn result_filters_non_consensus_voters() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
-        let votes = vec![true, true];
-        let wrong_votes = vec![false, false];
+        let votes = vec![Vote::Success, Vote::Success];
+        let wrong_votes = vec![Vote::Failure, Vote::Failure];
 
         let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
@@ -492,7 +496,7 @@ mod tests {
             result,
             PollState {
                 poll_id: PollId::from(Uint64::one()),
-                results: vec![true, true],
+                results: vec![Some(Vote::Success), Some(Vote::Success)],
                 consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
             }
         );
