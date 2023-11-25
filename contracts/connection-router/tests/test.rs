@@ -30,6 +30,7 @@ fn setup() -> TestConfig {
 
     let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
+    let nexus_gateway = Addr::unchecked("nexus_gateway");
     let contract_address = app
         .instantiate_contract(
             code_id,
@@ -37,6 +38,7 @@ fn setup() -> TestConfig {
             &InstantiateMsg {
                 admin_address: admin_address.to_string(),
                 governance_address: governance_address.to_string(),
+                nexus_gateway: nexus_gateway.to_string(),
             },
             &[],
             "Contract",

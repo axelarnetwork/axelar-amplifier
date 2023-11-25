@@ -107,14 +107,18 @@ impl<S> Contract<S>
 where
     S: Store,
 {
-    pub fn route_messages(
-        self,
-        sender: Addr,
-        msgs: Vec<Message>,
-    ) -> error_stack::Result<Response, ContractError> {
+    fn validate_msgs(
+        &self,
+        sender: &Addr,
+        msgs: &[Message],
+    ) -> error_stack::Result<(), ContractError> {
+        if sender == self.config.nexus_gateway {
+            return Ok(());
+        }
+
         let source_chain = self
             .store
-            .load_chain_by_gateway(&sender)?
+            .load_chain_by_gateway(sender)?
             .ok_or(ContractError::GatewayNotRegistered)?;
         if source_chain.incoming_frozen() {
             return Err(report!(ContractError::ChainFrozen {
@@ -126,27 +130,46 @@ where
             return Err(report!(ContractError::WrongSourceChain));
         }
 
-        let mut wasm_msgs = vec![];
+        Ok(())
+    }
 
-        for (destination_chain, msgs) in &msgs.iter().group_by(|msg| msg.destination_chain.clone())
-        {
-            let destination_chain = self
-                .store
-                .load_chain_by_chain_name(&destination_chain)?
-                .ok_or(ContractError::ChainNotFound)?;
-            if destination_chain.outgoing_frozen() {
-                return Err(report!(ContractError::ChainFrozen {
-                    chain: destination_chain.name,
-                }));
-            }
+    pub fn route_messages(
+        self,
+        sender: Addr,
+        msgs: Vec<Message>,
+    ) -> error_stack::Result<Response, ContractError> {
+        self.validate_msgs(&sender, &msgs)?;
 
-            wasm_msgs.push(WasmMsg::Execute {
-                contract_addr: destination_chain.gateway.address.to_string(),
-                msg: to_binary(&ExecuteMsg::RouteMessages(msgs.cloned().collect()))
-                    .expect("must serialize message"),
-                funds: vec![],
-            });
-        }
+        let wasm_msgs = msgs
+            .iter()
+            .group_by(|msg| msg.destination_chain.to_owned())
+            .into_iter()
+            .map(|(destination_chain, msgs)| {
+                let gateway = match self.store.load_chain_by_chain_name(&destination_chain)? {
+                    Some(destination_chain) => {
+                        if destination_chain.outgoing_frozen() {
+                            return Err(report!(ContractError::ChainFrozen {
+                                chain: destination_chain.name,
+                            }));
+                        }
+
+                        destination_chain.gateway.address
+                    }
+                    None if sender != self.config.nexus_gateway => {
+                        self.config.nexus_gateway.clone()
+                    }
+                    _ => return Err(report!(ContractError::ChainNotFound)),
+                };
+
+                Ok(WasmMsg::Execute {
+                    contract_addr: gateway.to_string(),
+                    // TODO: this happens to work because the router and the gateways have the same definition of RouteMessages
+                    msg: to_binary(&ExecuteMsg::RouteMessages(msgs.cloned().collect()))
+                        .expect("must serialize message"),
+                    funds: vec![],
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Response::new()
             .add_messages(wasm_msgs)
