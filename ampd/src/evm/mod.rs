@@ -18,7 +18,7 @@ pub enum ChainName {
 
 impl PartialEq<connection_router::state::ChainName> for ChainName {
     fn eq(&self, other: &connection_router::state::ChainName) -> bool {
-        self.to_string().eq_ignore_ascii_case(&other.to_string())
+        self.to_string().eq_ignore_ascii_case(other.as_ref())
     }
 }
 

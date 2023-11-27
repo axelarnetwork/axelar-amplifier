@@ -32,12 +32,9 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response<nexus::Message>, axelar_wasm_std::ContractError> {
-    let store = GatewayStore::new(deps.storage);
-    let config = store.load_config().expect("config must be loaded");
-    let contract = Contract { store, config };
+    let contract = Contract::new(GatewayStore::new(deps.storage));
 
     let res = match msg {
-        ExecuteMsg::VerifyMessages(_) => unimplemented!(),
         ExecuteMsg::RouteMessages(msgs) => contract.route_messages(info.sender, msgs)?,
     };
 
@@ -50,4 +47,15 @@ where
 {
     store: S,
     config: Config,
+}
+
+impl<S> Contract<S>
+where
+    S: Store,
+{
+    pub fn new(store: S) -> Self {
+        let config = store.load_config().expect("config must be loaded");
+
+        Self { store, config }
+    }
 }

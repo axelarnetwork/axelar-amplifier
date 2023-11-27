@@ -1,6 +1,3 @@
-#![allow(deprecated)]
-
-use core::panic;
 use std::any::type_name;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -8,21 +5,81 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult};
+use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{
     Index, IndexList, IndexedMap, Item, Key, KeyDeserialize, MultiIndex, Prefixer, PrimaryKey,
 };
 use error_stack::{Report, ResultExt};
 use flagset::flags;
+use mockall::automock;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::{nonempty, FnExt};
+use sha3::{Digest, Keccak256};
 
 use crate::ContractError;
 
 pub const ID_SEPARATOR: char = ':';
+
+#[automock]
+pub trait Store {
+    fn save_config(&mut self, config: Config) -> error_stack::Result<(), ContractError>;
+    fn load_config(&self) -> error_stack::Result<Config, ContractError>;
+    fn load_chain_by_gateway(
+        &self,
+        gateway: &Addr,
+    ) -> error_stack::Result<Option<ChainEndpoint>, ContractError>;
+    fn load_chain_by_chain_name(
+        &self,
+        chain_name: &ChainName,
+    ) -> error_stack::Result<Option<ChainEndpoint>, ContractError>;
+}
+
+pub struct RouterStore<'a> {
+    storage: &'a mut dyn Storage,
+}
+
+impl Store for RouterStore<'_> {
+    fn save_config(&mut self, config: Config) -> error_stack::Result<(), ContractError> {
+        CONFIG
+            .save(self.storage, &config)
+            .change_context(ContractError::StoreFailure)
+    }
+
+    fn load_config(&self) -> error_stack::Result<Config, ContractError> {
+        CONFIG
+            .load(self.storage)
+            .change_context(ContractError::StoreFailure)
+    }
+
+    fn load_chain_by_gateway(
+        &self,
+        gateway: &Addr,
+    ) -> error_stack::Result<Option<ChainEndpoint>, ContractError> {
+        chain_endpoints()
+            .idx
+            .gateway
+            .load_chain_by_gateway(self.storage, gateway)
+            .change_context(ContractError::StoreFailure)
+    }
+
+    fn load_chain_by_chain_name(
+        &self,
+        chain_name: &ChainName,
+    ) -> error_stack::Result<Option<ChainEndpoint>, ContractError> {
+        chain_endpoints()
+            .may_load(self.storage, chain_name.clone())
+            .change_context(ContractError::StoreFailure)
+    }
+}
+
+impl<'a> RouterStore<'a> {
+    pub fn new(storage: &'a mut dyn Storage) -> Self {
+        Self { storage }
+    }
+}
 
 #[cw_serde]
 pub struct Config {
@@ -47,22 +104,31 @@ impl<'a> GatewayIndex<'a> {
         GatewayIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
 
+    #[deprecated(note = "use load_chain_by_gateway instead")]
     pub fn find_chain(
         &self,
         deps: &DepsMut,
         contract_address: &Addr,
     ) -> StdResult<Option<ChainEndpoint>> {
-        let mut matching_chains = self
+        self.load_chain_by_gateway(deps.storage, contract_address)
+    }
+
+    fn load_chain_by_gateway(
+        &self,
+        storage: &dyn Storage,
+        contract_address: &Addr,
+    ) -> StdResult<Option<ChainEndpoint>> {
+        match self
             .0
             .prefix(contract_address.clone())
-            .range(deps.storage, None, None, Order::Ascending)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        if matching_chains.len() > 1 {
-            panic!("More than one gateway for chain")
+            .range(storage, None, None, Order::Ascending)
+            .collect::<Result<Vec<_>, _>>()?
+            .as_slice()
+        {
+            [] => Ok(None),
+            [(_, chain)] => Ok(Some(chain.to_owned())),
+            _ => panic!("More than one gateway for chain"),
         }
-
-        Ok(matching_chains.pop().map(|(_, chain)| chain))
     }
 }
 
@@ -99,6 +165,21 @@ pub struct Message {
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub payload_hash: [u8; 32],
+}
+
+pub type MessageHash = [u8; 32];
+
+impl Message {
+    // TODO: pending to finalize the design of the message hash
+    pub fn hash_id(&self) -> MessageHash {
+        let mut hasher = Keccak256::new();
+        hasher.update(self.cc_id.to_string());
+        hasher.update(self.source_address.as_str());
+        hasher.update(self.destination_chain.as_ref());
+        hasher.update(self.destination_address.as_str());
+        hasher.update(self.payload_hash);
+        hasher.finalize().into()
+    }
 }
 
 #[cw_serde]
@@ -275,6 +356,12 @@ impl KeyDeserialize for &ChainName {
     }
 }
 
+impl AsRef<str> for ChainName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 #[cw_serde]
 pub struct Gateway {
     pub address: Addr,
@@ -295,6 +382,16 @@ flags! {
         Incoming = 1,
         Outgoing = 2,
         Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
+    }
+}
+
+impl ChainEndpoint {
+    pub fn incoming_frozen(&self) -> bool {
+        self.frozen_status.contains(GatewayDirection::Incoming)
+    }
+
+    pub fn outgoing_frozen(&self) -> bool {
+        self.frozen_status.contains(GatewayDirection::Outgoing)
     }
 }
 
