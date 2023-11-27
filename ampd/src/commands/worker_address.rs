@@ -1,12 +1,14 @@
 use error_stack::{Report, ResultExt};
+use std::path::PathBuf;
 
-use crate::state::{State, StateUpdater};
+use crate::state::{load, StateUpdater};
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use crate::tofnd::Config;
 use crate::Error;
 use crate::PREFIX;
 
-pub async fn worker_address(config: Config, state: State) -> Result<String, Report<Error>> {
+pub async fn run(config: Config, state_path: PathBuf) -> Result<(), Report<Error>> {
+    let state = load(&state_path).change_context(Error::LoadConfig)?;
     let mut state_updater = StateUpdater::new(state);
     match state_updater.state().pub_key {
         Some(pub_key) => Ok(pub_key),
@@ -26,9 +28,12 @@ pub async fn worker_address(config: Config, state: State) -> Result<String, Repo
         }
     }
     .map(|pub_key| {
-        pub_key
-            .account_id(PREFIX)
-            .expect("failed to convert to account identifier")
-            .to_string()
+        println!(
+            "worker address: {}",
+            pub_key
+                .account_id(PREFIX)
+                .expect("failed to convert to account identifier")
+                .to_string()
+        )
     })
 }
