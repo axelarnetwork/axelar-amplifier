@@ -37,6 +37,7 @@ cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
 itertools = { workspace = true }
+mockall = "0.11.4"
 report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
