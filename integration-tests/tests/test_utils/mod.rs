@@ -15,26 +15,31 @@ pub const AXL_DENOMINATION: &str = "uaxl";
 fn get_event_attribute<'a>(
     events: &'a [Event],
     event_type: &str,
-    attribute_key: &str,
+    attribute_name: &str,
 ) -> Option<&'a Attribute> {
-    if let Some(event) = events.iter().find(|ev| ev.ty == event_type) {
-        return event
-            .attributes
-            .iter()
-            .find(|attr| attr.key == attribute_key);
-    }
-    None
+    events
+        .iter()
+        .find(|ev| ev.ty == event_type)?
+        .attributes
+        .iter()
+        .find(|attribute| attribute.key == attribute_name)
 }
 
-pub fn verify_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) -> (PollID, u64) {
-    let response = app
-        .execute_contract(
-            Addr::unchecked("relayer"),
-            gateway_address.clone(),
-            &gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
-            &[],
-        )
-        .unwrap();
+type PollExpiryBlock = u64;
+
+pub fn verify_messages(
+    app: &mut App,
+    gateway_address: &Addr,
+    msgs: &[Message],
+) -> (PollID, PollExpiryBlock) {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        gateway_address.clone(),
+        &gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = response.unwrap();
 
     let poll_id = get_event_attribute(&response.events, "wasm-messages_poll_started", "poll_id")
         .map(|attr| serde_json::from_str(&attr.value).unwrap())
@@ -46,13 +51,14 @@ pub fn verify_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) 
 }
 
 pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
-    app.execute_contract(
+    let response = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
         &gateway::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
         &[],
-    )
-    .unwrap();
+    );
+
+    assert!(response.is_ok());
 }
 
 pub fn vote_true_for_all(
@@ -63,7 +69,7 @@ pub fn vote_true_for_all(
     msgs: &Vec<Message>,
 ) {
     for worker in workers {
-        app.execute_contract(
+        let response = app.execute_contract(
             worker.addr.clone(),
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
@@ -71,23 +77,23 @@ pub fn vote_true_for_all(
                 votes: vec![true; msgs.len()],
             },
             &[],
-        )
-        .unwrap();
+        );
+        assert!(response.is_ok());
     }
 }
 
 /// End the poll. Advances the current height to expiry if necessary
 pub fn end_poll(app: &mut App, voting_verifier_address: &Addr, poll_id: PollID, expiry: u64) {
     if app.block_info().height < expiry {
-        advance_to_height(app, expiry);
+        advance_at_least_to_height(app, expiry);
     }
-    app.execute_contract(
+    let response = app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
         &voting_verifier::msg::ExecuteMsg::EndPoll { poll_id },
         &[],
-    )
-    .unwrap();
+    );
+    assert!(response.is_ok());
 }
 
 pub fn construct_proof_and_sign(
@@ -97,23 +103,24 @@ pub fn construct_proof_and_sign(
     multisig_address: &Addr,
     workers: &Vec<Worker>,
 ) -> Uint64 {
-    let res = app
-        .execute_contract(
-            Addr::unchecked("relayer"),
-            multisig_prover_address.clone(),
-            &multisig_prover::msg::ExecuteMsg::ConstructProof {
-                message_ids: messages.iter().map(|msg| msg.cc_id.to_string()).collect(),
-            },
-            &[],
-        )
-        .unwrap();
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        multisig_prover_address.clone(),
+        &multisig_prover::msg::ExecuteMsg::ConstructProof {
+            message_ids: messages.iter().map(|msg| msg.cc_id.to_string()).collect(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = response.unwrap();
 
-    let msg_to_sign = get_event_attribute(&res.events, "wasm-signing_started", "msg")
+    let msg_to_sign = get_event_attribute(&response.events, "wasm-signing_started", "msg")
         .map(|attr| attr.value.clone())
         .expect("couldn't find message to sign");
-    let session_id: Uint64 = get_event_attribute(&res.events, "wasm-signing_started", "session_id")
-        .map(|attr| attr.value.as_str().try_into().unwrap())
-        .expect("couldn't get session_id");
+    let session_id: Uint64 =
+        get_event_attribute(&response.events, "wasm-signing_started", "session_id")
+            .map(|attr| attr.value.as_str().try_into().unwrap())
+            .expect("couldn't get session_id");
 
     for worker in workers {
         let signature = tofn::ecdsa::sign(
@@ -128,7 +135,7 @@ pub fn construct_proof_and_sign(
 
         let sig = ecdsa::Signature::from_der(&signature).unwrap();
 
-        app.execute_contract(
+        let response = app.execute_contract(
             worker.addr.clone(),
             multisig_address.clone(),
             &multisig::msg::ExecuteMsg::SubmitSignature {
@@ -136,9 +143,10 @@ pub fn construct_proof_and_sign(
                 signature: HexBinary::from(sig.to_vec()),
             },
             &[],
-        )
-        .unwrap();
+        );
+        assert!(response.is_ok());
     }
+
     session_id
 }
 
@@ -147,14 +155,14 @@ pub fn get_messages_from_gateway(
     gateway_address: &Addr,
     message_ids: &[CrossChainId],
 ) -> Vec<Message> {
-    app.wrap()
-        .query_wasm_smart(
-            gateway_address,
-            &gateway::msg::QueryMsg::GetMessages {
-                message_ids: message_ids.to_owned(),
-            },
-        )
-        .unwrap()
+    let query_response = app.wrap().query_wasm_smart(
+        gateway_address,
+        &gateway::msg::QueryMsg::GetMessages {
+            message_ids: message_ids.to_owned(),
+        },
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
 }
 
 pub fn get_proof(
@@ -162,33 +170,36 @@ pub fn get_proof(
     multisig_prover_address: &Addr,
     multisig_session_id: &Uint64,
 ) -> multisig_prover::msg::GetProofResponse {
-    app.wrap()
-        .query_wasm_smart(
-            multisig_prover_address,
-            &multisig_prover::msg::QueryMsg::GetProof {
-                multisig_session_id: *multisig_session_id,
-            },
-        )
-        .unwrap()
+    let query_response = app.wrap().query_wasm_smart(
+        multisig_prover_address,
+        &multisig_prover::msg::QueryMsg::GetProof {
+            multisig_session_id: *multisig_session_id,
+        },
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
 }
 
-pub fn advance_height(app: &mut App, num_blocks: u64) {
-    let old_block = app.block_info();
+pub fn advance_height(app: &mut App, increment: u64) {
+    let cur_block = app.block_info();
     app.set_block(BlockInfo {
-        height: old_block.height + num_blocks,
-        ..old_block
+        height: cur_block.height + increment,
+        ..cur_block
     });
 }
 
-pub fn advance_to_height(app: &mut App, desired_height: u64) {
+pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
     let cur_block = app.block_info();
-    assert!(cur_block.height < desired_height);
-    let diff = desired_height - cur_block.height;
-    advance_height(app, diff);
+    if app.block_info().height < desired_height {
+        app.set_block(BlockInfo {
+            height: desired_height,
+            ..cur_block
+        });
+    }
 }
 
 pub fn distribute_rewards(app: &mut App, rewards_address: &Addr, contract_address: &Addr) {
-    app.execute_contract(
+    let response = app.execute_contract(
         Addr::unchecked("relayer"),
         rewards_address.clone(),
         &rewards::msg::ExecuteMsg::DistributeRewards {
@@ -196,11 +207,10 @@ pub fn distribute_rewards(app: &mut App, rewards_address: &Addr, contract_addres
             epoch_count: None,
         },
         &[],
-    )
-    .unwrap();
+    );
+    assert!(response.is_ok());
 }
 
-#[allow(dead_code)]
 pub struct Protocol {
     pub genesis_address: Addr, // holds u128::max coins, can use to send coins to other addresses
     pub governance_address: Addr,
@@ -260,15 +270,16 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             governance_account: governance_address.to_string(),
         },
     );
-    app.execute_contract(
+    // voting rewards are added when setting up individual chains
+    let response = app.execute_contract(
         genesis.clone(),
         rewards_address.clone(),
         &rewards::msg::ExecuteMsg::AddRewards {
             contract_address: multisig_address.to_string(),
         },
         &coins(1000, AXL_DENOMINATION),
-    )
-    .unwrap();
+    );
+    assert!(response.is_ok());
 
     Protocol {
         genesis_address: genesis,
@@ -284,11 +295,11 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     }
 }
 
-// return the all-zero array with the first bytes set to the bytes of `index`
+// return the all-zero array with the first bytes set to the bytes of `seed`
 pub fn generate_key(seed: u32) -> KeyPair {
-    let index_bytes = seed.to_be_bytes();
+    let seed_bytes = seed.to_be_bytes();
     let mut result = [0; 64];
-    result[0..index_bytes.len()].copy_from_slice(index_bytes.as_slice());
+    result[0..seed_bytes.len()].copy_from_slice(seed_bytes.as_slice());
     let secret_recovery_key = result.as_slice().try_into().unwrap();
     tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap()
 }
@@ -309,7 +320,7 @@ pub fn register_workers(
     genesis: Addr,
 ) {
     let min_worker_bond = Uint128::new(100);
-    app.execute_contract(
+    let response = app.execute_contract(
         governance_addr.clone(),
         service_registry.clone(),
         &service_registry::msg::ExecuteMsg::RegisterService {
@@ -323,10 +334,10 @@ pub fn register_workers(
             description: "Some service".into(),
         },
         &[],
-    )
-    .unwrap();
+    );
+    assert!(response.is_ok());
 
-    app.execute_contract(
+    let response = app.execute_contract(
         governance_addr,
         service_registry.clone(),
         &service_registry::msg::ExecuteMsg::AuthorizeWorkers {
@@ -337,27 +348,27 @@ pub fn register_workers(
             service_name: service_name.to_string(),
         },
         &[],
-    )
-    .unwrap();
+    );
+    assert!(response.is_ok());
 
     for worker in workers {
-        app.send_tokens(
+        let response = app.send_tokens(
             genesis.clone(),
             worker.addr.clone(),
             &coins(min_worker_bond.u128(), AXL_DENOMINATION),
-        )
-        .unwrap();
-        app.execute_contract(
+        );
+        assert!(response.is_ok());
+        let response = app.execute_contract(
             worker.addr.clone(),
             service_registry.clone(),
             &service_registry::msg::ExecuteMsg::BondWorker {
                 service_name: service_name.to_string(),
             },
             &coins(min_worker_bond.u128(), AXL_DENOMINATION),
-        )
-        .unwrap();
+        );
+        assert!(response.is_ok());
 
-        app.execute_contract(
+        let response = app.execute_contract(
             worker.addr.clone(),
             service_registry.clone(),
             &service_registry::msg::ExecuteMsg::DeclareChainSupport {
@@ -365,10 +376,10 @@ pub fn register_workers(
                 chains: worker.supported_chains.clone(),
             },
             &[],
-        )
-        .unwrap();
+        );
+        assert!(response.is_ok());
 
-        app.execute_contract(
+        let response = app.execute_contract(
             worker.addr.clone(),
             multisig.clone(),
             &multisig::msg::ExecuteMsg::RegisterPublicKey {
@@ -377,12 +388,11 @@ pub fn register_workers(
                 )),
             },
             &[],
-        )
-        .unwrap();
+        );
+        assert!(response.is_ok());
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
@@ -433,51 +443,43 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             key_type: multisig::key::KeyType::Ecdsa,
         },
     );
-    protocol
-        .app
-        .execute_contract(
-            Addr::unchecked("doesn't matter"),
-            multisig_prover_address.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
-            &[],
-        )
-        .unwrap();
-    protocol
-        .app
-        .execute_contract(
-            protocol.governance_address.clone(),
-            protocol.multisig_address.clone(),
-            &multisig::msg::ExecuteMsg::AuthorizeCaller {
-                contract_address: multisig_prover_address.clone(),
-            },
-            &[],
-        )
-        .unwrap();
+    let response = protocol.app.execute_contract(
+        Addr::unchecked("doesn't matter"),
+        multisig_prover_address.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = protocol.app.execute_contract(
+        protocol.governance_address.clone(),
+        protocol.multisig_address.clone(),
+        &multisig::msg::ExecuteMsg::AuthorizeCaller {
+            contract_address: multisig_prover_address.clone(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
 
-    protocol
-        .app
-        .execute_contract(
-            protocol.governance_address.clone(),
-            protocol.router_address.clone(),
-            &connection_router::msg::ExecuteMsg::RegisterChain {
-                chain: chain_name.clone(),
-                gateway_address: gateway_address.to_string(),
-            },
-            &[],
-        )
-        .unwrap();
+    let response = protocol.app.execute_contract(
+        protocol.governance_address.clone(),
+        protocol.router_address.clone(),
+        &connection_router::msg::ExecuteMsg::RegisterChain {
+            chain: chain_name.clone(),
+            gateway_address: gateway_address.to_string(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
 
-    protocol
-        .app
-        .execute_contract(
-            protocol.genesis_address.clone(),
-            protocol.rewards_address.clone(),
-            &rewards::msg::ExecuteMsg::AddRewards {
-                contract_address: voting_verifier_address.to_string(),
-            },
-            &coins(1000, AXL_DENOMINATION),
-        )
-        .unwrap();
+    let response = protocol.app.execute_contract(
+        protocol.genesis_address.clone(),
+        protocol.rewards_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            contract_address: voting_verifier_address.to_string(),
+        },
+        &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
 
     Chain {
         gateway_address,
@@ -498,15 +500,17 @@ pub fn instantiate_connection_router(
     );
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "connection_router",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
 
 pub fn instantiate_multisig(app: &mut App, instantiate_msg: multisig::msg::InstantiateMsg) -> Addr {
@@ -517,15 +521,17 @@ pub fn instantiate_multisig(app: &mut App, instantiate_msg: multisig::msg::Insta
     );
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "multisig",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
 
 pub fn instantiate_rewards(app: &mut App, instantiate_msg: rewards::msg::InstantiateMsg) -> Addr {
@@ -536,15 +542,17 @@ pub fn instantiate_rewards(app: &mut App, instantiate_msg: rewards::msg::Instant
     );
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "rewards",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
 
 pub fn instantiate_voting_verifier(
@@ -558,15 +566,17 @@ pub fn instantiate_voting_verifier(
     );
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "voting_verifier",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
 
 pub fn instantiate_gateway(app: &mut App, instantiate_msg: gateway::msg::InstantiateMsg) -> Addr {
@@ -577,15 +587,17 @@ pub fn instantiate_gateway(app: &mut App, instantiate_msg: gateway::msg::Instant
     );
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "gateway",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
 
 pub fn instantiate_service_registry(
@@ -599,15 +611,17 @@ pub fn instantiate_service_registry(
     );
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "service_registry",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
 
 pub fn instantiate_multisig_prover(
@@ -622,13 +636,15 @@ pub fn instantiate_multisig_prover(
     .with_reply(multisig_prover::contract::reply);
     let code_id = app.store_code(Box::new(code));
 
-    app.instantiate_contract(
+    let contract_addr = app.instantiate_contract(
         code_id,
         Addr::unchecked("anyone"),
         &instantiate_msg,
         &[],
         "multisig_prover",
         None,
-    )
-    .unwrap()
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }
