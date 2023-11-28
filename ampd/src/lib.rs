@@ -24,6 +24,7 @@ use crate::config::Config;
 use crate::state::State;
 
 mod broadcaster;
+pub mod commands;
 pub mod config;
 pub mod error;
 mod event_processor;
@@ -329,4 +330,6 @@ pub enum Error {
     Task,
     #[error("failed to return updated state")]
     ReturnState,
+    #[error("failed to load config")]
+    LoadConfig,
 }
