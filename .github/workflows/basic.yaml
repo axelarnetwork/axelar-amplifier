@@ -59,13 +59,6 @@ jobs:
         with:
           shared-key: "cache"
 
-      - name: Compile WASM contract
-        uses: actions-rs/cargo@v1
-        with:
-          command: wasm
-        env:
-          RUSTFLAGS: --cfg tracing_unstable -C link-arg=-s
-
       - name: Build wasm release
         run: |
           for C in ./contracts/*/
