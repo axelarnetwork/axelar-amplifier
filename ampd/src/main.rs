@@ -50,11 +50,11 @@ async fn main() -> ExitCode {
     let state_path = expand_home_dir(&args.state);
 
     let result = match args.cmd {
-        Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, state_path).await,
+        Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
         Some(SubCommand::Daemon) | None => {
             info!(args = args.as_value(), "starting daemon");
 
-            let result = daemon::run(cfg, state_path).await.tap_err(|report| {
+            let result = daemon::run(cfg, &state_path).await.tap_err(|report| {
                 error!(err = LoggableError::from(report).as_value(), "{report:#}")
             });
 
