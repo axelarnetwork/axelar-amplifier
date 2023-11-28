@@ -94,19 +94,25 @@ pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         session_id: Uint64,
-        key_id: Uint64,
-        pub_keys: HashMap<String, HexBinary>,
-        msg: HexBinary,
+        worker_set_id: String,
+        pub_keys: HashMap<String, PublicKey>,
+        msg: MsgToSign,
     },
     // Emitted when a participants submits a signature
     SignatureSubmitted {
         session_id: Uint64,
         participant: Addr,
-        signature: HexBinary,
+        signature: Signature,
     },
     // Emitted when a signing session was completed
     SigningCompleted {
         session_id: Uint64,
+        completed_at: u64,
+    },
+    // Emitted when a PublicKey is registered
+    PublicKeyRegistered {
+        worker: Addr,
+        public_key: PublicKey,
     },
     // Emitted when a StartSigningSession caller is authorized
     CallerAuthorized {
