@@ -44,18 +44,15 @@ fn basic_message_routing() {
     // do voting
     test_utils::vote_true_for_all(
         &mut protocol.app,
-        &workers,
         &chain1.voting_verifier_address,
-        poll_id,
         &msgs,
+        &workers,
+        poll_id,
     );
 
-    test_utils::end_poll(
-        &mut protocol.app,
-        &chain1.voting_verifier_address,
-        poll_id,
-        expiry,
-    );
+    test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
+
+    test_utils::end_poll(&mut protocol.app, &chain1.voting_verifier_address, poll_id);
 
     // should be verified, now route
     test_utils::route_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
@@ -68,9 +65,9 @@ fn basic_message_routing() {
     // trigger signing and submit all necessary signatures
     let session_id = test_utils::construct_proof_and_sign(
         &mut protocol.app,
-        &msgs,
         &chain2.multisig_prover_address,
         &protocol.multisig_address,
+        &msgs,
         &workers,
     );
 
@@ -147,10 +144,10 @@ fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>) {
         &mut protocol.app,
         protocol.service_registry_address.clone(),
         protocol.multisig_address.clone(),
-        protocol.service_name.clone(),
         protocol.governance_address.clone(),
-        &workers,
         protocol.genesis_address.clone(),
+        &workers,
+        protocol.service_name.clone(),
     );
     let chain1 = test_utils::setup_chain(&mut protocol, chains.get(0).unwrap().clone());
     let chain2 = test_utils::setup_chain(&mut protocol, chains.get(1).unwrap().clone());

@@ -63,10 +63,10 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
 
 pub fn vote_true_for_all(
     app: &mut App,
-    workers: &Vec<Worker>,
     voting_verifier_address: &Addr,
-    poll_id: PollID,
     msgs: &Vec<Message>,
+    workers: &Vec<Worker>,
+    poll_id: PollID,
 ) {
     for worker in workers {
         let response = app.execute_contract(
@@ -82,25 +82,23 @@ pub fn vote_true_for_all(
     }
 }
 
-/// End the poll. Advances the current height to expiry if necessary
-pub fn end_poll(app: &mut App, voting_verifier_address: &Addr, poll_id: PollID, expiry: u64) {
-    if app.block_info().height < expiry {
-        advance_at_least_to_height(app, expiry);
-    }
+/// Ends the poll. Be sure the current block height has advanced at least to the poll expiration, else this will fail
+pub fn end_poll(app: &mut App, voting_verifier_address: &Addr, poll_id: PollID) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
         &voting_verifier::msg::ExecuteMsg::EndPoll { poll_id },
         &[],
     );
+
     assert!(response.is_ok());
 }
 
 pub fn construct_proof_and_sign(
     app: &mut App,
-    messages: &[Message],
     multisig_prover_address: &Addr,
     multisig_address: &Addr,
+    messages: &[Message],
     workers: &Vec<Worker>,
 ) -> Uint64 {
     let response = app.execute_contract(
@@ -295,7 +293,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     }
 }
 
-// return the all-zero array with the first bytes set to the bytes of `seed`
+// generates a key pair using the given seed. The key pair should not be used outside of testing
 pub fn generate_key(seed: u32) -> KeyPair {
     let seed_bytes = seed.to_be_bytes();
     let mut result = [0; 64];
@@ -314,10 +312,10 @@ pub fn register_workers(
     app: &mut App,
     service_registry: Addr,
     multisig: Addr,
-    service_name: nonempty::String,
     governance_addr: Addr,
-    workers: &Vec<Worker>,
     genesis: Addr,
+    workers: &Vec<Worker>,
+    service_name: nonempty::String,
 ) {
     let min_worker_bond = Uint128::new(100);
     let response = app.execute_contract(
