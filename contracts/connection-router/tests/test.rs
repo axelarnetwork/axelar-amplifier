@@ -140,32 +140,6 @@ fn route() {
 }
 
 #[test]
-fn route_non_existing_chain() {
-    let mut config = setup();
-    let eth = make_chain("ethereum", &mut config);
-    let polygon = make_chain("polygon", &mut config);
-
-    register_chain(&mut config, &eth);
-    let polygon_msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![polygon_msg.clone()]),
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
-    );
-}
-
-#[test]
 fn wrong_source_chain() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
@@ -578,23 +552,8 @@ fn register_chain_test() {
     );
 
     register_chain(&mut config, &eth);
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
-    );
-
     register_chain(&mut config, &polygon);
+
     let res = config.app.execute_contract(
         eth.gateway.clone(),
         config.contract_address.clone(),

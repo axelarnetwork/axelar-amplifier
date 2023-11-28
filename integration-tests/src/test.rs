@@ -91,6 +91,7 @@ mod test {
             connection_router::msg::InstantiateMsg {
                 admin_address: router_admin_address.to_string(),
                 governance_address: governance_address.to_string(),
+                nexus_gateway: Addr::unchecked("nexus_gateway").to_string(),
             },
         );
         let rewards_address = instantiate_rewards(

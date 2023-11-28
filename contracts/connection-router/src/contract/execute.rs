@@ -103,6 +103,22 @@ pub fn unfreeze_chain(
     Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
 }
 
+pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized);
+    }
+    Ok(())
+}
+
+pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.governance != info.sender {
+        return Err(ContractError::Unauthorized);
+    }
+    Ok(())
+}
+
 impl<S> Contract<S>
 where
     S: Store,
@@ -177,18 +193,414 @@ where
     }
 }
 
-pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.admin != info.sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
+#[cfg(test)]
+mod test {
+    use axelar_wasm_std::flagset::FlagSet;
+    use cosmwasm_std::Addr;
+    use mockall::predicate;
+    use rand::{Rng, RngCore};
 
-pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != info.sender {
-        return Err(ContractError::Unauthorized);
+    use crate::{
+        contract::Contract,
+        state::{
+            ChainEndpoint, ChainName, Config, CrossChainId, Gateway, GatewayDirection, MockStore,
+            ID_SEPARATOR,
+        },
+        ContractError, Message,
+    };
+
+    fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
+        let mut bytes = [0; 32];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        let tx_id = hex::encode(&bytes);
+
+        let mut bytes = [0; 20];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        let source_address = format!("0x{}", hex::encode(&bytes)).try_into().unwrap();
+
+        let mut bytes = [0; 20];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        let destination_address = format!("0x{}", hex::encode(&bytes)).try_into().unwrap();
+
+        let mut payload_hash = [0; 32];
+        rand::thread_rng().fill_bytes(&mut payload_hash);
+
+        Message {
+            cc_id: CrossChainId {
+                chain: source_chain,
+                id: format!(
+                    "{}{}{}",
+                    tx_id,
+                    ID_SEPARATOR,
+                    rand::thread_rng().gen::<u32>()
+                )
+                .try_into()
+                .unwrap(),
+            },
+            source_address,
+            destination_chain,
+            destination_address,
+            payload_hash,
+        }
     }
-    Ok(())
+
+    #[test]
+    fn route_messages_with_not_registered_source_chain() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(None));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(sender, vec![rand_message(source_chain, destination_chain)])
+            .is_err_and(move |err| {
+                matches!(err.current_context(), ContractError::GatewayNotRegistered)
+            }));
+    }
+
+    #[test]
+    fn route_messages_with_frozen_source_chain() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::Incoming),
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(chain_endpoint)));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(sender, vec![rand_message(source_chain.clone(), destination_chain)])
+            .is_err_and(move |err| {
+                matches!(err.current_context(), ContractError::ChainFrozen { chain } if *chain == source_chain)
+            }));
+    }
+
+    #[test]
+    fn route_messages_with_wrong_source_chain() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(chain_endpoint)));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(
+                sender,
+                vec![rand_message("polygon".parse().unwrap(), destination_chain)]
+            )
+            .is_err_and(|err| {
+                matches!(err.current_context(), ContractError::WrongSourceChain)
+            }));
+    }
+
+    #[test]
+    fn route_messages_with_frozen_destination_chain() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let source_chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        let destination_chain_endpoint = ChainEndpoint {
+            name: destination_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::Bidirectional),
+        };
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain.clone()))
+            .return_once(|_| Ok(Some(destination_chain_endpoint)));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(sender, vec![rand_message(source_chain, destination_chain.clone())])
+            .is_err_and(move |err| {
+                matches!(err.current_context(), ContractError::ChainFrozen { chain } if *chain == destination_chain)
+            }));
+    }
+
+    #[test]
+    fn route_messages_from_non_nexus_to_non_nexus() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
+        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let source_chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        let destination_chain_endpoint_1 = ChainEndpoint {
+            name: destination_chain_1.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain_1.clone()))
+            .return_once(|_| Ok(Some(destination_chain_endpoint_1)));
+        let destination_chain_endpoint_2 = ChainEndpoint {
+            name: destination_chain_2.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain_2.clone()))
+            .return_once(|_| Ok(Some(destination_chain_endpoint_2)));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(
+                sender,
+                vec![
+                    rand_message(source_chain.clone(), destination_chain_1.clone()),
+                    rand_message(source_chain.clone(), destination_chain_1.clone()),
+                    rand_message(source_chain.clone(), destination_chain_1.clone()),
+                    rand_message(source_chain.clone(), destination_chain_2.clone()),
+                ]
+            )
+            .is_ok_and(|res| { res.messages.len() == 2 }));
+    }
+
+    #[test]
+    fn route_messages_from_nexus_to_registered_chains() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = config.nexus_gateway.clone();
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
+        let destination_chain_2: ChainName = "polygon".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let destination_chain_endpoint_1 = ChainEndpoint {
+            name: destination_chain_1.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain_1.clone()))
+            .return_once(|_| Ok(Some(destination_chain_endpoint_1)));
+        let destination_chain_endpoint_2 = ChainEndpoint {
+            name: destination_chain_2.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain_2.clone()))
+            .return_once(|_| Ok(Some(destination_chain_endpoint_2)));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(
+                sender,
+                vec![
+                    rand_message(source_chain.clone(), destination_chain_1.clone()),
+                    rand_message(source_chain.clone(), destination_chain_1.clone()),
+                    rand_message(source_chain.clone(), destination_chain_1.clone()),
+                    rand_message(source_chain.clone(), destination_chain_2.clone()),
+                ]
+            )
+            .is_ok_and(|res| { res.messages.len() == 2 }));
+    }
+
+    #[test]
+    fn route_messages_from_nexus_to_non_registered_chains() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = config.nexus_gateway.clone();
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain.clone()))
+            .return_once(|_| Ok(None));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(
+                sender,
+                vec![rand_message(
+                    source_chain.clone(),
+                    destination_chain.clone()
+                )]
+            )
+            .is_err_and(|err| { matches!(err.current_context(), ContractError::ChainNotFound) }));
+    }
+
+    #[test]
+    fn route_messages_from_registered_chain_to_nexus() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let source_chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        store
+            .expect_load_chain_by_chain_name()
+            .once()
+            .with(predicate::eq(destination_chain.clone()))
+            .return_once(|_| Ok(None));
+
+        let contract = Contract::new(store);
+
+        assert!(contract
+            .route_messages(
+                sender,
+                vec![rand_message(
+                    source_chain.clone(),
+                    destination_chain.clone()
+                )]
+            )
+            .is_ok_and(|res| { res.messages.len() == 1 }));
+    }
 }
