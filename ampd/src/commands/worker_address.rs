@@ -33,7 +33,6 @@ pub async fn run(config: Config, state_path: &Path) -> Result<(), Report<Error>>
             pub_key
                 .account_id(PREFIX)
                 .expect("failed to convert to account identifier")
-                .to_string()
         )
     })
 }
