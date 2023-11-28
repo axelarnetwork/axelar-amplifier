@@ -61,7 +61,7 @@ pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollID },
 
-    #[returns(Vec<(CrossChainId, bool)>)]
+    #[returns(Vec<(connection_router::state::CrossChainId, bool)>)]
     IsVerified { messages: Vec<Message> },
 
     #[returns(bool)]
