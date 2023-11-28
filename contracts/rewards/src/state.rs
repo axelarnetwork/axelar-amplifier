@@ -129,6 +129,7 @@ impl RewardsPool {
             return Err(ContractError::PoolBalanceInsufficient.into());
         }
         self.balance -= reward;
+
         Ok(self)
     }
 }
@@ -268,18 +269,18 @@ impl Store for RewardsStore<'_> {
     }
 }
 
-pub(crate) enum LoadState<T> {
-    Loaded(T),
+pub(crate) enum StorageState<T> {
+    Existing(T),
     New(T),
 }
 
-impl<T> Deref for LoadState<T> {
+impl<T> Deref for StorageState<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
         match self {
-            LoadState::Loaded(value) => value,
-            LoadState::New(value) => value,
+            StorageState::Existing(value) => value,
+            StorageState::New(value) => value,
         }
     }
 }

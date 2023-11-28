@@ -7,7 +7,7 @@ use crate::{
     error::ContractError,
     msg::Params,
     state::{
-        Config, Epoch, EpochTally, Event, LoadState, RewardsStore, Store, StoredParams, CONFIG,
+        Config, Epoch, EpochTally, Event, RewardsStore, StorageState, Store, StoredParams, CONFIG,
     },
 };
 
@@ -43,28 +43,26 @@ where
     /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
     /// in which the update occurs as the last checkpoint
     fn current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
-        assert!(
-            cur_block_height <= i64::MAX as u64,
-            "current block height should fit into a 64bit integer"
-        );
-
         let stored_params = self.store.load_params();
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         let last_updated_epoch = stored_params.last_updated;
 
-        let epochs_elapsed = (cur_block_height as i64)
-            .saturating_sub_unsigned(last_updated_epoch.block_height_started)
-            / (epoch_duration as i64); // epoch duration is always positive, so this is safe
+        let epochs_elapsed = if cur_block_height < last_updated_epoch.block_height_started {
+            Err(ContractError::BlockHeightInPast.into())
+        } else {
+            Ok((cur_block_height - last_updated_epoch.block_height_started) / epoch_duration)
+        };
 
-        match epochs_elapsed {
-            ..=-1 => Err(ContractError::BlockHeightInPast.into()),
-            0 => Ok(last_updated_epoch),
-            1.. => Ok(Epoch {
-                epoch_num: last_updated_epoch.epoch_num + epochs_elapsed as u64,
-                block_height_started: last_updated_epoch.block_height_started
-                    + (epochs_elapsed as u64 * epoch_duration), // result is strictly less than cur_block_height, so multiplication is safe
-            }),
-        }
+        epochs_elapsed.map(|epochs_elapsed| {
+            match epochs_elapsed {
+                0 => last_updated_epoch,
+                1.. => Epoch {
+                    epoch_num: last_updated_epoch.epoch_num + epochs_elapsed,
+                    block_height_started: last_updated_epoch.block_height_started
+                        + (epochs_elapsed * epoch_duration), // result is strictly less than cur_block_height, so multiplication is safe
+                },
+            }
+        })
     }
 
     fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {
@@ -78,24 +76,24 @@ where
         &mut self,
         event_id: nonempty::String,
         worker: Addr,
-        contract_addr: Addr,
+        target_contract: Addr,
         block_height: u64,
     ) -> Result<(), ContractError> {
         let cur_epoch = self.current_epoch(block_height)?;
 
         let event =
-            self.load_or_store_event(event_id, contract_addr.clone(), cur_epoch.epoch_num)?;
+            self.load_or_store_event(event_id, target_contract.clone(), cur_epoch.epoch_num)?;
 
         self.store
-            .load_epoch_tally(contract_addr.clone(), event.epoch_num)?
+            .load_epoch_tally(target_contract.clone(), event.epoch_num)?
             .unwrap_or(EpochTally::new(
-                contract_addr,
+                target_contract,
                 cur_epoch,
                 self.store.load_params().params,
             ))
             .record_participation(worker)
             .then(|mut tally| {
-                if matches!(event, LoadState::New(_)) {
+                if matches!(event, StorageState::New(_)) {
                     tally.event_count += 1
                 }
                 self.store.save_epoch_tally(&tally)
@@ -105,26 +103,26 @@ where
     fn load_or_store_event(
         &mut self,
         event_id: nonempty::String,
-        contract_addr: Addr,
+        target_contract: Addr,
         cur_epoch_num: u64,
-    ) -> Result<LoadState<Event>, ContractError> {
+    ) -> Result<StorageState<Event>, ContractError> {
         let event = self
             .store
-            .load_event(event_id.to_string(), contract_addr.clone())?;
+            .load_event(event_id.to_string(), target_contract.clone())?;
 
         match event {
             None => {
-                let event = Event::new(event_id, contract_addr, cur_epoch_num);
+                let event = Event::new(event_id, target_contract, cur_epoch_num);
                 self.store.save_event(&event)?;
-                Ok(LoadState::New(event))
+                Ok(StorageState::New(event))
             }
-            Some(event) => Ok(LoadState::Loaded(event)),
+            Some(event) => Ok(StorageState::Existing(event)),
         }
     }
 
     pub fn distribute_rewards(
         &mut self,
-        contract_addr: Addr,
+        target_contract: Addr,
         cur_block_height: u64,
         epoch_process_limit: Option<u64>,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
@@ -133,7 +131,7 @@ where
 
         let from = self
             .store
-            .load_rewards_watermark(contract_addr.clone())?
+            .load_rewards_watermark(target_contract.clone())?
             .map_or(0, |last_processed| last_processed + 1);
 
         let to = std::cmp::min(
@@ -145,20 +143,20 @@ where
             return Err(ContractError::NoRewardsToDistribute.into());
         }
 
-        let rewards = self.process_rewards_for_epochs(contract_addr.clone(), from, to)?;
-        self.store.save_rewards_watermark(contract_addr, to)?;
+        let rewards = self.process_rewards_for_epochs(target_contract.clone(), from, to)?;
+        self.store.save_rewards_watermark(target_contract, to)?;
         Ok(rewards)
     }
 
     fn process_rewards_for_epochs(
         &mut self,
-        contract_addr: Addr,
+        target_contract: Addr,
         from: u64,
         to: u64,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let rewards = self.cumulate_rewards(&contract_addr, from, to);
+        let rewards = self.cumulate_rewards(&target_contract, from, to);
         self.store
-            .load_rewards_pool(contract_addr.clone())?
+            .load_rewards_pool(target_contract.clone())?
             .sub_reward(rewards.values().sum())?
             .then(|pool| self.store.save_rewards_pool(&pool))?;
 
@@ -167,24 +165,24 @@ where
 
     fn cumulate_rewards(
         &mut self,
-        contract_addr: &Addr,
+        target_contract: &Addr,
         from: u64,
         to: u64,
     ) -> HashMap<Addr, Uint128> {
-        self.iterate_epoch_tallies(contract_addr, from, to)
+        self.iterate_epoch_tallies(target_contract, from, to)
             .map(|tally| tally.rewards_by_worker())
             .fold(HashMap::new(), merge_rewards)
     }
 
     fn iterate_epoch_tallies<'a>(
         &'a mut self,
-        contract_addr: &'a Addr,
+        target_contract: &'a Addr,
         from: u64,
         to: u64,
     ) -> impl Iterator<Item = EpochTally> + 'a {
         (from..=to).filter_map(|epoch_num| {
             self.store
-                .load_epoch_tally(contract_addr.clone(), epoch_num)
+                .load_epoch_tally(target_contract.clone(), epoch_num)
                 .unwrap_or_default()
         })
     }
@@ -289,6 +287,20 @@ mod test {
             .unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
+    }
+
+    /// When current epoch is called with a block number that is before the current epoch's start date,
+    /// it should return an error
+    #[test]
+    fn current_epoch_call_with_block_in_the_past() {
+        let cur_epoch_num = 1u64;
+        let block_height_started = 250u64;
+        let epoch_duration = 100u64;
+        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        assert!(contract.current_epoch(block_height_started - 1).is_err());
+        assert!(contract
+            .current_epoch(block_height_started - epoch_duration)
+            .is_err());
     }
 
     /// Tests that the current epoch is computed correctly when the expected epoch is different than the stored epoch
