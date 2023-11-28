@@ -5,14 +5,14 @@ use serde_json::to_string;
 
 use crate::{
     key::{PublicKey, Signature},
-    types::{KeyID, MsgToSign},
+    types::MsgToSign,
 };
 
 pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         session_id: Uint64,
-        key_id: KeyID,
+        worker_set_id: String,
         pub_keys: HashMap<String, PublicKey>,
         msg: MsgToSign,
     },
@@ -44,15 +44,12 @@ impl From<Event> for cosmwasm_std::Event {
         match other {
             Event::SigningStarted {
                 session_id,
-                key_id,
+                worker_set_id,
                 pub_keys,
                 msg,
             } => cosmwasm_std::Event::new("signing_started")
                 .add_attribute("session_id", session_id)
-                .add_attribute(
-                    "key_id",
-                    to_string(&key_id).expect("violated invariant: key id is not serializable"),
-                )
+                .add_attribute("worker_set_id", worker_set_id)
                 .add_attribute(
                     "pub_keys",
                     to_string(&pub_keys)

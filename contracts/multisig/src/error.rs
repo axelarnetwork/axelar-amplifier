@@ -7,8 +7,8 @@ pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("no active key found for {key_id:?}")]
-    NoActiveKeyFound { key_id: String },
+    #[error("no active worker set found for {worker_set_id:?}")]
+    NoActiveWorkerSetFound { worker_set_id: String },
 
     #[error("{signer:?} already submitted a signature for signing session {session_id:?}")]
     DuplicateSignature { session_id: Uint64, signer: String },
@@ -36,9 +36,6 @@ pub enum ContractError {
 
     #[error("signing session {session_id:?} not found")]
     SigningSessionNotFound { session_id: Uint64 },
-
-    #[error("key ID {key_id:?} already exists")]
-    DuplicateKeyID { key_id: String },
 
     #[error("number of participants does not match number of public keys")]
     PublicKeysMismatchParticipants,
