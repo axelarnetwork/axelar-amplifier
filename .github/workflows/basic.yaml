@@ -72,7 +72,7 @@ jobs:
           crate: cosmwasm-check
 
       - name: Check cosmwasm contracts
-        run: pwd && ls && cosmwasm-check ./target/wasm-32-unknown-unknown/release/*.wasm
+        run: pwd && ls && cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
   lints:
     name: Lints
