@@ -47,22 +47,17 @@ where
         let epoch_duration: u64 = stored_params.params.epoch_duration.into();
         let last_updated_epoch = stored_params.last_updated;
 
-        let epochs_elapsed = if cur_block_height < last_updated_epoch.block_height_started {
+        if cur_block_height < last_updated_epoch.block_height_started {
             Err(ContractError::BlockHeightInPast.into())
         } else {
-            Ok((cur_block_height - last_updated_epoch.block_height_started) / epoch_duration)
-        };
-
-        epochs_elapsed.map(|epochs_elapsed| {
-            match epochs_elapsed {
-                0 => last_updated_epoch,
-                1.. => Epoch {
-                    epoch_num: last_updated_epoch.epoch_num + epochs_elapsed,
-                    block_height_started: last_updated_epoch.block_height_started
-                        + (epochs_elapsed * epoch_duration), // result is strictly less than cur_block_height, so multiplication is safe
-                },
-            }
-        })
+            let epochs_elapsed =
+                (cur_block_height - last_updated_epoch.block_height_started) / epoch_duration;
+            Ok(Epoch {
+                epoch_num: last_updated_epoch.epoch_num + epochs_elapsed,
+                block_height_started: last_updated_epoch.block_height_started
+                    + (epochs_elapsed * epoch_duration), // result is strictly less than cur_block_height, so multiplication is safe
+            })
+        }
     }
 
     fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {
