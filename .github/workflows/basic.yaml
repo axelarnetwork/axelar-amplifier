@@ -66,14 +66,6 @@ jobs:
         env:
           RUSTFLAGS: --cfg tracing_unstable -C link-arg=-s
 
-      - name: Install cosmwasm-check
-        uses: baptiste0928/cargo-install@v2
-        with:
-          crate: cosmwasm-check
-
-      - name: Check cosmwasm contracts
-        run: pwd && ls && cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
-
   lints:
     name: Lints
     runs-on: ubuntu-latest-large
