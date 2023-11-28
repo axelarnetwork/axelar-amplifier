@@ -4,15 +4,15 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ::config::{Config as cfg, Environment, File, FileFormat, FileSourceFile};
-use clap::{Parser, ValueEnum};
+use clap::{arg, command, Parser, ValueEnum};
 use config::ConfigError;
 use error_stack::{Report, ResultExt};
-use thiserror::Error;
 use tracing::{error, info};
 use valuable::Valuable;
 
+use ampd::commands::{daemon, worker_address, SubCommand};
 use ampd::config::Config;
-use ampd::{run, state};
+use ampd::Error;
 use axelar_wasm_std::utils::InspectorResult;
 use report::LoggableError;
 
@@ -30,6 +30,9 @@ struct Args {
     /// Set the output style of the logs
     #[arg(short, long, value_enum, default_value_t = Output::Json)]
     pub output: Output,
+
+    #[clap(subcommand)]
+    pub cmd: Option<SubCommand>,
 }
 
 #[derive(Debug, Clone, Parser, ValueEnum, Valuable)]
@@ -43,11 +46,23 @@ async fn main() -> ExitCode {
     let args: Args = Args::parse();
     set_up_logger(&args.output);
 
-    info!(args = args.as_value(), "starting daemon");
-    let result = run_daemon(&args)
-        .await
-        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report:#}"));
-    info!("shutting down");
+    let cfg = init_config(&args.config);
+    let state_path = expand_home_dir(&args.state);
+
+    let result = match args.cmd {
+        Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
+        Some(SubCommand::Daemon) | None => {
+            info!(args = args.as_value(), "starting daemon");
+
+            let result = daemon::run(cfg, &state_path).await.tap_err(|report| {
+                error!(err = LoggableError::from(report).as_value(), "{report:#}")
+            });
+
+            info!("shutting down");
+
+            result
+        }
+    };
 
     match result {
         Ok(_) => ExitCode::SUCCESS,
@@ -59,30 +74,6 @@ async fn main() -> ExitCode {
 
             ExitCode::FAILURE
         }
-    }
-}
-
-async fn run_daemon(args: &Args) -> Result<(), Report<Error>> {
-    let cfg = init_config(&args.config);
-    let state_path = expand_home_dir(&args.state);
-
-    let state = state::load(&state_path).change_context(Error::Fatal)?;
-    let (state, execution_result) = run(cfg, state).await;
-    let state_flush_result = state::flush(&state, state_path).change_context(Error::Fatal);
-
-    let execution_result = execution_result.change_context(Error::Fatal);
-    match (execution_result, state_flush_result) {
-        // both execution and persisting state failed: return the merged error
-        (Err(mut report), Err(state_err)) => {
-            report.extend_one(state_err);
-            Err(report)
-        }
-
-        // any single path failed: report the error
-        (Err(report), Ok(())) | (Ok(()), Err(report)) => Err(report),
-
-        // no errors in either execution or persisting state
-        (Ok(()), Ok(())) => Ok(()),
     }
 }
 
@@ -141,12 +132,4 @@ fn expand_home_dir(path: impl AsRef<Path>) -> PathBuf {
     };
 
     dirs::home_dir().map_or(path.to_path_buf(), |home| home.join(home_subfolder))
-}
-
-#[derive(Error, Debug)]
-enum Error {
-    #[error("failed to load config")]
-    LoadConfig,
-    #[error("fatal failure")]
-    Fatal,
 }

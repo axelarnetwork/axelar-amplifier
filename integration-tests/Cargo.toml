@@ -1,8 +1,8 @@
 [package]
-name = "connection-router"
+name = "integration-tests"
 version = "0.1.0"
 edition = "2021"
-description = "Connection router contract"
+description = "Amplifier Integration Tests"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -28,24 +28,29 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
+connection-router = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
-flagset = { version = "0.4.3", features = ["serde"] }
+gateway = { workspace = true }
 itertools = { workspace = true }
-mockall = "0.11.4"
+mockall = "0.11.3"
+multisig = { workspace = true }
+multisig-prover = { workspace = true }
 report = { workspace = true }
+rewards = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
-sha3 = { workspace = true }
+service-registry = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
-hex = { version = "0.4.3", default-features = false }
-rand = "0.8.5"
+tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
