@@ -11,7 +11,7 @@ mod proto {
     tonic::include_proto!("tofnd");
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
     pub url: Url,
     pub party_uid: String,
