@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
-use axelar_wasm_std::{Participant, Snapshot, Threshold};
+use axelar_wasm_std::Participant;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
 
 use crate::{
     key::{KeyType, PublicKey},
-    types::{Key, KeyID},
+    worker_set::WorkerSet,
 };
 
 #[derive(Clone)]
@@ -93,40 +91,21 @@ pub mod ed25519_test_data {
     }
 }
 
-pub fn build_snapshot(signers: &Vec<TestSigner>) -> Snapshot {
+pub fn build_worker_set(key_type: KeyType, signers: &Vec<TestSigner>) -> WorkerSet {
+    let mut total_weight = Uint256::zero();
     let participants = signers
         .iter()
-        .map(|signer| Participant {
-            address: signer.address.clone(),
-            weight: Uint256::one().try_into().unwrap(),
-        })
-        .collect::<Vec<_>>();
-
-    Snapshot::new(
-        Threshold::try_from((2u64, 3u64)).unwrap(),
-        participants.try_into().unwrap(),
-    )
-}
-
-pub fn build_key(
-    key_type: KeyType,
-    key_id: KeyID,
-    signers: &Vec<TestSigner>,
-    snapshot: Snapshot,
-) -> Key {
-    let pub_keys = signers
-        .iter()
         .map(|signer| {
+            total_weight += Uint256::one();
             (
-                signer.address.clone().to_string(),
+                Participant {
+                    address: signer.address.clone(),
+                    weight: Uint256::one().try_into().unwrap(),
+                },
                 PublicKey::try_from((key_type, signer.pub_key.clone())).unwrap(),
             )
         })
-        .collect::<HashMap<String, PublicKey>>();
+        .collect::<Vec<_>>();
 
-    Key {
-        id: key_id,
-        snapshot,
-        pub_keys,
-    }
+    WorkerSet::new(participants, total_weight.mul_ceil((2u64, 3u64)), 0)
 }

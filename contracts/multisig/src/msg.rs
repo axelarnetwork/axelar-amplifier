@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
-use axelar_wasm_std::Snapshot;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
 use crate::{
     key::{KeyType, PublicKey, Signature},
-    types::{KeyID, MultisigState},
+    types::MultisigState,
+    worker_set::WorkerSet,
 };
 
 #[cw_serde]
@@ -21,17 +19,15 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     // Can only be called by an authorized contract.
     StartSigningSession {
-        key_id: String,
+        worker_set_id: String,
         msg: HexBinary,
     },
     SubmitSignature {
         session_id: Uint64,
         signature: HexBinary,
     },
-    KeyGen {
-        key_id: String,
-        snapshot: Snapshot,
-        pub_keys_by_address: HashMap<String, (KeyType, HexBinary)>,
+    RegisterWorkerSet {
+        worker_set: WorkerSet,
     },
     RegisterPublicKey {
         public_key: PublicKey,
@@ -52,8 +48,8 @@ pub enum QueryMsg {
     #[returns(Multisig)]
     GetMultisig { session_id: Uint64 },
 
-    #[returns(crate::types::Key)]
-    GetKey { key_id: KeyID },
+    #[returns(WorkerSet)]
+    GetWorkerSet { worker_set_id: String },
 
     #[returns(PublicKey)]
     GetPublicKey {
