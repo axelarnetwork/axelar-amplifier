@@ -59,12 +59,22 @@ jobs:
         with:
           shared-key: "cache"
 
-      - name: Compile WASM contract
+      - name: Build wasm release
+        run: |
+          for C in ./contracts/*/
+          do
+            echo "Compiling `basename $C`..."
+            (cd $C && cargo build --release --lib --target wasm32-unknown-unknown --locked)
+          done
+
+      - name: Install cosmwasm-check
         uses: actions-rs/cargo@v1
         with:
-          command: wasm
-        env:
-          RUSTFLAGS: --cfg tracing_unstable -C link-arg=-s
+          command: install
+          args: --debug --version 1.5.0 cosmwasm-check
+    
+      - name: Check wasm contracts
+        run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
   lints:
     name: Lints
