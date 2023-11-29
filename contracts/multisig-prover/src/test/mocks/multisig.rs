@@ -30,18 +30,15 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::StartSigningSession { key_id: _, msg: _ } => {
-            Ok(Response::new().set_data(to_binary(&Uint64::one())?))
-        }
+        ExecuteMsg::StartSigningSession {
+            worker_set_id: _,
+            msg: _,
+        } => Ok(Response::new().set_data(to_binary(&Uint64::one())?)),
         ExecuteMsg::SubmitSignature {
             session_id: _,
             signature: _,
         } => unimplemented!(),
-        ExecuteMsg::KeyGen {
-            key_id: _,
-            snapshot: _,
-            pub_keys_by_address: _,
-        } => Ok(Response::default()),
+        ExecuteMsg::RegisterWorkerSet { worker_set: _ } => Ok(Response::default()),
         ExecuteMsg::RegisterPublicKey { public_key } => {
             PUB_KEYS.save(
                 deps.storage,
@@ -76,7 +73,7 @@ pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<Tes
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMultisig { session_id: _ } => to_binary(&query::query_success()),
-        QueryMsg::GetKey { key_id: _ } => unimplemented!(),
+        QueryMsg::GetWorkerSet { worker_set_id: _ } => unimplemented!(),
         QueryMsg::GetPublicKey {
             worker_address,
             key_type,

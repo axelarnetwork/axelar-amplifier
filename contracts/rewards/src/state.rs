@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::cw_serde;
@@ -52,12 +53,27 @@ impl EpochTally {
         self
     }
 
-    pub fn increment_event_count(mut self) -> Self {
-        self.event_count += 1;
-        self
+    pub fn rewards_by_worker(&self) -> HashMap<Addr, Uint128> {
+        let workers_to_reward = self.workers_to_reward();
+        let total_rewards: Uint128 = self.params.rewards_per_epoch.into();
+
+        let rewards_per_worker = total_rewards
+            .checked_div(Uint128::from(workers_to_reward.len() as u128))
+            .unwrap_or_default();
+
+        // A bit of a weird case. The rewards per epoch is too low to accommodate the number of workers to be rewarded
+        // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
+        if rewards_per_worker.is_zero() {
+            return HashMap::new();
+        }
+
+        workers_to_reward
+            .into_iter()
+            .map(|worker| (worker, rewards_per_worker))
+            .collect()
     }
 
-    pub fn workers_to_reward(&self) -> Vec<Addr> {
+    fn workers_to_reward(&self) -> Vec<Addr> {
         self.participation
             .iter()
             .filter_map(|(worker, participated)| {
@@ -108,17 +124,13 @@ impl RewardsPool {
         }
     }
 
-    pub fn distribute_rewards(
-        &mut self,
-        worker_count: u64,
-        rewards_per_worker: Uint128,
-    ) -> Result<(), ContractError> {
-        let rewards = rewards_per_worker * Uint128::from(worker_count as u128);
-        if self.balance < rewards {
+    pub fn sub_reward(mut self, reward: Uint128) -> Result<Self, ContractError> {
+        if self.balance < reward {
             return Err(ContractError::PoolBalanceInsufficient.into());
         }
-        self.balance -= rewards;
-        Ok(())
+        self.balance -= reward;
+
+        Ok(self)
     }
 }
 
@@ -136,7 +148,7 @@ pub trait Store {
         epoch_num: u64,
     ) -> Result<Option<EpochTally>, ContractError>;
 
-    fn load_rewards_pool(&self, contract: Addr) -> Result<Option<RewardsPool>, ContractError>;
+    fn load_rewards_pool(&self, contract: Addr) -> Result<RewardsPool, ContractError>;
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
 
@@ -202,10 +214,16 @@ impl Store for RewardsStore<'_> {
             .change_context(ContractError::LoadEpochTally)
     }
 
-    fn load_rewards_pool(&self, contract: Addr) -> Result<Option<RewardsPool>, ContractError> {
+    fn load_rewards_pool(&self, contract: Addr) -> Result<RewardsPool, ContractError> {
         POOLS
-            .may_load(self.storage, contract)
+            .may_load(self.storage, contract.clone())
             .change_context(ContractError::LoadRewardsPool)
+            .map(|pool| {
+                pool.unwrap_or(RewardsPool {
+                    contract,
+                    balance: Uint128::zero(),
+                })
+            })
     }
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError> {
@@ -251,23 +269,40 @@ impl Store for RewardsStore<'_> {
     }
 }
 
+pub(crate) enum StorageState<T> {
+    Existing(T),
+    New(T),
+}
+
+impl<T> Deref for StorageState<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            StorageState::Existing(value) => value,
+            StorageState::New(value) => value,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use super::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store};
+    use crate::error::ContractError;
+    use crate::{msg::Params, state::StoredParams};
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use std::collections::HashMap;
 
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
-
-    use crate::{error::ContractError, msg::Params, state::StoredParams};
-
-    use super::{Epoch, EpochTally, Event, RewardsPool, RewardsStore, Store};
-
-    /// Tests that only workers that participated in a fraction of events greater than or equal to participation threshold are rewarded
+    /// Test that the rewards are
+    /// - distributed evenly to all workers that reach quorum
+    /// - no rewards if there are no workers
+    /// - no rewards if rewards per epoch is too low for number of workers
     #[test]
-    fn epoch_tally_workers_to_reward() {
+    fn rewards_by_worker() {
         let tally = EpochTally {
             params: Params {
                 epoch_duration: 100u64.try_into().unwrap(),
-                rewards_per_epoch: Uint128::one().try_into().unwrap(),
+                rewards_per_epoch: Uint128::new(1000).try_into().unwrap(),
                 participation_threshold: (1, 2).try_into().unwrap(),
             },
             contract: Addr::unchecked("worker contract"),
@@ -282,40 +317,57 @@ mod test {
                 block_height_started: 0u64,
             },
         };
-        let workers = tally.workers_to_reward();
-        assert_eq!(workers.len(), 2);
-        assert!(workers.contains(&Addr::unchecked("worker1")));
-        assert!(workers.contains(&Addr::unchecked("worker3")));
+
+        let test_cases = vec![
+            (
+                // distribute rewards evenly to all workers that reach quorum
+                tally.clone(),
+                HashMap::from([
+                    (Addr::unchecked("worker1"), Uint128::from(500u128)),
+                    (Addr::unchecked("worker3"), Uint128::from(500u128)),
+                ]),
+            ),
+            (
+                // no rewards if there are no workers
+                EpochTally {
+                    participation: HashMap::new(),
+                    ..tally.clone()
+                },
+                HashMap::new(),
+            ),
+            (
+                // no rewards if rewards per epoch is too low for number of workers
+                EpochTally {
+                    params: Params {
+                        rewards_per_epoch: Uint128::one().try_into().unwrap(),
+                        ..tally.params
+                    },
+                    ..tally
+                },
+                HashMap::new(),
+            ),
+        ];
+
+        for test_case in test_cases {
+            let rewards = test_case.0.rewards_by_worker();
+            assert_eq!(rewards, test_case.1);
+        }
     }
 
     #[test]
-    fn rewards_pool_distribute_rewards() {
-        let mut pool = RewardsPool {
+    fn sub_reward_from_pool() {
+        let pool = RewardsPool {
             contract: Addr::unchecked("worker contract"),
             balance: Uint128::from(100u128),
         };
-        let worker_count = 10;
-        let rewards_per_worker = 5u128;
-        pool.distribute_rewards(worker_count, Uint128::from(rewards_per_worker))
-            .unwrap();
-        assert_eq!(pool.balance, Uint128::from(50u128));
-    }
+        let new_pool = pool.sub_reward(Uint128::from(50u128)).unwrap();
+        assert_eq!(new_pool.balance, Uint128::from(50u128));
 
-    #[test]
-    fn rewards_pool_distribute_rewards_low_balance() {
-        let mut pool = RewardsPool {
-            contract: Addr::unchecked("worker contract"),
-            balance: Uint128::from(100u128),
-        };
-        let worker_count = 10;
-        let rewards_per_worker = 100u128;
-        let err = pool
-            .distribute_rewards(worker_count, Uint128::from(rewards_per_worker))
-            .unwrap_err();
-        assert_eq!(
-            err.current_context(),
-            &ContractError::PoolBalanceInsufficient
-        );
+        let new_pool = new_pool.sub_reward(Uint128::from(60u128));
+        assert!(matches!(
+            new_pool.unwrap_err().current_context(),
+            ContractError::PoolBalanceInsufficient
+        ));
     }
 
     #[test]
@@ -518,11 +570,10 @@ mod test {
         let loaded = store.load_rewards_pool(contract);
 
         assert!(loaded.is_ok());
-        assert!(loaded.as_ref().unwrap().is_some());
-        assert_eq!(loaded.unwrap().unwrap(), pool);
+        assert_eq!(loaded.unwrap(), pool);
 
         let loaded = store.load_rewards_pool(Addr::unchecked("a different contract"));
         assert!(loaded.is_ok());
-        assert!(loaded.as_ref().unwrap().is_none());
+        assert!(loaded.as_ref().unwrap().balance.is_zero());
     }
 }
