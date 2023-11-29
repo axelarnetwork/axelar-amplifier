@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
 use crate::broadcaster::{accounts::account, Broadcaster};
-use crate::config::Config;
+use crate::config::Config as AmpdConfig;
 use crate::state::{self, StateUpdater};
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use crate::types::{PublicKey, TMAddress};
@@ -37,12 +37,12 @@ pub enum SubCommand {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct ServiceRegistryConfig {
+pub struct Config {
     pub cosmwasm_contract: TMAddress,
     pub service_name: String,
 }
 
-impl Default for ServiceRegistryConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
             cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
@@ -72,8 +72,12 @@ async fn worker_pub_key(state_path: &Path, config: tofnd::Config) -> Result<Publ
     }
 }
 
-async fn broadcast_tx(config: Config, tx: Any, pub_key: PublicKey) -> Result<TxResponse, Error> {
-    let Config {
+async fn broadcast_tx(
+    config: AmpdConfig,
+    tx: Any,
+    pub_key: PublicKey,
+) -> Result<TxResponse, Error> {
+    let AmpdConfig {
         tm_grpc,
         broadcast,
         tofnd_config,
@@ -86,8 +90,7 @@ async fn broadcast_tx(config: Config, tx: Any, pub_key: PublicKey) -> Result<TxR
 
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
-        .change_context(Error::Connection)
-        .unwrap();
+        .change_context(Error::Connection)?;
 
     let ecdsa_client = SharableEcdsaClient::new(
         MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
