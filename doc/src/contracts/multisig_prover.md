@@ -205,10 +205,11 @@ end
 12. The gateway on the External Gateway proccesses the commands in the data and emits event `OperatorshipTransferred`.
 13. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
 14. The event `PollStarted` is emitted to the Relayer
-15. The workers see the `PollStarted` event and vote on the poll.
-16. The Relayer calls the Voting Verifier to end the poll.
-17. The Voting Verifier emits event `PollEnded`.
-18. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
-19. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
-20. The Voting Verifier returns that the `WorkerSet` is confirmed.
-21. The Prove` stores the `WorkerSet` and also stores it in Multisig.
+15. The Workers see the `PollStarted` event and lookup `OperatorshipTransferred`` event on the External Gateway and verify event matches worker set in poll.
+16. The Workers then vote on whether the event matches the workers or not.
+17. The Relayer calls the Voting Verifier to end the poll.
+18. The Voting Verifier emits event `PollEnded`.
+19. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
+20. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
+21. The Voting Verifier returns that the `WorkerSet` is confirmed.
+22. The Prover stores the `WorkerSet` and also stores it in Multisig.
