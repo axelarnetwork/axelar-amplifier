@@ -232,12 +232,14 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     });
     let router_admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
+    let nexus_gateway = Addr::unchecked("nexus_gateway");
 
     let router_address = instantiate_connection_router(
         &mut app,
         connection_router::msg::InstantiateMsg {
             admin_address: router_admin_address.to_string(),
             governance_address: governance_address.to_string(),
+            nexus_gateway: nexus_gateway.to_string(),
         },
     );
 

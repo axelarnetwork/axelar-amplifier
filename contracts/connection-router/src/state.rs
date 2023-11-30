@@ -85,6 +85,7 @@ impl<'a> RouterStore<'a> {
 pub struct Config {
     pub admin: Addr,
     pub governance: Addr,
+    pub nexus_gateway: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
