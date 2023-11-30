@@ -73,8 +73,8 @@ jobs:
           command: install
           args: --debug --version 1.5.0 cosmwasm-check
     
-      - name: Check cosmwasm contracts
-        run: cosmwasm-check ./target/wasm-32-unknown-unknown/release/*.wasm
+      - name: Check wasm contracts
+        run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
   lints:
     name: Lints
