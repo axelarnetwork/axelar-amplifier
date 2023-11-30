@@ -184,7 +184,7 @@ else existing WorkerSet stored
   Voting Verifier-->>-Relayer: emit PollEnded event
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
   Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
-  Voting Verifier-->>-Prover: query result
+  Voting Verifier-->>-Prover: true
   Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
 end
 ```
