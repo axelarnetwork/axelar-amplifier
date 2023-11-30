@@ -28,7 +28,7 @@ struct Args {
     pub state: PathBuf,
 
     /// Set the output style of the logs
-    #[arg(short, long, value_enum, default_value_t = Output::Json)]
+    #[arg(short, long, value_enum, default_value_t = Output::Text)]
     pub output: Output,
 
     #[clap(subcommand)]
