@@ -208,4 +208,4 @@ end
 17. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
 18. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
 19. The Voting Verifier returns that the `WorkerSet` is confirmed.
-20. The Prover stores the `WorkerSet` and also stores it in Multisig.
+20. The Prover stores the `WorkerSet` in itself and in Multisig.
