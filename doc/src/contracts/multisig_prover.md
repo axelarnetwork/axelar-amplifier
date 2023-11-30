@@ -179,7 +179,6 @@ else existing WorkerSet stored
   Relayer-->>External Gateway: send new WorkerSet to the gateway, signed by old WorkerSet
   External Gateway-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
-  Voting Verifier-->>-Relayer: emit PollStarted event
   Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
   Worker->>+Voting Verifier: ExecuteMsg::Vote
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
@@ -203,11 +202,10 @@ end
 11. Relayer sends proof and data to the External Gateway.
 12. The gateway on the External Gateway proccesses the commands in the data and emits event `OperatorshipTransferred`.
 13. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
-14. The event `PollStarted` is emitted to the Relayer
-15. The Workers see the `PollStarted` event and lookup `OperatorshipTransferred`` event on the External Gateway and verify event matches worker set in poll.
-16. The Workers then vote on whether the event matches the workers or not.
-17. The Relayer calls the Voting Verifier to end the poll and emit `PollEnded` event.
-19. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
-20. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
-21. The Voting Verifier returns that the `WorkerSet` is confirmed.
-22. The Prover stores the `WorkerSet` and also stores it in Multisig.
+14. The Workers see the `PollStarted` event and lookup `OperatorshipTransferred`` event on the External Gateway and verify event matches worker set in poll.
+15. The Workers then vote on whether the event matches the workers or not.
+16. The Relayer calls the Voting Verifier to end the poll and emit `PollEnded` event.
+17. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
+18. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
+19. The Voting Verifier returns that the `WorkerSet` is confirmed.
+20. The Prover stores the `WorkerSet` and also stores it in Multisig.
