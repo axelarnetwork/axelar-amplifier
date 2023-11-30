@@ -17,17 +17,26 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let nexus_gateway = deps.api.addr_validate(&msg.nexus_gateway)?;
 
     let config = Config {
         admin: admin.clone(),
         governance: governance.clone(),
+        nexus_gateway: nexus_gateway.clone(),
     };
 
     RouterStore::new(deps.storage)
         .save_config(config)
         .expect("must save the config");
 
-    Ok(Response::new().add_event(RouterInstantiated { admin, governance }.into()))
+    Ok(Response::new().add_event(
+        RouterInstantiated {
+            admin,
+            governance,
+            nexus_gateway,
+        }
+        .into(),
+    ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
