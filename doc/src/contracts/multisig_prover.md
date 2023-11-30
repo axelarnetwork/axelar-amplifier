@@ -175,8 +175,8 @@ else existing WorkerSet stored
   end
   Relayer->>+Prover: QueryMsg::GetProof
   Prover-->>-Relayer: returns GetProofResponse (new worker set signed by old worker set)
-  Relayer-->>External Chain: send new WorkerSet to the gateway, signed by old WorkerSet
-  External Chain-->>+Relayer: emit OperatorshipTransferred event
+  Relayer-->>External Gateway: send new WorkerSet to the gateway, signed by old WorkerSet
+  External Gateway-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
   Voting Verifier-->>-Relayer: emit PollStarted event
   Relayer->>+Voting Verifier: ExecuteMsg::Vote
@@ -199,8 +199,8 @@ end
 8. Signers submit their signatures until threshold is reached
 9. Relayer queries Prover for the proof, using the proof ID
 10. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
-11. Relayer sends proof and data to the external chain.
-12. The gateway on the External Chain proccesses the commands in the data and emits event `OperatorshipTransferred`.
+11. Relayer sends proof and data to the External Gateway.
+12. The gateway on the External Gateway proccesses the commands in the data and emits event `OperatorshipTransferred`.
 13. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
 14. The event `PollStarted` is emitted to the Relayer
 15. The workers see the `PollStarted` event and vote on the poll.
