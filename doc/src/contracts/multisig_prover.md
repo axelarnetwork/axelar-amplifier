@@ -179,7 +179,8 @@ else existing WorkerSet stored
   External Gateway-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
   Voting Verifier-->>-Relayer: emit PollStarted event
-  Relayer->>+Voting Verifier: ExecuteMsg::Vote
+  Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
+  Worker->>+Voting Verifier: ExecuteMsg::Vote
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
   Voting Verifier-->>-Relayer: emit PollEnded event
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
