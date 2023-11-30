@@ -71,7 +71,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: install
-          args: --debug --version 1.5.0 cosmwasm-check
+          args: --debug --version 1.3.3 --locked cosmwasm-check
     
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm

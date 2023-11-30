@@ -1,9 +1,9 @@
 use cosmwasm_std::{to_binary, Addr, Response, WasmMsg};
-use error_stack::{report, ResultExt};
+use error_stack::report;
 
 use crate::error::ContractError;
+use crate::nexus;
 use crate::state::Store;
-use crate::{msg, nexus};
 
 use super::Contract;
 
@@ -13,23 +13,15 @@ impl<S> Contract<S>
 where
     S: Store,
 {
-    pub fn route_messages(
+    pub fn route_to_router(
         self,
         sender: Addr,
-        msgs: Vec<msg::Message>,
+        msgs: Vec<nexus::Message>,
     ) -> Result<Response<nexus::Message>> {
-        match sender {
-            sender if sender == self.config.nexus => self
-                .route_to_router(msgs)
-                .change_context(ContractError::RouteToRouter),
-            sender if sender == self.config.router => self
-                .route_to_nexus(msgs)
-                .change_context(ContractError::RouteToNexus),
-            _ => Err(report!(ContractError::Unauthorized)),
+        if sender != self.config.nexus {
+            return Err(report!(ContractError::Unauthorized));
         }
-    }
 
-    fn route_to_router(self, msgs: Vec<msg::Message>) -> Result<Response<nexus::Message>> {
         let msgs: Vec<_> = msgs
             .into_iter()
             .map(connection_router::Message::from)
@@ -46,10 +38,17 @@ where
         }))
     }
 
-    fn route_to_nexus(mut self, msgs: Vec<msg::Message>) -> Result<Response<nexus::Message>> {
+    pub fn route_to_nexus(
+        mut self,
+        sender: Addr,
+        msgs: Vec<connection_router::Message>,
+    ) -> Result<Response<nexus::Message>> {
+        if sender != self.config.router {
+            return Err(report!(ContractError::Unauthorized));
+        }
+
         let msgs = msgs
             .into_iter()
-            .map(connection_router::Message::from)
             .filter_map(|msg| match self.store.is_message_routed(&msg.cc_id) {
                 Ok(true) => None,
                 Ok(false) => Some(Ok(msg)),
@@ -77,7 +76,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn route_messages_unauthorized() {
+    fn route_to_router_unauthorized() {
         let mut store = MockStore::new();
         let config = Config {
             nexus: Addr::unchecked("nexus"),
@@ -88,7 +87,7 @@ mod test {
             .returning(move || Ok(config.clone()));
         let contract = Contract::new(store);
 
-        let res = contract.route_messages(Addr::unchecked("unauthorized"), vec![]);
+        let res = contract.route_to_router(Addr::unchecked("unauthorized"), vec![]);
 
         assert!(res.is_err_and(|err| matches!(err.current_context(), ContractError::Unauthorized)));
     }
@@ -105,7 +104,7 @@ mod test {
             .returning(move || Ok(config.clone()));
         let contract = Contract::new(store);
 
-        let res = contract.route_messages(Addr::unchecked("nexus"), vec![]);
+        let res = contract.route_to_router(Addr::unchecked("nexus"), vec![]);
 
         assert!(res.is_ok_and(|res| res.messages.is_empty()));
     }
@@ -152,10 +151,7 @@ mod test {
                 source_tx_index: 1000,
             },
         ];
-        let res = contract.route_messages(
-            Addr::unchecked("nexus"),
-            msgs.into_iter().map(msg::Message::NexusMessage).collect(),
-        );
+        let res = contract.route_to_router(Addr::unchecked("nexus"), msgs);
 
         assert!(res.is_ok_and(|res| {
             if res.messages.len() != 1 {
@@ -184,6 +180,23 @@ mod test {
     }
 
     #[test]
+    fn route_to_nexus_unauthorized() {
+        let mut store = MockStore::new();
+        let config = Config {
+            nexus: Addr::unchecked("nexus"),
+            router: Addr::unchecked("router"),
+        };
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let contract = Contract::new(store);
+
+        let res = contract.route_to_nexus(Addr::unchecked("unauthorized"), vec![]);
+
+        assert!(res.is_err_and(|err| matches!(err.current_context(), ContractError::Unauthorized)));
+    }
+
+    #[test]
     fn route_to_nexus_with_no_msg() {
         let mut store = MockStore::new();
         let config = Config {
@@ -195,7 +208,7 @@ mod test {
             .returning(move || Ok(config.clone()));
         let contract = Contract::new(store);
 
-        let res = contract.route_messages(Addr::unchecked("router"), vec![]);
+        let res = contract.route_to_nexus(Addr::unchecked("router"), vec![]);
 
         assert!(res.is_ok_and(|res| res.messages.is_empty()));
     }
@@ -252,10 +265,7 @@ mod test {
                 .unwrap(),
             },
         ];
-        let res = contract.route_messages(
-            Addr::unchecked("router"),
-            msgs.into_iter().map(msg::Message::RouterMessage).collect(),
-        );
+        let res = contract.route_to_nexus(Addr::unchecked("router"), msgs);
 
         assert!(res.is_ok_and(|res| res.messages.len() == 2));
     }
@@ -316,10 +326,7 @@ mod test {
                 .unwrap(),
             },
         ];
-        let res = contract.route_messages(
-            Addr::unchecked("router"),
-            msgs.into_iter().map(msg::Message::RouterMessage).collect(),
-        );
+        let res = contract.route_to_nexus(Addr::unchecked("router"), msgs);
 
         assert!(res.is_ok_and(|res| res.messages.len() == 1));
     }

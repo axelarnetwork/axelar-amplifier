@@ -80,6 +80,7 @@ pub fn make_mock_gateway(app: &mut App) -> Addr {
             &connection_router::msg::InstantiateMsg {
                 admin_address: Addr::unchecked("admin").to_string(),
                 governance_address: Addr::unchecked("governance").to_string(),
+                nexus_gateway: Addr::unchecked("nexus_gateway").to_string(),
             },
             &[],
             "Contract",
