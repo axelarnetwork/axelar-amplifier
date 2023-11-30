@@ -170,9 +170,6 @@ else existing WorkerSet stored
   Prover->>+Service Registry: QueryMsg::GetActiveWorkers
   Service Registry-->>-Prover: save new WorkerSet as next WorkerSet
   Prover->>+Multisig: ExecuteMsg::StartSigningSession (for operatorship transferred message)
-  Multisig-->>Signers: emit SigningStarted event
-  Multisig->>-Prover: reply with session ID
-  Prover-->>Relayer: emit ProofUnderConstruction event
   loop Collect signatures
 	  Signers->>+Multisig: signature collection
   end
@@ -199,23 +196,17 @@ end
 5. The Prover calls Service Registry to get a `WorkerSet`
 6. If a newer `WorkerSet` was found, the new `WorkerSet` is stored as the next `WorkerSet`. A `TransferOperatorship` command is added to the batch. 
 7. The Multisig contract is called asking to sign the binary message
-8. Multisig emits event `SigningStarted` indicating a new multisig session has started
-9. Multisig triggers a reply in Prover returning the newly created session ID which is then stored with the batch for reference
-10. Prover contract emits event `ProofUnderConstruction` which includes the ID of the proof being constructed.
-11. Signers submit their signatures until threshold is reached
-12. Multisig emits event indicating the multisig session has been completed
-13. Relayer queries Prover for the proof, using the proof ID
-14. Prover queries Multisig for the multisig session, using the session ID
-15. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
-16. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
-17. Relayer sends proof and data to the external chain.
-18. The gateway on the External Chain proccesses the commands in the data and emits event `OperatorshipTransferred`.
-19. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
-20. The event `PollStarted` is emitted to the Relayer
-21. The workers see the `PollStarted` event and vote on the poll.
-22. The Relayer calls the Voting Verifier to end the poll.
-23. The Voting Verifier emits event `PollEnded`.
-24. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
-25. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
-26. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
-27. The new `WorkerSet` is stored in Multisig.
+8. Signers submit their signatures until threshold is reached
+9. Relayer queries Prover for the proof, using the proof ID
+10. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
+11. Relayer sends proof and data to the external chain.
+12. The gateway on the External Chain proccesses the commands in the data and emits event `OperatorshipTransferred`.
+13. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
+14. The event `PollStarted` is emitted to the Relayer
+15. The workers see the `PollStarted` event and vote on the poll.
+16. The Relayer calls the Voting Verifier to end the poll.
+17. The Voting Verifier emits event `PollEnded`.
+18. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
+19. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
+20. The Voting Verifier returns if the `WorkerSet` is confirmed. If true, the `Prover` stores the `WorkerSet`.
+21. The new `WorkerSet` is stored in Multisig.
