@@ -1,11 +1,12 @@
-use error_stack::{Report, ResultExt};
 use std::path::Path;
+
+use error_stack::{Report, ResultExt};
 
 use crate::config::Config;
 use crate::state::{flush, load};
 use crate::Error;
 
-pub async fn run(config: Config, state_path: &Path) -> Result<(), Report<Error>> {
+pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Report<Error>> {
     let state = load(state_path).change_context(Error::LoadConfig)?;
     let (state, execution_result) = crate::run(config, state).await;
     let state_flush_result = flush(&state, state_path).change_context(Error::ReturnState);
@@ -21,6 +22,6 @@ pub async fn run(config: Config, state_path: &Path) -> Result<(), Report<Error>>
         (Err(report), Ok(())) | (Ok(()), Err(report)) => Err(report),
 
         // no errors in either execution or persisting state
-        (Ok(()), Ok(())) => Ok(()),
+        (Ok(()), Ok(())) => Ok(None),
     }
 }

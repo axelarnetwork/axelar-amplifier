@@ -10,10 +10,11 @@ use error_stack::{Report, ResultExt};
 use tracing::{error, info};
 use valuable::Valuable;
 
-use ampd::commands::{daemon, worker_address, SubCommand};
+use ampd::commands::{bond_worker, daemon, worker_address, SubCommand};
 use ampd::config::Config;
 use ampd::Error;
 use axelar_wasm_std::utils::InspectorResult;
+use axelar_wasm_std::FnExt;
 use report::LoggableError;
 
 #[derive(Debug, Parser, Valuable)]
@@ -28,7 +29,7 @@ struct Args {
     pub state: PathBuf,
 
     /// Set the output style of the logs
-    #[arg(short, long, value_enum, default_value_t = Output::Json)]
+    #[arg(short, long, value_enum, default_value_t = Output::Text)]
     pub output: Output,
 
     #[clap(subcommand)]
@@ -50,23 +51,28 @@ async fn main() -> ExitCode {
     let state_path = expand_home_dir(&args.state);
 
     let result = match args.cmd {
-        Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
         Some(SubCommand::Daemon) | None => {
             info!(args = args.as_value(), "starting daemon");
 
-            let result = daemon::run(cfg, &state_path).await.tap_err(|report| {
-                error!(err = LoggableError::from(report).as_value(), "{report:#}")
-            });
-
-            info!("shutting down");
-
-            result
+            daemon::run(cfg, &state_path).await.then(|result| {
+                info!("shutting down");
+                result
+            })
         }
+        Some(SubCommand::BondWorker(args)) => bond_worker::run(cfg, &state_path, args).await,
+        Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
     };
 
     match result {
-        Ok(_) => ExitCode::SUCCESS,
+        Ok(response) => {
+            if let Some(resp) = response {
+                info!("{}", resp);
+            }
+            ExitCode::SUCCESS
+        }
         Err(report) => {
+            error!(err = LoggableError::from(&report).as_value(), "{report:#}");
+
             // print detailed error report as the last output if in text mode
             if matches!(args.output, Output::Text) {
                 eprintln!("{report:?}");
