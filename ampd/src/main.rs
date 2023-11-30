@@ -52,22 +52,20 @@ async fn main() -> ExitCode {
     let result = match args.cmd {
         Some(SubCommand::Daemon) | None => {
             info!(args = args.as_value(), "starting daemon");
-
-            let result = daemon::run(cfg, &state_path).await.tap_err(|report| {
-                error!(err = LoggableError::from(report).as_value(), "{report:#}")
-            });
-
-            info!("shutting down");
-
-            result
+            daemon::run(cfg, &state_path).await
         }
         Some(SubCommand::BondWorker(args)) => bond_worker::run(cfg, &state_path, args).await,
         Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
     };
 
     match result {
-        Ok(_) => ExitCode::SUCCESS,
+        Ok(response) => {
+            info!("{}", response);
+            ExitCode::SUCCESS
+        }
         Err(report) => {
+            error!(err = LoggableError::from(&report).as_value(), "{report:#}");
+
             // print detailed error report as the last output if in text mode
             if matches!(args.output, Output::Text) {
                 eprintln!("{report:?}");

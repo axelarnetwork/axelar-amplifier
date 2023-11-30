@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use axelar_wasm_std::FnExt;
 use clap::Subcommand;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
 use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -16,7 +15,7 @@ use valuable::Valuable;
 
 use crate::broadcaster::{accounts::account, Broadcaster};
 use crate::config::Config as AmpdConfig;
-use crate::state::{self, StateUpdater};
+use crate::state;
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, Error};
@@ -37,25 +36,22 @@ pub enum SubCommand {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Config {
+pub struct ServiceRegistryConfig {
     pub cosmwasm_contract: TMAddress,
-    pub service_name: String,
 }
 
-impl Default for Config {
+impl Default for ServiceRegistryConfig {
     fn default() -> Self {
         Self {
             cosmwasm_contract: AccountId::new(PREFIX, &[0; 32]).unwrap().into(),
-            service_name: "validators".into(),
         }
     }
 }
 
 async fn worker_pub_key(state_path: &Path, config: tofnd::Config) -> Result<PublicKey, Error> {
     let state = state::load(state_path).change_context(Error::LoadConfig)?;
-    let mut state_updater = StateUpdater::new(state);
 
-    match state_updater.state().pub_key {
+    match state.pub_key {
         Some(pub_key) => Ok(pub_key),
         None => SharableEcdsaClient::new(
             MultisigClient::connect(config.party_uid, config.url)
@@ -64,11 +60,7 @@ async fn worker_pub_key(state_path: &Path, config: tofnd::Config) -> Result<Publ
         )
         .keygen(&config.key_uid)
         .await
-        .change_context(Error::Tofnd)?
-        .then(|pub_key| {
-            state_updater.as_mut().pub_key = Some(pub_key);
-            Ok(pub_key)
-        }),
+        .change_context(Error::Tofnd),
     }
 }
 
@@ -100,11 +92,11 @@ async fn broadcast_tx(
 
     broadcaster::BroadcastClientBuilder::default()
         .client(service_client)
-        .signer(ecdsa_client.clone())
+        .signer(ecdsa_client)
         .acc_number(account.account_number)
         .acc_sequence(account.sequence)
         .pub_key((tofnd_config.key_uid, pub_key))
-        .config(broadcast.clone())
+        .config(broadcast)
         .build()
         .change_context(Error::Broadcaster)?
         .broadcast(vec![tx])

@@ -1,11 +1,14 @@
-use crate::nonempty::Error;
-use cosmwasm_schema::cw_serde;
 use std::ops::Deref;
 use std::str::FromStr;
 
+use cosmwasm_schema::cw_serde;
+use valuable::Valuable;
+
+use crate::nonempty::Error;
+
 #[cw_serde]
 #[serde(try_from = "std::string::String")]
-#[derive(Eq, Hash)]
+#[derive(Eq, Hash, Valuable)]
 pub struct String(std::string::String);
 
 impl TryFrom<std::string::String> for String {

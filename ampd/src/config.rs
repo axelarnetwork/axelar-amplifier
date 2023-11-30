@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+use crate::broadcaster;
+use crate::commands::ServiceRegistryConfig;
 use crate::handlers::{self, config::deserialize_handler_configs};
 use crate::tofnd::Config as TofndConfig;
 use crate::url::Url;
-use crate::{broadcaster, commands};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
@@ -15,7 +16,7 @@ pub struct Config {
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
     pub tofnd_config: TofndConfig,
-    pub service_registry: commands::Config,
+    pub service_registry: ServiceRegistryConfig,
 }
 
 impl Default for Config {
@@ -27,7 +28,7 @@ impl Default for Config {
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
             event_buffer_cap: 100000,
-            service_registry: commands::Config::default(),
+            service_registry: ServiceRegistryConfig::default(),
         }
     }
 }

@@ -333,6 +333,6 @@ pub enum Error {
     ReturnState,
     #[error("failed to load config")]
     LoadConfig,
-    #[error("command failed")]
-    Command,
+    #[error("invalid input")]
+    InvalidInput,
 }
