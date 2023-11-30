@@ -176,11 +176,8 @@ else existing WorkerSet stored
   loop Collect signatures
 	  Signers->>+Multisig: signature collection
   end
-  Multisig-->>-Relayer: emit SigningCompleted event
   Relayer->>+Prover: QueryMsg::GetProof
-  Prover->>+Multisig: QueryMsg::GetSigningSession
-  Multisig-->>-Prover: reply with status, current signatures vector and snapshot
-  Prover-->>-Relayer: returns GetProofResponse
+  Prover-->>-Relayer: returns GetProofResponse (new worker set signed by old worker set)
   Relayer-->>External Chain: send new WorkerSet to the gateway, signed by old WorkerSet
   External Chain-->>+Relayer: emit OperatorshipTransferred event
   Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
