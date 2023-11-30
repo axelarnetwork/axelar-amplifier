@@ -65,7 +65,9 @@ async fn main() -> ExitCode {
 
     match result {
         Ok(response) => {
-            response.map(|resp| info!("{}", resp));
+            if let Some(resp) = response {
+                info!("{}", resp);
+            }
             ExitCode::SUCCESS
         }
         Err(report) => {
