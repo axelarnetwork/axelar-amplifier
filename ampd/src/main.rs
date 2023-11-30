@@ -52,7 +52,14 @@ async fn main() -> ExitCode {
     let result = match args.cmd {
         Some(SubCommand::Daemon) | None => {
             info!(args = args.as_value(), "starting daemon");
-            daemon::run(cfg, &state_path).await
+
+            let result = daemon::run(cfg, &state_path).await.tap_err(|report| {
+                error!(err = LoggableError::from(report).as_value(), "{report:#}")
+            });
+
+            info!("shutting down");
+
+            result
         }
         Some(SubCommand::BondWorker(args)) => bond_worker::run(cfg, &state_path, args).await,
         Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
@@ -60,7 +67,7 @@ async fn main() -> ExitCode {
 
     match result {
         Ok(response) => {
-            info!("{}", response);
+            response.map(|resp| info!("{}", resp));
             ExitCode::SUCCESS
         }
         Err(report) => {

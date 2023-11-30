@@ -20,7 +20,7 @@ pub struct Args {
     pub denom: String,
 }
 
-pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<String, Error> {
+pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
     let coin = Coin::new(args.amount, args.denom.as_str()).change_context(Error::InvalidInput)?;
 
     let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
@@ -39,8 +39,8 @@ pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<String
     .into_any()
     .expect("failed to serialize proto message");
 
-    Ok(format!(
+    Ok(Some(format!(
         "successfully broadcasted bond worker transaction, tx hash: {}",
         broadcast_tx(config, tx, pub_key).await?.txhash
-    ))
+    )))
 }

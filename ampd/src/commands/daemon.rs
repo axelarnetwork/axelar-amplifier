@@ -6,7 +6,7 @@ use crate::config::Config;
 use crate::state::{flush, load};
 use crate::Error;
 
-pub async fn run(config: Config, state_path: &Path) -> Result<String, Report<Error>> {
+pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Report<Error>> {
     let state = load(state_path).change_context(Error::LoadConfig)?;
     let (state, execution_result) = crate::run(config, state).await;
     let state_flush_result = flush(&state, state_path).change_context(Error::ReturnState);
@@ -22,6 +22,6 @@ pub async fn run(config: Config, state_path: &Path) -> Result<String, Report<Err
         (Err(report), Ok(())) | (Ok(()), Err(report)) => Err(report),
 
         // no errors in either execution or persisting state
-        (Ok(()), Ok(())) => Ok("successfully terminated ampd".to_string()),
+        (Ok(()), Ok(())) => Ok(None),
     }
 }
