@@ -18,7 +18,6 @@ COPY ./ampd/proto ./ampd/proto
 COPY ./ampd/src ./ampd/src
 COPY ./ampd/build.rs ./ampd/build.rs
 
-RUN rustup component add rustfmt
 RUN cargo install --locked --path ./ampd
 
 FROM debian:bookworm-slim AS runner
