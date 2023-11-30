@@ -183,7 +183,6 @@ else existing WorkerSet stored
   Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
   Worker->>+Voting Verifier: ExecuteMsg::Vote
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
-  Voting Verifier-->>-Relayer: emit PollEnded event
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
   Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
   Voting Verifier-->>-Prover: true
@@ -207,8 +206,7 @@ end
 14. The event `PollStarted` is emitted to the Relayer
 15. The Workers see the `PollStarted` event and lookup `OperatorshipTransferred`` event on the External Gateway and verify event matches worker set in poll.
 16. The Workers then vote on whether the event matches the workers or not.
-17. The Relayer calls the Voting Verifier to end the poll.
-18. The Voting Verifier emits event `PollEnded`.
+17. The Relayer calls the Voting Verifier to end the poll and emit `PollEnded` event.
 19. Once the poll is completed, the Relayer calls the Prover to confirm if the `WorkerSet` was updated.
 20. The Prover queries the Voting Verifier to check if the `WorkerSet` is confirmed.
 21. The Voting Verifier returns that the `WorkerSet` is confirmed.
