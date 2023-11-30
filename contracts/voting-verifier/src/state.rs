@@ -47,7 +47,7 @@ impl Poll {
 pub struct PollMessage {
     pub msg: Message,
     pub poll_id: PollID,
-    pub index_in_poll: usize,
+    pub index_in_poll: u32,
 }
 
 impl PollMessage {
@@ -55,7 +55,7 @@ impl PollMessage {
         Self {
             msg,
             poll_id,
-            index_in_poll,
+            index_in_poll: index_in_poll.try_into().unwrap(),
         }
     }
 }

@@ -1,7 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use error_stack::ResultExt;
 
+use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::nexus;
 use crate::state::{Config, GatewayStore, Store};
@@ -35,7 +37,12 @@ pub fn execute(
     let contract = Contract::new(GatewayStore::new(deps.storage));
 
     let res = match msg {
-        ExecuteMsg::RouteMessages(msgs) => contract.route_messages(info.sender, msgs)?,
+        ExecuteMsg::RouteMessages(msgs) => contract
+            .route_to_nexus(info.sender, msgs)
+            .change_context(ContractError::RouteToNexus)?,
+        ExecuteMsg::RouteMessagesFromNexus(msgs) => contract
+            .route_to_router(info.sender, msgs)
+            .change_context(ContractError::RouteToRouter)?,
     };
 
     Ok(res)

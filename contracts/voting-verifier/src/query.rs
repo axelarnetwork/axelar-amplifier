@@ -43,7 +43,7 @@ pub fn verification_status(
 
             let verified = match &poll {
                 Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
-                    .has_consensus(stored.index_in_poll)
+                    .has_consensus(stored.index_in_poll.try_into().unwrap())
                     .expect("invalid invariant: message not found in poll"),
             };
 
