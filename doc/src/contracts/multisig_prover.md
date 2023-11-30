@@ -160,6 +160,7 @@ participant Service Registry
 participant Voting Verifier
 participant Multisig
 end
+actor Worker
 actor Signers
 Relayer->>+Prover: ExecuteMsg::UpdateWorkerSet
 alt no WorkerSet stored
