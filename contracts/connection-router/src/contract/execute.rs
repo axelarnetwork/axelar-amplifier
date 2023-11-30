@@ -126,10 +126,12 @@ where
     fn validate_msgs(
         &self,
         sender: &Addr,
-        msgs: &[Message],
-    ) -> error_stack::Result<(), ContractError> {
+        msgs: Vec<Message>,
+    ) -> error_stack::Result<Vec<Message>, ContractError> {
+        // if sender is the nexus gateway, we cannot validate the source chain
+        // because the source chain is registered in the core nexus module
         if sender == self.config.nexus_gateway {
-            return Ok(());
+            return Ok(msgs);
         }
 
         let source_chain = self
@@ -146,7 +148,7 @@ where
             return Err(report!(ContractError::WrongSourceChain));
         }
 
-        Ok(())
+        Ok(msgs)
     }
 
     pub fn route_messages(
@@ -154,7 +156,7 @@ where
         sender: Addr,
         msgs: Vec<Message>,
     ) -> error_stack::Result<Response, ContractError> {
-        self.validate_msgs(&sender, &msgs)?;
+        let msgs = self.validate_msgs(&sender, msgs)?;
 
         let wasm_msgs = msgs
             .iter()
@@ -162,15 +164,15 @@ where
             .into_iter()
             .map(|(destination_chain, msgs)| {
                 let gateway = match self.store.load_chain_by_chain_name(&destination_chain)? {
-                    Some(destination_chain) => {
-                        if destination_chain.outgoing_frozen() {
-                            return Err(report!(ContractError::ChainFrozen {
-                                chain: destination_chain.name,
-                            }));
-                        }
-
-                        destination_chain.gateway.address
+                    Some(destination_chain) if destination_chain.outgoing_frozen() => {
+                        return Err(report!(ContractError::ChainFrozen {
+                            chain: destination_chain.name,
+                        }));
                     }
+                    Some(destination_chain) => destination_chain.gateway.address,
+                    // messages with unknown destination chains are routed to
+                    // the nexus gateway if the sender is not the nexus gateway
+                    // itself
                     None if sender != self.config.nexus_gateway => {
                         self.config.nexus_gateway.clone()
                     }
