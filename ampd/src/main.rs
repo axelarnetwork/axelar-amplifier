@@ -14,6 +14,7 @@ use ampd::commands::{bond_worker, daemon, worker_address, SubCommand};
 use ampd::config::Config;
 use ampd::Error;
 use axelar_wasm_std::utils::InspectorResult;
+use axelar_wasm_std::FnExt;
 use report::LoggableError;
 
 #[derive(Debug, Parser, Valuable)]
@@ -53,13 +54,10 @@ async fn main() -> ExitCode {
         Some(SubCommand::Daemon) | None => {
             info!(args = args.as_value(), "starting daemon");
 
-            let result = daemon::run(cfg, &state_path).await.tap_err(|report| {
-                error!(err = LoggableError::from(report).as_value(), "{report:#}")
-            });
-
-            info!("shutting down");
-
-            result
+            daemon::run(cfg, &state_path).await.then(|result| {
+                info!("shutting down");
+                result
+            })
         }
         Some(SubCommand::BondWorker(args)) => bond_worker::run(cfg, &state_path, args).await,
         Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
