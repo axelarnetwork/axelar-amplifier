@@ -30,6 +30,7 @@ fn setup() -> TestConfig {
 
     let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
+    let nexus_gateway = Addr::unchecked("nexus_gateway");
     let contract_address = app
         .instantiate_contract(
             code_id,
@@ -37,6 +38,7 @@ fn setup() -> TestConfig {
             &InstantiateMsg {
                 admin_address: admin_address.to_string(),
                 governance_address: governance_address.to_string(),
+                nexus_gateway: nexus_gateway.to_string(),
             },
             &[],
             "Contract",
@@ -135,32 +137,6 @@ fn route() {
     );
 
     assert!(res.is_ok());
-}
-
-#[test]
-fn route_non_existing_chain() {
-    let mut config = setup();
-    let eth = make_chain("ethereum", &mut config);
-    let polygon = make_chain("polygon", &mut config);
-
-    register_chain(&mut config, &eth);
-    let polygon_msg = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![polygon_msg.clone()]),
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
-    );
 }
 
 #[test]
@@ -576,23 +552,8 @@ fn register_chain_test() {
     );
 
     register_chain(&mut config, &eth);
-    let res = config
-        .app
-        .execute_contract(
-            eth.gateway.clone(),
-            config.contract_address.clone(),
-            &ExecuteMsg::RouteMessages(vec![msg.clone()]),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        res.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::ChainNotFound).to_string()
-    );
-
     register_chain(&mut config, &polygon);
+
     let res = config.app.execute_contract(
         eth.gateway.clone(),
         config.contract_address.clone(),

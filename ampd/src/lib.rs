@@ -24,6 +24,7 @@ use crate::config::Config;
 use crate::state::State;
 
 mod broadcaster;
+pub mod commands;
 pub mod config;
 pub mod error;
 mod event_processor;
@@ -60,6 +61,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         handlers,
         tofnd_config,
         event_buffer_cap,
+        service_registry: _service_registry,
     } = cfg;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
@@ -329,4 +331,8 @@ pub enum Error {
     Task,
     #[error("failed to return updated state")]
     ReturnState,
+    #[error("failed to load config")]
+    LoadConfig,
+    #[error("invalid input")]
+    InvalidInput,
 }

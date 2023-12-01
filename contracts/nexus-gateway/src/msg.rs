@@ -1,5 +1,6 @@
-use connection_router::state::Message;
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+
+use crate::nexus;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -9,6 +10,10 @@ pub struct InstantiateMsg {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    VerifyMessages(Vec<Message>),
-    RouteMessages(Vec<Message>),
+    RouteMessages(Vec<connection_router::Message>),
+    RouteMessagesFromNexus(Vec<nexus::Message>),
 }
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {}

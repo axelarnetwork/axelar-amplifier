@@ -50,7 +50,7 @@ schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 service-registry = { workspace = true }
-sha3 = { version = "0.10", default-features = false, features = [] }
+sha3 = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
 
