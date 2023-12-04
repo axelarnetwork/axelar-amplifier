@@ -92,3 +92,22 @@ pub struct MessageRouted {
     pub msg: Message,
 }
 ```
+
+## Connection Router graph
+
+```mermaid
+graph TD
+
+e[External Gateway]
+subgraph Axelar
+g[Governance]
+a[Admin]
+c[Connection Router]
+end
+
+g--RegisterChain-->c
+g--UpgradeGateway-->c
+a--FreezeChain-->c
+a--UnfreezeChain-->c
+e--RouteMessages-->c
+```
