@@ -39,6 +39,9 @@ pub enum ContractError {
 
     #[error("source chain does not match registered gateway")]
     WrongSourceChain,
+
+    #[error("store failed saving/loading data")]
+    StoreFailure,
 }
 
 impl From<ContractError> for StdError {

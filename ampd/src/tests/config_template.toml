@@ -37,3 +37,6 @@ rpc_url = 'http://127.0.0.1/'
 url = 'http://localhost:50051/'
 party_uid = 'ampd'
 key_uid = 'axelar'
+
+[service_registry]
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'

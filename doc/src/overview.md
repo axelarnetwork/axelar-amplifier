@@ -53,7 +53,7 @@ end
 Relayer --"ConstructProof([M1.id,M2.id])"-->P
 P --"GetMessages([M1.id,M2.id])"-->G2
 P --"GetActiveWorkers"-->S
-P --"StartSigningSession(key_id, batch_hash)"-->M
+P --"StartSigningSession(worker_set_id, batch_hash)"-->M
 Workers --"SubmitSignature(session_id, signature)"-->M
 Relayer --"GetProof(multisig_session_id)" --> P
 P --"GetSigningSession(session_id)"-->M

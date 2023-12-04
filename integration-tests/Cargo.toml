@@ -27,7 +27,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
   cosmwasm/rust-optimizer:0.12.6
 """
 
-[dependencies]
+[dev-dependencies]
 aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
@@ -35,10 +35,12 @@ connection-router = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
+cw-multi-test = "0.15.1"
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 gateway = { workspace = true }
 itertools = { workspace = true }
+k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.11.3"
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
@@ -49,8 +51,5 @@ serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 service-registry = { workspace = true }
 thiserror = { workspace = true }
-voting-verifier = { workspace = true }
-
-[dev-dependencies]
-cw-multi-test = "0.15.1"
 tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
+voting-verifier = { workspace = true }

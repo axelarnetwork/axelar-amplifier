@@ -7,6 +7,8 @@ pub struct InstantiateMsg {
     pub admin_address: String,
     // governance votes on chains being added or upgraded
     pub governance_address: String,
+    // the address of the nexus gateway
+    pub nexus_gateway: String,
 }
 
 #[cw_serde]

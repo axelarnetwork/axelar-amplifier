@@ -1,4 +1,4 @@
-use axelar_wasm_std::{Snapshot, Threshold};
+use axelar_wasm_std::Threshold;
 use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
@@ -26,11 +26,10 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const KEY_ID: Item<String> = Item::new("key_id");
 pub const COMMANDS_BATCH: Map<&BatchID, CommandBatch> = Map::new("command_batch");
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchID> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");
 
 pub const CURRENT_WORKER_SET: Item<WorkerSet> = Item::new("current_worker_set");
-pub const NEXT_WORKER_SET: Item<(WorkerSet, Snapshot)> = Item::new("next_worker_set");
+pub const NEXT_WORKER_SET: Item<WorkerSet> = Item::new("next_worker_set");

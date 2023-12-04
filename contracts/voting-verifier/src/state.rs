@@ -47,7 +47,7 @@ impl Poll {
 pub struct PollContent<T> {
     pub content: T, // content is stored for migration purposes in case the hash changes
     pub poll_id: PollId,
-    pub index_in_poll: usize,
+    pub index_in_poll: u32,
 }
 
 impl<T> PollContent<T> {
@@ -55,7 +55,7 @@ impl<T> PollContent<T> {
         Self {
             content,
             poll_id,
-            index_in_poll,
+            index_in_poll: index_in_poll.try_into().unwrap(),
         }
     }
 }
