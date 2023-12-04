@@ -99,6 +99,7 @@ pub struct MessageRouted {
 graph TD
 
 e[External Gateway]
+t[Gateway]
 subgraph Axelar
 g[Governance]
 a[Admin]
@@ -109,5 +110,30 @@ g--RegisterChain-->c
 g--UpgradeGateway-->c
 a--FreezeChain-->c
 a--UnfreezeChain-->c
-e--RouteMessages-->c
+e-.->t
+t--RouteMessages-->c
 ```
+
+## Message Routing sequence diagram
+
+```mermaid
+sequenceDiagram
+autonumber
+participant External Gateway A
+box LightYellow Axelar
+participant Gateway A
+participant Connection Router
+participant Gateway B
+end
+participant External Gateway B
+
+External Gateway A->>+Gateway A: 
+Gateway A->>+Connection Router: ExecuteMsg::RouteMessages
+Connection Router->>+Gateway B: ExecuteMsg::RouteMessages
+Gateway B->>+External Gateway B: 
+```
+
+1. The External Gateway sends an incoming message to Gateway
+2. Gateway receives the incoming messages and calls Connection Router to route it to the destination Gateway.
+3. The Connection Router sends outgoing messages to the destination Gateways.
+4. The destination Gateway emits a MessageRouted event, and the message goes to the destination's External Gateway
