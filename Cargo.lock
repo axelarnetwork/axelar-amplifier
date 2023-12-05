@@ -1355,6 +1355,7 @@ dependencies = [
  "error-stack",
  "flagset",
  "hex",
+ "itertools 0.11.0",
  "num-traits",
  "rand 0.8.5",
  "report",
