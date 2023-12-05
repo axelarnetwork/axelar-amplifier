@@ -43,7 +43,7 @@ pub fn msg_verification_status(
     deps: Deps,
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash_id())?;
+    let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
     Ok(verification_status(deps, loaded_poll_content, message))
 }
 
@@ -51,7 +51,7 @@ pub fn worker_set_verification_status(
     deps: Deps,
     operators: &Operators,
 ) -> Result<VerificationStatus, ContractError> {
-    let poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash_id())?;
+    let poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
     Ok(verification_status(deps, poll_content, operators))
 }
 
@@ -128,7 +128,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.hash_id(),
+                &msg.hash(),
                 &PollContent::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
@@ -163,7 +163,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.hash_id(),
+                &msg.hash(),
                 &PollContent::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
@@ -198,7 +198,7 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.hash_id(),
+                &msg.hash(),
                 &PollContent::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();

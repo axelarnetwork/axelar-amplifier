@@ -43,7 +43,7 @@ pub fn confirm_worker_set(
 
     POLL_WORKER_SETS.save(
         deps.storage,
-        &new_operators.hash_id(),
+        &new_operators.hash(),
         &PollContent::new(new_operators.clone(), poll_id, 0),
     )?;
 
@@ -119,7 +119,7 @@ pub fn verify_messages(
     for (idx, message) in msgs_to_verify.iter().enumerate() {
         POLL_MESSAGES.save(
             deps.storage,
-            &message.hash_id(),
+            &message.hash(),
             &state::PollContent::new(message.clone(), id, idx),
         )?;
     }

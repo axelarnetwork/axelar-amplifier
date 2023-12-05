@@ -172,7 +172,7 @@ pub type MessageHash = [u8; 32];
 
 impl Message {
     // TODO: pending to finalize the design of the message hash
-    pub fn hash_id(&self) -> MessageHash {
+    pub fn hash(&self) -> MessageHash {
         let mut hasher = Keccak256::new();
         hasher.update(self.cc_id.to_string());
         hasher.update(self.source_address.as_str());
@@ -431,7 +431,7 @@ mod tests {
 
         let msg = dummy_message();
 
-        assert_eq!(hex::encode(msg.hash_id()), expected_message_hash);
+        assert_eq!(hex::encode(msg.hash()), expected_message_hash);
     }
 
     #[test]

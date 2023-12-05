@@ -34,7 +34,7 @@ pub fn execute(
             message_id: _,
             new_operators,
         } => {
-            CONFIRMED_WORKER_SETS.save(deps.storage, &new_operators.hash_id(), &())?;
+            CONFIRMED_WORKER_SETS.save(deps.storage, &new_operators.hash(), &())?;
             Ok(Response::new())
         }
         _ => unimplemented!(),
@@ -71,7 +71,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::IsWorkerSetConfirmed { new_operators } => to_binary(
             &CONFIRMED_WORKER_SETS
-                .may_load(deps.storage, &new_operators.hash_id())?
+                .may_load(deps.storage, &new_operators.hash())?
                 .is_some(),
         ),
         _ => unimplemented!(),

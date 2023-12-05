@@ -12,7 +12,7 @@ pub struct Operators {
 }
 
 impl Operators {
-    pub fn hash_id(&self) -> OperatorsHash {
+    pub fn hash(&self) -> OperatorsHash {
         let mut hasher = Keccak256::new();
         hasher.update(
             to_binary(&self.weights_by_addresses).expect("could not serialize serializable object"),
@@ -42,6 +42,6 @@ mod tests {
             threshold: Uint256::one(),
         };
 
-        assert_eq!(hex::encode(operators.hash_id()), expected_operators_hash);
+        assert_eq!(hex::encode(operators.hash()), expected_operators_hash);
     }
 }
