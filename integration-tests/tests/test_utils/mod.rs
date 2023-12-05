@@ -393,6 +393,26 @@ pub fn register_workers(
     }
 }
 
+pub fn update_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) {
+    let response = app.execute_contract(
+        relayer_addr.clone(),
+        multisig_prover.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &[],
+    );
+    assert!(response.is_ok());
+}
+
+pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) {
+    let response = app.execute_contract(
+        relayer_addr.clone(),
+        multisig_prover.clone(),
+        &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
+        &[],
+    );
+    assert!(response.is_ok());
+}
+
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
