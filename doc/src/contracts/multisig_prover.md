@@ -174,19 +174,19 @@ else existing WorkerSet stored
   loop Collect signatures
 	  Signers->>+Multisig: signature collection
   end
-  Relayer->>+Prover: QueryMsg::GetProof
-  Prover-->>-Relayer: returns GetProofResponse (new worker set signed by old worker set)
-  Relayer-->>External Gateway: send new WorkerSet to the gateway, signed by old WorkerSet
-  External Gateway-->>+Relayer: emit OperatorshipTransferred event
-  Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
-  Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
-  Worker->>+Voting Verifier: ExecuteMsg::Vote
-  Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
-  Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
-  Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
-  Voting Verifier-->>-Prover: true
-  Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
 end
+Relayer->>+Prover: QueryMsg::GetProof
+Prover-->>-Relayer: returns GetProofResponse (new worker set signed by old worker set)
+Relayer-->>External Gateway: send new WorkerSet to the gateway, signed by old WorkerSet
+External Gateway-->>+Relayer: emit OperatorshipTransferred event
+Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
+Worker->>+Voting Verifier: ExecuteMsg::Vote
+Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
+Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
+Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
+Voting Verifier-->>-Prover: true
+Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
 ```
 
 1. The Relayer calls Prover to update the `WorkerSet`.
