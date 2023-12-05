@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
 
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{
@@ -168,11 +169,9 @@ pub struct Message {
     pub payload_hash: [u8; 32],
 }
 
-pub type MessageHash = [u8; 32];
-
 impl Message {
     // TODO: pending to finalize the design of the message hash
-    pub fn hash(&self) -> MessageHash {
+    pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
         hasher.update(self.cc_id.to_string());
         hasher.update(self.source_address.as_str());

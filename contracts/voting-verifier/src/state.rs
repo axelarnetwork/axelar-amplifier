@@ -3,12 +3,14 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
 use axelar_wasm_std::{
-    counter, nonempty,
-    operators::{Operators, OperatorsHash},
+    counter,
+    hash::Hash,
+    nonempty,
+    operators::Operators,
     voting::{PollId, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, Message, MessageHash};
+use connection_router::state::{ChainName, Message};
 
 use crate::error::ContractError;
 
@@ -64,9 +66,8 @@ pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollId, Poll> = Map::new("polls");
 
-pub const POLL_MESSAGES: Map<&MessageHash, PollContent<Message>> = Map::new("poll_messages");
+pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const POLL_WORKER_SETS: Map<&OperatorsHash, PollContent<Operators>> =
-    Map::new("poll_worker_sets");
+pub const POLL_WORKER_SETS: Map<&Hash, PollContent<Operators>> = Map::new("poll_worker_sets");

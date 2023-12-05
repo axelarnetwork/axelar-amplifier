@@ -4,7 +4,7 @@ use cosmwasm_std::{to_binary, HexBinary, Uint256};
 use itertools::Itertools;
 use sha3::{Digest, Keccak256};
 
-pub type OperatorsHash = [u8; 32];
+use crate::hash::Hash;
 
 #[cw_serde]
 pub struct Operators {
@@ -13,7 +13,7 @@ pub struct Operators {
 }
 
 impl Operators {
-    pub fn hash(&self) -> OperatorsHash {
+    pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
         hasher.update(
             to_binary(&self.weights_by_addresses.iter().sorted().collect_vec())

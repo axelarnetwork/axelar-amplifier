@@ -1,4 +1,4 @@
-use axelar_wasm_std::operators::{Operators, OperatorsHash};
+use axelar_wasm_std::{hash::Hash, operators::Operators};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
@@ -13,7 +13,7 @@ pub struct InstantiateMsg {}
 
 use crate::test::test_data::TestOperator;
 
-pub const CONFIRMED_WORKER_SETS: Map<&OperatorsHash, ()> = Map::new("confirmed_worker_sets");
+pub const CONFIRMED_WORKER_SETS: Map<&Hash, ()> = Map::new("confirmed_worker_sets");
 pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
