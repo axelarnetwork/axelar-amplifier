@@ -40,7 +40,6 @@ jobs:
           REPOSITORY: axelar-amplifier
           IMAGE_TAG: ${{ github.sha }}
         with:
-          platforms: linux/amd64
           context: .
           push: true
           tags: ${{env.REGISTRY}}/${{env.REPOSITORY}}:${{env.IMAGE_TAG}}
