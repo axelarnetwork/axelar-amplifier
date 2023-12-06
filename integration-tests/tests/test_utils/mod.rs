@@ -1,13 +1,13 @@
-use axelar_wasm_std::{nonempty, voting::PollID};
+use axelar_wasm_std::{nonempty, voting::PollID, Participant};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
-    coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
-    Uint256, Uint64,
+    coins, to_binary, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, Querier,
+    StdResult, Uint128, Uint256, Uint64,
 };
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use k256::ecdsa;
-use multisig::key::PublicKey;
+use multisig::{key::PublicKey, worker_set::WorkerSet};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -173,6 +173,18 @@ pub fn get_proof(
         &multisig_prover::msg::QueryMsg::GetProof {
             multisig_session_id: *multisig_session_id,
         },
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
+}
+
+pub fn get_worker_set(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+) -> multisig::worker_set::WorkerSet {
+    let query_response = app.wrap().query_wasm_smart(
+        multisig_prover_address,
+        &multisig_prover::msg::QueryMsg::GetWorkerSet,
     );
     assert!(query_response.is_ok());
     query_response.unwrap()
@@ -400,6 +412,7 @@ pub fn update_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Add
         &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
         &[],
     );
+    println!("{:?}", response);
     assert!(response.is_ok());
 }
 
@@ -411,6 +424,46 @@ pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Ad
         &[],
     );
     assert!(response.is_ok());
+}
+
+pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
+    // get public keys
+    let mut pub_keys = vec![];
+    for worker in workers {
+        let pub_key_query_msg = multisig::msg::QueryMsg::GetPublicKey {
+            worker_address: worker.addr.to_string(),
+            key_type: multisig::key::KeyType::Ecdsa,
+        };
+
+        let pub_key: PublicKey = protocol
+            .app
+            .wrap()
+            .query_wasm_smart(protocol.multisig_address.clone(), &pub_key_query_msg)
+            .unwrap();
+        pub_keys.push(pub_key);
+    }
+
+    let mut total_weight = Uint256::zero();
+    // turn into participants
+    let participants: Vec<Participant> = workers
+        .iter()
+        .map(|worker| Participant {
+            address: worker.addr.clone(),
+            weight: Uint256::one().try_into().unwrap(),
+        })
+        .collect();
+
+    for _ in &participants {
+        total_weight += Uint256::one();
+    }
+
+    let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
+
+    WorkerSet::new(
+        pubkeys_by_participant,
+        total_weight.mul_ceil((2u64, 3u64)).into(),
+        protocol.app.block_info().height,
+    )
 }
 
 #[derive(Clone)]
