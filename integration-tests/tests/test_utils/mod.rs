@@ -1,4 +1,7 @@
-use axelar_wasm_std::{nonempty, voting::PollId};
+use axelar_wasm_std::{
+    nonempty,
+    voting::{PollId, Vote},
+};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
@@ -61,7 +64,7 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     assert!(response.is_ok());
 }
 
-pub fn vote_true_for_all(
+pub fn vote_success_for_all(
     app: &mut App,
     voting_verifier_address: &Addr,
     msgs: &Vec<Message>,
@@ -74,7 +77,7 @@ pub fn vote_true_for_all(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: vec![true; msgs.len()],
+                votes: vec![Vote::SucceededOnChain; msgs.len()],
             },
             &[],
         );

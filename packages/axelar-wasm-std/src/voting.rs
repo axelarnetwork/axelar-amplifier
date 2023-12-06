@@ -136,9 +136,9 @@ impl fmt::Display for PollId {
 #[cw_serde]
 #[derive(Eq, Hash, Ord, PartialOrd, EnumIter)]
 pub enum Vote {
-    Success,
-    Failure,
-    Unknown,
+    SucceededOnChain, // the txn was included on chain, and achieved the intended result
+    FailedOnChain,    // the txn was included on chain, but failed to achieve the intended result
+    NotFound,         // the txn could not be found on chain in any blocks at the time of voting
 }
 
 #[cw_serde]
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn cast_vote() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![Vote::Success, Vote::Success];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         assert_eq!(
             poll.participation.get("addr1").unwrap(),
@@ -374,7 +374,7 @@ mod tests {
             rng.gen_range(1..50),
             vec!["addr1", "addr2"],
         );
-        let votes = vec![Vote::Success, Vote::Success];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         let rand_addr: String = thread_rng()
             .sample_iter(&Alphanumeric)
@@ -395,7 +395,7 @@ mod tests {
             rand::thread_rng().gen_range(1..50),
             vec!["addr1", "addr2"],
         );
-        let votes = vec![Vote::Success, Vote::Success];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         assert_eq!(
             poll.cast_vote(2, &Addr::unchecked("addr1"), votes),
             Err(Error::PollExpired)
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn vote_size_is_invalid() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![Vote::Success];
+        let votes = vec![Vote::SucceededOnChain];
         assert_eq!(
             poll.cast_vote(1, &Addr::unchecked("addr1"), votes),
             Err(Error::InvalidVoteSize)
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn voter_already_voted() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        let votes = vec![Vote::Success, Vote::Success];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
@@ -429,7 +429,7 @@ mod tests {
     #[test]
     fn vote_during_grace_period() {
         let mut poll = new_poll(5, 2, vec!["addr1", "addr2"]);
-        let votes = vec![Vote::Success, Vote::Success];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         poll.status = PollStatus::Finished;
         let tallies = poll.tallies.clone();
 
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn should_conclude_poll() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
-        let votes = vec![Vote::Success, Vote::Success];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
 
         let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
@@ -470,7 +470,7 @@ mod tests {
             result,
             PollState {
                 poll_id: PollId::from(Uint64::one()),
-                results: vec![Some(Vote::Success), Some(Vote::Success)],
+                results: vec![Some(Vote::SucceededOnChain), Some(Vote::SucceededOnChain)],
                 consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
             }
         );
@@ -479,8 +479,8 @@ mod tests {
     #[test]
     fn result_filters_non_consensus_voters() {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
-        let votes = vec![Vote::Success, Vote::Success];
-        let wrong_votes = vec![Vote::Failure, Vote::Failure];
+        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
+        let wrong_votes = vec![Vote::FailedOnChain, Vote::FailedOnChain];
 
         let poll = poll
             .cast_vote(1, &Addr::unchecked("addr1"), votes.clone())
@@ -496,7 +496,7 @@ mod tests {
             result,
             PollState {
                 poll_id: PollId::from(Uint64::one()),
-                results: vec![Some(Vote::Success), Some(Vote::Success)],
+                results: vec![Some(Vote::SucceededOnChain), Some(Vote::SucceededOnChain)],
                 consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
             }
         );

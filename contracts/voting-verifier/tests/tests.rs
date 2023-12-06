@@ -315,9 +315,9 @@ fn should_query_message_statuses() {
         votes: (0..messages.len())
             .map(|i| {
                 if i % 2 == 0 {
-                    Vote::Success
+                    Vote::SucceededOnChain
                 } else {
-                    Vote::Unknown
+                    Vote::NotFound
                 }
             })
             .collect::<Vec<Vote>>(),
@@ -416,7 +416,7 @@ fn should_confirm_worker_set() {
 
     let msg = msg::ExecuteMsg::Vote {
         poll_id: 1u64.into(),
-        votes: vec![Vote::Success],
+        votes: vec![Vote::SucceededOnChain],
     };
     for worker in workers {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
@@ -469,7 +469,7 @@ fn should_not_confirm_worker_set() {
 
     let msg = msg::ExecuteMsg::Vote {
         poll_id: 1u64.into(),
-        votes: vec![Vote::Unknown],
+        votes: vec![Vote::NotFound],
     };
     for worker in workers {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
@@ -522,7 +522,7 @@ fn should_confirm_worker_set_after_failed() {
 
     let msg = msg::ExecuteMsg::Vote {
         poll_id: 1u64.into(),
-        votes: vec![Vote::Unknown],
+        votes: vec![Vote::NotFound],
     };
     for worker in &workers {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
@@ -556,7 +556,7 @@ fn should_confirm_worker_set_after_failed() {
 
     let msg = msg::ExecuteMsg::Vote {
         poll_id: 2u64.into(),
-        votes: vec![Vote::Success],
+        votes: vec![Vote::SucceededOnChain],
     };
     for worker in workers {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
@@ -609,7 +609,7 @@ fn should_not_confirm_twice() {
 
     let msg = msg::ExecuteMsg::Vote {
         poll_id: 1u64.into(),
-        votes: vec![Vote::Success],
+        votes: vec![Vote::SucceededOnChain],
     };
     for worker in workers {
         let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);

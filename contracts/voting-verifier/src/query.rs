@@ -150,7 +150,7 @@ mod tests {
 
         let mut poll = poll();
         poll.tallies[idx] = Tallies::default();
-        poll.tallies[idx].tally(&Vote::Success, &Uint256::from(5u64));
+        poll.tallies[idx].tally(&Vote::SucceededOnChain, &Uint256::from(5u64));
 
         POLLS
             .save(

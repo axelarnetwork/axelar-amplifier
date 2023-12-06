@@ -42,7 +42,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         test_utils::verify_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
 
     // do voting
-    test_utils::vote_true_for_all(
+    test_utils::vote_success_for_all(
         &mut protocol.app,
         &chain1.voting_verifier_address,
         &msgs,
