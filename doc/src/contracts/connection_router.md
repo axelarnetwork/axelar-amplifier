@@ -1,6 +1,6 @@
 # Connection Router Contract
 
-The connection router contract is responsible for routing messages to a chain and controlling gateways associated with a chain that is connected to Axelar.
+The connection router contract is responsible for routing messages to and from registered gateways, as well as handling chain registration, gateway upgrades and chain freezing.
 
 ## Interface
 
