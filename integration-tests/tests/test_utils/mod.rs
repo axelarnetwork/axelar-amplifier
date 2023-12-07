@@ -397,6 +397,43 @@ pub fn register_workers(
     }
 }
 
+pub fn deregister_workers(
+    app: &mut App,
+    service_registry: Addr,
+    governance_addr: Addr,
+    workers: &Vec<Worker>,
+    service_name: nonempty::String,
+) {
+    let response = app.execute_contract(
+        governance_addr,
+        service_registry.clone(),
+        &service_registry::msg::ExecuteMsg::UnauthorizeWorkers {
+            workers: workers
+                .iter()
+                .map(|worker| worker.addr.to_string())
+                .collect(),
+            service_name: service_name.to_string(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+
+    for worker in workers {
+        let response = app.execute_contract(
+            worker.addr.clone(),
+            service_registry.clone(),
+            &service_registry::msg::ExecuteMsg::UnbondWorker {
+                service_name: service_name.to_string(),
+            },
+            &[],
+        );
+        assert!(response.is_ok());
+
+        // ExecuteMsg::ClaimStake ?
+
+    }
+}
+
 pub fn update_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) -> AppResponse {
     let response = app.execute_contract(
         relayer_addr.clone(),
