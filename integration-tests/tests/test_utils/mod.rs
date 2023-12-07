@@ -1,10 +1,10 @@
-use axelar_wasm_std::{nonempty, voting::PollID, Participant};
+use axelar_wasm_std::{nonempty, operators::Operators, voting::PollID, Participant};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, to_binary, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, Querier,
     StdResult, Uint128, Uint256, Uint64,
 };
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use k256::ecdsa;
 use multisig::{key::PublicKey, worker_set::WorkerSet};
@@ -64,7 +64,7 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
 pub fn vote_true_for_all(
     app: &mut App,
     voting_verifier_address: &Addr,
-    msgs: &Vec<Message>,
+    votes: &Vec<bool>,
     workers: &Vec<Worker>,
     poll_id: PollID,
 ) {
@@ -74,7 +74,7 @@ pub fn vote_true_for_all(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: vec![true; msgs.len()],
+                votes: votes.to_vec(),
             },
             &[],
         );
@@ -110,8 +110,16 @@ pub fn construct_proof_and_sign(
         &[],
     );
     assert!(response.is_ok());
-    let response = response.unwrap();
 
+    sign_proof(app, multisig_address, workers, response.unwrap())
+}
+
+pub fn sign_proof(
+    app: &mut App,
+    multisig_address: &Addr,
+    workers: &Vec<Worker>,
+    response: AppResponse,
+) -> Uint64 {
     let msg_to_sign = get_event_attribute(&response.events, "wasm-signing_started", "msg")
         .map(|attr| attr.value.clone())
         .expect("couldn't find message to sign");
@@ -142,6 +150,7 @@ pub fn construct_proof_and_sign(
             },
             &[],
         );
+
         assert!(response.is_ok());
     }
 
@@ -330,25 +339,8 @@ pub fn register_workers(
     genesis: Addr,
     workers: &Vec<Worker>,
     service_name: nonempty::String,
+    min_worker_bond: Uint128,
 ) {
-    let min_worker_bond = Uint128::new(100);
-    let response = app.execute_contract(
-        governance_addr.clone(),
-        service_registry.clone(),
-        &service_registry::msg::ExecuteMsg::RegisterService {
-            service_name: service_name.to_string(),
-            service_contract: Addr::unchecked("nowhere"),
-            min_num_workers: 0,
-            max_num_workers: Some(100),
-            min_worker_bond,
-            bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: 10,
-            description: "Some service".into(),
-        },
-        &[],
-    );
-    assert!(response.is_ok());
-
     let response = app.execute_contract(
         governance_addr,
         service_registry.clone(),
@@ -405,15 +397,17 @@ pub fn register_workers(
     }
 }
 
-pub fn update_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) {
+pub fn update_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) -> AppResponse {
     let response = app.execute_contract(
         relayer_addr.clone(),
         multisig_prover.clone(),
         &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
         &[],
     );
-    println!("{:?}", response);
+
     assert!(response.is_ok());
+
+    response.unwrap()
 }
 
 pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) {
@@ -424,6 +418,37 @@ pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Ad
         &[],
     );
     assert!(response.is_ok());
+}
+
+pub fn create_worker_set_poll(
+    app: &mut App,
+    relayer_addr: Addr,
+    voting_verifier: Addr,
+    worker_set: WorkerSet,
+) -> (PollID, PollExpiryBlock) {
+    let response = app.execute_contract(
+        relayer_addr.clone(),
+        voting_verifier.clone(),
+        &voting_verifier::msg::ExecuteMsg::ConfirmWorkerSet {
+            message_id: "ethereum:00".parse().unwrap(),
+            new_operators: make_operators(worker_set),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = response.unwrap();
+
+    let poll_id = get_event_attribute(&response.events, "wasm-worker_set_poll_started", "poll_id")
+        .map(|attr| serde_json::from_str(&attr.value).unwrap())
+        .expect("couldn't get poll_id");
+    let expiry = get_event_attribute(
+        &response.events,
+        "wasm-worker_set_poll_started",
+        "expires_at",
+    )
+    .map(|attr| attr.value.as_str().parse().unwrap())
+    .expect("couldn't get poll expiry");
+    (poll_id, expiry)
 }
 
 pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
@@ -464,6 +489,19 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
         total_weight.mul_ceil((2u64, 3u64)).into(),
         protocol.app.block_info().height,
     )
+}
+
+pub fn make_operators(worker_set: WorkerSet) -> Operators {
+    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .values()
+        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
+        .collect();
+    operators.sort_by_key(|op| op.0.clone());
+    Operators {
+        weights_by_addresses: operators,
+        threshold: worker_set.threshold,
+    }
 }
 
 #[derive(Clone)]

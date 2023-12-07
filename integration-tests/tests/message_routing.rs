@@ -42,10 +42,11 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         test_utils::verify_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
 
     // do voting
+    let votes = vec![true; msgs.len()];
     test_utils::vote_true_for_all(
         &mut protocol.app,
         &chain1.voting_verifier_address,
-        &msgs,
+        &votes,
         &workers,
         poll_id,
     );
@@ -140,6 +141,7 @@ fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>) {
             key_pair: test_utils::generate_key(1),
         },
     ];
+    let min_worker_bond = Uint128::new(100);
     test_utils::register_workers(
         &mut protocol.app,
         protocol.service_registry_address.clone(),
@@ -148,6 +150,7 @@ fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>) {
         protocol.genesis_address.clone(),
         &workers,
         protocol.service_name.clone(),
+        min_worker_bond,
     );
     let chain1 = test_utils::setup_chain(&mut protocol, chains.get(0).unwrap().clone());
     let chain2 = test_utils::setup_chain(&mut protocol, chains.get(1).unwrap().clone());
