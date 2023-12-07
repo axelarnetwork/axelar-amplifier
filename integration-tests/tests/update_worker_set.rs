@@ -164,6 +164,15 @@ fn worker_set_can_be_initialized_and_then_updated() {
         &ethereum.voting_verifier_address,
         poll_id,
     );
+    
+    // remove old workers
+    test_utils::deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        &new_workers,
+        protocol.service_name.clone(),
+    );
 
     test_utils::confirm_worker_set(
         &mut protocol.app,
