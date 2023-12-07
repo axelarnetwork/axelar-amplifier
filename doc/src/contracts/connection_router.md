@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
      * The below messages can only be called by registered gateways
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
-    // Called by an incoming gateway
+    // Called by a registered gateway
     RouteMessages(Vec<Message>),
 }
 
