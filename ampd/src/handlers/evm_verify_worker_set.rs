@@ -218,9 +218,8 @@ mod tests {
             worker_set: WorkerSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
-                operators: Operators {
-                    threshold: 40u64.into(),
-                    weights_by_addresses: vec![
+                operators: Operators::new(
+                    vec![
                         (
                             HexBinary::from(EVMAddress::random().as_bytes()),
                             10u64.into(),
@@ -234,7 +233,8 @@ mod tests {
                             30u64.into(),
                         ),
                     ],
-                },
+                    40u64.into(),
+                ),
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),

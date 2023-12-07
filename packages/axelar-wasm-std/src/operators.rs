@@ -8,16 +8,24 @@ use crate::hash::Hash;
 
 #[cw_serde]
 pub struct Operators {
-    pub weights_by_addresses: Vec<(HexBinary, Uint256)>,
+    weights_by_addresses: Vec<(HexBinary, Uint256)>,
     pub threshold: Uint256,
 }
 
 impl Operators {
+    pub fn new(mut weights_by_addresses: Vec<(HexBinary, Uint256)>, threshold: Uint256) -> Self {
+        weights_by_addresses.sort_by_key(|op| op.0.clone());
+
+        Self {
+            weights_by_addresses,
+            threshold,
+        }
+    }
+
     pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
         hasher.update(
-            to_binary(&self.weights_by_addresses.iter().sorted().collect_vec())
-                .expect("could not serialize serializable object"),
+            to_binary(&self.weights_by_addresses).expect("could not serialize serializable object"),
         );
         hasher.update(self.threshold.to_be_bytes());
         hasher.finalize().into()
@@ -34,7 +42,7 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_operators_hash =
-            "9ac8e5863ef6d306ad48dc0fdab30144921b2043b32e72c521dba71627bea747";
+            "99644dc48547a984edaabc9b0a2592d9a29d721be075a561ec2cfa644f5dc918";
 
         let operators = Operators {
             weights_by_addresses: vec![

@@ -47,20 +47,16 @@ pub fn confirm_worker_set(
     workers: Vec<TestOperator>,
     threshold: Uint256,
 ) {
-    let mut new_operators: Vec<(HexBinary, Uint256)> = workers
+    let new_operators: Vec<(HexBinary, Uint256)> = workers
         .iter()
         .map(|worker| (worker.operator.clone(), worker.weight))
         .collect();
-    new_operators.sort_by_key(|op| op.0.clone());
     app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
         &ExecuteMsg::ConfirmWorkerSet {
             message_id: "ethereum:00".parse().unwrap(),
-            new_operators: Operators {
-                weights_by_addresses: new_operators,
-                threshold,
-            },
+            new_operators: Operators::new(new_operators, threshold),
         },
         &[],
     )
