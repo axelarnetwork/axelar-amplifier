@@ -134,6 +134,6 @@ Gateway B->>+External Gateway B:
 ```
 
 1. The External Gateway sends an incoming message to Gateway
-2. Gateway receives the incoming messages and calls Connection Router to route it to the destination Gateway.
+2. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Connection Router to route them to the destination Gateway.
 3. The Connection Router sends outgoing messages to the destination Gateways.
 4. The destination Gateway emits a MessageRouted event, and the message goes to the destination's External Gateway
