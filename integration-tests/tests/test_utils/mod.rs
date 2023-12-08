@@ -105,7 +105,7 @@ pub fn construct_proof_and_sign(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
         &multisig_prover::msg::ExecuteMsg::ConstructProof {
-            message_ids: messages.iter().map(|msg| msg.cc_id.to_string()).collect(),
+            message_ids: messages.iter().map(|msg| msg.cc_id.clone()).collect(),
         },
         &[],
     );
