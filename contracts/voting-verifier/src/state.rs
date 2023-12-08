@@ -52,12 +52,22 @@ pub struct PollContent<T> {
     pub index_in_poll: u32,
 }
 
-impl<T> PollContent<T> {
-    pub fn new(content: T, poll_id: PollId, index_in_poll: usize) -> Self {
+impl PollContent<Message> {
+    pub fn new(message: Message, poll_id: PollId, index_in_poll: usize) -> Self {
         Self {
-            content,
+            content: message,
             poll_id,
             index_in_poll: index_in_poll.try_into().unwrap(),
+        }
+    }
+}
+
+impl PollContent<Operators> {
+    pub fn new(operators: Operators, poll_id: PollId) -> Self {
+        Self {
+            content: operators,
+            poll_id,
+            index_in_poll: 0,
         }
     }
 }

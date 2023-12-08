@@ -129,7 +129,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &msg.hash(),
-                &PollContent::new(msg.clone(), poll.poll_id, idx),
+                &PollContent::<Message>::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
@@ -164,7 +164,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &msg.hash(),
-                &PollContent::new(msg.clone(), poll.poll_id, idx),
+                &PollContent::<Message>::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
@@ -199,7 +199,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &msg.hash(),
-                &PollContent::new(msg.clone(), poll.poll_id, idx),
+                &PollContent::<Message>::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 

@@ -44,7 +44,7 @@ pub fn confirm_worker_set(
     POLL_WORKER_SETS.save(
         deps.storage,
         &new_operators.hash(),
-        &PollContent::new(new_operators.clone(), poll_id, 0),
+        &PollContent::<Operators>::new(new_operators.clone(), poll_id),
     )?;
 
     Ok(Response::new().add_event(
@@ -120,7 +120,7 @@ pub fn verify_messages(
         POLL_MESSAGES.save(
             deps.storage,
             &message.hash(),
-            &state::PollContent::new(message.clone(), id, idx),
+            &state::PollContent::<Message>::new(message.clone(), id, idx),
         )?;
     }
 
