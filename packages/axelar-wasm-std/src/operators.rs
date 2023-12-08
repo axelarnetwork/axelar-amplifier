@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, HexBinary, Uint256};
 
-use itertools::Itertools;
 use sha3::{Digest, Keccak256};
 
 use crate::hash::Hash;
