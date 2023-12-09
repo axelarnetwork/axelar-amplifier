@@ -27,6 +27,7 @@ use num_traits::One;
 use strum::EnumIter;
 use strum::IntoEnumIterator;
 use thiserror::Error;
+use valuable::Valuable;
 
 use crate::nonempty;
 use crate::Snapshot;
@@ -134,7 +135,7 @@ impl fmt::Display for PollId {
 }
 
 #[cw_serde]
-#[derive(Eq, Hash, Ord, PartialOrd, EnumIter)]
+#[derive(Eq, Hash, Ord, PartialOrd, EnumIter, Valuable)]
 pub enum Vote {
     SucceededOnChain, // the txn was included on chain, and achieved the intended result
     FailedOnChain,    // the txn was included on chain, but failed to achieve the intended result
@@ -168,7 +169,7 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weigth: &Uint256) {
-        *self.0.get_mut(&vote).unwrap_or(&mut Uint256::zero()) += weigth;
+        *self.0.get_mut(vote).unwrap_or(&mut Uint256::zero()) += weigth;
     }
 }
 
