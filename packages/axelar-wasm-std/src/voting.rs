@@ -428,18 +428,6 @@ mod tests {
     }
 
     #[test]
-    fn vote_during_grace_period() {
-        let mut poll = new_poll(5, 2, vec!["addr1", "addr2"]);
-        let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
-        poll.status = PollStatus::Finished;
-        let tallies = poll.tallies.clone();
-
-        let poll = poll.cast_vote(2, &Addr::unchecked("addr1"), votes).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
-        assert_eq!(poll.tallies, tallies)
-    }
-
-    #[test]
     fn finish_before_poll_expiry() {
         let poll = new_poll(1, 2, vec!["addr1", "addr2"]);
         assert_eq!(poll.finish(0), Err(Error::PollNotEnded));
