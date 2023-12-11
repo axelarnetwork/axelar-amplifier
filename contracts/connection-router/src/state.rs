@@ -14,6 +14,7 @@ use flagset::flags;
 use mockall::automock;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use valuable::Valuable;
 
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::{nonempty, FnExt};
@@ -278,7 +279,7 @@ impl KeyDeserialize for CrossChainId {
 
 #[cw_serde]
 #[serde(try_from = "String")]
-#[derive(Eq, Hash)]
+#[derive(Eq, Hash, Valuable)]
 pub struct ChainName(String);
 
 impl FromStr for ChainName {
