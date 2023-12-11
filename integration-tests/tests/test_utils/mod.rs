@@ -8,6 +8,10 @@ use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use k256::ecdsa;
 use multisig::{key::PublicKey, worker_set::WorkerSet};
+use multisig_prover::{
+    encoding::{make_operators, Encoder},
+    state::NEXT_WORKER_SET,
+};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -428,9 +432,6 @@ pub fn deregister_workers(
             &[],
         );
         assert!(response.is_ok());
-
-        // ExecuteMsg::ClaimStake ?
-
     }
 }
 
@@ -468,7 +469,7 @@ pub fn create_worker_set_poll(
         voting_verifier.clone(),
         &voting_verifier::msg::ExecuteMsg::ConfirmWorkerSet {
             message_id: "ethereum:00".parse().unwrap(),
-            new_operators: make_operators(worker_set),
+            new_operators: make_operators(worker_set.clone(), Encoder::Abi),
         },
         &[],
     );
@@ -526,19 +527,6 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
         total_weight.mul_ceil((2u64, 3u64)).into(),
         protocol.app.block_info().height,
     )
-}
-
-pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
-        .signers
-        .values()
-        .map(|signer| (signer.pub_key.clone().into(), signer.weight))
-        .collect();
-    operators.sort_by_key(|op| op.0.clone());
-    Operators {
-        weights_by_addresses: operators,
-        threshold: worker_set.threshold,
-    }
 }
 
 #[derive(Clone)]

@@ -2,6 +2,7 @@ use connection_router::state::{CrossChainId, Message};
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
 use cw_multi_test::Executor;
+use multisig_prover::state::NEXT_WORKER_SET;
 use test_utils::{Chain, Protocol, Worker};
 
 use crate::test_utils::AXL_DENOMINATION;
@@ -64,24 +65,6 @@ fn worker_set_can_be_initialized_and_then_updated() {
         vec!["Ethereum".to_string().try_into().unwrap()];
     let (mut protocol, ethereum, mut workers, min_worker_bond) = setup_test_case(chains.clone());
 
-    // FLOW:
-    // 1. Initialize worker set using UpdateWorkerSet. How do I test this completed?
-    // 2. VotingVerifier::ConfirmWorkerSet, voting, and then MultisigProver::ConfirmWorkerSet which calls RegisterWorkerSet
-    // 3. Register a new set of Workers to registry
-    // 4. Call ConstructProof again
-    // 5. ConstructProof will start a signing session to sign the new WorkerSet using the original WorkerSet
-    // 6. Get Proof
-    // 7. VotingVerifier::ConfirmWorkerSet
-    // 8. Vote in Poll
-    // 9. End Poll
-    // 10. MultisigProver::ConfirmWorkerSet which calls RegisterWorkerSet
-
-    // test_utils::update_worker_set(
-    //     &mut protocol.app,
-    //     Addr::unchecked("relayer"),
-    //     ethereum.multisig_prover_address.clone(),
-    // );
-
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &workers);
 
     let worker_set =
@@ -115,6 +98,15 @@ fn worker_set_can_be_initialized_and_then_updated() {
         min_worker_bond,
     );
 
+    // remove old workers
+    test_utils::deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        &workers,
+        protocol.service_name.clone(),
+    );
+
     let response = test_utils::update_worker_set(
         &mut protocol.app,
         Addr::unchecked("relayer"),
@@ -141,11 +133,13 @@ fn worker_set_can_be_initialized_and_then_updated() {
 
     assert_eq!(proof.message_ids.len(), 0,);
 
+    let simulated_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers); // test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+
     let (poll_id, expiry) = test_utils::create_worker_set_poll(
         &mut protocol.app,
         Addr::unchecked("relayer"),
         ethereum.voting_verifier_address.clone(),
-        worker_set,
+        simulated_new_worker_set,
     );
 
     // do voting
@@ -153,7 +147,7 @@ fn worker_set_can_be_initialized_and_then_updated() {
         &mut protocol.app,
         &ethereum.voting_verifier_address,
         &vec![true; 1],
-        &workers,
+        &new_workers,
         poll_id,
     );
 
@@ -163,15 +157,6 @@ fn worker_set_can_be_initialized_and_then_updated() {
         &mut protocol.app,
         &ethereum.voting_verifier_address,
         poll_id,
-    );
-    
-    // remove old workers
-    test_utils::deregister_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        &new_workers,
-        protocol.service_name.clone(),
     );
 
     test_utils::confirm_worker_set(
