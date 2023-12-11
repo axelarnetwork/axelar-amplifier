@@ -1,0 +1,48 @@
+name: Build and push latest docker image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+jobs:
+  build-and-push-latest-docker-image:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-20.04
+    runs-on: ${{ matrix.os }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: fetch tags
+        run: |
+          git fetch --unshallow
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: us-east-2
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ghwf-${{ github.event.repository.name }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: axelar-amplifier
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          context: .
+          push: true
+          tags: ${{env.REGISTRY}}/${{env.REPOSITORY}}:${{env.IMAGE_TAG}}
+          file: ampd/Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
