@@ -163,8 +163,3 @@ fn worker_set_can_be_initialized_and_then_updated() {
         ethereum.multisig_prover_address.clone(),
     );
 }
-
-#[test]
-fn test_errors() {
-    todo!()
-}
