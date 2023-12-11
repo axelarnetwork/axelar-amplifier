@@ -1,6 +1,8 @@
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
+use crate::test_utils::AXL_DENOMINATION;
+use cw_multi_test::Executor;
 use test_utils::{Chain, Protocol, Worker};
 mod test_utils;
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
@@ -142,6 +144,23 @@ fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>) {
         },
     ];
     let min_worker_bond = Uint128::new(100);
+    let response = protocol.app.execute_contract(
+        protocol.governance_address.clone(),
+        protocol.service_registry_address.clone(),
+        &service_registry::msg::ExecuteMsg::RegisterService {
+            service_name: protocol.service_name.clone().to_string(),
+            service_contract: Addr::unchecked("nowhere"),
+            min_num_workers: 0,
+            max_num_workers: Some(100),
+            min_worker_bond: min_worker_bond.clone(),
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days: 10,
+            description: "Some service".into(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+
     test_utils::register_workers(
         &mut protocol.app,
         protocol.service_registry_address.clone(),

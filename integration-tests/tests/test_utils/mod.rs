@@ -1,17 +1,14 @@
-use axelar_wasm_std::{nonempty, operators::Operators, voting::PollID, Participant};
+use axelar_wasm_std::{nonempty, voting::PollID, Participant};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
-    coins, to_binary, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, Querier,
-    StdResult, Uint128, Uint256, Uint64,
+    coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
+    Uint256, Uint64,
 };
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use k256::ecdsa;
 use multisig::{key::PublicKey, worker_set::WorkerSet};
-use multisig_prover::{
-    encoding::{make_operators, Encoder},
-    state::NEXT_WORKER_SET,
-};
+use multisig_prover::encoding::{make_operators, Encoder};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";

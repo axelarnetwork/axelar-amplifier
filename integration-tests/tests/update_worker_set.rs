@@ -1,8 +1,6 @@
-use connection_router::state::{CrossChainId, Message};
-use cosmwasm_std::{Addr, HexBinary, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 
 use cw_multi_test::Executor;
-use multisig_prover::state::NEXT_WORKER_SET;
 use test_utils::{Chain, Protocol, Worker};
 
 use crate::test_utils::AXL_DENOMINATION;
