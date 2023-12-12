@@ -1,4 +1,4 @@
-use axelar_wasm_std::{nonempty, voting::PollID, Participant};
+use axelar_wasm_std::{nonempty, voting::PollId, Participant};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
@@ -460,11 +460,11 @@ pub fn create_worker_set_poll(
     relayer_addr: Addr,
     voting_verifier: Addr,
     worker_set: WorkerSet,
-) -> (PollID, PollExpiryBlock) {
+) -> (PollId, PollExpiryBlock) {
     let response = app.execute_contract(
         relayer_addr.clone(),
         voting_verifier.clone(),
-        &voting_verifier::msg::ExecuteMsg::ConfirmWorkerSet {
+        &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
             message_id: "ethereum:00".parse().unwrap(),
             new_operators: make_operators(worker_set.clone(), Encoder::Abi),
         },
