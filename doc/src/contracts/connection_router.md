@@ -117,20 +117,33 @@ t--RouteMessages-->c
 sequenceDiagram
 autonumber
 participant External Gateway A
+participant Relayer A
 box LightYellow Axelar
 participant Gateway A
 participant Connection Router
 participant Gateway B
+participant Multisig Prover
 end
+participant Relayer B
 participant External Gateway B
 
-External Gateway A->>+Gateway A: 
-Gateway A->>+Connection Router: ExecuteMsg::RouteMessages
-Connection Router->>+Gateway B: ExecuteMsg::RouteMessages
-Gateway B->>+External Gateway B: 
+External Gateway A->>+Relayer A: event emitted
+Relayer A->>+Gateway A: gateway::ExecuteMsg::RouteMessages
+Gateway A->>+Connection Router: connection_router::ExecuteMsg::RouteMessages
+Connection Router->>+Gateway B: gateway::ExecuteMsg::RouteMessages
+Gateway B-->>-Connection Router: GatewayEvent::MessageRouted
+Connection Router-->>-Gateway A: connection_router::MessageRouted
+Gateway A-->>-Relayer A: GatewayEvent::MessageRouted
+Multisig Prover->>+Relayer B: constructs proof
+Relayer B->>+External Gateway B: 
 ```
 
-1. The External Gateway sends an incoming message to Gateway
-2. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Connection Router to route them to the destination Gateway.
-3. The Connection Router sends outgoing messages to the destination Gateways.
-4. The destination Gateway emits a MessageRouted event, and the message goes to the destination's External Gateway
+1. The External Gateway emits an event that is picked up by the Relayer.
+2. Relayer relays the event to the Gateway as a message.
+3. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Connection Router.
+4. Connection Router sends outgoing messages to the destination Gateway.
+5. The destination Gateway emits event MessageRouted
+6. Connection Router emits event MessageRouted.
+7. Gateway emits event MessageRouted
+8. The Multisig Prover takes the messages stored in the destination Gateway and constructs a proof.
+9. The Relayer sends the proof to the destination's External Gateway.
