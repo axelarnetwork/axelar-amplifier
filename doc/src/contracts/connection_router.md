@@ -1,6 +1,8 @@
 # Connection Router Contract
 
 The connection router contract is responsible for routing messages to and from registered gateways, as well as handling chain registration, gateway upgrades and chain freezing.
+<br>
+The router admin can freeze and unfreeze a chain for a specified direction, while governance can register a chain and upgrade its gateway.
 
 ## Interface
 
