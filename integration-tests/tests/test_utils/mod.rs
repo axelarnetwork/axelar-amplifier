@@ -32,7 +32,7 @@ pub fn verify_messages(
     app: &mut App,
     gateway_address: &Addr,
     msgs: &[Message],
-) -> (PollID, PollExpiryBlock) {
+) -> (PollId, PollExpiryBlock) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
@@ -67,7 +67,7 @@ pub fn vote_true_for_all(
     voting_verifier_address: &Addr,
     votes: &Vec<bool>,
     workers: &Vec<Worker>,
-    poll_id: PollID,
+    poll_id: PollId,
 ) {
     for worker in workers {
         let response = app.execute_contract(
@@ -84,7 +84,7 @@ pub fn vote_true_for_all(
 }
 
 /// Ends the poll. Be sure the current block height has advanced at least to the poll expiration, else this will fail
-pub fn end_poll(app: &mut App, voting_verifier_address: &Addr, poll_id: PollID) {
+pub fn end_poll(app: &mut App, voting_verifier_address: &Addr, poll_id: PollId) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
