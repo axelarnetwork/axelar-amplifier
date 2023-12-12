@@ -40,13 +40,10 @@ pub enum ExecuteMsg {
      * Gateway Messages
      * The below messages can only be called by registered gateways
      */
-    // Routes a message to all outgoing gateways registered to the destination domain.
+    // Routes each message to the gateway registered to the destination chain.
     // Called by a registered gateway
     RouteMessages(Vec<Message>),
 }
-
-#[derive(QueryResponses)]
-pub enum QueryMsg {}
 ```
 
 ## Events
