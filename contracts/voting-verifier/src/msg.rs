@@ -43,7 +43,7 @@ pub enum ExecuteMsg {
     },
 
     // Starts a poll to confirm a worker set update on the external evm gateway
-    ConfirmWorkerSet {
+    VerifyWorkerSet {
         message_id: nonempty::String,
         new_operators: Operators,
     },

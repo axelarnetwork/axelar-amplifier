@@ -364,7 +364,7 @@ fn should_start_worker_set_confirmation() {
         initialize_contract(&mut app, service_registry_address.as_ref().parse().unwrap());
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -400,7 +400,7 @@ fn should_confirm_worker_set() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -453,7 +453,7 @@ fn should_not_confirm_worker_set() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -506,7 +506,7 @@ fn should_confirm_worker_set_after_failed() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -540,7 +540,7 @@ fn should_confirm_worker_set_after_failed() {
     assert_eq!(res.unwrap(), false);
 
     // try again, and this time vote true
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -593,7 +593,7 @@ fn should_not_confirm_twice() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -618,7 +618,7 @@ fn should_not_confirm_twice() {
     assert!(res.is_ok());
 
     // try again, should fail
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };

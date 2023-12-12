@@ -30,7 +30,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::ConfirmWorkerSet {
+        ExecuteMsg::VerifyWorkerSet {
             message_id: _,
             new_operators,
         } => {
@@ -54,7 +54,7 @@ pub fn confirm_worker_set(
     app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
-        &ExecuteMsg::ConfirmWorkerSet {
+        &ExecuteMsg::VerifyWorkerSet {
             message_id: "ethereum:00".parse().unwrap(),
             new_operators: Operators::new(new_operators, threshold),
         },

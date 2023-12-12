@@ -20,7 +20,7 @@ use crate::query::{
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 
-pub fn confirm_worker_set(
+pub fn verify_worker_set(
     deps: DepsMut,
     env: Env,
     message_id: nonempty::String,

@@ -42,10 +42,10 @@ pub fn execute(
         ExecuteMsg::VerifyMessages { messages } => execute::verify_messages(deps, env, messages),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
-        ExecuteMsg::ConfirmWorkerSet {
+        ExecuteMsg::VerifyWorkerSet {
             message_id,
             new_operators,
-        } => execute::confirm_worker_set(deps, env, message_id, new_operators),
+        } => execute::verify_worker_set(deps, env, message_id, new_operators),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }

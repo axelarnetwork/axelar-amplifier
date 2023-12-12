@@ -176,7 +176,7 @@ else existing WorkerSet stored
   Prover-->>-Relayer: returns GetProofResponse (new worker set signed by old worker set)
   Relayer-->>External Gateway: send new WorkerSet to the gateway, signed by old WorkerSet
   External Gateway-->>+Relayer: emit OperatorshipTransferred event
-  Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+  Relayer->>+Voting Verifier: ExecuteMsg::VerifyWorkerSet
   Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
   Worker->>+Voting Verifier: ExecuteMsg::Vote
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
