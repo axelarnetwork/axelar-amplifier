@@ -65,7 +65,7 @@ pub enum QueryMsg {
     IsVerified { messages: Vec<Message> },
 
     #[returns(bool)]
-    IsWorkerSetConfirmed { new_operators: Operators },
+    IsWorkerSetVerified { new_operators: Operators },
 }
 
 #[cw_serde]

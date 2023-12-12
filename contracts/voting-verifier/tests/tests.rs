@@ -371,7 +371,7 @@ fn should_start_worker_set_confirmation() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -424,7 +424,7 @@ fn should_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -477,7 +477,7 @@ fn should_not_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -530,7 +530,7 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators.clone(),
     };
     let res: Result<bool, _> = app
@@ -564,7 +564,7 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);

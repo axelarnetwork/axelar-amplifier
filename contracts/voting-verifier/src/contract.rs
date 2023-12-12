@@ -57,7 +57,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetPoll { poll_id: _ } => {
             todo!()
         }
-        QueryMsg::IsWorkerSetConfirmed { new_operators } => {
+        QueryMsg::IsWorkerSetVerified { new_operators } => {
             to_binary(&query::is_worker_set_verified(deps, &new_operators)?)
         }
     }
