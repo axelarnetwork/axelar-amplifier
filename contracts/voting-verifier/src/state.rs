@@ -3,12 +3,14 @@ use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
 use axelar_wasm_std::{
-    counter, nonempty,
+    counter,
+    hash::Hash,
+    nonempty,
     operators::Operators,
-    voting::{PollID, WeightedPoll},
+    voting::{PollId, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, Message, MessageHash};
+use connection_router::state::{ChainName, Message};
 
 use crate::error::ContractError;
 
@@ -44,31 +46,38 @@ impl Poll {
 }
 
 #[cw_serde]
-pub struct PollMessage {
-    pub msg: Message,
-    pub poll_id: PollID,
+pub struct PollContent<T> {
+    pub content: T, // content is stored for migration purposes in case the hash changes
+    pub poll_id: PollId,
     pub index_in_poll: u32,
 }
 
-impl PollMessage {
-    pub fn new(msg: Message, poll_id: PollID, index_in_poll: usize) -> Self {
+impl PollContent<Message> {
+    pub fn new(message: Message, poll_id: PollId, index_in_poll: usize) -> Self {
         Self {
-            msg,
+            content: message,
             poll_id,
             index_in_poll: index_in_poll.try_into().unwrap(),
         }
     }
 }
 
-pub const POLL_ID: counter::Counter<PollID> = counter::Counter::new("poll_id");
+impl PollContent<Operators> {
+    pub fn new(operators: Operators, poll_id: PollId) -> Self {
+        Self {
+            content: operators,
+            poll_id,
+            index_in_poll: 0,
+        }
+    }
+}
 
-pub const POLLS: Map<PollID, Poll> = Map::new("polls");
+pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
-pub const POLL_MESSAGES: Map<&MessageHash, PollMessage> = Map::new("poll_messages");
+pub const POLLS: Map<PollId, Poll> = Map::new("polls");
+
+pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messages");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-type OperatorsHash = Vec<u8>;
-pub const CONFIRMED_WORKER_SETS: Map<OperatorsHash, ()> = Map::new("confirmed_worker_sets");
-
-pub const PENDING_WORKER_SETS: Map<PollID, Operators> = Map::new("pending_worker_sets");
+pub const POLL_WORKER_SETS: Map<&Hash, PollContent<Operators>> = Map::new("poll_worker_sets");
