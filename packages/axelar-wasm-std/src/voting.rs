@@ -55,26 +55,26 @@ pub enum Error {
 
 #[cw_serde]
 #[derive(Copy, Default)]
-pub struct PollID(Uint64);
+pub struct PollId(Uint64);
 
-impl From<PollID> for String {
-    fn from(val: PollID) -> Self {
+impl From<PollId> for String {
+    fn from(val: PollId) -> Self {
         val.0.to_string()
     }
 }
 
-impl From<u64> for PollID {
+impl From<u64> for PollId {
     fn from(value: u64) -> Self {
-        PollID(value.into())
+        PollId(value.into())
     }
 }
-impl From<Uint64> for PollID {
+impl From<Uint64> for PollId {
     fn from(value: Uint64) -> Self {
-        PollID(value)
+        PollId(value)
     }
 }
 
-impl FromStr for PollID {
+impl FromStr for PollId {
     type Err = StdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -82,7 +82,7 @@ impl FromStr for PollID {
     }
 }
 
-impl Mul for PollID {
+impl Mul for PollId {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -90,19 +90,19 @@ impl Mul for PollID {
     }
 }
 
-impl One for PollID {
+impl One for PollId {
     fn one() -> Self {
-        PollID(Uint64::one())
+        PollId(Uint64::one())
     }
 }
 
-impl AddAssign for PollID {
+impl AddAssign for PollId {
     fn add_assign(&mut self, other: Self) {
         self.0 += other.0;
     }
 }
 
-impl<'a> PrimaryKey<'a> for PollID {
+impl<'a> PrimaryKey<'a> for PollId {
     type Prefix = ();
     type SubPrefix = ();
     type Suffix = Self;
@@ -113,7 +113,7 @@ impl<'a> PrimaryKey<'a> for PollID {
     }
 }
 
-impl KeyDeserialize for PollID {
+impl KeyDeserialize for PollId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
@@ -125,7 +125,7 @@ impl KeyDeserialize for PollID {
     }
 }
 
-impl fmt::Display for PollID {
+impl fmt::Display for PollId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -133,7 +133,7 @@ impl fmt::Display for PollID {
 
 #[cw_serde]
 pub struct PollState {
-    pub poll_id: PollID,
+    pub poll_id: PollId,
     pub results: Vec<bool>,
     /// List of participants who voted for the winning result
     pub consensus_participants: Vec<String>,
@@ -153,7 +153,7 @@ pub struct Participation {
 
 #[cw_serde]
 pub struct WeightedPoll {
-    pub poll_id: PollID,
+    pub poll_id: PollId,
     pub quorum: nonempty::Uint256,
     pub expires_at: u64,
     pub poll_size: u64,
@@ -163,7 +163,7 @@ pub struct WeightedPoll {
 }
 
 impl WeightedPoll {
-    pub fn new(poll_id: PollID, snapshot: Snapshot, expiry: u64, poll_size: usize) -> Self {
+    pub fn new(poll_id: PollId, snapshot: Snapshot, expiry: u64, poll_size: usize) -> Self {
         // initialize the map with all possible voters so it always have the same size and therefore
         // all voters will use roughly the same amount of gas when casting a vote.
         let participation = snapshot
@@ -423,7 +423,7 @@ mod tests {
         assert_eq!(
             result,
             PollState {
-                poll_id: PollID::from(Uint64::one()),
+                poll_id: PollId::from(Uint64::one()),
                 results: vec![true, true],
                 consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
             }
@@ -449,7 +449,7 @@ mod tests {
         assert_eq!(
             result,
             PollState {
-                poll_id: PollID::from(Uint64::one()),
+                poll_id: PollId::from(Uint64::one()),
                 results: vec![true, true],
                 consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
             }
@@ -473,6 +473,6 @@ mod tests {
 
         let snapshot = Snapshot::new(threshold, participants);
 
-        WeightedPoll::new(PollID::from(Uint64::one()), snapshot, expires_at, poll_size)
+        WeightedPoll::new(PollId::from(Uint64::one()), snapshot, expires_at, poll_size)
     }
 }

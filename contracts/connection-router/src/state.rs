@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
 
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdError, StdResult, Storage};
 use cw_storage_plus::{
@@ -168,11 +169,9 @@ pub struct Message {
     pub payload_hash: [u8; 32],
 }
 
-pub type MessageHash = [u8; 32];
-
 impl Message {
     // TODO: pending to finalize the design of the message hash
-    pub fn hash_id(&self) -> MessageHash {
+    pub fn hash(&self) -> Hash {
         let mut hasher = Keccak256::new();
         hasher.update(self.cc_id.to_string());
         hasher.update(self.source_address.as_str());
@@ -421,6 +420,17 @@ mod tests {
             hex::encode(Sha3_256::digest(&to_vec(&msg).unwrap())),
             expected_message_hash
         );
+    }
+
+    // If this test fails, it means the message hash has changed and therefore a migration is needed.
+    #[test]
+    fn hash_id_unchanged() {
+        let expected_message_hash =
+            "0135c407f6a58fdcfb879f8d9eae19f870a89f8619537dcde265b4599361a7b6";
+
+        let msg = dummy_message();
+
+        assert_eq!(hex::encode(msg.hash()), expected_message_hash);
     }
 
     #[test]
