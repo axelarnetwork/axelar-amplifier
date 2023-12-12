@@ -15,7 +15,7 @@ use crate::events::{
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::{
-    is_verified, is_worker_set_confirmed, msg_verification_status, VerificationStatus,
+    is_verified, is_worker_set_verified, msg_verification_status, VerificationStatus,
 };
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
@@ -26,7 +26,7 @@ pub fn confirm_worker_set(
     message_id: nonempty::String,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
-    if is_worker_set_confirmed(deps.as_ref(), &new_operators)? {
+    if is_worker_set_verified(deps.as_ref(), &new_operators)? {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 

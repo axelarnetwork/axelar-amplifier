@@ -32,7 +32,7 @@ pub fn is_verified(
         .collect::<Result<Vec<_>, _>>()
 }
 
-pub fn is_worker_set_confirmed(deps: Deps, operators: &Operators) -> Result<bool, ContractError> {
+pub fn is_worker_set_verified(deps: Deps, operators: &Operators) -> Result<bool, ContractError> {
     Ok(matches!(
         worker_set_verification_status(deps, operators)?,
         VerificationStatus::Verified
