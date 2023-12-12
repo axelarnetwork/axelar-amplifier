@@ -95,20 +95,25 @@ pub struct MessageRouted {
 ```mermaid
 graph TD
 
-e[External Gateway]
-t[Gateway]
+ea[External Gateway A]
+ra[Relayer A]
 subgraph Axelar
-g[Governance]
-a[Admin]
+ta[Gateway A]
 c[Connection Router]
+tb[Gateway B]
+m[Multisig Prover]
 end
+rb[Relayer B]
+eb[External Gateway B]
 
-g--RegisterChain-->c
-g--UpgradeGateway-->c
-a--FreezeChain-->c
-a--UnfreezeChain-->c
-e-.->t
-t--RouteMessages-->c
+ea--emit event-->ra
+ra--RouteMessages-->ta
+ta--RouteMessages-->c
+c--RouteMessages-->tb
+tb--get messages-->m
+m--construct proof-->rb
+rb--send proof-->eb
+
 ```
 
 ## Message Routing sequence diagram
