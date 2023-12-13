@@ -33,7 +33,7 @@ pub fn execute(
         ExecuteMsg::StartSigningSession {
             worker_set_id: _,
             msg: _,
-            sig_verification_callback_address: _,
+            sig_verifier: _,
             chain_name: _,
         } => Ok(Response::new().set_data(to_binary(&Uint64::one())?)),
         ExecuteMsg::SubmitSignature {

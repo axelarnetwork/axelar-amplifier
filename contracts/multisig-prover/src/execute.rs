@@ -62,7 +62,7 @@ pub fn construct_proof(
         worker_set_id,
         msg: command_batch.msg_digest(),
         chain_name: config.chain_name,
-        sig_verification_callback_address: None,
+        sig_verifier: None,
     };
 
     let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
@@ -224,7 +224,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 worker_set_id: cur_worker_set.id(),
                 msg: batch.msg_digest(),
-                sig_verification_callback_address: None,
+                sig_verifier: None,
                 chain_name: config.chain_name,
             };
 

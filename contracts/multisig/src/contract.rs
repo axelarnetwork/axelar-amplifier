@@ -46,9 +46,13 @@ pub fn execute(
             worker_set_id,
             msg,
             chain_name,
-            sig_verification_callback_address: _, /*TODO: handle callback */
+            sig_verifier,
         } => {
             execute::require_authorized_caller(&deps, info.sender)?;
+
+            let _sig_verifier = sig_verifier
+                .map(|addr| deps.api.addr_validate(&addr))
+                .transpose()?; // TODO: handle callback
             execute::start_signing_session(
                 deps,
                 worker_set_id,
@@ -432,7 +436,7 @@ mod tests {
             worker_set_id: worker_set_id.to_string(),
             msg: message.clone(),
             chain_name: "Ethereum".to_string().try_into().unwrap(),
-            sig_verification_callback_address: None,
+            sig_verifier: None,
         };
         execute(deps, env, info, msg)
     }
