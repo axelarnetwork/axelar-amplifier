@@ -6,6 +6,7 @@ use test_utils::{Chain, Protocol, Worker};
 use crate::test_utils::AXL_DENOMINATION;
 mod test_utils;
 
+// Creates an instance of Axelar Amplifier with an initial workerset registered, and returns the instance, the chain, the workers, and the minimum worker bond.
 fn setup_test_case(
     chains: Vec<connection_router::state::ChainName>,
 ) -> (Protocol, Chain, Vec<Worker>, Uint128) {
