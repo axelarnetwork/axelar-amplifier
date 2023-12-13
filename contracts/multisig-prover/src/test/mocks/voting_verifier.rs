@@ -1,4 +1,4 @@
-use axelar_wasm_std::operators::Operators;
+use axelar_wasm_std::{hash::Hash, operators::Operators};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
@@ -13,7 +13,7 @@ pub struct InstantiateMsg {}
 
 use crate::test::test_data::TestOperator;
 
-pub const CONFIRMED_WORKER_SETS: Map<Vec<u8>, ()> = Map::new("confirmed_worker_sets");
+pub const CONFIRMED_WORKER_SETS: Map<&Hash, ()> = Map::new("confirmed_worker_sets");
 pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
@@ -30,11 +30,11 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::ConfirmWorkerSet {
+        ExecuteMsg::VerifyWorkerSet {
             message_id: _,
             new_operators,
         } => {
-            CONFIRMED_WORKER_SETS.save(deps.storage, new_operators.hash(), &())?;
+            CONFIRMED_WORKER_SETS.save(deps.storage, &new_operators.hash(), &())?;
             Ok(Response::new())
         }
         _ => unimplemented!(),
@@ -47,20 +47,16 @@ pub fn confirm_worker_set(
     workers: Vec<TestOperator>,
     threshold: Uint256,
 ) {
-    let mut new_operators: Vec<(HexBinary, Uint256)> = workers
+    let new_operators: Vec<(HexBinary, Uint256)> = workers
         .iter()
         .map(|worker| (worker.operator.clone(), worker.weight))
         .collect();
-    new_operators.sort_by_key(|op| op.0.clone());
     app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
-        &ExecuteMsg::ConfirmWorkerSet {
+        &ExecuteMsg::VerifyWorkerSet {
             message_id: "ethereum:00".parse().unwrap(),
-            new_operators: Operators {
-                weights_by_addresses: new_operators,
-                threshold,
-            },
+            new_operators: Operators::new(new_operators, threshold),
         },
         &[],
     )
@@ -69,9 +65,9 @@ pub fn confirm_worker_set(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::IsWorkerSetConfirmed { new_operators } => to_binary(
+        QueryMsg::IsWorkerSetVerified { new_operators } => to_binary(
             &CONFIRMED_WORKER_SETS
-                .may_load(deps.storage, new_operators.hash())?
+                .may_load(deps.storage, &new_operators.hash())?
                 .is_some(),
         ),
         _ => unimplemented!(),

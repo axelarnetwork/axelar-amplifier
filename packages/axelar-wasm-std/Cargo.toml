@@ -45,4 +45,5 @@ valuable = { version = "0.1.0", features = ["derive"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+hex = { version = "0.4.3", default-features = false }
 rand = "0.8.5"
