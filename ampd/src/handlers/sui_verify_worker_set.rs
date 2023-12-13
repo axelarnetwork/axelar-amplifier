@@ -1,17 +1,16 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
-use serde::ser::{Serialize, Serializer};
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tracing::{info, info_span};
 
-use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::voting::PollId;
 use connection_router::state::ID_SEPARATOR;
-use cosmwasm_std::{ConversionOverflowError, HexBinary};
-use cosmwasm_std::{Uint128, Uint256};
+use cosmwasm_std::HexBinary;
+use cosmwasm_std::Uint128;
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
@@ -23,33 +22,10 @@ use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_worker_set;
 use crate::types::TMAddress;
 
-/// Poll started event uses Uint256 for weights and threshold, while Sui gateway uses u128.
-/// U128 is a wrapper to deserialize Uint256 into u128.
-#[derive(Deserialize, Debug, Copy, Clone)]
-#[serde(try_from = "Uint256")]
-pub struct U128(u128);
-
-impl TryFrom<Uint256> for U128 {
-    type Error = ConversionOverflowError;
-
-    fn try_from(value: Uint256) -> Result<Self, Self::Error> {
-        Ok(Self(Uint128::try_from(value)?.u128()))
-    }
-}
-
-impl Serialize for U128 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
 #[derive(Deserialize, Debug)]
 pub struct Operators {
-    pub weights_by_addresses: Vec<(HexBinary, U128)>,
-    pub threshold: U128,
+    pub weights_by_addresses: Vec<(HexBinary, Uint128)>,
+    pub threshold: Uint128,
 }
 
 #[derive(Deserialize, Debug)]
@@ -64,7 +40,7 @@ pub struct WorkerSetConfirmation {
 struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
-    poll_id: PollID,
+    poll_id: PollId,
     source_gateway_address: SuiAddress,
     worker_set: WorkerSetConfirmation,
     participants: Vec<TMAddress>,
@@ -101,7 +77,7 @@ where
     }
     async fn broadcast_votes(
         &self,
-        poll_id: PollID,
+        poll_id: PollId,
         votes: Vec<bool>,
     ) -> error_stack::Result<(), Error> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
@@ -228,8 +204,8 @@ mod tests {
             worker_set: WorkerSetConfirmation {
                 tx_id: TransactionDigest::random().to_string().parse().unwrap(),
                 event_index: 0,
-                operators: Operators {
-                    weights_by_addresses: vec![
+                operators: Operators::new(
+                    vec![
                         (
                             HexBinary::from(SuiAddress::random_for_testing_only().to_vec()),
                             1u64.into(),
@@ -243,8 +219,8 @@ mod tests {
                             1u64.into(),
                         ),
                     ],
-                    threshold: 2u64.into(),
-                },
+                    2u64.into(),
+                ),
             },
         }
     }
