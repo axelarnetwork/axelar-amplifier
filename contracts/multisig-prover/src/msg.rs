@@ -50,7 +50,7 @@ pub enum ProofStatus {
 #[cw_serde]
 pub struct GetProofResponse {
     pub multisig_session_id: Uint64,
-    pub message_ids: Vec<String>,
+    pub message_ids: Vec<CrossChainId>,
     pub data: Data,
     pub status: ProofStatus,
 }
