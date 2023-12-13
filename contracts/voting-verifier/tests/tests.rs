@@ -363,18 +363,15 @@ fn should_start_worker_set_confirmation() {
     let contract_address =
         initialize_contract(&mut app, service_registry_address.as_ref().parse().unwrap());
 
-    let operators = Operators {
-        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
-        threshold: 1u64.into(),
-    };
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -402,11 +399,8 @@ fn should_confirm_worker_set() {
         )
         .unwrap();
 
-    let operators = Operators {
-        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
-        threshold: 1u64.into(),
-    };
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -430,7 +424,7 @@ fn should_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -458,11 +452,8 @@ fn should_not_confirm_worker_set() {
         )
         .unwrap();
 
-    let operators = Operators {
-        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
-        threshold: 1u64.into(),
-    };
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -486,7 +477,7 @@ fn should_not_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -514,11 +505,8 @@ fn should_confirm_worker_set_after_failed() {
         )
         .unwrap();
 
-    let operators = Operators {
-        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
-        threshold: 1u64.into(),
-    };
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -542,7 +530,7 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators.clone(),
     };
     let res: Result<bool, _> = app
@@ -552,7 +540,7 @@ fn should_confirm_worker_set_after_failed() {
     assert_eq!(res.unwrap(), false);
 
     // try again, and this time vote true
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -576,7 +564,7 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetConfirmed {
+    let query = msg::QueryMsg::IsWorkerSetVerified {
         new_operators: operators,
     };
     let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -604,11 +592,8 @@ fn should_not_confirm_twice() {
         )
         .unwrap();
 
-    let operators = Operators {
-        weights_by_addresses: vec![(vec![0, 1, 0, 1].into(), 1u64.into())],
-        threshold: 1u64.into(),
-    };
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
@@ -633,7 +618,7 @@ fn should_not_confirm_twice() {
     assert!(res.is_ok());
 
     // try again, should fail
-    let msg = msg::ExecuteMsg::ConfirmWorkerSet {
+    let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };

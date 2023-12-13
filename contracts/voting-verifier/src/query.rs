@@ -1,10 +1,11 @@
+use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::PollStatus;
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
-use crate::state::{self, Poll, POLLS, POLL_MESSAGES};
+use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 
 #[cw_serde]
 pub enum VerificationStatus {
@@ -21,7 +22,7 @@ pub fn is_verified(
     messages
         .iter()
         .map(|message| {
-            verification_status(deps, message).map(|status| {
+            msg_verification_status(deps, message).map(|status| {
                 (
                     message.cc_id.to_owned(),
                     matches!(status, VerificationStatus::Verified),
@@ -31,12 +32,41 @@ pub fn is_verified(
         .collect::<Result<Vec<_>, _>>()
 }
 
-pub fn verification_status(
+pub fn is_worker_set_verified(deps: Deps, operators: &Operators) -> Result<bool, ContractError> {
+    Ok(matches!(
+        worker_set_verification_status(deps, operators)?,
+        VerificationStatus::Verified
+    ))
+}
+
+pub fn msg_verification_status(
     deps: Deps,
     message: &Message,
 ) -> Result<VerificationStatus, ContractError> {
-    match POLL_MESSAGES.may_load(deps.storage, &message.hash_id())? {
+    let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
+    Ok(verification_status(deps, loaded_poll_content, message))
+}
+
+pub fn worker_set_verification_status(
+    deps: Deps,
+    operators: &Operators,
+) -> Result<VerificationStatus, ContractError> {
+    let poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
+    Ok(verification_status(deps, poll_content, operators))
+}
+
+fn verification_status<T: PartialEq + std::fmt::Debug>(
+    deps: Deps,
+    stored_poll_content: Option<PollContent<T>>,
+    content: &T,
+) -> VerificationStatus {
+    match stored_poll_content {
         Some(stored) => {
+            assert_eq!(
+                stored.content, *content,
+                "invalid invariant: content mismatch with the stored one"
+            );
+
             let poll = POLLS
                 .load(deps.storage, stored.poll_id)
                 .expect("invalid invariant: message poll not found");
@@ -48,19 +78,14 @@ pub fn verification_status(
             };
 
             if verified {
-                assert_eq!(
-                    stored.msg, *message,
-                    "invalid invariant: message mismatch with verified message"
-                );
-
-                Ok(VerificationStatus::Verified)
+                VerificationStatus::Verified
             } else if is_finished(&poll) {
-                Ok(VerificationStatus::FailedToVerify)
+                VerificationStatus::FailedToVerify
             } else {
-                Ok(VerificationStatus::InProgress)
+                VerificationStatus::InProgress
             }
         }
-        None => Ok(VerificationStatus::NotVerified),
+        None => VerificationStatus::NotVerified,
     }
 }
 
@@ -76,12 +101,12 @@ fn is_finished(poll: &state::Poll) -> bool {
 mod tests {
     use axelar_wasm_std::{
         nonempty,
-        voting::{PollID, WeightedPoll},
+        voting::{PollId, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
-    use crate::state::PollMessage;
+    use crate::state::PollContent;
 
     use super::*;
 
@@ -103,13 +128,13 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.hash_id(),
-                &PollMessage::new(msg.clone(), poll.poll_id, idx),
+                &msg.hash(),
+                &PollContent::<Message>::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::InProgress
         );
         assert_eq!(
@@ -138,13 +163,13 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.hash_id(),
-                &PollMessage::new(msg.clone(), poll.poll_id, idx),
+                &msg.hash(),
+                &PollContent::<Message>::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::Verified
         );
         assert_eq!(
@@ -154,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn verification_status_not_verified() {
+    fn verification_status_failed_to_verify() {
         let mut deps = mock_dependencies();
         let idx = 0;
 
@@ -173,13 +198,13 @@ mod tests {
         POLL_MESSAGES
             .save(
                 deps.as_mut().storage,
-                &msg.hash_id(),
-                &PollMessage::new(msg.clone(), poll.poll_id, idx),
+                &msg.hash(),
+                &PollContent::<Message>::new(msg.clone(), poll.poll_id, idx),
             )
             .unwrap();
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::FailedToVerify
         );
         assert_eq!(
@@ -189,12 +214,12 @@ mod tests {
     }
 
     #[test]
-    fn verification_status_none() {
+    fn verification_status_not_verified() {
         let deps = mock_dependencies();
         let msg = message(1);
 
         assert_eq!(
-            verification_status(deps.as_ref(), &msg).unwrap(),
+            msg_verification_status(deps.as_ref(), &msg).unwrap(),
             VerificationStatus::NotVerified
         );
         assert_eq!(
@@ -233,6 +258,6 @@ mod tests {
 
         let snapshot = Snapshot::new(threshold, participants);
 
-        WeightedPoll::new(PollID::from(Uint64::one()), snapshot, 0, 5)
+        WeightedPoll::new(PollId::from(Uint64::one()), snapshot, 0, 5)
     }
 }
