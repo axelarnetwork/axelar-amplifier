@@ -1,25 +1,22 @@
-use cosmwasm_std::{to_binary, Binary, Deps};
+use cosmwasm_std::Deps;
 
 use crate::{
-    state::{chain_endpoints, ChainName},
+    state::{chain_endpoints, ChainEndpoint, ChainName},
     ContractError,
 };
 use error_stack::{Result, ResultExt};
 
-pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<Binary, ContractError> {
-    to_binary(
-        &chain_endpoints()
-            .may_load(deps.storage, chain)
-            .change_context(ContractError::StoreFailure)?
-            .ok_or(ContractError::ChainNotFound)?,
-    )
-    .change_context(ContractError::StoreFailure)
+pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, ContractError> {
+    chain_endpoints()
+        .may_load(deps.storage, chain)
+        .change_context(ContractError::StoreFailure)?
+        .ok_or(ContractError::ChainNotFound.into())
 }
 
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::flagset::FlagSet;
-    use cosmwasm_std::{from_binary, testing::mock_dependencies, Addr};
+    use cosmwasm_std::{testing::mock_dependencies, Addr};
 
     use crate::{
         state::{chain_endpoints, ChainEndpoint, ChainName, Gateway, GatewayDirection},
@@ -45,10 +42,7 @@ mod test {
             .is_ok());
         let result = get_chain_info(deps.as_ref(), chain_name);
         assert!(result.is_ok());
-        assert_eq!(
-            from_binary::<ChainEndpoint>(&result.unwrap()).unwrap(),
-            chain_info
-        );
+        assert_eq!(result.unwrap(), chain_info);
     }
 
     #[test]
