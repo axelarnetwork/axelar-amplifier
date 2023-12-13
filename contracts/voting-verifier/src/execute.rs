@@ -3,7 +3,7 @@ use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
-use axelar_wasm_std::voting::{PollID, PollState};
+use axelar_wasm_std::voting::PollId;
 use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
@@ -14,20 +14,19 @@ use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::query::{is_verified, verification_status, VerificationStatus};
-use crate::state::{self, Poll, POLL_MESSAGES};
-use crate::state::{CONFIG, CONFIRMED_WORKER_SETS, PENDING_WORKER_SETS, POLLS, POLL_ID};
+use crate::query::{
+    is_verified, is_worker_set_verified, msg_verification_status, VerificationStatus,
+};
+use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{CONFIG, POLLS, POLL_ID};
 
-pub fn confirm_worker_set(
+pub fn verify_worker_set(
     deps: DepsMut,
     env: Env,
     message_id: nonempty::String,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
-    if CONFIRMED_WORKER_SETS
-        .may_load(deps.storage, new_operators.hash())?
-        .is_some()
-    {
+    if is_worker_set_verified(deps.as_ref(), &new_operators)? {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 
@@ -42,7 +41,11 @@ pub fn confirm_worker_set(
         snapshot,
     )?;
 
-    PENDING_WORKER_SETS.save(deps.storage, poll_id, &new_operators)?;
+    POLL_WORKER_SETS.save(
+        deps.storage,
+        &new_operators.hash(),
+        &PollContent::<Operators>::new(new_operators.clone(), poll_id),
+    )?;
 
     Ok(Response::new().add_event(
         PollStarted::WorkerSet {
@@ -86,7 +89,9 @@ pub fn verify_messages(
 
     let messages = messages
         .into_iter()
-        .map(|message| verification_status(deps.as_ref(), &message).map(|status| (status, message)))
+        .map(|message| {
+            msg_verification_status(deps.as_ref(), &message).map(|status| (status, message))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let msgs_to_verify: Vec<Message> = messages
@@ -114,8 +119,8 @@ pub fn verify_messages(
     for (idx, message) in msgs_to_verify.iter().enumerate() {
         POLL_MESSAGES.save(
             deps.storage,
-            &message.hash_id(),
-            &state::PollMessage::new(message.clone(), id, idx),
+            &message.hash(),
+            &state::PollContent::<Message>::new(message.clone(), id, idx),
         )?;
     }
 
@@ -144,7 +149,7 @@ pub fn vote(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    poll_id: PollID,
+    poll_id: PollId,
     votes: Vec<bool>,
 ) -> Result<Response, ContractError> {
     let poll = POLLS
@@ -166,29 +171,7 @@ pub fn vote(
     ))
 }
 
-fn end_poll_worker_set(
-    deps: DepsMut,
-    poll_id: PollID,
-    poll_result: &PollState,
-) -> Result<(), ContractError> {
-    assert_eq!(
-        poll_result.results.len(),
-        1,
-        "poll {} results for worker set is not length 1",
-        poll_id
-    );
-
-    let worker_set = PENDING_WORKER_SETS.load(deps.storage, poll_id)?;
-    if poll_result.results[0] {
-        CONFIRMED_WORKER_SETS.save(deps.storage, worker_set.hash(), &())?;
-    }
-
-    PENDING_WORKER_SETS.remove(deps.storage, poll_id);
-
-    Ok(())
-}
-
-pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, ContractError> {
+pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let poll = POLLS
@@ -201,10 +184,6 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollID) -> Result<Response, Co
     let poll_result = match &poll {
         Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.state(),
     };
-
-    if matches!(poll, state::Poll::ConfirmWorkerSet(_)) {
-        end_poll_worker_set(deps, poll_id, &poll_result)?;
-    }
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
     let rewards_msgs = poll_result
@@ -266,7 +245,7 @@ fn create_worker_set_poll(
     block_height: u64,
     expiry: u64,
     snapshot: snapshot::Snapshot,
-) -> Result<PollID, ContractError> {
+) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, block_height + expiry, 1);
@@ -281,7 +260,7 @@ fn create_messages_poll(
     expiry: u64,
     snapshot: snapshot::Snapshot,
     poll_size: usize,
-) -> Result<PollID, ContractError> {
+) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, block_height + expiry, poll_size);
