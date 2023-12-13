@@ -158,6 +158,31 @@ pub fn sign_proof(
     session_id
 }
 
+pub fn register_service(
+    app: &mut App,
+    service_registry: Addr,
+    governance_addr: Addr,
+    service_name: nonempty::String,
+    min_worker_bond: Uint128,
+) {
+    let response = app.execute_contract(
+        governance_addr,
+        service_registry,
+        &service_registry::msg::ExecuteMsg::RegisterService {
+            service_name: service_name.to_string(),
+            service_contract: Addr::unchecked("nowhere"),
+            min_num_workers: 0,
+            max_num_workers: Some(100),
+            min_worker_bond: min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days: 10,
+            description: "Some service".into(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+}
+
 pub fn get_messages_from_gateway(
     app: &mut App,
     gateway_address: &Addr,
