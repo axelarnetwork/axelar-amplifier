@@ -230,6 +230,18 @@ where
                         self.broadcaster.client(),
                     ),
                 ),
+                handlers::config::Config::SuiWorkerSetVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.configure_handler(
+                    "sui-worker-set-verifier",
+                    handlers::sui_verify_worker_set::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        self.broadcaster.client(),
+                    ),
+                ),
             }
         }
 

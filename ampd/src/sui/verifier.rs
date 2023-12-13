@@ -1,15 +1,13 @@
+use bcs::to_bytes;
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
 use crate::handlers::sui_verify_msg::Message;
+use crate::handlers::sui_verify_worker_set::WorkerSetConfirmation;
 use crate::types::Hash;
 
-// CONTRACT_CALL_EVENT is in form of <module name>::<event type>
-const CONTRACT_CALL_EVENT: &str = "gateway::ContractCall";
-
-// TODO: update after Sui gateway event finalization
 #[derive(Deserialize)]
 struct ContractCall {
     pub source_id: SuiAddress,
@@ -18,11 +16,33 @@ struct ContractCall {
     pub payload_hash: Hash,
 }
 
-// Event type is in the form of: <gateway_address>::gateway::ContractCall
-fn call_contract_type(gateway_address: &SuiAddress) -> StructTag {
-    format!("{}::{}", gateway_address, CONTRACT_CALL_EVENT)
-        .parse()
-        .expect("failed to parse struct tag")
+#[derive(Deserialize)]
+struct OperatorshipTransferred {
+    pub payload: Vec<u8>,
+}
+
+enum EventType {
+    ContractCall,
+    OperatorshipTransferred,
+}
+
+impl EventType {
+    // Sui event type  is in the form of: <address>::<module_name>::<event_name>
+    fn struct_tag(&self, gateway_address: &SuiAddress) -> StructTag {
+        let event = match self {
+            EventType::ContractCall => "ContractCall",
+            EventType::OperatorshipTransferred => "OperatorshipTransferred",
+        };
+
+        let module = match self {
+            EventType::ContractCall => "gateway",
+            EventType::OperatorshipTransferred => "validators",
+        };
+
+        format!("{}::{}::{}", gateway_address, module, event)
+            .parse()
+            .expect("failed to parse struct tag")
+    }
 }
 
 impl PartialEq<&Message> for &SuiEvent {
@@ -33,6 +53,26 @@ impl PartialEq<&Message> for &SuiEvent {
                     && msg.destination_chain == contract_call.destination_chain
                     && contract_call.destination_address == msg.destination_address
                     && contract_call.payload_hash == msg.payload_hash
+            }
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<&WorkerSetConfirmation> for &SuiEvent {
+    fn eq(&self, worker_set: &&WorkerSetConfirmation) -> bool {
+        match serde_json::from_value::<OperatorshipTransferred>(self.parsed_json.clone()) {
+            Ok(event) => {
+                let (operators, weights): (Vec<_>, Vec<_>) = worker_set
+                    .operators
+                    .weights_by_addresses
+                    .iter()
+                    .map(|(operator, weight)| (operator.to_owned().to_vec(), weight.to_owned()))
+                    .unzip();
+
+                event.payload
+                    == to_bytes(&(operators, weights, worker_set.operators.threshold))
+                        .expect("failed to serialize new operators data")
             }
             _ => false,
         }
@@ -59,8 +99,23 @@ pub fn verify_message(
     match find_event(transaction_block, message.event_index) {
         Some(event) => {
             transaction_block.digest == message.tx_id
-                && event.type_ == call_contract_type(gateway_address)
+                && event.type_ == EventType::ContractCall.struct_tag(gateway_address)
                 && event == message
+        }
+        None => false,
+    }
+}
+
+pub fn verify_worker_set(
+    gateway_address: &SuiAddress,
+    transaction_block: &SuiTransactionBlockResponse,
+    worker_set: &WorkerSetConfirmation,
+) -> bool {
+    match find_event(transaction_block, worker_set.event_index) {
+        Some(event) => {
+            transaction_block.digest == worker_set.tx_id
+                && event.type_ == EventType::OperatorshipTransferred.struct_tag(gateway_address)
+                && event == worker_set
         }
         None => false,
     }
