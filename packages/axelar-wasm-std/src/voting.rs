@@ -25,6 +25,7 @@ use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
 use strum::EnumIter;
+use strum::EnumString;
 use strum::IntoEnumIterator;
 use thiserror::Error;
 use valuable::Valuable;
@@ -135,22 +136,32 @@ impl fmt::Display for PollId {
 }
 
 #[cw_serde]
-#[derive(Eq, Hash, Ord, PartialOrd, EnumIter, Valuable)]
+#[derive(Eq, Hash, Ord, PartialOrd, EnumIter, EnumString, Valuable)]
 pub enum Vote {
     SucceededOnChain, // the txn was included on chain, and achieved the intended result
     FailedOnChain,    // the txn was included on chain, but failed to achieve the intended result
     NotFound,         // the txn could not be found on chain in any blocks at the time of voting
 }
 
+impl fmt::Display for Vote {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Vote::SucceededOnChain => write!(f, "SucceededOnChain"),
+            Vote::FailedOnChain => write!(f, "FailedOnChain"),
+            Vote::NotFound => write!(f, "NotFound"),
+        }
+    }
+}
+
 #[cw_serde]
-pub struct Tallies(BTreeMap<Vote, Uint256>);
+pub struct Tallies(BTreeMap<String, Uint256>);
 
 impl Default for Tallies {
     fn default() -> Self {
         let mut tallies = BTreeMap::new();
 
         Vote::iter().for_each(|vote| {
-            tallies.insert(vote, Uint256::zero());
+            tallies.insert(vote.to_string(), Uint256::zero());
         });
 
         Self(tallies)
@@ -161,7 +172,7 @@ impl Tallies {
     pub fn consensus(&self, quorum: Uint256) -> Option<Vote> {
         self.0.iter().find_map(|(vote, tally)| {
             if *tally >= quorum {
-                Some(vote.clone())
+                Some(Vote::from_str(&vote).expect("invalid invariant: can't parse vote string"))
             } else {
                 None
             }
@@ -169,7 +180,10 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weigth: &Uint256) {
-        *self.0.get_mut(vote).unwrap_or(&mut Uint256::zero()) += weigth;
+        *self
+            .0
+            .get_mut(&vote.to_string())
+            .unwrap_or(&mut Uint256::zero()) += weigth;
     }
 }
 
