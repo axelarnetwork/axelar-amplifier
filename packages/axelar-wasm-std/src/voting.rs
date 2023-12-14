@@ -153,8 +153,10 @@ impl fmt::Display for Vote {
     }
 }
 
+// Deserialization of enums as map keys is not supported by serde-json-wasm, we use String instead
+type VoteString = String;
 #[cw_serde]
-pub struct Tallies(BTreeMap<String, Uint256>);
+pub struct Tallies(BTreeMap<VoteString, Uint256>);
 
 impl Default for Tallies {
     fn default() -> Self {
@@ -172,7 +174,7 @@ impl Tallies {
     pub fn consensus(&self, quorum: Uint256) -> Option<Vote> {
         self.0.iter().find_map(|(vote, tally)| {
             if *tally >= quorum {
-                Some(Vote::from_str(&vote).expect("invalid invariant: can't parse vote string"))
+                Some(Vote::from_str(vote).expect("can't parse vote string back to enum"))
             } else {
                 None
             }
@@ -298,15 +300,12 @@ impl WeightedPoll {
         }
     }
 
-    // TODO: Right now we use `true` for verified message and `false` for rejected/unknown.
-    // This function logic should change once we change votes from bool to enum to return the specific consensus result (if any)
-    pub fn has_consensus(&self, idx: usize) -> Result<bool, Error> {
+    pub fn consensus(&self, idx: u32) -> Result<Option<Vote>, Error> {
         Ok(self
             .tallies
-            .get(idx)
+            .get(idx as usize)
             .ok_or(Error::MessageIndexOutOfBounds)?
-            .consensus(self.quorum.into())
-            .is_some())
+            .consensus(self.quorum.into()))
     }
 
     pub fn cast_vote(
