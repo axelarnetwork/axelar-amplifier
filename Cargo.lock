@@ -1354,6 +1354,7 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "error-stack",
  "flagset",
+ "hex",
  "num-traits",
  "rand 0.8.5",
  "report",
