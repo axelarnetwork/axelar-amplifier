@@ -65,8 +65,7 @@ pub fn verify_message(
         {
             Vote::SucceededOnChain
         }
-        Some(_) => Vote::NotFound,
-        None => Vote::NotFound,
+        _ => Vote::NotFound,
     }
 }
 

@@ -89,8 +89,7 @@ pub fn verify_message(
         Some(event) if tx_receipt.transaction_hash == msg.tx_id && event == msg => {
             Vote::SucceededOnChain
         }
-        Some(_) => Vote::NotFound,
-        None => Vote::NotFound,
+        _ => Vote::NotFound,
     }
 }
 
@@ -103,8 +102,7 @@ pub fn verify_worker_set(
         Some(event) if tx_receipt.transaction_hash == worker_set.tx_id && event == worker_set => {
             Vote::SucceededOnChain
         }
-        Some(_) => Vote::NotFound,
-        None => Vote::NotFound,
+        _ => Vote::NotFound,
     }
 }
 

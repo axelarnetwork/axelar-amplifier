@@ -160,13 +160,11 @@ pub struct Tallies(BTreeMap<VoteString, Uint256>);
 
 impl Default for Tallies {
     fn default() -> Self {
-        let mut tallies = BTreeMap::new();
-
-        Vote::iter().for_each(|vote| {
-            tallies.insert(vote.to_string(), Uint256::zero());
-        });
-
-        Self(tallies)
+        Self(
+            Vote::iter()
+                .map(|vote| (vote.to_string(), Uint256::zero()))
+                .collect(),
+        )
     }
 }
 
@@ -181,11 +179,11 @@ impl Tallies {
         })
     }
 
-    pub fn tally(&mut self, vote: &Vote, weigth: &Uint256) {
+    pub fn tally(&mut self, vote: &Vote, weight: &Uint256) {
         *self
             .0
             .get_mut(&vote.to_string())
-            .unwrap_or(&mut Uint256::zero()) += weigth;
+            .unwrap_or(&mut Uint256::zero()) += weight;
     }
 }
 
@@ -277,11 +275,7 @@ impl WeightedPoll {
             .filter_map(|(address, participation)| {
                 participation.vote.as_ref().and_then(|votes| {
                     let voted_consensus = votes.iter().zip(results.iter()).all(|(vote, result)| {
-                        if let Some(result) = result {
-                            vote == result
-                        } else {
-                            true // if there was no consensus, we don't care about the vote
-                        }
+                        result.is_none() || Some(vote) == result.as_ref() // if there was no consensus, we don't care about the vote
                     });
 
                     if voted_consensus {
