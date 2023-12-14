@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use axelar_wasm_std::nonempty;
+use connection_router::state::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
-use cosmrs::Coin;
 use error_stack::Result;
 use report::ResultCompatExt;
 use service_registry::msg::ExecuteMsg;
@@ -16,25 +16,23 @@ use crate::{Error, PREFIX};
 #[derive(clap::Args, Debug, Valuable)]
 pub struct Args {
     pub service_name: nonempty::String,
-    pub amount: u128,
-    pub denom: String,
+    pub chains: Vec<ChainName>,
 }
 
 pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
-    let coin = Coin::new(args.amount, args.denom.as_str()).change_context(Error::InvalidInput)?;
-
     let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
 
-    let msg = serde_json::to_vec(&ExecuteMsg::BondWorker {
+    let msg = serde_json::to_vec(&ExecuteMsg::DeclareChainSupport {
         service_name: args.service_name.into(),
+        chains: args.chains,
     })
-    .expect("bond worker msg should serialize");
+    .expect("declare chain support msg should serialize");
 
     let tx = MsgExecuteContract {
         sender: pub_key.account_id(PREFIX).change_context(Error::Tofnd)?,
         contract: config.service_registry.cosmwasm_contract.as_ref().clone(),
         msg,
-        funds: vec![coin],
+        funds: vec![],
     }
     .into_any()
     .expect("failed to serialize proto message");
@@ -42,7 +40,7 @@ pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option
     let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
 
     Ok(Some(format!(
-        "successfully broadcast bond worker transaction, tx hash: {}",
+        "successfully broadcast declare chain support transaction, tx hash: {}",
         tx_hash
     )))
 }
