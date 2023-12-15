@@ -237,6 +237,7 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
+    use connection_router::state::CrossChainId;
     use elliptic_curve::consts::U32;
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
@@ -434,8 +435,8 @@ mod test {
             res.message_ids,
             test_data::messages()
                 .into_iter()
-                .map(|msg| msg.cc_id.to_string())
-                .collect::<Vec<String>>()
+                .map(|msg| msg.cc_id)
+                .collect::<Vec<CrossChainId>>()
         );
         assert_eq!(
             res.data.destination_chain_id,

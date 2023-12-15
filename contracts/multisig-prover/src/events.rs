@@ -1,11 +1,11 @@
 use cosmwasm_std::Uint64;
 use serde_json::to_string;
 
-use crate::types::BatchID;
+use crate::types::BatchId;
 
 pub enum Event {
     ProofUnderConstruction {
-        command_batch_id: BatchID,
+        command_batch_id: BatchId,
         multisig_session_id: Uint64,
     },
 }

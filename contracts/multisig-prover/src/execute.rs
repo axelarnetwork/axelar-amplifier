@@ -14,16 +14,16 @@ use crate::{
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH},
-    types::{BatchID, WorkersInfo},
+    types::{BatchId, WorkersInfo},
 };
 
 pub fn construct_proof(
     deps: DepsMut,
     env: Env,
-    message_ids: Vec<String>,
+    message_ids: Vec<CrossChainId>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let batch_id = BatchID::new(&message_ids, None);
+    let batch_id = BatchId::new(&message_ids, None);
 
     let messages = get_messages(
         deps.querier,
@@ -70,20 +70,13 @@ pub fn construct_proof(
 
 fn get_messages(
     querier: QuerierWrapper,
-    message_ids: Vec<String>,
+    message_ids: Vec<CrossChainId>,
     gateway: Addr,
     chain_name: ChainName,
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let ids = message_ids
-        .into_iter()
-        .map(|id| {
-            id.parse::<CrossChainId>()
-                .expect("ids should have correct format")
-        })
-        .collect::<Vec<_>>();
-    let query = gateway::msg::QueryMsg::GetMessages { message_ids: ids };
+    let query = gateway::msg::QueryMsg::GetMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,

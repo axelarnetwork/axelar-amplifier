@@ -7,7 +7,7 @@ use multisig::key::KeyType;
 use multisig::worker_set::WorkerSet;
 
 use crate::encoding::Encoder;
-use crate::types::{BatchID, CommandBatch};
+use crate::types::{BatchId, CommandBatch};
 
 #[cw_serde]
 pub struct Config {
@@ -26,10 +26,10 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const COMMANDS_BATCH: Map<&BatchID, CommandBatch> = Map::new("command_batch");
-pub const MULTISIG_SESSION_BATCH: Map<u64, BatchID> = Map::new("multisig_session_batch");
+pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
+pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
 
-pub const REPLY_BATCH: Item<BatchID> = Item::new("reply_tracker");
+pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");
 
 pub const CURRENT_WORKER_SET: Item<WorkerSet> = Item::new("current_worker_set");
 pub const NEXT_WORKER_SET: Item<WorkerSet> = Item::new("next_worker_set");
