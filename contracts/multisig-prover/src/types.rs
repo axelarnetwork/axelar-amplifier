@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::{Participant, Snapshot};
+use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
@@ -35,42 +36,45 @@ pub struct Command {
 }
 
 #[cw_serde]
-pub struct BatchID(HexBinary);
+pub struct BatchId(HexBinary);
 
-impl From<HexBinary> for BatchID {
+impl From<HexBinary> for BatchId {
     fn from(id: HexBinary) -> Self {
         Self(id)
     }
 }
 
-impl From<&[u8]> for BatchID {
+impl From<&[u8]> for BatchId {
     fn from(id: &[u8]) -> Self {
         Self(id.into())
     }
 }
 
-impl<'a> PrimaryKey<'a> for BatchID {
+impl<'a> PrimaryKey<'a> for BatchId {
     type Prefix = ();
     type SubPrefix = ();
-    type Suffix = BatchID;
-    type SuperSuffix = BatchID;
+    type Suffix = BatchId;
+    type SuperSuffix = BatchId;
 
     fn key(&self) -> Vec<Key> {
         vec![Key::Ref(self.0.as_slice())]
     }
 }
 
-impl KeyDeserialize for BatchID {
-    type Output = BatchID;
+impl KeyDeserialize for BatchId {
+    type Output = BatchId;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         Ok(from_binary(&value.into()).expect("violated invariant: BatchID is not deserializable"))
     }
 }
 
-impl BatchID {
-    pub fn new(message_ids: &[String], new_worker_set: Option<WorkerSet>) -> BatchID {
-        let mut message_ids = message_ids.to_vec();
+impl BatchId {
+    pub fn new(message_ids: &[CrossChainId], new_worker_set: Option<WorkerSet>) -> BatchId {
+        let mut message_ids = message_ids
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>();
         message_ids.sort();
 
         if let Some(new_worker_set) = new_worker_set {
@@ -82,8 +86,8 @@ impl BatchID {
 
 #[cw_serde]
 pub struct CommandBatch {
-    pub id: BatchID,
-    pub message_ids: Vec<String>,
+    pub id: BatchId,
+    pub message_ids: Vec<CrossChainId>,
     pub data: Data,
     pub encoder: Encoder,
 }

@@ -82,13 +82,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         proof.status,
         multisig_prover::msg::ProofStatus::Completed { .. }
     ));
-    assert_eq!(
-        proof.message_ids,
-        msg_ids
-            .iter()
-            .map(|msg_id| msg_id.to_string())
-            .collect::<Vec<String>>()
-    );
+    assert_eq!(proof.message_ids, msg_ids);
 
     // Advance the height to be able to distribute rewards
     test_utils::advance_height(

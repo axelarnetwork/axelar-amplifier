@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use connection_router::state::ChainName;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 
@@ -15,6 +16,7 @@ pub enum Event {
         worker_set_id: String,
         pub_keys: HashMap<String, PublicKey>,
         msg: MsgToSign,
+        chain_name: ChainName,
     },
     // Emitted when a participants submits a signature
     SignatureSubmitted {
@@ -47,6 +49,7 @@ impl From<Event> for cosmwasm_std::Event {
                 worker_set_id,
                 pub_keys,
                 msg,
+                chain_name: chain,
             } => cosmwasm_std::Event::new("signing_started")
                 .add_attribute("session_id", session_id)
                 .add_attribute("worker_set_id", worker_set_id)
@@ -55,7 +58,8 @@ impl From<Event> for cosmwasm_std::Event {
                     to_string(&pub_keys)
                         .expect("violated invariant: pub_keys are not serializable"),
                 )
-                .add_attribute("msg", HexBinary::from(msg).to_hex()),
+                .add_attribute("msg", HexBinary::from(msg).to_hex())
+                .add_attribute("chain", chain),
             Event::SignatureSubmitted {
                 session_id,
                 participant,
