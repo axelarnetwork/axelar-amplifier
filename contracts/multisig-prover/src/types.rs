@@ -74,7 +74,7 @@ impl BatchId {
         let mut message_ids = message_ids
             .iter()
             .map(|id| id.to_string())
-            .collect::<Vec<String>>();
+            .collect::<Vec<_>>();
         message_ids.sort();
 
         if let Some(new_worker_set) = new_worker_set {
