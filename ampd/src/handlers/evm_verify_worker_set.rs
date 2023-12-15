@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
-use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::voting::PollId;
 use connection_router::state::ID_SEPARATOR;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -42,7 +42,7 @@ struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
-    poll_id: PollID,
+    poll_id: PollId,
     source_chain: connection_router::state::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
@@ -112,7 +112,7 @@ where
         }))
     }
 
-    async fn broadcast_vote(&self, poll_id: PollID, vote: bool) -> Result<()> {
+    async fn broadcast_vote(&self, poll_id: PollId, vote: bool) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote {
             poll_id,
             votes: vec![vote],
@@ -218,9 +218,8 @@ mod tests {
             worker_set: WorkerSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
-                operators: Operators {
-                    threshold: 40u64.into(),
-                    weights_by_addresses: vec![
+                operators: Operators::new(
+                    vec![
                         (
                             HexBinary::from(EVMAddress::random().as_bytes()),
                             10u64.into(),
@@ -234,7 +233,8 @@ mod tests {
                             30u64.into(),
                         ),
                     ],
-                },
+                    40u64.into(),
+                ),
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),

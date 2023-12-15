@@ -47,6 +47,7 @@ pub enum Event {
     },
 }
 ```
+
 <br>
 
 ## Proof construction graph
@@ -69,7 +70,6 @@ b--StartSigningSession-->m
 b--GetSigningSession-->m
 s--SubmitSignature-->m
 ```
-
 
 ## Proof construction sequence diagram
 
@@ -125,7 +125,6 @@ Prover-->>-Relayer: returns GetProofResponse
 14. Multisig replies with the multisig state, the list of collected signatures so far and the snapshot of participants.
 15. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the destination gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
 
-
 ## Update and confirm WorkerSet graph
 
 ```mermaid
@@ -143,9 +142,8 @@ r--UpdateWorkerSet-->b
 b--GetActiveWorkers-->s
 b--RegisterWorkerSet-->m
 r--ConfirmWorkerSet-->b
-b--IsWorkerSetConfirmed-->v
+b--IsWorkerSetVerified-->v
 ```
-
 
 ## Update and confirm WorkerSet sequence diagram
 
@@ -178,12 +176,12 @@ else existing WorkerSet stored
   Prover-->>-Relayer: returns GetProofResponse (new worker set signed by old worker set)
   Relayer-->>External Gateway: send new WorkerSet to the gateway, signed by old WorkerSet
   External Gateway-->>+Relayer: emit OperatorshipTransferred event
-  Relayer->>+Voting Verifier: ExecuteMsg::ConfirmWorkerSet
+  Relayer->>+Voting Verifier: ExecuteMsg::VerifyWorkerSet
   Worker->>+External Gateway: lookup OperatorshipTransferred event, verify event matches worker set in poll
   Worker->>+Voting Verifier: ExecuteMsg::Vote
   Relayer->>+Voting Verifier: ExecuteMsg::EndPoll
   Relayer->>+Prover: ExecuteMsg::ConfirmWorkerSet
-  Prover->>+Voting Verifier: QueryMsg::IsWorkerSetConfirmed
+  Prover->>+Voting Verifier: QueryMsg::IsWorkerSetVerified
   Voting Verifier-->>-Prover: true
   Prover->>+Multisig: ExecuteMsg::RegisterWorkerSet
 end
@@ -194,14 +192,14 @@ end
 3. The current `WorkerSet` in Prover is replaced by the new `WorkerSet`.
 4. The new `WorkerSet` is also saved in Multisig.
 5. The Prover calls Service Registry to get a `WorkerSet`
-6. If a newer `WorkerSet` was found, the new `WorkerSet` is stored as the next `WorkerSet`. A `TransferOperatorship` command is added to the batch. 
+6. If a newer `WorkerSet` was found, the new `WorkerSet` is stored as the next `WorkerSet`. A `TransferOperatorship` command is added to the batch.
 7. The Multisig contract is called asking to sign the binary message
 8. Signers submit their signatures until threshold is reached
 9. Relayer queries Prover for the proof, using the proof ID
 10. If the Multisig state is `Completed`, the Prover finalizes constructing the proof and returns the `GetProofResponse` struct which includes the proof itself and the data to be sent to the External Chain's gateway. If the state is not completed, the Prover returns the `GetProofResponse` struct with the `status` field set to `Pending`.
 11. Relayer sends proof and data to the External Gateway.
 12. The gateway on the External Gateway proccesses the commands in the data and emits event `OperatorshipTransferred`.
-13. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll. 
+13. The event `OperatorshipTransferred` picked up by the Relayer, the Relayer calls Voting Verifier to create a poll.
 14. The Workers see the `PollStarted` event and lookup `OperatorshipTransferred`` event on the External Gateway and verify event matches worker set in poll.
 15. The Workers then vote on whether the event matches the workers or not.
 16. The Relayer calls the Voting Verifier to end the poll and emit `PollEnded` event.
