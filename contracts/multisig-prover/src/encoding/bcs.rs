@@ -18,16 +18,12 @@ use sha3::{Digest, Keccak256};
 // that has an abi and bcs implementation (and possibly others)
 
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+    let operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
         .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
-    operators.sort_by_key(|op| op.0.clone());
-    Operators {
-        weights_by_addresses: operators,
-        threshold: worker_set.threshold,
-    }
+    Operators::new(operators, worker_set.threshold)
 }
 
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
@@ -267,10 +263,7 @@ mod test {
         expected.sort_by_key(|op| op.0.clone());
 
         let operators = make_operators(worker_set.clone());
-        let expected_operators = Operators {
-            weights_by_addresses: expected,
-            threshold: worker_set.threshold,
-        };
+        let expected_operators = Operators::new(expected, worker_set.threshold);
         assert_eq!(operators, expected_operators);
     }
 
