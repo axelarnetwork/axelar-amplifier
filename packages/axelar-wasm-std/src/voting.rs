@@ -154,9 +154,8 @@ impl fmt::Display for Vote {
 }
 
 // Deserialization of enums as map keys is not supported by serde-json-wasm, we use String instead
-type VoteString = String;
 #[cw_serde]
-pub struct Tallies(BTreeMap<VoteString, Uint256>);
+pub struct Tallies(BTreeMap<String, Uint256>);
 
 impl Default for Tallies {
     fn default() -> Self {
@@ -172,7 +171,7 @@ impl Tallies {
     pub fn consensus(&self, quorum: Uint256) -> Option<Vote> {
         self.0.iter().find_map(|(vote, tally)| {
             if *tally >= quorum {
-                Some(Vote::from_str(vote).expect("can't parse vote string back to enum"))
+                Some(vote.parse().expect("can't parse vote string back to enum"))
             } else {
                 None
             }
