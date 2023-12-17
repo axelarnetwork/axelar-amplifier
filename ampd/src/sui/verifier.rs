@@ -1,3 +1,4 @@
+use axelar_wasm_std::voting::Vote;
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
@@ -55,19 +56,22 @@ pub fn verify_message(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,
     message: &Message,
-) -> bool {
+) -> Vote {
     match find_event(transaction_block, message.event_index) {
-        Some(event) => {
-            transaction_block.digest == message.tx_id
+        Some(event)
+            if transaction_block.digest == message.tx_id
                 && event.type_ == call_contract_type(gateway_address)
-                && event == message
+                && event == message =>
+        {
+            Vote::SucceededOnChain
         }
-        None => false,
+        _ => Vote::NotFound,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::voting::Vote;
     use ethers::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
     use random_string::generate;
@@ -88,7 +92,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.tx_id = TransactionDigest::random();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -96,7 +103,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.event_index = rand::random::<u64>();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -104,7 +114,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.source_address = SuiAddress::random_for_testing_only();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -112,7 +125,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.destination_chain = rand_chain_name();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -120,7 +136,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.destination_address = EVMAddress::random().to_string();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -128,13 +147,19 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.payload_hash = Hash::random();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_block, msg) = get_matching_msg_and_tx_block();
-        assert!(verify_message(&gateway_address, &tx_block, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_block, &msg),
+            Vote::SucceededOnChain
+        );
     }
 
     fn get_matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {

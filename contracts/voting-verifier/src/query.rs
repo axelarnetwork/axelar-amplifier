@@ -1,5 +1,5 @@
 use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::voting::PollStatus;
+use axelar_wasm_std::voting::{PollStatus, Vote};
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
@@ -72,9 +72,11 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 .expect("invalid invariant: message poll not found");
 
             let verified = match &poll {
-                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
-                    .has_consensus(stored.index_in_poll.try_into().unwrap())
-                    .expect("invalid invariant: message not found in poll"),
+                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => {
+                    poll.consensus(stored.index_in_poll)
+                        .expect("invalid invariant: message not found in poll")
+                        == Some(Vote::SucceededOnChain) // TODO: consider Vote::FailedOnChain?
+                }
             };
 
             if verified {
@@ -101,7 +103,7 @@ fn is_finished(poll: &state::Poll) -> bool {
 mod tests {
     use axelar_wasm_std::{
         nonempty,
-        voting::{PollId, WeightedPoll},
+        voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
@@ -149,7 +151,8 @@ mod tests {
         let idx = 0;
 
         let mut poll = poll();
-        poll.tallies[idx] = Uint256::from(5u64);
+        poll.tallies[idx] = Tallies::default();
+        poll.tallies[idx].tally(&Vote::SucceededOnChain, &Uint256::from(5u64));
 
         POLLS
             .save(
