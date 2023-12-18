@@ -6,54 +6,10 @@ use test_utils::{Chain, Protocol, Worker};
 use crate::test_utils::AXL_DENOMINATION;
 mod test_utils;
 
-// Creates an instance of Axelar Amplifier with an initial workerset registered, and returns the instance, the chain, the workers, and the minimum worker bond.
-fn setup_test_case(
-    chains: Vec<connection_router::state::ChainName>,
-) -> (Protocol, Chain, Vec<Worker>, Uint128) {
-    let mut protocol = test_utils::setup_protocol("validators".to_string().try_into().unwrap());
-    let min_worker_bond = Uint128::new(100);
-
-    let workers = vec![
-        Worker {
-            addr: Addr::unchecked("worker1"),
-            supported_chains: chains.clone(),
-            key_pair: test_utils::generate_key(0),
-        },
-        Worker {
-            addr: Addr::unchecked("worker2"),
-            supported_chains: chains.clone(),
-            key_pair: test_utils::generate_key(1),
-        },
-    ];
-
-    test_utils::register_service(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.service_name.clone(),
-        min_worker_bond.clone(),
-    );
-
-    test_utils::register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &workers,
-        protocol.service_name.clone(),
-        min_worker_bond.clone(),
-    );
-
-    let ethereum = test_utils::setup_chain(&mut protocol, chains.get(0).unwrap().clone());
-    (protocol, ethereum, workers, min_worker_bond)
-}
-
 #[test]
 fn worker_set_can_be_initialized_and_then_updated() {
-    let chains: Vec<connection_router::state::ChainName> =
-        vec!["Ethereum".to_string().try_into().unwrap()];
-    let (mut protocol, ethereum, initial_workers, min_worker_bond) = setup_test_case(chains.clone());
+    let (mut protocol, ethereum, _, initial_workers, min_worker_bond) =
+        test_utils::setup_test_case();
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
