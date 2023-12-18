@@ -189,16 +189,16 @@ pub fn verify_message_statuses(
 
     let message_statuses = message_statuses
         .into_iter()
-        .map(|(message, status)| {
-            msg_status_verification_status(deps.as_ref(), &(message.clone(), status.clone()))
-                .map(|verification_status| (verification_status, message, status))
+        .map(|(cc_id, status)| {
+            msg_status_verification_status(deps.as_ref(), &(cc_id.clone(), status.clone()))
+                .map(|verification_status| (verification_status, cc_id, status))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let msg_statuses_to_verify: Vec<(CrossChainId, MessageStatus)> = message_statuses
         .into_iter()
-        .filter_map(|(status, message, message_status)| match status {
-            VerificationStatus::FailedToVerify | VerificationStatus::NotVerified => Some((message, message_status)),
+        .filter_map(|(status, cc_id, message_status)| match status {
+            VerificationStatus::FailedToVerify | VerificationStatus::NotVerified => Some((cc_id, message_status)),
             VerificationStatus::InProgress | VerificationStatus::Verified => None,
         })
         .collect();
@@ -217,11 +217,11 @@ pub fn verify_message_statuses(
         msg_statuses_to_verify.len(),
     )?;
 
-    for (idx, (message, status)) in msg_statuses_to_verify.iter().enumerate() {
+    for (idx, (cc_id, status)) in msg_statuses_to_verify.iter().enumerate() {
         POLL_MESSAGE_STATUSES.save(
             deps.storage,
-            &message_status_key(message, status),
-            &state::PollContent::<(CrossChainId, MessageStatus)>::new(message.clone(), status.clone(), id, idx),
+            &message_status_key(cc_id, status),
+            &state::PollContent::<(CrossChainId, MessageStatus)>::new(cc_id.clone(), status.clone(), id, idx),
         )?;
     }
 
