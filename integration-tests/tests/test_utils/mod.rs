@@ -528,7 +528,6 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
         pub_keys.push(pub_key);
     }
 
-    let mut total_weight = Uint256::zero();
     // turn into participants
     let participants: Vec<Participant> = workers
         .iter()
@@ -538,9 +537,7 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
         })
         .collect();
 
-    for _ in &participants {
-        total_weight += Uint256::one();
-    }
+    let total_weight = Uint256::from_u128(participants.len() as u128);
 
     let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
 
