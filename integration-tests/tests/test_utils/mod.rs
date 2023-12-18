@@ -1,4 +1,8 @@
-use axelar_wasm_std::{nonempty, voting::PollId, Participant};
+use axelar_wasm_std::{
+    nonempty,
+    voting::{PollId, Vote},
+    Participant,
+};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
@@ -65,7 +69,7 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     assert!(response.is_ok());
 }
 
-pub fn vote_true_for_all_messages(
+pub fn vote_success_for_all_messages(
     app: &mut App,
     voting_verifier_address: &Addr,
     messages: &Vec<Message>,
@@ -78,7 +82,7 @@ pub fn vote_true_for_all_messages(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: vec![true; messages.len()],
+                votes: vec![Vote::SucceededOnChain; messages.len()],
             },
             &[],
         );
@@ -98,7 +102,7 @@ pub fn vote_true_for_worker_set(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: vec![true; 1],
+                votes: vec![Vote::SucceededOnChain; 1],
             },
             &[],
         );
@@ -129,7 +133,7 @@ pub fn construct_proof_and_sign(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
         &multisig_prover::msg::ExecuteMsg::ConstructProof {
-            message_ids: messages.iter().map(|msg| msg.cc_id.to_string()).collect(),
+            message_ids: messages.iter().map(|msg| msg.cc_id.clone()).collect(),
         },
         &[],
     );

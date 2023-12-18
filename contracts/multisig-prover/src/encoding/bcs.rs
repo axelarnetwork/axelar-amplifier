@@ -199,7 +199,7 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router::state::Message;
+    use connection_router::state::{CrossChainId, Message};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
     use multisig::{
@@ -216,7 +216,7 @@ mod test {
             CommandBatchBuilder, Data,
         },
         test::test_data,
-        types::{BatchID, Command, CommandBatch},
+        types::{BatchId, Command, CommandBatch},
     };
 
     use super::msg_digest;
@@ -537,7 +537,13 @@ mod test {
 
         let command_batch = CommandBatch {
             message_ids: vec![],
-            id: BatchID::new(&vec!["foobar".to_string()], None),
+            id: BatchId::new(
+                &vec![CrossChainId {
+                    chain: "AXELAR".to_string().try_into().unwrap(),
+                    id: "foobar".to_string().try_into().unwrap(),
+                }],
+                None,
+            ),
             data,
             encoder: crate::encoding::Encoder::Bcs,
         };

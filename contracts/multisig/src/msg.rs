@@ -1,3 +1,4 @@
+use connection_router::state::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
@@ -21,6 +22,13 @@ pub enum ExecuteMsg {
     StartSigningSession {
         worker_set_id: String,
         msg: HexBinary,
+        chain_name: ChainName,
+        /* Address of a contract responsible for signature verification.
+        The multisig contract verifies each submitted signature by default.
+        But some chains need custom verification beyond this, so the verification can be optionally overridden.
+        If a callback address is provided, signature verification is handled by the contract at that address
+        instead of the multisig contract. TODO: define interface for callback */
+        sig_verifier: Option<String>,
     },
     SubmitSignature {
         session_id: Uint64,
