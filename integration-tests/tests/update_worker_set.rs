@@ -121,7 +121,7 @@ fn worker_set_can_be_initialized_and_then_updated() {
         multisig_prover::msg::ProofStatus::Completed { .. }
     ));
 
-    assert_eq!(proof.message_ids.len(), 0,);
+    assert_eq!(proof.message_ids.len(), 0);
 
     let simulated_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
 
