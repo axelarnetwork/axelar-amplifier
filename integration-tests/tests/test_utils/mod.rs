@@ -65,10 +65,10 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     assert!(response.is_ok());
 }
 
-pub fn vote_true_for_all(
+pub fn vote_true_for_all_messages(
     app: &mut App,
     voting_verifier_address: &Addr,
-    votes: &Vec<bool>,
+    messages: &Vec<Message>,
     workers: &Vec<Worker>,
     poll_id: PollId,
 ) {
@@ -78,7 +78,27 @@ pub fn vote_true_for_all(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: votes.to_vec(),
+                votes: vec![true; messages.len()],
+            },
+            &[],
+        );
+        assert!(response.is_ok());
+    }
+}
+
+pub fn vote_true_for_worker_set(
+    app: &mut App,
+    voting_verifier_address: &Addr,
+    workers: &Vec<Worker>,
+    poll_id: PollId,
+) {
+    for worker in workers {
+        let response = app.execute_contract(
+            worker.addr.clone(),
+            voting_verifier_address.clone(),
+            &voting_verifier::msg::ExecuteMsg::Vote {
+                poll_id,
+                votes: vec![true; 1],
             },
             &[],
         );

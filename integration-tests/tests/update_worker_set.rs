@@ -93,10 +93,9 @@ fn worker_set_can_be_initialized_and_then_updated() {
     );
 
     // do voting
-    test_utils::vote_true_for_all(
+    test_utils::vote_true_for_worker_set(
         &mut protocol.app,
         &ethereum.voting_verifier_address,
-        &vec![true; 1],
         &new_workers,
         poll_id,
     );
