@@ -7,7 +7,10 @@ use cosmwasm_std::{
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use k256::ecdsa;
-use multisig::{key::PublicKey, worker_set::WorkerSet};
+use multisig::{
+    key::{KeyType, PublicKey},
+    worker_set::WorkerSet,
+};
 use multisig_prover::encoding::{make_operators, Encoder};
 use tofn::ecdsa::KeyPair;
 
@@ -515,16 +518,9 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     // get public keys
     let mut pub_keys = vec![];
     for worker in workers {
-        let pub_key_query_msg = multisig::msg::QueryMsg::GetPublicKey {
-            worker_address: worker.addr.to_string(),
-            key_type: multisig::key::KeyType::Ecdsa,
-        };
-
-        let pub_key: PublicKey = protocol
-            .app
-            .wrap()
-            .query_wasm_smart(protocol.multisig_address.clone(), &pub_key_query_msg)
-            .unwrap();
+        let encoded_verifying_key = HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+        let pub_key =
+            PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
         pub_keys.push(pub_key);
     }
 

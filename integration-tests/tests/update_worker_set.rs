@@ -37,6 +37,8 @@ fn worker_set_can_be_initialized_and_then_updated() {
     };
     new_workers.push(new_worker);
 
+    let simulated_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
+
     test_utils::register_workers(
         &mut protocol.app,
         protocol.service_registry_address.clone(),
@@ -83,13 +85,11 @@ fn worker_set_can_be_initialized_and_then_updated() {
 
     assert_eq!(proof.message_ids.len(), 0);
 
-    let simulated_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
-
     let (poll_id, expiry) = test_utils::create_worker_set_poll(
         &mut protocol.app,
         Addr::unchecked("relayer"),
         ethereum.voting_verifier_address.clone(),
-        simulated_new_worker_set,
+        simulated_new_worker_set.clone(),
     );
 
     // do voting
@@ -114,4 +114,9 @@ fn worker_set_can_be_initialized_and_then_updated() {
         Addr::unchecked("relayer"),
         ethereum.multisig_prover_address.clone(),
     );
+
+    let new_worker_set =
+        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+
+    assert_eq!(new_worker_set, simulated_new_worker_set);
 }
