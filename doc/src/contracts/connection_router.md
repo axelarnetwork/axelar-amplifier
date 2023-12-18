@@ -46,11 +46,7 @@ pub enum ExecuteMsg {
     // Called by a registered gateway
     RouteMessages(Vec<Message>),
 }
-```
 
-## Events
-
-```Rust
 pub struct RouterInstantiated {
     pub admin: Addr,
     pub governance: Addr,
