@@ -483,6 +483,20 @@ pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Ad
     assert!(response.is_ok());
 }
 
+fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
+    let poll_id = get_event_attribute(&response.events, "wasm-worker_set_poll_started", "poll_id")
+        .map(|attr| serde_json::from_str(&attr.value).unwrap())
+        .expect("couldn't get poll_id");
+    let expiry = get_event_attribute(
+        &response.events,
+        "wasm-worker_set_poll_started",
+        "expires_at",
+    )
+    .map(|attr| attr.value.as_str().parse().unwrap())
+    .expect("couldn't get poll expiry");
+    (poll_id, expiry)
+}
+
 pub fn create_worker_set_poll(
     app: &mut App,
     relayer_addr: Addr,
@@ -499,19 +513,8 @@ pub fn create_worker_set_poll(
         &[],
     );
     assert!(response.is_ok());
-    let response = response.unwrap();
-
-    let poll_id = get_event_attribute(&response.events, "wasm-worker_set_poll_started", "poll_id")
-        .map(|attr| serde_json::from_str(&attr.value).unwrap())
-        .expect("couldn't get poll_id");
-    let expiry = get_event_attribute(
-        &response.events,
-        "wasm-worker_set_poll_started",
-        "expires_at",
-    )
-    .map(|attr| attr.value.as_str().parse().unwrap())
-    .expect("couldn't get poll expiry");
-    (poll_id, expiry)
+    
+    get_worker_set_poll_id_and_expiry(response.unwrap())
 }
 
 pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
