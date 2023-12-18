@@ -6,19 +6,19 @@ use cosmwasm_std::{
 
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
-use connection_router::state::{ChainName, Message};
+use connection_router::state::{ChainName, Message, CrossChainId};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
 use crate::error::ContractError;
 use crate::events::{
-    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
+    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation, TxStatusConfirmation,
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse, VerifyMessageStatusesResponse};
 use crate::query::{
     is_verified, is_worker_set_verified, msg_verification_status, VerificationStatus, msg_status_verification_status, is_status_verified,
 };
-use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS, message_and_status_key, POLL_MESSAGE_STATUSES};
+use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS, message_status_key, POLL_MESSAGE_STATUSES};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 
 pub fn verify_worker_set(
@@ -166,7 +166,7 @@ impl Into<u8> for MessageStatus {
 pub fn verify_message_statuses(
     deps: DepsMut,
     env: Env,
-    message_statuses: Vec<(Message, MessageStatus)>,
+    message_statuses: Vec<(CrossChainId, MessageStatus)>,
 ) -> Result<Response, ContractError> {
     if message_statuses.is_empty() {
         return Err(ContractError::EmptyMessages)?;
@@ -176,7 +176,7 @@ pub fn verify_message_statuses(
 
     if message_statuses
         .iter()
-        .any(|(message, _)| message.cc_id.chain.ne(&source_chain))
+        .any(|(cc_id, _)| cc_id.chain.ne(&source_chain))
     {
         return Err(ContractError::SourceChainMismatch(source_chain))?;
     }
@@ -195,7 +195,7 @@ pub fn verify_message_statuses(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let msg_statuses_to_verify: Vec<(Message, MessageStatus)> = message_statuses
+    let msg_statuses_to_verify: Vec<(CrossChainId, MessageStatus)> = message_statuses
         .into_iter()
         .filter_map(|(status, message, message_status)| match status {
             VerificationStatus::FailedToVerify | VerificationStatus::NotVerified => Some((message, message_status)),
@@ -220,15 +220,15 @@ pub fn verify_message_statuses(
     for (idx, (message, status)) in msg_statuses_to_verify.iter().enumerate() {
         POLL_MESSAGE_STATUSES.save(
             deps.storage,
-            &message_and_status_key(message, status),
-            &state::PollContent::<(Message, MessageStatus)>::new(message.clone(), status.clone(), id, idx),
+            &message_status_key(message, status),
+            &state::PollContent::<(CrossChainId, MessageStatus)>::new(message.clone(), status.clone(), id, idx),
         )?;
     }
 
     let message_statuses = msg_statuses_to_verify
         .into_iter()
-        .map(|(msg, status)| { TryInto::try_into(msg).map(|t| (t, status)) })
-        .collect::<Result<Vec<(TxEventConfirmation, MessageStatus)>, _>>()?;
+        .map(|(cc_id, status)| TryInto::try_into((cc_id, status)))
+        .collect::<Result<Vec<TxStatusConfirmation>, _>>()?;
 
     Ok(response.add_event(
         PollStarted::MessageStatuses {

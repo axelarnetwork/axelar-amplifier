@@ -5,7 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
-use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS, POLL_MESSAGE_STATUSES, message_and_status_key};
+use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS, POLL_MESSAGE_STATUSES, message_status_key};
 use crate::execute::MessageStatus;
 
 #[cw_serde]
@@ -35,14 +35,14 @@ pub fn is_verified(
 
 pub fn is_status_verified(
     deps: Deps,
-    message_statuses: &[(Message, MessageStatus)],
+    message_statuses: &[(CrossChainId, MessageStatus)],
 ) -> Result<Vec<(CrossChainId, MessageStatus, bool)>, ContractError> {
     message_statuses
         .iter()
         .map(|message_status| {
             msg_status_verification_status(deps, message_status).map(|status| {
                 (
-                    message_status.0.cc_id.to_owned(),
+                    message_status.0.to_owned(),
                     message_status.1.clone(),
                     matches!(status, VerificationStatus::Verified),
                 )
@@ -68,9 +68,9 @@ pub fn msg_verification_status(
 
 pub fn msg_status_verification_status(
     deps: Deps,
-    message_status: &(Message, MessageStatus)
+    message_status: &(CrossChainId, MessageStatus)
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_MESSAGE_STATUSES.may_load(deps.storage, &message_and_status_key(&message_status.0, &message_status.1))?;
+    let loaded_poll_content = POLL_MESSAGE_STATUSES.may_load(deps.storage, &message_status_key(&message_status.0, &message_status.1))?;
     Ok(verification_status(deps, loaded_poll_content, message_status))
 }
 

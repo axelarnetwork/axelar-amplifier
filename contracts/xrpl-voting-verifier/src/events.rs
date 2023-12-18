@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Attribute, Event};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::{Address, ChainName, Message, ID_SEPARATOR};
+use connection_router::state::{Address, ChainName, Message, ID_SEPARATOR, CrossChainId};
 
 use crate::error::ContractError;
 use crate::execute::MessageStatus;
@@ -49,7 +49,7 @@ pub enum PollStarted {
         metadata: PollMetadata,
     },
     MessageStatuses {
-        message_statuses: Vec<(TxEventConfirmation, MessageStatus)>,
+        message_statuses: Vec<TxStatusConfirmation>,
         metadata: PollMetadata,
     },
     WorkerSet {
@@ -133,6 +133,27 @@ impl WorkerSetConfirmation {
             tx_id,
             event_index,
             operators,
+        })
+    }
+}
+
+#[cw_serde]
+pub struct TxStatusConfirmation {
+    pub tx_id: nonempty::String,
+    pub event_index: u64,
+    pub status: MessageStatus
+}
+
+impl TryFrom<(CrossChainId, MessageStatus)> for TxStatusConfirmation {
+    type Error = ContractError;
+
+    fn try_from(other: (CrossChainId, MessageStatus)) -> Result<Self, Self::Error> {
+        let (tx_id, event_index) = parse_message_id(&other.0.id)?;
+
+        Ok(TxStatusConfirmation {
+            tx_id,
+            event_index,
+            status: other.1
         })
     }
 }

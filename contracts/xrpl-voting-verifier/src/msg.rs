@@ -47,7 +47,7 @@ pub enum ExecuteMsg {
     // returns a vector of true/false values, indicating current verification status for each message and status
     // starts a poll for any not yet verified message statuses
     VerifyMessageStatuses {
-        message_statuses: Vec<(Message, MessageStatus)>,
+        message_statuses: Vec<(CrossChainId, MessageStatus)>,
     },
 
     // Starts a poll to confirm a worker set update on the external evm gateway
@@ -73,7 +73,7 @@ pub enum QueryMsg {
     IsVerified { messages: Vec<Message> },
 
     #[returns(Vec<(connection_router::state::CrossChainId, MessageStatus, bool)>)]
-    IsStatusVerified { message_statuses: Vec<(Message, MessageStatus)> },
+    IsStatusVerified { message_statuses: Vec<(CrossChainId, MessageStatus)> },
 
     #[returns(bool)]
     IsWorkerSetVerified { new_operators: Operators },

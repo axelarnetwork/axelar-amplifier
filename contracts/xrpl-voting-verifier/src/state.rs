@@ -10,7 +10,8 @@ use axelar_wasm_std::{
     voting::{PollId, WeightedPoll},
     Threshold,
 };
-use connection_router::state::{ChainName, Message};
+use connection_router::state::{ChainName, Message, CrossChainId};
+use sha3::{Keccak256, Digest};
 
 use crate::{error::ContractError, execute::MessageStatus};
 
@@ -64,10 +65,10 @@ impl PollContent<Message> {
     }
 }
 
-impl PollContent<(Message, MessageStatus)> {
-    pub fn new(message: Message, status: MessageStatus, poll_id: PollId, index_in_poll: usize) -> Self {
+impl PollContent<(CrossChainId, MessageStatus)> {
+    pub fn new(cc_id: CrossChainId, status: MessageStatus, poll_id: PollId, index_in_poll: usize) -> Self {
         Self {
-            content: (message, status),
+            content: (cc_id, status),
             poll_id,
             index_in_poll: index_in_poll.try_into().unwrap(),
         }
@@ -84,12 +85,11 @@ impl PollContent<Operators> {
     }
 }
 
-
-pub fn message_and_status_key(msg: &Message, status: &MessageStatus) -> [u8; 33] {
-    let mut result = [0u8; 33];
-    result[..32].copy_from_slice(&msg.hash());
-    result[32] = status.clone().into();
-    result
+pub fn message_status_key(cc_id: &CrossChainId, status: &MessageStatus) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(cc_id.to_string());
+    hasher.update([status.clone().into()]);
+    hasher.finalize().into()
 }
 
 pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
@@ -98,7 +98,7 @@ pub const POLLS: Map<PollId, Poll> = Map::new("polls");
 
 pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messages");
 
-pub const POLL_MESSAGE_STATUSES: Map<&[u8; 33], PollContent<(Message, MessageStatus)>> = Map::new("poll_message_statuses");
+pub const POLL_MESSAGE_STATUSES: Map<&[u8; 32], PollContent<(CrossChainId, MessageStatus)>> = Map::new("poll_message_statuses");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
