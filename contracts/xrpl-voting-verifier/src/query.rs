@@ -5,7 +5,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
-use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS, POLL_MESSAGE_STATUSES, message_and_status_key};
+use crate::execute::MessageStatus;
 
 #[cw_serde]
 pub enum VerificationStatus {
@@ -32,6 +33,24 @@ pub fn is_verified(
         .collect::<Result<Vec<_>, _>>()
 }
 
+pub fn is_status_verified(
+    deps: Deps,
+    message_statuses: &[(Message, MessageStatus)],
+) -> Result<Vec<(CrossChainId, MessageStatus, bool)>, ContractError> {
+    message_statuses
+        .iter()
+        .map(|message_status| {
+            msg_status_verification_status(deps, message_status).map(|status| {
+                (
+                    message_status.0.cc_id.to_owned(),
+                    message_status.1.clone(),
+                    matches!(status, VerificationStatus::Verified),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+}
+
 pub fn is_worker_set_verified(deps: Deps, operators: &Operators) -> Result<bool, ContractError> {
     Ok(matches!(
         worker_set_verification_status(deps, operators)?,
@@ -45,6 +64,14 @@ pub fn msg_verification_status(
 ) -> Result<VerificationStatus, ContractError> {
     let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
     Ok(verification_status(deps, loaded_poll_content, message))
+}
+
+pub fn msg_status_verification_status(
+    deps: Deps,
+    message_status: &(Message, MessageStatus)
+) -> Result<VerificationStatus, ContractError> {
+    let loaded_poll_content = POLL_MESSAGE_STATUSES.may_load(deps.storage, &message_and_status_key(&message_status.0, &message_status.1))?;
+    Ok(verification_status(deps, loaded_poll_content, message_status))
 }
 
 pub fn worker_set_verification_status(
@@ -72,7 +99,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 .expect("invalid invariant: message poll not found");
 
             let verified = match &poll {
-                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => {
+                Poll::Messages(poll) | Poll::MessageStatuses(poll) | Poll::ConfirmWorkerSet(poll) => {
                     poll.consensus(stored.index_in_poll)
                         .expect("invalid invariant: message not found in poll")
                         == Some(Vote::SucceededOnChain) // TODO: consider Vote::FailedOnChain?
@@ -93,7 +120,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
 
 fn is_finished(poll: &state::Poll) -> bool {
     match poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+        state::Poll::Messages(poll) | state::Poll::MessageStatuses(poll) | state::Poll::ConfirmWorkerSet(poll) => {
             poll.status == PollStatus::Finished
         }
     }

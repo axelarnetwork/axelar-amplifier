@@ -8,6 +8,8 @@ use axelar_wasm_std::{
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 
+use crate::execute::MessageStatus;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     // params to query register service
@@ -42,6 +44,12 @@ pub enum ExecuteMsg {
         messages: Vec<Message>,
     },
 
+    // returns a vector of true/false values, indicating current verification status for each message and status
+    // starts a poll for any not yet verified message statuses
+    VerifyMessageStatuses {
+        message_statuses: Vec<(Message, MessageStatus)>,
+    },
+
     // Starts a poll to confirm a worker set update on the external evm gateway
     VerifyWorkerSet {
         message_id: nonempty::String,
@@ -64,6 +72,9 @@ pub enum QueryMsg {
     #[returns(Vec<(connection_router::state::CrossChainId, bool)>)]
     IsVerified { messages: Vec<Message> },
 
+    #[returns(Vec<(connection_router::state::CrossChainId, MessageStatus, bool)>)]
+    IsStatusVerified { message_statuses: Vec<(Message, MessageStatus)> },
+
     #[returns(bool)]
     IsWorkerSetVerified { new_operators: Operators },
 }
@@ -71,6 +82,11 @@ pub enum QueryMsg {
 #[cw_serde]
 pub struct VerifyMessagesResponse {
     pub verification_statuses: Vec<(CrossChainId, bool)>,
+}
+
+#[cw_serde]
+pub struct VerifyMessageStatusesResponse {
+    pub verification_statuses: Vec<(CrossChainId, MessageStatus, bool)>,
 }
 
 #[cw_serde]

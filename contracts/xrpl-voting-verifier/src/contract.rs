@@ -40,6 +40,7 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::VerifyMessages { messages } => execute::verify_messages(deps, env, messages),
+        ExecuteMsg::VerifyMessageStatuses { message_statuses } => execute::verify_message_statuses(deps, env, message_statuses),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyWorkerSet {
@@ -53,6 +54,8 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::IsVerified { messages } => to_binary(&query::is_verified(deps, &messages)?),
+
+        QueryMsg::IsStatusVerified { message_statuses } => to_binary(&query::is_status_verified(deps, &message_statuses)?),
 
         QueryMsg::GetPoll { poll_id: _ } => {
             todo!()

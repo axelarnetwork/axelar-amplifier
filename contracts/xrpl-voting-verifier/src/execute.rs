@@ -1,4 +1,5 @@
 use axelar_wasm_std::operators::Operators;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
@@ -13,11 +14,11 @@ use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
-use crate::msg::{EndPollResponse, VerifyMessagesResponse};
+use crate::msg::{EndPollResponse, VerifyMessagesResponse, VerifyMessageStatusesResponse};
 use crate::query::{
-    is_verified, is_worker_set_verified, msg_verification_status, VerificationStatus,
+    is_verified, is_worker_set_verified, msg_verification_status, VerificationStatus, msg_status_verification_status, is_status_verified,
 };
-use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS, message_and_status_key, POLL_MESSAGE_STATUSES};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 
 pub fn verify_worker_set(
@@ -145,6 +146,106 @@ pub fn verify_messages(
     ))
 }
 
+#[cw_serde]
+pub enum MessageStatus {
+    Succeeded,
+    FailedOffChain,
+    FailedOnChain
+}
+
+impl Into<u8> for MessageStatus {
+    fn into(self) -> u8 {
+        match self {
+            MessageStatus::Succeeded => 0,
+            MessageStatus::FailedOffChain => 1,
+            MessageStatus::FailedOnChain => 2
+        }
+    }
+}
+
+pub fn verify_message_statuses(
+    deps: DepsMut,
+    env: Env,
+    message_statuses: Vec<(Message, MessageStatus)>,
+) -> Result<Response, ContractError> {
+    if message_statuses.is_empty() {
+        return Err(ContractError::EmptyMessages)?;
+    }
+
+    let source_chain = CONFIG.load(deps.storage)?.source_chain;
+
+    if message_statuses
+        .iter()
+        .any(|(message, _)| message.cc_id.chain.ne(&source_chain))
+    {
+        return Err(ContractError::SourceChainMismatch(source_chain))?;
+    }
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let response = Response::new().set_data(to_binary(&VerifyMessageStatusesResponse {
+        verification_statuses: is_status_verified(deps.as_ref(), &message_statuses)?,
+    })?);
+
+    let message_statuses = message_statuses
+        .into_iter()
+        .map(|(message, status)| {
+            msg_status_verification_status(deps.as_ref(), &(message.clone(), status.clone()))
+                .map(|verification_status| (verification_status, message, status))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let msg_statuses_to_verify: Vec<(Message, MessageStatus)> = message_statuses
+        .into_iter()
+        .filter_map(|(status, message, message_status)| match status {
+            VerificationStatus::FailedToVerify | VerificationStatus::NotVerified => Some((message, message_status)),
+            VerificationStatus::InProgress | VerificationStatus::Verified => None,
+        })
+        .collect();
+
+    if msg_statuses_to_verify.is_empty() {
+        return Ok(response);
+    }
+
+    let snapshot = take_snapshot(deps.as_ref(), &source_chain)?;
+    let participants = snapshot.get_participants();
+    let id = create_messages_poll(
+        deps.storage,
+        env.block.height,
+        config.block_expiry,
+        snapshot,
+        msg_statuses_to_verify.len(),
+    )?;
+
+    for (idx, (message, status)) in msg_statuses_to_verify.iter().enumerate() {
+        POLL_MESSAGE_STATUSES.save(
+            deps.storage,
+            &message_and_status_key(message, status),
+            &state::PollContent::<(Message, MessageStatus)>::new(message.clone(), status.clone(), id, idx),
+        )?;
+    }
+
+    let message_statuses = msg_statuses_to_verify
+        .into_iter()
+        .map(|(msg, status)| { TryInto::try_into(msg).map(|t| (t, status)) })
+        .collect::<Result<Vec<(TxEventConfirmation, MessageStatus)>, _>>()?;
+
+    Ok(response.add_event(
+        PollStarted::MessageStatuses {
+            message_statuses,
+            metadata: PollMetadata {
+                poll_id: id,
+                source_chain: config.source_chain,
+                source_gateway_address: config.source_gateway_address,
+                confirmation_height: config.confirmation_height,
+                expires_at: env.block.height + config.block_expiry,
+                participants,
+            },
+        }
+        .into(),
+    ))
+}
+
 pub fn vote(
     deps: DepsMut,
     env: Env,
@@ -182,7 +283,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.state(),
+        Poll::Messages(poll) | Poll::MessageStatuses(poll) | Poll::ConfirmWorkerSet(poll) => poll.state(),
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
