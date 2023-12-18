@@ -8,6 +8,10 @@ mod test_utils;
 
 #[test]
 fn worker_set_can_be_initialized_and_then_updated() {
+    let chains = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "Polygon".to_string().try_into().unwrap(),
+    ];
     let (mut protocol, ethereum, _, initial_workers, min_worker_bond) =
         test_utils::setup_test_case();
 
