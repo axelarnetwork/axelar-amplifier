@@ -53,9 +53,9 @@ fn setup_test_case(
 fn worker_set_can_be_initialized_and_then_updated() {
     let chains: Vec<connection_router::state::ChainName> =
         vec!["Ethereum".to_string().try_into().unwrap()];
-    let (mut protocol, ethereum, mut workers, min_worker_bond) = setup_test_case(chains.clone());
+    let (mut protocol, ethereum, initial_workers, min_worker_bond) = setup_test_case(chains.clone());
 
-    let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &workers);
+    let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
     let worker_set =
         test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
@@ -93,7 +93,7 @@ fn worker_set_can_be_initialized_and_then_updated() {
         &mut protocol.app,
         protocol.service_registry_address.clone(),
         protocol.governance_address.clone(),
-        &workers,
+        &initial_workers,
         protocol.service_name.clone(),
     );
 
@@ -107,7 +107,7 @@ fn worker_set_can_be_initialized_and_then_updated() {
     let session_id = test_utils::sign_proof(
         &mut protocol.app,
         &protocol.multisig_address,
-        &workers,
+        &initial_workers,
         response,
     );
 
