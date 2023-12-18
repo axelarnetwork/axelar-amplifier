@@ -518,9 +518,9 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     // get public keys
     let mut pub_keys = vec![];
     for worker in workers {
-        let encoded_verifying_key = HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
-        let pub_key =
-            PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
+        let encoded_verifying_key =
+            HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+        let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
         pub_keys.push(pub_key);
     }
 
