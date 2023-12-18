@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      binary-to-release:
+        description: Binary to release
+        type: choice
+        options:
+          - ampd
+          - agggregate-verifier
+          - batching
+          - connection-router
+          - gateway
+          - multisig
+          - multisig-prover
+          - nexus-gateway
+          - rewards
+          - service-registry
+          - voting-verifier
+      dry-run:
+        description: Dry run
+        type: boolean
+        default: true
+
+jobs:
+
+  release:
+    name: Release ${{ github.event.inputs.binary-to-release }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: '0'
+      - name: Setup variables for sub-project to release
+        id: setup-variables
+        run: |
+          if [ "${{ github.event.inputs.binary-to-release }}" == "ampd" ]; then
+            echo "binary-to-release=ampd" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=MAJOR-AMPD" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=MINOR-AMPD" >> "$GITHUB_OUTPUT"
+            echo "change-path=" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "agggregate-verifier" ]; then
+            echo "binary-to-release=aggregate-verifier" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-AGGREGATE-VERIFIER)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-AGGREGATE-VERIFIER)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/aggregate-verifier packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "batching" ]; then
+            echo "binary-to-release=batching" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-BATCHING)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-BATCHING)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/batching packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "connection-router" ]; then
+            echo "binary-to-release=connection-router" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-CONNECTION-ROUTER)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-CONNECTION-ROUTER)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/connection-router packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "gateway" ]; then
+            echo "binary-to-release=gateway" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-GATEWAY)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-GATEWAY)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/gateway packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "multisig" ]; then
+            echo "binary-to-release=multisig" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-MULTISIG)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-MULTISIG)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/multisig packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "multisig-prover" ]; then
+            echo "binary-to-release=multisig-prover" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-MULTISIG-PROVER)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-MULTISIG-PROVER)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/multisig-prover packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "nexus-gateway" ]; then
+            echo "binary-to-release=nexus-gateway" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-NEXUS-GATEWAY)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-NEXUS-GATEWAY)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/nexus-gateway packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "rewards" ]; then
+            echo "binary-to-release=rewards" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-REWARDS)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-REWARDS)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/rewards packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "service-registry" ]; then
+            echo "binary-to-release=service-registry" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-SERVICE-REGISTRY)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-SERVICE-REGISTRY)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/service-registry packages" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.inputs.binary-to-release }}" == "voting-verifier" ]; then
+            echo "binary-to-release=voting-verifier" >> "$GITHUB_OUTPUT"
+            echo "major-pattern=/(MAJOR-VOTING-VERIFIER)|(MAJOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "minor-pattern=/(MINOR-VOTING-VERIFIER)|(MINOR-CONTRACTS)/" >> "$GITHUB_OUTPUT"
+            echo "change-path=contracts/voting-verifier packages" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unknown binary to release"
+            exit 1
+          fi
+
+      - name: Release ${{ github.event.inputs.binary-to-release }}
+        uses: ./.github/actions/release
+        with:
+          binary-to-release: ${{ steps.setup-variables.outputs.binary-to-release }}
+          dry-run: ${{ github.event.inputs.dry-run }}
+          major-pattern: ${{ steps.setup-variables.outputs.major-pattern }}
+          minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
+          change-path: ${{ steps.setup-variables.outputs.change-path }}
+
