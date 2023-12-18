@@ -513,7 +513,7 @@ pub fn create_worker_set_poll(
         &[],
     );
     assert!(response.is_ok());
-    
+
     get_worker_set_poll_id_and_expiry(response.unwrap())
 }
 
