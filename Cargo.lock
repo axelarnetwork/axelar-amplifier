@@ -9290,6 +9290,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "xrpl-multisig-prover"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "bs58 0.5.0",
+ "connection-router",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "error-stack",
+ "gateway",
+ "hex",
+ "multisig",
+ "report",
+ "ripemd",
+ "serde_json",
+ "service-registry",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "thiserror",
+ "xrpl-voting-verifier",
+]
+
+[[package]]
 name = "xrpl-voting-verifier"
 version = "0.1.0"
 dependencies = [
