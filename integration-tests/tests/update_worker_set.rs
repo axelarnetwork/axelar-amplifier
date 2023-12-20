@@ -1,9 +1,6 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Addr;
+use test_utils::Worker;
 
-use cw_multi_test::Executor;
-use test_utils::{Chain, Protocol, Worker};
-
-use crate::test_utils::AXL_DENOMINATION;
 mod test_utils;
 
 #[test]
@@ -37,7 +34,7 @@ fn worker_set_can_be_initialized_and_then_updated() {
     };
     new_workers.push(new_worker);
 
-    let simulated_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
+    let expected_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
 
     test_utils::register_workers(
         &mut protocol.app,
@@ -89,7 +86,7 @@ fn worker_set_can_be_initialized_and_then_updated() {
         &mut protocol.app,
         Addr::unchecked("relayer"),
         ethereum.voting_verifier_address.clone(),
-        simulated_new_worker_set.clone(),
+        expected_new_worker_set.clone(),
     );
 
     // do voting
@@ -117,5 +114,5 @@ fn worker_set_can_be_initialized_and_then_updated() {
     let new_worker_set =
         test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
 
-    assert_eq!(new_worker_set, simulated_new_worker_set);
+    assert_eq!(new_worker_set, expected_new_worker_set);
 }
