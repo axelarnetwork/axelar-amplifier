@@ -4,7 +4,7 @@ use test_utils::Worker;
 mod test_utils;
 
 #[test]
-fn worker_set_can_be_initialized_and_then_updated() {
+fn worker_set_can_be_initialized_and_then_manually_updated() {
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
