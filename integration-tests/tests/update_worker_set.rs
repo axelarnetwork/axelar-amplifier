@@ -119,7 +119,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 }
 
 #[test]
-fn worker_set_can_be_initialized_and_then_automatically_updated() {
+fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_construction() {
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
