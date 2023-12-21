@@ -7,7 +7,7 @@ use error_stack::ResultExt;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 
-use axelar_wasm_std::voting::PollId;
+use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
@@ -70,7 +70,7 @@ where
             broadcast_client,
         }
     }
-    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<bool>) -> Result<()> {
+    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
             .expect("vote msg should serialize");
         let tx = MsgExecuteContract {
@@ -132,7 +132,7 @@ where
             .map(|msg| {
                 transaction_blocks
                     .get(&msg.tx_id)
-                    .map_or(false, |tx_block| {
+                    .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
                     })
             })
