@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::voting::{PollId, Vote};
 use connection_router::state::ID_SEPARATOR;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
@@ -42,7 +42,7 @@ pub struct Message {
 struct PollStartedEvent {
     #[serde(rename = "_contract_address")]
     contract_address: TMAddress,
-    poll_id: PollID,
+    poll_id: PollId,
     source_chain: connection_router::state::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
@@ -120,7 +120,7 @@ where
         .collect())
     }
 
-    async fn broadcast_votes(&self, poll_id: PollID, votes: Vec<bool>) -> Result<()> {
+    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
             .expect("vote msg should serialize");
         let tx = MsgExecuteContract {
@@ -203,7 +203,7 @@ where
                 .map(|msg| {
                     finalized_tx_receipts
                         .get(&msg.tx_id)
-                        .map_or(false, |tx_receipt| {
+                        .map_or(Vote::NotFound, |tx_receipt| {
                             verify_message(&source_gateway_address, tx_receipt, msg)
                         })
                 })

@@ -131,7 +131,7 @@ fn encode_proof(
 }
 
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+    let operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
         .map(|signer| {
@@ -142,11 +142,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
             )
         })
         .collect();
-    operators.sort_by_key(|op| op.0.clone());
-    Operators {
-        weights_by_addresses: operators,
-        threshold: worker_set.threshold,
-    }
+    Operators::new(operators, worker_set.threshold)
 }
 
 fn make_evm_operators_with_sigs(
@@ -241,6 +237,7 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
+    use connection_router::state::CrossChainId;
     use elliptic_curve::consts::U32;
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
@@ -438,8 +435,8 @@ mod test {
             res.message_ids,
             test_data::messages()
                 .into_iter()
-                .map(|msg| msg.cc_id.to_string())
-                .collect::<Vec<String>>()
+                .map(|msg| msg.cc_id)
+                .collect::<Vec<CrossChainId>>()
         );
         assert_eq!(
             res.data.destination_chain_id,

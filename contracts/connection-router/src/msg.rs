@@ -1,4 +1,4 @@
-use crate::state::{ChainName, GatewayDirection, Message};
+use crate::state::{ChainEndpoint, ChainName, GatewayDirection, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
@@ -54,4 +54,7 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    #[returns(ChainEndpoint)]
+    GetChainInfo(ChainName),
+}

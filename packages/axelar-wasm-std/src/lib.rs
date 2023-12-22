@@ -9,6 +9,7 @@ pub mod counter;
 mod error;
 pub mod flagset;
 mod fn_ext;
+pub mod hash;
 pub mod hex;
 pub mod nonempty;
 pub mod operators;

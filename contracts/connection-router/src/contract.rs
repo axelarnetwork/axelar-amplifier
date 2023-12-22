@@ -1,12 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::events::RouterInstantiated;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, RouterStore, Store};
 
 mod execute;
+mod query;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -99,8 +100,13 @@ where
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    todo!()
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::ContractError> {
+    match msg {
+        QueryMsg::GetChainInfo(chain) => to_binary(&query::get_chain_info(deps, chain)?),
+    }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
-
-pub mod query {}

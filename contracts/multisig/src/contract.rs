@@ -42,13 +42,23 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::StartSigningSession { worker_set_id, msg } => {
+        ExecuteMsg::StartSigningSession {
+            worker_set_id,
+            msg,
+            chain_name,
+            sig_verifier,
+        } => {
             execute::require_authorized_caller(&deps, info.sender)?;
+
+            let _sig_verifier = sig_verifier
+                .map(|addr| deps.api.addr_validate(&addr))
+                .transpose()?; // TODO: handle callback
             execute::start_signing_session(
                 deps,
                 worker_set_id,
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
+                chain_name,
             )
         }
         ExecuteMsg::SubmitSignature {
@@ -74,6 +84,7 @@ pub fn execute(
 }
 
 pub mod execute {
+    use connection_router::state::ChainName;
     use cosmwasm_std::WasmMsg;
 
     use crate::signing::validate_session_signature;
@@ -92,6 +103,7 @@ pub mod execute {
         deps: DepsMut,
         worker_set_id: String,
         msg: MsgToSign,
+        chain_name: ChainName,
     ) -> Result<Response, ContractError> {
         let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
 
@@ -112,6 +124,7 @@ pub mod execute {
             worker_set_id,
             pub_keys: worker_set.get_pub_keys(),
             msg,
+            chain_name,
         };
 
         Ok(Response::new()
@@ -422,6 +435,8 @@ mod tests {
         let msg = ExecuteMsg::StartSigningSession {
             worker_set_id: worker_set_id.to_string(),
             msg: message.clone(),
+            chain_name: "Ethereum".to_string().try_into().unwrap(),
+            sig_verifier: None,
         };
         execute(deps, env, info, msg)
     }

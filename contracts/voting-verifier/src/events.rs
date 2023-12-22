@@ -5,7 +5,7 @@ use cosmwasm_std::{Addr, Attribute, Event};
 
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::voting::PollID;
+use axelar_wasm_std::voting::{PollId, Vote};
 use connection_router::state::{Address, ChainName, Message, ID_SEPARATOR};
 
 use crate::error::ContractError;
@@ -34,7 +34,7 @@ impl From<Config> for Vec<Attribute> {
 }
 
 pub struct PollMetadata {
-    pub poll_id: PollID,
+    pub poll_id: PollId,
     pub source_chain: ChainName,
     pub source_gateway_address: nonempty::String,
     pub confirmation_height: u64,
@@ -173,7 +173,7 @@ fn parse_message_id(
 }
 
 pub struct Voted {
-    pub poll_id: PollID,
+    pub poll_id: PollId,
     pub voter: Addr,
 }
 
@@ -189,8 +189,8 @@ impl From<Voted> for Event {
 }
 
 pub struct PollEnded {
-    pub poll_id: PollID,
-    pub results: Vec<bool>,
+    pub poll_id: PollId,
+    pub results: Vec<Option<Vote>>,
 }
 
 impl From<PollEnded> for Event {

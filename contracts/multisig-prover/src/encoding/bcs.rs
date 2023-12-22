@@ -18,16 +18,12 @@ use sha3::{Digest, Keccak256};
 // that has an abi and bcs implementation (and possibly others)
 
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let mut operators: Vec<(HexBinary, Uint256)> = worker_set
+    let operators: Vec<(HexBinary, Uint256)> = worker_set
         .signers
         .values()
         .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
-    operators.sort_by_key(|op| op.0.clone());
-    Operators {
-        weights_by_addresses: operators,
-        threshold: worker_set.threshold,
-    }
+    Operators::new(operators, worker_set.threshold)
 }
 
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
@@ -203,7 +199,7 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router::state::Message;
+    use connection_router::state::{CrossChainId, Message};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
     use multisig::{
@@ -220,7 +216,7 @@ mod test {
             CommandBatchBuilder, Data,
         },
         test::test_data,
-        types::{BatchID, Command, CommandBatch},
+        types::{BatchId, Command, CommandBatch},
     };
 
     use super::msg_digest;
@@ -267,10 +263,7 @@ mod test {
         expected.sort_by_key(|op| op.0.clone());
 
         let operators = make_operators(worker_set.clone());
-        let expected_operators = Operators {
-            weights_by_addresses: expected,
-            threshold: worker_set.threshold,
-        };
+        let expected_operators = Operators::new(expected, worker_set.threshold);
         assert_eq!(operators, expected_operators);
     }
 
@@ -544,7 +537,13 @@ mod test {
 
         let command_batch = CommandBatch {
             message_ids: vec![],
-            id: BatchID::new(&vec!["foobar".to_string()], None),
+            id: BatchId::new(
+                &vec![CrossChainId {
+                    chain: "AXELAR".to_string().try_into().unwrap(),
+                    id: "foobar".to_string().try_into().unwrap(),
+                }],
+                None,
+            ),
             data,
             encoder: crate::encoding::Encoder::Bcs,
         };
