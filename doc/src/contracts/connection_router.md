@@ -134,9 +134,6 @@ External Gateway A->>+Relayer A: event emitted
 Relayer A->>+Gateway A: gateway::ExecuteMsg::RouteMessages
 Gateway A->>+Connection Router: connection_router::ExecuteMsg::RouteMessages
 Connection Router->>+Gateway B: gateway::ExecuteMsg::RouteMessages
-Gateway B-->>-Connection Router: GatewayEvent::MessageRouted
-Connection Router-->>-Gateway A: connection_router::MessageRouted
-Gateway A-->>-Relayer A: GatewayEvent::MessageRouted
 Multisig Prover->>+Relayer B: constructs proof
 Relayer B->>+External Gateway B: 
 ```
@@ -145,8 +142,5 @@ Relayer B->>+External Gateway B:
 2. Relayer relays the event to the Gateway as a message.
 3. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Connection Router.
 4. Connection Router sends outgoing messages to the destination Gateway.
-5. The destination Gateway emits event MessageRouted
-6. Connection Router emits event MessageRouted.
-7. Gateway emits event MessageRouted
-8. The Multisig Prover takes the messages stored in the destination Gateway and constructs a proof.
-9. The Relayer sends the proof to the destination's External Gateway.
+5. The Multisig Prover takes the messages stored in the destination Gateway and constructs a proof.
+6. The Relayer sends the proof to the destination's External Gateway.
