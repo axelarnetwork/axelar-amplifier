@@ -70,6 +70,10 @@ pub enum ContractError {
 
     #[error("signing session not completed")]
     SigningSessionNotCompleted,
+
+    #[error("invalid blob")]
+    InvalidBlob,
+
 }
 
 impl From<ContractError> for StdError {

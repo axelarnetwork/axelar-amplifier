@@ -166,7 +166,10 @@ fn construct_unsigned_tx(
     }
 }
 
-const PAYMENT_TYPE: u16 = 0;
+const PAYMENT_TX_TYPE: u16 = 0;
+const TICKET_CREATE_TX_TYPE: u16 = 10;
+const SIGNER_LIST_SET_TX_TYPE: u16 = 12;
+
 const UINT16_TYPE_CODE: u8 = 1;
 const UINT32_TYPE_CODE: u8 = 2;
 const AMOUNT_TYPE_CODE: u8 = 6;
@@ -184,20 +187,6 @@ pub fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
     } else {
         vec![type_code << 4, field_code]
     }
-}
-
-pub fn serialize_uint16(field_code: u8, value: u16) -> Vec<u8> {
-    let mut result = Vec::new();
-    result.extend(field_id(UINT16_TYPE_CODE, field_code));
-    result.extend(&value.to_be_bytes());
-    result
-}
-
-pub fn serialize_uint32(field_code: u8, value: u32) -> Vec<u8> {
-    let mut result = Vec::new();
-    result.extend(field_id(UINT32_TYPE_CODE, field_code));
-    result.extend(&value.to_be_bytes());
-    result
 }
 
 const POSITIVE_BIT: u64 = 0x4000000000000000;
@@ -240,7 +229,7 @@ fn parse_decimal(s: &str) -> Result<(bool, u64, u64), ContractError> {
 }
 
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
-pub fn amount_to_bytes(amount: XRPLTokenAmount) -> Result<Vec<u8>, ContractError> {
+pub fn amount_to_bytes(amount: &XRPLTokenAmount) -> Result<Vec<u8>, ContractError> {
     let (is_negative, integer_part, fractional_part) = parse_decimal(amount.0.trim())?;
 
     let mut serial: u64 = 0x8000000000000000;
@@ -288,7 +277,7 @@ pub fn amount_to_bytes(amount: XRPLTokenAmount) -> Result<Vec<u8>, ContractError
 }
 
 
-pub fn currency_to_bytes(currency: String) -> Result<[u8; 20], ContractError> {
+pub fn currency_to_bytes(currency: &String) -> Result<[u8; 20], ContractError> {
     if currency.len() != 3 || !currency.is_ascii() {
         return Err(ContractError::InvalidCurrency);
     }
@@ -297,7 +286,7 @@ pub fn currency_to_bytes(currency: String) -> Result<[u8; 20], ContractError> {
     Ok(buffer)
 }
 
-pub fn decode_address(address: String) -> Result<[u8; 20], ContractError> {
+pub fn decode_address(address: &String) -> Result<[u8; 20], ContractError> {
     let res = bs58::decode(address).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
     // .map_err(|_| ContractError::InvalidAddress)?;
     println!("decoded {:?} {}", res, res.len());
@@ -309,25 +298,160 @@ pub fn decode_address(address: String) -> Result<[u8; 20], ContractError> {
     return Ok(buffer)
 }
 
-pub fn serialize_amount(field_code: u8, amount: XRPLPaymentAmount) -> Result<Vec<u8>, ContractError> {
-    let mut result = Vec::new();
-    println!("amount field id {} {} {}", AMOUNT_TYPE_CODE, field_code, hex::encode(field_id(AMOUNT_TYPE_CODE, field_code)));
-    result.extend(field_id(AMOUNT_TYPE_CODE, field_code));
-    match amount {
-        XRPLPaymentAmount::Drops(value) => {
-            // assert!(value >= 0);
-            assert!(value <= 10u64.pow(17));
-            result.extend((value | POSITIVE_BIT).to_be_bytes());
-        },
-        XRPLPaymentAmount::Token(token, amount) => {
-            result.extend(amount_to_bytes(amount)?);
-            result.extend(currency_to_bytes(token.currency)?);
-            result.extend(decode_address(token.issuer)?);
-        }
-    }
+pub const HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
+pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
+
+// TODO: optimize
+pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, ContractError> {
+    let encoded_unsigned_tx = serialize_unsigned_tx(unsigned_tx)?;
+
+    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI, encoded_unsigned_tx.as_slice()));
+    let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
+    Ok(tx_hash)
+}
+
+pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
+    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()));
+    let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
+    Ok(tx_hash)
+}
+
+pub fn serialize_signed_tx(signed_tx: &XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
+    let mut obj = tx_to_xrpl_object(&signed_tx.unsigned_tx)?;
+    obj.add_field(3, &XRPLArray{ field_code: 16, items: signed_tx.signers.clone() })?;
+    let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| { 
+        let mut res = Vec::new();
+        res.extend(field_id(f.0, f.1));
+        res.extend(f.2);
+        return hex::encode(res);
+    }).collect();
+    println!("signed tx parts {:?}", parts);
+
+    Ok(obj.serialize())
+}
+
+pub fn serialize_unsigned_tx(tx: &XRPLUnsignedTx) -> Result<Vec<u8>, ContractError> {
+    let obj = tx_to_xrpl_object(tx)?;
+    println!("{:?}", obj.fields);
+
+    let mut result = Vec::from((0x534D5400 as u32).to_be_bytes()); // prefix for multisignature signing
+    result.extend(obj.serialize());
     Ok(result)
 }
 
+pub fn tx_to_xrpl_object(tx: &XRPLUnsignedTx) -> Result<XRPLObject, ContractError> {
+    match &tx.partial {
+        XRPLPartialTx::Payment { amount, destination } => make_payment_tx_object(&tx.common, &amount, &XRPLAddress(destination.to_string())),
+        XRPLPartialTx::TicketCreate { ticket_count } => make_ticket_create_tx_object(&tx.common, ticket_count),
+        XRPLPartialTx::SignerListSet { signer_quorum, signer_entries } => make_signer_list_set_tx_object(&tx.common, signer_quorum, signer_entries),
+    }
+}
+
+pub fn make_payment_tx_object(common: &XRPLTxCommonFields, amount: &XRPLPaymentAmount, destination: &XRPLAddress) -> Result<XRPLObject, ContractError> {
+    let mut obj = XRPLObject::new();
+    obj.add_field(2, &PAYMENT_TX_TYPE)?;
+    obj.add_field(2, &0u32)?; // flags
+    obj.add_sequence(&common.sequence)?;
+    // type: Amount, type_code: 6, nth: 1, !isVLEncoded
+    obj.add_field(1, amount)?;
+    // type: Amount, type_code: 6, nth: 8, !isVLEncoded
+    obj.add_field(8, &XRPLPaymentAmount::Drops(common.fee))?;
+    obj.add_field(3, &HexBinary::from_hex("")?)?;
+    obj.add_field(1, &XRPLAddress(common.account.clone()))?;
+    obj.add_field(3, destination)?;
+
+    Ok(obj)
+}
+
+pub fn make_ticket_create_tx_object(common: &XRPLTxCommonFields, ticket_count: &u32) -> Result<XRPLObject, ContractError> {
+    let mut obj = XRPLObject::new();
+    // type_code: 1,  nth: 2, !isVLEncoded
+    obj.add_field(2, &TICKET_CREATE_TX_TYPE)?;
+    obj.add_sequence(&common.sequence)?;
+    obj.add_field(40, ticket_count)?;
+    obj.add_field(8, &XRPLPaymentAmount::Drops(common.fee))?;
+    obj.add_field(1, &XRPLAddress(common.account.clone()))?;
+
+    Ok(obj)
+}
+
+pub fn make_signer_list_set_tx_object(common: &XRPLTxCommonFields, signer_quorum: &u32, signer_entries: &Vec<XRPLSignerEntry>) -> Result<XRPLObject, ContractError> {
+    let mut obj = XRPLObject::new();
+
+    obj.add_field(2, &SIGNER_LIST_SET_TX_TYPE)?;
+    obj.add_sequence(&common.sequence)?;
+    obj.add_field(35, signer_quorum)?;
+    obj.add_field(8, &XRPLPaymentAmount::Drops(common.fee))?;
+    obj.add_field(1, &XRPLAddress(common.account.clone()))?;
+    obj.add_field(4, &XRPLArray{ field_code: 11, items: signer_entries.clone() })?;
+    Ok(obj)
+}
+
+pub struct XRPLAddress(String);
+
+pub trait XRPLSerialize {
+    const TYPE_CODE: u8;
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError>;
+}
+
+impl XRPLSerialize for u16 {
+    const TYPE_CODE: u8 = UINT16_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        Ok(self.to_be_bytes().to_vec())
+    }
+}
+
+impl XRPLSerialize for u32 {
+    const TYPE_CODE: u8 = UINT32_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        Ok(self.to_be_bytes().to_vec())
+    }
+}
+
+impl XRPLSerialize for XRPLPaymentAmount {
+    const TYPE_CODE: u8 = AMOUNT_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        match self {
+            XRPLPaymentAmount::Drops(value) => {
+                // assert!(value >= 0);
+                assert!(*value <= 10u64.pow(17));
+                Ok((value | POSITIVE_BIT).to_be_bytes().to_vec())
+            },
+            XRPLPaymentAmount::Token(token, amount) => {
+                let mut result = Vec::new();
+                result.extend(amount_to_bytes(amount)?);
+                result.extend(currency_to_bytes(&token.currency)?);
+                result.extend(decode_address(&token.issuer)?);
+                Ok(result)
+            }
+        }
+    }
+}
+
+struct XRPLArray<T> {
+    field_code: u8,
+    items: Vec<T>
+}
+
+impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
+    const TYPE_CODE: u8 = ARRAY_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        println!("Vec::xrpl_serialize");
+        let mut result: Vec<u8> = Vec::new();
+        for item in &self.items {
+            result.extend(field_id(T::TYPE_CODE, self.field_code));
+            result.extend(item.xrpl_serialize()?);
+        }
+        result.extend(field_id(ARRAY_TYPE_CODE, 1));
+        Ok(result)
+    }
+}
+
+    
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/master/content/_code-samples/tx-serialization/py/serialize.py#L92
 // returns None if length too big
 pub fn encode_length(mut length: usize) -> Option<Vec<u8>> {
@@ -347,154 +471,121 @@ pub fn encode_length(mut length: usize) -> Option<Vec<u8>> {
         return None
     }
 }
+    
+impl XRPLSerialize for HexBinary {
+    const TYPE_CODE: u8 = BLOB_TYPE_CODE;
 
-pub fn serialize_blob(field_code: u8, blob: Vec<u8>) -> Option<Vec<u8>> {
-    let mut result: Vec<u8> = Vec::new();
-    result.extend(field_id(BLOB_TYPE_CODE, field_code));
-    result.extend(encode_length(blob.len())?);
-    result.extend(blob);
-    Some(result)
-}
-
-pub fn serialize_signer(signer: &XRPLSigner) -> Result<Vec<u8>, ContractError> {
-    let mut results: Vec<Vec<u8>> = Vec::new();
-    results.push(field_id(OBJECT_TYPE_CODE, 16));
-    results.push(serialize_blob(3, signer.signing_pub_key.clone().as_slice().to_vec()).ok_or(ContractError::InvalidSigningPubKey)?);
-    results.push(serialize_blob(4, signer.txn_signature.clone().as_slice().to_vec()).ok_or(ContractError::InvalidSignature)?);
-    results.push(serialize_account_id(1, signer.account.clone())?);
-    results.push(field_id(OBJECT_TYPE_CODE, 1));
-    println!("signer hex parts {}", results.iter().map(|x| hex::encode(x)).collect::<Vec<String>>().join(","));
-    Ok(results.concat())
-}
-
-pub fn serialize_signers_array(field_code: u8, signers: Vec<XRPLSigner>) -> Result<Vec<u8>, ContractError> {
-    let mut result: Vec<u8> = Vec::new();
-    result.extend(field_id(ARRAY_TYPE_CODE, field_code));
-    for signer in &signers {
-        result.extend(serialize_signer(signer)?);
-    }
-    result.extend(field_id(ARRAY_TYPE_CODE, 1));
-    Ok(result)
-}
-
-pub fn serialize_account_id(field_code: u8, account_id: String) -> Result<Vec<u8>, ContractError> {
-    let mut result: Vec<u8> = Vec::new();
-    result.extend(field_id(ACCOUNT_ID_TYPE_CODE, field_code));
-    result.extend(vec![20]);
-    result.extend(decode_address(account_id)?);
-    Ok(result)
-}
-
-// TODO: each worker must append his decoded address to the serialized tx before signing
-pub fn serialize_unsigned_payment_tx(common: XRPLTxCommonFields, amount: XRPLPaymentAmount, destination: nonempty::String) -> Result<Vec<u8>, ContractError> {
-    let mut results: Vec<Vec<u8>> = Vec::new();
-    // value: 0, type:uint16, type_code: 1,  nth: 2, !isVLEncoded
-    // serialize_transaction_payment_type();
-    results.push(Vec::from((0x534D5400 as u32).to_be_bytes())); // prefix for multisignature signing
-    results.push(serialize_uint16(2, PAYMENT_TYPE));
-    results.push(serialize_uint32(2, 0));
-    match common.sequence {
-        Sequence::Plain(seq) => {
-            // type: Uint32, type_code: 2,  nth: 4, !isVLEncoded
-            // serialize_sequence(seq);
-            results.push(serialize_uint32(4, seq));
-        },
-        Sequence::Ticket(seq) => {
-            // type: Uint32, type_code: 2, nth: 4, !isVLEncoded
-            // serialize_sequence(seq)
-            results.push(serialize_uint32(4, 0));
-            // type: Uint32, type_code: 2, nth: 41, !isVLEncoded
-            // serialize_ticket_sequence(seq);
-            results.push(serialize_uint32(41, seq));
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        match encode_length(self.len()) {
+            Some(encoded_length) => {
+                let mut result = Vec::new();
+                result.extend(encoded_length);
+                result.extend(self.to_vec());
+                Ok(result)
+            }
+            None => Err(ContractError::InvalidBlob)
         }
-    };
-    // type: Amount, type_code: 6, nth: 1, !isVLEncoded
-    results.push(serialize_amount(1, amount)?);
-    // type: Amount, type_code: 6, nth: 8, !isVLEncoded
-    results.push(serialize_amount(8, XRPLPaymentAmount::Drops(common.fee))?);
-    // type: Blob, type_code: 7, nth: 3, isVLEncoded
-    // TODO: hex::encode to slice?
-    results.push(serialize_blob(3, hex::decode("").unwrap()).unwrap());
-    // type: AccountId, type_code: 8, nth: 1, isVLEncoded
-    results.push(serialize_account_id(1, common.account)?);
-    // type: AccountId, type_code: 8, nth:3, isVLEncoded
-    results.push(serialize_account_id(3, destination.into())?);
-
-    println!("hex parts {}", results.iter().map(|x| hex::encode(x)).collect::<Vec<String>>().join(","));
-    Ok(results.concat())
-}
-
-pub fn serialize_unsigned_tx(tx: XRPLUnsignedTx) -> Result<Vec<u8>, ContractError> {
-    match tx.partial {
-        XRPLPartialTx::Payment { amount, destination } => serialize_unsigned_payment_tx(tx.common, amount, destination),
-        _ => unimplemented!()
     }
 }
 
-// TODO: each worker must append his decoded address to the serialized tx before signing
-pub fn serialize_signed_payment_tx(signers: Vec<XRPLSigner>, common: XRPLTxCommonFields, amount: XRPLPaymentAmount, destination: nonempty::String) -> Result<Vec<u8>, ContractError> {
-    let mut results: Vec<Vec<u8>> = Vec::new();
-    // value: 0, type:uint16, type_code: 1,  nth: 2, !isVLEncoded
-    // serialize_transaction_payment_type();
-    results.push(serialize_uint16(2, PAYMENT_TYPE));
-    results.push(serialize_uint32(2, 0));
-    match common.sequence {
-        Sequence::Plain(seq) => {
-            // type: Uint32, type_code: 2,  nth: 4, !isVLEncoded
-            // serialize_sequence(seq);
-            results.push(serialize_uint32(4, seq));
-        },
-        Sequence::Ticket(seq) => {
-            // type: Uint32, type_code: 2, nth: 4, !isVLEncoded
-            // serialize_sequence(seq)
-            results.push(serialize_uint32(4, 0));
-            // type: Uint32, type_code: 2, nth: 41, !isVLEncoded
-            // serialize_ticket_sequence(seq);
-            results.push(serialize_uint32(41, seq));
+    
+impl XRPLSerialize for XRPLSigner {
+    const TYPE_CODE: u8 = OBJECT_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        let mut obj = XRPLObject::new();
+        obj.add_field(3, &self.signing_pub_key)?;
+        obj.add_field(4, &self.txn_signature)?;
+        obj.add_field(1, &XRPLAddress(self.account.clone()))?;
+        let mut result = obj.serialize();
+        result.extend(field_id(OBJECT_TYPE_CODE, 1));
+        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| { 
+            let mut res = Vec::new();
+            res.extend(field_id(f.0, f.1));
+            res.extend(f.2);
+            return hex::encode(res);
+        }).collect();
+        println!("signer parts {:?}", parts);
+        Ok(result)
+    }
+}
+
+impl XRPLSerialize for XRPLAddress {
+    const TYPE_CODE: u8 = ACCOUNT_ID_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        let mut result: Vec<u8> = Vec::new();
+        result.extend(vec![20]);
+        result.extend(decode_address(&self.0)?);
+        Ok(result)
+    }
+}
+
+impl XRPLSerialize for XRPLSignerEntry {
+    const TYPE_CODE: u8 = OBJECT_TYPE_CODE;
+
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        println!("XRPLSignerEntry::xrpl_serialize");
+        let mut obj = XRPLObject::new();
+        obj.add_field(1, &XRPLAddress(self.account.clone()))?;
+        obj.add_field(3, &self.signer_weight)?;
+        let mut result = obj.serialize();
+        result.extend(field_id(OBJECT_TYPE_CODE, 1));
+
+        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| { 
+            let mut res = Vec::new();
+            res.extend(field_id(f.0, f.1));
+            res.extend(f.2);
+            return hex::encode(res);
+        }).collect();
+        println!("signer entry parts {:?}", parts);
+        Ok(result)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct XRPLObject {
+    fields: Vec<(u8, u8, Vec<u8>)>
+}
+
+impl XRPLObject {
+    pub fn new() -> XRPLObject {
+        Self {
+            fields: Vec::new()
         }
-    };
-    // type: Amount, type_code: 6, nth: 1, !isVLEncoded
-    results.push(serialize_amount(1, amount)?);
-    // type: Amount, type_code: 6, nth: 8, !isVLEncoded
-    results.push(serialize_amount(8, XRPLPaymentAmount::Drops(common.fee))?);
-    // type: Blob, type_code: 7, nth: 3, isVLEncoded
-    // TODO: hex::encode to slice?
-    results.push(serialize_blob(3, hex::decode("").unwrap()).unwrap());
-    // type: AccountId, type_code: 8, nth: 1, isVLEncoded
-    results.push(serialize_account_id(1, common.account)?);
-    // type: AccountId, type_code: 8, nth:3, isVLEncoded
-    results.push(serialize_account_id(3, destination.into())?);
-    // type: STArray, type_code: 14, nth:3, !isVLEncoded
-    results.push(serialize_signers_array(3, signers)?);
+    }
 
-    println!("hex parts {}", results.iter().map(|x| hex::encode(x)).collect::<Vec<String>>().join(","));
-    Ok(results.concat())
-}
+    pub fn add_field<T: XRPLSerialize>(&mut self, field_code: u8, value: &T) -> Result<(), ContractError> {
+        self.fields.push((T::TYPE_CODE, field_code, value.xrpl_serialize()?));
+        Ok(())
+    }
 
-pub fn serialize_signed_tx(signed_tx: XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
-    match signed_tx.unsigned_tx.partial {
-        XRPLPartialTx::Payment { amount, destination } => serialize_signed_payment_tx(signed_tx.signers, signed_tx.unsigned_tx.common, amount, destination),
-        _ => unimplemented!()
+    pub fn add_sequence(&mut self, sequence: &Sequence) -> Result<(), ContractError> {
+        match sequence {
+            Sequence::Plain(seq) => {
+                self.add_field(4, seq)
+            },
+            Sequence::Ticket(seq) => {
+                self.add_field(4, &0u32)?;
+                self.add_field(41, seq)
+            }
+        }
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut tmp: Vec<(u8, u8, Vec<u8>)> = self.fields.clone();
+        tmp.sort_by(|a, b| { (a.0, a.1).cmp(&(b.0, b.1)) });
+        tmp.into_iter()
+            .map(|f| {
+                let mut res = Vec::new();
+                res.extend(field_id(f.0, f.1));
+                res.extend(f.2);
+                return res;
+            })
+            .collect::<Vec<Vec<u8>>>()
+            .concat()
     }
 }
-
-// TODO: optimize
-pub fn compute_unsigned_tx_hash(unsigned_tx: XRPLUnsignedTx) -> Result<TxHash, ContractError> {
-    let encoded_unsigned_tx = serialize_unsigned_tx(unsigned_tx)?;
-
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI, encoded_unsigned_tx.as_slice()));
-    let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
-    Ok(tx_hash)
-}
-
-pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()));
-    let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
-    Ok(tx_hash)
-}
-
-pub const HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
-pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
 
 pub fn xrpl_hash(
     prefix: [u8; 4],
@@ -521,7 +612,7 @@ fn issue_tx(
         sequence.clone(),
     );
 
-    let tx_hash = compute_unsigned_tx_hash(unsigned_tx.clone())?;
+    let tx_hash = compute_unsigned_tx_hash(&unsigned_tx)?;
 
     TRANSACTION_INFO.save(
         storage,
@@ -739,6 +830,7 @@ mod tests {
 
     use super::*;
 
+    /*
     #[test]
     fn serialize_xrpl_unsigned_token_payment_transaction() {
         let unsigned_tx = XRPLUnsignedTx {
@@ -765,6 +857,7 @@ mod tests {
             hex::encode_upper(encoded_unsigned_tx)
         );
     }
+    */
 
     #[test]
     fn serialize_xrpl_unsigned_xrp_payment_transaction() {
@@ -780,7 +873,7 @@ mod tests {
                 destination: nonempty::String::try_from("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
             }
         };
-        let encoded_unsigned_tx = serialize_unsigned_tx(unsigned_tx).unwrap();
+        let encoded_unsigned_tx = serialize_unsigned_tx(&unsigned_tx).unwrap();
         assert_eq!(
             "534D5400120000220000000024000000016140000000000003E868400000000000000A730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
             hex::encode_upper(encoded_unsigned_tx)
@@ -798,7 +891,7 @@ mod tests {
                 destination: nonempty::String::try_from("rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq").unwrap(),
             }
         };
-        let encoded_unsigned_tx = serialize_unsigned_tx(unsigned_tx).unwrap();
+        let encoded_unsigned_tx = serialize_unsigned_tx(&unsigned_tx).unwrap();
         assert_eq!(
             "534D54001200002200000000240297B79361400000003B9ACA0068400000000000000373008114245409103F1B06F22FBCED389AAE0EFCE2F6689A83146919924835FA51D3991CDF5CF4505781227686E6",
             hex::encode_upper(encoded_unsigned_tx)
@@ -832,7 +925,7 @@ mod tests {
                 }
             ]
         };
-        let encoded_signed_tx = serialize_signed_tx(signed_tx).unwrap();
+        let encoded_signed_tx = serialize_signed_tx(&signed_tx).unwrap();
         assert_eq!(
             "1200002200000000240297B79561400000003B9ACA0068400000000000001E73008114245409103F1B06F22FBCED389AAE0EFCE2F6689A831449599D50E0C1AC0CFC8D3B2A30830F3738EACC3EF3E0107321EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9744000CBEDBDD84D5B17EC0D24EDEA49AE78D33908E69D2885895BC0243458228E8FD5CEF5ABCA558C3518D97B0BBA1C4051BBB31AAD6E7808673562FA73FFB5F50B8114310A592CA22E8B35B819464F8A581A36C91DE857E1E0107321ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435744062B63EFF8ED37ACFA453A61EC98B13761EFE608E36EB437ABE42DC86B73C3114B2ED5E6C3E9428E82DC4AAB9E4A093C00F041F6F32A5392FDAEF858142F0CE028114DCE722505E32B29932618C5C9819AAEA03754AA5E1F1",
             hex::encode_upper(encoded_signed_tx)

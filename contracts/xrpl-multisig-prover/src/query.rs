@@ -57,7 +57,7 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
                 .collect();
 
             let signed_tx = make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers);
-            let tx_blob: HexBinary = HexBinary::from(xrpl_multisig::serialize_signed_tx(signed_tx)?);
+            let tx_blob: HexBinary = HexBinary::from(xrpl_multisig::serialize_signed_tx(&signed_tx)?);
             GetProofResponse::Completed { unsigned_tx_hash, tx_blob }
         }
     };
