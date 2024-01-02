@@ -10,6 +10,8 @@ use crate::nonempty;
 pub enum Error {
     #[error("threshold must fall into the interval (0, 1]")]
     OutOfInterval,
+    #[error("threshold must fall into the interval (0.5, 1]")]
+    MajorityOutOfInterval,
     #[error("invalid parameter: {0}")]
     InvalidParameter(#[from] nonempty::Error),
 }
@@ -103,6 +105,39 @@ impl fmt::Display for Threshold {
     }
 }
 
+#[cw_serde]
+#[derive(Copy)]
+#[serde(try_from = "Threshold")]
+#[serde(into = "Threshold")]
+pub struct MajorityThreshold {
+    numerator: nonempty::Uint64,
+    denominator: nonempty::Uint64,
+}
+
+impl TryFrom<Threshold> for MajorityThreshold {
+    type Error = Error;
+
+    fn try_from(value: Threshold) -> Result<Self, Error> {
+        if value.numerator() * Uint64::from(2u64) <= value.denominator() {
+            Err(Error::MajorityOutOfInterval)
+        } else {
+            Ok(MajorityThreshold {
+                numerator: value.numerator,
+                denominator: value.denominator,
+            })
+        }
+    }
+}
+
+impl From<MajorityThreshold> for Threshold {
+    fn from(value: MajorityThreshold) -> Self {
+        Threshold {
+            numerator: value.numerator,
+            denominator: value.denominator,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +177,30 @@ mod tests {
         let t2 = Threshold::try_from((2, u64::MAX / 2)).unwrap();
         assert!(t1 < t2);
         assert!(t2 > t1);
+    }
+
+    #[test]
+    fn should_fail_majority_threshold_when_not_majority() {
+        assert_eq!(
+            MajorityThreshold::try_from(
+                Threshold::try_from((Uint64::from(1u64), Uint64::from(2u64))).unwrap()
+            )
+            .unwrap_err(),
+            Error::MajorityOutOfInterval
+        );
+    }
+
+    #[test]
+    fn should_deserialize_majority_threshold_from_tuple() {
+        let json = serde_json::to_string(&(Uint64::from(2u64), Uint64::from(3u64))).unwrap();
+
+        assert!(serde_json::from_str::<MajorityThreshold>(&json).is_ok());
+    }
+
+    #[test]
+    fn should_not_deserialize_majority_threshold_with_wrong_interval() {
+        let json = serde_json::to_string(&(Uint64::from(1u64), Uint64::from(2u64))).unwrap();
+
+        assert!(serde_json::from_str::<MajorityThreshold>(&json).is_err());
     }
 }
