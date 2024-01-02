@@ -1,6 +1,8 @@
 use connection_router::state::{CrossChainId, Message};
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
+use crate::test_utils::AXL_DENOMINATION;
+use cw_multi_test::Executor;
 use test_utils::{Chain, Protocol, Worker};
 mod test_utils;
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
@@ -8,7 +10,7 @@ mod test_utils;
 /// and signs via multisig. Also tests that rewards are distributed as expected for voting and signing.
 #[test]
 fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distributed() {
-    let (mut protocol, chain1, chain2, workers) = setup_test_case();
+    let (mut protocol, chain1, chain2, workers, _) = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
@@ -42,7 +44,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         test_utils::verify_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
 
     // do voting
-    test_utils::vote_success_for_all(
+    test_utils::vote_success_for_all_messages(
         &mut protocol.app,
         &chain1.voting_verifier_address,
         &msgs,
@@ -114,36 +116,4 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
     }
-}
-
-fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>) {
-    let mut protocol = test_utils::setup_protocol("validators".to_string().try_into().unwrap());
-    let chains = vec![
-        "Ethereum".to_string().try_into().unwrap(),
-        "Polygon".to_string().try_into().unwrap(),
-    ];
-    let workers = vec![
-        Worker {
-            addr: Addr::unchecked("worker1"),
-            supported_chains: chains.clone(),
-            key_pair: test_utils::generate_key(0),
-        },
-        Worker {
-            addr: Addr::unchecked("worker2"),
-            supported_chains: chains.clone(),
-            key_pair: test_utils::generate_key(1),
-        },
-    ];
-    test_utils::register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &workers,
-        protocol.service_name.clone(),
-    );
-    let chain1 = test_utils::setup_chain(&mut protocol, chains.get(0).unwrap().clone());
-    let chain2 = test_utils::setup_chain(&mut protocol, chains.get(1).unwrap().clone());
-    (protocol, chain1, chain2, workers)
 }

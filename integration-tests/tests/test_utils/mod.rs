@@ -1,16 +1,21 @@
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
+    Participant,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
     Uint256, Uint64,
 };
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use k256::ecdsa;
-use multisig::key::PublicKey;
+use multisig::{
+    key::{KeyType, PublicKey},
+    worker_set::WorkerSet,
+};
+use multisig_prover::encoding::{make_operators, Encoder};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -64,10 +69,10 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     assert!(response.is_ok());
 }
 
-pub fn vote_success_for_all(
+pub fn vote_success_for_all_messages(
     app: &mut App,
     voting_verifier_address: &Addr,
-    msgs: &Vec<Message>,
+    messages: &Vec<Message>,
     workers: &Vec<Worker>,
     poll_id: PollId,
 ) {
@@ -77,7 +82,27 @@ pub fn vote_success_for_all(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: vec![Vote::SucceededOnChain; msgs.len()],
+                votes: vec![Vote::SucceededOnChain; messages.len()],
+            },
+            &[],
+        );
+        assert!(response.is_ok());
+    }
+}
+
+pub fn vote_true_for_worker_set(
+    app: &mut App,
+    voting_verifier_address: &Addr,
+    workers: &Vec<Worker>,
+    poll_id: PollId,
+) {
+    for worker in workers {
+        let response = app.execute_contract(
+            worker.addr.clone(),
+            voting_verifier_address.clone(),
+            &voting_verifier::msg::ExecuteMsg::Vote {
+                poll_id,
+                votes: vec![Vote::SucceededOnChain; 1],
             },
             &[],
         );
@@ -113,8 +138,16 @@ pub fn construct_proof_and_sign(
         &[],
     );
     assert!(response.is_ok());
-    let response = response.unwrap();
 
+    sign_proof(app, multisig_address, workers, response.unwrap())
+}
+
+pub fn sign_proof(
+    app: &mut App,
+    multisig_address: &Addr,
+    workers: &Vec<Worker>,
+    response: AppResponse,
+) -> Uint64 {
     let msg_to_sign = get_event_attribute(&response.events, "wasm-signing_started", "msg")
         .map(|attr| attr.value.clone())
         .expect("couldn't find message to sign");
@@ -145,10 +178,36 @@ pub fn construct_proof_and_sign(
             },
             &[],
         );
+
         assert!(response.is_ok());
     }
 
     session_id
+}
+
+pub fn register_service(
+    app: &mut App,
+    service_registry: Addr,
+    governance_addr: Addr,
+    service_name: nonempty::String,
+    min_worker_bond: Uint128,
+) {
+    let response = app.execute_contract(
+        governance_addr,
+        service_registry,
+        &service_registry::msg::ExecuteMsg::RegisterService {
+            service_name: service_name.to_string(),
+            service_contract: Addr::unchecked("nowhere"),
+            min_num_workers: 0,
+            max_num_workers: Some(100),
+            min_worker_bond: min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days: 10,
+            description: "Some service".into(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
 }
 
 pub fn get_messages_from_gateway(
@@ -176,6 +235,18 @@ pub fn get_proof(
         &multisig_prover::msg::QueryMsg::GetProof {
             multisig_session_id: *multisig_session_id,
         },
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
+}
+
+pub fn get_worker_set(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+) -> multisig::worker_set::WorkerSet {
+    let query_response = app.wrap().query_wasm_smart(
+        multisig_prover_address,
+        &multisig_prover::msg::QueryMsg::GetWorkerSet,
     );
     assert!(query_response.is_ok());
     query_response.unwrap()
@@ -321,25 +392,8 @@ pub fn register_workers(
     genesis: Addr,
     workers: &Vec<Worker>,
     service_name: nonempty::String,
+    min_worker_bond: Uint128,
 ) {
-    let min_worker_bond = Uint128::new(100);
-    let response = app.execute_contract(
-        governance_addr.clone(),
-        service_registry.clone(),
-        &service_registry::msg::ExecuteMsg::RegisterService {
-            service_name: service_name.to_string(),
-            service_contract: Addr::unchecked("nowhere"),
-            min_num_workers: 0,
-            max_num_workers: Some(100),
-            min_worker_bond,
-            bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: 10,
-            description: "Some service".into(),
-        },
-        &[],
-    );
-    assert!(response.is_ok());
-
     let response = app.execute_contract(
         governance_addr,
         service_registry.clone(),
@@ -394,6 +448,127 @@ pub fn register_workers(
         );
         assert!(response.is_ok());
     }
+}
+
+pub fn deregister_workers(
+    app: &mut App,
+    service_registry: Addr,
+    governance_addr: Addr,
+    workers: &Vec<Worker>,
+    service_name: nonempty::String,
+) {
+    let response = app.execute_contract(
+        governance_addr,
+        service_registry.clone(),
+        &service_registry::msg::ExecuteMsg::UnauthorizeWorkers {
+            workers: workers
+                .iter()
+                .map(|worker| worker.addr.to_string())
+                .collect(),
+            service_name: service_name.to_string(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+
+    for worker in workers {
+        let response = app.execute_contract(
+            worker.addr.clone(),
+            service_registry.clone(),
+            &service_registry::msg::ExecuteMsg::UnbondWorker {
+                service_name: service_name.to_string(),
+            },
+            &[],
+        );
+        assert!(response.is_ok());
+    }
+}
+
+pub fn update_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) -> AppResponse {
+    let response = app.execute_contract(
+        relayer_addr.clone(),
+        multisig_prover.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &[],
+    );
+
+    assert!(response.is_ok());
+
+    response.unwrap()
+}
+
+pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) {
+    let response = app.execute_contract(
+        relayer_addr.clone(),
+        multisig_prover.clone(),
+        &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
+        &[],
+    );
+    assert!(response.is_ok());
+}
+
+fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
+    let poll_id = get_event_attribute(&response.events, "wasm-worker_set_poll_started", "poll_id")
+        .map(|attr| serde_json::from_str(&attr.value).unwrap())
+        .expect("couldn't get poll_id");
+    let expiry = get_event_attribute(
+        &response.events,
+        "wasm-worker_set_poll_started",
+        "expires_at",
+    )
+    .map(|attr| attr.value.as_str().parse().unwrap())
+    .expect("couldn't get poll expiry");
+    (poll_id, expiry)
+}
+
+pub fn create_worker_set_poll(
+    app: &mut App,
+    relayer_addr: Addr,
+    voting_verifier: Addr,
+    worker_set: WorkerSet,
+) -> (PollId, PollExpiryBlock) {
+    let response = app.execute_contract(
+        relayer_addr.clone(),
+        voting_verifier.clone(),
+        &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
+            message_id: "ethereum:00".parse().unwrap(),
+            new_operators: make_operators(worker_set.clone(), Encoder::Abi),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+
+    get_worker_set_poll_id_and_expiry(response.unwrap())
+}
+
+pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
+    // get public keys
+    let mut pub_keys = vec![];
+    for worker in workers {
+        let encoded_verifying_key =
+            HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+        let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
+        pub_keys.push(pub_key);
+    }
+
+    // turn into participants
+    let participants: Vec<Participant> = workers
+        .iter()
+        .map(|worker| Participant {
+            address: worker.addr.clone(),
+            weight: Uint256::one().try_into().unwrap(),
+        })
+        .collect();
+
+    let total_weight = Uint256::from_u128(participants.len() as u128);
+
+    let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
+
+    WorkerSet::new(
+        pubkeys_by_participant,
+        total_weight.mul_ceil((2u64, 3u64)).into(),
+        protocol.app.block_info().height,
+    )
 }
 
 #[derive(Clone)]
@@ -650,4 +825,47 @@ pub fn instantiate_multisig_prover(
 
     assert!(contract_addr.is_ok());
     contract_addr.unwrap()
+}
+
+// Creates an instance of Axelar Amplifier with an initial workerset registered, and returns the instance, the chains, the workers, and the minimum worker bond.
+pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
+    let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
+    let chains = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "Polygon".to_string().try_into().unwrap(),
+    ];
+    let workers = vec![
+        Worker {
+            addr: Addr::unchecked("worker1"),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(0),
+        },
+        Worker {
+            addr: Addr::unchecked("worker2"),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(1),
+        },
+    ];
+    let min_worker_bond = Uint128::new(100);
+    register_service(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.service_name.clone(),
+        min_worker_bond.clone(),
+    );
+
+    register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        &workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+    let chain1 = setup_chain(&mut protocol, chains.get(0).unwrap().clone());
+    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
+    (protocol, chain1, chain2, workers, min_worker_bond)
 }
