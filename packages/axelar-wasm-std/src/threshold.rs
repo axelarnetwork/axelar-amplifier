@@ -12,6 +12,8 @@ pub enum Error {
     OutOfInterval,
     #[error("threshold must fall into the interval (0.5, 1]")]
     MajorityOutOfInterval,
+    #[error("attempt to multiply with overflow")]
+    OverflowError(#[from] cosmwasm_std::OverflowError),
     #[error("invalid parameter: {0}")]
     InvalidParameter(#[from] nonempty::Error),
 }
@@ -114,11 +116,28 @@ pub struct MajorityThreshold {
     denominator: nonempty::Uint64,
 }
 
+impl Fraction<Uint64> for MajorityThreshold {
+    fn numerator(&self) -> Uint64 {
+        self.numerator.into()
+    }
+
+    fn denominator(&self) -> Uint64 {
+        self.denominator.into()
+    }
+
+    fn inv(&self) -> Option<Self> {
+        Some(MajorityThreshold {
+            numerator: self.denominator,
+            denominator: self.numerator,
+        })
+    }
+}
+
 impl TryFrom<Threshold> for MajorityThreshold {
     type Error = Error;
 
     fn try_from(value: Threshold) -> Result<Self, Error> {
-        if value.numerator() * Uint64::from(2u64) <= value.denominator() {
+        if value.numerator().checked_mul(Uint64::from(2u64))? <= value.denominator() {
             Err(Error::MajorityOutOfInterval)
         } else {
             Ok(MajorityThreshold {

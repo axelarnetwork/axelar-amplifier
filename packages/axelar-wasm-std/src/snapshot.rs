@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 
-use crate::{nonempty, threshold::Threshold};
+use crate::{nonempty, threshold::MajorityThreshold};
 
 #[cw_serde]
 pub struct Participant {
@@ -18,7 +18,10 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn new(quorum_threshold: Threshold, participants: nonempty::Vec<Participant>) -> Self {
+    pub fn new(
+        quorum_threshold: MajorityThreshold,
+        participants: nonempty::Vec<Participant>,
+    ) -> Self {
         let mut total_weight = Uint256::zero();
 
         let participants: Vec<Participant> = participants.into();
@@ -65,6 +68,8 @@ impl Snapshot {
 mod tests {
     use cosmwasm_std::{from_binary, to_binary, Uint64};
 
+    use crate::Threshold;
+
     use super::*;
 
     fn mock_participant(address: &str, weight: nonempty::Uint256) -> Participant {
@@ -110,7 +115,7 @@ mod tests {
         let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
         let threshold: Threshold = (numerator, denominator).try_into().unwrap();
 
-        let result = Snapshot::new(threshold, default_participants());
+        let result = Snapshot::new(threshold.try_into().unwrap(), default_participants());
 
         assert_eq!(
             result.quorum,
@@ -122,7 +127,10 @@ mod tests {
     #[test]
     fn test_snapshot_serialization() {
         let snapshot = Snapshot::new(
-            Threshold::try_from((2u64, 3u64)).unwrap(),
+            Threshold::try_from((2u64, 3u64))
+                .unwrap()
+                .try_into()
+                .unwrap(),
             default_participants(),
         );
 
@@ -133,15 +141,18 @@ mod tests {
     }
 
     #[test]
-    fn test_quorum_one_third() {
+    fn test_quorum_two_thirds() {
         let snapshot = Snapshot::new(
-            Threshold::try_from((1u64, 3u64)).unwrap(),
+            Threshold::try_from((2u64, 3u64))
+                .unwrap()
+                .try_into()
+                .unwrap(),
             default_participants(),
         );
 
         assert_eq!(
             snapshot.quorum,
-            nonempty::Uint256::try_from(Uint256::from(667u32)).unwrap()
+            nonempty::Uint256::try_from(Uint256::from(1334u32)).unwrap()
         );
     }
 
@@ -154,7 +165,10 @@ mod tests {
             .unwrap();
 
         let snapshot = Snapshot::new(
-            Threshold::try_from((1u64, 1u64)).unwrap(),
+            Threshold::try_from((1u64, 1u64))
+                .unwrap()
+                .try_into()
+                .unwrap(),
             default_participants(),
         );
 
@@ -181,8 +195,13 @@ mod tests {
                     nonempty::Uint256::try_from(total_weight).unwrap(),
                 )]);
 
-                let snapshot =
-                    Snapshot::new(Threshold::try_from((2u64, 3u64)).unwrap(), participants);
+                let snapshot = Snapshot::new(
+                    Threshold::try_from((2u64, 3u64))
+                        .unwrap()
+                        .try_into()
+                        .unwrap(),
+                    participants,
+                );
 
                 assert_eq!(
                     snapshot.quorum,
@@ -202,7 +221,10 @@ mod tests {
         )]);
 
         let snapshot = Snapshot::new(
-            Threshold::try_from((Uint64::MAX, Uint64::MAX)).unwrap(),
+            Threshold::try_from((Uint64::MAX, Uint64::MAX))
+                .unwrap()
+                .try_into()
+                .unwrap(),
             participants,
         );
 

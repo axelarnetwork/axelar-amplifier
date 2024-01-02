@@ -512,7 +512,7 @@ mod tests {
         let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
         let threshold: Threshold = (numerator, denominator).try_into().unwrap();
 
-        let snapshot = Snapshot::new(threshold, participants);
+        let snapshot = Snapshot::new(threshold.try_into().unwrap(), participants);
 
         WeightedPoll::new(PollId::from(Uint64::one()), snapshot, expires_at, poll_size)
     }
