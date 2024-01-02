@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     nonempty,
     operators::Operators,
-    voting::{PollId, PollState},
+    voting::{PollId, PollState, Vote},
     Threshold,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
@@ -33,7 +33,7 @@ pub enum ExecuteMsg {
     // Casts votes for specified poll
     Vote {
         poll_id: PollId,
-        votes: Vec<bool>,
+        votes: Vec<Vote>,
     },
 
     // returns a vector of true/false values, indicating current verification status for each message

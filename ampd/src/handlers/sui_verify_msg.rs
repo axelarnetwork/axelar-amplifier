@@ -7,7 +7,7 @@ use error_stack::ResultExt;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 
-use axelar_wasm_std::voting::PollId;
+use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
@@ -70,7 +70,7 @@ where
             broadcast_client,
         }
     }
-    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<bool>) -> Result<()> {
+    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
             .expect("vote msg should serialize");
         let tx = MsgExecuteContract {
@@ -132,7 +132,7 @@ where
             .map(|msg| {
                 transaction_blocks
                     .get(&msg.tx_id)
-                    .map_or(false, |tx_block| {
+                    .map_or(Vote::NotFound, |tx_block| {
                         verify_message(&source_gateway_address, tx_block, msg)
                     })
             })
@@ -147,22 +147,17 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
-    use tendermint::abci;
     use tokio::test as async_test;
-
-    use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::errors::Error;
+    use crate::handlers::{errors::Error, tests::get_event};
     use crate::queue::queued_broadcaster;
     use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::sui::json_rpc::MockSuiClient;
@@ -322,25 +317,6 @@ mod tests {
                 payload_hash: Hash::random().to_fixed_bytes(),
             }],
         }
-    }
-
-    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
-        let mut event: cosmwasm_std::Event = event.into();
-
-        event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", contract_address.to_string());
-
-        abci::Event::new(
-            event.ty,
-            event
-                .attributes
-                .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
-        )
-        .try_into()
-        .unwrap()
     }
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
