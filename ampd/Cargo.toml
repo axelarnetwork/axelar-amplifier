@@ -8,6 +8,7 @@ version = "0.1.0"
 async-trait = "0.1.59"
 axelar-wasm-std = { workspace = true }
 base64 = "0.21.2"
+bcs = "0.1.5"
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 connection-router = { workspace = true }
