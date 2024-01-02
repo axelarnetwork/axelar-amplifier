@@ -367,9 +367,11 @@ pub fn make_ticket_create_tx_object(common: &XRPLTxCommonFields, ticket_count: &
     let mut obj = XRPLObject::new();
     // type_code: 1,  nth: 2, !isVLEncoded
     obj.add_field(2, &TICKET_CREATE_TX_TYPE)?;
+    obj.add_field(2, &0u32)?; // flags
     obj.add_sequence(&common.sequence)?;
-    obj.add_field(40, ticket_count)?;
-    obj.add_field(8, &XRPLPaymentAmount::Drops(common.fee))?;
+    obj.add_field(40, ticket_count)?; // 202800000000a
+    obj.add_field(8, &XRPLPaymentAmount::Drops(common.fee))?; // 68400000000000001e
+    obj.add_field(3, &HexBinary::from_hex("")?)?;
     obj.add_field(1, &XRPLAddress(common.account.clone()))?;
 
     Ok(obj)
@@ -379,10 +381,12 @@ pub fn make_signer_list_set_tx_object(common: &XRPLTxCommonFields, signer_quorum
     let mut obj = XRPLObject::new();
 
     obj.add_field(2, &SIGNER_LIST_SET_TX_TYPE)?;
+    obj.add_field(2, &0u32)?; // flags
     obj.add_sequence(&common.sequence)?;
     obj.add_field(35, signer_quorum)?;
     obj.add_field(8, &XRPLPaymentAmount::Drops(common.fee))?;
     obj.add_field(1, &XRPLAddress(common.account.clone()))?;
+    obj.add_field(3, &HexBinary::from_hex("")?)?;
     obj.add_field(4, &XRPLArray{ field_code: 11, items: signer_entries.clone() })?;
     Ok(obj)
 }
@@ -515,7 +519,7 @@ impl XRPLSerialize for XRPLAddress {
 
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
-        result.extend(vec![20]);
+        result.extend(vec![20]); // 0x14, length-encoding
         result.extend(decode_address(&self.0)?);
         Ok(result)
     }
@@ -915,22 +919,100 @@ mod tests {
             }, signers: vec![
                 XRPLSigner{
                     account: "rn7JWRhHvsvea6JMWYFuBB3MizMxbgKApf".to_string(),
-                    txn_signature: HexBinary::from(hex::decode("00CBEDBDD84D5B17EC0D24EDEA49AE78D33908E69D2885895BC0243458228E8FD5CEF5ABCA558C3518D97B0BBA1C4051BBB31AAD6E7808673562FA73FFB5F50B").unwrap()),
+                    txn_signature: HexBinary::from(hex::decode("3C972711EB146F147405862AE43FB0086A20963682D77BD46E31A9D98F88FB655912A2B4BE6EBF403BC813EB5B60ADD1D7FF9D2F6F0591355612997E7F551403").unwrap()),
                     signing_pub_key: HexBinary::from(hex::decode("EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9").unwrap()),
                 },
                 XRPLSigner{
                     account: "rM9pYgHGm1Mqohp13XfZh6kbESkQPpJAKF".to_string(),
-                    txn_signature: HexBinary::from(hex::decode("62B63EFF8ED37ACFA453A61EC98B13761EFE608E36EB437ABE42DC86B73C3114B2ED5E6C3E9428E82DC4AAB9E4A093C00F041F6F32A5392FDAEF858142F0CE02").unwrap()),
+                    txn_signature: HexBinary::from(hex::decode("5EAF9A0190F66C663397ECD41F6043EF30DA8436ACD9ED94F65610E240E7825D26494461C5262A426870899EE9847199E18B4F36476234E1DBE834FC6265AC04").unwrap()),
                     signing_pub_key: HexBinary::from(hex::decode("ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435").unwrap()),
                 }
             ]
         };
         let encoded_signed_tx = serialize_signed_tx(&signed_tx).unwrap();
         assert_eq!(
-            "1200002200000000240297B79561400000003B9ACA0068400000000000001E73008114245409103F1B06F22FBCED389AAE0EFCE2F6689A831449599D50E0C1AC0CFC8D3B2A30830F3738EACC3EF3E0107321EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9744000CBEDBDD84D5B17EC0D24EDEA49AE78D33908E69D2885895BC0243458228E8FD5CEF5ABCA558C3518D97B0BBA1C4051BBB31AAD6E7808673562FA73FFB5F50B8114310A592CA22E8B35B819464F8A581A36C91DE857E1E0107321ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435744062B63EFF8ED37ACFA453A61EC98B13761EFE608E36EB437ABE42DC86B73C3114B2ED5E6C3E9428E82DC4AAB9E4A093C00F041F6F32A5392FDAEF858142F0CE028114DCE722505E32B29932618C5C9819AAEA03754AA5E1F1",
+            "12000A2200000000240297B79720280000000A68400000000000001E73008114245409103F1B06F22FBCED389AAE0EFCE2F6689AF3E0107321EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F974403C972711EB146F147405862AE43FB0086A20963682D77BD46E31A9D98F88FB655912A2B4BE6EBF403BC813EB5B60ADD1D7FF9D2F6F0591355612997E7F5514038114310A592CA22E8B35B819464F8A581A36C91DE857E1E0107321ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B43574405EAF9A0190F66C663397ECD41F6043EF30DA8436ACD9ED94F65610E240E7825D26494461C5262A426870899EE9847199E18B4F36476234E1DBE834FC6265AC048114DCE722505E32B29932618C5C9819AAEA03754AA5E1F1",
             hex::encode_upper(encoded_signed_tx)
         );
     }
+
+    #[test]
+    fn serialize_xrpl_signed_xrp_ticket_create_transaction() {
+        let signed_tx = XRPLSignedTransaction {
+            unsigned_tx: XRPLUnsignedTx {
+                common: XRPLTxCommonFields {
+                    account: "rhKnz85JUKcrAizwxNUDfqCvaUi9ZMhuwj".to_string(),
+                    fee: 30,
+                    sequence: Sequence::Plain(43497367),
+                    signing_pub_key: "".to_string(),
+                },
+                partial: XRPLPartialTx::TicketCreate {
+                    ticket_count: 10
+                }
+            }, signers: vec![
+                XRPLSigner{
+                    account: "rn7JWRhHvsvea6JMWYFuBB3MizMxbgKApf".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("3C972711EB146F147405862AE43FB0086A20963682D77BD46E31A9D98F88FB655912A2B4BE6EBF403BC813EB5B60ADD1D7FF9D2F6F0591355612997E7F551403").unwrap()),
+                    signing_pub_key: HexBinary::from(hex::decode("EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9").unwrap()),
+                },
+                XRPLSigner{
+                    account: "rM9pYgHGm1Mqohp13XfZh6kbESkQPpJAKF".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("5EAF9A0190F66C663397ECD41F6043EF30DA8436ACD9ED94F65610E240E7825D26494461C5262A426870899EE9847199E18B4F36476234E1DBE834FC6265AC04").unwrap()),
+                    signing_pub_key: HexBinary::from(hex::decode("ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435").unwrap()),
+                },
+            ]
+        };
+        let encoded_signed_tx = serialize_signed_tx(&signed_tx).unwrap();
+        assert_eq!(
+            "12000A2200000000240297B79720280000000A68400000000000001E73008114245409103F1B06F22FBCED389AAE0EFCE2F6689AF3E0107321EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F974403C972711EB146F147405862AE43FB0086A20963682D77BD46E31A9D98F88FB655912A2B4BE6EBF403BC813EB5B60ADD1D7FF9D2F6F0591355612997E7F5514038114310A592CA22E8B35B819464F8A581A36C91DE857E1E0107321ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B43574405EAF9A0190F66C663397ECD41F6043EF30DA8436ACD9ED94F65610E240E7825D26494461C5262A426870899EE9847199E18B4F36476234E1DBE834FC6265AC048114DCE722505E32B29932618C5C9819AAEA03754AA5E1F1",
+            hex::encode_upper(encoded_signed_tx)
+        );
+    }
+
+
+    #[test]
+    fn serialize_xrpl_signed_signer_list_set_transaction() {
+        let signed_tx = XRPLSignedTransaction {
+            unsigned_tx: XRPLUnsignedTx {
+                common: XRPLTxCommonFields {
+                    account: "rhKnz85JUKcrAizwxNUDfqCvaUi9ZMhuwj".to_string(),
+                    fee: 30,
+                    sequence: Sequence::Plain(43497378),
+                    signing_pub_key: "".to_string(),
+                },
+                partial: XRPLPartialTx::SignerListSet {
+                    signer_quorum: 3,
+                    signer_entries: vec![
+                        XRPLSignerEntry{
+                            account: "rM9pYgHGm1Mqohp13XfZh6kbESkQPpJAKF".to_string(),
+                            signer_weight: 2
+                        },
+                        XRPLSignerEntry{
+                            account: "rn7JWRhHvsvea6JMWYFuBB3MizMxbgKApf".to_string(),
+                            signer_weight: 1
+                        }
+                    ]
+                }
+            }, signers: vec![
+                XRPLSigner{
+                    account: "rn7JWRhHvsvea6JMWYFuBB3MizMxbgKApf".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("F4EE6E7AE1359360C16FF774EB907C908AE5E717A4DAAA8BF0C5A754A544B9690118E18EB9ABF2CE41A4853F346321F4624089AE803EB869B49F3ED506139A0E").unwrap()),
+                    signing_pub_key: HexBinary::from(hex::decode("EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9").unwrap()),
+                },
+                XRPLSigner{
+                    account: "rM9pYgHGm1Mqohp13XfZh6kbESkQPpJAKF".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("86B8AF804C7F4881E125F4F876C9EC292EEF811D572D4D4BA7C6CD533B13FB1B9A31ADB4A71DD54405135BEFCDEF3A98564479B681242250D42154A93EB1FE04").unwrap()),
+                    signing_pub_key: HexBinary::from(hex::decode("ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435").unwrap()),
+                },
+            ]
+        };
+        let encoded_signed_tx = serialize_signed_tx(&signed_tx).unwrap();
+        assert_eq!(
+            "12000C2200000000240297B7A220230000000368400000000000001E73008114245409103F1B06F22FBCED389AAE0EFCE2F6689AF3E0107321EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F97440F4EE6E7AE1359360C16FF774EB907C908AE5E717A4DAAA8BF0C5A754A544B9690118E18EB9ABF2CE41A4853F346321F4624089AE803EB869B49F3ED506139A0E8114310A592CA22E8B35B819464F8A581A36C91DE857E1E0107321ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435744086B8AF804C7F4881E125F4F876C9EC292EEF811D572D4D4BA7C6CD533B13FB1B9A31ADB4A71DD54405135BEFCDEF3A98564479B681242250D42154A93EB1FE048114DCE722505E32B29932618C5C9819AAEA03754AA5E1F1F4EB1300028114DCE722505E32B29932618C5C9819AAEA03754AA5E1EB1300018114310A592CA22E8B35B819464F8A581A36C91DE857E1F1",
+            hex::encode_upper(encoded_signed_tx)
+        );
+    }
+
 
     #[test]
     fn ed25519_public_key_to_xrpl_address() {
