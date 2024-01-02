@@ -6,12 +6,12 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
-use connection_router::state::Message;
+use connection_router::state::{CrossChainId, Message};
 use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
 
 use crate::{
     error::ContractError,
-    types::{BatchID, Command, CommandBatch, CommandType},
+    types::{BatchId, Command, CommandBatch, CommandType},
 };
 
 #[cw_serde]
@@ -58,7 +58,7 @@ fn make_transfer_operatorship(
 }
 
 pub struct CommandBatchBuilder {
-    message_ids: Vec<String>,
+    message_ids: Vec<CrossChainId>,
     new_worker_set: Option<WorkerSet>,
     commands: Vec<Command>,
     destination_chain_id: Uint256,
@@ -77,7 +77,7 @@ impl CommandBatchBuilder {
     }
 
     pub fn add_message(&mut self, msg: Message) -> Result<(), ContractError> {
-        self.message_ids.push(msg.cc_id.to_string());
+        self.message_ids.push(msg.cc_id.clone());
         self.commands.push(make_command(msg, self.encoding)?);
         Ok(())
     }
@@ -95,7 +95,7 @@ impl CommandBatchBuilder {
             commands: self.commands,
         };
 
-        let id = BatchID::new(&self.message_ids, self.new_worker_set);
+        let id = BatchId::new(&self.message_ids, self.new_worker_set);
 
         Ok(CommandBatch {
             id,
@@ -163,14 +163,13 @@ mod test {
     #[test]
     fn test_batch_id() {
         let messages = test_data::messages();
-        let mut message_ids: Vec<String> =
-            messages.iter().map(|msg| msg.cc_id.to_string()).collect();
+        let mut message_ids: Vec<CrossChainId> =
+            messages.into_iter().map(|msg| msg.cc_id).collect();
 
-        message_ids.sort();
-        let res = BatchID::new(&message_ids, None);
+        let res = BatchId::new(&message_ids, None);
 
         message_ids.reverse();
-        let res2 = BatchID::new(&message_ids, None);
+        let res2 = BatchId::new(&message_ids, None);
 
         assert_eq!(res, res2);
     }

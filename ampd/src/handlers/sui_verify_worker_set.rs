@@ -7,12 +7,13 @@ use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tracing::{info, info_span};
 
-use axelar_wasm_std::voting::PollId;
+use axelar_wasm_std::voting::{PollId, Vote};
 use connection_router::state::ID_SEPARATOR;
 use cosmwasm_std::HexBinary;
 use cosmwasm_std::Uint128;
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
+use valuable::Valuable;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -75,13 +76,12 @@ where
             broadcast_client,
         }
     }
-    async fn broadcast_votes(
-        &self,
-        poll_id: PollId,
-        votes: Vec<bool>,
-    ) -> error_stack::Result<(), Error> {
-        let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-            .expect("vote msg should serialize");
+    async fn broadcast_vote(&self, poll_id: PollId, vote: Vote) -> error_stack::Result<(), Error> {
+        let msg = serde_json::to_vec(&ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![vote],
+        })
+        .expect("vote msg should serialize");
         let tx = MsgExecuteContract {
             sender: self.worker.as_ref().clone(),
             contract: self.voting_verifier.as_ref().clone(),
@@ -142,16 +142,19 @@ where
             )
         )
         .in_scope(|| {
-            let vote = transaction_block.map_or(false, |tx_receipt| {
+            let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {
                 verify_worker_set(&source_gateway_address, &tx_receipt, &worker_set)
             });
 
-            info!(vote, "ready to vote for a new worker set in poll");
+            info!(
+                vote = vote.as_value(),
+                "ready to vote for a new worker set in poll"
+            );
 
             vote
         });
 
-        self.broadcast_votes(poll_id, vec![vote]).await
+        self.broadcast_vote(poll_id, vote).await
     }
 }
 

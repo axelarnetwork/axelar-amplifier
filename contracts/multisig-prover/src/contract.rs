@@ -97,6 +97,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 mod tests {
 
     use anyhow::Error;
+    use connection_router::state::CrossChainId;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, Fraction, Uint256, Uint64,
@@ -143,14 +144,14 @@ mod tests {
 
     fn execute_construct_proof(
         test_case: &mut TestCaseConfig,
-        message_ids: Option<Vec<String>>,
+        message_ids: Option<Vec<CrossChainId>>,
     ) -> Result<AppResponse, Error> {
         let message_ids = match message_ids {
             Some(ids) => ids,
             None => test_data::messages()
                 .into_iter()
-                .map(|msg| msg.cc_id.to_string())
-                .collect::<Vec<String>>(),
+                .map(|msg| msg.cc_id)
+                .collect::<Vec<CrossChainId>>(),
         };
 
         let msg = ExecuteMsg::ConstructProof { message_ids };

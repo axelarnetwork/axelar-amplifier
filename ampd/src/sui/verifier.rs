@@ -1,3 +1,4 @@
+use axelar_wasm_std::voting::Vote;
 use bcs::to_bytes;
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
@@ -97,14 +98,16 @@ pub fn verify_message(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,
     message: &Message,
-) -> bool {
+) -> Vote {
     match find_event(transaction_block, message.event_index) {
-        Some(event) => {
-            transaction_block.digest == message.tx_id
+        Some(event)
+            if transaction_block.digest == message.tx_id
                 && event.type_ == EventType::ContractCall.struct_tag(gateway_address)
-                && event == message
+                && event == message =>
+        {
+            Vote::SucceededOnChain
         }
-        None => false,
+        _ => Vote::NotFound,
     }
 }
 
@@ -112,19 +115,23 @@ pub fn verify_worker_set(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,
     worker_set: &WorkerSetConfirmation,
-) -> bool {
+) -> Vote {
     match find_event(transaction_block, worker_set.event_index) {
-        Some(event) => {
-            transaction_block.digest == worker_set.tx_id
-                && event.type_ == EventType::OperatorshipTransferred.struct_tag(gateway_address)
-                && event == worker_set
+        Some(event)
+            if transaction_block.digest == worker_set.tx_id
+                && event.type_
+                    == EventType::OperatorshipTransferred.struct_tag(gateway_address)
+                && event == worker_set =>
+        {
+            Vote::SucceededOnChain
         }
-        None => false,
+        _ => Vote::NotFound,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use axelar_wasm_std::voting::Vote;
     use connection_router::state::ChainName;
     use cosmwasm_std::HexBinary;
     use ethers::abi::AbiEncode;
@@ -148,7 +155,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.tx_id = TransactionDigest::random();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -156,7 +166,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.event_index = rand::random::<u64>();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -164,7 +177,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.source_address = SuiAddress::random_for_testing_only();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -172,7 +188,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.destination_chain = rand_chain_name();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -180,7 +199,10 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.destination_address = EVMAddress::random().to_string();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
@@ -188,24 +210,29 @@ mod tests {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
         msg.payload_hash = Hash::random();
-        assert!(!verify_message(&gateway_address, &tx_receipt, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::NotFound
+        );
     }
 
     #[test]
     fn should_verify_msg_if_correct() {
         let (gateway_address, tx_block, msg) = get_matching_msg_and_tx_block();
-        assert!(verify_message(&gateway_address, &tx_block, &msg));
+        assert_eq!(
+            verify_message(&gateway_address, &tx_block, &msg),
+            Vote::SucceededOnChain
+        );
     }
 
     #[test]
     fn should_verify_worker_set() {
         let (gateway_address, tx_receipt, worker_set) = get_matching_worker_set_and_tx_block();
 
-        assert!(verify_worker_set(
-            &gateway_address,
-            &tx_receipt,
-            &worker_set
-        ));
+        assert_eq!(
+            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            Vote::SucceededOnChain
+        );
     }
 
     fn get_matching_msg_and_tx_block() -> (SuiAddress, SuiTransactionBlockResponse, Message) {

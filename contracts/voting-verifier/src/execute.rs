@@ -3,7 +3,7 @@ use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
-use axelar_wasm_std::voting::PollId;
+use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
@@ -150,7 +150,7 @@ pub fn vote(
     env: Env,
     info: MessageInfo,
     poll_id: PollId,
-    votes: Vec<bool>,
+    votes: Vec<Vote>,
 ) -> Result<Response, ContractError> {
     let poll = POLLS
         .may_load(deps.storage, poll_id)?

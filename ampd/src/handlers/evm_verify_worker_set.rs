@@ -5,12 +5,13 @@ use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
 use serde::Deserialize;
 use tracing::{info, info_span};
+use valuable::Valuable;
 
 use async_trait::async_trait;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
-use axelar_wasm_std::voting::PollId;
+use axelar_wasm_std::voting::{PollId, Vote};
 use connection_router::state::ID_SEPARATOR;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -112,7 +113,7 @@ where
         }))
     }
 
-    async fn broadcast_vote(&self, poll_id: PollId, vote: bool) -> Result<()> {
+    async fn broadcast_vote(&self, poll_id: PollId, vote: Vote) -> Result<()> {
         let msg = serde_json::to_vec(&ExecuteMsg::Vote {
             poll_id,
             votes: vec![vote],
@@ -183,10 +184,13 @@ where
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
 
-            let vote = tx_receipt.map_or(false, |tx_receipt| {
+            let vote = tx_receipt.map_or(Vote::NotFound, |tx_receipt| {
                 verify_worker_set(&source_gateway_address, &tx_receipt, &worker_set)
             });
-            info!(vote, "ready to vote for a new worker set in poll");
+            info!(
+                vote = vote.as_value(),
+                "ready to vote for a new worker set in poll"
+            );
 
             vote
         });
