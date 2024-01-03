@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -50,6 +52,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
+    _latest_block_height: Arc<AtomicU64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -62,12 +65,14 @@ where
         voting_verifier: TMAddress,
         rpc_client: C,
         broadcast_client: B,
+        latest_block_height: Arc<AtomicU64>,
     ) -> Self {
         Self {
             worker,
             voting_verifier,
             rpc_client,
             broadcast_client,
+            _latest_block_height: latest_block_height,
         }
     }
     async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
@@ -146,6 +151,8 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::Arc;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
@@ -194,6 +201,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
+            Arc::new(AtomicU64::new(0)),
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -212,6 +220,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
+            Arc::new(AtomicU64::new(0)),
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -228,6 +237,7 @@ mod tests {
             voting_verifier,
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
+            Arc::new(AtomicU64::new(0)),
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -257,6 +267,7 @@ mod tests {
             voting_verifier,
             rpc_client,
             MockBroadcasterClient::new(),
+            Arc::new(AtomicU64::new(0)),
         );
 
         assert!(matches!(
@@ -286,7 +297,13 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            rpc_client,
+            broadcast_client,
+            Arc::new(AtomicU64::new(0)),
+        );
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),

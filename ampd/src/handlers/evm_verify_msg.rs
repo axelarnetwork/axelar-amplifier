@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -60,6 +62,7 @@ where
     chain: ChainName,
     rpc_client: C,
     broadcast_client: B,
+    _latest_block_height: Arc<AtomicU64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -73,6 +76,7 @@ where
         chain: ChainName,
         rpc_client: C,
         broadcast_client: B,
+        latest_block_height: Arc<AtomicU64>,
     ) -> Self {
         Self {
             worker,
@@ -80,6 +84,7 @@ where
             chain,
             rpc_client,
             broadcast_client,
+            _latest_block_height: latest_block_height,
         }
     }
 
