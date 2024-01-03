@@ -133,7 +133,7 @@ pub fn execute(
             construct_signer_list_set_proof(deps.storage, querier, env, &config)
         },
         ExecuteMsg::UpdateTxStatus { cc_id, message_status } => {
-            update_tx_status(deps.storage, querier, cc_id, &message_status)
+            update_tx_status(deps.storage, querier, cc_id, &message_status, config.axelar_multisig_address)
         },
         ExecuteMsg::TicketCreate {} => {
             construct_ticket_create_proof(deps.storage, env.contract.address, &config)
@@ -218,7 +218,7 @@ pub fn start_signing_session(
     storage: &mut dyn Storage,
     config: &Config,
     tx_hash: TxHash,
-    self_address: Addr,
+    _self_address: Addr,
 ) -> Result<Response, ContractError> {
     REPLY_TX_HASH.save(storage, &tx_hash)?;
     let cur_worker_set: multisig::worker_set::WorkerSet = CURRENT_WORKER_SET.load(storage)?.into();
@@ -304,7 +304,8 @@ fn update_tx_status(
     storage: &mut dyn Storage,
     querier: Querier,
     cc_id: CrossChainId,
-    status: &MessageStatus
+    status: &MessageStatus,
+    axelar_multisig_address: impl Into<String>,
 ) -> Result<Response, ContractError> {
     if !querier.get_message_confirmation(cc_id.clone(), status)? {
         return Err(ContractError::InvalidMessageStatus)
@@ -312,8 +313,10 @@ fn update_tx_status(
 
     let tx_hash: TxHash = TxHash::try_from(cc_id)?;
 
-    xrpl_multisig::update_tx_status(storage, tx_hash, status.clone().into())?;
-    Ok(Response::default())
+    match xrpl_multisig::update_tx_status(storage, axelar_multisig_address, tx_hash, status.clone().into())? {
+        None => Ok(Response::default()),
+        Some(msg) => Ok(Response::new().add_message(msg))
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

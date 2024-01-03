@@ -6,7 +6,7 @@ use multisig::types::MultisigState;
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 
 use crate::{
-    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self}, querier::Querier, contract::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError,
+    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, contract::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError,
 };
 
 pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
@@ -40,7 +40,7 @@ pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, 
         return Err(ContractError::TransactionStatusNotPending.into());
     }
 
-    let serialized_unsigned_tx = xrpl_multisig::serialize_unsigned_tx(&tx_info.unsigned_contents)?;
+    let serialized_unsigned_tx = tx_info.unsigned_contents.xrpl_serialize()?;
     let serialized_signer_xrpl_address = xrpl_multisig::decode_address(signer_xrpl_address)?;
 
     let serialized_tx = &[serialized_unsigned_tx, serialized_signer_xrpl_address.to_vec()].concat();
@@ -67,7 +67,7 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
                 .collect();
 
             let signed_tx = make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
-            let tx_blob: HexBinary = HexBinary::from(xrpl_multisig::serialize_signed_tx(&signed_tx)?);
+            let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
             GetProofResponse::Completed { unsigned_tx_hash, tx_blob }
         }
     };
