@@ -183,6 +183,10 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
         &xrpl.multisig_prover_address,
         &session_id,
     );
+    assert!(matches!(
+        proof,
+        xrpl_multisig_prover::contract::GetProofResponse::Completed { .. }
+    ));
     println!("SignerListSet proof: {:?}", proof);
 
     test_utils::finalize_xrpl_proof(
@@ -221,11 +225,6 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
         proof_msg_id,
         xrpl_voting_verifier::execute::MessageStatus::Succeeded
     );
-
-    assert!(matches!(
-        proof,
-        xrpl_multisig_prover::contract::GetProofResponse::Completed { .. }
-    ));
 
     let new_worker_set =
         test_utils::get_worker_set(&mut protocol.app, &xrpl.multisig_prover_address);
