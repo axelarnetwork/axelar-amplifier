@@ -149,6 +149,7 @@ pub fn verify_messages(
 #[cw_serde]
 pub enum MessageStatus {
     Succeeded,
+    // TODO: FAILED OFF CHAIN NOT APPLICABLE
     FailedOffChain,
     FailedOnChain
 }
@@ -174,12 +175,12 @@ pub fn verify_message_statuses(
 
     let source_chain = CONFIG.load(deps.storage)?.source_chain;
 
-    if message_statuses
+    /*if message_statuses
         .iter()
         .any(|(cc_id, _)| cc_id.chain.ne(&source_chain))
     {
         return Err(ContractError::SourceChainMismatch(source_chain))?;
-    }
+    }*/
 
     let config = CONFIG.load(deps.storage)?;
 

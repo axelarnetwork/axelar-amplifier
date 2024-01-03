@@ -7,9 +7,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256, Addr, Fraction};
 use multisig::key::KeyType;
 use service_registry::state::Worker;
-use sha2::Digest;
 use multisig::key::PublicKey;
-use sha3::Keccak256;
 
 use crate::querier::Querier;
 use crate::error::ContractError;
@@ -108,7 +106,7 @@ impl WorkerSet {
             .collect()
     }
 
-    pub fn hash(&self) -> HexBinary {
+    /*pub fn hash(&self) -> HexBinary {
         Keccak256::digest(serde_json::to_vec(&self).expect("couldn't serialize worker set"))
             .as_slice()
             .into()
@@ -116,7 +114,7 @@ impl WorkerSet {
 
     pub fn id(&self) -> String {
         self.hash().to_hex()
-    }
+    }*/
 }
 
 fn convert_uint256_to_u16_unsafely(value: Uint256) -> u16 {
@@ -176,7 +174,7 @@ pub fn get_active_worker_set(
         });
     }
 
-    let sum_of_weights: u16 = weights.iter().sum();
+    let sum_of_weights: u32 = weights.iter().map(|w| u32::from(*w)).sum();
 
     let quorum = (sum_of_weights as u64)
         .checked_mul(signing_threshold.numerator().into())
@@ -209,6 +207,10 @@ mod tests {
 
     #[test]
     fn test_convert_or_scale_weights() {
+        let weights = vec![Uint256::from(1u128), Uint256::from(1u128)];
+        let scaled_weights = convert_or_scale_weights(weights);
+        assert_eq!(scaled_weights, vec![65535, 65535]);
+
         let weights = vec![Uint256::from(1u128), Uint256::from(2u128), Uint256::from(3u128)];
         let scaled_weights = convert_or_scale_weights(weights);
         assert_eq!(scaled_weights, vec![21845, 43690, 65535]);

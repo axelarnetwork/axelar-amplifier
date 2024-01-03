@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
-use cosmwasm_schema::{cw_serde, serde::Serializer};
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Storage, HexBinary};
 use ripemd::Ripemd160;
 use sha2::{Sha512, Digest, Sha256};
@@ -13,28 +13,28 @@ use crate::{
     types::*, axelar_workers::{WorkerSet, AxelarSigner},
 };
 
-fn itoa_serialize<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
+/*fn itoa_serialize<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     s.serialize_str(&x.to_string()[..])
-}
+}*/
 
 #[cw_serde]
 pub struct XRPLTokenAmount(pub String);
 
 #[cw_serde]
-#[serde(untagged)]
+// #[serde(untagged)]
 pub enum XRPLPaymentAmount {
     Drops(
-        #[serde(serialize_with = "itoa_serialize")]
+        // #[serde(serialize_with = "itoa_serialize")]
         u64,
     ),
     Token(XRPLToken, XRPLTokenAmount),
 }
 
 #[cw_serde]
-#[serde(untagged)]
+// #[serde(untagged)]
 pub enum Sequence {
     Plain(u32),
     Ticket(u32),
@@ -50,33 +50,33 @@ impl Into<u32> for Sequence {
 }
 
 #[cw_serde]
-#[serde(rename_all = "PascalCase")]
+//#[serde(rename_all = "PascalCase")]
 pub struct XRPLTxCommonFields {
     pub account: String, // TODO: redundant here?
-    #[serde(serialize_with = "itoa_serialize")]
+    //#[serde(serialize_with = "itoa_serialize")]
     pub fee: u64,
     pub sequence: Sequence,
     pub signing_pub_key: String,
 }
 
 #[cw_serde]
-#[serde(rename_all = "PascalCase", tag = "SignerEntry")]
+// #[serde(rename_all = "PascalCase", tag = "SignerEntry")]
 pub struct XRPLSignerEntry {
     pub account: String,
     pub signer_weight: u16,
 }
 
 #[cw_serde]
-#[serde(rename_all = "PascalCase")]
+//#[serde(rename_all = "PascalCase")]
 pub struct XRPLUnsignedTx {
-    #[serde(flatten)]
+    //#[serde(flatten)]
     pub common: XRPLTxCommonFields,
-    #[serde(flatten)]
+    //#[serde(flatten)]
     pub partial: XRPLPartialTx,
 }
 
 #[cw_serde]
-#[serde(tag="TransactionType")]
+//#[serde(tag="TransactionType")]
 pub enum XRPLPartialTx {
     Payment {
         amount: XRPLPaymentAmount,
@@ -118,7 +118,7 @@ impl XRPLUnsignedTx {
 }
 
 #[cw_serde]
-#[serde(rename_all = "PascalCase")]
+// #[serde(rename_all = "PascalCase")]
 pub struct XRPLSigner {
     pub account: String,
     pub txn_signature: HexBinary,
@@ -126,18 +126,20 @@ pub struct XRPLSigner {
 }
 
 #[cw_serde]
-#[serde(rename_all = "PascalCase")]
+// #[serde(rename_all = "PascalCase")]
 pub struct XRPLSignedTransaction {
-    #[serde(flatten)]
+    // #[serde(flatten)]
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
 }
 
 pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
-    let last_assigned_ticket_number = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
+    let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
+    // TODO: handle no available tickets
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
 
     // find next largest in available, otherwise use available_tickets[0]
+    // TODO: handle IndexOutOfBounds error on available_tickets[0]
     let ticket_number = available_tickets.iter().find(|&x| x > &last_assigned_ticket_number).unwrap_or(&available_tickets[0]);
     Ok(*ticket_number)
 }
@@ -155,6 +157,7 @@ fn construct_unsigned_tx(
 ) -> XRPLUnsignedTx {
     let unsigned_tx_common = XRPLTxCommonFields {
         account: config.xrpl_multisig_address.to_string(),
+        // TODO: should be at least (n+1)*num_of_signatures (which we don't know)
         fee: config.xrpl_fee,
         sequence: sequence.clone(),
         signing_pub_key: "".to_string(),
@@ -305,13 +308,13 @@ pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
 pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, ContractError> {
     let encoded_unsigned_tx = serialize_unsigned_tx(unsigned_tx)?;
 
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI, encoded_unsigned_tx.as_slice()));
+    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(Some(HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI), encoded_unsigned_tx.as_slice()));
     let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
     Ok(tx_hash)
 }
 
 pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()));
+    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(Some(HASH_PREFIX_SIGNED_TRANSACTION), encoded_signed_tx.as_slice()));
     let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
     Ok(tx_hash)
 }
@@ -319,7 +322,7 @@ pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, Cont
 pub fn serialize_signed_tx(signed_tx: &XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
     let mut obj = tx_to_xrpl_object(&signed_tx.unsigned_tx)?;
     obj.add_field(3, &XRPLArray{ field_code: 16, items: signed_tx.signers.clone() })?;
-    let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| { 
+    let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| {
         let mut res = Vec::new();
         res.extend(field_id(f.0, f.1));
         res.extend(f.2);
@@ -455,7 +458,7 @@ impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
     }
 }
 
-    
+
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/master/content/_code-samples/tx-serialization/py/serialize.py#L92
 // returns None if length too big
 pub fn encode_length(mut length: usize) -> Option<Vec<u8>> {
@@ -475,7 +478,7 @@ pub fn encode_length(mut length: usize) -> Option<Vec<u8>> {
         return None
     }
 }
-    
+
 impl XRPLSerialize for HexBinary {
     const TYPE_CODE: u8 = BLOB_TYPE_CODE;
 
@@ -492,7 +495,7 @@ impl XRPLSerialize for HexBinary {
     }
 }
 
-    
+
 impl XRPLSerialize for XRPLSigner {
     const TYPE_CODE: u8 = OBJECT_TYPE_CODE;
 
@@ -503,7 +506,7 @@ impl XRPLSerialize for XRPLSigner {
         obj.add_field(1, &XRPLAddress(self.account.clone()))?;
         let mut result = obj.serialize();
         result.extend(field_id(OBJECT_TYPE_CODE, 1));
-        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| { 
+        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| {
             let mut res = Vec::new();
             res.extend(field_id(f.0, f.1));
             res.extend(f.2);
@@ -536,7 +539,7 @@ impl XRPLSerialize for XRPLSignerEntry {
         let mut result = obj.serialize();
         result.extend(field_id(OBJECT_TYPE_CODE, 1));
 
-        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| { 
+        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| {
             let mut res = Vec::new();
             res.extend(field_id(f.0, f.1));
             res.extend(f.2);
@@ -591,11 +594,15 @@ impl XRPLObject {
     }
 }
 
+// TODO: fix to not take prefix as param
 pub fn xrpl_hash(
-    prefix: [u8; 4],
+    prefix: Option<[u8; 4]>,
     tx_blob: &[u8],
 ) -> [u8; 32] {
-    let mut hasher = Sha512::new_with_prefix(prefix);
+    let mut hasher = match prefix {
+        Some(prefix) => Sha512::new_with_prefix(prefix),
+        None => Sha512::new(),
+    };
     hasher.update(tx_blob);
     let hash: [u8; 64] = hasher.finalize().into();
     let mut half_hash: [u8; 32] = [0; 32];
@@ -642,8 +649,9 @@ fn issue_tx(
 
 fn get_next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
     let latest_sequential_tx_info = load_latest_sequential_tx_info(storage)?;
-    let sequence_number = if latest_sequential_tx_info.status == TransactionStatus::Pending {
-        latest_sequential_tx_info.unsigned_contents.common.sequence.clone().into()
+    // TODO: fix
+    let sequence_number = if latest_sequential_tx_info.is_some() && latest_sequential_tx_info.clone().unwrap().status == TransactionStatus::Pending {
+        latest_sequential_tx_info.unwrap().unsigned_contents.common.sequence.clone().into()
     } else {
         NEXT_SEQUENCE_NUMBER.load(storage)?
     };
@@ -670,9 +678,13 @@ pub fn issue_ticket_create(storage: &mut dyn Storage, config: &Config, ticket_co
 
 fn load_latest_sequential_tx_info(
     storage: &dyn Storage,
-) -> Result<TransactionInfo, ContractError> {
-    let latest_sequential_tx_hash = LATEST_SEQUENTIAL_TX_HASH.load(storage)?;
-    Ok(TRANSACTION_INFO.load(storage, latest_sequential_tx_hash.clone())?)
+) -> Result<Option<TransactionInfo>, ContractError> {
+    let latest_sequential_tx_hash = LATEST_SEQUENTIAL_TX_HASH.may_load(storage)?;
+    if latest_sequential_tx_hash.is_none() {
+        return Ok(None)
+    }
+
+    Ok(TRANSACTION_INFO.may_load(storage, latest_sequential_tx_hash.unwrap())?)
 }
 
 pub fn issue_payment(
@@ -815,7 +827,7 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: CrossChainId)
             return Ok(ticket_number)
         }
 
-        // or if it has been consumed by the same transactions.
+        // or if it has been consumed by the same message.
         let tx_info = TRANSACTION_INFO.load(storage, confirmed_tx_hash.unwrap())?;
         if tx_info.message_id.map_or(false, |id| id == message_id) {
             return Ok(ticket_number)

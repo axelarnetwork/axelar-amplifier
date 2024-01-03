@@ -10,7 +10,7 @@ pub struct Config {
     pub axelar_multisig_address: Addr,
     pub gateway_address: Addr,
     pub signing_threshold: Threshold,
-    pub xrpl_multisig_address: Addr,
+    pub xrpl_multisig_address: String,
     pub voting_verifier_address: Addr,
     pub service_registry_address: Addr,
     pub service_name: String,

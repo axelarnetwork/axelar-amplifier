@@ -3918,6 +3918,8 @@ dependencies = [
  "thiserror",
  "tofn",
  "voting-verifier",
+ "xrpl-multisig-prover",
+ "xrpl-voting-verifier",
 ]
 
 [[package]]
@@ -9293,17 +9295,22 @@ dependencies = [
 name = "xrpl-multisig-prover"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "bs58 0.5.0",
  "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test",
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
+ "elliptic-curve",
  "error-stack",
  "gateway",
+ "generic-array",
  "hex",
+ "k256",
  "multisig",
  "report",
  "ripemd",

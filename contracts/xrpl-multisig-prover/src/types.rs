@@ -1,5 +1,4 @@
-use std::ops::Deref;
-
+use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
@@ -17,6 +16,25 @@ pub enum TransactionStatus {
     FailedOffChain,
 }
 
+// TODO: import from verifier
+pub fn parse_message_id(
+    message_id: &nonempty::String,
+) -> Result<(nonempty::String, u64), ContractError> {
+    // expected format: <tx_id>:<index>
+    let components = message_id.split(":").collect::<Vec<_>>();
+
+    if components.len() != 2 {
+        return Err(ContractError::InvalidMessageID(message_id.to_string()));
+    }
+
+    Ok((
+        components[0].try_into()?,
+        components[1]
+            .parse::<u64>()
+            .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+    ))
+}
+
 #[cw_serde]
 pub struct TxHash(pub HexBinary);
 
@@ -24,7 +42,8 @@ impl TryFrom<CrossChainId> for TxHash {
     type Error = ContractError;
     fn try_from(cc_id: CrossChainId) -> Result<Self, ContractError> {
         // TODO check this is correct
-        Ok(Self(HexBinary::from_hex(cc_id.id.deref().as_str())?))
+        let (tx_id, _event_index) = parse_message_id(&cc_id.id)?;
+        Ok(Self(HexBinary::from_hex(tx_id.to_ascii_lowercase().as_str())?))
     }
 }
 
@@ -109,5 +128,5 @@ pub struct XRPLToken {
 }
 
 impl XRPLToken {
-    pub const NATIVE_CURRENCY: &str = "XRP";
+    pub const NATIVE_CURRENCY: &'static str = "XRP";
 }

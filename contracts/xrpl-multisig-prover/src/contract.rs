@@ -3,35 +3,38 @@ use std::str::FromStr;
 #[cfg(not(feature = "library"))]
 use axelar_wasm_std::Threshold;
 use connection_router::state::{CrossChainId, ChainName};
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{
     entry_point, Storage, wasm_execute, SubMsg, Reply,
-    DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_binary, Deps, StdResult, Binary, Addr,
+    DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_binary, Deps, StdResult, Binary, Addr, HexBinary,
 };
 use xrpl_voting_verifier::execute::MessageStatus;
 
 use crate::{
     error::ContractError,
-    state::{Config, CONFIG, REPLY_TX_HASH, TOKENS, CURRENT_WORKER_SET, NEXT_WORKER_SET, SIGNED_TO_UNSIGNED_TX_HASH},
+    state::{Config, CONFIG, REPLY_TX_HASH, TOKENS, CURRENT_WORKER_SET, NEXT_WORKER_SET, SIGNED_TO_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, LAST_ASSIGNED_TICKET_NUMBER, AVAILABLE_TICKETS},
     reply,
     types::*,
-    xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query::{get_proof, GetProofResponse, QueryMsg, self},
+    xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query::{get_proof, self},
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    axelar_multisig_address: String,
-    gateway_address: String,
-    signing_threshold: Threshold,
-    xrpl_multisig_address: String,
-    voting_verifier_address: String,
-    service_registry_address: String,
-    service_name: String,
-    worker_set_diff_threshold: u32,
-    xrpl_fee: u64,
-    ticket_count_threshold: u32,
+    pub axelar_multisig_address: String,
+    pub gateway_address: String,
+    pub signing_threshold: Threshold,
+    pub xrpl_multisig_address: String,
+    pub voting_verifier_address: String,
+    pub service_registry_address: String,
+    pub service_name: String,
+    pub worker_set_diff_threshold: u32,
+    pub xrpl_fee: u64,
+    pub ticket_count_threshold: u32,
+    pub available_tickets: Vec<u32>,
+    pub next_sequence_number: u32,
+    pub last_assigned_ticket_number: u32,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -43,7 +46,6 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     let axelar_multisig_address = deps.api.addr_validate(&msg.axelar_multisig_address)?;
     let gateway_address = deps.api.addr_validate(&msg.gateway_address)?;
-    let xrpl_multisig_address = deps.api.addr_validate(&msg.xrpl_multisig_address)?;
     let voting_verifier_address = deps.api.addr_validate(&msg.voting_verifier_address)?;
     let service_registry_address = deps.api.addr_validate(&msg.service_registry_address)?;
 
@@ -54,7 +56,7 @@ pub fn instantiate(
     let config = Config {
         axelar_multisig_address,
         gateway_address,
-        xrpl_multisig_address,
+        xrpl_multisig_address: msg.xrpl_multisig_address,
         signing_threshold: msg.signing_threshold,
         voting_verifier_address,
         service_registry_address,
@@ -66,27 +68,44 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
+    NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
+    LAST_ASSIGNED_TICKET_NUMBER.save(deps.storage, &msg.last_assigned_ticket_number)?;
+    AVAILABLE_TICKETS.save(deps.storage, &msg.available_tickets)?;
+
     let querier = Querier::new(deps.querier, config.clone());
     let new_worker_set = axelar_workers::get_active_worker_set(querier, msg.signing_threshold, env.block.height)?;
 
     CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
 
-    Ok(Response::new().add_message(wasm_execute(
+    let msg = wasm_execute(
         config.axelar_multisig_address,
         &multisig::msg::ExecuteMsg::RegisterWorkerSet {
             worker_set: new_worker_set.into(),
         },
         vec![],
-    )?))
+    )?;
+
+    Ok(Response::new().add_message(msg))
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    ConstructProof(CrossChainId),
-    FinalizeProof(Uint64),
-    UpdateTxStatus(CrossChainId, MessageStatus),
-    UpdateWorkerSet(),
-    TicketCreate(),
+    RegisterToken { denom: String, token: XRPLToken },
+    // TODO: fix inconsistency between message_id & cc_id
+    ConstructProof { message_id: CrossChainId },
+    FinalizeProof { multisig_session_id: Uint64 },
+    UpdateTxStatus { cc_id: CrossChainId, message_status: MessageStatus },
+    UpdateWorkerSet,
+    TicketCreate,
+}
+
+fn register_token(
+    storage: &mut dyn Storage,
+    denom: String,
+    token: &XRPLToken,
+) -> Result<Response, ContractError> {
+    TOKENS.save(storage, denom, token)?;
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -100,19 +119,23 @@ pub fn execute(
     let querier = Querier::new(deps.querier, config.clone());
 
     let res = match msg {
-        ExecuteMsg::ConstructProof(message_id) => {
+        // TODO: should be admin-only
+        ExecuteMsg::RegisterToken { denom, token } => {
+            register_token(deps.storage, denom, &token)
+        },
+        ExecuteMsg::ConstructProof { message_id } => {
             construct_payment_proof(deps.storage, querier, info, env.contract.address, &config, message_id)
         },
-        ExecuteMsg::FinalizeProof(session_id) => {
-            finalize_proof(deps.storage, querier, &session_id)
-        }
-        ExecuteMsg::UpdateWorkerSet() => {
+        ExecuteMsg::FinalizeProof { multisig_session_id } => {
+            finalize_proof(deps.storage, querier, &multisig_session_id)
+        },
+        ExecuteMsg::UpdateWorkerSet {} => {
             construct_signer_list_set_proof(deps.storage, querier, env, &config)
         },
-        ExecuteMsg::UpdateTxStatus(cc_id, status) => {
-            update_tx_status(deps.storage, querier, cc_id, &status)
+        ExecuteMsg::UpdateTxStatus { cc_id, message_status } => {
+            update_tx_status(deps.storage, querier, cc_id, &message_status)
         },
-        ExecuteMsg::TicketCreate() => {
+        ExecuteMsg::TicketCreate {} => {
             construct_ticket_create_proof(deps.storage, env.contract.address, &config)
         },
     }?;
@@ -120,6 +143,11 @@ pub fn execute(
     Ok(res)
 }
 
+// TODO: proof submitted on XRPL may be
+// different than the one submitted here
+// (i.e., the signed hash is different because more signatures
+// were gathered after the TX was broadcasted to XRPL
+// but before finalize_proof was called)
 fn finalize_proof(
     storage: &mut dyn Storage,
     querier: Querier,
@@ -132,7 +160,7 @@ fn finalize_proof(
         GetProofResponse::Completed { unsigned_tx_hash, tx_blob } => {
             let tx_hash = xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?;
             SIGNED_TO_UNSIGNED_TX_HASH.save(storage, tx_hash, &unsigned_tx_hash)?;
-            Ok(Response::default()) 
+            Ok(Response::default())
         }
     }
 }
@@ -153,7 +181,9 @@ fn construct_payment_proof(
     let coin = funds.remove(0);
     let xrpl_token = TOKENS.load(storage, coin.denom.clone())?;
     let message = querier.get_message(message_id.clone())?;
-    let drops = u64::try_from(coin.amount.u128() / 10u128.pow(12)).map_err(|_| ContractError::InvalidAmount)?;
+    // TODO: handle coin.amount precision loss
+    let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount)?;
+    // TODO: find better way to distinguish XRP from the rest
     let xrpl_payment_amount = if xrpl_token.currency == XRPLToken::NATIVE_CURRENCY {
         XRPLPaymentAmount::Drops(drops)
     } else {
@@ -191,12 +221,14 @@ pub fn start_signing_session(
     self_address: Addr,
 ) -> Result<Response, ContractError> {
     REPLY_TX_HASH.save(storage, &tx_hash)?;
-    let cur_worker_set = CURRENT_WORKER_SET.load(storage)?;
+    let cur_worker_set: multisig::worker_set::WorkerSet = CURRENT_WORKER_SET.load(storage)?.into();
     let start_sig_msg: multisig::msg::ExecuteMsg = multisig::msg::ExecuteMsg::StartSigningSession {
         worker_set_id: cur_worker_set.id(),
         chain_name: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
         msg: tx_hash.into(),
-        sig_verifier: Some(self_address.into())
+        // TODO: implement sig_verifier
+        //sig_verifier: Some(self_address.into())
+        sig_verifier: None,
     };
 
     let wasm_msg = wasm_execute(config.axelar_multisig_address.clone(), &start_sig_msg, vec![])?;
@@ -297,6 +329,27 @@ pub fn reply(
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
+// TODO: move to msg.rs
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(GetProofResponse)]
+    GetProof { multisig_session_id: Uint64 },
+    #[returns(GetMessageToSignResponse)]
+    GetMessageToSign { multisig_session_id: Uint64, signer_xrpl_address: String },
+}
+
+#[cw_serde]
+#[serde(tag = "status")]
+pub enum GetProofResponse {
+    Completed { unsigned_tx_hash: TxHash, tx_blob: HexBinary},
+    Pending { unsigned_tx_hash: TxHash },
+}
+
+#[cw_serde]
+pub struct GetMessageToSignResponse {
+    pub tx_hash: HexBinary,
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -306,5 +359,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetProof {
             multisig_session_id,
         } => to_binary(&query::get_proof(deps.storage, querier, &multisig_session_id)?),
+        QueryMsg::GetMessageToSign {
+            multisig_session_id,
+            signer_xrpl_address,
+        } => to_binary(&query::get_message_to_sign(deps.storage, &multisig_session_id, &signer_xrpl_address)?),
     }
 }

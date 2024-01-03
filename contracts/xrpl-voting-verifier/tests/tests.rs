@@ -7,8 +7,8 @@ use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::state::{ChainName, CrossChainId, Message, ID_SEPARATOR};
 use mock::make_mock_rewards;
 use service_registry::state::Worker;
-use voting_verifier::events::TxEventConfirmation;
-use voting_verifier::{contract, error::ContractError, msg};
+use xrpl_voting_verifier::events::TxEventConfirmation;
+use xrpl_voting_verifier::{contract, error::ContractError, msg};
 
 use crate::mock::make_mock_service_registry;
 

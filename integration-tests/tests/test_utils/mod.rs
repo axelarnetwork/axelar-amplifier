@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
@@ -6,7 +8,7 @@ use axelar_wasm_std::{
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
-    Uint256, Uint64,
+    Uint256, Uint64, Coin
 };
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
@@ -17,8 +19,10 @@ use multisig::{
 };
 use multisig_prover::encoding::{make_operators, Encoder};
 use tofn::ecdsa::KeyPair;
+use xrpl_multisig_prover::types::XRPLToken;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
+pub const XRP_DENOMINATION: &str = "uxrp";
 
 fn get_event_attribute<'a>(
     events: &'a [Event],
@@ -58,6 +62,31 @@ pub fn verify_messages(
     (poll_id, expiry)
 }
 
+pub fn xrpl_verify_message_statuses(
+    app: &mut App,
+    voting_verifier_address: &Addr,
+    message_statuses: Vec<(CrossChainId, xrpl_voting_verifier::execute::MessageStatus)>,
+) -> (PollId, PollExpiryBlock) {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        voting_verifier_address.clone(),
+        &xrpl_voting_verifier::msg::ExecuteMsg::VerifyMessageStatuses {
+            message_statuses
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = response.unwrap();
+
+    let poll_id = get_event_attribute(&response.events, "wasm-message_statuses_poll_started", "poll_id")
+        .map(|attr| serde_json::from_str(&attr.value).unwrap())
+        .expect("couldn't get poll_id");
+    let expiry = get_event_attribute(&response.events, "wasm-message_statuses_poll_started", "expires_at")
+        .map(|attr| attr.value.as_str().parse().unwrap())
+        .expect("couldn't get poll expiry");
+    (poll_id, expiry)
+}
+
 pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
@@ -72,7 +101,7 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
 pub fn vote_success_for_all_messages(
     app: &mut App,
     voting_verifier_address: &Addr,
-    messages: &Vec<Message>,
+    msg_count: usize,
     workers: &Vec<Worker>,
     poll_id: PollId,
 ) {
@@ -82,7 +111,7 @@ pub fn vote_success_for_all_messages(
             voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
-                votes: vec![Vote::SucceededOnChain; messages.len()],
+                votes: vec![Vote::SucceededOnChain; msg_count],
             },
             &[],
         );
@@ -210,6 +239,103 @@ pub fn register_service(
     assert!(response.is_ok());
 }
 
+pub fn construct_xrpl_ticket_create_proof_and_sign(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_address: &Addr,
+    workers: &Vec<Worker>,
+) -> Uint64 {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::contract::ExecuteMsg::TicketCreate,
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = response.unwrap();
+
+    sign_xrpl_proof(app, multisig_prover_address, multisig_address, workers, response)
+}
+
+pub fn construct_xrpl_payment_proof_and_sign(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_address: &Addr,
+    message: Message,
+    workers: &Vec<Worker>,
+) -> Uint64 {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::contract::ExecuteMsg::ConstructProof {
+            message_id: message.cc_id.clone(),
+        },
+        &[Coin {
+            denom: XRP_DENOMINATION.to_string(),
+            // amount: Uint128::MAX,
+            // amount: Uint128::from(10u128.pow(29)), // scaled down to 10^17 drops = max XRP
+            amount: Uint128::from(100000000u128)
+        }],
+    );
+    assert!(response.is_ok());
+    let response = response.unwrap();
+
+    sign_xrpl_proof(app, multisig_prover_address, multisig_address, workers, response)
+}
+
+pub fn sign_xrpl_proof(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_address: &Addr,
+    workers: &Vec<Worker>,
+    response: AppResponse,
+) -> Uint64 {
+    let session_id: Uint64 =
+        get_event_attribute(&response.events, "wasm-signing_started", "session_id")
+            .map(|attr| attr.value.as_str().try_into().unwrap())
+            .expect("couldn't get session_id");
+
+    for worker in workers {
+        let xrpl_signer_address = xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address(
+            multisig::key::PublicKey::Ecdsa(worker.key_pair.encoded_verifying_key().into())
+        );
+
+        let msg_to_sign = match get_xrpl_message_to_sign(
+            app,
+            multisig_prover_address,
+            &session_id,
+            &xrpl_signer_address
+        ) {
+            xrpl_multisig_prover::contract::GetMessageToSignResponse { tx_hash } => tx_hash,
+        };
+
+        let signature = tofn::ecdsa::sign(
+            worker.key_pair.signing_key(),
+            &msg_to_sign
+                .as_slice()
+                .try_into()
+                .unwrap(),
+        )
+        .unwrap();
+
+        // TODO: why from_der and then back to_der?
+        let sig = ecdsa::Signature::from_der(&signature).unwrap();
+
+        let response = app.execute_contract(
+            worker.addr.clone(),
+            multisig_address.clone(),
+            &multisig::msg::ExecuteMsg::SubmitSignature {
+                session_id,
+                signature: HexBinary::from(sig.to_vec()),
+            },
+            &[],
+        );
+        assert!(response.is_ok());
+    }
+
+    session_id
+}
+
 pub fn get_messages_from_gateway(
     app: &mut App,
     gateway_address: &Addr,
@@ -250,6 +376,73 @@ pub fn get_worker_set(
     );
     assert!(query_response.is_ok());
     query_response.unwrap()
+}
+
+pub fn get_xrpl_proof(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_session_id: &Uint64,
+) -> xrpl_multisig_prover::contract::GetProofResponse {
+    let query_response = app.wrap().query_wasm_smart(
+        multisig_prover_address,
+        &xrpl_multisig_prover::contract::QueryMsg::GetProof {
+            multisig_session_id: *multisig_session_id,
+        },
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
+}
+
+pub fn get_xrpl_message_to_sign(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_session_id: &Uint64,
+    xrpl_signer_address: &String,
+) -> xrpl_multisig_prover::contract::GetMessageToSignResponse {
+    let query_response = app.wrap().query_wasm_smart(
+        multisig_prover_address,
+        &xrpl_multisig_prover::contract::QueryMsg::GetMessageToSign {
+            multisig_session_id: *multisig_session_id,
+            signer_xrpl_address: xrpl_signer_address.clone(),
+        },
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
+}
+
+pub fn finalize_xrpl_proof(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_session_id: &Uint64,
+) {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::contract::ExecuteMsg::FinalizeProof {
+            multisig_session_id: *multisig_session_id,
+        },
+        &[],
+    );
+
+    assert!(response.is_ok());
+}
+
+pub fn xrpl_update_tx_status(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    cc_id: CrossChainId,
+    message_status: xrpl_voting_verifier::execute::MessageStatus,
+) {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::contract::ExecuteMsg::UpdateTxStatus {
+            cc_id,
+            message_status,
+        },
+        &[],
+    );
+    assert!(response.is_ok());
 }
 
 pub fn advance_height(app: &mut App, increment: u64) {
@@ -298,11 +491,15 @@ pub struct Protocol {
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let genesis = Addr::unchecked("genesis");
+    // TODO: return relayer
+    let relayer = Addr::unchecked("relayer");
     let mut app = App::new(|router, _, storage| {
         router
             .bank
             .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
-            .unwrap()
+            .unwrap();
+        // TODO: relocate
+        router.bank.init_balance(storage, &relayer, coins(u128::MAX, XRP_DENOMINATION)).unwrap()
     });
     let router_admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
@@ -378,6 +575,7 @@ pub fn generate_key(seed: u32) -> KeyPair {
     tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap()
 }
 
+#[derive(Debug)]
 pub struct Worker {
     pub addr: Addr,
     pub supported_chains: Vec<ChainName>,
@@ -667,6 +865,105 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     }
 }
 
+pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+    let voting_verifier_address = instantiate_xrpl_voting_verifier(
+        &mut protocol.app,
+        xrpl_voting_verifier::msg::InstantiateMsg {
+            service_registry_address: protocol
+                .service_registry_address
+                .to_string()
+                .try_into()
+                .unwrap(),
+            service_name: protocol.service_name.clone(),
+            source_gateway_address: "doesn't matter".to_string().try_into().unwrap(),
+            voting_threshold: (9, 10).try_into().unwrap(),
+            block_expiry: 10,
+            confirmation_height: 5,
+            source_chain: ChainName::from_str("XRPL").unwrap(),
+            rewards_address: protocol.rewards_address.to_string(),
+        },
+    );
+    let gateway_address = instantiate_gateway(
+        &mut protocol.app,
+        gateway::msg::InstantiateMsg {
+            router_address: protocol.router_address.to_string(),
+            verifier_address: voting_verifier_address.to_string(),
+        },
+    );
+    let multisig_prover_address = instantiate_xrpl_multisig_prover(
+        &mut protocol.app,
+        xrpl_multisig_prover::contract::InstantiateMsg {
+            axelar_multisig_address: protocol.multisig_address.to_string(),
+            gateway_address: gateway_address.to_string(),
+            service_registry_address: protocol.service_registry_address.to_string(),
+            voting_verifier_address: voting_verifier_address.to_string(),
+            signing_threshold: (2, 3).try_into().unwrap(),
+            service_name: protocol.service_name.to_string(),
+            worker_set_diff_threshold: 1,
+            xrpl_fee: 30,
+            xrpl_multisig_address: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
+            ticket_count_threshold: 1,
+            next_sequence_number: 44218439,
+            last_assigned_ticket_number: 44218188,
+            available_tickets: vec![
+                vec![],
+                (44218189..44218438).collect::<Vec<_>>()
+            ].concat(),
+        },
+    );
+
+    let response = protocol.app.execute_contract(
+        Addr::unchecked("doesn't matter"), // TODO: should fail unless admin
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::contract::ExecuteMsg::RegisterToken {
+            denom: XRP_DENOMINATION.to_string(),
+            token: XRPLToken {
+                issuer: "".to_string(),
+                currency: XRPLToken::NATIVE_CURRENCY.to_string(),
+            },
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+    let response = protocol.app.execute_contract(
+        protocol.governance_address.clone(),
+        protocol.multisig_address.clone(),
+        &multisig::msg::ExecuteMsg::AuthorizeCaller {
+            contract_address: multisig_prover_address.clone(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.app.execute_contract(
+        protocol.governance_address.clone(),
+        protocol.router_address.clone(),
+        &connection_router::msg::ExecuteMsg::RegisterChain {
+            chain: chain_name.clone(),
+            gateway_address: gateway_address.to_string(),
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.app.execute_contract(
+        protocol.genesis_address.clone(),
+        protocol.rewards_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            contract_address: voting_verifier_address.to_string(),
+        },
+        &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
+
+    Chain {
+        gateway_address,
+        voting_verifier_address,
+        multisig_prover_address,
+        chain_name,
+    }
+}
+
 pub fn instantiate_connection_router(
     app: &mut App,
     instantiate_msg: connection_router::msg::InstantiateMsg,
@@ -750,6 +1047,30 @@ pub fn instantiate_voting_verifier(
         &instantiate_msg,
         &[],
         "voting_verifier",
+        None,
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
+}
+
+pub fn instantiate_xrpl_voting_verifier(
+    app: &mut App,
+    instantiate_msg: xrpl_voting_verifier::msg::InstantiateMsg,
+) -> Addr {
+    let code = ContractWrapper::new(
+        xrpl_voting_verifier::contract::execute,
+        xrpl_voting_verifier::contract::instantiate,
+        xrpl_voting_verifier::contract::query,
+    );
+    let code_id = app.store_code(Box::new(code));
+
+    let contract_addr = app.instantiate_contract(
+        code_id,
+        Addr::unchecked("anyone"),
+        &instantiate_msg,
+        &[],
+        "xrpl_voting_verifier",
         None,
     );
 
@@ -868,4 +1189,72 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
     let chain1 = setup_chain(&mut protocol, chains.get(0).unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     (protocol, chain1, chain2, workers, min_worker_bond)
+}
+
+pub fn setup_xrpl_destination_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
+    let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
+    let chains = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "XRPL".to_string().try_into().unwrap(),
+    ];
+    let workers = vec![
+        Worker {
+            addr: Addr::unchecked("worker1"),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(0),
+        },
+        Worker {
+            addr: Addr::unchecked("worker2"),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(1),
+        },
+    ];
+    let min_worker_bond = Uint128::new(100);
+    register_service(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.service_name.clone(),
+        min_worker_bond.clone(),
+    );
+
+    register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        &workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+    let source_chain = setup_chain(&mut protocol, chains.get(0).unwrap().clone());
+    let xrpl = setup_xrpl(&mut protocol, chains.get(1).unwrap().clone());
+    (protocol, source_chain, xrpl, workers, min_worker_bond)
+}
+
+pub fn instantiate_xrpl_multisig_prover(
+    app: &mut App,
+    // TODO: should be msg::InstantiateMsg
+    instantiate_msg: xrpl_multisig_prover::contract::InstantiateMsg,
+) -> Addr {
+    let code = ContractWrapper::new(
+        xrpl_multisig_prover::contract::execute,
+        xrpl_multisig_prover::contract::instantiate,
+        xrpl_multisig_prover::contract::query,
+    )
+    .with_reply(xrpl_multisig_prover::contract::reply);
+    let code_id = app.store_code(Box::new(code));
+
+    let contract_addr = app.instantiate_contract(
+        code_id,
+        Addr::unchecked("anyone"),
+        &instantiate_msg,
+        &[],
+        "xrpl_multisig_prover",
+        None,
+    );
+
+    assert!(contract_addr.is_ok());
+    contract_addr.unwrap()
 }

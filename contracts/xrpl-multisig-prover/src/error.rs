@@ -47,6 +47,9 @@ pub enum ContractError {
     #[error("transaction has not been confirmed")]
     TransactionStatusNotConfirmed,
 
+    #[error("transaction status is not pending")]
+    TransactionStatusNotPending,
+
     #[error("invalid payment amount")]
     InvalidPaymentAmount,
 
@@ -74,6 +77,11 @@ pub enum ContractError {
     #[error("invalid blob")]
     InvalidBlob,
 
+    #[error("invalid message ID {0}")]
+    InvalidMessageID(String),
+
+    #[error("failed to encode signature")]
+    FailedToEncodeSignature,
 }
 
 impl From<ContractError> for StdError {
