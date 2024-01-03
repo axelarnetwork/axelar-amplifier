@@ -7,8 +7,12 @@ where
 {
     let json = to_string(v)?;
     // using strip_* instead of trim_matches because the latter trims any number of quotes instead of just one
-    let json = json.strip_prefix('"').unwrap_or(&json);
-    Ok(json.strip_suffix('"').unwrap_or(json).to_string())
+    let json = json
+        .strip_prefix('"')
+        .unwrap_or(&json)
+        .strip_suffix('"')
+        .unwrap_or(&json);
+    Ok(json.to_string())
 }
 
 #[cfg(test)]

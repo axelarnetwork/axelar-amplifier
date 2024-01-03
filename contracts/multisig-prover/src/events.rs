@@ -2,7 +2,6 @@ use crate::types::BatchId;
 use axelar_wasm_std::event;
 use connection_router::state::{ChainName, CrossChainId};
 use cosmwasm_std::Uint64;
-use serde_json::to_string;
 
 pub enum Event {
     ProofUnderConstruction {
@@ -50,6 +49,7 @@ impl From<Event> for cosmwasm_std::Event {
 mod tests {
     use super::*;
     use crate::types::BatchId;
+    use serde_json::to_string;
 
     #[test]
     fn proof_under_construction_is_serializable() {
