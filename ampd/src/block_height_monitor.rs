@@ -10,7 +10,6 @@ use tracing::info;
 
 use crate::tm_client::TmClient;
 
-#[derive(Clone)]
 pub struct BlockHeightMonitor<T: TmClient + Sync> {
     latest_height: Arc<AtomicU64>,
     client: T,
@@ -61,8 +60,8 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
     }
 
     #[allow(dead_code)]
-    pub fn latest_block_height(&self) -> u64 {
-        self.latest_height.load(std::sync::atomic::Ordering::SeqCst)
+    pub fn latest_block_height(&self) -> Arc<AtomicU64> {
+        self.latest_height.clone()
     }
 }
 
@@ -111,13 +110,13 @@ mod tests {
             .poll_interval(poll_interval.clone());
         let exit_token = token.clone();
 
-        let monitor_clone = monitor.clone();
+        let latest_block_height = monitor.latest_block_height();
         let handle = tokio::spawn(async move { monitor.run(exit_token).await });
 
-        let mut prev_height = monitor_clone.latest_block_height();
+        let mut prev_height = latest_block_height.load(std::sync::atomic::Ordering::SeqCst);
         for _ in 1..10 {
             time::sleep(poll_interval * 2).await;
-            let next_height = monitor_clone.latest_block_height();
+            let next_height = latest_block_height.load(std::sync::atomic::Ordering::SeqCst);
             assert!(next_height > prev_height);
             prev_height = next_height;
         }
