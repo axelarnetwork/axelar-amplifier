@@ -127,8 +127,8 @@ pub fn execute_data() -> HexBinary {
 }
 
 pub fn threshold() -> MajorityThreshold {
-    let numerator: nonempty::Uint64 = Uint64::from(1u8).try_into().unwrap();
-    let denominator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
+    let numerator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
+    let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
     Threshold::try_from((numerator, denominator))
         .unwrap()
         .try_into()
