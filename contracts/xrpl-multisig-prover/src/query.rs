@@ -12,19 +12,19 @@ use crate::{
 pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
     let xrpl_signers: Vec<XRPLSigner> = axelar_signers
         .iter()
-        .map(|(axelar_signer, signature)| {
+        .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
             let xrpl_address = xrpl_multisig::public_key_to_xrpl_address(axelar_signer.pub_key.clone());
-            XRPLSigner {
+            Ok(XRPLSigner {
                 account: xrpl_address,
                 signing_pub_key: axelar_signer.pub_key.clone().into(),
                 // TODO: should work with Ed25519 signatures too
                 txn_signature: HexBinary::from(ecdsa::Signature::to_der(
                     &ecdsa::Signature::try_from(signature.clone().as_ref())
-                        .map_err(|_| ContractError::FailedToEncodeSignature).unwrap() // TODO: FIX - SHOULD NOT UNWRAP
+                        .map_err(|_| ContractError::FailedToEncodeSignature)?
                 ).to_vec()),
-            }
+            })
         })
-        .collect::<Vec<XRPLSigner>>();
+        .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;
 
     Ok(XRPLSignedTransaction {
         unsigned_tx,
