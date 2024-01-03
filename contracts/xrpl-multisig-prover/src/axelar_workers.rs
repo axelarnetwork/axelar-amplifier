@@ -52,46 +52,7 @@ impl Into<multisig::worker_set::WorkerSet> for WorkerSet {
     }
 }
 
-/*
-fn convert_u32_to_nonempty_uint256(value: u32) -> nonempty::Uint256 {
-    nonempty::Uint256::try_from(Uint256::from(value as u128)).unwrap()
-}
-
-impl Into<Snapshot> for WorkerSet {
-    fn into(self) -> Snapshot {
-        Snapshot {
-            quorum: convert_u32_to_nonempty_uint256(self.quorum),
-            participants: self.signers
-                .into_iter()
-                .map(|signer| (signer.address.to_string(), signer.into()))
-                .collect(),
-        }
-    }
-}
-*/
-
 impl WorkerSet {
-    /*pub fn new(
-        participants: Vec<(Participant, PublicKey)>,
-        threshold: u32,
-        block_height: u64,
-    ) -> Self {
-        let signers = participants
-            .into_iter()
-            .map(|(participant, pub_key)| Signer {
-                address: participant.address.clone(),
-                weight: participant.weight.into(),
-                pub_key,
-            })
-            .collect();
-
-        WorkerSet {
-            signers,
-            threshold,
-            created_at: block_height,
-        }
-    }*/
-
     pub fn pub_keys_by_address(&self) -> HashMap<String, (KeyType, HexBinary), RandomState> {
         self
             .signers
@@ -105,16 +66,6 @@ impl WorkerSet {
             })
             .collect()
     }
-
-    /*pub fn hash(&self) -> HexBinary {
-        Keccak256::digest(serde_json::to_vec(&self).expect("couldn't serialize worker set"))
-            .as_slice()
-            .into()
-    }
-
-    pub fn id(&self) -> String {
-        self.hash().to_hex()
-    }*/
 }
 
 fn convert_uint256_to_u16_unsafely(value: Uint256) -> u16 {
