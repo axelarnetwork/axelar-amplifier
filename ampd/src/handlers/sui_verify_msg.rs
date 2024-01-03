@@ -12,6 +12,7 @@ use sui_types::base_types::{SuiAddress, TransactionDigest};
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
+use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -41,6 +42,7 @@ struct PollStartedEvent {
     source_gateway_address: SuiAddress,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
+    expires_at: u64,
 }
 
 pub struct Handler<C, B>
@@ -52,7 +54,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
-    _latest_block_height: Arc<AtomicU64>,
+    latest_block_height: Arc<AtomicU64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -72,7 +74,7 @@ where
             voting_verifier,
             rpc_client,
             broadcast_client,
-            _latest_block_height: latest_block_height,
+            latest_block_height,
         }
     }
     async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
@@ -107,6 +109,7 @@ where
             source_gateway_address,
             messages,
             participants,
+            expires_at,
             ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
@@ -120,6 +123,14 @@ where
         }
 
         if !participants.contains(&self.worker) {
+            return Ok(());
+        }
+
+        let latest_block_height = self
+            .latest_block_height
+            .load(std::sync::atomic::Ordering::SeqCst);
+        if latest_block_height >= expires_at {
+            info!(poll_id = poll_id.to_string(), "Skipping expired poll");
             return Ok(());
         }
 
@@ -180,7 +191,7 @@ mod tests {
     #[test]
     fn should_deserialize_poll_started_event() {
         let event: Result<PollStartedEvent, events::Error> = get_event(
-            poll_started_event(participants(5, None)),
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         )
         .try_into();
@@ -211,7 +222,7 @@ mod tests {
     #[async_test]
     async fn contract_is_not_voting_verifier() {
         let event = get_event(
-            poll_started_event(participants(5, None)),
+            poll_started_event(participants(5, None), 100),
             &TMAddress::random(PREFIX),
         );
 
@@ -230,7 +241,10 @@ mod tests {
     #[async_test]
     async fn worker_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
-        let event = get_event(poll_started_event(participants(5, None)), &voting_verifier);
+        let event = get_event(
+            poll_started_event(participants(5, None), 100),
+            &voting_verifier,
+        );
 
         let handler = super::Handler::new(
             TMAddress::random(PREFIX),
@@ -258,7 +272,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
 
         let event = get_event(
-            poll_started_event(participants(5, Some(worker.clone()))),
+            poll_started_event(participants(5, Some(worker.clone())), 100),
             &voting_verifier,
         );
 
@@ -293,7 +307,7 @@ mod tests {
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
         let event = get_event(
-            poll_started_event(participants(5, Some(worker.clone()))),
+            poll_started_event(participants(5, Some(worker.clone())), 100),
             &voting_verifier,
         );
 
@@ -311,7 +325,47 @@ mod tests {
         ));
     }
 
-    fn poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
+    #[async_test]
+    async fn should_skip_expired_poll() {
+        let mut rpc_client = MockSuiClient::new();
+        // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| {
+                Err(Report::from(ProviderError::CustomError(
+                    "failed to get finalized transaction blocks".to_string(),
+                )))
+            });
+        let broadcast_client = MockBroadcasterClient::new();
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event: Event = get_event(
+            poll_started_event(participants(5, Some(worker.clone())), expiration),
+            &voting_verifier,
+        );
+
+        let latest_block = Arc::new(AtomicU64::new(expiration - 1));
+
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            rpc_client,
+            broadcast_client,
+            latest_block.clone(),
+        );
+
+        // poll is not expired yet, should hit rpc error
+        assert!(handler.handle(&event).await.is_err());
+
+        latest_block.store(expiration + 1, std::sync::atomic::Ordering::SeqCst);
+
+        // poll is expired, should not hit rpc error now
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -321,7 +375,7 @@ mod tests {
                     .parse()
                     .unwrap(),
                 confirmation_height: 15,
-                expires_at: 100,
+                expires_at,
                 participants: participants
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
