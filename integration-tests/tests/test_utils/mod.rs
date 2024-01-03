@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, ops::Add};
 
 use axelar_wasm_std::{
     nonempty,
@@ -67,6 +67,7 @@ pub fn xrpl_verify_message_statuses(
     voting_verifier_address: &Addr,
     message_statuses: Vec<(CrossChainId, xrpl_voting_verifier::execute::MessageStatus)>,
 ) -> (PollId, PollExpiryBlock) {
+    // TODO: should be verified through the gateway
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         voting_verifier_address.clone(),
@@ -283,6 +284,23 @@ pub fn construct_xrpl_payment_proof_and_sign(
     sign_xrpl_proof(app, multisig_prover_address, multisig_address, workers, response)
 }
 
+pub fn construct_xrpl_signer_list_set_proof_and_sign(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+    multisig_address: &Addr,
+    workers: &Vec<Worker>,
+) -> Uint64 {
+    let response = app.execute_contract(
+        Addr::unchecked("relayer"),
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::contract::ExecuteMsg::UpdateWorkerSet,
+        &[],
+    );
+    let response = response.unwrap();
+
+    sign_xrpl_proof(app, multisig_prover_address, multisig_address, workers, response)
+}
+
 pub fn sign_xrpl_proof(
     app: &mut App,
     multisig_prover_address: &Addr,
@@ -373,6 +391,18 @@ pub fn get_worker_set(
     let query_response = app.wrap().query_wasm_smart(
         multisig_prover_address,
         &multisig_prover::msg::QueryMsg::GetWorkerSet,
+    );
+    assert!(query_response.is_ok());
+    query_response.unwrap()
+}
+
+pub fn get_xrpl_worker_set(
+    app: &mut App,
+    multisig_prover_address: &Addr,
+) -> multisig::worker_set::WorkerSet {
+    let query_response = app.wrap().query_wasm_smart(
+        multisig_prover_address,
+        &xrpl_multisig_prover::contract::QueryMsg::GetWorkerSet,
     );
     assert!(query_response.is_ok());
     query_response.unwrap()
@@ -769,6 +799,41 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     )
 }
 
+pub fn xrpl_workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
+    // get public keys
+    let mut pub_keys = vec![];
+    for worker in workers {
+        let encoded_verifying_key =
+            HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+        let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
+        pub_keys.push(pub_key);
+    }
+
+    // turn into participants
+    let participants: Vec<Participant> = workers
+        .iter()
+        .map(|worker| Participant {
+            address: worker.addr.clone(),
+            weight: Uint256::from(65535u128).try_into().unwrap(),
+        })
+        .collect();
+
+    let total_weight = participants
+        .iter()
+        .fold(
+            Uint256::zero(),
+            |acc, p| acc.add(Uint256::from(p.weight))
+        );
+
+    let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
+
+    WorkerSet::new(
+        pubkeys_by_participant,
+        total_weight.mul_ceil((2u64, 3u64)).into(),
+        protocol.app.block_info().height,
+    )
+}
+
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
@@ -903,7 +968,7 @@ pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             xrpl_fee: 30,
             xrpl_multisig_address: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
             ticket_count_threshold: 1,
-            next_sequence_number: 44218439,
+            next_sequence_number: 44218441,
             last_assigned_ticket_number: 44218188,
             available_tickets: vec![
                 vec![],

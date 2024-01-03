@@ -148,7 +148,6 @@ fn single_message_towards_xrpl_can_be_verified_and_routed_and_proven() {
             .unwrap(),
     };
 
-    // TODO: verify_message_statuses should be called through gateway, like verify_messages
     let (poll_id, expiry) = test_utils::xrpl_verify_message_statuses(
         &mut protocol.app,
         &xrpl.voting_verifier_address,
@@ -246,7 +245,7 @@ fn single_message_towards_xrpl_can_be_verified_and_routed_and_proven() {
         &xrpl.multisig_prover_address,
         &session_id,
     );
-    println!("proof={:?}", proof);
+    println!("Payment proof: {:?}", proof);
     assert!(matches!(
         //proof.status,
         proof,

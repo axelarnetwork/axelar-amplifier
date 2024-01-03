@@ -338,8 +338,12 @@ pub fn reply(
 pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
+
     #[returns(GetMessageToSignResponse)]
     GetMessageToSign { multisig_session_id: Uint64, signer_xrpl_address: String },
+
+    #[returns(multisig::worker_set::WorkerSet)]
+    GetWorkerSet,
 }
 
 #[cw_serde]
@@ -366,5 +370,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             multisig_session_id,
             signer_xrpl_address,
         } => to_binary(&query::get_message_to_sign(deps.storage, &multisig_session_id, &signer_xrpl_address)?),
+        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps.storage)?),
     }
 }

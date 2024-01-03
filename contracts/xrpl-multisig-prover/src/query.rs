@@ -6,7 +6,7 @@ use multisig::types::MultisigState;
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 
 use crate::{
-    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, contract::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError,
+    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, contract::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError, axelar_workers::WorkerSet,
 };
 
 pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
@@ -73,4 +73,8 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
     };
 
     Ok(response)
+}
+
+pub fn get_worker_set(storage: &dyn Storage) -> StdResult<multisig::worker_set::WorkerSet> {
+    Ok(CURRENT_WORKER_SET.load(storage)?.into())
 }
