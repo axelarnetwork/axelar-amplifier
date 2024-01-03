@@ -39,4 +39,17 @@ mod tests {
         };
         assert_eq!(attribute_value(&foo).unwrap(), r#"{"s":"\"hello\""}"#);
     }
+
+    #[test]
+    fn attribute_value_with_integer() {
+        assert_eq!(attribute_value(&1).unwrap(), "1");
+    }
+
+    #[test]
+    fn attribute_value_with_vector() {
+        assert_eq!(
+            attribute_value(vec![1.0, 2.4, 0.72].as_slice()).unwrap(),
+            "[1.0,2.4,0.72]"
+        );
+    }
 }
