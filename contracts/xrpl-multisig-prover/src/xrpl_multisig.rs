@@ -292,8 +292,8 @@ pub fn amount_to_bytes(amount: &XRPLTokenAmount) -> Result<Vec<u8>, ContractErro
         return Ok(Vec::from(serial.to_be_bytes()))
     }
 
-    let mut exponent: i32 = fractional_part.to_string().len() as i32;
-    let mut mantissa: u128 = (integer_part as u128) * 10u128.pow(exponent as u32) + (fractional_part as u128);
+    let mut exponent: i32 = -1 * fractional_part.to_string().len() as i32;
+    let mut mantissa: u128 = (integer_part as u128) * 10u128.pow((-1 * exponent) as u32) + (fractional_part as u128);
 
     while mantissa < MIN_MANTISSA && exponent > MIN_EXPONENT {
         mantissa *= 10;
@@ -344,7 +344,6 @@ pub fn currency_to_bytes(currency: &String) -> Result<[u8; 20], ContractError> {
 pub fn decode_address(address: &String) -> Result<[u8; 20], ContractError> {
     let res = bs58::decode(address).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
     // .map_err(|_| ContractError::InvalidAddress)?;
-    println!("decoded {:?} {}", res, res.len());
     if res.len() != 25 {
         return Err(ContractError::InvalidAddress);
     }
@@ -436,7 +435,6 @@ impl XRPLSerialize for XRPLSignedTransaction {
             res.extend(f.2);
             return hex::encode(res);
         }).collect();
-        println!("signed tx parts {:?}", parts);
 
         obj.xrpl_serialize()
     }
@@ -445,7 +443,6 @@ impl XRPLSerialize for XRPLSignedTransaction {
 impl XRPLSerialize for XRPLUnsignedTx {
     fn xrpl_serialize(self: &XRPLUnsignedTx) -> Result<Vec<u8>, ContractError> {
         let obj = XRPLObject::try_from(self)?;
-        println!("{:?}", obj.fields);
 
         let mut result = Vec::from((0x534D5400 as u32).to_be_bytes()); // prefix for multisignature signing
         result.extend(obj.xrpl_serialize()?);
@@ -460,7 +457,6 @@ struct XRPLArray<T> {
 
 impl<T: XRPLTypedSerialize> XRPLSerialize for XRPLArray<T> {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        println!("Vec::xrpl_serialize");
         let mut result: Vec<u8> = Vec::new();
         for item in &self.items {
             result.extend(field_id(T::TYPE_CODE, self.field_code));
@@ -528,7 +524,6 @@ impl XRPLSerialize for XRPLSigner {
             res.extend(f.2);
             return hex::encode(res);
         }).collect();
-        println!("signer parts {:?}", parts);
         Ok(result)
     }
 }
@@ -553,7 +548,6 @@ impl XRPLTypedSerialize for XRPLAddress {
 
 impl XRPLSerialize for XRPLSignerEntry {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        println!("XRPLSignerEntry::xrpl_serialize");
         let mut obj = XRPLObject::new();
         obj.add_field(1, &XRPLAddress(self.account.clone()))?;
         obj.add_field(3, &self.signer_weight)?;
@@ -884,33 +878,27 @@ mod tests {
 
     use super::*;
 
-    /*
     #[test]
     fn serialize_xrpl_unsigned_token_payment_transaction() {
-        let unsigned_tx = XRPLUnsignedTx {
-            common: XRPLTxCommonFields {
-                account: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
-                fee: 12,
-                sequence: Sequence::Plain(1)
-            },
-            partial: XRPLPartialTx::Payment {
-                amount: XRPLPaymentAmount::Token(
-                    XRPLToken {
-                        currency: "JPY".to_string(),
-                        issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji".to_string(),
-                    },
-                    XRPLTokenAmount("0.3369568318".to_string()),
-                ),
-                destination: nonempty::String::try_from("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
-            }
+        let unsigned_tx = XRPLPaymentTx {
+            account: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
+            fee: 12,
+            sequence: Sequence::Plain(1),
+            amount: XRPLPaymentAmount::Token(
+                XRPLToken {
+                    currency: "JPY".to_string(),
+                    issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji".to_string(),
+                },
+                XRPLTokenAmount("0.3369568318".to_string()),
+            ),
+            destination: nonempty::String::try_from("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
         };
-        let encoded_unsigned_tx = serialize_unsigned_tx(unsigned_tx).unwrap();
+        let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize().unwrap();
         assert_eq!(
             "534D54001200002200000000240000000161D44BF89AC2A40B800000000000000000000000004A50590000000000000000000000000000000000000000000000000168400000000000000C730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
             hex::encode_upper(encoded_unsigned_tx)
         );
     }
-    */
 
     #[test]
     fn serialize_xrpl_unsigned_xrp_payment_transaction() {
