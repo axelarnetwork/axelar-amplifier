@@ -116,8 +116,8 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 }
 
 #[test]
-fn single_message_towards_xrpl_can_be_verified_and_routed_and_proven() {
-    let (mut protocol, source_chain, xrpl, workers, _) = test_utils::setup_xrpl_destination_test_case();
+fn xrpl_ticket_create_can_be_proven() {
+    let (mut protocol, _, xrpl, workers, _) = test_utils::setup_xrpl_destination_test_case();
 
     /* Create tickets */
     let session_id = test_utils::construct_xrpl_ticket_create_proof_and_sign(
@@ -132,6 +132,10 @@ fn single_message_towards_xrpl_can_be_verified_and_routed_and_proven() {
         &xrpl.multisig_prover_address,
         &session_id,
     );
+    assert!(matches!(
+        proof,
+        xrpl_multisig_prover::contract::GetProofResponse::Completed { .. }
+    ));
     println!("TicketCreate proof: {:?}", proof);
 
     test_utils::finalize_xrpl_proof(
@@ -142,7 +146,7 @@ fn single_message_towards_xrpl_can_be_verified_and_routed_and_proven() {
 
     let proof_msg_id = CrossChainId {
         chain: xrpl.chain_name.clone(),
-        id: "DEACDB4FE9D11296BC705D6241E9D95892BDD6CFD12240A086373A7625122B63:0"
+        id: "B0660BA5DC6C96B20D4E4DC19E2BF421B0F7D9E62FDC3B3F2AFCB322A6E3582D:0"
             .to_string()
             .try_into()
             .unwrap(),
@@ -169,11 +173,11 @@ fn single_message_towards_xrpl_can_be_verified_and_routed_and_proven() {
         proof_msg_id,
         xrpl_voting_verifier::execute::MessageStatus::Succeeded
     );
+}
 
-    assert!(matches!(
-        proof,
-        xrpl_multisig_prover::contract::GetProofResponse::Completed { .. }
-    ));
+#[test]
+fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
+    let (mut protocol, source_chain, xrpl, workers, _) = test_utils::setup_xrpl_destination_test_case();
 
     let msg = Message {
         cc_id: CrossChainId {
