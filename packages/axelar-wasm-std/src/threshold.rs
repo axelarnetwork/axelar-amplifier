@@ -11,7 +11,7 @@ pub enum Error {
     #[error("threshold must fall into the interval (0, 1]")]
     OutOfInterval,
     #[error("threshold must fall into the interval (0.5, 1]")]
-    MajorityOutOfInterval,
+    NoMajority,
     #[error("invalid parameter: {0}")]
     InvalidParameter(#[from] nonempty::Error),
 }
@@ -136,7 +136,7 @@ impl TryFrom<Threshold> for MajorityThreshold {
 
     fn try_from(value: Threshold) -> Result<Self, Error> {
         if value.numerator() <= value.denominator() / Uint64::from(2u64) {
-            Err(Error::MajorityOutOfInterval)
+            Err(Error::NoMajority)
         } else {
             Ok(MajorityThreshold {
                 numerator: value.numerator,
@@ -203,7 +203,7 @@ mod tests {
                 Threshold::try_from((Uint64::from(1u64), Uint64::from(2u64))).unwrap()
             )
             .unwrap_err(),
-            Error::MajorityOutOfInterval
+            Error::NoMajority
         );
     }
 
