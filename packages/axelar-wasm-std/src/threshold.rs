@@ -1,5 +1,3 @@
-use std::fmt;
-
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Fraction, Uint64};
 use thiserror::Error;
@@ -97,12 +95,6 @@ fn try_from<T: TryInto<nonempty::Uint64, Error = crate::nonempty::Error>>(
     let denominator: nonempty::Uint64 = value.1.try_into().map_err(Error::InvalidParameter)?;
 
     (numerator, denominator).try_into()
-}
-
-impl fmt::Display for Threshold {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Threshold({}, {})", self.numerator, self.denominator)
-    }
 }
 
 #[cw_serde]
