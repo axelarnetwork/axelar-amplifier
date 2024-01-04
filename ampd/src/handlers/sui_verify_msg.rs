@@ -156,11 +156,8 @@ mod tests {
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
-<<<<<<< HEAD
-=======
     use tendermint::abci;
     use tokio::sync::watch;
->>>>>>> 12f2edb (use watch channel instead of arc)
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
