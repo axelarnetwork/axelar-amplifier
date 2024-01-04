@@ -12,7 +12,7 @@ name: Basic
 jobs:
   test:
     name: Test Suite
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-8-core-32-gb
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +42,7 @@ jobs:
 
   cosmwasm-compilation:
     name: Cosmwasm Compilation
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-8-core-32-gb
     steps:
       - uses: actions/checkout@v4
 
@@ -72,13 +72,13 @@ jobs:
         with:
           command: install
           args: --debug --version 1.3.3 --locked cosmwasm-check
-    
+
       - name: Check wasm contracts
         run: cosmwasm-check ./target/wasm32-unknown-unknown/release/*.wasm
 
   lints:
     name: Lints
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-8-core-32-gb
     steps:
       - uses: actions/checkout@v4
 
