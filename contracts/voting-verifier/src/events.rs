@@ -23,7 +23,11 @@ impl From<Config> for Vec<Attribute> {
                 "source_gateway_address",
                 other.source_gateway_address.to_string(),
             ),
-            ("voting_threshold", other.voting_threshold.to_string()),
+            (
+                "voting_threshold",
+                serde_json::to_string(&other.voting_threshold)
+                    .expect("failed to serialize voting_threshold"),
+            ),
             ("block_expiry", other.block_expiry.to_string()),
             ("confirmation_height", other.confirmation_height.to_string()),
         ]

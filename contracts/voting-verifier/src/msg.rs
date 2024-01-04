@@ -4,7 +4,7 @@ use axelar_wasm_std::{
     nonempty,
     operators::Operators,
     voting::{PollId, PollState, Vote},
-    Threshold,
+    MajorityThreshold,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 
@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
     pub service_name: nonempty::String,
 
     pub source_gateway_address: nonempty::String,
-    pub voting_threshold: Threshold,
+    pub voting_threshold: MajorityThreshold,
     pub block_expiry: u64,
     pub confirmation_height: u64,
     pub source_chain: ChainName,

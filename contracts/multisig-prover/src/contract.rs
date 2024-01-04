@@ -97,6 +97,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 mod tests {
 
     use anyhow::Error;
+    use axelar_wasm_std::Threshold;
     use connection_router::state::CrossChainId;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
@@ -196,12 +197,13 @@ mod tests {
         let service_registry_address = "service_registry_address";
         let voting_verifier_address = "voting_verifier";
         let destination_chain_id = Uint256::one();
-        let signing_threshold = (
+        let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
-        )
-            .try_into()
-            .unwrap();
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
         let service_name = "service_name";
         for encoding in vec![Encoder::Abi, Encoder::Bcs] {
             let mut deps = mock_dependencies();

@@ -26,7 +26,10 @@ fn initialize_contract(app: &mut App, service_registry_address: nonempty::String
     let msg = msg::InstantiateMsg {
         service_registry_address,
         service_name: "service_name".parse().unwrap(),
-        voting_threshold: Threshold::try_from((1u64, 2u64)).unwrap(),
+        voting_threshold: Threshold::try_from((2u64, 3u64))
+            .unwrap()
+            .try_into()
+            .unwrap(),
         block_expiry: POLL_BLOCK_EXPIRY,
         confirmation_height: 100,
         source_gateway_address: "gateway_address".parse().unwrap(),
