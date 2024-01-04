@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -12,6 +10,7 @@ use sui_types::base_types::{SuiAddress, TransactionDigest};
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
+use tokio::sync::watch::Receiver;
 use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -54,7 +53,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
-    latest_block_height: Arc<AtomicU64>,
+    latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -67,7 +66,7 @@ where
         voting_verifier: TMAddress,
         rpc_client: C,
         broadcast_client: B,
-        latest_block_height: Arc<AtomicU64>,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
@@ -126,11 +125,9 @@ where
             return Ok(());
         }
 
-        let latest_block_height = self
-            .latest_block_height
-            .load(std::sync::atomic::Ordering::SeqCst);
+        let latest_block_height = *self.latest_block_height.borrow();
         if latest_block_height >= expires_at {
-            info!(poll_id = poll_id.to_string(), "Skipping expired poll");
+            info!(poll_id = poll_id.to_string(), "skipping expired poll");
             return Ok(());
         }
 
@@ -162,25 +159,20 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::sync::atomic::AtomicU64;
-    use std::sync::Arc;
 
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
-    use sui_types::base_types::{SuiAddress, TransactionDigest};
-    use tendermint::abci;
-    use tokio::test as async_test;
-
     use events::Event;
+    use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use tokio::sync::watch;
+    use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
-    use crate::handlers::errors::Error;
+    use crate::handlers::{errors::Error, tests::get_event};
     use crate::queue::queued_broadcaster;
     use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::sui::json_rpc::MockSuiClient;
@@ -212,7 +204,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -231,7 +223,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -251,7 +243,7 @@ mod tests {
             voting_verifier,
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -281,7 +273,7 @@ mod tests {
             voting_verifier,
             rpc_client,
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(matches!(
@@ -316,7 +308,7 @@ mod tests {
             voting_verifier,
             rpc_client,
             broadcast_client,
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(matches!(
@@ -346,20 +338,15 @@ mod tests {
             &voting_verifier,
         );
 
-        let latest_block = Arc::new(AtomicU64::new(expiration - 1));
+        let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(
-            worker,
-            voting_verifier,
-            rpc_client,
-            broadcast_client,
-            latest_block.clone(),
-        );
+        let handler =
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
 
-        latest_block.store(expiration + 1, std::sync::atomic::Ordering::SeqCst);
+        let _ = tx.send(expiration + 1);
 
         // poll is expired, should not hit rpc error now
         assert!(handler.handle(&event).await.is_ok());
@@ -393,25 +380,6 @@ mod tests {
                 payload_hash: Hash::random().to_fixed_bytes(),
             }],
         }
-    }
-
-    fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
-        let mut event: cosmwasm_std::Event = event.into();
-
-        event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", contract_address.to_string());
-
-        abci::Event::new(
-            event.ty,
-            event
-                .attributes
-                .into_iter()
-                .map(|cosmwasm_std::Attribute { key, value }| {
-                    (STANDARD.encode(key), STANDARD.encode(value))
-                }),
-        )
-        .try_into()
-        .unwrap()
     }
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {

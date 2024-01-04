@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -9,6 +7,7 @@ use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::Deserialize;
+use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
@@ -63,7 +62,7 @@ where
     chain: ChainName,
     rpc_client: C,
     broadcast_client: B,
-    latest_block_height: Arc<AtomicU64>,
+    latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -77,7 +76,7 @@ where
         chain: ChainName,
         rpc_client: C,
         broadcast_client: B,
-        latest_block_height: Arc<AtomicU64>,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
@@ -180,11 +179,9 @@ where
             return Ok(());
         }
 
-        let latest_block_height = self
-            .latest_block_height
-            .load(std::sync::atomic::Ordering::SeqCst);
+        let latest_block_height = *self.latest_block_height.borrow();
         if latest_block_height >= expires_at {
-            info!(poll_id = poll_id.to_string(), "Skipping expired poll");
+            info!(poll_id = poll_id.to_string(), "skipping expired poll");
             return Ok(());
         }
 
@@ -238,8 +235,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
-    use std::sync::atomic::AtomicU64;
-    use std::sync::Arc;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
@@ -250,6 +245,7 @@ mod tests {
 
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::event_processor::EventHandler;
@@ -381,7 +377,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let latest_block = Arc::new(AtomicU64::new(expiration - 1));
+        let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = super::Handler::new(
             worker,
@@ -389,13 +385,13 @@ mod tests {
             ChainName::Ethereum,
             rpc_client,
             broadcast_client,
-            latest_block.clone(),
+            rx,
         );
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
 
-        latest_block.store(expiration + 1, std::sync::atomic::Ordering::SeqCst);
+        let _ = tx.send(expiration + 1);
 
         // poll is expired, should not hit rpc error now
         assert!(handler.handle(&event).await.is_ok());
