@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -9,6 +7,7 @@ use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::Deserialize;
+use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
@@ -62,7 +61,7 @@ where
     chain: ChainName,
     rpc_client: C,
     broadcast_client: B,
-    _latest_block_height: Arc<AtomicU64>,
+    _latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -76,7 +75,7 @@ where
         chain: ChainName,
         rpc_client: C,
         broadcast_client: B,
-        latest_block_height: Arc<AtomicU64>,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,

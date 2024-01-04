@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
@@ -12,6 +10,7 @@ use sui_types::base_types::{SuiAddress, TransactionDigest};
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
+use tokio::sync::watch::Receiver;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -52,7 +51,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
-    _latest_block_height: Arc<AtomicU64>,
+    _latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -65,7 +64,7 @@ where
         voting_verifier: TMAddress,
         rpc_client: C,
         broadcast_client: B,
-        latest_block_height: Arc<AtomicU64>,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
@@ -151,14 +150,17 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::convert::TryInto;
-    use std::sync::atomic::AtomicU64;
-    use std::sync::Arc;
 
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
+<<<<<<< HEAD
+=======
+    use tendermint::abci;
+    use tokio::sync::watch;
+>>>>>>> 12f2edb (use watch channel instead of arc)
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
@@ -196,7 +198,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -215,7 +217,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -232,7 +234,7 @@ mod tests {
             voting_verifier,
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -262,7 +264,7 @@ mod tests {
             voting_verifier,
             rpc_client,
             MockBroadcasterClient::new(),
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(matches!(
@@ -297,7 +299,7 @@ mod tests {
             voting_verifier,
             rpc_client,
             broadcast_client,
-            Arc::new(AtomicU64::new(0)),
+            watch::channel(0).1,
         );
 
         assert!(matches!(
