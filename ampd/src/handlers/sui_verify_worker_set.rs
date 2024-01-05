@@ -5,6 +5,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
+use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -56,6 +57,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
+    _latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -68,12 +70,14 @@ where
         voting_verifier: TMAddress,
         rpc_client: C,
         broadcast_client: B,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             voting_verifier,
             rpc_client,
             broadcast_client,
+            _latest_block_height: latest_block_height,
         }
     }
     async fn broadcast_vote(&self, poll_id: PollId, vote: Vote) -> error_stack::Result<(), Error> {
