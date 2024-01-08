@@ -1,4 +1,4 @@
-use axelar_wasm_std::Threshold;
+use axelar_wasm_std::MajorityThreshold;
 use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
@@ -17,7 +17,7 @@ pub struct Config {
     pub service_registry: Addr,
     pub voting_verifier: Addr,
     pub destination_chain_id: Uint256,
-    pub signing_threshold: Threshold,
+    pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: ChainName,
     pub worker_set_diff_threshold: u32,

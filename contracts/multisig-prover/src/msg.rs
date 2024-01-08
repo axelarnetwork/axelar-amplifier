@@ -1,4 +1,4 @@
-use axelar_wasm_std::Threshold;
+use axelar_wasm_std::MajorityThreshold;
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
     pub service_registry_address: String,
     pub voting_verifier_address: String,
     pub destination_chain_id: Uint256,
-    pub signing_threshold: Threshold,
+    pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: String,
     pub worker_set_diff_threshold: u32,

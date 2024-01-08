@@ -8,7 +8,7 @@ use axelar_wasm_std::{
     nonempty,
     operators::Operators,
     voting::{PollId, WeightedPoll},
-    Threshold,
+    MajorityThreshold,
 };
 use connection_router::state::{ChainName, Message};
 
@@ -19,7 +19,7 @@ pub struct Config {
     pub service_registry_contract: Addr,
     pub service_name: nonempty::String,
     pub source_gateway_address: nonempty::String,
-    pub voting_threshold: Threshold,
+    pub voting_threshold: MajorityThreshold,
     pub block_expiry: u64, // number of blocks after which a poll expires
     pub confirmation_height: u64,
     pub source_chain: ChainName,

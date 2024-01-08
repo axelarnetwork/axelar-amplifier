@@ -2,7 +2,7 @@ pub use crate::{
     error::ContractError,
     fn_ext::FnExt,
     snapshot::{Participant, Snapshot},
-    threshold::Threshold,
+    threshold::{MajorityThreshold, Threshold},
 };
 
 pub mod counter;
