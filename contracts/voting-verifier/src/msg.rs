@@ -66,6 +66,9 @@ pub enum QueryMsg {
 
     #[returns(bool)]
     IsWorkerSetVerified { new_operators: Operators },
+
+    #[returns(Vec<(connection_router::state::CrossChainId, Option<Vote>)>)]
+    MessagesConsensus { messages: Vec<Message> },
 }
 
 #[cw_serde]

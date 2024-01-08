@@ -99,6 +99,46 @@ fn is_finished(poll: &state::Poll) -> bool {
     }
 }
 
+pub fn messages_consensus(
+    deps: Deps,
+    messages: &[Message],
+) -> Result<Vec<(CrossChainId, Option<Vote>)>, ContractError> {
+    messages
+        .iter()
+        .map(|message| {
+            msg_consensus(deps, message).map(|consensus| (message.cc_id.to_owned(), consensus))
+        })
+        .collect::<Result<Vec<_>, _>>()
+}
+
+fn msg_consensus(deps: Deps, message: &Message) -> Result<Option<Vote>, ContractError> {
+    let loaded_poll_content = POLL_MESSAGES
+        .may_load(deps.storage, &message.hash())?
+        .ok_or(ContractError::MessagePollNotFound)?;
+    consensus(deps, loaded_poll_content, message)
+}
+
+fn consensus<T: PartialEq + std::fmt::Debug>(
+    deps: Deps,
+    stored_poll_content: PollContent<T>,
+    content: &T,
+) -> Result<Option<Vote>, ContractError> {
+    assert_eq!(
+        stored_poll_content.content, *content,
+        "invalid invariant: content mismatch with the stored one"
+    );
+
+    let poll = POLLS
+        .load(deps.storage, stored_poll_content.poll_id)
+        .expect("invalid invariant: message poll not found");
+
+    match &poll {
+        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => Ok(poll
+            .consensus(stored_poll_content.index_in_poll)
+            .expect("invalid invariant: message not found in poll")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::{

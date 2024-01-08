@@ -60,5 +60,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::IsWorkerSetVerified { new_operators } => {
             to_binary(&query::is_worker_set_verified(deps, &new_operators)?)
         }
+
+        QueryMsg::MessagesConsensus { messages } => {
+            to_binary(&query::messages_consensus(deps, &messages)?)
+        }
     }
 }

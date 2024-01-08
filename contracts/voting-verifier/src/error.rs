@@ -32,6 +32,9 @@ pub enum ContractError {
     #[error("poll not found")]
     PollNotFound,
 
+    #[error("message poll not found")]
+    MessagePollNotFound,
+
     #[error(transparent)]
     VoteError(#[from] voting::Error),
 
