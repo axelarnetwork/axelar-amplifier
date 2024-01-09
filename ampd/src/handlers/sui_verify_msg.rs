@@ -10,6 +10,7 @@ use sui_types::base_types::{SuiAddress, TransactionDigest};
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
+use tokio::sync::watch::Receiver;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -50,6 +51,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
+    _latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -62,12 +64,14 @@ where
         voting_verifier: TMAddress,
         rpc_client: C,
         broadcast_client: B,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             voting_verifier,
             rpc_client,
             broadcast_client,
+            _latest_block_height: latest_block_height,
         }
     }
     async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
@@ -152,6 +156,7 @@ mod tests {
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use tokio::sync::watch;
     use tokio::test as async_test;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
@@ -189,6 +194,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -207,6 +213,7 @@ mod tests {
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -223,6 +230,7 @@ mod tests {
             voting_verifier,
             MockSuiClient::new(),
             MockBroadcasterClient::new(),
+            watch::channel(0).1,
         );
 
         assert!(handler.handle(&event).await.is_ok());
@@ -252,6 +260,7 @@ mod tests {
             voting_verifier,
             rpc_client,
             MockBroadcasterClient::new(),
+            watch::channel(0).1,
         );
 
         assert!(matches!(
@@ -281,7 +290,13 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            rpc_client,
+            broadcast_client,
+            watch::channel(0).1,
+        );
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
