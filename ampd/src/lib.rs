@@ -202,6 +202,7 @@ where
                         json_rpc::Client::new_http(&chain.rpc_url)
                             .change_context(Error::Connection)?,
                         self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
                 ),
                 handlers::config::Config::EvmWorkerSetVerifier {
@@ -216,6 +217,7 @@ where
                         json_rpc::Client::new_http(&chain.rpc_url)
                             .change_context(Error::Connection)?,
                         self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
                 ),
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
@@ -238,6 +240,7 @@ where
                         cosmwasm_contract,
                         json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
                         self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
                 ),
                 handlers::config::Config::SuiWorkerSetVerifier {
@@ -250,6 +253,7 @@ where
                         cosmwasm_contract,
                         json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
                         self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
                 ),
             }
