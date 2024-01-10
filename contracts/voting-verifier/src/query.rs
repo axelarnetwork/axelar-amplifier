@@ -99,23 +99,29 @@ fn is_finished(poll: &state::Poll) -> bool {
     }
 }
 
-pub fn messages_consensus(
+pub fn messages_status(
     deps: Deps,
     messages: &[Message],
 ) -> Result<Vec<(CrossChainId, Option<Vote>)>, ContractError> {
     messages
         .iter()
         .map(|message| {
-            msg_consensus(deps, message).map(|consensus| (message.cc_id.to_owned(), consensus))
+            let loaded_poll_content = POLL_MESSAGES
+                .may_load(deps.storage, &message.hash())?
+                .ok_or(ContractError::MessageNotFound)?;
+
+            consensus(deps, loaded_poll_content, message)
+                .map(|consensus| (message.cc_id.to_owned(), consensus))
         })
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn msg_consensus(deps: Deps, message: &Message) -> Result<Option<Vote>, ContractError> {
-    let loaded_poll_content = POLL_MESSAGES
-        .may_load(deps.storage, &message.hash())?
-        .ok_or(ContractError::MessagePollNotFound)?;
-    consensus(deps, loaded_poll_content, message)
+pub fn worker_set_status(deps: Deps, operators: &Operators) -> Result<Option<Vote>, ContractError> {
+    let loaded_poll_content = POLL_WORKER_SETS
+        .may_load(deps.storage, &operators.hash())?
+        .ok_or(ContractError::WorkerSetNotFound)?;
+
+    consensus(deps, loaded_poll_content, operators)
 }
 
 fn consensus<T: PartialEq + std::fmt::Debug>(
@@ -130,7 +136,7 @@ fn consensus<T: PartialEq + std::fmt::Debug>(
 
     let poll = POLLS
         .load(deps.storage, stored_poll_content.poll_id)
-        .expect("invalid invariant: message poll not found");
+        .expect("invalid invariant: content's poll not found");
 
     match &poll {
         Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => Ok(poll
