@@ -1,7 +1,7 @@
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
-    Participant,
+    Participant, Threshold,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
@@ -590,7 +590,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
                 .unwrap(),
             service_name: protocol.service_name.clone(),
             source_gateway_address: "doesn't matter".to_string().try_into().unwrap(),
-            voting_threshold: (9, 10).try_into().unwrap(),
+            voting_threshold: Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
             block_expiry: 10,
             confirmation_height: 5,
             source_chain: chain_name.clone(),
@@ -613,7 +613,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             service_registry_address: protocol.service_registry_address.to_string(),
             voting_verifier_address: voting_verifier_address.to_string(),
             destination_chain_id: Uint256::zero(),
-            signing_threshold: (2, 3).try_into().unwrap(),
+            signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: protocol.service_name.to_string(),
             chain_name: chain_name.to_string(),
             worker_set_diff_threshold: 1,
