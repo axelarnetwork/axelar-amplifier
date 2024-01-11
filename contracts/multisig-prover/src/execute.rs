@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
-use axelar_wasm_std::snapshot;
+use axelar_wasm_std::{snapshot, VerificationStatus};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use service_registry::state::Worker;
 
@@ -234,16 +234,16 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
 
-    let query = voting_verifier::msg::QueryMsg::IsWorkerSetVerified {
+    let query = voting_verifier::msg::QueryMsg::WorkerSetStatus {
         new_operators: make_operators(worker_set.clone(), config.encoder),
     };
 
-    let is_confirmed: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
         msg: to_binary(&query)?,
     }))?;
 
-    if !is_confirmed {
+    if status != VerificationStatus::SucceededOnChain {
         return Err(ContractError::WorkerSetNotConfirmed);
     }
 

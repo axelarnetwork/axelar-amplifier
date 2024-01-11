@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::{to_binary, Addr, DepsMut, Response, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
@@ -135,15 +136,19 @@ where
     ) -> Result<(Vec<Message>, Vec<Message>), ContractError> {
         let query_response =
             self.verifier
-                .verify(aggregate_verifier::msg::QueryMsg::IsVerified {
+                .verify(aggregate_verifier::msg::QueryMsg::MessageStatus {
                     messages: msgs.to_vec(),
                 })?;
 
-        let is_verified = query_response.into_iter().collect::<HashMap<_, _>>();
+        let statuses = query_response.into_iter().collect::<HashMap<_, _>>();
 
-        Ok(msgs
-            .into_iter()
-            .partition(|msg| -> bool { is_verified.get(&msg.cc_id).copied().unwrap_or(false) }))
+        Ok(msgs.into_iter().partition(|msg| -> bool {
+            statuses
+                .get(&msg.cc_id)
+                .copied()
+                .unwrap_or(VerificationStatus::NotVerified)
+                == VerificationStatus::SucceededOnChain
+        }))
     }
 }
 
@@ -169,6 +174,7 @@ mod tests {
     use crate::contract::query;
     use crate::error::ContractError;
     use crate::state;
+    use axelar_wasm_std::VerificationStatus;
     use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
     use cosmwasm_std::{Addr, CosmosMsg, SubMsg, WasmMsg};
     use error_stack::bail;
@@ -200,7 +206,10 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // mark all generated messages as verified
-        let is_verified = msgs.iter().map(|msg| (msg.cc_id.clone(), true)).collect();
+        let is_verified = msgs
+            .iter()
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
+            .collect();
         let contract = create_contract(msg_store.clone(), is_verified);
 
         // try zero, one, many messages
@@ -244,7 +253,7 @@ mod tests {
         // half of the messages are verified
         let is_verified = msgs[..5]
             .iter()
-            .map(|msg| (msg.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
         let contract = create_contract(msg_store.clone(), is_verified);
 
@@ -266,7 +275,7 @@ mod tests {
         // half of the messages are verified
         let is_verified = msgs[..5]
             .iter()
-            .map(|msg| (msg.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
         let contract = create_contract(msg_store.clone(), is_verified);
 
@@ -337,7 +346,10 @@ mod tests {
 
         let msgs = generate_messages(10);
         // mark all generated messages as verified
-        let is_verified = msgs.iter().map(|msg| (msg.cc_id.clone(), true)).collect();
+        let is_verified = msgs
+            .iter()
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
+            .collect();
         let mut contract = create_contract(msg_store.clone(), is_verified);
 
         // try one and many messages (zero messages are tested in route_none_verified)
@@ -395,7 +407,7 @@ mod tests {
         // half of the messages are verified
         let is_verified = msgs[..5]
             .iter()
-            .map(|msg| (msg.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
         let mut contract = create_contract(msg_store.clone(), is_verified);
 
@@ -421,7 +433,7 @@ mod tests {
         // half of the messages are verified
         let is_verified = msgs[..5]
             .iter()
-            .map(|msg| (msg.cc_id.clone(), true))
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
         let mut contract = create_contract(msg_store.clone(), is_verified);
 
@@ -474,7 +486,7 @@ mod tests {
     fn create_contract(
         // the store mock requires a 'static type that can be moved into the closure, so we need to use an Arc<> here
         msg_store: Arc<RwLock<HashMap<CrossChainId, Message>>>,
-        is_verified: HashMap<CrossChainId, bool>,
+        is_verified: HashMap<CrossChainId, VerificationStatus>,
     ) -> Contract<query::MockVerifier, state::MockStore> {
         let config = state::Config {
             verifier: Addr::unchecked("verifier"),
@@ -493,13 +505,16 @@ mod tests {
 
         let mut verifier = query::MockVerifier::new();
         verifier.expect_verify().returning(move |msg| match msg {
-            aggregate_verifier::msg::QueryMsg::IsVerified { messages } => Ok(messages
+            aggregate_verifier::msg::QueryMsg::MessageStatus { messages } => Ok(messages
                 .into_iter()
                 .map(|msg: Message| {
                     (
                         msg.cc_id.clone(),
                         // if the msg is not know to the verifier, it is not verified
-                        is_verified.get(&msg.cc_id).copied().unwrap_or(false),
+                        is_verified
+                            .get(&msg.cc_id)
+                            .copied()
+                            .unwrap_or(VerificationStatus::NotVerified),
                     )
                 })
                 .collect::<Vec<_>>()),

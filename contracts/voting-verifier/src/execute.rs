@@ -1,24 +1,27 @@
-use axelar_wasm_std::operators::Operators;
 use cosmwasm_std::{
     to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
-use axelar_wasm_std::voting::{PollId, Vote};
-use axelar_wasm_std::{nonempty, snapshot, voting::WeightedPoll};
+use axelar_wasm_std::{
+    nonempty,
+    operators::Operators,
+    snapshot,
+    voting::{PollId, Vote, WeightedPoll},
+    VerificationStatus,
+};
+
 use connection_router::state::{ChainName, Message};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 
-use crate::error::ContractError;
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
 use crate::msg::{EndPollResponse, VerifyMessagesResponse};
-use crate::query::{
-    is_verified, is_worker_set_verified, msg_verification_status, VerificationStatus,
-};
+use crate::query::{messages_status, worker_set_status};
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
+use crate::{error::ContractError, query::msg_status};
 
 pub fn verify_worker_set(
     deps: DepsMut,
@@ -26,7 +29,7 @@ pub fn verify_worker_set(
     message_id: nonempty::String,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
-    if is_worker_set_verified(deps.as_ref(), &new_operators)? {
+    if worker_set_status(deps.as_ref(), &new_operators)? == VerificationStatus::SucceededOnChain {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 
@@ -84,21 +87,22 @@ pub fn verify_messages(
     let config = CONFIG.load(deps.storage)?;
 
     let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
-        verification_statuses: is_verified(deps.as_ref(), &messages)?,
+        verification_statuses: messages_status(deps.as_ref(), &messages)?,
     })?);
 
     let messages = messages
         .into_iter()
-        .map(|message| {
-            msg_verification_status(deps.as_ref(), &message).map(|status| (status, message))
-        })
+        .map(|message| msg_status(deps.as_ref(), &message).map(|status| (status, message)))
         .collect::<Result<Vec<_>, _>>()?;
 
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
         .filter_map(|(status, message)| match status {
-            VerificationStatus::FailedToVerify | VerificationStatus::NotVerified => Some(message),
-            VerificationStatus::InProgress | VerificationStatus::Verified => None,
+            VerificationStatus::FailedOnChain
+            | VerificationStatus::NotFound
+            | VerificationStatus::FailedToVerify
+            | VerificationStatus::NotVerified => Some(message),
+            VerificationStatus::InProgress | VerificationStatus::SucceededOnChain => None,
         })
         .collect();
 
