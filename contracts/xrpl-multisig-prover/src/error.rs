@@ -74,6 +74,8 @@ pub enum ContractError {
     #[error("signing session not completed")]
     SigningSessionNotCompleted,
 
+    // TODO: do not expose low level errors
+
     #[error("invalid blob")]
     InvalidBlob,
 
@@ -82,6 +84,9 @@ pub enum ContractError {
 
     #[error("failed to encode signature")]
     FailedToEncodeSignature,
+
+    #[error("failed to serialize")]
+    FailedToSerialize,
 }
 
 impl From<ContractError> for StdError {

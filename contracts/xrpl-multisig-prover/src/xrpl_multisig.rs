@@ -108,6 +108,28 @@ impl TryFrom<&XRPLUnsignedTx> for XRPLObject {
     }
 }
 
+pub struct XRPLMemo(HexBinary);
+
+impl TryFrom<&XRPLMemo> for XRPLObject {
+    type Error = ContractError;
+
+    fn try_from(memo: &XRPLMemo) -> Result<Self, ContractError> {
+        let mut obj = XRPLObject::new();
+        obj.add_field(13, &memo.0)?;
+        Ok(obj)
+    }
+}
+
+impl XRPLSerialize for XRPLMemo {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        XRPLObject::try_from(self)?.xrpl_serialize()
+    }
+}
+
+impl XRPLTypedSerialize for XRPLMemo {
+    const TYPE_CODE: u8 = ARRAY_TYPE_CODE;
+}
+
 #[cw_serde]
 pub struct XRPLPaymentTx {
     pub account: String,
@@ -132,6 +154,9 @@ impl TryFrom<&XRPLPaymentTx> for XRPLObject {
         obj.add_field(3, &HexBinary::from_hex("")?)?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
         obj.add_field(3, &XRPLAddress(tx.destination.to_string()))?;
+
+        let tx_hash = compute_unsigned_tx_hash(&XRPLUnsignedTx::Payment(tx.clone()))?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(tx_hash.into())]})?;
 
         Ok(obj)
     }
@@ -159,7 +184,12 @@ impl TryFrom<&XRPLSignerListSetTx> for XRPLObject {
         obj.add_field(8, &XRPLPaymentAmount::Drops(tx.fee))?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
         obj.add_field(3, &HexBinary::from_hex("")?)?;
+
+        let tx_hash = compute_unsigned_tx_hash(&XRPLUnsignedTx::SignerListSet(tx.clone()))?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(tx_hash.into())]})?;
+
         obj.add_field(4, &XRPLArray{ field_code: 11, items: tx.signer_entries.clone() })?;
+
         Ok(obj)
     }
 }
@@ -186,6 +216,9 @@ impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
         obj.add_field(8, &XRPLPaymentAmount::Drops(tx.fee))?; // 68400000000000001e
         obj.add_field(3, &HexBinary::from_hex("")?)?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
+
+        let tx_hash = compute_unsigned_tx_hash(&XRPLUnsignedTx::TicketCreate(tx.clone()))?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(tx_hash.into())]})?;
 
         Ok(obj)
     }
@@ -352,14 +385,13 @@ pub fn decode_address(address: &String) -> Result<[u8; 20], ContractError> {
     return Ok(buffer)
 }
 
-pub const HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
 
-// TODO: optimize
 pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, ContractError> {
-    let encoded_unsigned_tx = unsigned_tx.xrpl_serialize()?;
+    let encoded_unsigned_tx = serde_json::to_vec(unsigned_tx).map_err(|_| ContractError::FailedToSerialize)?;
 
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(Some(HASH_PREFIX_UNSIGNED_TRANSACTION_MULTI), encoded_unsigned_tx.as_slice()));
+    let d = Sha256::digest(encoded_unsigned_tx);
+    let tx_hash_hex: HexBinary = HexBinary::from(d.to_vec());
     let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
     Ok(tx_hash)
 }
@@ -369,8 +401,6 @@ pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, Cont
     let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
     Ok(tx_hash)
 }
-
-
 
 pub struct XRPLAddress(String);
 
@@ -429,12 +459,6 @@ impl XRPLSerialize for XRPLSignedTransaction {
     fn xrpl_serialize(self: &XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
         let mut obj = XRPLObject::try_from(&self.unsigned_tx)?;
         obj.add_field(3, &XRPLArray{ field_code: 16, items: self.signers.clone() })?;
-        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| {
-            let mut res = Vec::new();
-            res.extend(field_id(f.0, f.1));
-            res.extend(f.2);
-            return hex::encode(res);
-        }).collect();
 
         obj.xrpl_serialize()
     }
@@ -518,12 +542,6 @@ impl XRPLSerialize for XRPLSigner {
         obj.add_field(1, &XRPLAddress(self.account.clone()))?;
         let mut result = obj.xrpl_serialize()?;
         result.extend(field_id(OBJECT_TYPE_CODE, 1));
-        let parts: Vec<String> = obj.clone().fields.into_iter().map(|f| {
-            let mut res = Vec::new();
-            res.extend(field_id(f.0, f.1));
-            res.extend(f.2);
-            return hex::encode(res);
-        }).collect();
         Ok(result)
     }
 }
