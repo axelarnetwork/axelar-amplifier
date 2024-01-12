@@ -6,7 +6,7 @@ pub enum VerificationStatus {
     SucceededOnChain,
     FailedOnChain,
     NotFound,
-    FailedToVerify,
-    InProgress,  // still in an open poll
-    NotVerified, // not in a poll
+    FailedToVerify, // verification process failed, e.g. no consensus reached
+    InProgress,     // verification in progress
+    NotVerified,    // not yet verified, e.g. not in a poll
 }

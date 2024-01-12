@@ -293,7 +293,7 @@ fn should_query_message_statuses() {
         messages
             .iter()
             .map(|message| (message.cc_id.clone(), VerificationStatus::NotVerified))
-            .collect::<Vec<(CrossChainId, VerificationStatus)>>()
+            .collect::<Vec<(_, _)>>()
     );
 
     let query = msg::QueryMsg::MessageStatus {
@@ -310,7 +310,7 @@ fn should_query_message_statuses() {
         messages
             .iter()
             .map(|message| (message.cc_id.clone(), VerificationStatus::InProgress))
-            .collect::<Vec<(CrossChainId, VerificationStatus)>>()
+            .collect::<Vec<(_, _)>>()
     );
 
     let msg: msg::ExecuteMsg = msg::ExecuteMsg::Vote {
@@ -323,7 +323,7 @@ fn should_query_message_statuses() {
                     Vote::NotFound
                 }
             })
-            .collect::<Vec<Vote>>(),
+            .collect::<Vec<_>>(),
     };
 
     app.execute_contract(
@@ -367,7 +367,7 @@ fn should_query_message_statuses() {
                     VerificationStatus::NotFound
                 }
             ))
-            .collect::<Vec<(CrossChainId, VerificationStatus)>>()
+            .collect::<Vec<(_, _)>>()
     );
 }
 

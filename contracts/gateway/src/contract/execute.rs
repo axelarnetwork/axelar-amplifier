@@ -187,8 +187,8 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let mut msgs = generate_messages(10);
         // no messages are verified
-        let is_verified = HashMap::new();
-        let contract = create_contract(msg_store.clone(), is_verified);
+        let verified = HashMap::new();
+        let contract = create_contract(msg_store.clone(), verified);
 
         // duplicate some IDs
         msgs[5..]
@@ -206,11 +206,11 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // mark all generated messages as verified
-        let is_verified = msgs
+        let verified = msgs
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let contract = create_contract(msg_store.clone(), is_verified);
+        let contract = create_contract(msg_store.clone(), verified);
 
         // try zero, one, many messages
         let inputs = vec![vec![], msgs[..1].to_vec(), msgs];
@@ -227,8 +227,8 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // no messages are verified
-        let is_verified = HashMap::new();
-        let contract = create_contract(msg_store.clone(), is_verified);
+        let verified = HashMap::new();
+        let contract = create_contract(msg_store.clone(), verified);
 
         // try one and many messages (zero messages are tested in verify_all_verified)
         let inputs = vec![msgs[..1].to_vec(), msgs];
@@ -251,11 +251,11 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // half of the messages are verified
-        let is_verified = msgs[..5]
+        let verified = msgs[..5]
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let contract = create_contract(msg_store.clone(), is_verified);
+        let contract = create_contract(msg_store.clone(), verified);
 
         // expect: no error, only the unverified messages get verified
         let result = contract.verify_messages(msgs.clone());
@@ -273,11 +273,11 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // half of the messages are verified
-        let is_verified = msgs[..5]
+        let verified = msgs[..5]
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let contract = create_contract(msg_store.clone(), is_verified);
+        let contract = create_contract(msg_store.clone(), verified);
 
         // expect: same response when called multiple times and no messages are stored
         let result1 = contract.verify_messages(msgs.clone());
@@ -314,8 +314,8 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let mut msgs = generate_messages(10);
         // no messages are verified
-        let is_verified = HashMap::new();
-        let mut contract = create_contract(msg_store.clone(), is_verified);
+        let verified = HashMap::new();
+        let mut contract = create_contract(msg_store.clone(), verified);
 
         // senders are "router" and "not a router"
         let senders = vec![
@@ -346,11 +346,11 @@ mod tests {
 
         let msgs = generate_messages(10);
         // mark all generated messages as verified
-        let is_verified = msgs
+        let verified = msgs
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let mut contract = create_contract(msg_store.clone(), is_verified);
+        let mut contract = create_contract(msg_store.clone(), verified);
 
         // try one and many messages (zero messages are tested in route_none_verified)
         let inputs = vec![msgs[..1].to_vec(), msgs];
@@ -379,8 +379,8 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // no messages are verified
-        let is_verified = HashMap::new();
-        let mut contract = create_contract(msg_store.clone(), is_verified);
+        let verified = HashMap::new();
+        let mut contract = create_contract(msg_store.clone(), verified);
 
         // try zero, one, many messages
         let inputs = vec![vec![], msgs[..1].to_vec(), msgs];
@@ -405,11 +405,11 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // half of the messages are verified
-        let is_verified = msgs[..5]
+        let verified = msgs[..5]
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let mut contract = create_contract(msg_store.clone(), is_verified);
+        let mut contract = create_contract(msg_store.clone(), verified);
 
         // expect: send verified msgs to router when sender is not the router
         let result = contract.route_messages(Addr::unchecked("not a router"), msgs.clone());
@@ -431,11 +431,11 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let msgs = generate_messages(10);
         // half of the messages are verified
-        let is_verified = msgs[..5]
+        let verified = msgs[..5]
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let mut contract = create_contract(msg_store.clone(), is_verified);
+        let mut contract = create_contract(msg_store.clone(), verified);
 
         let senders = vec![
             contract.config.router.clone(),
@@ -486,7 +486,7 @@ mod tests {
     fn create_contract(
         // the store mock requires a 'static type that can be moved into the closure, so we need to use an Arc<> here
         msg_store: Arc<RwLock<HashMap<CrossChainId, Message>>>,
-        is_verified: HashMap<CrossChainId, VerificationStatus>,
+        verified: HashMap<CrossChainId, VerificationStatus>,
     ) -> Contract<query::MockVerifier, state::MockStore> {
         let config = state::Config {
             verifier: Addr::unchecked("verifier"),
@@ -511,7 +511,7 @@ mod tests {
                     (
                         msg.cc_id.clone(),
                         // if the msg is not know to the verifier, it is not verified
-                        is_verified
+                        verified
                             .get(&msg.cc_id)
                             .copied()
                             .unwrap_or(VerificationStatus::NotVerified),

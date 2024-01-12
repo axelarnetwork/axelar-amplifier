@@ -98,7 +98,7 @@ fn verify_messages_not_verified() {
         ret,
         msgs.iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::NotVerified))
-            .collect::<Vec<(CrossChainId, VerificationStatus)>>()
+            .collect::<Vec<(_, _)>>()
     );
 }
 
@@ -141,7 +141,7 @@ fn verify_messages_verified() {
         ret,
         msgs.iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
-            .collect::<Vec<(CrossChainId, VerificationStatus)>>()
+            .collect::<Vec<(_, _)>>()
     );
 }
 
@@ -195,6 +195,6 @@ fn verify_messages_mixed_status() {
                     (msg.cc_id.clone(), VerificationStatus::NotVerified)
                 }
             })
-            .collect::<Vec<(CrossChainId, VerificationStatus)>>()
+            .collect::<Vec<(_, _)>>()
     );
 }

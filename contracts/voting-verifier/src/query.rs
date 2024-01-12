@@ -22,7 +22,7 @@ pub fn messages_status(
 pub fn msg_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
     let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
 
-    Ok(status(deps, loaded_poll_content, message))
+    Ok(verification_status(deps, loaded_poll_content, message))
 }
 
 pub fn worker_set_status(
@@ -31,10 +31,10 @@ pub fn worker_set_status(
 ) -> Result<VerificationStatus, ContractError> {
     let loaded_poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
 
-    Ok(status(deps, loaded_poll_content, operators))
+    Ok(verification_status(deps, loaded_poll_content, operators))
 }
 
-fn status<T: PartialEq + std::fmt::Debug>(
+fn verification_status<T: PartialEq + std::fmt::Debug>(
     deps: Deps,
     stored_poll_content: Option<PollContent<T>>,
     content: &T,
