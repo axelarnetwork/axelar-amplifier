@@ -281,7 +281,6 @@ where
                 completed_height.increment(),
             )),
         };
-        // TODO: pass block_height_monitor to handler
         self.event_processor.add_handler(handler, sub);
     }
 

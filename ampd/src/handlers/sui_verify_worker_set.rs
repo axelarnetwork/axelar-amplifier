@@ -46,6 +46,7 @@ struct PollStartedEvent {
     source_gateway_address: SuiAddress,
     worker_set: WorkerSetConfirmation,
     participants: Vec<TMAddress>,
+    expires_at: u64,
 }
 
 pub struct Handler<C, B>
@@ -57,7 +58,7 @@ where
     voting_verifier: TMAddress,
     rpc_client: C,
     broadcast_client: B,
-    _latest_block_height: Receiver<u64>,
+    latest_block_height: Receiver<u64>,
 }
 
 impl<C, B> Handler<C, B>
@@ -77,7 +78,7 @@ where
             voting_verifier,
             rpc_client,
             broadcast_client,
-            _latest_block_height: latest_block_height,
+            latest_block_height,
         }
     }
     async fn broadcast_vote(&self, poll_id: PollId, vote: Vote) -> error_stack::Result<(), Error> {
@@ -115,6 +116,7 @@ where
             source_gateway_address,
             worker_set,
             participants,
+            expires_at,
             ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
@@ -128,6 +130,12 @@ where
         }
 
         if !participants.contains(&self.worker) {
+            return Ok(());
+        }
+
+        let latest_block_height = *self.latest_block_height.borrow();
+        if latest_block_height >= expires_at {
+            info!(poll_id = poll_id.to_string(), "skipping expired poll");
             return Ok(());
         }
 
@@ -168,13 +176,21 @@ mod tests {
 
     use axelar_wasm_std::operators::Operators;
     use cosmwasm_std::HexBinary;
-    use error_stack::Result;
+    use error_stack::{Report, Result};
+    use ethers::providers::ProviderError;
+    use events::Event;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
+    use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
 
     use super::PollStartedEvent;
+    use crate::event_processor::EventHandler;
+    use crate::queue::queued_broadcaster::MockBroadcasterClient;
+    use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
     use crate::{handlers::tests::get_event, types::TMAddress};
+
+    use tokio::test as async_test;
 
     #[test]
     fn should_deserialize_worker_set_poll_started_event() {
@@ -184,7 +200,7 @@ mod tests {
             .collect();
 
         let event: Result<PollStartedEvent, events::Error> = get_event(
-            worker_set_poll_started_event(participants),
+            worker_set_poll_started_event(participants, 100),
             &TMAddress::random(PREFIX),
         )
         .try_into();
@@ -192,7 +208,42 @@ mod tests {
         assert!(event.is_ok());
     }
 
-    fn worker_set_poll_started_event(participants: Vec<TMAddress>) -> PollStarted {
+    #[async_test]
+    async fn should_skip_expired_poll() {
+        let mut rpc_client = MockSuiClient::new();
+        // mock the rpc client as erroring. If the handler successfully ignores the poll, we won't hit this
+        rpc_client
+            .expect_finalized_transaction_block()
+            .returning(|_| {
+                Err(Report::from(ProviderError::CustomError(
+                    "failed to get finalized transaction blocks".to_string(),
+                )))
+            });
+        let broadcast_client = MockBroadcasterClient::new();
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let event: Event = get_event(
+            worker_set_poll_started_event(vec![worker.clone()].into_iter().collect(), expiration),
+            &voting_verifier,
+        );
+
+        let (tx, rx) = watch::channel(expiration - 1);
+
+        let handler =
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+
+        // poll is not expired yet, should hit rpc error
+        assert!(handler.handle(&event).await.is_err());
+
+        let _ = tx.send(expiration + 1);
+
+        // poll is expired, should not hit rpc error now
+        assert!(handler.handle(&event).await.is_ok());
+    }
+
+    fn worker_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::WorkerSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
@@ -202,7 +253,7 @@ mod tests {
                     .parse()
                     .unwrap(),
                 confirmation_height: 1,
-                expires_at: 100,
+                expires_at,
                 participants: participants
                     .into_iter()
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
