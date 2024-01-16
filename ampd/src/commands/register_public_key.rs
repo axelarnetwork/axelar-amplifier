@@ -11,6 +11,7 @@ use report::ResultCompatExt;
 
 use crate::commands::{broadcast_tx, worker_pub_key};
 use crate::config::Config;
+use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
@@ -19,8 +20,18 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
 
     let multisig_address = get_multisig_address(&config)?;
 
+    let tofnd_config = config.tofnd_config.clone();
+    let multisig_key = SharableEcdsaClient::new(
+        MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
+            .await
+            .change_context(Error::Connection)?,
+    )
+    .keygen(&multisig_address.to_string())
+    .await
+    .change_context(Error::Tofnd)?;
+
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterPublicKey {
-        public_key: PublicKey::try_from((KeyType::Ecdsa, pub_key.to_bytes().into()))
+        public_key: PublicKey::try_from((KeyType::Ecdsa, multisig_key.to_bytes().into()))
             .change_context(Error::Tofnd)?,
     })
     .expect("register public key msg should serialize");
