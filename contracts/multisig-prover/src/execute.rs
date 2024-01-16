@@ -39,8 +39,9 @@ pub fn construct_proof(
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
 
             if let Some(new_worker_set) = new_worker_set {
-                save_next_worker_set(deps.storage, &new_worker_set)?;
-                builder.add_new_worker_set(new_worker_set)?;
+                if save_next_worker_set(deps.storage, &new_worker_set).is_ok() {
+                    builder.add_new_worker_set(new_worker_set)?;
+                }
             }
 
             for msg in messages {

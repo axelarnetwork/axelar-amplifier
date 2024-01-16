@@ -616,7 +616,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: protocol.service_name.to_string(),
             chain_name: chain_name.to_string(),
-            worker_set_diff_threshold: 1,
+            worker_set_diff_threshold: 0,
             encoder: multisig_prover::encoding::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
         },
