@@ -4,12 +4,11 @@ Structure of a routing packet (`M` in the diagrams)
 
 ```rust
     struct Message {
-        id: String, //should be formatted as [source_chain]:[unique identifier], i.e. Ethereum:0x74ac0205b1f8f51023942856145182f0e6fdd41ccb2c8058bf2d89fc67564d56:0
-        source_address: String,
-        source_chain: String,
-        destination_address: String,
-        destination_chain: String,
-        payload_hash: HexBinary
+        cc_id: CrossChainId, // Combination of chain name and a unique identifier
+        source_address: Address, // String
+        destination_chain: ChainName, // String
+        destination_address: Address,
+        payload_hash: [u8; 32]
     }
 ```
 
