@@ -8,6 +8,7 @@ use multisig::{
     msg::ExecuteMsg,
 };
 use report::ResultCompatExt;
+use tracing::info;
 
 use crate::commands::{broadcast_tx, worker_pub_key};
 use crate::config::Config;
@@ -29,6 +30,7 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
     .keygen(&multisig_address.to_string())
     .await
     .change_context(Error::Tofnd)?;
+    info!(key_id = multisig_address.to_string(), "keygen successful");
 
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterPublicKey {
         public_key: PublicKey::try_from((KeyType::Ecdsa, multisig_key.to_bytes().into()))
