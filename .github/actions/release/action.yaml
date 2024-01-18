@@ -146,7 +146,7 @@ runs:
       run: |
         cargo release -p ${{ inputs.binary-to-release }} \
           ${{ steps.semantic-version.outputs.version_type }} \
-          -vv
+          -v
 
     - name: Release cargo crate
       shell: bash
