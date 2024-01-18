@@ -89,7 +89,7 @@ runs:
           new release.
 
           Retreive the latest patch commit from the tag:
-          git tag --list ${{inputs.binary-to-release}}.*
+          git tag --list ${{inputs.binary-to-release}}-v*
 
           Checkout the tag:
           git checkout <latest-existing-patch>
