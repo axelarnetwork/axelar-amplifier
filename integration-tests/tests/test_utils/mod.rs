@@ -571,6 +571,98 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     )
 }
 
+pub fn create_new_workers_vec(chains: Vec<ChainName>, worker_details: Vec<(String, u32)>) -> Vec<Worker> {
+    let mut new_workers = Vec::new();
+
+    for (name, seed) in worker_details {
+        let new_worker = Worker {
+            addr: Addr::unchecked(&name),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(seed),
+        };
+        new_workers.push(new_worker);
+    }
+
+    new_workers
+}
+
+pub fn update_registry_and_construct_proof(
+    protocol: &mut Protocol,
+    new_workers: &Vec<Worker>,
+    previous_workers: &Vec<Worker>,
+    initial_workers: &Vec<Worker>,
+    chain_multisig_prover_address: &Addr,
+    min_worker_bond: Uint128,
+) -> Uint64 {
+
+    // Register new workers
+    register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        new_workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+
+    // Deregister old workers
+    deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        previous_workers,
+        protocol.service_name.clone(),
+    );
+
+    // Construct proof and sign
+    let session_id = construct_proof_and_sign(
+        &mut protocol.app,
+        &chain_multisig_prover_address,
+        &protocol.multisig_address,
+        &Vec::<Message>::new(),
+        &initial_workers,
+    );
+
+    session_id
+}
+
+pub fn process_poll(
+    protocol: &mut Protocol,
+    relayer_addr: &Addr,
+    verifier_address: &Addr,
+    new_workers: &Vec<Worker>,
+    expected_new_worker_set: &WorkerSet,
+) {
+    // Create worker set poll
+    let (poll_id, expiry) = create_worker_set_poll(
+        &mut protocol.app,
+        relayer_addr.clone(),
+        verifier_address.clone(),
+        expected_new_worker_set.clone(),
+    );
+
+    // Vote for the worker set
+    vote_true_for_worker_set(
+        &mut protocol.app,
+        verifier_address,
+        new_workers,
+        poll_id,
+    );
+
+    // Advance to expiration height
+    advance_at_least_to_height(&mut protocol.app, expiry);
+
+    // End the poll
+    end_poll(
+        &mut protocol.app,
+        verifier_address,
+        poll_id,
+    );
+}
+
+
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
