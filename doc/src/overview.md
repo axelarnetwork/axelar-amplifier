@@ -4,11 +4,17 @@ Structure of a routing packet (`M` in the diagrams)
 
 ```rust
     struct Message {
-        cc_id: CrossChainId, // Combination of chain name and a unique identifier
+        cc_id: CrossChainId,
         source_address: Address, // String
         destination_chain: ChainName, // String
         destination_address: Address,
         payload_hash: [u8; 32]
+    }
+
+    // Combination of chain name and a unique identifier
+    pub struct CrossChainId { 
+        pub chain: ChainName,
+        pub id: nonempty::String,
     }
 ```
 

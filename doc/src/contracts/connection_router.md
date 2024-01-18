@@ -180,4 +180,4 @@ Relayer B->>+External Gateway B: sends proof
 6. The Relayer sends the proof, which also contains messages, to the destination's External Gateway.
 
 ### Notes
-1. External Gateways are associated with blockchains other than Axelar, such as Ethereum and Avalanche, while internal gateways are specific to Axelar's chain.
+1. External Gateways are deployed on blockchains other than Axelar, such as Ethereum and Avalanche, while internal gateways reside on Axelar's chain.
