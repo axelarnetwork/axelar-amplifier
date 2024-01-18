@@ -142,7 +142,9 @@ runs:
 
     - name: Release cargo crate (dry run)
       shell: bash
-      if: steps.semantic-version.outputs.changed == 'true'
+      if:
+        inputs.dry-run == 'false' &&
+        steps.semantic-version.outputs.changed == 'true'
       run: |
         cargo release -p ${{ inputs.binary-to-release }} \
           ${{ steps.semantic-version.outputs.version_type }} \
@@ -154,6 +156,8 @@ runs:
         inputs.dry-run == 'false' &&
         steps.semantic-version.outputs.changed == 'true'
       run: |
+        git config --global user.email "devops@axelar.network"
+        git config --global user.name "Axelar DevOps"
         cargo release -x \
           --no-confirm \
           -p ${{ inputs.binary-to-release }} \
