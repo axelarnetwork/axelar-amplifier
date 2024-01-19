@@ -1,3 +1,4 @@
+use crate::evm::ChainName;
 use async_trait::async_trait;
 use error_stack::{self, Report, ResultExt};
 use ethers::types::U64;
@@ -12,6 +13,21 @@ type Result<T> = error_stack::Result<T, Error>;
 #[async_trait]
 pub trait Finalizer: Send + Sync {
     async fn latest_finalized_block_height(&self) -> Result<U64>;
+}
+
+pub fn pick<'a, C, H>(
+    chain: &'a ChainName,
+    rpc_client: &'a C,
+    confirmation_height: H,
+) -> Box<dyn Finalizer + 'a>
+where
+    C: EthereumClient + Send + Sync,
+    H: Into<U64>,
+{
+    match chain {
+        ChainName::Ethereum => Box::new(EthereumFinalizer::new(rpc_client)),
+        ChainName::Other(_) => Box::new(PoWFinalizer::new(rpc_client, confirmation_height)),
+    }
 }
 
 pub struct EthereumFinalizer<'a, C>
