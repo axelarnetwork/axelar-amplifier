@@ -267,7 +267,7 @@ fn should_retry_if_message_not_verified() {
 }
 
 #[test]
-fn should_retry_if_when_status_not_final() {
+fn should_retry_if_status_not_final() {
     let mut app = App::default();
 
     let service_registry_address = make_mock_service_registry(&mut app);
