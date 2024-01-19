@@ -234,7 +234,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
 
-    let query = voting_verifier::msg::QueryMsg::WorkerSetStatus {
+    let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
         new_operators: make_operators(worker_set.clone(), config.encoder),
     };
 

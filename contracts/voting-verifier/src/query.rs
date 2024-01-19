@@ -15,11 +15,13 @@ pub fn messages_status(
 ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
     messages
         .iter()
-        .map(|message| msg_status(deps, message).map(|status| (message.cc_id.to_owned(), status)))
+        .map(|message| {
+            message_status(deps, message).map(|status| (message.cc_id.to_owned(), status))
+        })
         .collect::<Result<Vec<_>, _>>()
 }
 
-pub fn msg_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
+pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
     let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
 
     Ok(verification_status(deps, loaded_poll_content, message))
@@ -64,7 +66,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 None => VerificationStatus::InProgress,
             }
         }
-        None => VerificationStatus::NotVerified,
+        None => VerificationStatus::None,
     }
 }
 
@@ -187,7 +189,7 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::NotVerified)],
+            vec![(msg.cc_id.clone(), VerificationStatus::None)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }

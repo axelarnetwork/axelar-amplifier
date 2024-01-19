@@ -97,7 +97,7 @@ fn verify_messages_not_verified() {
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|msg| (msg.cc_id.clone(), VerificationStatus::NotVerified))
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::None))
             .collect::<Vec<(_, _)>>()
     );
 }
@@ -192,7 +192,7 @@ fn verify_messages_mixed_status() {
                 {
                     (msg.cc_id.clone(), VerificationStatus::SucceededOnChain)
                 } else {
-                    (msg.cc_id.clone(), VerificationStatus::NotVerified)
+                    (msg.cc_id.clone(), VerificationStatus::None)
                 }
             })
             .collect::<Vec<(_, _)>>()

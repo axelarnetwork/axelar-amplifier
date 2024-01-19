@@ -98,11 +98,11 @@ pub fn reply(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::MessageStatus { messages } => {
+        QueryMsg::GetMessagesStatus { messages } => {
             let verifier = CONFIG.load(deps.storage)?.verifier;
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: verifier.to_string(),
-                msg: to_binary(&voting_msg::QueryMsg::MessageStatus { messages })?,
+                msg: to_binary(&voting_msg::QueryMsg::GetMessagesStatus { messages })?,
             }))
         }
     }

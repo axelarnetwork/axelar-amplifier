@@ -147,14 +147,14 @@ fn should_verify_messages_if_not_verified() {
                     id: "id:0".parse().unwrap(),
                     chain: source_chain()
                 },
-                VerificationStatus::NotVerified
+                VerificationStatus::None
             ),
             (
                 CrossChainId {
                     id: "id:1".parse().unwrap(),
                     chain: source_chain()
                 },
-                VerificationStatus::NotVerified
+                VerificationStatus::None
             ),
         ]
     );
@@ -267,7 +267,7 @@ fn should_retry_if_message_not_verified() {
 }
 
 #[test]
-fn should_retry_if_consensus_not_succeeded() {
+fn should_retry_if_when_status_not_final() {
     let mut app = App::default();
 
     let service_registry_address = make_mock_service_registry(&mut app);
@@ -286,7 +286,7 @@ fn should_retry_if_consensus_not_succeeded() {
         )
         .unwrap();
 
-    let messages = messages(3);
+    let messages = messages(4);
 
     let msg_verify = msg::ExecuteMsg::VerifyMessages {
         messages: messages.clone(),
@@ -303,6 +303,7 @@ fn should_retry_if_consensus_not_succeeded() {
         let msg = msg::ExecuteMsg::Vote {
             poll_id: 1u64.into(),
             votes: vec![
+                Vote::SucceededOnChain,
                 Vote::FailedOnChain,
                 Vote::NotFound,
                 if i % 2 == 0 {
@@ -325,7 +326,7 @@ fn should_retry_if_consensus_not_succeeded() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query: msg::QueryMsg = msg::QueryMsg::MessageStatus {
+    let query: msg::QueryMsg = msg::QueryMsg::GetMessagesStatus {
         messages: messages.clone(),
     };
     let res: Result<Vec<(CrossChainId, VerificationStatus)>, _> = app
@@ -335,10 +336,14 @@ fn should_retry_if_consensus_not_succeeded() {
     assert_eq!(
         res.unwrap(),
         vec![
-            (messages[0].cc_id.clone(), VerificationStatus::FailedOnChain),
-            (messages[1].cc_id.clone(), VerificationStatus::NotFound),
             (
-                messages[2].cc_id.clone(),
+                messages[0].cc_id.clone(),
+                VerificationStatus::SucceededOnChain
+            ),
+            (messages[1].cc_id.clone(), VerificationStatus::FailedOnChain),
+            (messages[2].cc_id.clone(), VerificationStatus::NotFound),
+            (
+                messages[3].cc_id.clone(),
                 VerificationStatus::FailedToVerify
             )
         ]
@@ -358,9 +363,13 @@ fn should_retry_if_consensus_not_succeeded() {
     assert_eq!(
         res.unwrap(),
         vec![
-            (messages[0].cc_id.clone(), VerificationStatus::InProgress),
-            (messages[1].cc_id.clone(), VerificationStatus::InProgress),
-            (messages[2].cc_id.clone(), VerificationStatus::InProgress)
+            (
+                messages[0].cc_id.clone(),
+                VerificationStatus::SucceededOnChain
+            ),
+            (messages[1].cc_id.clone(), VerificationStatus::FailedOnChain),
+            (messages[2].cc_id.clone(), VerificationStatus::InProgress),
+            (messages[3].cc_id.clone(), VerificationStatus::InProgress)
         ]
     );
 }
@@ -391,11 +400,11 @@ fn should_query_message_statuses() {
         reply.verification_statuses,
         messages
             .iter()
-            .map(|message| (message.cc_id.clone(), VerificationStatus::NotVerified))
+            .map(|message| (message.cc_id.clone(), VerificationStatus::None))
             .collect::<Vec<(_, _)>>()
     );
 
-    let query = msg::QueryMsg::MessageStatus {
+    let query = msg::QueryMsg::GetMessagesStatus {
         messages: messages.clone(),
     };
 
@@ -487,7 +496,7 @@ fn should_start_worker_set_confirmation() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::WorkerSetStatus {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
     let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -540,7 +549,7 @@ fn should_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::WorkerSetStatus {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
     let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -593,7 +602,7 @@ fn should_not_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::WorkerSetStatus {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
     let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
@@ -646,7 +655,7 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::WorkerSetStatus {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators.clone(),
     };
     let res: Result<VerificationStatus, _> = app
@@ -680,7 +689,7 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::WorkerSetStatus {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
     let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);

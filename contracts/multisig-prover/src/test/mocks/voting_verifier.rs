@@ -65,10 +65,10 @@ pub fn confirm_worker_set(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::WorkerSetStatus { new_operators } => to_binary(
+        QueryMsg::GetWorkerSetStatus { new_operators } => to_binary(
             &CONFIRMED_WORKER_SETS
                 .may_load(deps.storage, &new_operators.hash())?
-                .map_or(VerificationStatus::NotVerified, |_| {
+                .map_or(VerificationStatus::None, |_| {
                     VerificationStatus::SucceededOnChain
                 }),
         ),

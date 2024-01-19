@@ -30,7 +30,7 @@ pub fn mock_verifier_execute(
             for m in messages {
                 match MOCK_VOTING_VERIFIER_MESSAGES.may_load(deps.storage, m.cc_id.clone())? {
                     Some(status) => res.push((m.cc_id, status)),
-                    None => res.push((m.cc_id, VerificationStatus::NotVerified)),
+                    None => res.push((m.cc_id, VerificationStatus::None)),
                 }
             }
             Ok(Response::new().set_data(to_binary(&res)?))

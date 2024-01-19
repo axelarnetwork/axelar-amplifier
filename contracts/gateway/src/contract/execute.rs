@@ -136,7 +136,7 @@ where
     ) -> Result<(Vec<Message>, Vec<Message>), ContractError> {
         let query_response =
             self.verifier
-                .verify(aggregate_verifier::msg::QueryMsg::MessageStatus {
+                .verify(aggregate_verifier::msg::QueryMsg::GetMessagesStatus {
                     messages: msgs.to_vec(),
                 })?;
 
@@ -146,7 +146,7 @@ where
             statuses
                 .get(&msg.cc_id)
                 .copied()
-                .unwrap_or(VerificationStatus::NotVerified)
+                .unwrap_or(VerificationStatus::None)
                 == VerificationStatus::SucceededOnChain
         }))
     }
@@ -505,7 +505,7 @@ mod tests {
 
         let mut verifier = query::MockVerifier::new();
         verifier.expect_verify().returning(move |msg| match msg {
-            aggregate_verifier::msg::QueryMsg::MessageStatus { messages } => Ok(messages
+            aggregate_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
                 .into_iter()
                 .map(|msg: Message| {
                     (
@@ -514,7 +514,7 @@ mod tests {
                         verified
                             .get(&msg.cc_id)
                             .copied()
-                            .unwrap_or(VerificationStatus::NotVerified),
+                            .unwrap_or(VerificationStatus::None),
                     )
                 })
                 .collect::<Vec<_>>()),

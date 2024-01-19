@@ -17,5 +17,5 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Vec<(connection_router::state::CrossChainId, VerificationStatus)>)]
-    MessageStatus { messages: Vec<Message> },
+    GetMessagesStatus { messages: Vec<Message> },
 }

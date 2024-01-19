@@ -62,10 +62,10 @@ pub enum QueryMsg {
     GetPoll { poll_id: PollId },
 
     #[returns(Vec<(connection_router::state::CrossChainId, VerificationStatus)>)]
-    MessageStatus { messages: Vec<Message> },
+    GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]
-    WorkerSetStatus { new_operators: Operators },
+    GetWorkerSetStatus { new_operators: Operators },
 }
 
 #[cw_serde]

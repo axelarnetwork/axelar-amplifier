@@ -56,10 +56,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             todo!()
         }
 
-        QueryMsg::MessageStatus { messages } => {
+        QueryMsg::GetMessagesStatus { messages } => {
             to_binary(&query::messages_status(deps, &messages)?)
         }
-        QueryMsg::WorkerSetStatus { new_operators } => {
+        QueryMsg::GetWorkerSetStatus { new_operators } => {
             to_binary(&query::worker_set_status(deps, &new_operators)?)
         }
     }

@@ -21,7 +21,7 @@ use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::worker_set_status;
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
-use crate::{error::ContractError, query::msg_status};
+use crate::{error::ContractError, query::message_status};
 
 pub fn verify_worker_set(
     deps: DepsMut,
@@ -29,7 +29,9 @@ pub fn verify_worker_set(
     message_id: nonempty::String,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
-    if worker_set_status(deps.as_ref(), &new_operators)? == VerificationStatus::SucceededOnChain {
+    let status = worker_set_status(deps.as_ref(), &new_operators)?;
+    if status == VerificationStatus::SucceededOnChain || status == VerificationStatus::FailedOnChain
+    {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 
@@ -88,7 +90,7 @@ pub fn verify_messages(
 
     let messages = messages
         .into_iter()
-        .map(|message| msg_status(deps.as_ref(), &message).map(|status| (status, message)))
+        .map(|message| message_status(deps.as_ref(), &message).map(|status| (status, message)))
         .collect::<Result<Vec<_>, _>>()?;
 
     let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
@@ -101,11 +103,12 @@ pub fn verify_messages(
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
         .filter_map(|(status, message)| match status {
-            VerificationStatus::FailedOnChain
-            | VerificationStatus::NotFound
+            VerificationStatus::NotFound
             | VerificationStatus::FailedToVerify
-            | VerificationStatus::NotVerified => Some(message),
-            VerificationStatus::InProgress | VerificationStatus::SucceededOnChain => None,
+            | VerificationStatus::None => Some(message),
+            VerificationStatus::InProgress
+            | VerificationStatus::SucceededOnChain
+            | VerificationStatus::FailedOnChain => None,
         })
         .collect();
 

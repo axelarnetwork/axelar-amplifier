@@ -8,5 +8,5 @@ pub enum VerificationStatus {
     NotFound,
     FailedToVerify, // verification process failed, e.g. no consensus reached
     InProgress,     // verification in progress
-    NotVerified,    // not yet verified, e.g. not in a poll
+    None,           // not yet verified, e.g. not in a poll
 }
