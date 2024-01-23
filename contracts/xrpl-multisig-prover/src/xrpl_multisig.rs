@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 
+
 use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Storage, HexBinary, wasm_execute, WasmMsg};
+use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
 use ripemd::Ripemd160;
 use sha2::{Sha512, Digest, Sha256};
 
@@ -114,6 +115,7 @@ impl TryFrom<&XRPLMemo> for XRPLObject {
     type Error = ContractError;
 
     fn try_from(memo: &XRPLMemo) -> Result<Self, ContractError> {
+        println!("memo contents hex {}", hex::encode(memo.0.clone()));
         let mut obj = XRPLObject::new();
         obj.add_field(13, &memo.0)?;
         Ok(obj)
@@ -122,12 +124,17 @@ impl TryFrom<&XRPLMemo> for XRPLObject {
 
 impl XRPLSerialize for XRPLMemo {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        XRPLObject::try_from(self)?.xrpl_serialize()
+        let mut obj = XRPLObject::new();
+        obj.add_field(13, &self.0)?;
+        let mut result = obj.xrpl_serialize()?;
+        result.extend(field_id(OBJECT_TYPE_CODE, 1));
+        Ok(result)
+ 
     }
 }
 
 impl XRPLTypedSerialize for XRPLMemo {
-    const TYPE_CODE: u8 = ARRAY_TYPE_CODE;
+    const TYPE_CODE: u8 = OBJECT_TYPE_CODE;
 }
 
 #[cw_serde]
@@ -155,9 +162,6 @@ impl TryFrom<&XRPLPaymentTx> for XRPLObject {
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
         obj.add_field(3, &XRPLAddress(tx.destination.to_string()))?;
 
-        let tx_hash = compute_unsigned_tx_hash(&XRPLUnsignedTx::Payment(tx.clone()))?;
-        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(tx_hash.into())]})?;
-
         Ok(obj)
     }
 }
@@ -184,9 +188,6 @@ impl TryFrom<&XRPLSignerListSetTx> for XRPLObject {
         obj.add_field(8, &XRPLPaymentAmount::Drops(tx.fee))?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
         obj.add_field(3, &HexBinary::from_hex("")?)?;
-
-        let tx_hash = compute_unsigned_tx_hash(&XRPLUnsignedTx::SignerListSet(tx.clone()))?;
-        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(tx_hash.into())]})?;
 
         obj.add_field(4, &XRPLArray{ field_code: 11, items: tx.signer_entries.clone() })?;
 
@@ -217,9 +218,6 @@ impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
         obj.add_field(3, &HexBinary::from_hex("")?)?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
 
-        let tx_hash = compute_unsigned_tx_hash(&XRPLUnsignedTx::TicketCreate(tx.clone()))?;
-        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(tx_hash.into())]})?;
-
         Ok(obj)
     }
 }
@@ -235,6 +233,7 @@ pub struct XRPLSigner {
 pub struct XRPLSignedTransaction {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>,
+    pub multisig_session_id: Uint64
 }
 
 pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
@@ -459,6 +458,10 @@ impl XRPLSerialize for XRPLSignedTransaction {
     fn xrpl_serialize(self: &XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
         let mut obj = XRPLObject::try_from(&self.unsigned_tx)?;
         obj.add_field(3, &XRPLArray{ field_code: 16, items: self.signers.clone() })?;
+        let memo_data: Vec<u8> = self.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
+        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
+        //obj.add_field(9, &XRPLMemo(memo))?;
 
         obj.xrpl_serialize()
     }
@@ -949,29 +952,30 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_xrp_payment_transaction() {
-        let signed_tx = XRPLSignedTransaction {
+        let signed_tx = XRPLSignedTransaction {    
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: "rhKnz85JUKcrAizwxNUDfqCvaUi9ZMhuwj".to_string(),
+                account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
                 fee: 30,
-                sequence: Sequence::Plain(43497365),
-                amount: XRPLPaymentAmount::Drops(1000000000),
+                sequence: Sequence::Ticket(44218193),
+                amount: XRPLPaymentAmount::Drops(100000000),
                 destination: nonempty::String::try_from("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG").unwrap(),
             }), signers: vec![
                 XRPLSigner{
-                    account: "rn7JWRhHvsvea6JMWYFuBB3MizMxbgKApf".to_string(),
-                    txn_signature: HexBinary::from(hex::decode("00CBEDBDD84D5B17EC0D24EDEA49AE78D33908E69D2885895BC0243458228E8FD5CEF5ABCA558C3518D97B0BBA1C4051BBB31AAD6E7808673562FA73FFB5F50B").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9").unwrap()),
+                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045").unwrap()),
+                    signing_pub_key: HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()),
                 },
                 XRPLSigner{
-                    account: "rM9pYgHGm1Mqohp13XfZh6kbESkQPpJAKF".to_string(),
-                    txn_signature: HexBinary::from(hex::decode("62B63EFF8ED37ACFA453A61EC98B13761EFE608E36EB437ABE42DC86B73C3114B2ED5E6C3E9428E82DC4AAB9E4A093C00F041F6F32A5392FDAEF858142F0CE02").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435").unwrap()),
+                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9").unwrap()),
+                    signing_pub_key: HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()),
                 }
-            ]
+            ],
+            multisig_session_id: Uint64::from(5461264u64),
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize().unwrap();
         assert_eq!(
-            "1200002200000000240297B79561400000003B9ACA0068400000000000001E73008114245409103F1B06F22FBCED389AAE0EFCE2F6689A831449599D50E0C1AC0CFC8D3B2A30830F3738EACC3EF3E0107321EDDC432D6E86302084DCB8EBFA6EF7452DC8CBFA552D5F843D6BD1870EC9CD10F9744000CBEDBDD84D5B17EC0D24EDEA49AE78D33908E69D2885895BC0243458228E8FD5CEF5ABCA558C3518D97B0BBA1C4051BBB31AAD6E7808673562FA73FFB5F50B8114310A592CA22E8B35B819464F8A581A36C91DE857E1E0107321ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435744062B63EFF8ED37ACFA453A61EC98B13761EFE608E36EB437ABE42DC86B73C3114B2ED5E6C3E9428E82DC4AAB9E4A093C00F041F6F32A5392FDAEF858142F0CE028114DCE722505E32B29932618C5C9819AAEA03754AA5E1F1",
+            "12000022000000002400000000202902A2B751614000000005F5E10068400000000000001E73008114447BB6E37CA4D5D89FC2E2470A64632DA9BDD9E4831449599D50E0C1AC0CFC8D3B2A30830F3738EACC3EF3E0107321025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC00885674463044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E0458114552A0D8EFCF978186CA9C37112B502D3728DA9EFE1E0107321036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE74473045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE98114BA058AB3573EA34DC934D60E719A12DE6C213DE2E1F1F9EA7D03535510E1F1",
             hex::encode_upper(encoded_signed_tx)
         );
     }
@@ -995,7 +999,8 @@ mod tests {
                     txn_signature: HexBinary::from(hex::decode("5EAF9A0190F66C663397ECD41F6043EF30DA8436ACD9ED94F65610E240E7825D26494461C5262A426870899EE9847199E18B4F36476234E1DBE834FC6265AC04").unwrap()),
                     signing_pub_key: HexBinary::from(hex::decode("ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435").unwrap()),
                 },
-            ]
+            ],
+            multisig_session_id: Uint64::from(0u64)
         };
         let encoded_signed_tx = signed_tx.xrpl_serialize().unwrap();
         assert_eq!(
@@ -1034,7 +1039,8 @@ mod tests {
                     txn_signature: HexBinary::from(hex::decode("86B8AF804C7F4881E125F4F876C9EC292EEF811D572D4D4BA7C6CD533B13FB1B9A31ADB4A71DD54405135BEFCDEF3A98564479B681242250D42154A93EB1FE04").unwrap()),
                     signing_pub_key: HexBinary::from(hex::decode("ED1B88E8E246E395E0CD45153E1579B1B43D7C1DF9B5481A34AABC43FF8562B435").unwrap()),
                 },
-            ]
+            ],
+            multisig_session_id: Uint64::from(0u64)
         };
         let encoded_signed_tx = signed_tx.xrpl_serialize().unwrap();
         assert_eq!(
