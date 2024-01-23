@@ -62,7 +62,7 @@ impl From<Event> for cosmwasm_std::Event {
                 )
                 .add_attribute("msg", HexBinary::from(msg).to_hex())
                 .add_attribute("chain", chain)
-                .add_attribute("expiry", expires_at.to_string()),
+                .add_attribute("expires_at", expires_at.to_string()),
             Event::SignatureSubmitted {
                 session_id,
                 participant,
