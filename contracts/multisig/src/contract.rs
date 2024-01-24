@@ -29,7 +29,6 @@ pub fn instantiate(
         governance: deps.api.addr_validate(&msg.governance_address)?,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
         block_expiry: msg.block_expiry,
-        grace_period: msg.grace_period,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -143,7 +142,6 @@ mod tests {
             governance_address: "governance".parse().unwrap(),
             rewards_address: REWARDS_CONTRACT.to_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
-            grace_period: 2,
         };
 
         instantiate(deps, env, info, msg)

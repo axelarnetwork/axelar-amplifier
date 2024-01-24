@@ -48,7 +48,6 @@ fn instantiate_mock_multisig(app: &mut App) -> Addr {
         governance_address: "governance".parse().unwrap(),
         rewards_address: "rewards".to_string(),
         block_expiry: SIGNATURE_BLOCK_EXPIRY,
-        grace_period: 2,
     };
 
     app.instantiate_contract(
