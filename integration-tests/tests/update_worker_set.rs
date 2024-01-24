@@ -275,8 +275,8 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     ));
     assert_eq!(proof.message_ids.len(), 0);
 
-    // confirm the initial rotation by starting and ending a poll
-    test_utils::process_poll(
+    // starting and ending a poll as first rotation
+    test_utils::execute_worker_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
         &ethereum.voting_verifier_address,
@@ -285,9 +285,8 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     );
 
     // try to rotate again. this should be ignored, because the first rotation is not yet confirmed
-    let second_worker_details = vec![("worker5".to_string(), 5)];
     let second_wave_of_new_workers =
-        test_utils::create_new_workers_vec(chains.clone(), second_worker_details);
+        test_utils::create_new_workers_vec(chains.clone(), vec![("worker5".to_string(), 5)]);
 
     let second_wave_session_id = test_utils::update_registry_and_construct_proof(
         &mut protocol,
@@ -314,7 +313,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let second_wave_worker_set =
         test_utils::workers_to_worker_set(&mut protocol, &second_wave_of_new_workers);
 
-    test_utils::process_poll(
+    test_utils::execute_worker_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
         &ethereum.voting_verifier_address,
