@@ -163,7 +163,7 @@ where
             None => event_sub,
         };
 
-        let event_processor = EventProcessor::new(token.child_token());
+        let event_processor = EventProcessor::with_cancel(token.child_token());
         let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
             broadcaster,
             broadcast_cfg.batch_gas_limit,
