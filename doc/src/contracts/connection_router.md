@@ -88,37 +88,6 @@ pub struct MessageRouted {
 }
 ```
 
-### Entity Structure Description
-
-```Rust
-pub struct Config {
-    pub admin: Addr,
-    pub governance: Addr,
-    pub nexus_gateway: Addr // Connection between Axelar core and Amplifier
-}
-```
-The main struct is called `RouterStore`, which has a persistent storage of type `Storage`. The functionalities
-of `RouterStore` are implemented in a trait named `Store`:
-
-```Rust
-pub trait Store {
-    fn save_config() {} 
-    fn load_config() {} // Returns previously saved Config
-    fn load_chain_by_gateway() {} // Calls chain_endpoints() with gateway address
-    fn load_chain_by_chain_name() {} // Calls chain_endpoints() with ChainName
-}
-```
-Each chain is known by a `ChainEndpoint`:
-
-```Rust
-pub struct ChainEndpoint {
-    pub name: ChainName, //String
-    pub gateway: Gateway, //Address of deployed gateway
-    pub frozen_status: FlagSet<GatewayDirection>,
-}
-```
-
-
 
 
 
