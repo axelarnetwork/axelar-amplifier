@@ -290,8 +290,8 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
 
     let second_wave_session_id = test_utils::update_registry_and_construct_proof(
         &mut protocol,
-        &second_wave_of_new_workers,
-        &first_wave_of_new_workers, // as previous_workers compared to the second wave of new workers
+        &second_wave_of_new_workers, // as new_workers
+        &first_wave_of_new_workers, // as workers_to_remove
         &initial_workers,
         &ethereum.multisig_prover_address,
         min_worker_bond,
