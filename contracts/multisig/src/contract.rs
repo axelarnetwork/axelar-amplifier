@@ -28,6 +28,7 @@ pub fn instantiate(
     let config = Config {
         governance: deps.api.addr_validate(&msg.governance_address)?,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
+        block_expiry: msg.block_expiry,
         grace_period: msg.grace_period,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -58,6 +59,7 @@ pub fn execute(
                 .transpose()?; // TODO: handle callback
             execute::start_signing_session(
                 deps,
+                env,
                 worker_set_id,
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
@@ -131,6 +133,8 @@ mod tests {
     const PROVER: &str = "prover";
     const REWARDS_CONTRACT: &str = "rewards";
 
+    const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
+
     fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
         let env = mock_env();
@@ -138,6 +142,7 @@ mod tests {
         let msg = InstantiateMsg {
             governance_address: "governance".parse().unwrap(),
             rewards_address: REWARDS_CONTRACT.to_string(),
+            block_expiry: SIGNATURE_BLOCK_EXPIRY,
             grace_period: 2,
         };
 

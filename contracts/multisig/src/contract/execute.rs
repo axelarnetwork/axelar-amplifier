@@ -15,10 +15,12 @@ use super::*;
 
 pub fn start_signing_session(
     deps: DepsMut,
+    env: Env,
     worker_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
     let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
 
     let session_id = SIGNING_SESSION_COUNTER.update(
@@ -33,12 +35,15 @@ pub fn start_signing_session(
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
+    let expires_at = env.block.height + config.block_expiry;
+
     let event = Event::SigningStarted {
         session_id,
         worker_set_id,
         pub_keys: worker_set.get_pub_keys(),
         msg,
         chain_name,
+        expires_at,
     };
 
     Ok(Response::new()
