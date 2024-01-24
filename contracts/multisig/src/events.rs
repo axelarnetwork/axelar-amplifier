@@ -17,6 +17,7 @@ pub enum Event {
         pub_keys: HashMap<String, PublicKey>,
         msg: MsgToSign,
         chain_name: ChainName,
+        expires_at: u64,
     },
     // Emitted when a participants submits a signature
     SignatureSubmitted {
@@ -50,6 +51,7 @@ impl From<Event> for cosmwasm_std::Event {
                 pub_keys,
                 msg,
                 chain_name: chain,
+                expires_at,
             } => cosmwasm_std::Event::new("signing_started")
                 .add_attribute("session_id", session_id)
                 .add_attribute("worker_set_id", worker_set_id)
@@ -59,7 +61,8 @@ impl From<Event> for cosmwasm_std::Event {
                         .expect("violated invariant: pub_keys are not serializable"),
                 )
                 .add_attribute("msg", HexBinary::from(msg).to_hex())
-                .add_attribute("chain", chain),
+                .add_attribute("chain", chain)
+                .add_attribute("expires_at", expires_at.to_string()),
             Event::SignatureSubmitted {
                 session_id,
                 participant,

@@ -1,17 +1,19 @@
 use error_stack::{Result, ResultExt};
-use std::{
-    sync::{atomic::AtomicU64, Arc},
-    time::Duration,
-};
+use std::time::Duration;
 use thiserror::Error;
-use tokio::{select, time};
+use tokio::{
+    select,
+    sync::watch::{self, Receiver, Sender},
+    time,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::tm_client::TmClient;
 
 pub struct BlockHeightMonitor<T: TmClient + Sync> {
-    latest_height: Arc<AtomicU64>,
+    latest_height_tx: Sender<u64>,
+    latest_height_rx: Receiver<u64>,
     client: T,
     poll_interval: Duration,
 }
@@ -19,7 +21,7 @@ pub struct BlockHeightMonitor<T: TmClient + Sync> {
 #[derive(Error, Debug)]
 pub enum BlockHeightMonitorError {
     #[error("failed to get latest block")]
-    LatestBlockError,
+    LatestBlock,
 }
 
 impl<T: TmClient + Sync> BlockHeightMonitor<T> {
@@ -27,9 +29,12 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
         let latest_block = client
             .latest_block()
             .await
-            .change_context(BlockHeightMonitorError::LatestBlockError)?;
+            .change_context(BlockHeightMonitorError::LatestBlock)?;
+        let (latest_height_tx, latest_height_rx) =
+            watch::channel(latest_block.block.header.height.into());
         Ok(Self {
-            latest_height: Arc::new(AtomicU64::new(latest_block.block.header.height.into())),
+            latest_height_tx,
+            latest_height_rx,
             client,
             poll_interval: Duration::new(3, 0),
         })
@@ -47,8 +52,10 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
         loop {
             select! {
                 _ = interval.tick() => {
-                    let latest_block = self.client.latest_block().await.change_context(BlockHeightMonitorError::LatestBlockError)?;
-                    self.latest_height.store(latest_block.block.header.height.into(), std::sync::atomic::Ordering::SeqCst);
+                    let latest_block = self.client.latest_block().await.change_context(BlockHeightMonitorError::LatestBlock)?;
+
+                    // expect is ok here, because the latest_height_rx receiver is never closed, and thus the channel should always be open
+                    self.latest_height_tx.send(latest_block.block.header.height.into()).expect("failed to publish latest block height");
                 },
                 _ = token.cancelled() => {
                     info!("block height monitor exiting");
@@ -60,8 +67,8 @@ impl<T: TmClient + Sync> BlockHeightMonitor<T> {
     }
 
     #[allow(dead_code)]
-    pub fn latest_block_height(&self) -> Arc<AtomicU64> {
-        self.latest_height.clone()
+    pub fn latest_block_height(&self) -> Receiver<u64> {
+        self.latest_height_rx.clone()
     }
 }
 
@@ -113,10 +120,10 @@ mod tests {
         let latest_block_height = monitor.latest_block_height();
         let handle = tokio::spawn(async move { monitor.run(exit_token).await });
 
-        let mut prev_height = latest_block_height.load(std::sync::atomic::Ordering::SeqCst);
+        let mut prev_height = latest_block_height.borrow().clone();
         for _ in 1..10 {
             time::sleep(poll_interval * 2).await;
-            let next_height = latest_block_height.load(std::sync::atomic::Ordering::SeqCst);
+            let next_height = latest_block_height.borrow().clone();
             assert!(next_height > prev_height);
             prev_height = next_height;
         }
