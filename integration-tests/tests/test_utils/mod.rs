@@ -588,8 +588,8 @@ pub fn create_new_workers_vec(
 pub fn update_registry_and_construct_proof(
     protocol: &mut Protocol,
     new_workers: &Vec<Worker>,
-    previous_workers: &Vec<Worker>,
-    initial_workers: &Vec<Worker>,
+    workers_to_remove: &Vec<Worker>,
+    current_workers: &Vec<Worker>,
     chain_multisig_prover_address: &Addr,
     min_worker_bond: Uint128,
 ) -> Uint64 {
@@ -611,7 +611,7 @@ pub fn update_registry_and_construct_proof(
         &mut protocol.app,
         protocol.service_registry_address.clone(),
         protocol.governance_address.clone(),
-        previous_workers,
+        workers_to_remove,
         protocol.service_name.clone(),
     );
 
@@ -621,7 +621,7 @@ pub fn update_registry_and_construct_proof(
         &chain_multisig_prover_address,
         &protocol.multisig_address,
         &Vec::<Message>::new(),
-        &initial_workers,
+        &current_workers,
     );
 
     session_id
