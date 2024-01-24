@@ -571,19 +571,18 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     )
 }
 
-pub fn create_new_workers_vec(chains: Vec<ChainName>, worker_details: Vec<(String, u32)>) -> Vec<Worker> {
-    let mut new_workers = Vec::new();
-
-    for (name, seed) in worker_details {
-        let new_worker = Worker {
-            addr: Addr::unchecked(&name),
+pub fn create_new_workers_vec(
+    chains: Vec<ChainName>,
+    worker_details: Vec<(String, u32)>,
+) -> Vec<Worker> {
+    worker_details
+        .into_iter()
+        .map(|(name, seed)| Worker {
+            addr: Addr::unchecked(name),
             supported_chains: chains.clone(),
             key_pair: generate_key(seed),
-        };
-        new_workers.push(new_worker);
-    }
-
-    new_workers
+        })
+        .collect()
 }
 
 pub fn update_registry_and_construct_proof(
