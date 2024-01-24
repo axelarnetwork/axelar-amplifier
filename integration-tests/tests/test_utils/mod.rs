@@ -624,7 +624,7 @@ pub fn update_registry_and_construct_proof(
     )
 }
 
-pub fn process_poll(
+pub fn execute_worker_set_poll(
     protocol: &mut Protocol,
     relayer_addr: &Addr,
     verifier_address: &Addr,
