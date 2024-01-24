@@ -243,6 +243,7 @@ mod test {
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
             chain_name: rand_chain_name(),
+            expires_at: 100u64,
         };
 
         let mut event: cosmwasm_std::Event = poll_started.into();

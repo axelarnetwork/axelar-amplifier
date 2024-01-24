@@ -20,6 +20,8 @@ use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
+pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
+
 fn get_event_attribute<'a>(
     events: &'a [Event],
     event_type: &str,
@@ -335,6 +337,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         multisig::msg::InstantiateMsg {
             rewards_address: rewards_address.to_string(),
             governance_address: governance_address.to_string(),
+            block_expiry: SIGNATURE_BLOCK_EXPIRY,
             grace_period: 2,
         },
     );
