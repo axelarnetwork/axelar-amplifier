@@ -593,7 +593,6 @@ pub fn update_registry_and_construct_proof(
     chain_multisig_prover_address: &Addr,
     min_worker_bond: Uint128,
 ) -> Uint64 {
-
     // Register new workers
     register_workers(
         &mut protocol.app,
@@ -616,15 +615,13 @@ pub fn update_registry_and_construct_proof(
     );
 
     // Construct proof and sign
-    let session_id = construct_proof_and_sign(
+    construct_proof_and_sign(
         &mut protocol.app,
         &chain_multisig_prover_address,
         &protocol.multisig_address,
         &Vec::<Message>::new(),
         &current_workers,
-    );
-
-    session_id
+    )
 }
 
 pub fn process_poll(
@@ -643,24 +640,14 @@ pub fn process_poll(
     );
 
     // Vote for the worker set
-    vote_true_for_worker_set(
-        &mut protocol.app,
-        verifier_address,
-        new_workers,
-        poll_id,
-    );
+    vote_true_for_worker_set(&mut protocol.app, verifier_address, new_workers, poll_id);
 
     // Advance to expiration height
     advance_at_least_to_height(&mut protocol.app, expiry);
 
     // End the poll
-    end_poll(
-        &mut protocol.app,
-        verifier_address,
-        poll_id,
-    );
+    end_poll(&mut protocol.app, verifier_address, poll_id);
 }
-
 
 #[derive(Clone)]
 pub struct Chain {
