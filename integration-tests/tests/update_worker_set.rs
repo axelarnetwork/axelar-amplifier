@@ -281,7 +281,6 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         &Addr::unchecked("relayer"),
         &ethereum.voting_verifier_address,
         &first_wave_of_new_workers,
-        &first_wave_worker_set,
     );
 
     // try to rotate again. this should be ignored, because the first rotation is not yet confirmed
@@ -310,15 +309,11 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     assert_eq!(latest_worker_set, first_wave_worker_set);
 
     // attempt to confirm the second rotation
-    let second_wave_worker_set =
-        test_utils::workers_to_worker_set(&mut protocol, &second_wave_of_new_workers);
-
     test_utils::execute_worker_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
         &ethereum.voting_verifier_address,
         &second_wave_of_new_workers,
-        &second_wave_worker_set,
     );
 
     let response = protocol.app.execute_contract(

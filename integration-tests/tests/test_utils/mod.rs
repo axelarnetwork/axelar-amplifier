@@ -631,8 +631,10 @@ pub fn execute_worker_set_poll(
     relayer_addr: &Addr,
     verifier_address: &Addr,
     new_workers: &Vec<Worker>,
-    new_worker_set: &WorkerSet,
 ) {
+    // Create worker set
+    let new_worker_set = workers_to_worker_set(protocol, new_workers);
+
     // Create worker set poll
     let (poll_id, expiry) = create_worker_set_poll(
         &mut protocol.app,
