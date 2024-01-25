@@ -632,14 +632,14 @@ pub fn execute_worker_set_poll(
     relayer_addr: &Addr,
     verifier_address: &Addr,
     new_workers: &Vec<Worker>,
-    expected_new_worker_set: &WorkerSet,
+    new_worker_set: &WorkerSet,
 ) {
     // Create worker set poll
     let (poll_id, expiry) = create_worker_set_poll(
         &mut protocol.app,
         relayer_addr.clone(),
         verifier_address.clone(),
-        expected_new_worker_set.clone(),
+        new_worker_set.clone(),
     );
 
     // Vote for the worker set

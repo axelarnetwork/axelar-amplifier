@@ -244,9 +244,10 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     assert_eq!(worker_set, simulated_worker_set);
 
     // creating third and fourth workers
-    let worker_details = vec![("worker3".to_string(), 2), ("worker4".to_string(), 3)];
-    let first_wave_of_new_workers =
-        test_utils::create_new_workers_vec(chains.clone(), worker_details);
+    let first_wave_of_new_workers = test_utils::create_new_workers_vec(
+        chains.clone(),
+        vec![("worker3".to_string(), 2), ("worker4".to_string(), 3)],
+    );
 
     // consists of workers three and four
     let first_wave_worker_set =
@@ -256,7 +257,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let session_id = test_utils::update_registry_and_construct_proof(
         &mut protocol,
         &first_wave_of_new_workers,
-        &initial_workers, // as previous_workers compared to the first wave of new workers
+        &initial_workers,
         &initial_workers,
         &ethereum.multisig_prover_address,
         min_worker_bond,
@@ -275,7 +276,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     ));
     assert_eq!(proof.message_ids.len(), 0);
 
-    // starting and ending a poll as first rotation
+    // starting and ending a poll for the first worker set rotation
     test_utils::execute_worker_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
@@ -290,8 +291,8 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
 
     let second_wave_session_id = test_utils::update_registry_and_construct_proof(
         &mut protocol,
-        &second_wave_of_new_workers, // as new_workers
-        &first_wave_of_new_workers, // as workers_to_remove
+        &second_wave_of_new_workers,
+        &first_wave_of_new_workers,
         &initial_workers,
         &ethereum.multisig_prover_address,
         min_worker_bond,
