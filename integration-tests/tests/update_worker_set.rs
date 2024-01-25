@@ -243,13 +243,12 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
 
     assert_eq!(worker_set, simulated_worker_set);
 
-    // creating third and fourth workers
+    // creating a new worker set that only consists of two new workers
     let first_wave_of_new_workers = test_utils::create_new_workers_vec(
         chains.clone(),
         vec![("worker3".to_string(), 2), ("worker4".to_string(), 3)],
     );
 
-    // consists of workers three and four
     let first_wave_worker_set =
         test_utils::workers_to_worker_set(&mut protocol, &first_wave_of_new_workers);
 
