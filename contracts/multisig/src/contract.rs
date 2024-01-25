@@ -586,7 +586,7 @@ mod tests {
             assert!(!res
                 .events
                 .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted before expiry
+                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted
         }
     }
 

@@ -282,6 +282,7 @@ mod test {
         worker: TMAddress,
         multisig: TMAddress,
         signer: SharableEcdsaClient,
+        latest_block_height: u64,
     ) -> Handler<QueuedBroadcasterClient> {
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
@@ -291,8 +292,7 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        let expiration = 100u64;
-        let (tx, rx) = watch::channel(expiration - 1);
+        let (tx, rx) = watch::channel(latest_block_height);
 
         Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
@@ -363,6 +363,7 @@ mod test {
             rand_account(),
             rand_account(),
             SharableEcdsaClient::new(client),
+            100u64,
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());
@@ -379,6 +380,7 @@ mod test {
             rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
+            100u64,
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());
@@ -398,11 +400,32 @@ mod test {
             worker,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
+            99u64,
         );
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
             Error::Sign
         ));
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_if_session_expired() {
+        let mut client = MockEcdsaClient::new();
+        client
+            .expect_sign()
+            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let event = signing_started_event();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let worker = signing_started.pub_keys.keys().next().unwrap().clone();
+        let handler = get_handler(
+            worker,
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            SharableEcdsaClient::new(client),
+            101u64,
+        );
+
+        assert!(handler.handle(&signing_started_event()).await.is_ok());
     }
 }
