@@ -8,6 +8,7 @@ pub use crate::{
 
 pub mod counter;
 mod error;
+pub mod event;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;
