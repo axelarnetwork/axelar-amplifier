@@ -338,7 +338,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             rewards_address: rewards_address.to_string(),
             governance_address: governance_address.to_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
-            grace_period: 2,
         },
     );
     let service_registry_address = instantiate_service_registry(
