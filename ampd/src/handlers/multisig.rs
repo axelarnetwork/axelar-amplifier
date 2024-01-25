@@ -9,7 +9,8 @@ use error_stack::ResultExt;
 use hex::encode;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
-use tracing::info;
+use tokio::sync::watch::Receiver;
+use tracing::{info, info_span};
 
 use events::Error::EventTypeMismatch;
 use events_derive;
@@ -34,6 +35,7 @@ struct SigningStartedEvent {
     pub_keys: HashMap<TMAddress, PublicKey>,
     #[serde(with = "hex")]
     msg: MessageDigest,
+    expires_at: u64,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -74,6 +76,7 @@ where
     multisig: TMAddress,
     broadcaster: B,
     signer: SharableEcdsaClient,
+    latest_block_height: Receiver<u64>,
 }
 
 impl<B> Handler<B>
@@ -85,12 +88,14 @@ where
         multisig: TMAddress,
         broadcaster: B,
         signer: SharableEcdsaClient,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             multisig,
             broadcaster,
             signer,
+            latest_block_height,
         }
     }
 
@@ -132,6 +137,7 @@ where
             session_id,
             pub_keys,
             msg,
+            expires_at,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(());
@@ -148,6 +154,15 @@ where
             msg = encode(&msg),
             "get signing request",
         );
+
+        let latest_block_height = *self.latest_block_height.borrow();
+        if latest_block_height >= expires_at {
+            info!(
+                session_id = session_id.to_string(),
+                "skipping expired signing session"
+            );
+            return Ok(());
+        }
 
         match pub_keys.get(&self.worker) {
             Some(pub_key) => {
@@ -189,6 +204,7 @@ mod test {
     use rand::rngs::OsRng;
     use rand::Rng;
     use tendermint::abci;
+    use tokio::sync::watch;
 
     use multisig::events::Event::SigningStarted;
     use multisig::key::PublicKey;
@@ -275,7 +291,10 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        Handler::new(worker, multisig, broadcaster.client(), signer)
+        let expiration = 100u64;
+        let (tx, rx) = watch::channel(expiration - 1);
+
+        Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
 
     #[test]
