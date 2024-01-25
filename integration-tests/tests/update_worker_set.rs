@@ -252,7 +252,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let first_wave_worker_set =
         test_utils::workers_to_worker_set(&mut protocol, &first_wave_of_new_workers);
 
-    // register the new workers (3 and 4), deregister old workers, then create proof and get id
+    // register the new workers (3 and 4), deregister all old workers, then create proof and get id
     let session_id = test_utils::update_registry_and_construct_proof(
         &mut protocol,
         &first_wave_of_new_workers,
