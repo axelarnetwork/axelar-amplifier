@@ -88,6 +88,9 @@ pub struct MessageRouted {
 }
 ```
 
+
+
+
 ## Connection Router graph
 
 ```mermaid
@@ -135,12 +138,15 @@ Relayer A->>+Gateway A: gateway::ExecuteMsg::RouteMessages
 Gateway A->>+Connection Router: connection_router::ExecuteMsg::RouteMessages
 Connection Router->>+Gateway B: gateway::ExecuteMsg::RouteMessages
 Multisig Prover->>+Relayer B: constructs proof
-Relayer B->>+External Gateway B: 
+Relayer B->>+External Gateway B: sends proof 
 ```
 
 1. The External Gateway emits an event that is picked up by the Relayer.
 2. Relayer relays the event to the Gateway as a message.
 3. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Connection Router.
-4. Connection Router sends outgoing messages to the destination Gateway.
+4. Connection router sends the outgoing messages from Gateway A to Gateway B, which is the representation of destination chain on Axelar chain.
 5. The Multisig Prover takes the messages stored in the destination Gateway and constructs a proof.
-6. The Relayer sends the proof to the destination's External Gateway.
+6. The Relayer sends the proof, which also contains messages, to the destination's External Gateway.
+
+### Notes
+1. External Gateways are deployed on blockchains other than Axelar, such as Ethereum and Avalanche, while internal gateways reside on Axelar's chain.
