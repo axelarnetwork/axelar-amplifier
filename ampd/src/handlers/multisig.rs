@@ -10,7 +10,7 @@ use hex::encode;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
-use tracing::{info, info_span};
+use tracing::info;
 
 use events::Error::EventTypeMismatch;
 use events_derive;
