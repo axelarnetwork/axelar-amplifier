@@ -53,7 +53,7 @@ pub fn validate_session_signature(
     pub_key: &PublicKey,
     block_height: u64,
 ) -> Result<(), ContractError> {
-    if (session.expires_at < block_height) {
+    if session.expires_at < block_height {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });

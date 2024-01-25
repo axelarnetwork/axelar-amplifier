@@ -545,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    fn submit_signature_during_grace_period() {
+    fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -561,7 +561,7 @@ mod tests {
             let signer = signers.get(1).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
-            // third signature, grace period
+            // third signature
             let signer = signers.get(2).unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
@@ -586,12 +586,12 @@ mod tests {
             assert!(!res
                 .events
                 .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted during grace period
+                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted before expiry
         }
     }
 
     #[test]
-    fn submit_signature_grace_period_over() {
+    fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -607,10 +607,10 @@ mod tests {
             let signer = signers.get(1).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
-            // third signature, grace period over
+            // third signature, expiration block passed
             let signer = signers.get(2).unwrap().to_owned();
             let mut env = mock_env();
-            env.block.height += 10;
+            env.block.height += 101;
             let res = do_sign(deps.as_mut(), env, session_id, &signer);
 
             assert_eq!(
