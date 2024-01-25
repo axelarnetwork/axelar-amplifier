@@ -16,15 +16,17 @@ pub struct SigningSession {
     pub worker_set_id: String,
     pub msg: MsgToSign,
     pub state: MultisigState,
+    pub expires_at: u64,
 }
 
 impl SigningSession {
-    pub fn new(session_id: Uint64, worker_set_id: String, msg: MsgToSign) -> Self {
+    pub fn new(session_id: Uint64, worker_set_id: String, msg: MsgToSign, expires_at: u64) -> Self {
         Self {
             id: session_id,
             worker_set_id,
             msg,
             state: MultisigState::Pending,
+            expires_at,
         }
     }
 
@@ -49,11 +51,9 @@ pub fn validate_session_signature(
     signer: &Addr,
     signature: &Signature,
     pub_key: &PublicKey,
-    grace_period: u64,
     block_height: u64,
 ) -> Result<(), ContractError> {
-    if matches!(session.state, MultisigState::Completed { completed_at } if completed_at + grace_period < block_height)
-    {
+    if session.expires_at < block_height {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
@@ -112,7 +112,9 @@ mod tests {
         let worker_set = build_worker_set(KeyType::Ecdsa, &signers);
 
         let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
+        let expires_at = 12345;
+        let session =
+            SigningSession::new(Uint64::one(), worker_set_id, message.clone(), expires_at);
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
@@ -143,7 +145,9 @@ mod tests {
         let worker_set = build_worker_set(key_type, &signers);
 
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
+        let expires_at = 12345;
+        let session =
+            SigningSession::new(Uint64::one(), worker_set_id, message.clone(), expires_at);
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
@@ -194,31 +198,25 @@ mod tests {
             let signature = config.signatures.values().next().unwrap();
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            assert!(
-                validate_session_signature(&session, &signer, signature, pub_key, 0, 0).is_ok()
-            );
+            assert!(validate_session_signature(&session, &signer, signature, pub_key, 0).is_ok());
         }
     }
 
     #[test]
-    fn success_validation_grace_period() {
+    fn success_validation_expiry_not_reached() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let completed_at = 12345;
-            let grace_period = 10;
-            let block_height = completed_at + grace_period; // inclusive
+            let block_height = 12340; // inclusive
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            session.state = MultisigState::Completed { completed_at };
             assert!(validate_session_signature(
                 &session,
                 &signer,
                 signature,
                 pub_key,
-                grace_period,
                 block_height
             )
             .is_ok());
@@ -232,20 +230,11 @@ mod tests {
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let completed_at = 12345;
-            let grace_period = 10;
-            let block_height = completed_at + grace_period + 1;
+            let block_height = 12346;
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            session.state = MultisigState::Completed { completed_at };
-            let result = validate_session_signature(
-                &session,
-                &signer,
-                signature,
-                pub_key,
-                grace_period,
-                block_height,
-            );
+            let result =
+                validate_session_signature(&session, &signer, signature, pub_key, block_height);
 
             assert_eq!(
                 result.unwrap_err(),
@@ -273,7 +262,7 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, 0);
+            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0);
 
             assert_eq!(
                 result.unwrap_err(),

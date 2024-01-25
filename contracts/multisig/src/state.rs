@@ -16,7 +16,6 @@ pub struct Config {
     pub governance: Addr,
     pub rewards_contract: Addr,
     pub block_expiry: u64, // number of blocks after which a signing session expires
-    pub grace_period: u64, // TODO: add update mechanism to change this after instantiation
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
