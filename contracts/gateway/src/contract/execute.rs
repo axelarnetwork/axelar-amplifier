@@ -142,7 +142,7 @@ where
 
         let statuses = query_response.into_iter().collect::<HashMap<_, _>>();
 
-        Ok(msgs.into_iter().partition(|msg| -> bool {
+        Ok(msgs.into_iter().partition(|msg| {
             statuses
                 .get(&msg.cc_id)
                 .copied()

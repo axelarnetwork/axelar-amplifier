@@ -30,8 +30,7 @@ pub fn verify_worker_set(
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
     let status = worker_set_status(deps.as_ref(), &new_operators)?;
-    if status == VerificationStatus::SucceededOnChain || status == VerificationStatus::FailedOnChain
-    {
+    if status.is_confirmed() {
         return Err(ContractError::WorkerSetAlreadyConfirmed);
     }
 
