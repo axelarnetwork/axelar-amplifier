@@ -117,7 +117,17 @@ pub fn register_pub_key(
     deps: DepsMut,
     info: MessageInfo,
     public_key: PublicKey,
+    signed_sender_address: HexBinary,
 ) -> Result<Response, ContractError> {
+    let signed_sender_address: Signature =
+        (public_key.key_type(), signed_sender_address).try_into()?;
+
+    // to prevent anyone from registering a public key that belongs to someone else,
+    // we require the sender to sign their own address using the private key
+    if !signed_sender_address.verify(info.sender.as_bytes(), &public_key)? {
+        return Err(ContractError::InvalidPublicKeyRegistrationSignature);
+    }
+
     PUB_KEYS.save(
         deps.storage,
         (info.sender.clone(), public_key.key_type()),

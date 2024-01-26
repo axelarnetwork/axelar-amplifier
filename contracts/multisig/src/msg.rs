@@ -39,6 +39,7 @@ pub enum ExecuteMsg {
     },
     RegisterPublicKey {
         public_key: PublicKey,
+        signed_sender_address: HexBinary,
     },
     // Authorizes a contract to call StartSigningSession.
     AuthorizeCaller {

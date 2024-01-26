@@ -72,9 +72,10 @@ pub fn execute(
         ExecuteMsg::RegisterWorkerSet { worker_set } => {
             execute::register_worker_set(deps, worker_set)
         }
-        ExecuteMsg::RegisterPublicKey { public_key } => {
-            execute::register_pub_key(deps, info, public_key)
-        }
+        ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCaller { contract_address } => {
             execute::require_governance(&deps, info.sender)?;
             execute::authorize_caller(deps, contract_address)
