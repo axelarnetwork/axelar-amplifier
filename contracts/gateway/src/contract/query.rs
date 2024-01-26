@@ -1,5 +1,6 @@
 use crate::error::ContractError;
 use crate::state::OUTGOING_MESSAGES;
+use axelar_wasm_std::VerificationStatus;
 use connection_router::state::CrossChainId;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, QuerierWrapper, QueryRequest, WasmQuery};
 use error_stack::{Result, ResultExt};
@@ -10,7 +11,7 @@ pub trait Verifier {
     fn verify(
         &self,
         msg: aggregate_verifier::msg::QueryMsg,
-    ) -> Result<Vec<(CrossChainId, bool)>, ContractError>;
+    ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>;
 }
 
 pub struct VerifierApi<'a> {
@@ -22,7 +23,7 @@ impl Verifier for VerifierApi<'_> {
     fn verify(
         &self,
         msg: aggregate_verifier::msg::QueryMsg,
-    ) -> Result<Vec<(CrossChainId, bool)>, ContractError> {
+    ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
         self.querier
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.address.to_string(),
