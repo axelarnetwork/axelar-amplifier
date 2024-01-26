@@ -6,12 +6,7 @@ Poll ID to the voting verifier. The voting verifier internally maps
 a Poll ID to the messages in the Poll, to be able to call back to
 the verifier and propagate the result back to the gateway.
 
-When dealing with gateways deployed on external chains,
-there is a requirement to inform them about the workers from whom they can accept signatures. While the `service-registry`
-manages this process for the Axelar chain, an alternative mechanism is needed for external chains.
-The internal Poll enum handles this need. It is employed whenever there is a necessity to update the set of workers—whether it involves adding a 
-new worker or removing an existing one. In such cases, a message is generated, and this message must be relayed to the external gateway. It is also 
-important to confirm that the external chain has received the message to finalize the process.
+There are two types of polls: messages polls and worker set polls. Messages polls are used to verify incoming messages, while worker set polls are used to verify that the external gateway has updated it's stored worker set. Worker set polls are a necessary component of the worker set update flow. See [link to the worker set update diagram in the prover] for more details.
 
 
 
