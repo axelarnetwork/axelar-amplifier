@@ -18,7 +18,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::evm::verifier::verify_worker_set;
-use crate::evm::{json_rpc::EthereumClient, ChainName};
+use crate::evm::{finalizer, json_rpc::EthereumClient, ChainName};
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress, U256};
@@ -93,12 +93,11 @@ where
         tx_hash: Hash,
         confirmation_height: u64,
     ) -> Result<Option<TransactionReceipt>> {
-        let latest_finalized_block_height = self
-            .chain
-            .finalizer(&self.rpc_client, confirmation_height)
-            .latest_finalized_block_height()
-            .await
-            .change_context(Error::Finalizer)?;
+        let latest_finalized_block_height =
+            finalizer::pick(&self.chain, &self.rpc_client, confirmation_height)
+                .latest_finalized_block_height()
+                .await
+                .change_context(Error::Finalizer)?;
         let tx_receipt = self
             .rpc_client
             .transaction_receipt(tx_hash)

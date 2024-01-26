@@ -20,7 +20,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_message;
-use crate::evm::ChainName;
+use crate::evm::{finalizer, ChainName};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::queue::queued_broadcaster::BroadcasterClient;
@@ -96,12 +96,11 @@ where
     where
         T: IntoIterator<Item = Hash>,
     {
-        let latest_finalized_block_height = self
-            .chain
-            .finalizer(&self.rpc_client, confirmation_height)
-            .latest_finalized_block_height()
-            .await
-            .change_context(Error::Finalizer)?;
+        let latest_finalized_block_height =
+            finalizer::pick(&self.chain, &self.rpc_client, confirmation_height)
+                .latest_finalized_block_height()
+                .await
+                .change_context(Error::Finalizer)?;
 
         Ok(join_all(
             tx_hashes
