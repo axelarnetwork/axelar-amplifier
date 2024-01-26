@@ -29,7 +29,6 @@ pub fn instantiate(
         governance: deps.api.addr_validate(&msg.governance_address)?,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
         block_expiry: msg.block_expiry,
-        grace_period: msg.grace_period,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -143,7 +142,6 @@ mod tests {
             governance_address: "governance".parse().unwrap(),
             rewards_address: REWARDS_CONTRACT.to_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
-            grace_period: 2,
         };
 
         instantiate(deps, env, info, msg)
@@ -547,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    fn submit_signature_during_grace_period() {
+    fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -563,7 +561,7 @@ mod tests {
             let signer = signers.get(1).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
-            // third signature, grace period
+            // third signature
             let signer = signers.get(2).unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
@@ -588,12 +586,12 @@ mod tests {
             assert!(!res
                 .events
                 .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted during grace period
+                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted
         }
     }
 
     #[test]
-    fn submit_signature_grace_period_over() {
+    fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
@@ -609,10 +607,10 @@ mod tests {
             let signer = signers.get(1).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
-            // third signature, grace period over
+            // third signature, expiration block passed
             let signer = signers.get(2).unwrap().to_owned();
             let mut env = mock_env();
-            env.block.height += 10;
+            env.block.height += 101;
             let res = do_sign(deps.as_mut(), env, session_id, &signer);
 
             assert_eq!(

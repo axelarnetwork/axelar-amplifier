@@ -31,11 +31,12 @@ pub fn start_signing_session(
         },
     )?;
 
-    let signing_session = SigningSession::new(session_id, worker_set_id.clone(), msg.clone());
+    let expires_at = env.block.height + config.block_expiry;
+
+    let signing_session =
+        SigningSession::new(session_id, worker_set_id.clone(), msg.clone(), expires_at);
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
-
-    let expires_at = env.block.height + config.block_expiry;
 
     let event = Event::SigningStarted {
         session_id,
@@ -79,7 +80,6 @@ pub fn submit_signature(
         &info.sender,
         &signature,
         pub_key,
-        config.grace_period,
         env.block.height,
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
