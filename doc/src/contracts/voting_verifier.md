@@ -6,7 +6,8 @@ Poll ID to the voting verifier. The voting verifier internally maps
 a Poll ID to the messages in the Poll, to be able to call back to
 the verifier and propagate the result back to the gateway.
 
-There are two types of polls: messages polls and worker set polls. Messages polls are used to verify incoming messages, while worker set polls are used to verify that the external gateway has updated it's stored worker set. Worker set polls are a necessary component of the worker set update flow. See [link to the worker set update diagram in the prover] for more details.
+There are two types of polls: messages polls and worker set polls. Messages polls are used to verify incoming messages, while worker set polls are used to verify that the external gateway has updated it's stored worker set. Worker set polls are a necessary component of the worker set update flow. See [update and confirm WorkerSet sequence diagram](https://github.com/axelarnetwork/axelar-amplifier/blob/main/doc/src/contracts/multisig_prover.md#update-and-confirm-workerset-sequence-diagram)
+for more details.
 
 
 
