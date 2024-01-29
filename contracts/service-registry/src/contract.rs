@@ -98,6 +98,10 @@ pub fn execute(
             service_name,
             chains,
         } => execute::declare_chains_support(deps, info, service_name, chains),
+        ExecuteMsg::DenounceChainSupport {
+            service_name,
+            chains,
+        } => execute::denounce_chains_support(deps, info, service_name, chains),
         ExecuteMsg::BondWorker { service_name } => execute::bond_worker(deps, info, service_name),
         ExecuteMsg::UnbondWorker { service_name } => {
             execute::unbond_worker(deps, env, info, service_name)
@@ -253,6 +257,27 @@ pub mod execute {
 
         for chain in chains {
             WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
+        }
+
+        Ok(Response::new())
+    }
+
+    pub fn denounce_chains_support(
+        deps: DepsMut,
+        info: MessageInfo,
+        service_name: String,
+        chains: Vec<ChainName>,
+    ) -> Result<Response, ContractError> {
+        SERVICES
+            .may_load(deps.storage, &service_name)?
+            .ok_or(ContractError::ServiceNotFound)?;
+
+        WORKERS
+            .may_load(deps.storage, (&service_name, &info.sender))?
+            .ok_or(ContractError::WorkerNotFound)?;
+
+        for chain in chains {
+            WORKERS_PER_CHAIN.remove(deps.storage, (&service_name, &chain, &info.sender));
         }
 
         Ok(Response::new())

@@ -36,6 +36,12 @@ pub enum ExecuteMsg {
         service_name: String,
         chains: Vec<ChainName>,
     },
+    // Denounce support for the specified chains. Called by the worker.
+    DenounceChainSupport {
+        service_name: String,
+        chains: Vec<ChainName>,
+    },
+
     // Locks up any funds sent with the message as stake. Called by the worker.
     BondWorker {
         service_name: String,
