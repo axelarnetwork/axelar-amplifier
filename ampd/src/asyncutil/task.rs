@@ -10,7 +10,7 @@ pub trait Task {
     where
         Fut: Future<Output = Self::Output> + Send + 'static;
 
-    async fn execute(self, token: CancellationToken) -> Self::Output;
+    async fn run(self, token: CancellationToken) -> Self::Output;
 }
 
 /// This type represents an awaitable action that can be cancelled. It abstracts away the necessary boxing and pinning
@@ -28,7 +28,7 @@ impl<T> Task for CancellableTask<T> {
         Box::new(move |token: CancellationToken| Box::pin(task(token)))
     }
 
-    async fn execute(self, token: CancellationToken) -> Self::Output {
+    async fn run(self, token: CancellationToken) -> Self::Output {
         self(token).await
     }
 }
