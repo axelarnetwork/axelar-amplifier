@@ -26,11 +26,10 @@ pub struct EventSub<T: TmClient + Sync> {
     start_from: Option<block::Height>,
     poll_interval: Duration,
     tx: Sender<Event>,
-    token: CancellationToken,
 }
 
 impl<T: TmClient + Sync> EventSub<T> {
-    pub fn new(client: T, capacity: usize, token: CancellationToken) -> Self {
+    pub fn new(client: T, capacity: usize) -> Self {
         let (tx, _) = broadcast::channel::<Event>(capacity);
 
         EventSub {
@@ -38,7 +37,6 @@ impl<T: TmClient + Sync> EventSub<T> {
             start_from: None,
             poll_interval: Duration::new(5, 0),
             tx,
-            token,
         }
     }
 
@@ -57,7 +55,7 @@ impl<T: TmClient + Sync> EventSub<T> {
         BroadcastStream::new(self.tx.subscribe()).map_err(Report::from)
     }
 
-    pub async fn run(mut self) -> Result<(), EventSubError> {
+    pub async fn run(mut self, token: CancellationToken) -> Result<(), EventSubError> {
         let mut curr_block_height = match self.start_from {
             Some(start_from) => start_from,
             None => self.latest_block_height().await?,
@@ -67,9 +65,9 @@ impl<T: TmClient + Sync> EventSub<T> {
         loop {
             select! {
                 _ = interval.tick() => {
-                    curr_block_height = self.process_blocks_from(curr_block_height).await?.increment();
+                    curr_block_height = self.process_blocks_from(curr_block_height, &token).await?.increment();
                 },
-                _ = self.token.cancelled() => {
+                _ = token.cancelled() => {
                     info!("event sub exiting");
 
                     return Ok(())
@@ -92,6 +90,7 @@ impl<T: TmClient + Sync> EventSub<T> {
     async fn process_blocks_from(
         &mut self,
         from: block::Height,
+        token: &CancellationToken,
     ) -> Result<block::Height, EventSubError> {
         let mut height = from;
         let to = self.latest_block_height().await?;
@@ -101,7 +100,7 @@ impl<T: TmClient + Sync> EventSub<T> {
                 .attach_printable(format!("{{ block_height = {height} }}"))
                 .await?;
 
-            if self.token.is_cancelled() {
+            if token.is_cancelled() {
                 return Ok(height);
             }
 
@@ -255,11 +254,12 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let event_sub = EventSub::new(mock_client, 2 * block_count as usize, token.child_token());
+        let event_sub = EventSub::new(mock_client, 2 * block_count as usize);
         let mut client = event_sub.start_from(from_height);
         let mut stream = client.sub();
 
-        let handle = tokio::spawn(async move { client.run().await });
+        let child_token = token.child_token();
+        let handle = tokio::spawn(async move { client.run(child_token).await });
 
         for height in from_height.value()..to_height.value() {
             let event = stream.next().await;
@@ -313,10 +313,11 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let mut event_sub = EventSub::new(mock_client, 10, token.child_token());
+        let mut event_sub = EventSub::new(mock_client, 10);
         let mut stream = event_sub.sub();
 
-        let handle = tokio::spawn(async move { event_sub.run().await });
+        let child_token = token.child_token();
+        let handle = tokio::spawn(async move { event_sub.run(child_token).await });
 
         let event = stream.next().await;
         assert_eq!(event.unwrap().unwrap(), Event::BlockBegin(height));
@@ -399,17 +400,14 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let event_sub = EventSub::new(
-            mock_client,
-            block_count * event_count_per_block,
-            token.child_token(),
-        );
+        let event_sub = EventSub::new(mock_client, block_count * event_count_per_block);
         let mut client = event_sub
             .start_from(block_height)
             .poll_interval(Duration::new(0, 1e8 as u32));
         let mut stream = client.sub();
 
-        let handle = tokio::spawn(async move { client.run().await });
+        let child_token = token.child_token();
+        let handle = tokio::spawn(async move { client.run(child_token).await });
 
         for i in 1..(block_count * event_count_per_block + 1) {
             let event = stream.next().await;

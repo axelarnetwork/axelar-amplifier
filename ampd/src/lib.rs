@@ -1,5 +1,7 @@
 use std::pin::Pin;
+use std::time::Duration;
 
+use axelar_wasm_std::error::extend_err;
 use block_height_monitor::BlockHeightMonitor;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
@@ -22,8 +24,10 @@ use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
 
 use crate::config::Config;
+
 use crate::state::State;
 
+mod asyncutil;
 mod block_height_monitor;
 mod broadcaster;
 pub mod commands;
@@ -63,6 +67,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         handlers,
         tofnd_config,
         event_buffer_cap,
+        event_stream_timeout,
         service_registry: _service_registry,
     } = cfg;
 
@@ -124,7 +129,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         event_buffer_cap,
         block_height_monitor,
     )
-    .configure_handlers(worker, handlers)
+    .configure_handlers(worker, handlers, event_stream_timeout)
 }
 
 struct App<T>
@@ -157,13 +162,13 @@ where
     ) -> Self {
         let token = CancellationToken::new();
 
-        let event_sub = event_sub::EventSub::new(tm_client, event_buffer_cap, token.child_token());
+        let event_sub = event_sub::EventSub::new(tm_client, event_buffer_cap);
         let event_sub = match state_updater.state().min_handler_block_height() {
             Some(min_height) => event_sub.start_from(min_height.increment()),
             None => event_sub,
         };
 
-        let event_processor = EventProcessor::with_cancel(token.child_token());
+        let event_processor = EventProcessor::new();
         let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
             broadcaster,
             broadcast_cfg.batch_gas_limit,
@@ -187,6 +192,7 @@ where
         mut self,
         worker: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
+        stream_timeout: Duration,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
             match config {
@@ -204,6 +210,7 @@ where
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
+                    stream_timeout,
                 ),
                 handlers::config::Config::EvmWorkerSetVerifier {
                     chain,
@@ -219,6 +226,7 @@ where
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
+                    stream_timeout,
                 ),
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
                     .configure_handler(
@@ -229,6 +237,7 @@ where
                             self.broadcaster.client(),
                             self.ecdsa_client.clone(),
                         ),
+                        stream_timeout,
                     ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
@@ -242,6 +251,7 @@ where
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
+                    stream_timeout,
                 ),
                 handlers::config::Config::SuiWorkerSetVerifier {
                     cosmwasm_contract,
@@ -255,6 +265,7 @@ where
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
+                    stream_timeout,
                 ),
             }
         }
@@ -262,7 +273,7 @@ where
         Ok(self)
     }
 
-    fn configure_handler<L, H>(&mut self, label: L, handler: H)
+    fn configure_handler<L, H>(&mut self, label: L, handler: H, stream_timeout: Duration)
     where
         L: AsRef<str>,
         H: EventHandler + Send + Sync + 'static,
@@ -281,7 +292,8 @@ where
                 completed_height.increment(),
             )),
         };
-        self.event_processor.add_handler(handler, sub);
+        self.event_processor
+            .add_handler(handler, sub, stream_timeout);
     }
 
     async fn run(self) -> (State, Result<(), Error>) {
@@ -311,16 +323,24 @@ where
         });
 
         let (state_tx, mut state_rx) = oneshot::channel::<State>();
-        let mut set = JoinSet::new();
-        set.spawn(event_sub.run().change_context(Error::EventSub));
-        set.spawn(event_processor.run().change_context(Error::EventProcessor));
-        set.spawn(broadcaster.run().change_context(Error::Broadcaster));
-        set.spawn(
+        let mut running_processes = JoinSet::new();
+        running_processes.spawn(
+            event_sub
+                .run(token.child_token())
+                .change_context(Error::EventSub),
+        );
+        running_processes.spawn(
+            event_processor
+                .run(token.child_token())
+                .change_context(Error::EventProcessor),
+        );
+        running_processes.spawn(broadcaster.run().change_context(Error::Broadcaster));
+        running_processes.spawn(
             block_height_monitor
-                .run(token.clone())
+                .run(token.child_token())
                 .change_context(Error::BlockHeightMonitor),
         );
-        set.spawn(async move {
+        running_processes.spawn(async move {
             // assert: the app must wait for this task to exit before trying to receive the state
             state_tx
                 .send(state_updater.run().await)
@@ -328,16 +348,23 @@ where
             Ok(())
         });
 
-        let execution_result = match (set.join_next().await, token.is_cancelled()) {
-            (Some(result), false) => {
-                token.cancel();
-                result.unwrap_or_else(|err| Err(err).change_context(Error::Task))
-            }
-            (Some(_), true) => Ok(()),
-            (None, _) => panic!("all tasks exited unexpectedly"),
-        };
+        let total_running_processes = running_processes.len();
+        let mut execution_result = Ok(());
+        while let Some(result) = running_processes.join_next().await {
+            token.cancel();
 
-        while (set.join_next().await).is_some() {}
+            info!(
+                "shutting down processes ({}/{})...",
+                running_processes.len(),
+                total_running_processes
+            );
+
+            execution_result = match result.change_context(Error::Task) {
+                Err(err) | Ok(Err(err)) => extend_err(execution_result, err),
+                Ok(_) => execution_result,
+            };
+        }
+
         // assert: all tasks have exited, it is safe to receive the state
         let state = state_rx
             .try_recv()

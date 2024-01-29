@@ -24,3 +24,15 @@ where
         ContractError::Structured(LoggableError::from(&report))
     }
 }
+
+pub fn extend_err<T: Context>(
+    result: error_stack::Result<(), T>,
+    added_error: Report<T>,
+) -> error_stack::Result<(), T> {
+    if let Err(mut base_err) = result {
+        base_err.extend_one(added_error);
+        Err(base_err)
+    } else {
+        Err(added_error)
+    }
+}
