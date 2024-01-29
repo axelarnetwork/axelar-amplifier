@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
-use axelar_wasm_std::snapshot;
+use axelar_wasm_std::{snapshot, VerificationStatus};
 use connection_router::state::{ChainName, CrossChainId, Message};
 use service_registry::state::Worker;
 
@@ -39,8 +39,15 @@ pub fn construct_proof(
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
 
             if let Some(new_worker_set) = new_worker_set {
-                save_next_worker_set(deps.storage, &new_worker_set)?;
-                builder.add_new_worker_set(new_worker_set)?;
+                match save_next_worker_set(deps.storage, &new_worker_set) {
+                    Ok(()) => {
+                        builder.add_new_worker_set(new_worker_set)?;
+                    }
+                    Err(ContractError::WorkerSetConfirmationInProgress) => {}
+                    Err(other_error) => {
+                        return Err(other_error);
+                    }
+                }
             }
 
             for msg in messages {
@@ -179,7 +186,8 @@ fn save_next_worker_set(
         return Err(ContractError::WorkerSetConfirmationInProgress);
     }
 
-    Ok(NEXT_WORKER_SET.save(storage, new_worker_set)?)
+    NEXT_WORKER_SET.save(storage, new_worker_set)?;
+    Ok(())
 }
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
@@ -234,16 +242,16 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
 
-    let query = voting_verifier::msg::QueryMsg::IsWorkerSetVerified {
+    let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
         new_operators: make_operators(worker_set.clone(), config.encoder),
     };
 
-    let is_confirmed: bool = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
         msg: to_binary(&query)?,
     }))?;
 
-    if !is_confirmed {
+    if status != VerificationStatus::SucceededOnChain {
         return Err(ContractError::WorkerSetNotConfirmed);
     }
 

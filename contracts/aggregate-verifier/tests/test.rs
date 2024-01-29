@@ -1,5 +1,6 @@
 use aggregate_verifier::contract::*;
 use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
+use axelar_wasm_std::VerificationStatus;
 use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
@@ -56,7 +57,7 @@ fn verify_messages_empty() {
             &[],
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(ret, vec![]);
 }
 
@@ -92,12 +93,12 @@ fn verify_messages_not_verified() {
             &[],
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|msg| (msg.cc_id.clone(), false))
-            .collect::<Vec<(CrossChainId, bool)>>()
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::None))
+            .collect::<Vec<(_, _)>>()
     );
 }
 
@@ -135,12 +136,12 @@ fn verify_messages_verified() {
             &[],
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         msgs.iter()
-            .map(|msg| (msg.cc_id.clone(), true))
-            .collect::<Vec<(CrossChainId, bool)>>()
+            .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
+            .collect::<Vec<(_, _)>>()
     );
 }
 
@@ -179,7 +180,7 @@ fn verify_messages_mixed_status() {
             &[],
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, bool)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         msgs.iter()
@@ -189,11 +190,11 @@ fn verify_messages_mixed_status() {
                     .find(|verified_msg| *verified_msg == msg)
                     .is_some()
                 {
-                    (msg.cc_id.clone(), true)
+                    (msg.cc_id.clone(), VerificationStatus::SucceededOnChain)
                 } else {
-                    (msg.cc_id.clone(), false)
+                    (msg.cc_id.clone(), VerificationStatus::None)
                 }
             })
-            .collect::<Vec<(CrossChainId, bool)>>()
+            .collect::<Vec<(_, _)>>()
     );
 }

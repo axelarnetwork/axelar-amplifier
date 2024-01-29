@@ -9,6 +9,7 @@ use error_stack::ResultExt;
 use hex::encode;
 use serde::de::Error as DeserializeError;
 use serde::{Deserialize, Deserializer};
+use tokio::sync::watch::Receiver;
 use tracing::info;
 
 use events::Error::EventTypeMismatch;
@@ -34,6 +35,7 @@ struct SigningStartedEvent {
     pub_keys: HashMap<TMAddress, PublicKey>,
     #[serde(with = "hex")]
     msg: MessageDigest,
+    expires_at: u64,
 }
 
 fn deserialize_public_keys<'de, D>(
@@ -74,6 +76,7 @@ where
     multisig: TMAddress,
     broadcaster: B,
     signer: SharableEcdsaClient,
+    latest_block_height: Receiver<u64>,
 }
 
 impl<B> Handler<B>
@@ -85,12 +88,14 @@ where
         multisig: TMAddress,
         broadcaster: B,
         signer: SharableEcdsaClient,
+        latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             multisig,
             broadcaster,
             signer,
+            latest_block_height,
         }
     }
 
@@ -132,6 +137,7 @@ where
             session_id,
             pub_keys,
             msg,
+            expires_at,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(());
@@ -148,6 +154,15 @@ where
             msg = encode(&msg),
             "get signing request",
         );
+
+        let latest_block_height = *self.latest_block_height.borrow();
+        if latest_block_height >= expires_at {
+            info!(
+                session_id = session_id.to_string(),
+                "skipping expired signing session"
+            );
+            return Ok(());
+        }
 
         match pub_keys.get(&self.worker) {
             Some(pub_key) => {
@@ -189,6 +204,7 @@ mod test {
     use rand::rngs::OsRng;
     use rand::Rng;
     use tendermint::abci;
+    use tokio::sync::watch;
 
     use multisig::events::Event::SigningStarted;
     use multisig::key::PublicKey;
@@ -266,6 +282,7 @@ mod test {
         worker: TMAddress,
         multisig: TMAddress,
         signer: SharableEcdsaClient,
+        latest_block_height: u64,
     ) -> Handler<QueuedBroadcasterClient> {
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
@@ -275,7 +292,9 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        Handler::new(worker, multisig, broadcaster.client(), signer)
+        let (tx, rx) = watch::channel(latest_block_height);
+
+        Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
 
     #[test]
@@ -344,6 +363,7 @@ mod test {
             rand_account(),
             rand_account(),
             SharableEcdsaClient::new(client),
+            100u64,
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());
@@ -360,6 +380,7 @@ mod test {
             rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
+            100u64,
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());
@@ -379,11 +400,32 @@ mod test {
             worker,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
+            99u64,
         );
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
             Error::Sign
         ));
+    }
+
+    #[tokio::test]
+    async fn should_not_handle_event_if_session_expired() {
+        let mut client = MockEcdsaClient::new();
+        client
+            .expect_sign()
+            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+
+        let event = signing_started_event();
+        let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
+        let worker = signing_started.pub_keys.keys().next().unwrap().clone();
+        let handler = get_handler(
+            worker,
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            SharableEcdsaClient::new(client),
+            101u64,
+        );
+
+        assert!(handler.handle(&signing_started_event()).await.is_ok());
     }
 }
