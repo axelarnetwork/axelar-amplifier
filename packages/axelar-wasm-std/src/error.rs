@@ -25,10 +25,10 @@ where
     }
 }
 
-pub fn extend_err<T: Context>(
-    result: error_stack::Result<(), T>,
-    added_error: Report<T>,
-) -> error_stack::Result<(), T> {
+pub fn extend_err<T, E: Context>(
+    result: error_stack::Result<T, E>,
+    added_error: Report<E>,
+) -> error_stack::Result<T, E> {
     if let Err(mut base_err) = result {
         base_err.extend_one(added_error);
         Err(base_err)

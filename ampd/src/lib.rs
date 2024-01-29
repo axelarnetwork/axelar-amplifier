@@ -1,7 +1,6 @@
 use std::pin::Pin;
 use std::time::Duration;
 
-use axelar_wasm_std::error::extend_err;
 use block_height_monitor::BlockHeightMonitor;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
@@ -10,13 +9,13 @@ use error_stack::{FutureExt, Result, ResultExt};
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
-use tokio::task::JoinSet;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+use crate::asyncutil::task::{CancellableTask, Task, TaskError, TaskManager};
 use broadcaster::{accounts::account, Broadcaster};
-use event_processor::{EventHandler, EventProcessor};
+use event_processor::EventHandler;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
@@ -24,6 +23,7 @@ use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
 
 use crate::config::Config;
+use crate::event_processor::create_event_stream_task;
 
 use crate::state::State;
 
@@ -137,7 +137,7 @@ where
     T: Broadcaster,
 {
     event_sub: event_sub::EventSub<tendermint_rpc::HttpClient>,
-    event_processor: EventProcessor,
+    event_processor: TaskManager<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
@@ -168,7 +168,7 @@ where
             None => event_sub,
         };
 
-        let event_processor = EventProcessor::new();
+        let event_processor = TaskManager::new();
         let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
             broadcaster,
             broadcast_cfg.batch_gas_limit,
@@ -195,11 +195,11 @@ where
         stream_timeout: Duration,
     ) -> Result<App<T>, Error> {
         for config in handler_configs {
-            match config {
+            let task = match config {
                 handlers::config::Config::EvmMsgVerifier {
                     chain,
                     cosmwasm_contract,
-                } => self.configure_handler(
+                } => self.create_handler_task(
                     format!("{}-msg-verifier", chain.name),
                     handlers::evm_verify_msg::Handler::new(
                         worker.clone(),
@@ -215,7 +215,7 @@ where
                 handlers::config::Config::EvmWorkerSetVerifier {
                     chain,
                     cosmwasm_contract,
-                } => self.configure_handler(
+                } => self.create_handler_task(
                     format!("{}-worker-set-verifier", chain.name),
                     handlers::evm_verify_worker_set::Handler::new(
                         worker.clone(),
@@ -229,7 +229,7 @@ where
                     stream_timeout,
                 ),
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
-                    .configure_handler(
+                    .create_handler_task(
                         "multisig-signer",
                         handlers::multisig::Handler::new(
                             worker.clone(),
@@ -242,7 +242,7 @@ where
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
-                } => self.configure_handler(
+                } => self.create_handler_task(
                     "sui-msg-verifier",
                     handlers::sui_verify_msg::Handler::new(
                         worker.clone(),
@@ -256,7 +256,7 @@ where
                 handlers::config::Config::SuiWorkerSetVerifier {
                     cosmwasm_contract,
                     rpc_url,
-                } => self.configure_handler(
+                } => self.create_handler_task(
                     "sui-worker-set-verifier",
                     handlers::sui_verify_worker_set::Handler::new(
                         worker.clone(),
@@ -267,13 +267,19 @@ where
                     ),
                     stream_timeout,
                 ),
-            }
+            };
+            self.event_processor = self.event_processor.add_task(task);
         }
 
         Ok(self)
     }
 
-    fn configure_handler<L, H>(&mut self, label: L, handler: H, stream_timeout: Duration)
+    fn create_handler_task<L, H>(
+        &mut self,
+        label: L,
+        handler: H,
+        stream_timeout: Duration,
+    ) -> CancellableTask<Result<(), event_processor::Error>>
     where
         L: AsRef<str>,
         H: EventHandler + Send + Sync + 'static,
@@ -292,8 +298,8 @@ where
                 completed_height.increment(),
             )),
         };
-        self.event_processor
-            .add_handler(handler, sub, stream_timeout);
+
+        create_event_stream_task(handler, sub, stream_timeout)
     }
 
     async fn run(self) -> (State, Result<(), Error>) {
@@ -323,47 +329,33 @@ where
         });
 
         let (state_tx, mut state_rx) = oneshot::channel::<State>();
-        let mut running_processes = JoinSet::new();
-        running_processes.spawn(
-            event_sub
-                .run(token.child_token())
-                .change_context(Error::EventSub),
-        );
-        running_processes.spawn(
-            event_processor
-                .run(token.child_token())
-                .change_context(Error::EventProcessor),
-        );
-        running_processes.spawn(broadcaster.run().change_context(Error::Broadcaster));
-        running_processes.spawn(
-            block_height_monitor
-                .run(token.child_token())
-                .change_context(Error::BlockHeightMonitor),
-        );
-        running_processes.spawn(async move {
-            // assert: the app must wait for this task to exit before trying to receive the state
-            state_tx
-                .send(state_updater.run().await)
-                .expect("the state receiver should still be alive");
-            Ok(())
-        });
 
-        let total_running_processes = running_processes.len();
-        let mut execution_result = Ok(());
-        while let Some(result) = running_processes.join_next().await {
-            token.cancel();
-
-            info!(
-                "shutting down processes ({}/{})...",
-                running_processes.len(),
-                total_running_processes
-            );
-
-            execution_result = match result.change_context(Error::Task) {
-                Err(err) | Ok(Err(err)) => extend_err(execution_result, err),
-                Ok(_) => execution_result,
-            };
-        }
+        let execution_result = TaskManager::new()
+            .add_task(CancellableTask::create(|token| {
+                event_sub.run(token).change_context(Error::EventSub)
+            }))
+            .add_task(CancellableTask::create(|token| {
+                event_processor
+                    .run(token)
+                    .change_context(Error::EventProcessor)
+            }))
+            .add_task(CancellableTask::create(|_| {
+                broadcaster.run().change_context(Error::Broadcaster)
+            }))
+            .add_task(CancellableTask::create(|token| {
+                block_height_monitor
+                    .run(token)
+                    .change_context(Error::BlockHeightMonitor)
+            }))
+            .add_task(CancellableTask::create(|_| async move {
+                // assert: the app must wait for this task to exit before trying to receive the state
+                state_tx
+                    .send(state_updater.run().await)
+                    .expect("the state receiver should still be alive");
+                Ok(())
+            }))
+            .run(token)
+            .await;
 
         // assert: all tasks have exited, it is safe to receive the state
         let state = state_rx
@@ -396,4 +388,10 @@ pub enum Error {
     InvalidInput,
     #[error("block height monitor failed")]
     BlockHeightMonitor,
+}
+
+impl From<TaskError> for Error {
+    fn from(_: TaskError) -> Self {
+        Error::Task
+    }
 }

@@ -1,19 +1,14 @@
 mod consume;
 
 use std::time::Duration;
-use std::vec;
 
 use async_trait::async_trait;
-use axelar_wasm_std::error::extend_err;
-use error_stack::{Context, Result, ResultExt};
+use error_stack::{Context, Result};
 use events::Event;
 use thiserror::Error;
-use tokio::task::JoinSet;
 use tokio_stream::Stream;
-use tokio_util::sync::CancellationToken;
-use tracing::info;
 
-use crate::asyncutil::task::{CancellableTask, Task};
+use crate::asyncutil::task::{CancellableTask, Task, TaskError};
 use crate::event_processor::consume::consume_events;
 
 use crate::handlers::chain;
@@ -43,86 +38,30 @@ pub enum Error {
     Tasks,
 }
 
-/// The EventProcessor is responsible for the management of handlers that consume events from event streams.
-/// It cancels all handlers if one of them fails, and returns all errors that occurred during processing.
-pub struct EventProcessor {
-    tasks: Vec<CancellableTask<Result<(), Error>>>,
-}
-
-impl EventProcessor {
-    pub fn new() -> Self {
-        EventProcessor { tasks: vec![] }
-    }
-
-    /// Creates and manages a task in which the handler consumes events from the event stream.
-    /// Handlers try to shut down gracefully at the end of the current block if the tasks gets cancelled.
-    /// In case the event stream blocks, the event processor checks after `stream_timeout` if the task should be cancelled.
-    pub fn add_handler<H, S, E>(
-        &mut self,
-        handler: H,
-        event_stream: S,
-        stream_timeout: Duration,
-    ) -> &mut Self
-    where
-        H: EventHandler + Send + 'static,
-        S: Stream<Item = Result<Event, E>> + Send + 'static,
-        E: Context,
-    {
-        self.tasks.push(CancellableTask::create(move |token| {
-            consume_events(handler, event_stream, stream_timeout, token)
-        }));
-        self
-    }
-
-    /// Runs all handler tasks until one of them fails or the cancellation token is triggered,
-    /// at which time all tasks receive the signal to be cancelled.
-    pub async fn run(self, token: CancellationToken) -> Result<(), Error> {
-        let mut running_tasks = start_tasks(self.tasks, token.clone());
-        wait_for_completion(&mut running_tasks, &token).await
+impl From<TaskError> for Error {
+    fn from(_err: TaskError) -> Self {
+        Error::Tasks
     }
 }
 
-fn start_tasks(
-    tasks: Vec<CancellableTask<Result<(), Error>>>,
-    token: CancellationToken,
-) -> JoinSet<Result<(), Error>> {
-    let mut join_set = JoinSet::new();
-
-    for task in tasks.into_iter() {
-        // tasks clean up on their own after the cancellation token is triggered, so we discard the abort handles
-        join_set.spawn(task(token.clone()));
-    }
-    join_set
-}
-
-async fn wait_for_completion(
-    running_tasks: &mut JoinSet<Result<(), Error>>,
-    token: &CancellationToken,
-) -> Result<(), Error> {
-    let mut final_result = Ok(());
-    let total_task_count = running_tasks.len();
-    while let Some(task_result) = running_tasks.join_next().await {
-        // if one task stops, all others should stop as well, so we cancel the token.
-        // Any call to this after the first is a no-op, so no need to guard it.
-        token.cancel();
-        info!(
-            "shutting down event handlers ({}/{})...",
-            running_tasks.len(),
-            total_task_count
-        );
-
-        final_result = match task_result.change_context(Error::Tasks) {
-            Err(err) | Ok(Err(err)) => extend_err(final_result, err),
-            Ok(_) => final_result,
-        };
-    }
-
-    final_result
+pub fn create_event_stream_task<H, S, E>(
+    handler: H,
+    event_stream: S,
+    stream_timeout: Duration,
+) -> CancellableTask<Result<(), Error>>
+where
+    H: EventHandler + Send + 'static,
+    S: Stream<Item = Result<Event, E>> + Send + 'static,
+    E: Context,
+{
+    CancellableTask::create(move |token| {
+        consume_events(handler, event_stream, stream_timeout, token)
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::event_processor::{EventHandler, EventProcessor};
+    use crate::event_processor::{EventHandler, TaskManager};
     use async_trait::async_trait;
     use error_stack::{Report, Result};
     use futures::TryStreamExt;
@@ -138,7 +77,7 @@ mod tests {
 
     #[tokio::test]
     async fn processor_returns_immediately_when_no_handlers_are_added() {
-        let processor = EventProcessor::new();
+        let processor = TaskManager::new();
         assert!(processor.run(CancellationToken::new()).await.is_ok());
     }
 
@@ -146,7 +85,7 @@ mod tests {
     async fn should_handle_events() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<events::Event>(event_count);
-        let mut processor = EventProcessor::new();
+        let mut processor = TaskManager::new();
 
         let mut handler = MockEventHandler::new();
         handler
@@ -155,7 +94,7 @@ mod tests {
             // make sure the handler is called for each event
             .times(event_count);
 
-        processor.add_handler(
+        processor.add_task(
             handler,
             BroadcastStream::new(rx).map_err(Report::from),
             Duration::from_secs(1),
@@ -174,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn should_return_error_if_handler_fails() {
         let (tx, rx) = broadcast::channel::<events::Event>(10);
-        let mut processor = EventProcessor::new();
+        let mut processor = TaskManager::new();
 
         let mut handler = MockEventHandler::new();
         handler
@@ -182,7 +121,7 @@ mod tests {
             .returning(|_| Err(EventHandlerError::Unknown.into()))
             .once();
 
-        processor.add_handler(
+        processor.add_task(
             handler,
             BroadcastStream::new(rx).map_err(Report::from),
             Duration::from_secs(1),
@@ -200,7 +139,7 @@ mod tests {
     async fn panic_in_one_handler_should_stop_all() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<events::Event>(event_count);
-        let mut processor = EventProcessor::new();
+        let mut processor = TaskManager::new();
 
         let mut handler2 = MockEventHandler::new();
         handler2
@@ -218,12 +157,12 @@ mod tests {
         });
 
         processor
-            .add_handler(
+            .add_task(
                 handler2,
                 BroadcastStream::new(tx.subscribe()).map_err(Report::from),
                 Duration::from_secs(1),
             )
-            .add_handler(
+            .add_task(
                 handler1,
                 BroadcastStream::new(rx).map_err(Report::from),
                 Duration::from_secs(1),
@@ -244,7 +183,7 @@ mod tests {
     async fn should_support_multiple_types_of_handlers() {
         let event_count = 10;
         let (tx, rx) = broadcast::channel::<events::Event>(event_count);
-        let mut processor = EventProcessor::new();
+        let mut processor = TaskManager::new();
 
         let mut handler = MockEventHandler::new();
         handler
@@ -259,12 +198,12 @@ mod tests {
             .times(event_count);
 
         processor
-            .add_handler(
+            .add_task(
                 handler,
                 BroadcastStream::new(rx).map_err(Report::from),
                 Duration::from_secs(1),
             )
-            .add_handler(
+            .add_task(
                 another_handler,
                 BroadcastStream::new(tx.subscribe()).map_err(Report::from),
                 Duration::from_secs(1),
