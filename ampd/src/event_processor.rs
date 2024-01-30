@@ -36,13 +36,7 @@ pub enum Error {
     #[error("could not consume events from stream")]
     EventStream,
     #[error("handler stopped prematurely")]
-    Tasks,
-}
-
-impl From<TaskError> for Error {
-    fn from(_err: TaskError) -> Self {
-        Error::Tasks
-    }
+    Tasks(#[from] TaskError),
 }
 
 /// Let the `handler` consume events from the `event_stream`. The token is checked for cancellation

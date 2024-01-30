@@ -53,13 +53,17 @@ where
         TaskManager { tasks: vec![] }
     }
 
+    /// The added tasks won't be started until [run] is called
     pub fn add_task(mut self, task: CancellableTask<Result<(), E>>) -> Self {
         self.tasks.push(task);
         self
     }
 
+    /// Runs all tasks concurrently. If one task fails, all others are cancelled and the collection of errors is returned.
+    /// If a task panics, it still returns an error to the manager, so the parent process can shut down all tasks gracefully.
     pub async fn run(self, token: CancellationToken) -> Result<(), E> {
-        let mut running_tasks = start_tasks(self.tasks, token.child_token());
+        // running tasks and waiting for them is tightly coupled, so they both share a cloned token
+        let mut running_tasks = start_tasks(self.tasks, token.clone());
         wait_for_completion(&mut running_tasks, &token).await
     }
 }
@@ -71,8 +75,10 @@ where
     let mut join_set = JoinSet::new();
 
     for task in tasks.into_iter() {
-        // tasks clean up on their own after the cancellation token is triggered, so we discard the abort handles
-        join_set.spawn(task(token.clone()));
+        // tasks clean up on their own after the cancellation token is triggered, so we discard the abort handles.
+        // However, we don't know what tasks will do with their token, so we need to create new child tokens here,
+        // so each task can act independently
+        join_set.spawn(task(token.child_token()));
     }
     join_set
 }

@@ -25,6 +25,7 @@ where
     }
 }
 
+/// Merges two error reports into one. If the result is Ok, the added error is returned.
 pub fn extend_err<T, E: Context>(
     result: error_stack::Result<T, E>,
     added_error: Report<E>,

@@ -5,7 +5,7 @@ use block_height_monitor::BlockHeightMonitor;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use error_stack::{FutureExt, Result, ResultExt};
+use error_stack::{report, FutureExt, Result, ResultExt};
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -134,7 +134,7 @@ struct App<T>
 where
     T: Broadcaster,
 {
-    event_sub: event_sub::EventSub<tendermint_rpc::HttpClient>,
+    event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
     event_processor: TaskManager<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
     #[allow(dead_code)]
@@ -160,10 +160,10 @@ where
     ) -> Self {
         let token = CancellationToken::new();
 
-        let event_sub = event_sub::EventSub::new(tm_client, event_buffer_cap);
-        let event_sub = match state_updater.state().min_handler_block_height() {
-            Some(min_height) => event_sub.start_from(min_height.increment()),
-            None => event_sub,
+        let event_pub = event_sub::EventPublisher::new(tm_client, event_buffer_cap);
+        let event_publisher = match state_updater.state().min_handler_block_height() {
+            Some(min_height) => event_pub.start_from(min_height.increment()),
+            None => event_pub,
         };
 
         let event_processor = TaskManager::new();
@@ -175,7 +175,7 @@ where
         );
 
         Self {
-            event_sub,
+            event_publisher,
             event_processor,
             broadcaster,
             broadcaster_driver,
@@ -291,9 +291,9 @@ where
             .state()
             .handler_block_height(label.as_ref())
         {
-            None => Box::pin(self.event_sub.sub()),
+            None => Box::pin(self.event_publisher.subscribe()),
             Some(&completed_height) => Box::pin(event_sub::skip_to_block(
-                self.event_sub.sub(),
+                self.event_publisher.subscribe(),
                 completed_height.increment(),
             )),
         };
@@ -305,7 +305,7 @@ where
 
     async fn run(self) -> (State, Result<(), Error>) {
         let Self {
-            event_sub,
+            event_publisher,
             event_processor,
             broadcaster,
             state_updater,
@@ -333,7 +333,14 @@ where
 
         let execution_result = TaskManager::new()
             .add_task(CancellableTask::create(|token| {
-                event_sub.run(token).change_context(Error::EventSub)
+                block_height_monitor
+                    .run(token)
+                    .change_context(Error::BlockHeightMonitor)
+            }))
+            .add_task(CancellableTask::create(|token| {
+                event_publisher
+                    .run(token)
+                    .change_context(Error::EventPublisher)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
@@ -343,17 +350,11 @@ where
             .add_task(CancellableTask::create(|_| {
                 broadcaster.run().change_context(Error::Broadcaster)
             }))
-            .add_task(CancellableTask::create(|token| {
-                block_height_monitor
-                    .run(token)
-                    .change_context(Error::BlockHeightMonitor)
-            }))
             .add_task(CancellableTask::create(|_| async move {
-                // assert: the app must wait for this task to exit before trying to receive the state
+                // assert: the state updater only stops when all handlers that are updating their states have stopped
                 state_tx
                     .send(state_updater.run().await)
-                    .expect("the state receiver should still be alive");
-                Ok(())
+                    .map_err(|_| report!(Error::ReturnState))
             }))
             .run(token)
             .await;
@@ -369,8 +370,8 @@ where
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("event sub failed")]
-    EventSub,
+    #[error("event publisher failed")]
+    EventPublisher,
     #[error("event processor failed")]
     EventProcessor,
     #[error("broadcaster failed")]
@@ -380,7 +381,7 @@ pub enum Error {
     #[error("connection failed")]
     Connection,
     #[error("task execution failed")]
-    Task,
+    Task(#[from] TaskError),
     #[error("failed to return updated state")]
     ReturnState,
     #[error("failed to load config")]
@@ -389,10 +390,4 @@ pub enum Error {
     InvalidInput,
     #[error("block height monitor failed")]
     BlockHeightMonitor,
-}
-
-impl From<TaskError> for Error {
-    fn from(_: TaskError) -> Self {
-        Error::Task
-    }
 }

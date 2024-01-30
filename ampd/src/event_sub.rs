@@ -21,18 +21,18 @@ use events::Event;
 
 use crate::tm_client::TmClient;
 
-pub struct EventSub<T: TmClient + Sync> {
+pub struct EventPublisher<T: TmClient + Sync> {
     client: T,
     start_from: Option<block::Height>,
     poll_interval: Duration,
     tx: Sender<Event>,
 }
 
-impl<T: TmClient + Sync> EventSub<T> {
+impl<T: TmClient + Sync> EventPublisher<T> {
     pub fn new(client: T, capacity: usize) -> Self {
         let (tx, _) = broadcast::channel::<Event>(capacity);
 
-        EventSub {
+        EventPublisher {
             client,
             start_from: None,
             poll_interval: Duration::new(5, 0),
@@ -51,7 +51,7 @@ impl<T: TmClient + Sync> EventSub<T> {
         self
     }
 
-    pub fn sub(&mut self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
+    pub fn subscribe(&mut self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
         BroadcastStream::new(self.tx.subscribe()).map_err(Report::from)
     }
 
@@ -187,7 +187,7 @@ mod tests {
     use tokio_stream::wrappers::ReceiverStream;
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_sub::{skip_to_block, Event, EventSub};
+    use crate::event_sub::{skip_to_block, Event, EventPublisher};
     use crate::tm_client;
 
     #[test]
@@ -254,9 +254,9 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let event_sub = EventSub::new(mock_client, 2 * block_count as usize);
-        let mut client = event_sub.start_from(from_height);
-        let mut stream = client.sub();
+        let event_pub = EventPublisher::new(mock_client, 2 * block_count as usize);
+        let mut client = event_pub.start_from(from_height);
+        let mut stream = client.subscribe();
 
         let child_token = token.child_token();
         let handle = tokio::spawn(async move { client.run(child_token).await });
@@ -313,11 +313,11 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let mut event_sub = EventSub::new(mock_client, 10);
-        let mut stream = event_sub.sub();
+        let mut event_pub = EventPublisher::new(mock_client, 10);
+        let mut stream = event_pub.subscribe();
 
         let child_token = token.child_token();
-        let handle = tokio::spawn(async move { event_sub.run(child_token).await });
+        let handle = tokio::spawn(async move { event_pub.run(child_token).await });
 
         let event = stream.next().await;
         assert_eq!(event.unwrap().unwrap(), Event::BlockBegin(height));
@@ -400,11 +400,11 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let event_sub = EventSub::new(mock_client, block_count * event_count_per_block);
-        let mut client = event_sub
+        let event_pub = EventPublisher::new(mock_client, block_count * event_count_per_block);
+        let mut client = event_pub
             .start_from(block_height)
             .poll_interval(Duration::new(0, 1e8 as u32));
-        let mut stream = client.sub();
+        let mut stream = client.subscribe();
 
         let child_token = token.child_token();
         let handle = tokio::spawn(async move { client.run(child_token).await });
