@@ -23,8 +23,6 @@ use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use types::TMAddress;
 
 use crate::config::Config;
-use crate::event_processor::create_event_stream_task;
-
 use crate::state::State;
 
 mod asyncutil;
@@ -299,7 +297,9 @@ where
             )),
         };
 
-        create_event_stream_task(handler, sub, stream_timeout)
+        CancellableTask::create(move |token| {
+            event_processor::consume_events(handler, sub, stream_timeout, token)
+        })
     }
 
     async fn run(self) -> (State, Result<(), Error>) {

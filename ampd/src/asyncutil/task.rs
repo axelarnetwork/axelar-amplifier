@@ -2,6 +2,7 @@ use axelar_wasm_std::error::extend_err;
 use error_stack::{Context, Result, ResultExt};
 use std::future::Future;
 use std::pin::Pin;
+use thiserror::Error;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -90,8 +91,8 @@ where
         // Any call to this after the first is a no-op, so no need to guard it.
         token.cancel();
         info!(
-            "shutting down sub-tasks ({}/{})...",
-            running_tasks.len(),
+            "shutting down sub-tasks ({}/{})",
+            total_task_count - running_tasks.len(),
             total_task_count
         );
 
@@ -104,4 +105,73 @@ where
     final_result
 }
 
-pub struct TaskError {}
+#[derive(Error, Debug)]
+#[error("task failed")]
+pub struct TaskError;
+
+#[cfg(test)]
+mod test {
+    use crate::asyncutil::task::{CancellableTask, Task, TaskError, TaskManager};
+    use error_stack::report;
+    use tokio_util::sync::CancellationToken;
+
+    #[tokio::test]
+    async fn running_no_tasks_returns_no_error() {
+        let tasks: TaskManager<TaskError> = TaskManager::new();
+        assert!(tasks.run(CancellationToken::new()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn when_one_task_ends_cancel_all_others() {
+        let waiting_task = |token: CancellationToken| async move {
+            token.cancelled().await;
+            Ok(())
+        };
+
+        let tasks: TaskManager<TaskError> = TaskManager::new()
+            .add_task(CancellableTask::create(waiting_task))
+            .add_task(CancellableTask::create(waiting_task))
+            .add_task(CancellableTask::create(|_| async { Ok(()) }))
+            .add_task(CancellableTask::create(waiting_task));
+        assert!(tasks.run(CancellationToken::new()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn collect_all_errors_on_completion() {
+        let tasks = TaskManager::new()
+            .add_task(CancellableTask::create(|_| async { Ok(()) }))
+            .add_task(CancellableTask::create(|_| async {
+                Err(report!(TaskError {}))
+            }))
+            .add_task(CancellableTask::create(|_| async {
+                Err(report!(TaskError {}))
+            }))
+            .add_task(CancellableTask::create(|_| async {
+                Err(report!(TaskError {}))
+            }))
+            .add_task(CancellableTask::create(|_| async { Ok(()) }))
+            .add_task(CancellableTask::create(|_| async {
+                Err(report!(TaskError {}))
+            }));
+        let result = tasks.run(CancellationToken::new()).await;
+        let err = result.unwrap_err();
+        assert_eq!(err.current_frames().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn shutdown_gracefully_on_task_panic() {
+        let tasks = TaskManager::new()
+            .add_task(CancellableTask::create(|_| async { Ok(()) }))
+            .add_task(CancellableTask::create(|_| async { panic!("panic") }))
+            .add_task(CancellableTask::create(|_| async {
+                Err(report!(TaskError {}))
+            }))
+            .add_task(CancellableTask::create(|_| async { Ok(()) }))
+            .add_task(CancellableTask::create(|_| async {
+                Err(report!(TaskError {}))
+            }));
+        let result = tasks.run(CancellationToken::new()).await;
+        let err = result.unwrap_err();
+        assert_eq!(err.current_frames().len(), 3);
+    }
+}
