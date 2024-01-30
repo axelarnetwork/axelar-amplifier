@@ -313,7 +313,6 @@ fn register_chain_support() {
     assert_eq!(workers, vec![])
 }
 
-
 /// If a bonded and authorized worker deregisters support for a chain they previously registered support for,
 /// that worker should no longer be part of the active worker set for that chain
 #[test]
@@ -417,7 +416,6 @@ fn register_and_deregister_support_for_single_chain() {
         .unwrap();
     assert_eq!(workers, vec![]);
 }
-
 
 /// Same setting and goal as register_and_deregister_support_for_single_chain() but for multiple chains.
 #[test]
@@ -527,7 +525,6 @@ fn register_and_deregister_support_for_multiple_chains() {
         assert_eq!(workers, vec![]);
     }
 }
-
 
 /// If a bonded and authorized worker deregisters support for the first chain among multiple chains,
 /// they should remain part of the active worker set for all chains except the first one.
@@ -665,7 +662,6 @@ fn register_for_multiple_chains_deregister_for_first_one() {
     }
 }
 
-
 /// If a bonded and authorized worker registers support for one chain and later deregisters support for another chain,
 /// the active worker set for the original chain should remain unaffected by the deregistration.
 #[test]
@@ -780,7 +776,6 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
         }]
     );
 }
-
 
 /// If a bonded and authorized worker registers, deregisters, and again registers their support for a single chain,
 /// the active worker set of that chain should include the worker.
@@ -907,7 +902,6 @@ fn register_deregister_register_support_for_single_chain() {
     );
 }
 
-
 /// If a bonded and authorized worker deregisters their support for a chain they have not previously registered
 /// support for, the call should be ignored and the active worker set of the chain should be intact.
 #[test]
@@ -999,7 +993,6 @@ fn deregister_previously_unsupported_single_chain() {
         .unwrap();
     assert_eq!(workers, vec![])
 }
-
 
 /// If a unbonded but authorized worker deregisters support for a chain they previously registered support for,
 /// that worker should not be part of the active worker set for that chain.
@@ -1094,7 +1087,6 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     assert_eq!(workers, vec![]);
 }
 
-
 /// If a worker that is not part of a service deregisters support for a chain from that specific service,
 /// process should return a contract error of type WorkerNotFound.
 #[test]
@@ -1173,7 +1165,6 @@ fn deregister_from_unregistered_worker_single_chain() {
         .unwrap();
     assert_eq!(workers, vec![]);
 }
-
 
 /// If a worker deregisters support for a chain of an unregistered service,
 /// process should return a contract error of type ServiceNotFound.
