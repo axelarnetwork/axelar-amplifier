@@ -145,18 +145,22 @@ mod test {
     #[tokio::test]
     async fn collect_all_errors_on_completion() {
         let tasks = TaskManager::new()
-            .add_task(CancellableTask::create(|_| async { Ok(()) }))
-            .add_task(CancellableTask::create(|_| async {
+            .add_task(CancellableTask::create(|token| async move {
+                token.cancelled().await;
                 Err(report!(TaskError {}))
             }))
-            .add_task(CancellableTask::create(|_| async {
-                Err(report!(TaskError {}))
-            }))
-            .add_task(CancellableTask::create(|_| async {
+            .add_task(CancellableTask::create(|token| async move {
+                token.cancelled().await;
                 Err(report!(TaskError {}))
             }))
             .add_task(CancellableTask::create(|_| async { Ok(()) }))
-            .add_task(CancellableTask::create(|_| async {
+            .add_task(CancellableTask::create(|token| async move {
+                token.cancelled().await;
+                Err(report!(TaskError {}))
+            }))
+            .add_task(CancellableTask::create(|_| async { Ok(()) }))
+            .add_task(CancellableTask::create(|token| async move {
+                token.cancelled().await;
                 Err(report!(TaskError {}))
             }));
         let result = tasks.run(CancellationToken::new()).await;
