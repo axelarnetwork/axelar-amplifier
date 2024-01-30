@@ -1,5 +1,6 @@
 use connection_router::state::ChainName;
 use cosmwasm_std::WasmMsg;
+use sha3::{Digest, Keccak256};
 
 use crate::signing::validate_session_signature;
 use crate::state::{load_session_signatures, save_signature};
@@ -122,9 +123,11 @@ pub fn register_pub_key(
     let signed_sender_address: Signature =
         (public_key.key_type(), signed_sender_address).try_into()?;
 
+    let address_hash = Keccak256::digest(info.sender.as_bytes());
+
     // to prevent anyone from registering a public key that belongs to someone else,
     // we require the sender to sign their own address using the private key
-    if !signed_sender_address.verify(info.sender.as_bytes(), &public_key)? {
+    if !signed_sender_address.verify(address_hash.as_slice(), &public_key)? {
         return Err(ContractError::InvalidPublicKeyRegistrationSignature);
     }
 
