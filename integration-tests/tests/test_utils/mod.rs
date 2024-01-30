@@ -430,7 +430,7 @@ pub fn register_workers(
         let response = app.execute_contract(
             worker.addr.clone(),
             service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::DeclareChainSupport {
+            &service_registry::msg::ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.to_string(),
                 chains: worker.supported_chains.clone(),
             },

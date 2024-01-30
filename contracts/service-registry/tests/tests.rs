@@ -203,7 +203,7 @@ fn bond_worker() {
 }
 
 #[test]
-fn declare_chain_support() {
+fn register_chain_support() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -270,7 +270,7 @@ fn declare_chain_support() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -313,8 +313,11 @@ fn declare_chain_support() {
     assert_eq!(workers, vec![])
 }
 
+
+/// If a bonded and authorized worker deregisters support for a chain they previously registered support for,
+/// that worker should no longer be part of the active worker set for that chain
 #[test]
-fn declare_and_denounce_support_for_single_chain() {
+fn register_and_deregister_support_for_single_chain() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -382,7 +385,7 @@ fn declare_and_denounce_support_for_single_chain() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -390,11 +393,11 @@ fn declare_and_denounce_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    // Denounce chain support
+    // Deregister chain support
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -415,8 +418,10 @@ fn declare_and_denounce_support_for_single_chain() {
     assert_eq!(workers, vec![]);
 }
 
+
+/// Same setting and goal as register_and_deregister_support_for_single_chain() but for multiple chains.
 #[test]
-fn declare_and_denounce_support_for_multiple_chains() {
+fn register_and_deregister_support_for_multiple_chains() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -489,7 +494,7 @@ fn declare_and_denounce_support_for_multiple_chains() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: chains.clone(),
         },
@@ -500,7 +505,7 @@ fn declare_and_denounce_support_for_multiple_chains() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: chains.clone(),
         },
@@ -523,8 +528,11 @@ fn declare_and_denounce_support_for_multiple_chains() {
     }
 }
 
+
+/// If a bonded and authorized worker deregisters support for the first chain among multiple chains,
+/// they should remain part of the active worker set for all chains except the first one.
 #[test]
-fn declare_for_multiple_chains_denounce_for_first_one() {
+fn register_for_multiple_chains_deregister_for_first_one() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -597,7 +605,7 @@ fn declare_for_multiple_chains_denounce_for_first_one() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: chains.clone(),
         },
@@ -605,11 +613,11 @@ fn declare_for_multiple_chains_denounce_for_first_one() {
     );
     assert!(res.is_ok());
 
-    // Denounce only the first chain
+    // Deregister only the first chain
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chains[0].clone()],
         },
@@ -617,15 +625,15 @@ fn declare_for_multiple_chains_denounce_for_first_one() {
     );
     assert!(res.is_ok());
 
-    // Verify that worker is not associated with the denounced chain
-    let denounced_chain = chains[0].clone();
+    // Verify that worker is not associated with the deregistered chain
+    let deregistered_chain = chains[0].clone();
     let workers: Vec<Worker> = app
         .wrap()
         .query_wasm_smart(
             contract_addr.clone(),
             &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
-                chain_name: denounced_chain.clone(),
+                chain_name: deregistered_chain.clone(),
             },
         )
         .unwrap();
@@ -657,8 +665,11 @@ fn declare_for_multiple_chains_denounce_for_first_one() {
     }
 }
 
+
+/// If a bonded and authorized worker registers support for one chain and later deregisters support for another chain,
+/// the active worker set for the original chain should remain unaffected by the deregistration.
 #[test]
-fn declare_support_for_a_chain_denounce_support_for_another_chain() {
+fn register_support_for_a_chain_deregister_support_for_another_chain() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -726,7 +737,7 @@ fn declare_support_for_a_chain_denounce_support_for_another_chain() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -735,11 +746,11 @@ fn declare_support_for_a_chain_denounce_support_for_another_chain() {
     assert!(res.is_ok());
 
     let second_chain_name = ChainName::from_str("avalanche").unwrap();
-    // Denounce support for another chain
+    // Deregister support for another chain
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![second_chain_name.clone()],
         },
@@ -770,8 +781,11 @@ fn declare_support_for_a_chain_denounce_support_for_another_chain() {
     );
 }
 
+
+/// If a bonded and authorized worker registers, deregisters, and again registers their support for a single chain,
+/// the active worker set of that chain should include the worker.
 #[test]
-fn declare_denounce_declare_support_for_single_chain() {
+fn register_deregister_register_support_for_single_chain() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -839,7 +853,7 @@ fn declare_denounce_declare_support_for_single_chain() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -850,7 +864,7 @@ fn declare_denounce_declare_support_for_single_chain() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -862,7 +876,7 @@ fn declare_denounce_declare_support_for_single_chain() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -893,8 +907,11 @@ fn declare_denounce_declare_support_for_single_chain() {
     );
 }
 
+
+/// If a bonded and authorized worker deregisters their support for a chain they have not previously registered
+/// support for, the call should be ignored and the active worker set of the chain should be intact.
 #[test]
-fn denounce_previously_unsupported_single_chain() {
+fn deregister_previously_unsupported_single_chain() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -962,7 +979,7 @@ fn denounce_previously_unsupported_single_chain() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -983,8 +1000,11 @@ fn denounce_previously_unsupported_single_chain() {
     assert_eq!(workers, vec![])
 }
 
+
+/// If a unbonded but authorized worker deregisters support for a chain they previously registered support for,
+/// that worker should not be part of the active worker set for that chain.
 #[test]
-fn declare_and_denounce_support_for_single_chain_unbonded() {
+fn register_and_deregister_support_for_single_chain_unbonded() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -1042,7 +1062,7 @@ fn declare_and_denounce_support_for_single_chain_unbonded() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1053,7 +1073,7 @@ fn declare_and_denounce_support_for_single_chain_unbonded() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DenounceChainSupport {
+        &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1074,8 +1094,11 @@ fn declare_and_denounce_support_for_single_chain_unbonded() {
     assert_eq!(workers, vec![]);
 }
 
+
+/// If a worker that is not part of a service deregisters support for a chain from that specific service,
+/// process should return a contract error of type WorkerNotFound.
 #[test]
-fn denounce_from_unregistered_worker_single_chain() {
+fn deregister_from_unregistered_worker_single_chain() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -1123,7 +1146,7 @@ fn denounce_from_unregistered_worker_single_chain() {
         .execute_contract(
             worker.clone(),
             contract_addr.clone(),
-            &ExecuteMsg::DenounceChainSupport {
+            &ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
             },
@@ -1151,8 +1174,11 @@ fn denounce_from_unregistered_worker_single_chain() {
     assert_eq!(workers, vec![]);
 }
 
+
+/// If a worker deregisters support for a chain of an unregistered service,
+/// process should return a contract error of type ServiceNotFound.
 #[test]
-fn denounce_single_chain_for_nonexistent_service() {
+fn deregister_single_chain_for_nonexistent_service() {
     let worker = Addr::unchecked("worker");
     let mut app = App::new(|router, _, storage| {
         router
@@ -1182,7 +1208,7 @@ fn denounce_single_chain_for_nonexistent_service() {
         .execute_contract(
             worker.clone(),
             contract_addr.clone(),
-            &ExecuteMsg::DenounceChainSupport {
+            &ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
             },
@@ -1266,7 +1292,7 @@ fn unbond_worker() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1418,7 +1444,7 @@ fn bond_but_not_authorized() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1508,7 +1534,7 @@ fn bond_but_not_enough() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1598,7 +1624,7 @@ fn bond_before_authorize() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1697,7 +1723,7 @@ fn unbond_then_rebond() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
@@ -1819,7 +1845,7 @@ fn unbonding_period() {
     let res = app.execute_contract(
         worker.clone(),
         contract_addr.clone(),
-        &ExecuteMsg::DeclareChainSupport {
+        &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name],
         },

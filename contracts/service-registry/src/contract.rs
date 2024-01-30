@@ -94,14 +94,14 @@ pub fn execute(
                 AuthorizationState::NotAuthorized,
             )
         }
-        ExecuteMsg::DeclareChainSupport {
+        ExecuteMsg::RegisterChainSupport {
             service_name,
             chains,
-        } => execute::declare_chains_support(deps, info, service_name, chains),
-        ExecuteMsg::DenounceChainSupport {
+        } => execute::register_chains_support(deps, info, service_name, chains),
+        ExecuteMsg::DeregisterChainSupport {
             service_name,
             chains,
-        } => execute::denounce_chains_support(deps, info, service_name, chains),
+        } => execute::deregister_chains_support(deps, info, service_name, chains),
         ExecuteMsg::BondWorker { service_name } => execute::bond_worker(deps, info, service_name),
         ExecuteMsg::UnbondWorker { service_name } => {
             execute::unbond_worker(deps, env, info, service_name)
@@ -241,7 +241,7 @@ pub mod execute {
         Ok(Response::new())
     }
 
-    pub fn declare_chains_support(
+    pub fn register_chains_support(
         deps: DepsMut,
         info: MessageInfo,
         service_name: String,
@@ -262,7 +262,7 @@ pub mod execute {
         Ok(Response::new())
     }
 
-    pub fn denounce_chains_support(
+    pub fn deregister_chains_support(
         deps: DepsMut,
         info: MessageInfo,
         service_name: String,
