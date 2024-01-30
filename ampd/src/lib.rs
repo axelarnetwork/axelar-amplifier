@@ -234,6 +234,7 @@ where
                             cosmwasm_contract,
                             self.broadcaster.client(),
                             self.ecdsa_client.clone(),
+                            self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
                     ),
