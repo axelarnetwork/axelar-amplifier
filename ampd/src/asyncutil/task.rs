@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use axelar_wasm_std::error::extend_err;
 use error_stack::{Context, Result, ResultExt};
 use std::future::Future;
@@ -8,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 /// The Task trait defines a container that allows easy creation, movement, storage and execution of cancellable async behaviour
+#[async_trait]
 pub trait Task {
     type Output;
 
@@ -23,6 +25,7 @@ pub trait Task {
 pub type CancellableTask<Output> =
     Box<dyn FnOnce(CancellationToken) -> Pin<Box<dyn Future<Output = Output> + Send>> + Send>;
 
+#[async_trait]
 impl<T> Task for CancellableTask<T> {
     type Output = T;
 
