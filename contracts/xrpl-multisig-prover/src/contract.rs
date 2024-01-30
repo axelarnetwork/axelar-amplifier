@@ -182,7 +182,7 @@ fn construct_payment_proof(
     let xrpl_token = TOKENS.load(storage, coin.denom.clone())?;
     let message = querier.get_message(message_id.clone())?;
     // TODO: handle coin.amount precision loss
-    let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount)?;
+    let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount { amount: coin.amount.to_string(), reason: "overflow".to_string() })?;
     // TODO: find better way to distinguish XRP from the rest
     let xrpl_payment_amount = if xrpl_token.currency == XRPLToken::NATIVE_CURRENCY {
         XRPLPaymentAmount::Drops(drops)

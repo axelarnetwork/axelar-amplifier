@@ -29,7 +29,6 @@ pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(mul
     Ok(XRPLSignedTransaction {
         unsigned_tx,
         signers: xrpl_signers,
-        multisig_session_id: *multisig_session_id
     })
 }
 

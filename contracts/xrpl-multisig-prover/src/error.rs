@@ -8,8 +8,8 @@ pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("invalid amount")]
-    InvalidAmount,
+    #[error("invalid amount {amount}: {reason}")]
+    InvalidAmount { reason: String, amount: String },
 
     #[error("serialization failed")]
     SerializationFailed,

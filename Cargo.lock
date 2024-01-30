@@ -522,6 +522,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
+name = "ascii"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "ascii-canvas"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -841,6 +850,19 @@ dependencies = [
  "ff",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "bigdecimal"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c06619be423ea5bb86c95f087d5707942791a08a85530df0db2209a3ecfb8bc9"
+dependencies = [
+ "autocfg",
+ "libm",
+ "num-bigint 0.4.4",
+ "num-integer",
+ "num-traits",
 ]
 
 [[package]]
@@ -9296,8 +9318,10 @@ name = "xrpl-multisig-prover"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ascii",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "bigdecimal",
  "bs58 0.5.0",
  "connection-router",
  "cosmwasm-schema",
