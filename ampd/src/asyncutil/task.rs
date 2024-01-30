@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use axelar_wasm_std::error::extend_err;
 use error_stack::{Context, Result, ResultExt};
 use std::future::Future;
@@ -8,55 +7,43 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-/// The Task trait defines a container that allows easy creation, movement, storage and execution of cancellable async behaviour
-#[async_trait]
-pub trait Task {
-    type Output;
-
-    fn create<Fut>(task: impl FnOnce(CancellationToken) -> Fut + Send + 'static) -> Self
-    where
-        Fut: Future<Output = Self::Output> + Send + 'static;
-
-    async fn run(self, token: CancellationToken) -> Self::Output;
-}
-
 /// This type represents an awaitable action that can be cancelled. It abstracts away the necessary boxing and pinning
-/// to make it work in async contexts
-pub type CancellableTask<Output> =
-    Box<dyn FnOnce(CancellationToken) -> Pin<Box<dyn Future<Output = Output> + Send>> + Send>;
+/// to make it work in async contexts. It can be freely moved around and stored in collections.
+pub struct CancellableTask<Output>(
+    Box<dyn FnOnce(CancellationToken) -> Pin<Box<dyn Future<Output = Output> + Send>> + Send>,
+);
 
-#[async_trait]
-impl<T> Task for CancellableTask<T> {
-    type Output = T;
-
-    fn create<Fut>(task: impl FnOnce(CancellationToken) -> Fut + Send + 'static) -> Self
+impl<T> CancellableTask<T> {
+    pub fn create<Fut>(task: impl FnOnce(CancellationToken) -> Fut + Send + 'static) -> Self
     where
-        Fut: Future<Output = Self::Output> + Send + 'static,
+        Fut: Future<Output = T> + Send + 'static,
     {
-        Box::new(move |token: CancellationToken| Box::pin(task(token)))
+        Self(Box::new(move |token: CancellationToken| {
+            Box::pin(task(token))
+        }))
     }
 
-    async fn run(self, token: CancellationToken) -> Self::Output {
-        self(token).await
+    pub async fn run(self, token: CancellationToken) -> T {
+        self.0(token).await
     }
 }
 
-pub struct TaskManager<E>
+pub struct TaskGroup<E>
 where
     E: From<TaskError> + Context,
 {
     tasks: Vec<CancellableTask<Result<(), E>>>,
 }
 
-impl<E> TaskManager<E>
+impl<E> TaskGroup<E>
 where
     E: From<TaskError> + Context,
 {
     pub fn new() -> Self {
-        TaskManager { tasks: vec![] }
+        TaskGroup { tasks: vec![] }
     }
 
-    /// The added tasks won't be started until [run] is called
+    /// The added tasks won't be started until [Self::run] is called
     pub fn add_task(mut self, task: CancellableTask<Result<(), E>>) -> Self {
         self.tasks.push(task);
         self
@@ -81,7 +68,7 @@ where
         // tasks clean up on their own after the cancellation token is triggered, so we discard the abort handles.
         // However, we don't know what tasks will do with their token, so we need to create new child tokens here,
         // so each task can act independently
-        join_set.spawn(task(token.child_token()));
+        join_set.spawn(task.run(token.child_token()));
     }
     join_set
 }
@@ -120,13 +107,13 @@ pub struct TaskError;
 
 #[cfg(test)]
 mod test {
-    use crate::asyncutil::task::{CancellableTask, Task, TaskError, TaskManager};
+    use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
     use error_stack::report;
     use tokio_util::sync::CancellationToken;
 
     #[tokio::test]
     async fn running_no_tasks_returns_no_error() {
-        let tasks: TaskManager<TaskError> = TaskManager::new();
+        let tasks: TaskGroup<TaskError> = TaskGroup::new();
         assert!(tasks.run(CancellationToken::new()).await.is_ok());
     }
 
@@ -137,7 +124,7 @@ mod test {
             Ok(())
         };
 
-        let tasks: TaskManager<TaskError> = TaskManager::new()
+        let tasks: TaskGroup<TaskError> = TaskGroup::new()
             .add_task(CancellableTask::create(waiting_task))
             .add_task(CancellableTask::create(waiting_task))
             .add_task(CancellableTask::create(|_| async { Ok(()) }))
@@ -147,7 +134,7 @@ mod test {
 
     #[tokio::test]
     async fn collect_all_errors_on_completion() {
-        let tasks = TaskManager::new()
+        let tasks = TaskGroup::new()
             .add_task(CancellableTask::create(|token| async move {
                 token.cancelled().await;
                 Err(report!(TaskError {}))
@@ -173,7 +160,7 @@ mod test {
 
     #[tokio::test]
     async fn shutdown_gracefully_on_task_panic() {
-        let tasks = TaskManager::new()
+        let tasks = TaskGroup::new()
             .add_task(CancellableTask::create(|_| async { Ok(()) }))
             .add_task(CancellableTask::create(|_| async { panic!("panic") }))
             .add_task(CancellableTask::create(|_| async {

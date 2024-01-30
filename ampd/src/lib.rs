@@ -13,7 +13,7 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::asyncutil::task::{CancellableTask, Task, TaskError, TaskManager};
+use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use broadcaster::{accounts::account, Broadcaster};
 use event_processor::EventHandler;
 use events::Event;
@@ -135,7 +135,7 @@ where
     T: Broadcaster,
 {
     event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
-    event_processor: TaskManager<event_processor::Error>,
+    event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
@@ -166,7 +166,7 @@ where
             None => event_pub,
         };
 
-        let event_processor = TaskManager::new();
+        let event_processor = TaskGroup::new();
         let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
             broadcaster,
             broadcast_cfg.batch_gas_limit,
@@ -331,7 +331,7 @@ where
 
         let (state_tx, mut state_rx) = oneshot::channel::<State>();
 
-        let execution_result = TaskManager::new()
+        let execution_result = TaskGroup::new()
             .add_task(CancellableTask::create(|token| {
                 block_height_monitor
                     .run(token)
