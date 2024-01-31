@@ -91,10 +91,9 @@ pub fn instantiate(
 #[cw_serde]
 pub enum ExecuteMsg {
     RegisterToken { denom: String, token: XRPLToken },
-    // TODO: fix inconsistency between message_id & cc_id
     ConstructProof { message_id: CrossChainId },
     FinalizeProof { multisig_session_id: Uint64 },
-    UpdateTxStatus { cc_id: CrossChainId, message_status: MessageStatus },
+    UpdateTxStatus { message_id: CrossChainId, message_status: MessageStatus },
     UpdateWorkerSet,
     TicketCreate,
 }
@@ -132,8 +131,8 @@ pub fn execute(
         ExecuteMsg::UpdateWorkerSet {} => {
             construct_signer_list_set_proof(deps.storage, querier, env, &config)
         },
-        ExecuteMsg::UpdateTxStatus { cc_id, message_status } => {
-            update_tx_status(deps.storage, querier, cc_id, &message_status, config.axelar_multisig_address)
+        ExecuteMsg::UpdateTxStatus { message_id, message_status } => {
+            update_tx_status(deps.storage, querier, message_id, &message_status, config.axelar_multisig_address)
         },
         ExecuteMsg::TicketCreate {} => {
             construct_ticket_create_proof(deps.storage, env.contract.address, &config)
@@ -303,15 +302,15 @@ fn construct_ticket_create_proof(
 fn update_tx_status(
     storage: &mut dyn Storage,
     querier: Querier,
-    cc_id: CrossChainId,
+    message_id: CrossChainId,
     status: &MessageStatus,
     axelar_multisig_address: impl Into<String>,
 ) -> Result<Response, ContractError> {
-    if !querier.get_message_confirmation(cc_id.clone(), status)? {
+    if !querier.get_message_confirmation(message_id.clone(), status)? {
         return Err(ContractError::InvalidMessageStatus)
     }
 
-    let tx_hash: TxHash = TxHash::try_from(cc_id)?;
+    let tx_hash: TxHash = TxHash::try_from(message_id)?;
 
     match xrpl_multisig::update_tx_status(storage, axelar_multisig_address, tx_hash, status.clone().into())? {
         None => Ok(Response::default()),
