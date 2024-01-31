@@ -7,10 +7,11 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+type PinnedFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 /// This type represents an awaitable action that can be cancelled. It abstracts away the necessary boxing and pinning
 /// to make it work in async contexts. It can be freely moved around and stored in collections.
 pub struct CancellableTask<T> {
-    run_task: Box<dyn FnOnce(CancellationToken) -> Pin<Box<dyn Future<Output = T> + Send>> + Send>,
+    run_task: Box<dyn FnOnce(CancellationToken) -> PinnedFuture<T> + Send>,
 }
 
 impl<T> CancellableTask<T> {
