@@ -22,7 +22,7 @@ pub struct Args {
 pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
     let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
 
-    let msg = serde_json::to_vec(&ExecuteMsg::DeclareChainSupport {
+    let msg = serde_json::to_vec(&ExecuteMsg::RegisterChainSupport {
         service_name: args.service_name.into(),
         chains: args.chains,
     })
