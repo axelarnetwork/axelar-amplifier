@@ -214,8 +214,12 @@ mod tests {
         deps: DepsMut,
         worker: Addr,
         public_key: PublicKey,
+        signed_sender_address: HexBinary,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let msg = ExecuteMsg::RegisterPublicKey { public_key };
+        let msg = ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        };
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
 
@@ -716,14 +720,21 @@ mod tests {
         let ecdsa_signers = ecdsa_test_data::signers();
         let ecdsa_pub_keys = ecdsa_signers
             .iter()
-            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
-            .collect::<Vec<(Addr, HexBinary)>>();
+            .map(|signer| {
+                (
+                    signer.address.clone(),
+                    signer.pub_key.clone(),
+                    signer.signed_address.clone(),
+                )
+            })
+            .collect::<Vec<(Addr, HexBinary, HexBinary)>>();
 
-        for (addr, pub_key) in &ecdsa_pub_keys {
+        for (addr, pub_key, signed_address) in &ecdsa_pub_keys {
             let res = do_register_key(
                 deps.as_mut(),
                 addr.clone(),
                 PublicKey::Ecdsa(pub_key.clone()),
+                signed_address.clone(),
             );
             assert!(res.is_ok());
         }
@@ -732,14 +743,21 @@ mod tests {
         let ed25519_signers = ed25519_test_data::signers();
         let ed25519_pub_keys = ed25519_signers
             .iter()
-            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
-            .collect::<Vec<(Addr, HexBinary)>>();
+            .map(|signer| {
+                (
+                    signer.address.clone(),
+                    signer.pub_key.clone(),
+                    signer.signed_address.clone(),
+                )
+            })
+            .collect::<Vec<(Addr, HexBinary, HexBinary)>>();
 
-        for (addr, pub_key) in &ed25519_pub_keys {
+        for (addr, pub_key, signed_address) in &ed25519_pub_keys {
             let res = do_register_key(
                 deps.as_mut(),
                 addr.clone(),
                 PublicKey::Ed25519(pub_key.clone()),
+                signed_address.clone(),
             );
             assert!(res.is_ok());
         }
@@ -751,7 +769,7 @@ mod tests {
         ] {
             let mut ret_pub_keys: Vec<PublicKey> = vec![];
 
-            for (addr, _) in &expected_pub_keys {
+            for (addr, _, _) in &expected_pub_keys {
                 let res = query_registered_public_key(deps.as_ref(), addr.clone(), key_type);
                 assert!(res.is_ok());
                 ret_pub_keys.push(from_binary(&res.unwrap()).unwrap());
@@ -759,7 +777,7 @@ mod tests {
             assert_eq!(
                 expected_pub_keys
                     .into_iter()
-                    .map(|(_, pk)| PublicKey::try_from((key_type, pk)).unwrap())
+                    .map(|(_, pk, _)| PublicKey::try_from((key_type, pk)).unwrap())
                     .collect::<Vec<PublicKey>>(),
                 ret_pub_keys
             );
@@ -773,27 +791,35 @@ mod tests {
         let signers = ecdsa_test_data::signers();
         let pub_keys = signers
             .iter()
-            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
-            .collect::<Vec<(Addr, HexBinary)>>();
+            .map(|signer| {
+                (
+                    signer.address.clone(),
+                    signer.pub_key.clone(),
+                    signer.signed_address.clone(),
+                )
+            })
+            .collect::<Vec<(Addr, HexBinary, HexBinary)>>();
 
-        for (addr, pub_key) in &pub_keys {
+        for (addr, pub_key, signed_address) in &pub_keys {
             let res = do_register_key(
                 deps.as_mut(),
                 addr.clone(),
                 PublicKey::Ecdsa(pub_key.clone()),
+                signed_address.clone(),
             );
             assert!(res.is_ok());
         }
 
         // Update ECDSA key
         let new_pub_key = HexBinary::from_hex(
-            "021a381b3e07347d3a05495347e1fb2fe04764afcea5a74084fa957947b59f9026",
+            "03686cbbef9f9e9a5c852883cb2637b55fc76bee6ee6a3ff636e7bea2e41beece4",
         )
         .unwrap();
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
             PublicKey::Ecdsa(new_pub_key.clone()),
+            HexBinary::from_hex("2637de937901fc37113d9786497c8ec493dfedd08d3dc2dcfd1f03d3f28da19b714aa2b0973a46c9c68cdc568d5889038101f852c0277c887c901070a0bba409").unwrap(),
         );
         assert!(res.is_ok());
 
@@ -806,13 +832,14 @@ mod tests {
 
         // Register an ED25519 key, it should not affect our ECDSA key
         let ed25519_pub_key =
-            HexBinary::from_hex("13606a37daa030d02a72986dc01e45904678c8001429cd34514e69e2d054636a")
+            HexBinary::from_hex("dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b")
                 .unwrap();
 
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
             PublicKey::Ed25519(ed25519_pub_key.clone()),
+            HexBinary::from_hex("dd6b012d45b2ccff80542d0d9ae03b2cde2ff62efc3fae1055ad2477482e7df522f7cddbe32369f941dc0a46b81e22cc56b3e23fcc550e684338bae656cb7100").unwrap(),
         );
         assert!(res.is_ok());
 

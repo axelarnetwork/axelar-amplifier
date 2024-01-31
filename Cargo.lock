@@ -3922,6 +3922,7 @@ dependencies = [
  "serde",
  "serde_json",
  "service-registry",
+ "sha3 0.10.8",
  "thiserror",
  "tofn",
  "voting-verifier",
