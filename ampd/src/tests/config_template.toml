@@ -1,6 +1,7 @@
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
 event_buffer_cap = 100000
+event_stream_timeout = '15s'
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
