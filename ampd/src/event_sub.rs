@@ -254,8 +254,8 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let event_pub = EventPublisher::new(mock_client, 2 * block_count as usize);
-        let mut client = event_pub.start_from(from_height);
+        let event_publisher = EventPublisher::new(mock_client, 2 * block_count as usize);
+        let mut client = event_publisher.start_from(from_height);
         let mut stream = client.subscribe();
 
         let child_token = token.child_token();
@@ -313,11 +313,11 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let mut event_pub = EventPublisher::new(mock_client, 10);
-        let mut stream = event_pub.subscribe();
+        let mut event_publisher = EventPublisher::new(mock_client, 10);
+        let mut stream = event_publisher.subscribe();
 
         let child_token = token.child_token();
-        let handle = tokio::spawn(async move { event_pub.run(child_token).await });
+        let handle = tokio::spawn(async move { event_publisher.run(child_token).await });
 
         let event = stream.next().await;
         assert_eq!(event.unwrap().unwrap(), Event::BlockBegin(height));
@@ -400,8 +400,8 @@ mod tests {
             });
 
         let token = CancellationToken::new();
-        let event_pub = EventPublisher::new(mock_client, block_count * event_count_per_block);
-        let mut client = event_pub
+        let event_publisher = EventPublisher::new(mock_client, block_count * event_count_per_block);
+        let mut client = event_publisher
             .start_from(block_height)
             .poll_interval(Duration::new(0, 1e8 as u32));
         let mut stream = client.subscribe();

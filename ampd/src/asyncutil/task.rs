@@ -9,22 +9,23 @@ use tracing::info;
 
 /// This type represents an awaitable action that can be cancelled. It abstracts away the necessary boxing and pinning
 /// to make it work in async contexts. It can be freely moved around and stored in collections.
-pub struct CancellableTask<Output>(
-    Box<dyn FnOnce(CancellationToken) -> Pin<Box<dyn Future<Output = Output> + Send>> + Send>,
-);
+pub struct CancellableTask<T> {
+    run_task: Box<dyn FnOnce(CancellationToken) -> Pin<Box<dyn Future<Output = T> + Send>> + Send>,
+}
 
 impl<T> CancellableTask<T> {
-    pub fn create<Fut>(task: impl FnOnce(CancellationToken) -> Fut + Send + 'static) -> Self
+    /// Creates a movable task from an async function or closure.
+    pub fn create<Fut>(func: impl FnOnce(CancellationToken) -> Fut + Send + 'static) -> Self
     where
         Fut: Future<Output = T> + Send + 'static,
     {
-        Self(Box::new(move |token: CancellationToken| {
-            Box::pin(task(token))
-        }))
+        Self {
+            run_task: Box::new(move |token: CancellationToken| Box::pin(func(token))),
+        }
     }
 
     pub async fn run(self, token: CancellationToken) -> T {
-        self.0(token).await
+        (self.run_task)(token).await
     }
 }
 

@@ -160,10 +160,10 @@ where
     ) -> Self {
         let token = CancellationToken::new();
 
-        let event_pub = event_sub::EventPublisher::new(tm_client, event_buffer_cap);
+        let event_publisher = event_sub::EventPublisher::new(tm_client, event_buffer_cap);
         let event_publisher = match state_updater.state().min_handler_block_height() {
-            Some(min_height) => event_pub.start_from(min_height.increment()),
-            None => event_pub,
+            Some(min_height) => event_publisher.start_from(min_height.increment()),
+            None => event_publisher,
         };
 
         let event_processor = TaskGroup::new();
