@@ -860,6 +860,50 @@ mod tests {
     }
 
     #[test]
+    fn should_fail_register_key_if_signature_invalid() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        // Ecdsa
+        let signers = ecdsa_test_data::signers();
+        let signer1 = signers.first().unwrap();
+        let signer2 = signers.last().unwrap();
+
+        let res = do_register_key(
+            deps.as_mut(),
+            signer1.address.clone(),
+            PublicKey::Ecdsa(signer1.pub_key.clone()),
+            signer2.signed_address.clone(),
+        );
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(
+                ContractError::InvalidPublicKeyRegistrationSignature
+            )
+            .to_string()
+        );
+
+        // Ed25519
+        let signers = ed25519_test_data::signers();
+        let signer1 = signers.first().unwrap();
+        let signer2 = signers.last().unwrap();
+
+        let res = do_register_key(
+            deps.as_mut(),
+            signer1.address.clone(),
+            PublicKey::Ed25519(signer1.pub_key.clone()),
+            signer2.signed_address.clone(),
+        );
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(
+                ContractError::InvalidPublicKeyRegistrationSignature
+            )
+            .to_string()
+        );
+    }
+
+    #[test]
     fn authorize_and_unauthorize_caller() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
 
