@@ -23,6 +23,7 @@ use crate::{tofnd, PREFIX};
 
 pub mod bond_worker;
 pub mod daemon;
+pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
 pub mod worker_address;
@@ -35,6 +36,8 @@ pub enum SubCommand {
     BondWorker(bond_worker::Args),
     /// Register chain support to the service registry contract
     RegisterChainSupport(register_chain_support::Args),
+    /// Deregister chain support to the service registry contract
+    DeregisterChainSupport(deregister_chain_support::Args),
     /// Register public key to the multisig contract
     RegisterPublicKey,
     /// Query the worker address
