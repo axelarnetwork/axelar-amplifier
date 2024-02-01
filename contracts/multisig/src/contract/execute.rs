@@ -33,8 +33,13 @@ pub fn start_signing_session(
 
     let expires_at = env.block.height + config.block_expiry;
 
-    let signing_session =
-        SigningSession::new(session_id, worker_set_id.clone(), msg.clone(), expires_at);
+    let signing_session = SigningSession::new(
+        session_id,
+        worker_set_id.clone(),
+        chain_name.clone(),
+        msg.clone(),
+        expires_at,
+    );
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
@@ -94,8 +99,7 @@ pub fn submit_signature(
     let state_changed = old_state != session.state;
 
     signing_response(
-        session_id,
-        session.state,
+        session,
         state_changed,
         info.sender,
         signature,
@@ -166,8 +170,7 @@ pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractEr
 }
 
 fn signing_response(
-    session_id: Uint64,
-    session_state: MultisigState,
+    session: SigningSession,
     state_changed: bool,
     signer: Addr,
     signature: Signature,
@@ -176,7 +179,9 @@ fn signing_response(
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
         msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-            event_id: session_id
+            chain_name: session.chain_name,
+            event_id: session
+                .id
                 .to_string()
                 .try_into()
                 .expect("couldn't convert session_id to nonempty string"),
@@ -186,7 +191,7 @@ fn signing_response(
     };
 
     let event = Event::SignatureSubmitted {
-        session_id,
+        session_id: session.id,
         participant: signer,
         signature,
     };
@@ -195,12 +200,12 @@ fn signing_response(
         .add_message(rewards_msg)
         .add_event(event.into());
 
-    if let MultisigState::Completed { completed_at } = session_state {
+    if let MultisigState::Completed { completed_at } = session.state {
         if state_changed {
             // only send event if state changed
             response = response.add_event(
                 Event::SigningCompleted {
-                    session_id,
+                    session_id: session.id,
                     completed_at,
                 }
                 .into(),

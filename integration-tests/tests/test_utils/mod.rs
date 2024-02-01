@@ -272,11 +272,17 @@ pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
     }
 }
 
-pub fn distribute_rewards(app: &mut App, rewards_address: &Addr, contract_address: &Addr) {
+pub fn distribute_rewards(
+    app: &mut App,
+    rewards_address: &Addr,
+    chain_name: &ChainName,
+    contract_address: &Addr,
+) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         rewards_address.clone(),
         &rewards::msg::ExecuteMsg::DistributeRewards {
+            chain_name: chain_name.clone(),
             contract_address: contract_address.to_string(),
             epoch_count: None,
         },
@@ -346,16 +352,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             governance_account: governance_address.to_string(),
         },
     );
-    // voting rewards are added when setting up individual chains
-    let response = app.execute_contract(
-        genesis.clone(),
-        rewards_address.clone(),
-        &rewards::msg::ExecuteMsg::AddRewards {
-            contract_address: multisig_address.to_string(),
-        },
-        &coins(1000, AXL_DENOMINATION),
-    );
-    assert!(response.is_ok());
 
     Protocol {
         genesis_address: genesis,
@@ -735,7 +731,19 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         protocol.genesis_address.clone(),
         protocol.rewards_address.clone(),
         &rewards::msg::ExecuteMsg::AddRewards {
+            chain_name: chain_name.clone(),
             contract_address: voting_verifier_address.to_string(),
+        },
+        &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.app.execute_contract(
+        protocol.genesis_address.clone(),
+        protocol.rewards_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            chain_name: chain_name.clone(),
+            contract_address: protocol.multisig_address.to_string(),
         },
         &coins(1000, AXL_DENOMINATION),
     );

@@ -1,13 +1,15 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, DepsMut, Uint128};
 use error_stack::Result;
-use std::collections::HashMap;
 
 use crate::{
     error::ContractError,
     msg::Params,
     state::{
-        Config, Epoch, EpochTally, Event, RewardsStore, StorageState, Store, StoredParams, CONFIG,
+        Config, Epoch, EpochTally, Event, PoolId, RewardsStore, StorageState, Store, StoredParams,
+        CONFIG,
     },
 };
 
@@ -71,18 +73,17 @@ where
         &mut self,
         event_id: nonempty::String,
         worker: Addr,
-        target_contract: Addr,
+        pool_id: PoolId,
         block_height: u64,
     ) -> Result<(), ContractError> {
         let cur_epoch = self.current_epoch(block_height)?;
 
-        let event =
-            self.load_or_store_event(event_id, target_contract.clone(), cur_epoch.epoch_num)?;
+        let event = self.load_or_store_event(event_id, pool_id.clone(), cur_epoch.epoch_num)?;
 
         self.store
-            .load_epoch_tally(target_contract.clone(), event.epoch_num)?
+            .load_epoch_tally(pool_id.clone(), event.epoch_num)?
             .unwrap_or(EpochTally::new(
-                target_contract,
+                pool_id,
                 cur_epoch,
                 self.store.load_params().params,
             ))
@@ -98,16 +99,16 @@ where
     fn load_or_store_event(
         &mut self,
         event_id: nonempty::String,
-        target_contract: Addr,
+        pool_id: PoolId,
         cur_epoch_num: u64,
     ) -> Result<StorageState<Event>, ContractError> {
         let event = self
             .store
-            .load_event(event_id.to_string(), target_contract.clone())?;
+            .load_event(event_id.to_string(), pool_id.clone())?;
 
         match event {
             None => {
-                let event = Event::new(event_id, target_contract, cur_epoch_num);
+                let event = Event::new(event_id, pool_id, cur_epoch_num);
                 self.store.save_event(&event)?;
                 Ok(StorageState::New(event))
             }
@@ -117,7 +118,7 @@ where
 
     pub fn distribute_rewards(
         &mut self,
-        target_contract: Addr,
+        pool_id: PoolId,
         cur_block_height: u64,
         epoch_process_limit: Option<u64>,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
@@ -126,7 +127,7 @@ where
 
         let from = self
             .store
-            .load_rewards_watermark(target_contract.clone())?
+            .load_rewards_watermark(pool_id.clone())?
             .map_or(0, |last_processed| last_processed + 1);
 
         let to = std::cmp::min(
@@ -138,46 +139,41 @@ where
             return Err(ContractError::NoRewardsToDistribute.into());
         }
 
-        let rewards = self.process_rewards_for_epochs(target_contract.clone(), from, to)?;
-        self.store.save_rewards_watermark(target_contract, to)?;
+        let rewards = self.process_rewards_for_epochs(pool_id.clone(), from, to)?;
+        self.store.save_rewards_watermark(pool_id, to)?;
         Ok(rewards)
     }
 
     fn process_rewards_for_epochs(
         &mut self,
-        target_contract: Addr,
+        pool_id: PoolId,
         from: u64,
         to: u64,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let rewards = self.cumulate_rewards(&target_contract, from, to);
+        let rewards = self.cumulate_rewards(&pool_id, from, to);
         self.store
-            .load_rewards_pool(target_contract.clone())?
+            .load_rewards_pool(pool_id.clone())?
             .sub_reward(rewards.values().sum())?
             .then(|pool| self.store.save_rewards_pool(&pool))?;
 
         Ok(rewards)
     }
 
-    fn cumulate_rewards(
-        &mut self,
-        target_contract: &Addr,
-        from: u64,
-        to: u64,
-    ) -> HashMap<Addr, Uint128> {
-        self.iterate_epoch_tallies(target_contract, from, to)
+    fn cumulate_rewards(&mut self, pool_id: &PoolId, from: u64, to: u64) -> HashMap<Addr, Uint128> {
+        self.iterate_epoch_tallies(pool_id, from, to)
             .map(|tally| tally.rewards_by_worker())
             .fold(HashMap::new(), merge_rewards)
     }
 
     fn iterate_epoch_tallies<'a>(
         &'a mut self,
-        target_contract: &'a Addr,
+        pool_id: &'a PoolId,
         from: u64,
         to: u64,
     ) -> impl Iterator<Item = EpochTally> + 'a {
         (from..=to).filter_map(|epoch_num| {
             self.store
-                .load_epoch_tally(target_contract.clone(), epoch_num)
+                .load_epoch_tally(pool_id.clone(), epoch_num)
                 .unwrap_or_default()
         })
     }
@@ -215,10 +211,10 @@ where
 
     pub fn add_rewards(
         &mut self,
-        contract: Addr,
+        pool_id: PoolId,
         amount: nonempty::Uint128,
     ) -> Result<(), ContractError> {
-        let mut pool = self.store.load_rewards_pool(contract.clone())?;
+        let mut pool = self.store.load_rewards_pool(pool_id)?;
         pool.balance += Uint128::from(amount);
 
         self.store.save_rewards_pool(&pool)?;
@@ -252,12 +248,16 @@ mod test {
     };
 
     use axelar_wasm_std::nonempty;
+    use connection_router::state::ChainName;
     use cosmwasm_std::{Addr, Uint128, Uint64};
 
     use crate::{
         error::ContractError,
         msg::Params,
-        state::{self, Config, Epoch, EpochTally, Event, RewardsPool, Store, StoredParams},
+        state::{
+            self, Config, Epoch, EpochTally, Event, PoolId, RewardsPool, Store, StoredParams,
+            TallyKey,
+        },
     };
 
     use super::Contract;
@@ -338,7 +338,7 @@ mod test {
         }
     }
 
-    /// Tests that multiple participation events for the same contract within a given epoch are recorded correctly
+    /// Tests that multiple participation events for the same pool within a given epoch are recorded correctly
     #[test]
     fn record_participation_multiple_events() {
         let cur_epoch_num = 1u64;
@@ -347,7 +347,10 @@ mod test {
 
         let mut contract = setup(cur_epoch_num, epoch_block_start, epoch_duration);
 
-        let worker_contract = Addr::unchecked("some contract");
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(Addr::unchecked("worker_1"), 10);
@@ -362,12 +365,7 @@ mod test {
                 if i < *part_count {
                     let event_id = i.to_string().try_into().unwrap();
                     contract
-                        .record_participation(
-                            event_id,
-                            worker.clone(),
-                            worker_contract.clone(),
-                            cur_height,
-                        )
+                        .record_participation(event_id, worker.clone(), pool_id.clone(), cur_height)
                         .unwrap();
                 }
             }
@@ -376,7 +374,7 @@ mod test {
 
         let tally = contract
             .store
-            .load_epoch_tally(worker_contract, cur_epoch_num)
+            .load_epoch_tally(pool_id, cur_epoch_num)
             .unwrap();
         assert!(tally.is_some());
 
@@ -400,7 +398,10 @@ mod test {
 
         let mut contract = setup(starting_epoch_num, block_height_started, epoch_duration);
 
-        let worker_contract = Addr::unchecked("some contract");
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
 
         let workers = vec![
             Addr::unchecked("worker_1"),
@@ -415,7 +416,7 @@ mod test {
                 .record_participation(
                     "some event".to_string().try_into().unwrap(),
                     workers.clone(),
-                    worker_contract.clone(),
+                    pool_id.clone(),
                     height_at_epoch_end + i as u64,
                 )
                 .unwrap();
@@ -426,7 +427,7 @@ mod test {
 
         let tally = contract
             .store
-            .load_epoch_tally(worker_contract.clone(), starting_epoch_num)
+            .load_epoch_tally(pool_id.clone(), starting_epoch_num)
             .unwrap();
         assert!(tally.is_some());
 
@@ -440,12 +441,12 @@ mod test {
 
         let tally = contract
             .store
-            .load_epoch_tally(worker_contract, starting_epoch_num + 1)
+            .load_epoch_tally(pool_id, starting_epoch_num + 1)
             .unwrap();
         assert!(tally.is_none());
     }
 
-    /// Tests that participation events for different contracts are recorded correctly
+    /// Tests that participation events for different pools are recorded correctly
     #[test]
     fn record_participation_multiple_contracts() {
         let cur_epoch_num = 1u64;
@@ -456,16 +457,34 @@ mod test {
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
-            Addr::unchecked("worker_1"),
-            (Addr::unchecked("contract_1"), 3),
+            Addr::unchecked("worker-1"),
+            (
+                PoolId {
+                    chain_name: "mock-chain".parse().unwrap(),
+                    contract: Addr::unchecked("contract-1"),
+                },
+                3,
+            ),
         );
         simulated_participation.insert(
-            Addr::unchecked("worker_2"),
-            (Addr::unchecked("contract_2"), 4),
+            Addr::unchecked("worker-2"),
+            (
+                PoolId {
+                    chain_name: "mock-chain-2".parse().unwrap(),
+                    contract: Addr::unchecked("contract-1"),
+                },
+                4,
+            ),
         );
         simulated_participation.insert(
-            Addr::unchecked("worker_3"),
-            (Addr::unchecked("contract_3"), 2),
+            Addr::unchecked("worker-3"),
+            (
+                PoolId {
+                    chain_name: "mock-chain".parse().unwrap(),
+                    contract: Addr::unchecked("contract-3")
+                },
+                2,
+            ),
         );
 
         for (worker, (worker_contract, events_participated)) in &simulated_participation {
@@ -727,7 +746,7 @@ mod test {
         assert_eq!(epoch.block_height_started, cur_height + new_epoch_duration);
     }
 
-    /// Tests that rewards are added correctly to a single contract
+    /// Tests that rewards are added correctly to a single pool
     #[test]
     fn added_rewards_should_be_reflected_in_rewards_pool() {
         let cur_epoch_num = 1u64;
@@ -735,34 +754,32 @@ mod test {
         let epoch_duration = 100u64;
 
         let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
-        let worker_contract = Addr::unchecked("some contract");
-        let pool = contract
-            .store
-            .load_rewards_pool(worker_contract.clone())
-            .unwrap();
+
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("some contract"),
+        };
+        let pool = contract.store.load_rewards_pool(pool_id.clone()).unwrap();
         assert!(pool.balance.is_zero());
 
         let initial_amount = Uint128::from(100u128);
         contract
-            .add_rewards(worker_contract.clone(), initial_amount.try_into().unwrap())
+            .add_rewards(pool_id.clone(), initial_amount.try_into().unwrap())
             .unwrap();
 
-        let pool = contract
-            .store
-            .load_rewards_pool(worker_contract.clone())
-            .unwrap();
+        let pool = contract.store.load_rewards_pool(pool_id.clone()).unwrap();
         assert_eq!(pool.balance, initial_amount);
 
         let added_amount = Uint128::from(500u128);
         contract
-            .add_rewards(worker_contract.clone(), added_amount.try_into().unwrap())
+            .add_rewards(pool_id.clone(), added_amount.try_into().unwrap())
             .unwrap();
 
-        let pool = contract.store.load_rewards_pool(worker_contract).unwrap();
+        let pool = contract.store.load_rewards_pool(pool_id).unwrap();
         assert_eq!(pool.balance, initial_amount + added_amount);
     }
 
-    /// Tests that rewards are added correctly with multiple contracts
+    /// Tests that rewards are added correctly with multiple pools
     #[test]
     fn added_rewards_for_multiple_contracts_should_be_reflected_in_multiple_pools() {
         let cur_epoch_num = 1u64;
@@ -777,11 +794,18 @@ mod test {
             (Addr::unchecked("contract_3"), vec![1000, 500, 2000]),
         ];
 
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+
         for (worker_contract, rewards) in &test_data {
+            let pool_id = PoolId {
+                chain_name: chain_name.clone(),
+                contract: worker_contract.clone(),
+            };
+
             for amount in rewards {
                 contract
                     .add_rewards(
-                        worker_contract.clone(),
+                        pool_id.clone(),
                         cosmwasm_std::Uint128::from(*amount).try_into().unwrap(),
                     )
                     .unwrap();
@@ -789,7 +813,12 @@ mod test {
         }
 
         for (worker_contract, rewards) in test_data {
-            let pool = contract.store.load_rewards_pool(worker_contract).unwrap();
+            let pool_id = PoolId {
+                chain_name: chain_name.clone(),
+                contract: worker_contract.clone(),
+            };
+
+            let pool = contract.store.load_rewards_pool(pool_id).unwrap();
             assert_eq!(
                 pool.balance,
                 cosmwasm_std::Uint128::from(rewards.iter().sum::<u128>())
@@ -846,7 +875,11 @@ mod test {
             ),
             (worker4.clone(), rewards_per_epoch / 4),
         ]);
-        let contract_addr = Addr::unchecked("worker_contract");
+
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("worker_contract"),
+        };
 
         for (worker, events_participated) in worker_participation_per_epoch.clone() {
             for epoch in 0..epoch_count {
@@ -855,7 +888,7 @@ mod test {
                     let _ = contract.record_participation(
                         event_id.clone().try_into().unwrap(),
                         worker.clone(),
-                        contract_addr.clone(),
+                        pool_id.clone(),
                         block_height_started + epoch as u64 * epoch_duration,
                     );
                 }
@@ -866,13 +899,13 @@ mod test {
         // This tests we are accounting correctly, and only removing from the pool when we actually give out rewards
         let rewards_added = 2 * rewards_per_epoch;
         let _ = contract.add_rewards(
-            contract_addr.clone(),
+            pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let rewards_claimed = contract
             .distribute_rewards(
-                contract_addr,
+                pool_id,
                 block_height_started + epoch_duration * (epoch_count + 2) as u64,
                 None,
             )
@@ -902,21 +935,24 @@ mod test {
             participation_threshold,
         );
         let worker = Addr::unchecked("worker");
-        let contract_addr = Addr::unchecked("worker_contract");
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("worker_contract"),
+        };
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
             let event_id = height.to_string() + "event";
             let _ = contract.record_participation(
                 event_id.try_into().unwrap(),
                 worker.clone(),
-                contract_addr.clone(),
+                pool_id.clone(),
                 height,
             );
         }
 
         let rewards_added = 1000u128;
         let _ = contract.add_rewards(
-            contract_addr.clone(),
+            pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
@@ -927,7 +963,7 @@ mod test {
         // distribute 5 epochs worth of rewards
         let epochs_to_process = 5;
         let rewards_claimed = contract
-            .distribute_rewards(contract_addr.clone(), cur_height, Some(epochs_to_process))
+            .distribute_rewards(pool_id.clone(), cur_height, Some(epochs_to_process))
             .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&worker));
@@ -938,7 +974,7 @@ mod test {
 
         // distribute the remaining epochs worth of rewards
         let rewards_claimed = contract
-            .distribute_rewards(contract_addr.clone(), cur_height, None)
+            .distribute_rewards(pool_id.clone(), cur_height, None)
             .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&worker));
@@ -968,41 +1004,40 @@ mod test {
             participation_threshold,
         );
         let worker = Addr::unchecked("worker");
-        let contract_addr = Addr::unchecked("worker_contract");
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("worker_contract"),
+        };
 
         let _ = contract.record_participation(
             "event".try_into().unwrap(),
             worker.clone(),
-            contract_addr.clone(),
+            pool_id.clone(),
             block_height_started,
         );
 
         let rewards_added = 1000u128;
         let _ = contract.add_rewards(
-            contract_addr.clone(),
+            pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         // too early, still in the same epoch
         let err = contract
-            .distribute_rewards(contract_addr.clone(), block_height_started, None)
+            .distribute_rewards(pool_id.clone(), block_height_started, None)
             .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // next epoch, but still too early to claim rewards
         let err = contract
-            .distribute_rewards(
-                contract_addr.clone(),
-                block_height_started + epoch_duration,
-                None,
-            )
+            .distribute_rewards(pool_id.clone(), block_height_started + epoch_duration, None)
             .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // can claim now, two epochs after participation
         let rewards_claimed = contract
             .distribute_rewards(
-                contract_addr.clone(),
+                pool_id.clone(),
                 block_height_started + epoch_duration * 2,
                 None,
             )
@@ -1011,11 +1046,7 @@ mod test {
 
         // should error if we try again
         let err = contract
-            .distribute_rewards(
-                contract_addr,
-                block_height_started + epoch_duration * 2,
-                None,
-            )
+            .distribute_rewards(pool_id, block_height_started + epoch_duration * 2, None)
             .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
@@ -1038,25 +1069,28 @@ mod test {
             participation_threshold,
         );
         let worker = Addr::unchecked("worker");
-        let contract_addr = Addr::unchecked("worker_contract");
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("worker_contract"),
+        };
 
         let _ = contract.record_participation(
             "event".try_into().unwrap(),
             worker.clone(),
-            contract_addr.clone(),
+            pool_id.clone(),
             block_height_started,
         );
 
         // rewards per epoch is 100, we only add 10
         let rewards_added = 10u128;
         let _ = contract.add_rewards(
-            contract_addr.clone(),
+            pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let err = contract
             .distribute_rewards(
-                contract_addr.clone(),
+                pool_id.clone(),
                 block_height_started + epoch_duration * 2,
                 None,
             )
@@ -1068,15 +1102,12 @@ mod test {
         // add some more rewards
         let rewards_added = 90u128;
         let _ = contract.add_rewards(
-            contract_addr.clone(),
+            pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let result = contract.distribute_rewards(
-            contract_addr,
-            block_height_started + epoch_duration * 2,
-            None,
-        );
+        let result =
+            contract.distribute_rewards(pool_id, block_height_started + epoch_duration * 2, None);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 1);
     }
@@ -1098,24 +1129,27 @@ mod test {
             participation_threshold,
         );
         let worker = Addr::unchecked("worker");
-        let contract_addr = Addr::unchecked("worker_contract");
+        let pool_id = PoolId {
+            chain_name: "mock-chain".parse().unwrap(),
+            contract: Addr::unchecked("worker_contract"),
+        };
 
         let _ = contract.record_participation(
             "event".try_into().unwrap(),
             worker.clone(),
-            contract_addr.clone(),
+            pool_id.clone(),
             block_height_started,
         );
 
         let rewards_added = 1000u128;
         let _ = contract.add_rewards(
-            contract_addr.clone(),
+            pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         let rewards_claimed = contract
             .distribute_rewards(
-                contract_addr.clone(),
+                pool_id.clone(),
                 block_height_started + epoch_duration * 2,
                 None,
             )
@@ -1124,21 +1158,17 @@ mod test {
 
         // try to claim again, shouldn't get an error
         let err = contract
-            .distribute_rewards(
-                contract_addr,
-                block_height_started + epoch_duration * 2,
-                None,
-            )
+            .distribute_rewards(pool_id, block_height_started + epoch_duration * 2, None)
             .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 
     fn create_contract(
         params_store: Arc<RwLock<StoredParams>>,
-        events_store: Arc<RwLock<HashMap<(String, Addr), Event>>>,
-        tally_store: Arc<RwLock<HashMap<(Addr, u64), EpochTally>>>,
-        rewards_store: Arc<RwLock<HashMap<Addr, RewardsPool>>>,
-        watermark_store: Arc<RwLock<HashMap<Addr, u64>>>,
+        events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
+        tally_store: Arc<RwLock<HashMap<TallyKey, EpochTally>>>,
+        rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
+        watermark_store: Arc<RwLock<HashMap<PoolId, u64>>>,
     ) -> Contract<state::MockStore> {
         let mut store = state::MockStore::new();
         let params_store_cloned = params_store.clone();
@@ -1151,14 +1181,14 @@ mod test {
             Ok(())
         });
         let events_store_cloned = events_store.clone();
-        store.expect_load_event().returning(move |id, contract| {
+        store.expect_load_event().returning(move |id, pool_id| {
             let events_store = events_store_cloned.read().unwrap();
-            Ok(events_store.get(&(id, contract)).cloned())
+            Ok(events_store.get(&(id, pool_id)).cloned())
         });
         store.expect_save_event().returning(move |event| {
             let mut events_store = events_store.write().unwrap();
             events_store.insert(
-                (event.event_id.clone().into(), event.contract.clone()),
+                (event.event_id.clone().into(), event.pool_id.clone()),
                 event.clone(),
             );
             Ok(())
@@ -1166,33 +1196,35 @@ mod test {
         let tally_store_cloned = tally_store.clone();
         store
             .expect_load_epoch_tally()
-            .returning(move |contract, epoch_num| {
+            .returning(move |pool_id, epoch_num| {
                 let tally_store = tally_store_cloned.read().unwrap();
-                Ok(tally_store.get(&(contract, epoch_num)).cloned())
+                let tally_key = TallyKey {
+                    pool_id: pool_id.clone(),
+                    epoch_num,
+                };
+                Ok(tally_store.get(&tally_key).cloned())
             });
         store.expect_save_epoch_tally().returning(move |tally| {
             let mut tally_store = tally_store.write().unwrap();
-            tally_store.insert(
-                (tally.contract.clone(), tally.epoch.epoch_num.clone()),
-                tally.clone(),
-            );
+            let tally_key = TallyKey {
+                pool_id: tally.pool_id.clone(),
+                epoch_num: tally.epoch.epoch_num,
+            };
+            tally_store.insert(tally_key, tally.clone());
             Ok(())
         });
 
         let rewards_store_cloned = rewards_store.clone();
-        store.expect_load_rewards_pool().returning(move |contract| {
+        store.expect_load_rewards_pool().returning(move |pool_id| {
             let rewards_store = rewards_store_cloned.read().unwrap();
-            Ok(rewards_store
-                .get(&contract)
-                .cloned()
-                .unwrap_or(RewardsPool {
-                    contract,
-                    balance: Uint128::zero(),
-                }))
+            Ok(rewards_store.get(&pool_id).cloned().unwrap_or(RewardsPool {
+                id: pool_id,
+                balance: Uint128::zero(),
+            }))
         });
         store.expect_save_rewards_pool().returning(move |pool| {
             let mut rewards_store = rewards_store.write().unwrap();
-            rewards_store.insert(pool.contract.clone(), pool.clone());
+            rewards_store.insert(pool.id.clone(), pool.clone());
             Ok(())
         });
 
@@ -1205,9 +1237,9 @@ mod test {
             });
         store
             .expect_save_rewards_watermark()
-            .returning(move |contract, epoch_num| {
+            .returning(move |pool_id, epoch_num| {
                 let mut watermark_store = watermark_store.write().unwrap();
-                watermark_store.insert(contract, epoch_num);
+                watermark_store.insert(pool_id, epoch_num);
                 Ok(())
             });
         Contract {
@@ -1221,10 +1253,10 @@ mod test {
 
     fn setup_with_stores(
         params_store: Arc<RwLock<StoredParams>>,
-        events_store: Arc<RwLock<HashMap<(String, Addr), Event>>>,
-        tally_store: Arc<RwLock<HashMap<(Addr, u64), EpochTally>>>,
-        rewards_store: Arc<RwLock<HashMap<Addr, RewardsPool>>>,
-        watermark_store: Arc<RwLock<HashMap<Addr, u64>>>,
+        events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
+        tally_store: Arc<RwLock<HashMap<TallyKey, EpochTally>>>,
+        rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
+        watermark_store: Arc<RwLock<HashMap<PoolId, u64>>>,
     ) -> Contract<state::MockStore> {
         create_contract(
             params_store,

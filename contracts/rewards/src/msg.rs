@@ -1,4 +1,5 @@
 use axelar_wasm_std::{nonempty, Threshold};
+use connection_router::state::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]
@@ -35,12 +36,14 @@ pub enum ExecuteMsg {
     /// A possible solution to this is to add a weight to each event, where the voting verifier specifies the number
     /// of messages in a batch as well as the number of messages a particular worker actually participated in.
     RecordParticipation {
+        chain_name: ChainName,
         event_id: nonempty::String,
         worker_address: String,
     },
 
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
     DistributeRewards {
+        chain_name: ChainName,
         /// Address of contract for which to process rewards. For example, address of a voting verifier instance.
         contract_address: String,
         /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest.
@@ -50,6 +53,7 @@ pub enum ExecuteMsg {
     /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
     AddRewards {
+        chain_name: ChainName,
         /// Address of contract for which to reward participation. For example, address of a voting verifier instance.
         contract_address: String,
     },

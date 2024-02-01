@@ -1,16 +1,17 @@
-use crate::{
-    contract::execute::Contract,
-    error::ContractError,
-    msg::{ExecuteMsg, InstantiateMsg},
-    state::{Config, Epoch, StoredParams, CONFIG, PARAMS},
-};
+use itertools::Itertools;
+
 use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, MessageInfo, Response};
 use error_stack::ResultExt;
 
-use itertools::Itertools;
+use crate::{
+    contract::execute::Contract,
+    error::ContractError,
+    msg::{ExecuteMsg, InstantiateMsg},
+    state::{Config, Epoch, PoolId, StoredParams, CONFIG, PARAMS},
+};
 
 mod execute;
 
@@ -54,17 +55,25 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::RecordParticipation {
+            chain_name,
             event_id,
             worker_address,
         } => {
             let worker_address = deps.api.addr_validate(&worker_address)?;
+            let pool_id = PoolId {
+                chain_name,
+                contract: info.sender.clone(),
+            };
             Contract::new(deps)
-                .record_participation(event_id, worker_address, info.sender, env.block.height)
+                .record_participation(event_id, worker_address, pool_id, env.block.height)
                 .map_err(axelar_wasm_std::ContractError::from)?;
 
             Ok(Response::new())
         }
-        ExecuteMsg::AddRewards { contract_address } => {
+        ExecuteMsg::AddRewards {
+            chain_name,
+            contract_address,
+        } => {
             let contract_address = deps.api.addr_validate(&contract_address)?;
             let mut contract = Contract::new(deps);
             let amount = info
@@ -75,21 +84,33 @@ pub fn execute(
                 .ok_or(ContractError::WrongDenom)?
                 .amount;
 
+            let pool_id = PoolId {
+                chain_name,
+                contract: contract_address,
+            };
+
             contract.add_rewards(
-                contract_address,
+                pool_id,
                 nonempty::Uint128::try_from(amount).change_context(ContractError::ZeroRewards)?,
             )?;
 
             Ok(Response::new())
         }
         ExecuteMsg::DistributeRewards {
+            chain_name,
             contract_address,
             epoch_count,
         } => {
             let contract_address = deps.api.addr_validate(&contract_address)?;
             let mut contract = Contract::new(deps);
+
+            let pool_id = PoolId {
+                chain_name,
+                contract: contract_address.clone(),
+            };
+
             let rewards = contract
-                .distribute_rewards(contract_address, env.block.height, epoch_count)
+                .distribute_rewards(pool_id, env.block.height, epoch_count)
                 .map_err(axelar_wasm_std::ContractError::from)?;
 
             let msgs = rewards
@@ -115,6 +136,7 @@ pub fn execute(
 
 #[cfg(test)]
 mod tests {
+    use connection_router::state::ChainName;
     use cosmwasm_std::{coins, Addr, Binary, BlockInfo, Deps, Env, StdResult, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -124,13 +146,15 @@ mod tests {
 
     /// Tests that the contract entry points (instantiate and execute) work as expected.
     /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.
-    /// Adds rewards to the contract, updates the rewards params, records some participation
+    /// Adds rewards to the pool, updates the rewards params, records some participation
     /// events and then distributes the rewards.
     #[test]
     fn test_rewards_flow() {
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
         let user = Addr::unchecked("user");
         let worker = Addr::unchecked("worker");
         let worker_contract = Addr::unchecked("worker contract");
+
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
             router
@@ -174,6 +198,7 @@ mod tests {
             user.clone(),
             contract_address.clone(),
             &ExecuteMsg::AddRewards {
+                chain_name: chain_name.clone(),
                 contract_address: worker_contract.to_string(),
             },
             &coins(200, AXL_DENOMINATION),
@@ -197,6 +222,7 @@ mod tests {
             worker_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
                 event_id: "some event".to_string().try_into().unwrap(),
                 worker_address: worker.to_string(),
             },
@@ -208,6 +234,7 @@ mod tests {
             worker_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
+                chain_name: chain_name.clone(),
                 event_id: "some other event".to_string().try_into().unwrap(),
                 worker_address: worker.to_string(),
             },
@@ -226,6 +253,7 @@ mod tests {
             user,
             contract_address.clone(),
             &ExecuteMsg::DistributeRewards {
+                chain_name: chain_name.clone(),
                 contract_address: worker_contract.to_string(),
                 epoch_count: None,
             },

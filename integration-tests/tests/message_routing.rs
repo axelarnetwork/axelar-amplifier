@@ -28,7 +28,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain2.chain_name,
+        destination_chain: chain2.chain_name.clone(),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )
@@ -95,11 +95,13 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     test_utils::distribute_rewards(
         &mut protocol.app,
         &protocol.rewards_address,
+        &chain1.chain_name,
         &chain1.voting_verifier_address,
     );
     test_utils::distribute_rewards(
         &mut protocol.app,
         &protocol.rewards_address,
+        &chain2.chain_name,
         &protocol.multisig_address,
     );
 
