@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::broadcaster;
 use crate::commands::ServiceRegistryConfig;
@@ -12,6 +13,8 @@ pub struct Config {
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub event_buffer_cap: usize,
+    #[serde(with = "humantime_serde")]
+    pub event_stream_timeout: Duration,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
@@ -28,6 +31,7 @@ impl Default for Config {
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
             event_buffer_cap: 100000,
+            event_stream_timeout: Duration::from_secs(15),
             service_registry: ServiceRegistryConfig::default(),
         }
     }
