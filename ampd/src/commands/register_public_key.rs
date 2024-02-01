@@ -3,7 +3,6 @@ use std::convert::TryInto;
 use std::path::Path;
 
 use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg};
-use cosmwasm_std::HexBinary;
 use error_stack::{Result, ResultExt};
 use multisig::{
     key::{KeyType, PublicKey},
