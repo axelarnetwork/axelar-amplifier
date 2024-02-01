@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use error_stack::Report;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
+use reqwest;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::url::Url;
@@ -37,7 +38,7 @@ where
 }
 
 impl Client<Http> {
-    pub fn new_http(url: &Url) -> Result<Self> {
-        Ok(Client::new(Http::new(url)))
+    pub fn new_http(url: &Url, client: reqwest::Client) -> Self {
+        Client::new(Http::new_with_client(url, client))
     }
 }
