@@ -16,6 +16,7 @@ use multisig::{
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
+use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -438,6 +439,15 @@ pub fn register_workers(
         );
         assert!(response.is_ok());
 
+        let address_hash = Keccak256::digest(&worker.addr.as_bytes());
+
+        let sig = tofn::ecdsa::sign(
+            worker.key_pair.signing_key(),
+            &address_hash.as_slice().try_into().unwrap(),
+        )
+        .unwrap();
+        let sig = ecdsa::Signature::from_der(&sig).unwrap();
+
         let response = app.execute_contract(
             worker.addr.clone(),
             multisig.clone(),
@@ -445,6 +455,7 @@ pub fn register_workers(
                 public_key: PublicKey::Ecdsa(HexBinary::from(
                     worker.key_pair.encoded_verifying_key(),
                 )),
+                signed_sender_address: HexBinary::from(sig.to_vec()),
             },
             &[],
         );

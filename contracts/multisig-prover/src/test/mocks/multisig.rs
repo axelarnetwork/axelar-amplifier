@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint64,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
+    StdResult, Uint64,
 };
 use cw_multi_test::{App, Executor};
 use cw_storage_plus::Map;
@@ -41,7 +42,10 @@ pub fn execute(
             signature: _,
         } => unimplemented!(),
         ExecuteMsg::RegisterWorkerSet { worker_set: _ } => Ok(Response::default()),
-        ExecuteMsg::RegisterPublicKey { public_key } => {
+        ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address: _,
+        } => {
             PUB_KEYS.save(
                 deps.storage,
                 (info.sender.to_string(), public_key.key_type()),
@@ -65,6 +69,7 @@ pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<Tes
             multisig_address.clone(),
             &ExecuteMsg::RegisterPublicKey {
                 public_key: worker.pub_key.into(),
+                signed_sender_address: HexBinary::from_hex("00").unwrap(),
             },
             &[],
         )
