@@ -1,11 +1,12 @@
+mod test_utils;
+
 use std::{str::FromStr, vec};
 
 use connection_router::state::ChainName;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{App, Executor};
 use service_registry::{
-    contract::{execute, instantiate, query},
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::ExecuteMsg,
     state::{AuthorizationState, BondingState, Worker},
     ContractError,
 };
@@ -15,22 +16,8 @@ const AXL_DENOMINATION: &str = "uaxl";
 #[test]
 fn register_service() {
     let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let res = app.execute_contract(
         governance,
         contract_addr.clone(),
@@ -75,22 +62,8 @@ fn register_service() {
 #[test]
 fn authorize_worker() {
     let mut app = App::default();
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let res = app.execute_contract(
         governance.clone(),
@@ -146,22 +119,8 @@ fn bond_worker() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -211,22 +170,8 @@ fn register_chain_support() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -278,16 +223,8 @@ fn register_chain_support() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -300,16 +237,12 @@ fn register_chain_support() {
         }]
     );
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name: ChainName::from_str("some other chain").unwrap(),
-            },
-        )
-        .unwrap();
+    let workers = test_utils::get_active_workers(
+        &mut app,
+        contract_addr.clone(),
+        service_name,
+        ChainName::from_str("random chain").unwrap(),
+    );
     assert_eq!(workers, vec![])
 }
 
@@ -324,22 +257,8 @@ fn register_and_deregister_support_for_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -404,16 +323,8 @@ fn register_and_deregister_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -427,22 +338,8 @@ fn register_and_deregister_support_for_multiple_chains() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -512,16 +409,8 @@ fn register_and_deregister_support_for_multiple_chains() {
     assert!(res.is_ok());
 
     for chain in chains {
-        let workers: Vec<Worker> = app
-            .wrap()
-            .query_wasm_smart(
-                contract_addr.clone(),
-                &QueryMsg::GetActiveWorkers {
-                    service_name: service_name.into(),
-                    chain_name: chain.clone(),
-                },
-            )
-            .unwrap();
+        let workers =
+            test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain);
         assert_eq!(workers, vec![]);
     }
 }
@@ -537,22 +426,8 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -624,30 +499,22 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     // Verify that worker is not associated with the deregistered chain
     let deregistered_chain = chains[0].clone();
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name: deregistered_chain.clone(),
-            },
-        )
-        .unwrap();
+    let workers = test_utils::get_active_workers(
+        &mut app,
+        contract_addr.clone(),
+        service_name,
+        deregistered_chain,
+    );
     assert_eq!(workers, vec![]);
 
     // Verify that worker is still associated with other chains
     for chain in chains.iter().skip(1) {
-        let workers: Vec<Worker> = app
-            .wrap()
-            .query_wasm_smart(
-                contract_addr.clone(),
-                &QueryMsg::GetActiveWorkers {
-                    service_name: service_name.into(),
-                    chain_name: chain.clone(),
-                },
-            )
-            .unwrap();
+        let workers = test_utils::get_active_workers(
+            &mut app,
+            contract_addr.clone(),
+            service_name,
+            chain.clone(),
+        );
         assert_eq!(
             workers,
             vec![Worker {
@@ -673,22 +540,8 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -754,16 +607,8 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -788,22 +633,8 @@ fn register_deregister_register_support_for_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -879,16 +710,8 @@ fn register_deregister_register_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -913,22 +736,8 @@ fn deregister_previously_unsupported_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -981,16 +790,8 @@ fn deregister_previously_unsupported_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name: ChainName::from_str("some other chain").unwrap(),
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1005,22 +806,8 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1074,16 +861,8 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -1098,22 +877,8 @@ fn deregister_from_unregistered_worker_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1153,16 +918,8 @@ fn deregister_from_unregistered_worker_single_chain() {
         axelar_wasm_std::ContractError::from(ContractError::WorkerNotFound).to_string()
     );
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -1177,22 +934,8 @@ fn deregister_single_chain_for_nonexistent_service() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, _) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let err = app
@@ -1224,22 +967,8 @@ fn unbond_worker() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1302,16 +1031,8 @@ fn unbond_worker() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1324,22 +1045,8 @@ fn bond_wrong_denom() {
             .init_balance(storage, &worker, coins(100000, "funnydenom"))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1386,22 +1093,8 @@ fn bond_but_not_authorized() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1443,16 +1136,8 @@ fn bond_but_not_authorized() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1465,22 +1150,8 @@ fn bond_but_not_enough() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1533,16 +1204,8 @@ fn bond_but_not_enough() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1555,22 +1218,8 @@ fn bond_before_authorize() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1623,16 +1272,8 @@ fn bond_before_authorize() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -1655,22 +1296,8 @@ fn unbond_then_rebond() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
@@ -1743,16 +1370,8 @@ fn unbond_then_rebond() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = app
-        .wrap()
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name,
-            },
-        )
-        .unwrap();
+    let workers =
+        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -1777,22 +1396,8 @@ fn unbonding_period() {
             .init_balance(storage, &worker, coins(initial_bal, AXL_DENOMINATION))
             .unwrap()
     });
-    let code = ContractWrapper::new(execute, instantiate, query);
-    let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
+    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
 
-    let contract_addr = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("anyone"),
-            &InstantiateMsg {
-                governance_account: governance.clone().into(),
-            },
-            &[],
-            "service_registry",
-            None,
-        )
-        .unwrap();
     let service_name = "validators";
     let unbonding_period_days = 1;
     let res = app.execute_contract(
