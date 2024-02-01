@@ -22,6 +22,9 @@ pub enum ContractError {
     #[error("{signer:?} submitted an invalid signature for signing session {session_id:?}")]
     InvalidSignature { session_id: Uint64, signer: String },
 
+    #[error("signed sender address could not be verified using submitted public key")]
+    InvalidPublicKeyRegistrationSignature,
+
     #[error("invalid public key format: {reason:?}")]
     InvalidPublicKeyFormat { reason: String },
 
