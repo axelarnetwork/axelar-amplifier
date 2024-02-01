@@ -10,8 +10,8 @@ use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 
+use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-
 use crate::handlers::chain;
 
 #[async_trait]
@@ -60,7 +60,15 @@ where
             .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
-            handler.handle(event).await.change_context(Error::Handler)?;
+            future::with_retry(
+                || handler.handle(event),
+                // TODO: make timeout and max_attempts configurable
+                RetryPolicy::RepeatConstant(Duration::from_secs(5), 3),
+            )
+            .await
+            .change_context(Error::Handler)?;
+
+            // handler.handle(event).await.change_context(Error::Handler)?;
         }
 
         if should_task_stop(stream_status, &token) {

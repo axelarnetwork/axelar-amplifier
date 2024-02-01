@@ -292,7 +292,7 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        let (tx, rx) = watch::channel(latest_block_height);
+        let (_tx, rx) = watch::channel(latest_block_height);
 
         Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
