@@ -812,14 +812,14 @@ mod tests {
 
         // Update ECDSA key
         let new_pub_key = HexBinary::from_hex(
-            "03686cbbef9f9e9a5c852883cb2637b55fc76bee6ee6a3ff636e7bea2e41beece4",
+            "03a7e532333ba40803b7e5744cbc94e94e905c9ced87bbe08065e0cd36fa7e01c6",
         )
         .unwrap();
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
             PublicKey::Ecdsa(new_pub_key.clone()),
-            HexBinary::from_hex("2637de937901fc37113d9786497c8ec493dfedd08d3dc2dcfd1f03d3f28da19b714aa2b0973a46c9c68cdc568d5889038101f852c0277c887c901070a0bba409").unwrap(),
+            HexBinary::from_hex("b8b4c7e4423e80a71171d40709a1ca3b464b09ca93c4df9e13ef98df5d6d2d3b77a2fdf22a34b2946574801ee0d7fa886d8c3b34e63ca4158b74e02fe343ca47").unwrap(),
         );
         assert!(res.is_ok());
 
@@ -832,14 +832,14 @@ mod tests {
 
         // Register an ED25519 key, it should not affect our ECDSA key
         let ed25519_pub_key =
-            HexBinary::from_hex("dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b")
+            HexBinary::from_hex("2753ddea3de0211433a8f743474cbb48a9a5bc2d2e9ade1e4e7975b95f14c902")
                 .unwrap();
 
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
             PublicKey::Ed25519(ed25519_pub_key.clone()),
-            HexBinary::from_hex("dd6b012d45b2ccff80542d0d9ae03b2cde2ff62efc3fae1055ad2477482e7df522f7cddbe32369f941dc0a46b81e22cc56b3e23fcc550e684338bae656cb7100").unwrap(),
+            HexBinary::from_hex("e9e4863bfe418eb1e85b08e71db9580247ced6d6c0bac8dfa1fce64e96cff79ee327992fc46f70902834ab23b0584c2a613ad5c608d640a71db5d6784117c80a").unwrap(),
         );
         assert!(res.is_ok());
 
