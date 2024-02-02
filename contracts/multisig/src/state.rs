@@ -81,7 +81,7 @@ pub fn save_pub_key(
     pub_key: &HexBinary,
 ) -> Result<(), ContractError> {
     UNIQUE_PUB_KEYS.update(store, pub_key, |v| match v {
-        Some(_) => Err(ContractError::DuplicatePubKey),
+        Some(_) => Err(ContractError::DuplicatePublicKey),
         None => Ok(()),
     })?;
 

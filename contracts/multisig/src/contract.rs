@@ -904,6 +904,36 @@ mod tests {
     }
 
     #[test]
+    fn should_fail_duplicate_public_key_registration() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        // Ecdsa
+        let signers = ecdsa_test_data::signers();
+        let signer = signers.first().unwrap();
+
+        do_register_key(
+            deps.as_mut(),
+            signer.address.clone(),
+            PublicKey::Ecdsa(signer.pub_key.clone()),
+            signer.signed_address.clone(),
+        )
+        .unwrap();
+
+        let res = do_register_key(
+            deps.as_mut(),
+            signer.address.clone(),
+            PublicKey::Ecdsa(signer.pub_key.clone()),
+            signer.signed_address.clone(),
+        );
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::DuplicatePublicKey).to_string()
+        );
+    }
+
+    #[test]
     fn authorize_and_unauthorize_caller() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
 
