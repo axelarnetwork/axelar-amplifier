@@ -72,6 +72,22 @@ pub fn get_worker_set(
 // key type is part of the key so signers can register multiple keys with different types
 pub const PUB_KEYS: Map<(Addr, KeyType), HexBinary> = Map::new("registered_pub_keys");
 
+pub const UNIQUE_PUB_KEYS: Map<&[u8], ()> = Map::new("unique_pub_keys");
+
+pub fn save_pub_key(
+    store: &mut dyn Storage,
+    signer: Addr,
+    key_type: KeyType,
+    pub_key: &HexBinary,
+) -> Result<(), ContractError> {
+    UNIQUE_PUB_KEYS.update(store, pub_key, |v| match v {
+        Some(_) => Err(ContractError::DuplicatePubKey),
+        None => Ok(()),
+    })?;
+
+    Ok(PUB_KEYS.save(store, (signer, key_type), pub_key)?)
+}
+
 // The keys represent the addresses that can start a signing session.
 pub const AUTHORIZED_CALLERS: Map<&Addr, ()> = Map::new("authorized_callers");
 
