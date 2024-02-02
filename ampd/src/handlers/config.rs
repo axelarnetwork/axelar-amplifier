@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use itertools::Itertools;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
@@ -21,11 +23,13 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
+        rpc_timeout: Option<Duration>,
     },
     EvmWorkerSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
+        rpc_timeout: Option<Duration>,
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
@@ -33,10 +37,12 @@ pub enum Config {
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+        rpc_timeout: Option<Duration>,
     },
     SuiWorkerSetVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+        rpc_timeout: Option<Duration>,
     },
 }
 

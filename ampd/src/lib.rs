@@ -45,6 +45,7 @@ mod types;
 mod url;
 
 const PREFIX: &str = "axelar";
+const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 
 type HandlerStream<E> = Pin<Box<dyn Stream<Item = Result<Event, E>> + Send>>;
 
@@ -197,14 +198,21 @@ where
                 handlers::config::Config::EvmMsgVerifier {
                     chain,
                     cosmwasm_contract,
+                    rpc_timeout,
                 } => self.create_handler_task(
                     format!("{}-msg-verifier", chain.name),
                     handlers::evm_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        json_rpc::Client::new_http(&chain.rpc_url)
-                            .change_context(Error::Connection)?,
+                        json_rpc::Client::new_http(
+                            &chain.rpc_url,
+                            reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        ),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
@@ -213,14 +221,21 @@ where
                 handlers::config::Config::EvmWorkerSetVerifier {
                     chain,
                     cosmwasm_contract,
+                    rpc_timeout,
                 } => self.create_handler_task(
                     format!("{}-worker-set-verifier", chain.name),
                     handlers::evm_verify_worker_set::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        json_rpc::Client::new_http(&chain.rpc_url)
-                            .change_context(Error::Connection)?,
+                        json_rpc::Client::new_http(
+                            &chain.rpc_url,
+                            reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        ),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
@@ -241,12 +256,20 @@ where
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
+                    rpc_timeout,
                 } => self.create_handler_task(
                     "sui-msg-verifier",
                     handlers::sui_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
-                        json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        json_rpc::Client::new_http(
+                            &rpc_url,
+                            reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        ),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
@@ -255,12 +278,20 @@ where
                 handlers::config::Config::SuiWorkerSetVerifier {
                     cosmwasm_contract,
                     rpc_url,
+                    rpc_timeout,
                 } => self.create_handler_task(
                     "sui-worker-set-verifier",
                     handlers::sui_verify_worker_set::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
-                        json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        json_rpc::Client::new_http(
+                            &rpc_url,
+                            reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                        ),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
