@@ -98,33 +98,78 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
+    use std::{sync::Mutex, time::Instant};
 
     use super::*;
 
     #[tokio::test]
-    async fn try_something() {
-        let a = with_retry(
-            || async {
-                sleep(Duration::from_secs(2)).await;
+    async fn should_return_ok_when_the_inter_future_returns_ok_immediately() {
+        let fut = with_retry(
+            || async { Ok::<(), ()>(()) },
+            RetryPolicy::RepeatConstant(Duration::from_secs(1), 3),
+        );
+        let start = Instant::now();
 
-                if SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis()
-                    % 3
-                    == 0
-                {
-                    Ok::<i32, ()>(5)
+        assert!(fut.await.is_ok());
+        assert!(start.elapsed().as_secs() < 1);
+    }
+
+    #[tokio::test]
+    async fn should_return_ok_when_the_inter_future_returns_ok_eventually() {
+        let max_attempts = 3;
+        let count = Mutex::new(0);
+        let fut = with_retry(
+            || async {
+                *count.lock().unwrap() += 1;
+                sleep(Duration::from_secs(1)).await;
+
+                if *count.lock().unwrap() < max_attempts - 1 {
+                    Err::<(), ()>(())
                 } else {
-                    Err(())
+                    Ok::<(), ()>(())
                 }
             },
-            RetryPolicy::RepeatConstant(Duration::from_secs(1), 10),
-        )
-        .await
-        .unwrap();
+            RetryPolicy::RepeatConstant(Duration::from_secs(1), max_attempts),
+        );
+        let start = Instant::now();
 
-        println!("a {:?}", a);
+        assert!(fut.await.is_ok());
+        assert!(start.elapsed().as_secs() >= 3);
+        assert!(start.elapsed().as_secs() < 4);
+    }
+
+    #[tokio::test]
+    async fn should_return_error_when_the_inter_future_returns_error_after_max_attempts() {
+        let fut = with_retry(
+            || async { Err::<(), ()>(()) },
+            RetryPolicy::RepeatConstant(Duration::from_secs(1), 3),
+        );
+        let start = Instant::now();
+
+        assert!(fut.await.is_err());
+        assert!(start.elapsed().as_secs() >= 2);
+    }
+
+    #[tokio::test]
+    async fn should_return_ok_when_the_inter_future_returns_ok_within_max_attempts() {
+        let max_attempts = 3;
+        let count = Mutex::new(0);
+        let fut = with_retry(
+            || async {
+                *count.lock().unwrap() += 1;
+
+                if *count.lock().unwrap() < max_attempts {
+                    Err::<(), ()>(())
+                } else {
+                    Ok::<(), ()>(())
+                }
+            },
+            RetryPolicy::RepeatConstant(Duration::from_secs(1), max_attempts),
+        );
+        let start = Instant::now();
+
+        assert!(fut.await.is_ok());
+        assert!(start.elapsed().as_secs() >= 2);
+        assert!(start.elapsed().as_secs() < 3);
     }
 }

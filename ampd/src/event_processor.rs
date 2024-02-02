@@ -63,7 +63,7 @@ where
             future::with_retry(
                 || handler.handle(event),
                 // TODO: make timeout and max_attempts configurable
-                RetryPolicy::RepeatConstant(Duration::from_secs(5), 3),
+                RetryPolicy::RepeatConstant(Duration::from_secs(1), 3),
             )
             .await
             .change_context(Error::Handler)?;
@@ -189,11 +189,11 @@ mod tests {
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
-            .times(1)
+            .times(3)
             .returning(|_| Err(report!(EventHandlerError::Failed)));
 
         let result_with_timeout = timeout(
-            Duration::from_secs(1),
+            Duration::from_secs(3),
             consume_events(
                 handler,
                 stream::iter(events),
