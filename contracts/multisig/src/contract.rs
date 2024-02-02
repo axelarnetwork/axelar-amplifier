@@ -909,22 +909,23 @@ mod tests {
         do_instantiate(deps.as_mut()).unwrap();
 
         // Ecdsa
-        let signers = ecdsa_test_data::signers();
-        let signer = signers.first().unwrap();
+        let mut signers = ecdsa_test_data::signers();
+        let signer1 = signers.remove(0);
+        let signer2 = signers.remove(0);
 
         do_register_key(
             deps.as_mut(),
-            signer.address.clone(),
-            PublicKey::Ecdsa(signer.pub_key.clone()),
-            signer.signed_address.clone(),
+            signer1.address.clone(),
+            PublicKey::Ecdsa(signer1.pub_key.clone()),
+            signer1.signed_address.clone(),
         )
         .unwrap();
 
         let res = do_register_key(
             deps.as_mut(),
-            signer.address.clone(),
-            PublicKey::Ecdsa(signer.pub_key.clone()),
-            signer.signed_address.clone(),
+            signer2.address.clone(),
+            PublicKey::Ecdsa(signer1.pub_key.clone()),
+            HexBinary::from_hex("9c7b758232a7a9c7362bda880dd659450b45237fbb3bd8fbe61464bd9a8271e06b9867f419a8a5e1ed173980ee3f8567637bb7e028093dcb6c1115d2379886d9").unwrap(),
         );
 
         assert_eq!(

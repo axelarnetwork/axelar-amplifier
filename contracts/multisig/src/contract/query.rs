@@ -1,6 +1,6 @@
 use crate::{
     key::{KeyType, PublicKey},
-    state::{load_session_signatures, PUB_KEYS},
+    state::{load_pub_key, load_session_signatures},
     worker_set::WorkerSet,
 };
 
@@ -30,6 +30,6 @@ pub fn get_worker_set(deps: Deps, worker_set_id: String) -> StdResult<WorkerSet>
 }
 
 pub fn get_public_key(deps: Deps, worker: Addr, key_type: KeyType) -> StdResult<PublicKey> {
-    let raw = PUB_KEYS.load(deps.storage, (worker, key_type))?;
+    let raw = load_pub_key(deps.storage, worker, key_type)?;
     Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
 }

@@ -131,12 +131,7 @@ pub fn register_pub_key(
         return Err(ContractError::InvalidPublicKeyRegistrationSignature);
     }
 
-    save_pub_key(
-        deps.storage,
-        info.sender.clone(),
-        public_key.key_type(),
-        &public_key.clone().into(),
-    )?;
+    save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 
     Ok(Response::new().add_event(
         Event::PublicKeyRegistered {
