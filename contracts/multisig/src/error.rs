@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("invalid public key format: {reason:?}")]
     InvalidPublicKeyFormat { reason: String },
 
+    #[error("public key is already registered")]
+    DuplicatePublicKey,
+
     #[error("invalid message format: {reason:?}")]
     InvalidMessageFormat { reason: String },
 

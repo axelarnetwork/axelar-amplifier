@@ -48,4 +48,3 @@ impl ServiceRegistryContract {
             )
             .unwrap()
     }
-}

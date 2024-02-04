@@ -67,7 +67,7 @@ fn authorize_worker() {
     let governance = Addr::unchecked("gov");
     let service_registry =
         test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
-
+  
     let service_name = "validators";
     let res = app.execute_contract(
         governance.clone(),
