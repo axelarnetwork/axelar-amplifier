@@ -16,10 +16,11 @@ const AXL_DENOMINATION: &str = "uaxl";
 #[test]
 fn register_service() {
     let mut app = App::default();
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let res = app.execute_contract(
-        governance,
+        governance.clone(),
         contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: "validators".into(),
@@ -62,7 +63,8 @@ fn register_service() {
 #[test]
 fn authorize_worker() {
     let mut app = App::default();
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let res = app.execute_contract(
@@ -119,7 +121,8 @@ fn bond_worker() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -170,7 +173,8 @@ fn register_chain_support() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -224,7 +228,7 @@ fn register_chain_support() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -238,7 +242,7 @@ fn register_chain_support() {
     );
 
     let workers = test_utils::get_active_workers(
-        &mut app,
+        &app,
         contract_addr.clone(),
         service_name,
         ChainName::from_str("random chain").unwrap(),
@@ -257,7 +261,8 @@ fn register_and_deregister_support_for_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -324,7 +329,7 @@ fn register_and_deregister_support_for_single_chain() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -338,7 +343,8 @@ fn register_and_deregister_support_for_multiple_chains() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -410,7 +416,7 @@ fn register_and_deregister_support_for_multiple_chains() {
 
     for chain in chains {
         let workers =
-            test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain);
+            test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain);
         assert_eq!(workers, vec![]);
     }
 }
@@ -426,7 +432,8 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -500,7 +507,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
     // Verify that worker is not associated with the deregistered chain
     let deregistered_chain = chains[0].clone();
     let workers = test_utils::get_active_workers(
-        &mut app,
+        &app,
         contract_addr.clone(),
         service_name,
         deregistered_chain,
@@ -510,7 +517,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
     // Verify that worker is still associated with other chains
     for chain in chains.iter().skip(1) {
         let workers = test_utils::get_active_workers(
-            &mut app,
+            &app,
             contract_addr.clone(),
             service_name,
             chain.clone(),
@@ -540,7 +547,8 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -608,7 +616,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -633,7 +641,8 @@ fn register_deregister_register_support_for_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -711,7 +720,7 @@ fn register_deregister_register_support_for_single_chain() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -736,7 +745,8 @@ fn deregister_previously_unsupported_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -791,7 +801,7 @@ fn deregister_previously_unsupported_single_chain() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -806,7 +816,8 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -862,7 +873,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -877,7 +888,8 @@ fn deregister_from_unregistered_worker_single_chain() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -919,7 +931,7 @@ fn deregister_from_unregistered_worker_single_chain() {
     );
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -934,7 +946,8 @@ fn deregister_single_chain_for_nonexistent_service() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, _) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let chain_name = ChainName::from_str("ethereum").unwrap();
@@ -967,7 +980,8 @@ fn unbond_worker() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -1032,7 +1046,7 @@ fn unbond_worker() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1045,7 +1059,8 @@ fn bond_wrong_denom() {
             .init_balance(storage, &worker, coins(100000, "funnydenom"))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -1093,7 +1108,8 @@ fn bond_but_not_authorized() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -1137,7 +1153,7 @@ fn bond_but_not_authorized() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1150,7 +1166,8 @@ fn bond_but_not_enough() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -1205,7 +1222,7 @@ fn bond_but_not_enough() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1218,7 +1235,8 @@ fn bond_before_authorize() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -1273,7 +1291,7 @@ fn bond_before_authorize() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -1296,7 +1314,8 @@ fn unbond_then_rebond() {
             .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
@@ -1371,7 +1390,7 @@ fn unbond_then_rebond() {
     assert!(res.is_ok());
 
     let workers =
-        test_utils::get_active_workers(&mut app, contract_addr.clone(), service_name, chain_name);
+        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -1396,7 +1415,8 @@ fn unbonding_period() {
             .init_balance(storage, &worker, coins(initial_bal, AXL_DENOMINATION))
             .unwrap()
     });
-    let (contract_addr, governance) = test_utils::instantiate_contract(&mut app);
+    let governance = Addr::unchecked("gov");
+    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let unbonding_period_days = 1;

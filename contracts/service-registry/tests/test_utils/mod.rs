@@ -7,10 +7,9 @@ use service_registry::{
     state::Worker,
 };
 
-pub fn instantiate_contract(app: &mut App) -> (Addr, Addr) {
+pub fn instantiate_contract(app: &mut App, governance: Addr) -> Addr {
     let code = ContractWrapper::new(execute, instantiate, query);
     let code_id = app.store_code(Box::new(code));
-    let governance = Addr::unchecked("gov");
 
     let contract_addr = app
         .instantiate_contract(
@@ -25,11 +24,11 @@ pub fn instantiate_contract(app: &mut App) -> (Addr, Addr) {
         )
         .unwrap();
 
-    (contract_addr, governance)
+    contract_addr
 }
 
 pub fn get_active_workers(
-    app: &mut App,
+    app: &App,
     contract_addr: Addr,
     service_name: &str,
     chain_name: ChainName,
