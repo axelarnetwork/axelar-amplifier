@@ -17,11 +17,12 @@ const AXL_DENOMINATION: &str = "uaxl";
 fn register_service() {
     let mut app = App::default();
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: "validators".into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -37,7 +38,7 @@ fn register_service() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         Addr::unchecked("some other account"),
-        contract_addr,
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: "validators".into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -64,12 +65,13 @@ fn register_service() {
 fn authorize_worker() {
     let mut app = App::default();
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -86,7 +88,7 @@ fn authorize_worker() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
@@ -96,7 +98,7 @@ fn authorize_worker() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         Addr::unchecked("some other address"),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
@@ -122,13 +124,14 @@ fn bond_worker() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -145,7 +148,7 @@ fn bond_worker() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -155,7 +158,7 @@ fn bond_worker() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -174,13 +177,14 @@ fn register_chain_support() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -197,7 +201,7 @@ fn register_chain_support() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -207,7 +211,7 @@ fn register_chain_support() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -218,7 +222,7 @@ fn register_chain_support() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -227,8 +231,7 @@ fn register_chain_support() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -241,9 +244,8 @@ fn register_chain_support() {
         }]
     );
 
-    let workers = test_utils::get_active_workers(
+    let workers = service_registry.get_active_workers(
         &app,
-        contract_addr.clone(),
         service_name,
         ChainName::from_str("random chain").unwrap(),
     );
@@ -262,13 +264,14 @@ fn register_and_deregister_support_for_single_chain() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -285,7 +288,7 @@ fn register_and_deregister_support_for_single_chain() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -296,7 +299,7 @@ fn register_and_deregister_support_for_single_chain() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -307,7 +310,7 @@ fn register_and_deregister_support_for_single_chain() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -319,7 +322,7 @@ fn register_and_deregister_support_for_single_chain() {
     // Deregister chain support
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -328,8 +331,7 @@ fn register_and_deregister_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -344,13 +346,14 @@ fn register_and_deregister_support_for_multiple_chains() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -367,7 +370,7 @@ fn register_and_deregister_support_for_multiple_chains() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -378,7 +381,7 @@ fn register_and_deregister_support_for_multiple_chains() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -394,7 +397,7 @@ fn register_and_deregister_support_for_multiple_chains() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: chains.clone(),
@@ -405,7 +408,7 @@ fn register_and_deregister_support_for_multiple_chains() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: chains.clone(),
@@ -415,8 +418,7 @@ fn register_and_deregister_support_for_multiple_chains() {
     assert!(res.is_ok());
 
     for chain in chains {
-        let workers =
-            test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain);
+        let workers = service_registry.get_active_workers(&app, service_name, chain);
         assert_eq!(workers, vec![]);
     }
 }
@@ -433,13 +435,14 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -456,7 +459,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -467,7 +470,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -483,7 +486,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: chains.clone(),
@@ -495,7 +498,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
     // Deregister only the first chain
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chains[0].clone()],
@@ -506,22 +509,12 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     // Verify that worker is not associated with the deregistered chain
     let deregistered_chain = chains[0].clone();
-    let workers = test_utils::get_active_workers(
-        &app,
-        contract_addr.clone(),
-        service_name,
-        deregistered_chain,
-    );
+    let workers = service_registry.get_active_workers(&app, service_name, deregistered_chain);
     assert_eq!(workers, vec![]);
 
     // Verify that worker is still associated with other chains
     for chain in chains.iter().skip(1) {
-        let workers = test_utils::get_active_workers(
-            &app,
-            contract_addr.clone(),
-            service_name,
-            chain.clone(),
-        );
+        let workers = service_registry.get_active_workers(&app, service_name, chain.clone());
         assert_eq!(
             workers,
             vec![Worker {
@@ -548,13 +541,14 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -571,7 +565,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -582,7 +576,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -593,7 +587,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -606,7 +600,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     // Deregister support for another chain
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![second_chain_name.clone()],
@@ -615,8 +609,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -642,13 +635,14 @@ fn register_deregister_register_support_for_single_chain() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -665,7 +659,7 @@ fn register_deregister_register_support_for_single_chain() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -676,7 +670,7 @@ fn register_deregister_register_support_for_single_chain() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -687,7 +681,7 @@ fn register_deregister_register_support_for_single_chain() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -698,7 +692,7 @@ fn register_deregister_register_support_for_single_chain() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -710,7 +704,7 @@ fn register_deregister_register_support_for_single_chain() {
     // Second support declaration
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -719,8 +713,7 @@ fn register_deregister_register_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -746,13 +739,14 @@ fn deregister_previously_unsupported_single_chain() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -769,7 +763,7 @@ fn deregister_previously_unsupported_single_chain() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -780,7 +774,7 @@ fn deregister_previously_unsupported_single_chain() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -791,7 +785,7 @@ fn deregister_previously_unsupported_single_chain() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -800,8 +794,7 @@ fn deregister_previously_unsupported_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -817,13 +810,14 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -840,7 +834,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
 
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -852,7 +846,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -863,7 +857,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::DeregisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -872,8 +866,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -889,13 +882,14 @@ fn deregister_from_unregistered_worker_single_chain() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -914,7 +908,7 @@ fn deregister_from_unregistered_worker_single_chain() {
     let err = app
         .execute_contract(
             worker.clone(),
-            contract_addr.clone(),
+            service_registry.contract_addr.clone(),
             &ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -930,8 +924,7 @@ fn deregister_from_unregistered_worker_single_chain() {
         axelar_wasm_std::ContractError::from(ContractError::WorkerNotFound).to_string()
     );
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![]);
 }
 
@@ -947,14 +940,15 @@ fn deregister_single_chain_for_nonexistent_service() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let err = app
         .execute_contract(
             worker.clone(),
-            contract_addr.clone(),
+            service_registry.contract_addr.clone(),
             &ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
@@ -981,13 +975,14 @@ fn unbond_worker() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1004,7 +999,7 @@ fn unbond_worker() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -1014,7 +1009,7 @@ fn unbond_worker() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1025,7 +1020,7 @@ fn unbond_worker() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -1037,7 +1032,7 @@ fn unbond_worker() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::UnbondWorker {
             service_name: service_name.into(),
         },
@@ -1045,8 +1040,7 @@ fn unbond_worker() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1060,13 +1054,14 @@ fn bond_wrong_denom() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1083,7 +1078,7 @@ fn bond_wrong_denom() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1109,13 +1104,14 @@ fn bond_but_not_authorized() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1132,7 +1128,7 @@ fn bond_but_not_authorized() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1143,7 +1139,7 @@ fn bond_but_not_authorized() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -1152,8 +1148,7 @@ fn bond_but_not_authorized() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1167,13 +1162,14 @@ fn bond_but_not_enough() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1190,7 +1186,7 @@ fn bond_but_not_enough() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -1201,7 +1197,7 @@ fn bond_but_not_enough() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1212,7 +1208,7 @@ fn bond_but_not_enough() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -1221,8 +1217,7 @@ fn bond_but_not_enough() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(workers, vec![])
 }
 
@@ -1236,13 +1231,14 @@ fn bond_before_authorize() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1259,7 +1255,7 @@ fn bond_before_authorize() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1269,7 +1265,7 @@ fn bond_before_authorize() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -1281,7 +1277,7 @@ fn bond_before_authorize() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -1290,8 +1286,7 @@ fn bond_before_authorize() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -1315,13 +1310,14 @@ fn unbond_then_rebond() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let min_worker_bond = Uint128::new(100);
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1338,7 +1334,7 @@ fn unbond_then_rebond() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -1348,7 +1344,7 @@ fn unbond_then_rebond() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1359,7 +1355,7 @@ fn unbond_then_rebond() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
@@ -1371,7 +1367,7 @@ fn unbond_then_rebond() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::UnbondWorker {
             service_name: service_name.into(),
         },
@@ -1381,7 +1377,7 @@ fn unbond_then_rebond() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1389,8 +1385,7 @@ fn unbond_then_rebond() {
     );
     assert!(res.is_ok());
 
-    let workers =
-        test_utils::get_active_workers(&app, contract_addr.clone(), service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
     assert_eq!(
         workers,
         vec![Worker {
@@ -1416,13 +1411,14 @@ fn unbonding_period() {
             .unwrap()
     });
     let governance = Addr::unchecked("gov");
-    let contract_addr = test_utils::instantiate_contract(&mut app, governance.clone());
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
     let service_name = "validators";
     let unbonding_period_days = 1;
     let res = app.execute_contract(
         governance.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -1439,7 +1435,7 @@ fn unbonding_period() {
 
     let res = app.execute_contract(
         governance,
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
@@ -1449,7 +1445,7 @@ fn unbonding_period() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1460,7 +1456,7 @@ fn unbonding_period() {
     let chain_name = ChainName::from_str("ethereum").unwrap();
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterChainSupport {
             service_name: service_name.into(),
             chains: vec![chain_name],
@@ -1472,7 +1468,7 @@ fn unbonding_period() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::UnbondWorker {
             service_name: service_name.into(),
         },
@@ -1491,7 +1487,7 @@ fn unbonding_period() {
     assert!(res.is_ok());
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
@@ -1532,7 +1528,7 @@ fn unbonding_period() {
 
     let res = app.execute_contract(
         worker.clone(),
-        contract_addr.clone(),
+        service_registry.contract_addr.clone(),
         &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
