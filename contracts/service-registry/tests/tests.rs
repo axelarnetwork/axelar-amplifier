@@ -2,6 +2,7 @@ mod test_utils;
 
 use std::{str::FromStr, vec};
 
+use crate::test_utils::Contract;
 use connection_router::state::ChainName;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 use cw_multi_test::{App, Executor};
@@ -231,7 +232,7 @@ fn register_chain_support() {
     );
     assert!(res.is_ok());
 
-    let workers = service_registry.get_active_workers(&app, service_name, chain_name);
+    let workers = service_registry.get_active_workers(&app, service_name, chain_name.clone());
     assert_eq!(
         workers,
         vec![Worker {
@@ -249,7 +250,7 @@ fn register_chain_support() {
         service_name,
         ChainName::from_str("random chain").unwrap(),
     );
-    assert_eq!(workers, vec![])
+    assert_eq!(workers, vec![]);
 }
 
 /// If a bonded and authorized worker deregisters support for a chain they previously registered support for,
