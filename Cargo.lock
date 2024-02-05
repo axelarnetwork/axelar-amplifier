@@ -7190,6 +7190,7 @@ dependencies = [
 name = "service-registry"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "connection-router",
@@ -7202,6 +7203,7 @@ dependencies = [
  "report",
  "schemars",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

@@ -2,7 +2,6 @@ mod test_utils;
 
 use std::{str::FromStr, vec};
 
-use crate::test_utils::Contract;
 use connection_router::state::ChainName;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 use cw_multi_test::{App, Executor};
@@ -21,9 +20,9 @@ fn register_service() {
     let service_registry =
         test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
 
-    let res = app.execute_contract(
-        governance.clone(),
-        service_registry.contract_addr.clone(),
+    let res = service_registry.register_contract(
+        &mut app,
+        governance,
         &ExecuteMsg::RegisterService {
             service_name: "validators".into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -37,6 +36,7 @@ fn register_service() {
         &[],
     );
     assert!(res.is_ok());
+
     let res = app.execute_contract(
         Addr::unchecked("some other account"),
         service_registry.contract_addr.clone(),

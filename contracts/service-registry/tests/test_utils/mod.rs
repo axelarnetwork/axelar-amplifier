@@ -1,11 +1,12 @@
+use anyhow::Result as AnyResult;
 use connection_router::state::ChainName;
-use cosmwasm_std::{Addr};
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cosmwasm_std::{Addr, Coin};
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use service_registry::{
     contract::{execute, instantiate, query},
-    msg::{InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::Worker,
 };
 
@@ -46,10 +47,21 @@ impl ServiceRegistryContract {
         };
         self.query(app, worker_query)
     }
+
+    pub fn register_contract(
+        &self,
+        app: &mut App,
+        caller: Addr,
+        execute_message: &ExecuteMsg,
+        funds: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        self.execute(app, caller, execute_message, funds)
+    }
 }
 
 pub trait Contract {
     type Msg;
+    type Exec;
 
     fn contract_address(&self) -> Addr;
     fn query<T: DeserializeOwned>(&self, app: &App, query_message: &Self::Msg) -> T
@@ -60,10 +72,30 @@ pub trait Contract {
             .query_wasm_smart(self.contract_address(), query_message)
             .unwrap()
     }
+
+    fn execute(
+        &self,
+        app: &mut App,
+        caller: Addr,
+        execute_message: &Self::Exec,
+        funds: &[Coin],
+    ) -> AnyResult<AppResponse>
+    where
+        Self::Exec: Serialize,
+        Self::Exec: std::fmt::Debug,
+    {
+        app.execute_contract(
+            caller.clone(),
+            self.contract_address(),
+            execute_message,
+            funds,
+        )
+    }
 }
 
 impl Contract for ServiceRegistryContract {
     type Msg = QueryMsg;
+    type Exec = ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()
