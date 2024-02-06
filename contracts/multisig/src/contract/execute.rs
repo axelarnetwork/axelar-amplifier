@@ -3,12 +3,12 @@ use cosmwasm_std::WasmMsg;
 use sha3::{Digest, Keccak256};
 
 use crate::signing::validate_session_signature;
-use crate::state::{load_session_signatures, save_signature};
+use crate::state::{load_session_signatures, save_pub_key, save_signature};
 use crate::worker_set::WorkerSet;
 use crate::{
     key::{KeyTyped, PublicKey, Signature},
     signing::SigningSession,
-    state::{AUTHORIZED_CALLERS, PUB_KEYS},
+    state::AUTHORIZED_CALLERS,
 };
 use error_stack::ResultExt;
 
@@ -131,11 +131,7 @@ pub fn register_pub_key(
         return Err(ContractError::InvalidPublicKeyRegistrationSignature);
     }
 
-    PUB_KEYS.save(
-        deps.storage,
-        (info.sender.clone(), public_key.key_type()),
-        &public_key.clone().into(),
-    )?;
+    save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 
     Ok(Response::new().add_event(
         Event::PublicKeyRegistered {

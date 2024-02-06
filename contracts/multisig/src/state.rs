@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 
 use crate::{
-    key::{KeyType, Signature},
+    key::{KeyType, KeyTyped, PublicKey, Signature},
     signing::SigningSession,
     worker_set::WorkerSet,
     ContractError,
@@ -69,8 +69,46 @@ pub fn get_worker_set(
         })
 }
 
+pub struct PubKeysIndexes<'a> {
+    pub pub_key: UniqueIndex<'a, Vec<u8>, HexBinary>,
+}
+
+impl IndexList<HexBinary> for PubKeysIndexes<'_> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<HexBinary>> + '_> {
+        let v: Vec<&dyn Index<HexBinary>> = vec![&self.pub_key];
+        Box::new(v.into_iter())
+    }
+}
+
 // key type is part of the key so signers can register multiple keys with different types
-pub const PUB_KEYS: Map<(Addr, KeyType), HexBinary> = Map::new("registered_pub_keys");
+pub fn pub_keys<'a>() -> IndexedMap<'a, (Addr, KeyType), HexBinary, PubKeysIndexes<'a>> {
+    let indexes = PubKeysIndexes {
+        pub_key: UniqueIndex::new(|p| p.to_vec(), "pub_key__unique"),
+    };
+
+    IndexedMap::new("pub_keys", indexes)
+}
+
+pub fn load_pub_key(store: &dyn Storage, signer: Addr, key_type: KeyType) -> StdResult<HexBinary> {
+    pub_keys().load(store, (signer, key_type))
+}
+
+pub fn save_pub_key(
+    store: &mut dyn Storage,
+    signer: Addr,
+    pub_key: PublicKey,
+) -> Result<(), ContractError> {
+    if pub_keys()
+        .idx
+        .pub_key
+        .item(store, HexBinary::from(pub_key.clone()).into())?
+        .is_some()
+    {
+        return Err(ContractError::DuplicatePublicKey);
+    }
+
+    Ok(pub_keys().save(store, (signer, pub_key.key_type()), &pub_key.into())?)
+}
 
 // The keys represent the addresses that can start a signing session.
 pub const AUTHORIZED_CALLERS: Map<&Addr, ()> = Map::new("authorized_callers");
@@ -83,6 +121,29 @@ mod tests {
     use crate::test::common::ecdsa_test_data;
 
     use super::*;
+
+    #[test]
+    fn should_fail_if_duplicate_public_key() {
+        let mut deps = mock_dependencies();
+        let pub_key = ecdsa_test_data::pub_key();
+
+        save_pub_key(
+            deps.as_mut().storage,
+            Addr::unchecked("1"),
+            (KeyType::Ecdsa, pub_key.clone()).try_into().unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            save_pub_key(
+                deps.as_mut().storage,
+                Addr::unchecked("2"),
+                (KeyType::Ecdsa, pub_key).try_into().unwrap(),
+            )
+            .unwrap_err(),
+            ContractError::DuplicatePublicKey
+        );
+    }
 
     #[test]
     fn test_save_and_load_signatures() {
