@@ -35,6 +35,7 @@ mod evm;
 mod handlers;
 mod json_rpc;
 mod queue;
+mod solana;
 pub mod state;
 mod sui;
 mod tm_client;
@@ -252,6 +253,21 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                ),
+                handlers::config::Config::SolanaWorkerSetVerifier {
+                    cosmwasm_contract,
+                    chain,
+                } => self.configure_handler(
+                    format!("{}-worker-set-verifier", chain.name),
+                    handlers::solana_verify_worker_set::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        connection_router::state::ChainName::from(chain.name),
+                        json_rpc::Client::new_http(&chain.rpc_url)
+                            .change_context(Error::Connection)?,
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),

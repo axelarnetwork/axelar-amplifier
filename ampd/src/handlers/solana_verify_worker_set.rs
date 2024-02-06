@@ -1,0 +1,177 @@
+use std::convert::TryInto;
+
+use cosmrs::cosmwasm::MsgExecuteContract;
+use error_stack::ResultExt;
+use serde::Deserialize;
+use tokio::sync::watch::Receiver;
+use tracing::info;
+
+use async_trait::async_trait;
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
+
+use axelar_wasm_std::voting::{PollId, Vote};
+use connection_router::state::ChainName;
+use voting_verifier::msg::ExecuteMsg;
+
+use crate::event_processor::EventHandler;
+use crate::handlers::errors::Error;
+use crate::queue::queued_broadcaster::BroadcasterClient;
+use crate::solana::json_rpc::SolanaClient;
+use crate::solana::verifier::{parse_gateway_event, verify_worker_set, GatewayEvent};
+use crate::types::{TMAddress, U256};
+
+type Result<T> = error_stack::Result<T, Error>;
+
+#[derive(Deserialize, Debug)]
+pub struct Operators {
+    pub weights_by_addresses: Vec<(String, U256)>,
+    pub threshold: U256,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WorkerSetConfirmation {
+    pub tx_id: String,
+    pub event_index: u64,
+    pub operators: Operators,
+}
+
+#[derive(Deserialize, Debug)]
+#[try_from("wasm-worker_set_poll_started")]
+struct PollStartedEvent {
+    #[serde(rename = "_contract_address")]
+    contract_address: TMAddress,
+    worker_set: WorkerSetConfirmation,
+    poll_id: PollId,
+    source_chain: connection_router::state::ChainName,
+    source_gateway_address: String,
+    expires_at: u64,
+    confirmation_height: u64,
+    participants: Vec<TMAddress>,
+}
+
+pub struct Handler<C, B>
+where
+    C: SolanaClient + Send + Sync,
+    B: BroadcasterClient,
+{
+    worker: TMAddress,
+    voting_verifier: TMAddress,
+    chain: ChainName,
+    rpc_client: C,
+    broadcast_client: B,
+    latest_block_height: Receiver<u64>,
+}
+
+impl<C, B> Handler<C, B>
+where
+    C: SolanaClient + Send + Sync,
+    B: BroadcasterClient,
+{
+    pub fn new(
+        worker: TMAddress,
+        voting_verifier: TMAddress,
+        chain: ChainName,
+        rpc_client: C,
+        broadcast_client: B,
+        latest_block_height: Receiver<u64>,
+    ) -> Self {
+        Self {
+            worker,
+            voting_verifier,
+            chain,
+            rpc_client,
+            broadcast_client,
+            latest_block_height,
+        }
+    }
+
+    async fn broadcast_vote(&self, poll_id: PollId, vote: Vote) -> Result<()> {
+        let msg = serde_json::to_vec(&ExecuteMsg::Vote {
+            poll_id,
+            votes: vec![vote],
+        })
+        .expect("vote msg should serialize");
+        let tx = MsgExecuteContract {
+            sender: self.worker.as_ref().clone(),
+            contract: self.voting_verifier.as_ref().clone(),
+            msg,
+            funds: vec![],
+        };
+
+        self.broadcast_client
+            .broadcast(tx)
+            .await
+            .change_context(Error::Broadcaster)
+    }
+}
+
+#[async_trait]
+impl<C, B> EventHandler for Handler<C, B>
+where
+    C: SolanaClient + Send + Sync,
+    B: BroadcasterClient + Send + Sync,
+{
+    type Err = Error;
+
+    async fn handle(&self, event: &events::Event) -> Result<()> {
+        let PollStartedEvent {
+            contract_address,
+            poll_id,
+            source_chain,
+            source_gateway_address,
+            expires_at,
+            confirmation_height: _,
+            participants,
+            worker_set,
+        } = match event.try_into() as error_stack::Result<_, _> {
+            Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
+                return Ok(())
+            }
+            event => event.change_context(Error::DeserializeEvent)?,
+        };
+
+        if self.voting_verifier != contract_address {
+            return Ok(());
+        }
+
+        if self.chain != source_chain {
+            return Ok(());
+        }
+
+        if !participants.contains(&self.worker) {
+            return Ok(());
+        }
+
+        let latest_block_height = *self.latest_block_height.borrow();
+        if latest_block_height >= expires_at {
+            info!(poll_id = poll_id.to_string(), "skipping expired poll");
+            return Ok(());
+        }
+
+        let sol_tx = self
+            .rpc_client
+            .get_transaction(&worker_set.tx_id)
+            .await
+            .map_err(|_| Error::TxReceipts)?;
+
+        let gw_event = parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
+
+        let pub_key = match gw_event {
+            GatewayEvent::OperatorshipTransferred {
+                info_account_address,
+            } => info_account_address,
+            _ => return self.broadcast_vote(poll_id, Vote::FailedOnChain).await,
+        };
+
+        let account_info = self
+            .rpc_client
+            .get_account(&pub_key.to_string())
+            .await
+            .map_err(|_| Error::TxReceipts)?;
+
+        let vote =
+            verify_worker_set(&source_gateway_address, &sol_tx, &worker_set, &account_info).await;
+        self.broadcast_vote(poll_id, vote).await
+    }
+}

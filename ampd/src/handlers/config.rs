@@ -13,6 +13,13 @@ pub struct Chain {
     pub rpc_url: Url,
 }
 
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct GenericChain {
+    pub name: connection_router::state::ChainName,
+    pub rpc_url: Url,
+}
+
 with_prefix!(chain "chain_");
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type")]
@@ -37,6 +44,11 @@ pub enum Config {
     SuiWorkerSetVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+    },
+    SolanaWorkerSetVerifier {
+        cosmwasm_contract: TMAddress,
+        #[serde(flatten, with = "chain")]
+        chain: GenericChain,
     },
 }
 
@@ -133,6 +145,29 @@ where
     }
 }
 
+fn validate_solana_worker_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    if !configs
+        .iter()
+        .filter_map(|config| match config {
+            Config::SolanaWorkerSetVerifier {
+                chain: GenericChain { name, .. },
+                ..
+            } => Some(name),
+            _ => None,
+        })
+        .all_unique()
+    {
+        return Err(de::Error::custom(
+            "the chain name Solana worker set verifier configs must be unique",
+        ));
+    }
+
+    Ok(())
+}
+
 pub fn deserialize_handler_configs<'de, D>(deserializer: D) -> Result<Vec<Config>, D::Error>
 where
     D: Deserializer<'de>,
@@ -144,6 +179,7 @@ where
     validate_multisig_signer_config::<D>(&configs)?;
     validate_sui_msg_verifier_config::<D>(&configs)?;
     validate_sui_worker_set_verifier_config::<D>(&configs)?;
+    validate_solana_worker_set_verifier_configs::<D>(&configs)?;
 
     Ok(configs)
 }
