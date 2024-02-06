@@ -5,7 +5,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use service_registry::{
     contract::{execute, instantiate, query},
-    error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
 };
 
@@ -36,14 +35,14 @@ impl ServiceRegistryContract {
 }
 
 pub trait Contract {
-    type Msg;
-    type Exec;
+    type QMsg;
+    type ExMsg;
     type Err;
 
     fn contract_address(&self) -> Addr;
-    fn query<T: DeserializeOwned>(&self, app: &App, query_message: &Self::Msg) -> T
+    fn query<T: DeserializeOwned>(&self, app: &App, query_message: &Self::QMsg) -> T
     where
-        Self::Msg: Serialize,
+        Self::QMsg: Serialize,
     {
         app.wrap()
             .query_wasm_smart(self.contract_address(), query_message)
@@ -54,12 +53,12 @@ pub trait Contract {
         &self,
         app: &mut App,
         caller: Addr,
-        execute_message: &Self::Exec,
+        execute_message: &Self::ExMsg,
         funds: &[Coin],
     ) -> Result<AppResponse, Self::Err>
     where
-        Self::Exec: Serialize,
-        Self::Exec: std::fmt::Debug,
+        Self::ExMsg: Serialize,
+        Self::ExMsg: std::fmt::Debug,
         Self::Err: error_stack::Context,
     {
         app.execute_contract(
@@ -73,9 +72,9 @@ pub trait Contract {
 }
 
 impl Contract for ServiceRegistryContract {
-    type Msg = QueryMsg;
-    type Exec = ExecuteMsg;
-    type Err = ContractError;
+    type QMsg = QueryMsg;
+    type ExMsg = ExecuteMsg;
+    type Err = axelar_wasm_std::ContractError;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()

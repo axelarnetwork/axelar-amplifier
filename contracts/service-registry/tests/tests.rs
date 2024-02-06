@@ -39,9 +39,9 @@ fn register_service() {
     );
     assert!(res.is_ok());
 
-    let res = app.execute_contract(
+    let res = service_registry.execute(
+        &mut app,
         Addr::unchecked("some other account"),
-        service_registry.contract_addr.clone(),
         &ExecuteMsg::RegisterService {
             service_name: "validators".into(),
             service_contract: Addr::unchecked("nowhere"),
@@ -56,10 +56,7 @@ fn register_service() {
     );
     assert!(res.is_err());
     assert_eq!(
-        res.unwrap_err()
-            .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        res.unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 }
@@ -100,9 +97,9 @@ fn authorize_worker() {
     );
     assert!(res.is_ok());
 
-    let res = app.execute_contract(
+    let res = service_registry.execute(
+        &mut app,
         Addr::unchecked("some other address"),
-        service_registry.contract_addr.clone(),
         &ExecuteMsg::AuthorizeWorkers {
             workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
@@ -110,10 +107,7 @@ fn authorize_worker() {
         &[],
     );
     assert_eq!(
-        res.unwrap_err()
-            .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        res.unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
     );
 }
@@ -1150,9 +1144,9 @@ fn bond_wrong_denom() {
     );
     assert!(res.is_ok());
 
-    let res = app.execute_contract(
+    let res = service_registry.execute(
+        &mut app,
         worker.clone(),
-        service_registry.contract_addr.clone(),
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
@@ -1160,10 +1154,7 @@ fn bond_wrong_denom() {
     );
     assert!(res.is_err());
     assert_eq!(
-        res.unwrap_err()
-            .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        res.unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::WrongDenom).to_string()
     );
 }
@@ -1582,9 +1573,9 @@ fn unbonding_period() {
         initial_bal - min_worker_bond.u128()
     );
 
-    let res = app.execute_contract(
+    let res = service_registry.execute(
+        &mut app,
         worker.clone(),
-        service_registry.contract_addr.clone(),
         &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
@@ -1592,10 +1583,7 @@ fn unbonding_period() {
     );
     assert!(!res.is_ok());
     assert_eq!(
-        res.unwrap_err()
-            .downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        res.unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
             BondingState::Unbonding {
                 unbonded_at: app.block_info().time,
