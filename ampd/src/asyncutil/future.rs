@@ -3,42 +3,42 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use tokio::time::sleep;
+use tokio::time;
 
 pub fn with_retry<F, Fut, R, Err>(
-    get_future: F,
+    future: F,
     policy: RetryPolicy,
 ) -> impl Future<Output = Result<R, Err>>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
 {
-    FutureRetry::new(get_future, policy)
+    RetriableFuture::new(future, policy)
 }
 
 pub enum RetryPolicy {
-    RepeatConstant(Duration, u64),
+    RepeatConstant { sleep: Duration, max_attempts: u64 },
 }
 
-struct FutureRetry<F, Fut, R, Err>
+struct RetriableFuture<F, Fut, R, Err>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
 {
-    get_future: F,
-    future: Pin<Box<Fut>>,
+    future: F,
+    inner: Pin<Box<Fut>>,
     policy: RetryPolicy,
     err_count: u64,
 }
 
-impl<F, Fut, R, Err> Unpin for FutureRetry<F, Fut, R, Err>
+impl<F, Fut, R, Err> Unpin for RetriableFuture<F, Fut, R, Err>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
 {
 }
 
-impl<F, Fut, R, Err> FutureRetry<F, Fut, R, Err>
+impl<F, Fut, R, Err> RetriableFuture<F, Fut, R, Err>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
@@ -47,8 +47,8 @@ where
         let future = get_future();
 
         Self {
-            get_future,
-            future: Box::pin(future),
+            future: get_future,
+            inner: Box::pin(future),
             policy,
             err_count: 0,
         }
@@ -62,15 +62,18 @@ where
         self.err_count += 1;
 
         match self.policy {
-            RetryPolicy::RepeatConstant(timeout, max_attempts) => {
+            RetryPolicy::RepeatConstant {
+                sleep,
+                max_attempts,
+            } => {
                 if self.err_count >= max_attempts {
                     return Poll::Ready(Err(error));
                 }
 
-                self.future = Box::pin((self.get_future)());
+                self.inner = Box::pin((self.future)());
 
                 let waker = cx.waker().clone();
-                tokio::spawn(sleep(timeout).then(|_| async {
+                tokio::spawn(time::sleep(sleep).then(|_| async {
                     waker.wake();
                 }));
 
@@ -80,7 +83,7 @@ where
     }
 }
 
-impl<F, Fut, R, Err> Future for FutureRetry<F, Fut, R, Err>
+impl<F, Fut, R, Err> Future for RetriableFuture<F, Fut, R, Err>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<R, Err>>,
@@ -88,7 +91,7 @@ where
     type Output = Result<R, Err>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.future.as_mut().poll(cx) {
+        match self.inner.as_mut().poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(Ok(result)) => Poll::Ready(Ok(result)),
             Poll::Ready(Err(error)) => self.handle_err(cx, error),
@@ -98,30 +101,33 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Mutex, time::Instant};
+    use std::{future, sync::Mutex, time::Instant};
 
     use super::*;
 
     #[tokio::test]
-    async fn should_return_ok_when_the_inter_future_returns_ok_immediately() {
+    async fn should_return_ok_when_the_internal_future_returns_ok_immediately() {
         let fut = with_retry(
-            || async { Ok::<(), ()>(()) },
-            RetryPolicy::RepeatConstant(Duration::from_secs(1), 3),
+            || future::ready(Ok::<(), ()>(())),
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts: 3,
+            },
         );
         let start = Instant::now();
 
         assert!(fut.await.is_ok());
-        assert!(start.elapsed().as_secs() < 1);
+        assert!(start.elapsed() < Duration::from_secs(1));
     }
 
     #[tokio::test]
-    async fn should_return_ok_when_the_inter_future_returns_ok_eventually() {
+    async fn should_return_ok_when_the_internal_future_returns_ok_eventually() {
         let max_attempts = 3;
         let count = Mutex::new(0);
         let fut = with_retry(
             || async {
                 *count.lock().unwrap() += 1;
-                sleep(Duration::from_secs(1)).await;
+                time::sleep(Duration::from_secs(1)).await;
 
                 if *count.lock().unwrap() < max_attempts - 1 {
                     Err::<(), ()>(())
@@ -129,29 +135,35 @@ mod tests {
                     Ok::<(), ()>(())
                 }
             },
-            RetryPolicy::RepeatConstant(Duration::from_secs(1), max_attempts),
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts,
+            },
         );
         let start = Instant::now();
 
         assert!(fut.await.is_ok());
-        assert!(start.elapsed().as_secs() >= 3);
-        assert!(start.elapsed().as_secs() < 4);
+        assert!(start.elapsed() >= Duration::from_secs(3));
+        assert!(start.elapsed() < Duration::from_secs(4));
     }
 
     #[tokio::test]
-    async fn should_return_error_when_the_inter_future_returns_error_after_max_attempts() {
+    async fn should_return_error_when_the_internal_future_returns_error_after_max_attempts() {
         let fut = with_retry(
-            || async { Err::<(), ()>(()) },
-            RetryPolicy::RepeatConstant(Duration::from_secs(1), 3),
+            || future::ready(Err::<(), ()>(())),
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts: 3,
+            },
         );
         let start = Instant::now();
 
         assert!(fut.await.is_err());
-        assert!(start.elapsed().as_secs() >= 2);
+        assert!(start.elapsed() >= Duration::from_secs(2));
     }
 
     #[tokio::test]
-    async fn should_return_ok_when_the_inter_future_returns_ok_within_max_attempts() {
+    async fn should_return_ok_when_the_internal_future_returns_ok_within_max_attempts() {
         let max_attempts = 3;
         let count = Mutex::new(0);
         let fut = with_retry(
@@ -164,12 +176,15 @@ mod tests {
                     Ok::<(), ()>(())
                 }
             },
-            RetryPolicy::RepeatConstant(Duration::from_secs(1), max_attempts),
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts,
+            },
         );
         let start = Instant::now();
 
         assert!(fut.await.is_ok());
-        assert!(start.elapsed().as_secs() >= 2);
-        assert!(start.elapsed().as_secs() < 3);
+        assert!(start.elapsed() >= Duration::from_secs(2));
+        assert!(start.elapsed() < Duration::from_secs(3));
     }
 }

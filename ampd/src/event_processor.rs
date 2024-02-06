@@ -9,6 +9,7 @@ use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
+use tracing::warn;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
@@ -31,8 +32,6 @@ pub trait EventHandler {
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("handler failed to process event")]
-    Handler,
     #[error("could not consume events from stream")]
     EventStream,
     #[error("handler stopped prematurely")]
@@ -60,15 +59,20 @@ where
             .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
-            future::with_retry(
+            let _ = future::with_retry(
                 || handler.handle(event),
                 // TODO: make timeout and max_attempts configurable
-                RetryPolicy::RepeatConstant(Duration::from_secs(1), 3),
+                RetryPolicy::RepeatConstant {
+                    sleep: Duration::from_secs(1),
+                    max_attempts: 3,
+                },
             )
             .await
-            .change_context(Error::Handler)?;
+            .or_else(|err| {
+                warn!("handler failed to process event {}: {}", event, err);
 
-            // handler.handle(event).await.change_context(Error::Handler)?;
+                Ok::<(), ()>(())
+            });
         }
 
         if should_task_stop(stream_status, &token) {
