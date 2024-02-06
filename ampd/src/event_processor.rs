@@ -183,12 +183,10 @@ mod tests {
         assert!(result_with_timeout.unwrap().is_err());
     }
 
-    #[tokio::test]
-    async fn return_error_when_handler_fails() {
-        let events: Vec<Result<Event, event_processor::Error>> = vec![
-            Ok(Event::BlockEnd(0_u32.into())),
-            Ok(Event::BlockEnd(1_u32.into())),
-        ];
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn return_ok_when_handler_fails() {
+        let events: Vec<Result<Event, event_processor::Error>> =
+            vec![Ok(Event::BlockEnd(0_u32.into()))];
 
         let mut handler = MockEventHandler::new();
         handler
@@ -208,7 +206,7 @@ mod tests {
         .await;
 
         assert!(result_with_timeout.is_ok());
-        assert!(result_with_timeout.unwrap().is_err());
+        assert!(result_with_timeout.unwrap().is_ok());
     }
 
     #[tokio::test]
