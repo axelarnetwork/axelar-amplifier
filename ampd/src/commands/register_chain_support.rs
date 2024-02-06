@@ -22,11 +22,11 @@ pub struct Args {
 pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
     let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
 
-    let msg = serde_json::to_vec(&ExecuteMsg::DeclareChainSupport {
+    let msg = serde_json::to_vec(&ExecuteMsg::RegisterChainSupport {
         service_name: args.service_name.into(),
         chains: args.chains,
     })
-    .expect("declare chain support msg should serialize");
+    .expect("register chain support msg should serialize");
 
     let tx = MsgExecuteContract {
         sender: pub_key.account_id(PREFIX).change_context(Error::Tofnd)?,
@@ -40,7 +40,7 @@ pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option
     let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
 
     Ok(Some(format!(
-        "successfully broadcast declare chain support transaction, tx hash: {}",
+        "successfully broadcast register chain support transaction, tx hash: {}",
         tx_hash
     )))
 }

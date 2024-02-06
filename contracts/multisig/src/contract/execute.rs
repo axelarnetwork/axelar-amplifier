@@ -1,13 +1,14 @@
 use connection_router::state::ChainName;
 use cosmwasm_std::WasmMsg;
+use sha3::{Digest, Keccak256};
 
 use crate::signing::validate_session_signature;
-use crate::state::{load_session_signatures, save_signature};
+use crate::state::{load_session_signatures, save_pub_key, save_signature};
 use crate::worker_set::WorkerSet;
 use crate::{
     key::{KeyTyped, PublicKey, Signature},
     signing::SigningSession,
-    state::{AUTHORIZED_CALLERS, PUB_KEYS},
+    state::AUTHORIZED_CALLERS,
 };
 use error_stack::ResultExt;
 
@@ -15,10 +16,12 @@ use super::*;
 
 pub fn start_signing_session(
     deps: DepsMut,
+    env: Env,
     worker_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
     let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
 
     let session_id = SIGNING_SESSION_COUNTER.update(
@@ -29,7 +32,10 @@ pub fn start_signing_session(
         },
     )?;
 
-    let signing_session = SigningSession::new(session_id, worker_set_id.clone(), msg.clone());
+    let expires_at = env.block.height + config.block_expiry;
+
+    let signing_session =
+        SigningSession::new(session_id, worker_set_id.clone(), msg.clone(), expires_at);
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
@@ -39,6 +45,7 @@ pub fn start_signing_session(
         pub_keys: worker_set.get_pub_keys(),
         msg,
         chain_name,
+        expires_at,
     };
 
     Ok(Response::new()
@@ -74,7 +81,6 @@ pub fn submit_signature(
         &info.sender,
         &signature,
         pub_key,
-        config.grace_period,
         env.block.height,
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
@@ -112,12 +118,20 @@ pub fn register_pub_key(
     deps: DepsMut,
     info: MessageInfo,
     public_key: PublicKey,
+    signed_sender_address: HexBinary,
 ) -> Result<Response, ContractError> {
-    PUB_KEYS.save(
-        deps.storage,
-        (info.sender.clone(), public_key.key_type()),
-        &public_key.clone().into(),
-    )?;
+    let signed_sender_address: Signature =
+        (public_key.key_type(), signed_sender_address).try_into()?;
+
+    let address_hash = Keccak256::digest(info.sender.as_bytes());
+
+    // to prevent anyone from registering a public key that belongs to someone else,
+    // we require the sender to sign their own address using the private key
+    if !signed_sender_address.verify(address_hash.as_slice(), &public_key)? {
+        return Err(ContractError::InvalidPublicKeyRegistrationSignature);
+    }
+
+    save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 
     Ok(Response::new().add_event(
         Event::PublicKeyRegistered {

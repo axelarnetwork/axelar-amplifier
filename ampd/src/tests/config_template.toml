@@ -1,6 +1,7 @@
 tm_jsonrpc = 'http://localhost:26657/'
 tm_grpc = 'tcp://localhost:9090'
 event_buffer_cap = 100000
+event_stream_timeout = '15s'
 
 [broadcast]
 chain_id = 'axelar-dojo-1'
@@ -18,11 +19,19 @@ cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 chain_name = 'Ethereum'
 chain_rpc_url = 'http://127.0.0.1/'
 
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
 [[handlers]]
 type = 'EvmWorkerSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 chain_name = 'Fantom'
 chain_rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
 
 [[handlers]]
 type = 'MultisigSigner'
@@ -32,6 +41,19 @@ cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 type = 'SuiMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
+
+[[handlers]]
+type = 'SuiWorkerSetVerifier'
+cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
+rpc_url = 'http://127.0.0.1/'
+
+[handlers.rpc_timeout]
+secs = 3
+nanos = 0
 
 [tofnd_config]
 url = 'http://localhost:50051/'

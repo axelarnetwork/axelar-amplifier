@@ -16,9 +16,12 @@ use multisig::{
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
+use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
+
+pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
 fn get_event_attribute<'a>(
     events: &'a [Event],
@@ -335,7 +338,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         multisig::msg::InstantiateMsg {
             rewards_address: rewards_address.to_string(),
             governance_address: governance_address.to_string(),
-            grace_period: 2,
+            block_expiry: SIGNATURE_BLOCK_EXPIRY,
         },
     );
     let service_registry_address = instantiate_service_registry(
@@ -428,13 +431,22 @@ pub fn register_workers(
         let response = app.execute_contract(
             worker.addr.clone(),
             service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::DeclareChainSupport {
+            &service_registry::msg::ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.to_string(),
                 chains: worker.supported_chains.clone(),
             },
             &[],
         );
         assert!(response.is_ok());
+
+        let address_hash = Keccak256::digest(&worker.addr.as_bytes());
+
+        let sig = tofn::ecdsa::sign(
+            worker.key_pair.signing_key(),
+            &address_hash.as_slice().try_into().unwrap(),
+        )
+        .unwrap();
+        let sig = ecdsa::Signature::from_der(&sig).unwrap();
 
         let response = app.execute_contract(
             worker.addr.clone(),
@@ -443,6 +455,7 @@ pub fn register_workers(
                 public_key: PublicKey::Ecdsa(HexBinary::from(
                     worker.key_pair.encoded_verifying_key(),
                 )),
+                signed_sender_address: HexBinary::from(sig.to_vec()),
             },
             &[],
         );
@@ -571,6 +584,86 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     )
 }
 
+pub fn create_new_workers_vec(
+    chains: Vec<ChainName>,
+    worker_details: Vec<(String, u32)>,
+) -> Vec<Worker> {
+    worker_details
+        .into_iter()
+        .map(|(name, seed)| Worker {
+            addr: Addr::unchecked(name),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(seed),
+        })
+        .collect()
+}
+
+pub fn update_registry_and_construct_proof(
+    protocol: &mut Protocol,
+    new_workers: &Vec<Worker>,
+    workers_to_remove: &Vec<Worker>,
+    current_workers: &Vec<Worker>,
+    chain_multisig_prover_address: &Addr,
+    min_worker_bond: Uint128,
+) -> Uint64 {
+    // Register new workers
+    register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        new_workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+
+    // Deregister old workers
+    deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        workers_to_remove,
+        protocol.service_name.clone(),
+    );
+
+    // Construct proof and sign
+    construct_proof_and_sign(
+        &mut protocol.app,
+        &chain_multisig_prover_address,
+        &protocol.multisig_address,
+        &Vec::<Message>::new(),
+        &current_workers,
+    )
+}
+
+pub fn execute_worker_set_poll(
+    protocol: &mut Protocol,
+    relayer_addr: &Addr,
+    verifier_address: &Addr,
+    new_workers: &Vec<Worker>,
+) {
+    // Create worker set
+    let new_worker_set = workers_to_worker_set(protocol, new_workers);
+
+    // Create worker set poll
+    let (poll_id, expiry) = create_worker_set_poll(
+        &mut protocol.app,
+        relayer_addr.clone(),
+        verifier_address.clone(),
+        new_worker_set.clone(),
+    );
+
+    // Vote for the worker set
+    vote_true_for_worker_set(&mut protocol.app, verifier_address, new_workers, poll_id);
+
+    // Advance to expiration height
+    advance_at_least_to_height(&mut protocol.app, expiry);
+
+    // End the poll
+    end_poll(&mut protocol.app, verifier_address, poll_id);
+}
+
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
@@ -616,7 +709,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: protocol.service_name.to_string(),
             chain_name: chain_name.to_string(),
-            worker_set_diff_threshold: 1,
+            worker_set_diff_threshold: 0,
             encoder: multisig_prover::encoding::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
         },

@@ -1,0 +1,5 @@
+pre-release-commit-message = "chore: release {{crate_name}} {{version}} [skip ci]"
+consolidate-commits = false
+release = true
+publish = false
+allow-branch	= ["main","patch/*/*"]
