@@ -35,8 +35,6 @@ pub struct Message {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     poll_id: PollId,
     source_gateway_address: SuiAddress,
     messages: Vec<Message>,
@@ -102,8 +100,10 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> Result<()> {
+        if !events::event_is_from_contract(event, self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_gateway_address,
             messages,
@@ -116,10 +116,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if !participants.contains(&self.worker) {
             return Ok(());

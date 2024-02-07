@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 axelar-wasm-std = { workspace = true }
 base64 = "0.21.2"
+cosmrs = { version = "0.14.0", features = ["cosmwasm"] }
 error-stack = { workspace = true }
 serde_json = "1.0.105"
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
