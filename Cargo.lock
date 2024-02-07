@@ -7116,6 +7116,7 @@ dependencies = [
  "report",
  "schemars",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
