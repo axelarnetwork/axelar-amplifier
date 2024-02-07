@@ -134,7 +134,7 @@ fn xrpl_ticket_create_can_be_proven() {
     );
     assert!(matches!(
         proof,
-        xrpl_multisig_prover::contract::GetProofResponse::Completed { .. }
+        xrpl_multisig_prover::msg::GetProofResponse::Completed { .. }
     ));
     println!("TicketCreate proof: {:?}", proof);
 
@@ -253,7 +253,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     assert!(matches!(
         //proof.status,
         proof,
-        xrpl_multisig_prover::contract::GetProofResponse::Completed { .. }
+        xrpl_multisig_prover::msg::GetProofResponse::Completed { .. }
     ));
 
     test_utils::finalize_xrpl_proof(

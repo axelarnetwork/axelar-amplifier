@@ -8,3 +8,4 @@ pub mod query;
 pub mod xrpl_multisig;
 pub mod axelar_workers;
 pub mod querier;
+pub mod msg;

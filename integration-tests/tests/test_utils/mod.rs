@@ -249,7 +249,7 @@ pub fn construct_xrpl_ticket_create_proof_and_sign(
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::contract::ExecuteMsg::TicketCreate,
+        &xrpl_multisig_prover::msg::ExecuteMsg::TicketCreate,
         &[],
     );
     assert!(response.is_ok());
@@ -268,7 +268,7 @@ pub fn construct_xrpl_payment_proof_and_sign(
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::contract::ExecuteMsg::ConstructProof {
+        &xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
             message_id: message.cc_id.clone(),
         },
         &[Coin {
@@ -293,7 +293,7 @@ pub fn construct_xrpl_signer_list_set_proof_and_sign(
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::contract::ExecuteMsg::UpdateWorkerSet,
+        &xrpl_multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
         &[],
     );
     let response = response.unwrap();
@@ -324,7 +324,7 @@ pub fn sign_xrpl_proof(
             &session_id,
             &xrpl_signer_address
         ) {
-            xrpl_multisig_prover::contract::GetMessageToSignResponse { tx_hash } => tx_hash,
+            xrpl_multisig_prover::msg::GetMessageToSignResponse { tx_hash } => tx_hash,
         };
 
         let signature = tofn::ecdsa::sign(
@@ -402,7 +402,7 @@ pub fn get_xrpl_worker_set(
 ) -> multisig::worker_set::WorkerSet {
     let query_response = app.wrap().query_wasm_smart(
         multisig_prover_address,
-        &xrpl_multisig_prover::contract::QueryMsg::GetWorkerSet,
+        &xrpl_multisig_prover::msg::QueryMsg::GetWorkerSet,
     );
     assert!(query_response.is_ok());
     query_response.unwrap()
@@ -412,10 +412,10 @@ pub fn get_xrpl_proof(
     app: &mut App,
     multisig_prover_address: &Addr,
     multisig_session_id: &Uint64,
-) -> xrpl_multisig_prover::contract::GetProofResponse {
+) -> xrpl_multisig_prover::msg::GetProofResponse {
     let query_response = app.wrap().query_wasm_smart(
         multisig_prover_address,
-        &xrpl_multisig_prover::contract::QueryMsg::GetProof {
+        &xrpl_multisig_prover::msg::QueryMsg::GetProof {
             multisig_session_id: *multisig_session_id,
         },
     );
@@ -428,10 +428,10 @@ pub fn get_xrpl_message_to_sign(
     multisig_prover_address: &Addr,
     multisig_session_id: &Uint64,
     xrpl_signer_address: &String,
-) -> xrpl_multisig_prover::contract::GetMessageToSignResponse {
+) -> xrpl_multisig_prover::msg::GetMessageToSignResponse {
     let query_response = app.wrap().query_wasm_smart(
         multisig_prover_address,
-        &xrpl_multisig_prover::contract::QueryMsg::GetMessageToSign {
+        &xrpl_multisig_prover::msg::QueryMsg::GetMessageToSign {
             multisig_session_id: *multisig_session_id,
             signer_xrpl_address: xrpl_signer_address.clone(),
         },
@@ -448,7 +448,7 @@ pub fn finalize_xrpl_proof(
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::contract::ExecuteMsg::FinalizeProof {
+        &xrpl_multisig_prover::msg::ExecuteMsg::FinalizeProof {
             multisig_session_id: *multisig_session_id,
         },
         &[],
@@ -460,14 +460,14 @@ pub fn finalize_xrpl_proof(
 pub fn xrpl_update_tx_status(
     app: &mut App,
     multisig_prover_address: &Addr,
-    cc_id: CrossChainId,
+    message_id: CrossChainId,
     message_status: xrpl_voting_verifier::execute::MessageStatus,
 ) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::contract::ExecuteMsg::UpdateTxStatus {
-            cc_id,
+        &xrpl_multisig_prover::msg::ExecuteMsg::UpdateTxStatus {
+            message_id,
             message_status,
         },
         &[],
@@ -980,7 +980,7 @@ pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = protocol.app.execute_contract(
         Addr::unchecked("doesn't matter"), // TODO: should fail unless admin
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::contract::ExecuteMsg::RegisterToken {
+        &xrpl_multisig_prover::msg::ExecuteMsg::RegisterToken {
             denom: XRP_DENOMINATION.to_string(),
             token: XRPLToken {
                 issuer: "".to_string(),

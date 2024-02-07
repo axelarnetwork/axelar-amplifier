@@ -11,11 +11,7 @@ use cosmwasm_std::{
 use xrpl_voting_verifier::execute::MessageStatus;
 
 use crate::{
-    error::ContractError,
-    state::{Config, CONFIG, REPLY_TX_HASH, TOKENS, CURRENT_WORKER_SET, NEXT_WORKER_SET, SIGNED_TO_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, LAST_ASSIGNED_TICKET_NUMBER, AVAILABLE_TICKETS},
-    reply,
-    types::*,
-    xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query::{get_proof, self},
+    axelar_workers, error::ContractError, msg::{ExecuteMsg, GetProofResponse, QueryMsg}, querier::{Querier, XRPL_CHAIN_NAME}, query::{get_proof, self}, reply, state::{Config, CONFIG, REPLY_TX_HASH, TOKENS, CURRENT_WORKER_SET, NEXT_WORKER_SET, SIGNED_TO_UNSIGNED_TX_HASH, NEXT_SEQUENCE_NUMBER, LAST_ASSIGNED_TICKET_NUMBER, AVAILABLE_TICKETS}, types::*, xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount}
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
@@ -88,15 +84,6 @@ pub fn instantiate(
     Ok(Response::new().add_message(msg))
 }
 
-#[cw_serde]
-pub enum ExecuteMsg {
-    RegisterToken { denom: String, token: XRPLToken },
-    ConstructProof { message_id: CrossChainId },
-    FinalizeProof { multisig_session_id: Uint64 },
-    UpdateTxStatus { message_id: CrossChainId, message_status: MessageStatus },
-    UpdateWorkerSet,
-    TicketCreate,
-}
 
 fn register_token(
     storage: &mut dyn Storage,
@@ -329,31 +316,6 @@ pub fn reply(
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
-// TODO: move to msg.rs
-#[cw_serde]
-#[derive(QueryResponses)]
-pub enum QueryMsg {
-    #[returns(GetProofResponse)]
-    GetProof { multisig_session_id: Uint64 },
-
-    #[returns(GetMessageToSignResponse)]
-    GetMessageToSign { multisig_session_id: Uint64, signer_xrpl_address: String },
-
-    #[returns(multisig::worker_set::WorkerSet)]
-    GetWorkerSet,
-}
-
-#[cw_serde]
-#[serde(tag = "status")]
-pub enum GetProofResponse {
-    Completed { unsigned_tx_hash: TxHash, tx_blob: HexBinary},
-    Pending { unsigned_tx_hash: TxHash },
-}
-
-#[cw_serde]
-pub struct GetMessageToSignResponse {
-    pub tx_hash: HexBinary,
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
