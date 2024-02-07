@@ -35,7 +35,6 @@ fn register_service() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -52,7 +51,6 @@ fn register_service() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_err());
     assert_eq!(
@@ -82,7 +80,6 @@ fn authorize_worker() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -93,7 +90,6 @@ fn authorize_worker() {
             workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -104,7 +100,6 @@ fn authorize_worker() {
             workers: vec![Addr::unchecked("worker").into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert_eq!(
         res.unwrap_err().to_string(),
@@ -140,7 +135,6 @@ fn bond_worker() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -151,11 +145,10 @@ fn bond_worker() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker,
         &ExecuteMsg::BondWorker {
@@ -194,7 +187,6 @@ fn register_chain_support() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -205,11 +197,10 @@ fn register_chain_support() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -227,7 +218,6 @@ fn register_chain_support() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -290,7 +280,6 @@ fn register_and_deregister_support_for_single_chain() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -301,11 +290,10 @@ fn register_and_deregister_support_for_single_chain() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -323,7 +311,6 @@ fn register_and_deregister_support_for_single_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -335,7 +322,6 @@ fn register_and_deregister_support_for_single_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -378,7 +364,6 @@ fn register_and_deregister_support_for_multiple_chains() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -389,11 +374,10 @@ fn register_and_deregister_support_for_multiple_chains() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -416,7 +400,6 @@ fn register_and_deregister_support_for_multiple_chains() {
             service_name: service_name.into(),
             chains: chains.clone(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -427,7 +410,6 @@ fn register_and_deregister_support_for_multiple_chains() {
             service_name: service_name.into(),
             chains: chains.clone(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -473,7 +455,6 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -484,11 +465,10 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -511,7 +491,6 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             service_name: service_name.into(),
             chains: chains.clone(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -523,7 +502,6 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             service_name: service_name.into(),
             chains: vec![chains[0].clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -591,7 +569,6 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -602,11 +579,10 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -624,7 +600,6 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -637,7 +612,6 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
             service_name: service_name.into(),
             chains: vec![second_chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -691,7 +665,6 @@ fn register_deregister_register_support_for_single_chain() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -702,11 +675,10 @@ fn register_deregister_register_support_for_single_chain() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -724,7 +696,6 @@ fn register_deregister_register_support_for_single_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -735,7 +706,6 @@ fn register_deregister_register_support_for_single_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -747,7 +717,6 @@ fn register_deregister_register_support_for_single_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -801,7 +770,6 @@ fn deregister_previously_unsupported_single_chain() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -812,11 +780,10 @@ fn deregister_previously_unsupported_single_chain() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -834,7 +801,6 @@ fn deregister_previously_unsupported_single_chain() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -878,7 +844,6 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -889,7 +854,6 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -901,7 +865,6 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -912,7 +875,6 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -956,27 +918,23 @@ fn deregister_from_unregistered_worker_single_chain() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
     let chain_name = ChainName::from_str("ethereum").unwrap();
-    let err = app
-        .execute_contract(
+    let err = service_registry
+        .execute(
+            &mut app,
             worker.clone(),
-            service_registry.contract_addr.clone(),
             &ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
             },
-            &[],
         )
         .unwrap_err();
 
     assert_eq!(
-        err.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        err.to_string(),
         axelar_wasm_std::ContractError::from(ContractError::WorkerNotFound).to_string()
     );
 
@@ -1007,22 +965,19 @@ fn deregister_single_chain_for_nonexistent_service() {
 
     let service_name = "validators";
     let chain_name = ChainName::from_str("ethereum").unwrap();
-    let err = app
-        .execute_contract(
+    let err = service_registry
+        .execute(
+            &mut app,
             worker.clone(),
-            service_registry.contract_addr.clone(),
             &ExecuteMsg::DeregisterChainSupport {
                 service_name: service_name.into(),
                 chains: vec![chain_name.clone()],
             },
-            &[],
         )
         .unwrap_err();
 
     assert_eq!(
-        err.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
+        err.to_string(),
         axelar_wasm_std::ContractError::from(ContractError::ServiceNotFound).to_string()
     );
 }
@@ -1055,7 +1010,6 @@ fn unbond_worker() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1066,11 +1020,10 @@ fn unbond_worker() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1088,7 +1041,6 @@ fn unbond_worker() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1098,7 +1050,6 @@ fn unbond_worker() {
         &ExecuteMsg::UnbondWorker {
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1140,11 +1091,10 @@ fn bond_wrong_denom() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1187,11 +1137,10 @@ fn bond_but_not_authorized() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1209,7 +1158,6 @@ fn bond_but_not_authorized() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1251,7 +1199,6 @@ fn bond_but_not_enough() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1262,11 +1209,10 @@ fn bond_but_not_enough() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1284,7 +1230,6 @@ fn bond_but_not_enough() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1326,11 +1271,10 @@ fn bond_before_authorize() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1347,7 +1291,6 @@ fn bond_before_authorize() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1359,7 +1302,6 @@ fn bond_before_authorize() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1411,7 +1353,6 @@ fn unbond_then_rebond() {
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1422,11 +1363,10 @@ fn unbond_then_rebond() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1444,7 +1384,6 @@ fn unbond_then_rebond() {
             service_name: service_name.into(),
             chains: vec![chain_name.clone()],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1454,7 +1393,6 @@ fn unbond_then_rebond() {
         &ExecuteMsg::UnbondWorker {
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1464,7 +1402,6 @@ fn unbond_then_rebond() {
         &ExecuteMsg::BondWorker {
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1518,7 +1455,6 @@ fn unbonding_period() {
             unbonding_period_days: unbonding_period_days.clone(),
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1529,11 +1465,10 @@ fn unbonding_period() {
             workers: vec![worker.clone().into()],
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
+    let res = service_registry.execute_with_funds(
         &mut app,
         worker.clone(),
         &ExecuteMsg::BondWorker {
@@ -1551,7 +1486,6 @@ fn unbonding_period() {
             service_name: service_name.into(),
             chains: vec![chain_name],
         },
-        &[],
     );
     assert!(res.is_ok());
 
@@ -1561,7 +1495,6 @@ fn unbonding_period() {
         &ExecuteMsg::UnbondWorker {
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
     assert_eq!(
@@ -1579,7 +1512,6 @@ fn unbonding_period() {
         &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(!res.is_ok());
     assert_eq!(
@@ -1617,7 +1549,6 @@ fn unbonding_period() {
         &ExecuteMsg::ClaimStake {
             service_name: service_name.into(),
         },
-        &[],
     );
     assert!(res.is_ok());
 

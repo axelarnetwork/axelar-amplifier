@@ -54,6 +54,26 @@ pub trait Contract {
         app: &mut App,
         caller: Addr,
         execute_message: &Self::ExMsg,
+    ) -> Result<AppResponse, Self::Err>
+    where
+        Self::ExMsg: Serialize,
+        Self::ExMsg: std::fmt::Debug,
+        Self::Err: error_stack::Context,
+    {
+        app.execute_contract(
+            caller.clone(),
+            self.contract_address(),
+            execute_message,
+            &[],
+        )
+        .map_err(|err| report!(err.downcast::<Self::Err>().unwrap()))
+    }
+
+    fn execute_with_funds(
+        &self,
+        app: &mut App,
+        caller: Addr,
+        execute_message: &Self::ExMsg,
         funds: &[Coin],
     ) -> Result<AppResponse, Self::Err>
     where
