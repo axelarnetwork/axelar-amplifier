@@ -60,13 +60,7 @@ pub trait Contract {
         Self::ExMsg: std::fmt::Debug,
         Self::Err: error_stack::Context,
     {
-        app.execute_contract(
-            caller.clone(),
-            self.contract_address(),
-            execute_message,
-            &[],
-        )
-        .map_err(|err| report!(err.downcast::<Self::Err>().unwrap()))
+        self.execute_with_funds(app, caller, execute_message, &[])
     }
 
     fn execute_with_funds(
