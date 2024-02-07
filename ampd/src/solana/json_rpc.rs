@@ -66,12 +66,14 @@ where
         &self,
         signature_str: &str,
     ) -> Result<EncodedConfirmedTransactionWithStatusMeta> {
-        self.request("getTransaction", [signature_str, &String::from("json")])
+        self.request("getTransaction", [signature_str, "json"])
             .await
     }
     // Gets an account with default commitment set to finalized. See (https://solana.com/docs/rpc/http/getaccountinfo)
     async fn get_account(&self, pub_key: &str) -> Result<AccountInfo> {
-        self.request("getAccount", [pub_key, &String::from("json")])
+        self.request("getAccount", [pub_key, "json"]).await
+    }
+}
             .await
     }
 }
