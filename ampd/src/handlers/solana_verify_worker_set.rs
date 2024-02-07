@@ -153,7 +153,7 @@ where
             .rpc_client
             .get_transaction(&worker_set.tx_id)
             .await
-            .map_err(|_| Error::TxReceipts)?;
+            .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
 
         let gw_event = parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
 
@@ -168,7 +168,7 @@ where
             .rpc_client
             .get_account(&pub_key.to_string())
             .await
-            .map_err(|_| Error::TxReceipts)?;
+            .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
 
         let vote =
             verify_worker_set(&source_gateway_address, &sol_tx, &worker_set, &account_info).await;
