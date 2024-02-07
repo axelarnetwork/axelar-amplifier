@@ -87,6 +87,9 @@ pub enum ContractError {
 
     #[error("failed to serialize")]
     FailedToSerialize,
+
+    #[error("signature verification failed")]
+    SignatureVerificationFailed,
 }
 
 impl From<ContractError> for StdError {

@@ -1,6 +1,7 @@
 use cosmwasm_std::{StdResult, Uint64, HexBinary, Storage};
 
-use multisig::types::MultisigState;
+use multisig::{key::Signature, types::MultisigState};
+use multisig::key::PublicKey;
 
 // TODO: remove dependency?
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
@@ -48,6 +49,15 @@ pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, 
     Ok(GetMessageToSignResponse {
         tx_hash: xrpl_multisig::xrpl_hash(None, serialized_tx).into()
     })
+}
+
+pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: PublicKey, signature: Signature) -> StdResult<bool> {
+    let signer_xrpl_address = xrpl_multisig::public_key_to_xrpl_address(public_key.clone());
+    let m = get_message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
+
+    // m.tx_hash is going to be over 32 bytes due to inclusion of the signer address, so it has to be passed unchecked 
+    signature.verify(&multisig::types::MsgToSign::unchecked(m.tx_hash), &public_key)
+        .map_err(|_e| ContractError::SignatureVerificationFailed.into())
 }
 
 pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &Uint64) -> StdResult<GetProofResponse> {
