@@ -275,9 +275,8 @@ mod test {
         .unwrap()
     }
 
-    // this returns an event that is named SigningStarted,
-    // but the fields are different than what the handler expects
-    fn wrong_signing_started_event() -> events::Event {
+    // this returns an event that is named SigningStarted, but some expected fields are missing
+    fn signing_started_event_with_missing_fields(contract_address: &str) -> events::Event {
         let pub_keys = (0..10)
             .map(|_| (rand_account().to_string(), rand_public_key()))
             .collect::<HashMap<String, PublicKey>>();
@@ -293,13 +292,8 @@ mod test {
 
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", MULTISIG_ADDRESS);
-        let idx = event
-            .attributes
-            .iter()
-            .position(|element| element.key == "expires_at")
-            .unwrap();
-        event.attributes.remove(idx);
+        event = event.add_attribute("_contract_address", contract_address);
+        event.attributes.retain(|attr| attr.key != "expires_at");
 
         events::Event::try_from(abci::Event::new(
             event.ty,
@@ -327,7 +321,7 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        let (tx, rx) = watch::channel(latest_block_height);
+        let (_, rx) = watch::channel(latest_block_height);
 
         Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
@@ -396,12 +390,17 @@ mod test {
 
         let handler = get_handler(
             rand_account(),
-            rand_account(),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             100u64,
         );
 
-        assert!(handler.handle(&wrong_signing_started_event()).await.is_ok());
+        assert!(handler
+            .handle(&signing_started_event_with_missing_fields(
+                &rand_account().to_string()
+            ))
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
@@ -419,7 +418,7 @@ mod test {
         );
 
         assert!(handler
-            .handle(&wrong_signing_started_event())
+            .handle(&signing_started_event_with_missing_fields(MULTISIG_ADDRESS))
             .await
             .is_err());
     }

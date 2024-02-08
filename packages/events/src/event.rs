@@ -74,25 +74,21 @@ fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError
     Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
 }
 
-pub fn get_contract_address(event: &Event) -> Option<AccountId> {
-    let contract_address = match event {
+fn contract_address(event: &Event) -> Option<AccountId> {
+    match event {
         Event::Abci {
             event_type: _,
             attributes,
-        } => {
-            if let Some(address) = attributes.get("_contract_address") {
-                return serde_json::from_value::<AccountId>(address.clone()).ok();
-            }
-            None
-        }
+        } => attributes
+            .get("_contract_address")
+            .and_then(|address| serde_json::from_value::<AccountId>(address.clone()).ok()),
         _ => None,
-    };
-    contract_address
+    }
 }
 
-pub fn event_is_from_contract(event: &Event, contract_address: &AccountId) -> bool {
-    match get_contract_address(event) {
-        Some(address) => &address == contract_address,
+pub fn event_is_from_contract(event: &Event, from_address: &AccountId) -> bool {
+    match contract_address(event) {
+        Some(emitting_address) => &emitting_address == from_address,
         _ => false,
     }
 }
@@ -103,7 +99,7 @@ mod test {
 
     use cosmrs::AccountId;
 
-    use crate::{event_is_from_contract, get_contract_address, Event};
+    use crate::{event::contract_address, event_is_from_contract, Event};
 
     fn make_event_with_contract_address(contract_address: &AccountId) -> Event {
         let mut attributes = serde_json::Map::new();
@@ -124,9 +120,8 @@ mod test {
 
         let event = make_event_with_contract_address(&expected_contract_address);
 
-        let contract_address = get_contract_address(&event);
-        assert!(contract_address.is_some());
-        assert_eq!(contract_address.unwrap(), expected_contract_address);
+        let contract_address = contract_address(&event);
+        assert_eq!(contract_address, Some(expected_contract_address));
     }
 
     #[test]
@@ -135,7 +130,7 @@ mod test {
             event_type: "some_event".to_string(),
             attributes: serde_json::Map::new(),
         };
-        let contract_address = get_contract_address(&event);
+        let contract_address = contract_address(&event);
         assert!(contract_address.is_none());
     }
 

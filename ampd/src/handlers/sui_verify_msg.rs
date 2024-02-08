@@ -103,6 +103,7 @@ where
         if !events::event_is_from_contract(event, self.voting_verifier.as_ref()) {
             return Ok(());
         }
+
         let PollStartedEvent {
             poll_id,
             source_gateway_address,
