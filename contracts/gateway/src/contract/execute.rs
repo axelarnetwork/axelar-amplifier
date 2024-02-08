@@ -13,15 +13,15 @@ use crate::events::GatewayEvent;
 use crate::router::RouterApi;
 use crate::state;
 use crate::state::Store;
-use crate::verifier::{Verifier, VerifierApi};
+use crate::verifier::{Verifier, VerifierApi, VerifyQuery};
 
 pub struct Contract<V, S>
 where
-    V: Verifier,
+    V: VerifyQuery,
     S: Store,
 {
     pub router: RouterApi,
-    pub verifier: V,
+    pub verifier: Verifier<V>,
     pub store: S,
 }
 
@@ -36,9 +36,11 @@ impl<'a> Contract<VerifierApi<'a>, state::GatewayStore<'a>> {
                 address: config.router,
             },
             store,
-            verifier: VerifierApi {
-                address: config.verifier,
-                querier: deps.querier,
+            verifier: Verifier {
+                address: config.verifier.clone(),
+                querier: VerifierApi {
+                    querier: deps.querier,
+                },
             },
         }
     }
@@ -46,7 +48,7 @@ impl<'a> Contract<VerifierApi<'a>, state::GatewayStore<'a>> {
 
 impl<V, S> Contract<V, S>
 where
-    V: Verifier,
+    V: VerifyQuery,
     S: Store,
 {
     pub fn verify_messages(&self, msgs: Vec<Message>) -> Result<Response, ContractError> {
@@ -166,7 +168,7 @@ where
     ) -> Result<(Vec<Message>, Vec<Message>), ContractError> {
         let query_response: Vec<(CrossChainId, VerificationStatus)> =
             self.verifier
-                .query(aggregate_verifier::msg::QueryMsg::GetMessagesStatus {
+                .query(&aggregate_verifier::msg::QueryMsg::GetMessagesStatus {
                     messages: msgs.clone(),
                 })?;
 
@@ -211,9 +213,9 @@ mod tests {
     use crate::contract::execute::Contract;
     use crate::error::ContractError;
     use crate::router::RouterApi;
+    use crate::state;
     use crate::state::Config;
-    use crate::verifier::MockVerifier;
-    use crate::{state, verifier};
+    use crate::verifier::{MockVerifyQuery, Verifier};
     use axelar_wasm_std::VerificationStatus;
     use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
     use cosmwasm_std::{Addr, CosmosMsg, SubMsg, WasmMsg};
@@ -337,13 +339,17 @@ mod tests {
         let msgs = generate_messages(10);
 
         // make the fake query fail
-        let mut verifier = MockVerifier::new();
-        verifier
+        let mut querier = MockVerifyQuery::new();
+        querier
             .expect_query::<Vec<(CrossChainId, VerificationStatus)>>()
-            .returning(|_| bail!(ContractError::QueryVerifier));
+            .returning(|_, _| bail!(ContractError::QueryVerifier));
+        let config = default_config();
         let contract = Contract {
-            verifier,
-            ..create_contract(msg_store.clone(), HashMap::new(), &default_config())
+            verifier: Verifier {
+                querier,
+                address: config.verifier.clone(),
+            },
+            ..create_contract(msg_store.clone(), HashMap::new(), &config)
         };
 
         let result = contract.verify_messages(msgs.clone());
@@ -497,13 +503,16 @@ mod tests {
         let msgs = generate_messages(10);
 
         // make the fake query fail
-        let mut verifier = MockVerifier::new();
-        verifier
+        let mut querier = MockVerifyQuery::new();
+        querier
             .expect_query::<Vec<(CrossChainId, VerificationStatus)>>()
-            .returning(|_| bail!(ContractError::QueryVerifier));
+            .returning(|_, _| bail!(ContractError::QueryVerifier));
         let config = default_config();
         let mut contract = Contract {
-            verifier,
+            verifier: Verifier {
+                querier,
+                address: config.verifier.clone(),
+            },
             ..create_contract(msg_store.clone(), HashMap::new(), &config)
         };
 
@@ -525,13 +534,13 @@ mod tests {
         }
     }
 
-    /// This uses a RwLock for the msg_store so it can also be used in assertions while it is borrowed by the contract
+    /// This uses a RwLock for the msg_store, so it can also be used in assertions while it is borrowed by the contract
     fn create_contract(
         // the store mock requires a 'static type that can be moved into the closure, so we need to use an Arc<> here
         msg_store: Arc<RwLock<HashMap<CrossChainId, Message>>>,
         verified: HashMap<CrossChainId, VerificationStatus>,
         config: &Config,
-    ) -> Contract<MockVerifier, state::MockStore> {
+    ) -> Contract<MockVerifyQuery, state::MockStore> {
         let mut store = state::MockStore::new();
         store.expect_load_config().return_const(config.clone());
         store
@@ -542,8 +551,8 @@ mod tests {
                 Ok(())
             });
 
-        let mut verifier = MockVerifier::new();
-        verifier.expect_query().returning(move |msg| match msg {
+        let mut querier = MockVerifyQuery::new();
+        querier.expect_query().returning(move |_, msg| match msg {
             aggregate_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
                 .into_iter()
                 .map(|msg: Message| {
@@ -558,21 +567,15 @@ mod tests {
                 })
                 .collect::<Vec<_>>()),
         });
-        verifier
-            .expect_address()
-            .return_const(config.verifier.clone());
-
-        let addr = config.verifier.clone();
-        verifier
-            .expect_execute()
-            .returning(move |msg| verifier::execute(&addr, msg));
-
         Contract {
             router: RouterApi {
-                address: config.clone().router,
+                address: config.router.clone(),
             },
             store,
-            verifier,
+            verifier: Verifier {
+                querier,
+                address: config.verifier.clone(),
+            },
         }
     }
 
