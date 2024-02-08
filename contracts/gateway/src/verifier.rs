@@ -11,7 +11,22 @@ pub trait Verifier {
         msg: aggregate_verifier::msg::QueryMsg,
     ) -> Result<U, ContractError>;
 
-    fn execute(&self, msg: &aggregate_verifier::msg::ExecuteMsg) -> Result<WasmMsg, ContractError>;
+    fn address(&self) -> Addr;
+
+    fn execute(&self, msg: &aggregate_verifier::msg::ExecuteMsg) -> Result<WasmMsg, ContractError> {
+        execute(&self.address(), msg)
+    }
+}
+
+pub fn execute(
+    verifier_addr: &Addr,
+    msg: &aggregate_verifier::msg::ExecuteMsg,
+) -> Result<WasmMsg, ContractError> {
+    Ok(WasmMsg::Execute {
+        contract_addr: verifier_addr.to_string(),
+        msg: to_binary(msg).change_context(ContractError::CreateVerifierExecuteMsg)?,
+        funds: vec![],
+    })
 }
 
 pub struct VerifierApi<'a> {
@@ -32,11 +47,7 @@ impl Verifier for VerifierApi<'_> {
             .change_context(ContractError::QueryVerifier)
     }
 
-    fn execute(&self, msg: &aggregate_verifier::msg::ExecuteMsg) -> Result<WasmMsg, ContractError> {
-        Ok(WasmMsg::Execute {
-            contract_addr: self.address.to_string(),
-            msg: to_binary(&msg).change_context(ContractError::CreateVerifierExecuteMsg)?,
-            funds: vec![],
-        })
+    fn address(&self) -> Addr {
+        self.address.clone()
     }
 }
