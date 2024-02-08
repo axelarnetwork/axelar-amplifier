@@ -74,8 +74,6 @@ pub enum ContractError {
     #[error("signing session not completed")]
     SigningSessionNotCompleted,
 
-    // TODO: do not expose low level errors
-
     #[error("invalid blob")]
     InvalidBlob,
 
