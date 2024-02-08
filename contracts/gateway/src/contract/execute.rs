@@ -1,41 +1,43 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::VerificationStatus;
-use cosmwasm_std::{to_binary, Addr, DepsMut, Response, WasmMsg};
+use cosmwasm_std::{Addr, DepsMut, Response};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 
-use crate::contract::query;
-use crate::contract::query::Verifier;
 use crate::error::ContractError;
-use connection_router::state::Message;
+use connection_router::state::{CrossChainId, Message};
 
 use crate::events::GatewayEvent;
+use crate::router::RouterApi;
 use crate::state;
-use crate::state::{Config, Store};
+use crate::state::Store;
+use crate::verifier::{Verifier, VerifierApi};
 
 pub struct Contract<V, S>
 where
     V: Verifier,
     S: Store,
 {
-    pub config: Config,
+    pub router: RouterApi,
     pub verifier: V,
     pub store: S,
 }
 
-impl<'a> Contract<query::VerifierApi<'a>, state::GatewayStore<'a>> {
-    pub fn new(deps: DepsMut) -> Contract<query::VerifierApi, state::GatewayStore> {
+impl<'a> Contract<VerifierApi<'a>, state::GatewayStore<'a>> {
+    pub fn new(deps: DepsMut) -> Contract<VerifierApi, state::GatewayStore> {
         let store = state::GatewayStore {
             storage: deps.storage,
         };
         let config = store.load_config();
-        let verifier_addr = config.verifier.clone();
         Contract {
-            config,
+            router: RouterApi {
+                address: config.router,
+            },
             store,
-            verifier: query::VerifierApi {
-                address: verifier_addr,
+            verifier: VerifierApi {
+                address: config.verifier,
                 querier: deps.querier,
             },
         }
@@ -47,97 +49,123 @@ where
     V: Verifier,
     S: Store,
 {
-    pub fn verify_messages(&self, msgs: Vec<Message>) -> Result<Response, ContractError> {
-        // short circuit if there are no messages there is no need to interact with the verifier so it saves gas
-        if msgs.is_empty() {
-            return Ok(Response::new());
+    pub fn verify_messages(self, msgs: Vec<Message>) -> Result<Response, ContractError> {
+        let partitioned_msgs = ignore_empty_msgs(msgs)
+            .try_map(check_for_duplicates)?
+            .try_map(|msgs| self.partition_by_verified(msgs))?;
+
+        match partitioned_msgs {
+            None => Ok(Response::new()),
+            Some((verified, unverified)) => self.verify_unverified_messages(verified, unverified),
         }
-
-        ensure_unique_ids(&msgs)?;
-
-        let (_, unverified) = self.partition_by_verified(msgs)?;
-
-        // short circuit if there are no unverified messages
-        // there is no need to interact with the verifier so it saves gas
-        if unverified.is_empty() {
-            return Ok(Response::new());
-        }
-
-        Ok(Response::new().add_message(WasmMsg::Execute {
-            contract_addr: self.config.verifier.to_string(),
-            msg: to_binary(&aggregate_verifier::msg::ExecuteMsg::VerifyMessages {
-                messages: unverified,
-            })
-            .change_context(ContractError::CreateVerifierExecuteMsg)?,
-            funds: vec![],
-        }))
     }
 
     pub fn route_messages(
-        &mut self,
+        self,
         sender: Addr,
         msgs: Vec<Message>,
     ) -> Result<Response, ContractError> {
-        if sender == self.config.router {
+        if sender == self.router.address {
             self.route_outgoing_messages(msgs)
         } else {
             self.route_incoming_messages(msgs)
         }
     }
 
-    fn route_outgoing_messages(&mut self, msgs: Vec<Message>) -> Result<Response, ContractError> {
-        ensure_unique_ids(&msgs)?;
+    fn route_outgoing_messages(self, msgs: Vec<Message>) -> Result<Response, ContractError> {
+        let msgs = check_for_duplicates(msgs)?;
 
+        let mut store = self.store;
         for msg in msgs.iter() {
-            self.store.save_outgoing_msg(msg.cc_id.clone(), msg)?;
+            store.save_outgoing_msg(msg.cc_id.clone(), msg)?;
         }
 
         Ok(Response::new().add_events(
             msgs.into_iter()
-                .map(|msg| GatewayEvent::MessageRouted { msg }.into()),
+                .map(|msg| GatewayEvent::Routing { msg }.into()),
         ))
     }
 
     fn route_incoming_messages(&self, msgs: Vec<Message>) -> Result<Response, ContractError> {
-        ensure_unique_ids(&msgs)?;
+        let partitioned_msgs = ignore_empty_msgs(msgs)
+            .try_map(check_for_duplicates)?
+            .try_map(|msgs| self.partition_by_verified(msgs))?;
 
-        let (verified, unverified) = self.partition_by_verified(msgs)?;
+        match partitioned_msgs {
+            None => Ok(Response::new()),
+            Some((verified, unverified)) => self.route_verified_messages(verified, unverified),
+        }
+    }
 
-        let any_verified = !verified.is_empty();
-
-        let mut response = Response::new()
+    fn verify_unverified_messages(
+        &self,
+        verified: Vec<Message>,
+        unverified: Vec<Message>,
+    ) -> Result<Response, ContractError> {
+        let response = Response::new()
             .add_events(
                 verified
                     .clone()
                     .into_iter()
-                    .map(|msg| GatewayEvent::MessageRouted { msg }.into()),
+                    .map(|msg| GatewayEvent::AlreadyVerified { msg }.into()),
+            )
+            .add_events(
+                unverified
+                    .clone()
+                    .into_iter()
+                    .map(|msg| GatewayEvent::Verifying { msg }.into()),
+            );
+
+        let execute_msg = ignore_empty_msgs(unverified).try_map(|unverified| {
+            self.verifier
+                .execute(&aggregate_verifier::msg::ExecuteMsg::VerifyMessages {
+                    messages: unverified,
+                })
+        })?;
+
+        match execute_msg {
+            None => Ok(response),
+            Some(msg) => Ok(response.add_message(msg)),
+        }
+    }
+
+    fn route_verified_messages(
+        &self,
+        verified: Vec<Message>,
+        unverified: Vec<Message>,
+    ) -> Result<Response, ContractError> {
+        let response = Response::new()
+            .add_events(
+                verified
+                    .clone()
+                    .into_iter()
+                    .map(|msg| GatewayEvent::Routing { msg }.into()),
             )
             .add_events(
                 unverified
                     .into_iter()
-                    .map(|msg| GatewayEvent::MessageRoutingFailed { msg }.into()),
+                    .map(|msg| GatewayEvent::UnfitForRouting { msg }.into()),
             );
 
-        if any_verified {
-            response = response.add_message(WasmMsg::Execute {
-                contract_addr: self.config.router.to_string(),
-                msg: to_binary(&connection_router::msg::ExecuteMsg::RouteMessages(verified))
-                    .change_context(ContractError::CreateRouterExecuteMsg)?,
-                funds: vec![],
-            })
-        }
+        let execute_msg = ignore_empty_msgs(verified).try_map(|verified| {
+            self.router
+                .execute(&connection_router::msg::ExecuteMsg::RouteMessages(verified))
+        })?;
 
-        Ok(response)
+        match execute_msg {
+            None => Ok(response),
+            Some(msg) => Ok(response.add_message(msg)),
+        }
     }
 
     fn partition_by_verified(
         &self,
         msgs: Vec<Message>,
     ) -> Result<(Vec<Message>, Vec<Message>), ContractError> {
-        let query_response =
+        let query_response: Vec<(CrossChainId, VerificationStatus)> =
             self.verifier
-                .verify(aggregate_verifier::msg::QueryMsg::GetMessagesStatus {
-                    messages: msgs.to_vec(),
+                .query(aggregate_verifier::msg::QueryMsg::GetMessagesStatus {
+                    messages: msgs.clone(),
                 })?;
 
         let statuses = query_response.into_iter().collect::<HashMap<_, _>>();
@@ -152,7 +180,15 @@ where
     }
 }
 
-fn ensure_unique_ids(msgs: &[Message]) -> Result<(), ContractError> {
+fn ignore_empty_msgs(msgs: Vec<Message>) -> Option<Vec<Message>> {
+    if msgs.is_empty() {
+        None
+    } else {
+        Some(msgs)
+    }
+}
+
+fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, ContractError> {
     let duplicates: Vec<_> = msgs
         .iter()
         // the following two map instructions are separated on purpose
@@ -165,21 +201,33 @@ fn ensure_unique_ids(msgs: &[Message]) -> Result<(), ContractError> {
         return Err(ContractError::DuplicateMessageIds)
             .attach_printable(duplicates.iter().join(", "));
     }
-    Ok(())
+    Ok(msgs)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::contract::execute::Contract;
-    use crate::contract::query;
     use crate::error::ContractError;
+    use crate::router::RouterApi;
     use crate::state;
+    use crate::state::Config;
+    use crate::verifier::MockVerifier;
     use axelar_wasm_std::VerificationStatus;
     use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
     use cosmwasm_std::{Addr, CosmosMsg, SubMsg, WasmMsg};
     use error_stack::bail;
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
+
+    fn verify_no_messages_do_nothing() {
+        let msg_store = Arc::new(RwLock::new(HashMap::new()));
+        let contract = create_contract(msg_store.clone(), HashMap::new(), default_config());
+
+        let result = contract.verify_messages(vec![]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().messages.len(), 0);
+        assert!(msg_store.read().unwrap().is_empty())
+    }
 
     /// If there are messages with duplicate IDs, the gateway should fail
     #[test]
@@ -188,7 +236,7 @@ mod tests {
         let mut msgs = generate_messages(10);
         // no messages are verified
         let verified = HashMap::new();
-        let contract = create_contract(msg_store.clone(), verified);
+        let contract = create_contract(msg_store.clone(), verified, default_config());
 
         // duplicate some IDs
         msgs[5..]
@@ -210,7 +258,7 @@ mod tests {
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let contract = create_contract(msg_store.clone(), verified);
+        let contract = create_contract(msg_store.clone(), verified, default_config());
 
         // try zero, one, many messages
         let inputs = vec![vec![], msgs[..1].to_vec(), msgs];
@@ -228,7 +276,8 @@ mod tests {
         let msgs = generate_messages(10);
         // no messages are verified
         let verified = HashMap::new();
-        let contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let contract = create_contract(msg_store.clone(), verified, config);
 
         // try one and many messages (zero messages are tested in verify_all_verified)
         let inputs = vec![msgs[..1].to_vec(), msgs];
@@ -237,11 +286,7 @@ mod tests {
         for input in inputs {
             let result = contract.verify_messages(input.clone());
             assert!(result.is_ok());
-            assert_correct_messages_verified(
-                result.unwrap().messages,
-                &contract.config.verifier,
-                &input,
-            );
+            assert_correct_messages_verified(result.unwrap().messages, &config.verifier, &input);
         }
     }
 
@@ -255,16 +300,13 @@ mod tests {
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let contract = create_contract(msg_store.clone(), verified, config);
 
         // expect: no error, only the unverified messages get verified
         let result = contract.verify_messages(msgs.clone());
         assert!(result.is_ok());
-        assert_correct_messages_verified(
-            result.unwrap().messages,
-            &contract.config.verifier,
-            &msgs[5..],
-        );
+        assert_correct_messages_verified(result.unwrap().messages, &config.verifier, &msgs[5..]);
     }
 
     /// As long as the state of the verifier contract doesn't change, the verify call should always return the same result
@@ -277,7 +319,7 @@ mod tests {
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let contract = create_contract(msg_store.clone(), verified);
+        let contract = create_contract(msg_store.clone(), verified, default_config());
 
         // expect: same response when called multiple times and no messages are stored
         let result1 = contract.verify_messages(msgs.clone());
@@ -293,13 +335,13 @@ mod tests {
         let msgs = generate_messages(10);
 
         // make the fake query fail
-        let mut verifier = query::MockVerifier::new();
+        let mut verifier = MockVerifier::new();
         verifier
             .expect_verify()
             .returning(|_| bail!(ContractError::QueryVerifier));
         let contract = Contract {
             verifier,
-            ..create_contract(msg_store.clone(), HashMap::new())
+            ..create_contract(msg_store.clone(), HashMap::new(), default_config())
         };
 
         let result = contract.verify_messages(msgs.clone());
@@ -315,13 +357,11 @@ mod tests {
         let mut msgs = generate_messages(10);
         // no messages are verified
         let verified = HashMap::new();
-        let mut contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let mut contract = create_contract(msg_store.clone(), verified, config);
 
         // senders are "router" and "not a router"
-        let senders = vec![
-            contract.config.router.clone(),
-            Addr::unchecked("not a router"),
-        ];
+        let senders = vec![config.router.clone(), Addr::unchecked("not a router")];
 
         // duplicate some IDs
         msgs[5..]
@@ -350,7 +390,8 @@ mod tests {
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let mut contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let mut contract = create_contract(msg_store.clone(), verified, config);
 
         // try one and many messages (zero messages are tested in route_none_verified)
         let inputs = vec![msgs[..1].to_vec(), msgs];
@@ -358,14 +399,10 @@ mod tests {
         for input in inputs {
             // expect: send to router when sender is not the router
             let result = contract.route_messages(Addr::unchecked("not a router"), input.clone());
-            assert_correct_messages_routed(
-                result.unwrap().messages,
-                &contract.config.router,
-                &input,
-            );
+            assert_correct_messages_routed(result.unwrap().messages, &config.router, &input);
 
             // expect: store messages when sender is the router
-            let result = contract.route_messages(contract.config.router.clone(), input.clone());
+            let result = contract.route_messages(config.router.clone(), input.clone());
             assert_eq!(result.unwrap().messages.len(), 0);
             assert_correct_messages_stored(&msg_store, &input);
         }
@@ -380,7 +417,8 @@ mod tests {
         let msgs = generate_messages(10);
         // no messages are verified
         let verified = HashMap::new();
-        let mut contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let mut contract = create_contract(msg_store.clone(), verified, config);
 
         // try zero, one, many messages
         let inputs = vec![vec![], msgs[..1].to_vec(), msgs];
@@ -391,7 +429,7 @@ mod tests {
             assert_eq!(result.unwrap().messages.len(), 0);
 
             // expect: store all messages when sender is the router (no verification check)
-            let result = contract.route_messages(contract.config.router.clone(), input.clone());
+            let result = contract.route_messages(config.router.clone(), input.clone());
             assert_eq!(result.unwrap().messages.len(), 0);
             assert_correct_messages_stored(&msg_store, &input);
         }
@@ -409,18 +447,15 @@ mod tests {
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let mut contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let mut contract = create_contract(msg_store.clone(), verified, config);
 
         // expect: send verified msgs to router when sender is not the router
         let result = contract.route_messages(Addr::unchecked("not a router"), msgs.clone());
-        assert_correct_messages_routed(
-            result.unwrap().messages,
-            &contract.config.router,
-            &msgs[..5],
-        );
+        assert_correct_messages_routed(result.unwrap().messages, &config.router, &msgs[..5]);
 
         // expect: store all messages when sender is the router (no verification check)
-        let result = contract.route_messages(contract.config.router.clone(), msgs.clone());
+        let result = contract.route_messages(config.router.clone(), msgs.clone());
         assert_eq!(result.unwrap().messages.len(), 0);
         assert_correct_messages_stored(&msg_store, &msgs);
     }
@@ -435,12 +470,10 @@ mod tests {
             .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect();
-        let mut contract = create_contract(msg_store.clone(), verified);
+        let config = default_config();
+        let mut contract = create_contract(msg_store.clone(), verified, config);
 
-        let senders = vec![
-            contract.config.router.clone(),
-            Addr::unchecked("not a router"),
-        ];
+        let senders = vec![config.router.clone(), Addr::unchecked("not a router")];
 
         for sender in senders {
             // expect: response and store state are the same for multiple calls
@@ -462,13 +495,14 @@ mod tests {
         let msgs = generate_messages(10);
 
         // make the fake query fail
-        let mut verifier = query::MockVerifier::new();
+        let mut verifier = MockVerifier::new();
         verifier
             .expect_verify()
             .returning(|_| bail!(ContractError::QueryVerifier));
+        let config = default_config();
         let mut contract = Contract {
             verifier,
-            ..create_contract(msg_store.clone(), HashMap::new())
+            ..create_contract(msg_store.clone(), HashMap::new(), config)
         };
 
         let result = contract.route_messages(Addr::unchecked("not a router"), msgs.clone());
@@ -477,9 +511,16 @@ mod tests {
         );
 
         // expect: store all messages when sender is the router (no verification check)
-        let result = contract.route_messages(contract.config.router.clone(), msgs.clone());
+        let result = contract.route_messages(config.router.clone(), msgs.clone());
         assert_eq!(result.unwrap().messages.len(), 0);
         assert_correct_messages_stored(&msg_store, &msgs);
+    }
+
+    fn default_config() -> Config {
+        Config {
+            verifier: Addr::unchecked("verifier"),
+            router: Addr::unchecked("router"),
+        }
     }
 
     /// This uses a RwLock for the msg_store so it can also be used in assertions while it is borrowed by the contract
@@ -487,12 +528,8 @@ mod tests {
         // the store mock requires a 'static type that can be moved into the closure, so we need to use an Arc<> here
         msg_store: Arc<RwLock<HashMap<CrossChainId, Message>>>,
         verified: HashMap<CrossChainId, VerificationStatus>,
-    ) -> Contract<query::MockVerifier, state::MockStore> {
-        let config = state::Config {
-            verifier: Addr::unchecked("verifier"),
-            router: Addr::unchecked("router"),
-        };
-
+        config: Config,
+    ) -> Contract<MockVerifier, state::MockStore> {
         let mut store = state::MockStore::new();
         store.expect_load_config().return_const(config.clone());
         store
@@ -503,7 +540,7 @@ mod tests {
                 Ok(())
             });
 
-        let mut verifier = query::MockVerifier::new();
+        let mut verifier = MockVerifier::new();
         verifier.expect_verify().returning(move |msg| match msg {
             aggregate_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
                 .into_iter()
@@ -520,7 +557,9 @@ mod tests {
                 .collect::<Vec<_>>()),
         });
         Contract {
-            config,
+            router: RouterApi {
+                address: config.router,
+            },
             store,
             verifier,
         }
@@ -589,7 +628,6 @@ mod tests {
             _ => panic!("unexpected message type"),
         }
     }
-
     fn assert_correct_messages_stored(
         locked_msg_store: &RwLock<HashMap<CrossChainId, Message>>,
         expected_msgs: &[Message],

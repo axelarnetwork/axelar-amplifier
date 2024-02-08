@@ -33,7 +33,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let mut contract = Contract::new(deps);
+    let contract = Contract::new(deps);
     match msg {
         ExecuteMsg::VerifyMessages(msgs) => contract.verify_messages(msgs),
         ExecuteMsg::RouteMessages(msgs) => contract.route_messages(info.sender, msgs),
