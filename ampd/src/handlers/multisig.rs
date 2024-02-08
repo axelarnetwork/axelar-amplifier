@@ -382,11 +382,8 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_not_handle_wrong_event_if_multisig_address_does_not_match() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+    async fn should_not_handle_event_with_missing_fields_if_multisig_address_does_not_match() {
+        let client = MockEcdsaClient::new();
 
         let handler = get_handler(
             rand_account(),
@@ -404,11 +401,8 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_error_on_wrong_event_if_multisig_address_does_match() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+    async fn should_error_on_event_with_missing_fields_if_multisig_address_does_match() {
+        let client = MockEcdsaClient::new();
 
         let handler = get_handler(
             rand_account(),
@@ -424,11 +418,8 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_not_handle_correct_event_if_multisig_address_does_not_match() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+    async fn should_not_handle_event_if_multisig_address_does_not_match() {
+        let client = MockEcdsaClient::new();
 
         let handler = get_handler(
             rand_account(),
