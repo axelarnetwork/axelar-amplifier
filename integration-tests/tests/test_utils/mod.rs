@@ -1,4 +1,4 @@
-use std::{str::FromStr, ops::Add};
+use std::{fmt::Debug, ops::Add, str::FromStr};
 
 use axelar_wasm_std::{
     nonempty,
@@ -12,17 +12,18 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
-use k256::ecdsa;
+use k256::{ecdsa, pkcs8::der::Decode};
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
-use tofn::ecdsa::KeyPair;
+use tofn::{ecdsa::KeyPair, ed25519};
 use xrpl_multisig_prover::types::XRPLToken;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 pub const XRP_DENOMINATION: &str = "uxrp";
+pub const ETH_DENOMINATION: &str = "ueth";
 
 fn get_event_attribute<'a>(
     events: &'a [Event],
@@ -264,6 +265,7 @@ pub fn construct_xrpl_payment_proof_and_sign(
     multisig_address: &Addr,
     message: Message,
     workers: &Vec<Worker>,
+    coins: &[Coin],
 ) -> Uint64 {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
@@ -271,12 +273,7 @@ pub fn construct_xrpl_payment_proof_and_sign(
         &xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
             message_id: message.cc_id.clone(),
         },
-        &[Coin {
-            denom: XRP_DENOMINATION.to_string(),
-            // amount: Uint128::MAX,
-            // amount: Uint128::from(10u128.pow(29)), // scaled down to 10^17 drops = max XRP
-            amount: Uint128::from(100000000u128)
-        }],
+        coins,
     );
     assert!(response.is_ok());
     let response = response.unwrap();
@@ -336,15 +333,13 @@ pub fn sign_xrpl_proof(
         )
         .unwrap();
 
-        // TODO: why from_der and then back to_der?
-        let sig = ecdsa::Signature::from_der(&signature).unwrap();
-
         let response = app.execute_contract(
             worker.addr.clone(),
             multisig_address.clone(),
             &multisig::msg::ExecuteMsg::SubmitSignature {
                 session_id,
-                signature: HexBinary::from(sig.to_vec()),
+                // TODO: why from_der and then back to_der?
+                signature: HexBinary::from(ecdsa::Signature::from_der(&signature).unwrap().to_vec()),
             },
             &[],
         );
@@ -440,35 +435,20 @@ pub fn get_xrpl_message_to_sign(
     query_response.unwrap()
 }
 
-pub fn finalize_xrpl_proof(
-    app: &mut App,
-    multisig_prover_address: &Addr,
-    multisig_session_id: &Uint64,
-) {
-    let response = app.execute_contract(
-        Addr::unchecked("relayer"),
-        multisig_prover_address.clone(),
-        &xrpl_multisig_prover::msg::ExecuteMsg::FinalizeProof {
-            multisig_session_id: *multisig_session_id,
-        },
-        &[],
-    );
-
-    assert!(response.is_ok());
-}
-
 pub fn xrpl_update_tx_status(
     app: &mut App,
     multisig_prover_address: &Addr,
-    message_id: CrossChainId,
+    signers: Vec<Addr>,
+    multisig_session_id: Uint64,
     message_status: xrpl_voting_verifier::execute::MessageStatus,
 ) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         multisig_prover_address.clone(),
         &xrpl_multisig_prover::msg::ExecuteMsg::UpdateTxStatus {
-            message_id,
             message_status,
+            multisig_session_id,
+            signers,
         },
         &[],
     );
@@ -523,14 +503,30 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let genesis = Addr::unchecked("genesis");
     // TODO: return relayer
     let relayer = Addr::unchecked("relayer");
+    let xrpl_init_coins = vec![
+        coins(u128::MAX, XRP_DENOMINATION),
+        coins(u128::MAX, ETH_DENOMINATION),
+    ].concat();
     let mut app = App::new(|router, _, storage| {
         router
             .bank
-            .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
+            .init_balance(
+                storage,
+                &genesis,
+                vec![
+                    coins(u128::MAX, AXL_DENOMINATION),
+                    xrpl_init_coins.clone(),
+                ].concat())
             .unwrap();
-        // TODO: relocate
-        router.bank.init_balance(storage, &relayer, coins(u128::MAX, XRP_DENOMINATION)).unwrap()
     });
+
+    let response = app.send_tokens(
+        genesis.clone(),
+        relayer,
+        &xrpl_init_coins,
+    );
+
+    assert!(response.is_ok());
     let router_admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
@@ -799,6 +795,7 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     )
 }
 
+// TODO: fix duplication
 pub fn xrpl_workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
     // get public keys
     let mut pub_keys = vec![];
@@ -930,7 +927,26 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     }
 }
 
-pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+pub fn register_token(
+    protocol: &mut Protocol,
+    multisig_prover_address: Addr,
+    denom: String,
+    token: XRPLToken,
+) {
+    let response = protocol.app.execute_contract(
+        Addr::unchecked("doesn't matter"), // TODO: should fail unless admin
+        multisig_prover_address.clone(),
+        &xrpl_multisig_prover::msg::ExecuteMsg::RegisterToken {
+            denom,
+            token,
+        },
+        &[],
+    );
+    assert!(response.is_ok());
+}
+
+pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
+    let chain_name = ChainName::from_str("XRPL").unwrap();
     let voting_verifier_address = instantiate_xrpl_voting_verifier(
         &mut protocol.app,
         xrpl_voting_verifier::msg::InstantiateMsg {
@@ -944,7 +960,7 @@ pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             voting_threshold: (9, 10).try_into().unwrap(),
             block_expiry: 10,
             confirmation_height: 5,
-            source_chain: ChainName::from_str("XRPL").unwrap(),
+            source_chain: chain_name.clone(),
             rewards_address: protocol.rewards_address.to_string(),
         },
     );
@@ -955,6 +971,7 @@ pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             verifier_address: voting_verifier_address.to_string(),
         },
     );
+    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string();
     let multisig_prover_address = instantiate_xrpl_multisig_prover(
         &mut protocol.app,
         xrpl_multisig_prover::contract::InstantiateMsg {
@@ -966,30 +983,37 @@ pub fn setup_xrpl(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             service_name: protocol.service_name.to_string(),
             worker_set_diff_threshold: 1,
             xrpl_fee: 30,
-            xrpl_multisig_address: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
+            xrpl_multisig_address: xrpl_multisig_address.clone(),
             ticket_count_threshold: 1,
-            next_sequence_number: 44218441,
-            last_assigned_ticket_number: 44218188,
+            next_sequence_number: 45205906,
+            last_assigned_ticket_number: 45205895,
             available_tickets: vec![
                 vec![],
-                (44218189..44218438).collect::<Vec<_>>()
+                (45205896..45205907).collect::<Vec<_>>()
             ].concat(),
         },
     );
 
-    let response = protocol.app.execute_contract(
-        Addr::unchecked("doesn't matter"), // TODO: should fail unless admin
+    register_token(
+        protocol,
         multisig_prover_address.clone(),
-        &xrpl_multisig_prover::msg::ExecuteMsg::RegisterToken {
-            denom: XRP_DENOMINATION.to_string(),
-            token: XRPLToken {
-                issuer: "".to_string(),
-                currency: XRPLToken::NATIVE_CURRENCY.to_string(),
-            },
+        XRP_DENOMINATION.to_string(),
+        XRPLToken {
+            issuer: "".to_string(),
+            currency: XRPLToken::NATIVE_CURRENCY.to_string(),
         },
-        &[],
     );
-    assert!(response.is_ok());
+
+    register_token(
+        protocol,
+        multisig_prover_address.clone(),
+        ETH_DENOMINATION.to_string(),
+        XRPLToken {
+            issuer: xrpl_multisig_address,
+            currency: "ETH".to_string(),
+        },
+    );
+
     let response = protocol.app.execute_contract(
         protocol.governance_address.clone(),
         protocol.multisig_address.clone(),
@@ -1294,7 +1318,7 @@ pub fn setup_xrpl_destination_test_case() -> (Protocol, Chain, Chain, Vec<Worker
         min_worker_bond,
     );
     let source_chain = setup_chain(&mut protocol, chains.get(0).unwrap().clone());
-    let xrpl = setup_xrpl(&mut protocol, chains.get(1).unwrap().clone());
+    let xrpl = setup_xrpl(&mut protocol);
     (protocol, source_chain, xrpl, workers, min_worker_bond)
 }
 

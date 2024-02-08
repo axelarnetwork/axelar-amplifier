@@ -1,5 +1,6 @@
 use connection_router::{Message, state::CrossChainId};
 use cosmwasm_std::Addr;
+use multisig::key::KeyType;
 use test_utils::Worker;
 
 mod test_utils;
@@ -189,15 +190,9 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
     ));
     println!("SignerListSet proof: {:?}", proof);
 
-    test_utils::finalize_xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover_address,
-        &session_id,
-    );
-
     let proof_msg_id = CrossChainId {
         chain: xrpl.chain_name.clone(),
-        id: "3387D15000A9191024FBA1789A2D23BCDDF93C7D268129EA7023E6115F4DF07B:0"
+        id: "cc9b3b3c7561a14449aa4baec9d1e72ea78068a74c5bf77d0c70629d53a46bd5:0"
             .to_string()
             .try_into()
             .unwrap(),
@@ -222,7 +217,8 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover_address,
-        proof_msg_id,
+        initial_workers.iter().map(|w| w.addr.clone()).collect(),
+        session_id,
         xrpl_voting_verifier::execute::MessageStatus::Succeeded
     );
 

@@ -1,6 +1,6 @@
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint64};
+use cosmwasm_std::{HexBinary, Uint64, Addr};
 use xrpl_voting_verifier::execute::MessageStatus;
 
 use crate::types::{TxHash, XRPLToken};
@@ -34,8 +34,11 @@ pub struct GetMessageToSignResponse {
 pub enum ExecuteMsg {
     RegisterToken { denom: String, token: XRPLToken },
     ConstructProof { message_id: CrossChainId },
-    FinalizeProof { multisig_session_id: Uint64 },
-    UpdateTxStatus { message_id: CrossChainId, message_status: MessageStatus },
+    UpdateTxStatus {
+        multisig_session_id: Uint64,
+        signers: Vec<Addr>,
+        message_status: MessageStatus,
+    },
     UpdateWorkerSet,
     TicketCreate,
 }

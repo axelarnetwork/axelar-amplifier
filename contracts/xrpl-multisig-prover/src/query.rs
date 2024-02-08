@@ -7,7 +7,7 @@ use multisig::key::PublicKey;
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 
 use crate::{
-    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, msg::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError, axelar_workers::WorkerSet,
+    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, msg::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError,
 };
 
 pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>, multisig_session_id: &Uint64) -> Result<XRPLSignedTransaction, ContractError> {
@@ -15,14 +15,20 @@ pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(mul
         .iter()
         .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
             let xrpl_address = xrpl_multisig::public_key_to_xrpl_address(axelar_signer.pub_key.clone());
-            Ok(XRPLSigner {
-                account: xrpl_address,
-                signing_pub_key: axelar_signer.pub_key.clone(),
-                // TODO: should work with Ed25519 signatures too
-                txn_signature: HexBinary::from(ecdsa::Signature::to_der(
+            let txn_signature = match signature {
+                // TODO: use unwrapped signature instead of ignoring it
+                multisig::key::Signature::Ecdsa(_) |
+                multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
                     &ecdsa::Signature::try_from(signature.clone().as_ref())
                         .map_err(|_| ContractError::FailedToEncodeSignature)?
                 ).to_vec()),
+                _ => unimplemented!("Unsupported signature type"),
+            };
+
+            Ok(XRPLSigner {
+                account: xrpl_address,
+                signing_pub_key: axelar_signer.pub_key.clone().into(),
+                txn_signature,
             })
         })
         .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;

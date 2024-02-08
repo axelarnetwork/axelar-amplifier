@@ -88,6 +88,9 @@ pub enum ContractError {
 
     #[error("signature verification failed")]
     SignatureVerificationFailed,
+
+    #[error("signature not found")]
+    SignatureNotFound,
 }
 
 impl From<ContractError> for StdError {

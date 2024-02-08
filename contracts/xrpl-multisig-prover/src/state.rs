@@ -17,6 +17,7 @@ pub struct Config {
     pub worker_set_diff_threshold: u32,
     pub xrpl_fee: u64,
     pub ticket_count_threshold: u32,
+    pub key_type: multisig::key::KeyType,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -32,7 +33,6 @@ pub const MULTISIG_SESSION_TX: Map<u64, TxHash> = Map::new("multisig_session_tx"
 pub const NEXT_SEQUENCE_NUMBER: Item<u32> = Item::new("next_sequence_number");
 pub const LAST_ASSIGNED_TICKET_NUMBER: Item<u32> = Item::new("last_assigned_ticket_number");
 
-pub const SIGNED_TO_UNSIGNED_TX_HASH: Map<TxHash, TxHash> = Map::new("signed_to_unsigned_tx_hash");
 pub const MESSAGE_ID_TO_TICKET: Map<CrossChainId, u32> = Map::new("message_id_to_ticket");
 pub const CONFIRMED_TRANSACTIONS: Map<u32, TxHash> = Map::new("confirmed_transactions");
 pub const AVAILABLE_TICKETS: Item<Vec<u32>> = Item::new("available_tickets");

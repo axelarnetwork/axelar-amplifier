@@ -13,7 +13,7 @@ use std::str::FromStr;
 
 use crate::{
     error::ContractError,
-    state::{Config, LAST_ASSIGNED_TICKET_NUMBER, AVAILABLE_TICKETS, TRANSACTION_INFO, NEXT_SEQUENCE_NUMBER, CONFIRMED_TRANSACTIONS, MESSAGE_ID_TO_TICKET, LATEST_SEQUENTIAL_TX_HASH, SIGNED_TO_UNSIGNED_TX_HASH, NEXT_WORKER_SET, CURRENT_WORKER_SET},
+    state::{Config, LAST_ASSIGNED_TICKET_NUMBER, AVAILABLE_TICKETS, TRANSACTION_INFO, NEXT_SEQUENCE_NUMBER, CONFIRMED_TRANSACTIONS, MESSAGE_ID_TO_TICKET, LATEST_SEQUENTIAL_TX_HASH, NEXT_WORKER_SET, CURRENT_WORKER_SET},
     types::*, axelar_workers::{WorkerSet, AxelarSigner},
 };
 
@@ -828,8 +828,12 @@ fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(),
     Ok(())
 }
 
-pub fn update_tx_status(storage: &mut dyn Storage, axelar_multisig_address: impl Into<String>, tx_hash: TxHash, new_status: TransactionStatus) -> Result<Option<WasmMsg>, ContractError> {
-    let unsigned_tx_hash = SIGNED_TO_UNSIGNED_TX_HASH.load(storage, tx_hash.clone())?;
+pub fn update_tx_status(
+    storage: &mut dyn Storage,
+    axelar_multisig_address: impl Into<String>,
+    unsigned_tx_hash: TxHash,
+    new_status: TransactionStatus
+) -> Result<Option<WasmMsg>, ContractError> {
     let mut tx_info = TRANSACTION_INFO.load(storage, unsigned_tx_hash.clone())?;
     if tx_info.status != TransactionStatus::Pending {
         return Err(ContractError::TransactionStatusAlreadyUpdated);
@@ -1193,13 +1197,19 @@ mod tests {
 
     #[test]
     fn serialize_xrpl_signed_xrp_payment_transaction() {
-        let signed_tx = XRPLSignedTransaction {    
+        let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
                 fee: 30,
-                sequence: Sequence::Ticket(44218193),
-                amount: XRPLPaymentAmount::Drops(100000000),
-                destination: nonempty::String::try_from("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG").unwrap(),
+                sequence: Sequence::Ticket(44218194),
+                amount: XRPLPaymentAmount::Token(
+                    XRPLToken {
+                        currency: "ETH".to_string(),
+                        issuer: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
+                    },
+                    XRPLTokenAmount("100000000".to_string()),
+                ),
+                destination: nonempty::String::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
                 multisig_session_id: Some(Uint64::from(5461264u64)),
             }), signers: vec![
                 XRPLSigner{
@@ -1216,14 +1226,14 @@ mod tests {
         };
         let encoded_signed_tx = &signed_tx.xrpl_serialize().unwrap();
         assert_eq!(
-            "12000022000000002400000000202902A2B751614000000005F5E10068400000000000001E73008114447BB6E37CA4D5D89FC2E2470A64632DA9BDD9E4831449599D50E0C1AC0CFC8D3B2A30830F3738EACC3EF3E0107321025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC00885674463044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E0458114552A0D8EFCF978186CA9C37112B502D3728DA9EFE1E0107321036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE74473045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE98114BA058AB3573EA34DC934D60E719A12DE6C213DE2E1F1F9EA7D03535510E1F1",
+            "12000022000000002400000000202902A2B75261D6838D7EA4C680000000000000000000000000004554480000000000447BB6E37CA4D5D89FC2E2470A64632DA9BDD9E468400000000000001E73008114447BB6E37CA4D5D89FC2E2470A64632DA9BDD9E4831439659AAAD4DC8603798352FCF954419A67977536F3E0107321025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC00885674473045022100A016B2A54600BE2D32B9EE695BD8111E0C6D755B5BFCEBCB16DE590AC3AF2AAC022051893F471D8E6998B1E98045CF94235A491A1E435B93821DBB2D4E2030E45C328114552A0D8EFCF978186CA9C37112B502D3728DA9EFE1E0107321036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE74473045022100B06F72C1DD288D9453913272318B29582C50F4C170CDE9BDDFAE44076F189E2D0220715403F65E7630AE77ACDD15D78C215F3AB2FD2CAE764F254D060051B66505418114BA058AB3573EA34DC934D60E719A12DE6C213DE2E1F1F9EA7D03535510E1F1",
             hex::encode_upper(encoded_signed_tx)
         );
     }
 
     #[test]
     fn tx_serialization_sort_signers() {
-        let signed_tx = XRPLSignedTransaction {    
+        let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
                 fee: 30,
@@ -1253,7 +1263,7 @@ mod tests {
 
     #[test]
     fn tx_serialization_ed25519_signers() {
-        let signed_tx = XRPLSignedTransaction {    
+        let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(),
                 fee: 30,
@@ -1311,7 +1321,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn serialize_xrpl_signed_signer_list_set_transaction() {
         let signed_tx = XRPLSignedTransaction {
@@ -1350,7 +1359,6 @@ mod tests {
             hex::encode_upper(encoded_signed_tx)
         );
     }
-
 
     #[test]
     fn ed25519_public_key_to_xrpl_address() {

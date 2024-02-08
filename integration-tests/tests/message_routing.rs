@@ -1,5 +1,7 @@
 use connection_router::state::{CrossChainId, Message};
-use cosmwasm_std::{HexBinary, Uint128};
+use cosmwasm_std::{HexBinary, Uint128, Coin};
+
+use crate::test_utils::{XRP_DENOMINATION, ETH_DENOMINATION};
 
 mod test_utils;
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
@@ -138,15 +140,9 @@ fn xrpl_ticket_create_can_be_proven() {
     ));
     println!("TicketCreate proof: {:?}", proof);
 
-    test_utils::finalize_xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover_address,
-        &session_id,
-    );
-
     let proof_msg_id = CrossChainId {
         chain: xrpl.chain_name.clone(),
-        id: "B0660BA5DC6C96B20D4E4DC19E2BF421B0F7D9E62FDC3B3F2AFCB322A6E3582D:0"
+        id: "3da9f142fdc0d570d040dde73de20a0625a549fc70cc564849dbc746b5c6469a:0"
             .to_string()
             .try_into()
             .unwrap(),
@@ -170,7 +166,8 @@ fn xrpl_ticket_create_can_be_proven() {
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover_address,
-        proof_msg_id,
+        workers.iter().map(|w| w.addr.clone()).collect(),
+        session_id,
         xrpl_voting_verifier::execute::MessageStatus::Succeeded
     );
 }
@@ -182,7 +179,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let msg = Message {
         cc_id: CrossChainId {
             chain: source_chain.chain_name.clone(),
-            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924:3"
+            id: "0xaff42a67c474758ce97bd9b69c395c6dc6019707b400e06c30b0878a9357b2ea:3"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -192,7 +189,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
             .to_string()
             .try_into()
             .unwrap(),
-        destination_address: "r4ueUc4mo1X7yvmg78s5gV9uLhgLnPkJxz"
+        destination_address: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo"
             .to_string()
             .try_into()
             .unwrap(),
@@ -242,6 +239,12 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         &protocol.multisig_address,
         msg,
         &workers,
+        &[Coin {
+            denom: ETH_DENOMINATION.to_string(),
+            // amount: Uint128::MAX,
+            // amount: Uint128::from(10u128.pow(29)), // scaled down to 10^17 drops = max XRP
+            amount: Uint128::from(100000000u128)
+        }],
     );
 
     let proof = test_utils::get_xrpl_proof(
@@ -256,15 +259,9 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         xrpl_multisig_prover::msg::GetProofResponse::Completed { .. }
     ));
 
-    test_utils::finalize_xrpl_proof(
-        &mut protocol.app,
-        &xrpl.multisig_prover_address,
-        &session_id,
-    );
-
     let proof_msg_id = CrossChainId {
         chain: xrpl.chain_name.clone(),
-        id: "2B779BF106E36B5FA21518E279DC6A02E26DF63115010EB40CA7B0FCD73E28C9:0"
+        id: "8108b96bdbc5ff44fd868d973bdcaae3f38e2fe3906a33a8dc1d881b20498ff7:0"
             .to_string()
             .try_into()
             .unwrap(),
@@ -289,7 +286,8 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover_address,
-        proof_msg_id,
+        workers.iter().map(|w| w.addr.clone()).collect(),
+        session_id,
         xrpl_voting_verifier::execute::MessageStatus::Succeeded
     );
 

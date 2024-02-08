@@ -5,7 +5,7 @@ use cosmwasm_schema::serde::{de::DeserializeOwned, Serialize};
 use cosmwasm_std::{
     to_binary, QueryRequest, WasmQuery, QuerierWrapper, Uint64,
 };
-use multisig::{key::{KeyType, PublicKey}, msg::Multisig};
+use multisig::{key::PublicKey, msg::Multisig};
 use xrpl_voting_verifier::execute::MessageStatus;
 
 use crate::{
@@ -52,7 +52,7 @@ impl<'a> Querier<'a> {
         query(self.querier, self.config.axelar_multisig_address.to_string(),
             &multisig::msg::QueryMsg::GetPublicKey {
                 worker_address,
-                key_type: KeyType::Ecdsa,
+                key_type: self.config.key_type,
             },
         )
     }
