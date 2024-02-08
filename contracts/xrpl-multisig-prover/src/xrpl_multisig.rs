@@ -915,10 +915,6 @@ mod tests {
 
     use super::*;
 
-    fn serialize<T: XRPLSerialize>(value: T) -> String {
-        hex::encode_upper(value.xrpl_serialize().unwrap())
-    }
-
     #[macro_export]
     macro_rules! assert_hex_eq {
         ($expected:expr, $actual:expr) => {
