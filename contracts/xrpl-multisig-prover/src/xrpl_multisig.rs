@@ -5,6 +5,7 @@ use axelar_wasm_std::{nonempty, FnExt};
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
+use multisig::key::PublicKey;
 use ripemd::Ripemd160;
 use sha2::{Sha512, Digest, Sha256};
 use bigdecimal::{BigDecimal, Signed, ToPrimitive, Zero};
@@ -249,7 +250,7 @@ impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
 pub struct XRPLSigner {
     pub account: String,
     pub txn_signature: HexBinary,
-    pub signing_pub_key: HexBinary,
+    pub signing_pub_key: PublicKey,
 }
 
 #[cw_serde]
@@ -446,9 +447,16 @@ impl XRPLTypedSerialize for XRPLPaymentAmount {
 
 impl XRPLSerialize for XRPLSignedTransaction {
     fn xrpl_serialize(self: &XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
+        let mut sorted_signers = self.signers.clone();
+        sorted_signers.sort_by(|a, b| {
+            // the Signers array must be sorted based on the numeric value of the signer addresses
+            // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
+            let a = bs58::decode(a.account.clone()).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
+            let b = bs58::decode(b.account.clone()).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
+            return a.cmp(&b);
+        });
         let mut obj = XRPLObject::try_from(&self.unsigned_tx)?;
-        obj.add_field(3, &XRPLArray{ field_code: 16, items: self.signers.clone() })?;
-        //obj.add_field(9, &XRPLMemo(memo))?;
+        obj.add_field(3, &XRPLArray{ field_code: 16, items: sorted_signers })?;
 
         obj.xrpl_serialize()
     }
@@ -521,6 +529,21 @@ impl XRPLSerialize for HexBinary {
 }
 
 impl XRPLTypedSerialize for HexBinary {
+    const TYPE_CODE: u8 = BLOB_TYPE_CODE;
+}
+
+impl XRPLSerialize for PublicKey {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        match self.clone() {
+            // rippled prefixes Ed25519 public keys with the byte 0xED so both types of public key are 33 bytes.
+            // https://xrpl.org/cryptographic-keys.html
+            Self::Ed25519(hex) => HexBinary::from_hex(format!("ED{}", hex.to_hex()).as_str())?.xrpl_serialize(),
+            Self::Ecdsa(hex) => hex.xrpl_serialize(),
+        }
+    }
+}
+
+impl XRPLTypedSerialize for PublicKey {
     const TYPE_CODE: u8 = BLOB_TYPE_CODE;
 }
 
@@ -888,7 +911,7 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: CrossChainId)
 
 #[cfg(test)]
 mod tests {
-    use multisig::key::PublicKey;
+    use multisig::key::{KeyType, PublicKey};
 
     use super::*;
 
@@ -1186,12 +1209,12 @@ mod tests {
                 XRPLSigner{
                     account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
                     txn_signature: HexBinary::from(hex::decode("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
                     account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
                     txn_signature: HexBinary::from(hex::decode("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 }
             ],
         };
@@ -1201,6 +1224,67 @@ mod tests {
             hex::encode_upper(encoded_signed_tx)
         );
     }
+
+    #[test]
+    fn tx_serialization_sort_signers() {
+        let signed_tx = XRPLSignedTransaction {    
+            unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
+                account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(),
+                fee: 30,
+                sequence: Sequence::Ticket(44218193),
+                amount: XRPLPaymentAmount::Drops(100000000),
+                destination: nonempty::String::try_from("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG").unwrap(),
+                multisig_session_id: Some(Uint64::from(5461264u64)),
+            }), signers: vec![
+                XRPLSigner{
+                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
+                },
+                XRPLSigner{
+                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
+                },
+            ],
+        };
+        let encoded_signed_tx = &signed_tx.xrpl_serialize().unwrap();
+        assert_eq!(
+            "12000022000000002400000000202902A2B751614000000005F5E10068400000000000001E73008114447BB6E37CA4D5D89FC2E2470A64632DA9BDD9E4831449599D50E0C1AC0CFC8D3B2A30830F3738EACC3EF3E0107321025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC00885674463044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E0458114552A0D8EFCF978186CA9C37112B502D3728DA9EFE1E0107321036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE74473045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE98114BA058AB3573EA34DC934D60E719A12DE6C213DE2E1F1F9EA7D03535510E1F1",
+            hex::encode_upper(encoded_signed_tx)
+        );
+    }
+
+    #[test]
+    fn tx_serialization_ed25519_signers() {
+        let signed_tx = XRPLSignedTransaction {    
+            unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
+                account: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(),
+                fee: 30,
+                sequence: Sequence::Ticket(45205896),
+                amount: XRPLPaymentAmount::Token(XRPLToken{ currency: "ETH".to_string(), issuer: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string() }, XRPLTokenAmount("100000000".to_string())),
+                destination: nonempty::String::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
+                multisig_session_id: Some(Uint64::from(5461264u64)),
+            }), signers: vec![
+                XRPLSigner{
+                    account: "rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("531B9E854C81AEFA573C00DF1603C3DE80C1F3680D39A80F3FB725A0388D177E3EC5E28AD6760D9EEF8203FEB1FC61F9D9451F777114B97943E5702B54589E09").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ed25519, HexBinary::from(hex::decode("45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f").unwrap()))).unwrap(),
+                },
+                XRPLSigner{
+                    account: "rhAdaMDgF89314TfNRHc5GsA6LQZdk35S5".to_string(),
+                    txn_signature: HexBinary::from(hex::decode("76CF2097D7038B90445CB952AE52CBDBE6D55FE7C0562493FE3D9AAE5E05A66A43777CBCDAA89233CAFD4D1D0F9B02DB0619B9BB14957CC3ADAA8D7D343E0106").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ed25519, HexBinary::from(hex::decode("dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b").unwrap()))).unwrap(),
+                },
+            ],
+        };
+        let encoded_signed_tx = &signed_tx.xrpl_serialize().unwrap();
+        assert_eq!(
+            "12000022000000002400000000202902B1C98861D6838D7EA4C680000000000000000000000000004554480000000000EC792533BC26024CFAA5DDC2D04128E59581309C68400000000000001E73008114EC792533BC26024CFAA5DDC2D04128E59581309C831439659AAAD4DC8603798352FCF954419A67977536F3E0107321EDDD9822C7FA239DDA9913EBEE813ECBE69E35D88FF651548D5CC42C033A8A667B744076CF2097D7038B90445CB952AE52CBDBE6D55FE7C0562493FE3D9AAE5E05A66A43777CBCDAA89233CAFD4D1D0F9B02DB0619B9BB14957CC3ADAA8D7D343E010681142B3CF7B1986F5CB4EFEF11F933F40EC3106412C2E1E0107321ED45E67EAF446E6C26EB3A2B55B64339ECF3A4D1D03180BEE20EB5AFDD23FA644F7440531B9E854C81AEFA573C00DF1603C3DE80C1F3680D39A80F3FB725A0388D177E3EC5E28AD6760D9EEF8203FEB1FC61F9D9451F777114B97943E5702B54589E09811472C14C0DB6CEF64A87CC3D152D7B0E917D372BE7E1F1F9EA7D03535510E1F1",
+            hex::encode_upper(encoded_signed_tx)
+        );
+    }
+
 
     #[test]
     fn serialize_xrpl_signed_xrp_ticket_create_transaction() {
@@ -1215,12 +1299,12 @@ mod tests {
                 XRPLSigner{
                     account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
                     txn_signature: HexBinary::from(hex::decode("304402203C10D5295AE4A34FD702355B075E951CF9FFE3A73F8B7557FB68E5DF64D87D3702200945D65BAAD7F10A14EA57E08914005F412709D10F27D868D63BE3052F30363F").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
                     account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
                     txn_signature: HexBinary::from(hex::decode("3045022100EF2CBAC3B2D81E1E3502B064BA198D9D0D3F1FFE6604DAC5019C53C262B5F9E7022000808A438BD5CA808649DCDA6766D2BA0E8FA7E94150675F73FC41B2F73C9C58").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 },
             ]
         };
@@ -1255,12 +1339,12 @@ mod tests {
                 XRPLSigner{
                     account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
                     txn_signature: HexBinary::from(hex::decode("3045022100B94B346A418BE9EF5AEE7806EE984E3E9B48EB4ED48E79B5BFB69C607167023E02206B14BD72B69206D14DADA82ACCDD2539D275719FB187ECE2A46BAC9025877B39").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
                     account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
                     txn_signature: HexBinary::from(hex::decode("3044022072A1028FF972D9D6E950810AF72443EEE352ADB1BC54B1112983842C857C464502206D74A77387979A47863F08F9191611D142C2BD6B32D5C750EF58513C5669F21A").unwrap()),
-                    signing_pub_key: HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()),
+                    signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 },
             ],
         };
