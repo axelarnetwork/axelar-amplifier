@@ -77,6 +77,9 @@ pub enum ContractError {
     #[error("invalid blob")]
     InvalidBlob,
 
+    #[error("invalid message ID {0}")]
+    InvalidMessageID(String),
+
     #[error("failed to encode signature")]
     FailedToEncodeSignature,
 

@@ -15,13 +15,33 @@ pub enum TransactionStatus {
     FailedOffChain,
 }
 
+// TODO: import from verifier
+pub fn parse_message_id(
+    message_id: &nonempty::String,
+) -> Result<(nonempty::String, u64), ContractError> {
+    // expected format: <tx_id>:<index>
+    let components = message_id.split(":").collect::<Vec<_>>();
+
+    if components.len() != 2 {
+        return Err(ContractError::InvalidMessageID(message_id.to_string()));
+    }
+
+    Ok((
+        components[0].try_into()?,
+        components[1]
+            .parse::<u64>()
+            .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
+    ))
+}
+
 #[cw_serde]
 pub struct TxHash(pub HexBinary);
 
 impl TryFrom<CrossChainId> for TxHash {
     type Error = ContractError;
     fn try_from(cc_id: CrossChainId) -> Result<Self, ContractError> {
-        let tx_id = &cc_id.id;
+        // TODO check this is correct
+        let (tx_id, _event_index) = parse_message_id(&cc_id.id)?;
         Ok(Self(HexBinary::from_hex(tx_id.to_ascii_lowercase().as_str())?))
     }
 }
