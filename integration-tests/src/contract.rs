@@ -11,8 +11,8 @@ pub trait Contract {
 
     fn contract_address(&self) -> Addr;
     fn query<T: DeserializeOwned>(&self, app: &App, query_message: &Self::QMsg) -> T
-        where
-            Self::QMsg: Serialize,
+    where
+        Self::QMsg: Serialize,
     {
         app.wrap()
             .query_wasm_smart(self.contract_address(), query_message)
@@ -25,10 +25,10 @@ pub trait Contract {
         caller: Addr,
         execute_message: &Self::ExMsg,
     ) -> Result<AppResponse, Self::Err>
-        where
-            Self::ExMsg: Serialize,
-            Self::ExMsg: std::fmt::Debug,
-            Self::Err: error_stack::Context,
+    where
+        Self::ExMsg: Serialize,
+        Self::ExMsg: std::fmt::Debug,
+        Self::Err: error_stack::Context,
     {
         self.execute_with_funds(app, caller, execute_message, &[])
     }
@@ -40,10 +40,10 @@ pub trait Contract {
         execute_message: &Self::ExMsg,
         funds: &[Coin],
     ) -> Result<AppResponse, Self::Err>
-        where
-            Self::ExMsg: Serialize,
-            Self::ExMsg: std::fmt::Debug,
-            Self::Err: error_stack::Context,
+    where
+        Self::ExMsg: Serialize,
+        Self::ExMsg: std::fmt::Debug,
+        Self::Err: error_stack::Context,
     {
         app.execute_contract(
             caller.clone(),
@@ -51,6 +51,6 @@ pub trait Contract {
             execute_message,
             funds,
         )
-            .map_err(|err| report!(err.downcast::<Self::Err>().unwrap()))
+        .map_err(|err| report!(err.downcast::<Self::Err>().unwrap()))
     }
 }

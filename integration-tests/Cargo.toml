@@ -27,7 +27,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
   cosmwasm/rust-optimizer:0.12.6
 """
 
-[dev-dependencies]
+[dependencies]
 aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }

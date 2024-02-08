@@ -12,6 +12,7 @@ events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
+integration-tests = { version = "^0.1.0", path = "integration-tests" }
 itertools = "0.11.0"
 voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
 multisig = { version = "^0.1.0", path = "contracts/multisig" }
