@@ -1,8 +1,13 @@
 [package]
 name = "batching"
 version = "0.1.0"
+rust-version.workspace = true
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "batching-schema"
+path = "src/bin/schema.rs"
 
 [dependencies]
 axelar-wasm-std = { workspace = true }

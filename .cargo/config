@@ -1,7 +1,6 @@
 [alias]
 wasm = "build --release --lib --target wasm32-unknown-unknown --locked --workspace --exclude ampd"
 unit-test = "test --lib"
-schema = "run --bin schema"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]

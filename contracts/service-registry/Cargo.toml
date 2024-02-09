@@ -1,6 +1,7 @@
 [package]
 name = "service-registry"
 version = "0.1.0"
+rust-version.workspace = true
 edition = "2021"
 description = "Contract handling the service registrations"
 
@@ -13,6 +14,10 @@ exclude = [
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "service-registry-schema"
+path = "src/bin/schema.rs"
 
 [features]
 # for more explicit tests, cargo test --features=backtraces
