@@ -59,3 +59,33 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use axelar_wasm_std::VerificationStatus;
+    use connection_router::state::CrossChainId;
+    use cosmwasm_std::testing::mock_dependencies;
+
+    use super::*;
+
+    #[test]
+    fn query_returns_error() {
+        let deps = mock_dependencies();
+
+        let verifier = Verifier {
+            address: Addr::unchecked("not a contract"),
+            querier: VerifierApi {
+                querier: deps.as_ref().querier,
+            },
+        };
+
+        let result = verifier.query::<Vec<(CrossChainId, VerificationStatus)>>(
+            &aggregate_verifier::msg::QueryMsg::GetMessagesStatus { messages: vec![] },
+        );
+
+        assert_eq!(
+            result.unwrap_err().current_context(),
+            &ContractError::QueryVerifier
+        )
+    }
+}
