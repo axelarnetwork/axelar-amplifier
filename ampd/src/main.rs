@@ -16,7 +16,6 @@ use ampd::commands::{
 };
 use ampd::config::Config;
 use ampd::Error;
-use axelar_wasm_std::utils::InspectorResult;
 use axelar_wasm_std::FnExt;
 use report::LoggableError;
 
@@ -109,7 +108,7 @@ fn init_config(config_paths: &[PathBuf]) -> Config {
 
     parse_config(files)
         .change_context(Error::LoadConfig)
-        .tap_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
+        .inspect_err(|report| error!(err = LoggableError::from(report).as_value(), "{report}"))
         .unwrap_or(Config::default())
 }
 
