@@ -218,7 +218,7 @@ mod tests {
     use crate::verifier::{MockVerifyQuery, Verifier};
     use axelar_wasm_std::VerificationStatus;
     use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
-    use cosmwasm_std::{Addr, CosmosMsg, SubMsg, WasmMsg};
+    use cosmwasm_std::{Addr, CosmosMsg, Response, SubMsg, WasmMsg};
     use error_stack::bail;
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
@@ -525,6 +525,27 @@ mod tests {
         let result = contract.route_messages(config.router.clone(), msgs.clone());
         assert_eq!(result.unwrap().messages.len(), 0);
         assert_correct_messages_stored(&msg_store, &msgs);
+    }
+
+    /// If there are no messages, the gateway should return an empty response
+    #[test]
+    fn route_no_messages_empty_response() {
+        let msg_store = Arc::new(RwLock::new(HashMap::new()));
+
+        let config = default_config();
+        let mut contract = create_contract(msg_store.clone(), HashMap::new(), &config);
+
+        // expect: empty response
+        let result = contract
+            .route_messages(Addr::unchecked("not a router"), vec![])
+            .unwrap();
+        assert_eq!(result, Response::new());
+
+        // expect: empty response
+        let result = contract
+            .route_messages(config.router.clone(), vec![])
+            .unwrap();
+        assert_eq!(result, Response::new());
     }
 
     fn default_config() -> Config {
