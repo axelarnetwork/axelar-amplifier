@@ -19,6 +19,7 @@ use tracing::info;
 
 use events::Event;
 
+use crate::asyncutil::future::{self, RetryPolicy};
 use crate::tm_client::TmClient;
 
 pub struct EventPublisher<T: TmClient + Sync> {
@@ -130,13 +131,20 @@ impl<T: TmClient + Sync> EventPublisher<T> {
     }
 
     async fn events(&self, block_height: block::Height) -> Result<Vec<abci::Event>, EventSubError> {
-        let block_results = self
-            .client
-            .block_results(block_height)
-            .change_context(EventSubError::EventQuery {
-                block: block_height,
-            })
-            .await?;
+        let block_results = future::with_retry(
+            || {
+                self.client
+                    .block_results(block_height)
+                    .change_context(EventSubError::EventQuery {
+                        block: block_height,
+                    })
+            },
+            RetryPolicy::RepeatConstant {
+                sleep: Duration::from_secs(1),
+                max_attempts: 3,
+            },
+        )
+        .await?;
 
         let begin_block_events = block_results.begin_block_events.into_iter().flatten();
         let tx_events = block_results
