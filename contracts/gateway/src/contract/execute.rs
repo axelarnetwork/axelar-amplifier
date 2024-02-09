@@ -212,13 +212,14 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, ContractErro
 mod tests {
     use crate::contract::execute::Contract;
     use crate::error::ContractError;
+    use crate::events::GatewayEvent;
     use crate::router::RouterApi;
     use crate::state;
     use crate::state::Config;
     use crate::verifier::{MockVerifyQuery, Verifier};
     use axelar_wasm_std::VerificationStatus;
     use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
-    use cosmwasm_std::{Addr, CosmosMsg, Response, SubMsg, WasmMsg};
+    use cosmwasm_std::{Addr, CosmosMsg, Event, Response, SubMsg, WasmMsg};
     use error_stack::bail;
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
@@ -228,9 +229,9 @@ mod tests {
         let msg_store = Arc::new(RwLock::new(HashMap::new()));
         let contract = create_contract(msg_store.clone(), HashMap::new(), &default_config());
 
-        let result = contract.verify_messages(vec![]);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().messages.len(), 0);
+        let result = contract.verify_messages(vec![]).unwrap();
+
+        assert_eq!(result, Response::new());
     }
 
     /// If there are messages with duplicate IDs, the gateway should fail
@@ -267,9 +268,16 @@ mod tests {
         // try zero, one, many messages
         let inputs = vec![vec![], msgs[..1].to_vec(), msgs];
         for input in inputs {
-            let result = contract.verify_messages(input);
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap().messages.len(), 0);
+            let result = contract.verify_messages(input.clone()).unwrap();
+
+            assert_eq!(result.messages.len(), 0);
+            assert_eq!(
+                result.events,
+                input
+                    .into_iter()
+                    .map(|msg| GatewayEvent::AlreadyVerified { msg }.into())
+                    .collect::<Vec<Event>>()
+            );
         }
     }
 
@@ -288,9 +296,16 @@ mod tests {
 
         // expect: no error, all input messages get verified
         for input in inputs {
-            let result = contract.verify_messages(input.clone());
-            assert!(result.is_ok());
-            assert_correct_messages_verified(result.unwrap().messages, &config.verifier, &input);
+            let result = contract.verify_messages(input.clone()).unwrap();
+
+            assert_correct_messages_verified(result.messages, &config.verifier, &input.clone());
+            assert_eq!(
+                result.events,
+                input
+                    .into_iter()
+                    .map(|msg| GatewayEvent::Verifying { msg }.into())
+                    .collect::<Vec<Event>>()
+            );
         }
     }
 
@@ -308,9 +323,25 @@ mod tests {
         let contract = create_contract(msg_store.clone(), verified, &config);
 
         // expect: no error, only the unverified messages get verified
-        let result = contract.verify_messages(msgs.clone());
-        assert!(result.is_ok());
-        assert_correct_messages_verified(result.unwrap().messages, &config.verifier, &msgs[5..]);
+        let result = contract.verify_messages(msgs.clone()).unwrap();
+
+        assert_correct_messages_verified(result.messages, &config.verifier, &msgs[5..]);
+        assert_eq!(
+            result.events[..5],
+            msgs[..5]
+                .to_owned()
+                .into_iter()
+                .map(|msg| GatewayEvent::AlreadyVerified { msg }.into())
+                .collect::<Vec<Event>>()
+        );
+        assert_eq!(
+            result.events[5..],
+            msgs[5..]
+                .to_owned()
+                .into_iter()
+                .map(|msg| GatewayEvent::Verifying { msg }.into())
+                .collect::<Vec<Event>>()
+        );
     }
 
     /// As long as the state of the verifier contract doesn't change, the verify call should always return the same result
@@ -406,13 +437,34 @@ mod tests {
 
         for input in inputs {
             // expect: send to router when sender is not the router
-            let result = contract.route_messages(Addr::unchecked("not a router"), input.clone());
-            assert_correct_messages_routed(result.unwrap().messages, &config.router, &input);
+            let result = contract
+                .route_messages(Addr::unchecked("not a router"), input.clone())
+                .unwrap();
+
+            assert_correct_messages_routed(result.messages, &config.router, &input);
+            assert_eq!(
+                result.events,
+                input
+                    .clone()
+                    .into_iter()
+                    .map(|msg| GatewayEvent::Routing { msg }.into())
+                    .collect::<Vec<Event>>()
+            );
 
             // expect: store messages when sender is the router
-            let result = contract.route_messages(config.router.clone(), input.clone());
-            assert_eq!(result.unwrap().messages.len(), 0);
+            let result = contract
+                .route_messages(config.router.clone(), input.clone())
+                .unwrap();
+
+            assert_eq!(result.messages.len(), 0);
             assert_correct_messages_stored(&msg_store, &input);
+            assert_eq!(
+                result.events,
+                input
+                    .into_iter()
+                    .map(|msg| GatewayEvent::Routing { msg }.into())
+                    .collect::<Vec<Event>>()
+            );
         }
     }
 
@@ -433,13 +485,34 @@ mod tests {
 
         for input in inputs {
             // expect: don't call router when sender is not the router
-            let result = contract.route_messages(Addr::unchecked("not a router"), input.clone());
-            assert_eq!(result.unwrap().messages.len(), 0);
+            let result = contract
+                .route_messages(Addr::unchecked("not a router"), input.clone())
+                .unwrap();
+
+            assert_eq!(result.messages.len(), 0);
+            assert_eq!(
+                result.events,
+                input
+                    .clone()
+                    .into_iter()
+                    .map(|msg| GatewayEvent::UnfitForRouting { msg }.into())
+                    .collect::<Vec<Event>>()
+            );
 
             // expect: store all messages when sender is the router (no verification check)
-            let result = contract.route_messages(config.router.clone(), input.clone());
-            assert_eq!(result.unwrap().messages.len(), 0);
+            let result = contract
+                .route_messages(config.router.clone(), input.clone())
+                .unwrap();
+
+            assert_eq!(result.messages.len(), 0);
             assert_correct_messages_stored(&msg_store, &input);
+            assert_eq!(
+                result.events,
+                input
+                    .into_iter()
+                    .map(|msg| GatewayEvent::Routing { msg }.into())
+                    .collect::<Vec<Event>>()
+            );
         }
     }
 
@@ -459,13 +532,41 @@ mod tests {
         let mut contract = create_contract(msg_store.clone(), verified, &config);
 
         // expect: send verified msgs to router when sender is not the router
-        let result = contract.route_messages(Addr::unchecked("not a router"), msgs.clone());
-        assert_correct_messages_routed(result.unwrap().messages, &config.router, &msgs[..5]);
+        let result = contract
+            .route_messages(Addr::unchecked("not a router"), msgs.clone())
+            .unwrap();
+
+        assert_correct_messages_routed(result.messages, &config.router, &msgs[..5]);
+        assert_eq!(
+            result.events[..5],
+            msgs[..5]
+                .to_owned()
+                .into_iter()
+                .map(|msg| GatewayEvent::Routing { msg }.into())
+                .collect::<Vec<Event>>()
+        );
+        assert_eq!(
+            result.events[5..],
+            msgs[5..]
+                .to_owned()
+                .into_iter()
+                .map(|msg| GatewayEvent::UnfitForRouting { msg }.into())
+                .collect::<Vec<Event>>()
+        );
 
         // expect: store all messages when sender is the router (no verification check)
-        let result = contract.route_messages(config.router.clone(), msgs.clone());
-        assert_eq!(result.unwrap().messages.len(), 0);
-        assert_correct_messages_stored(&msg_store, &msgs);
+        let result = contract
+            .route_messages(config.router.clone(), msgs.clone())
+            .unwrap();
+
+        assert_eq!(result.messages.len(), 0);
+        assert_correct_messages_stored(&msg_store, &msgs.clone());
+        assert_eq!(
+            result.events,
+            msgs.into_iter()
+                .map(|msg| GatewayEvent::Routing { msg }.into())
+                .collect::<Vec<Event>>()
+        );
     }
 
     /// When calling routing multiple times with the same input, the outcome should always be the same
@@ -522,9 +623,18 @@ mod tests {
         );
 
         // expect: store all messages when sender is the router (no verification check)
-        let result = contract.route_messages(config.router.clone(), msgs.clone());
-        assert_eq!(result.unwrap().messages.len(), 0);
+        let result = contract
+            .route_messages(config.router.clone(), msgs.clone())
+            .unwrap();
+
+        assert_eq!(result.messages.len(), 0);
         assert_correct_messages_stored(&msg_store, &msgs);
+        assert_eq!(
+            result.events,
+            msgs.into_iter()
+                .map(|msg| GatewayEvent::Routing { msg }.into())
+                .collect::<Vec<Event>>()
+        );
     }
 
     /// If there are no messages, the gateway should return an empty response
