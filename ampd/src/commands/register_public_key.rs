@@ -82,7 +82,7 @@ fn get_multisig_address(config: &Config) -> Result<TMAddress, Error> {
         .handlers
         .iter()
         .find_map(|config| {
-            if let handlers::config::Config::MultisigSigner { cosmwasm_contract } = config {
+            if let handlers::config::Config::MultisigSigner { cosmwasm_contract, message_provider } = config {
                 Some(cosmwasm_contract.clone())
             } else {
                 None

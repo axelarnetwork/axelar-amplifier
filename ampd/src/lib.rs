@@ -241,7 +241,7 @@ where
                     ),
                     stream_timeout,
                 ),
-                handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
+                handlers::config::Config::MultisigSigner { cosmwasm_contract, message_provider } => self
                     .create_handler_task(
                         "multisig-signer",
                         handlers::multisig::Handler::new(
@@ -250,6 +250,7 @@ where
                             self.broadcaster.client(),
                             self.ecdsa_client.clone(),
                             self.block_height_monitor.latest_block_height(),
+                            message_provider
                         ),
                         stream_timeout,
                     ),
