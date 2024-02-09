@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::iter::Map;
+use std::vec::IntoIter;
 
 use axelar_wasm_std::utils::TryMapExt;
-use axelar_wasm_std::VerificationStatus;
-use cosmwasm_std::{Addr, DepsMut, Response};
+use axelar_wasm_std::{FnExt, VerificationStatus};
+use cosmwasm_std::{Addr, DepsMut, Event, Response};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 
@@ -58,7 +60,10 @@ where
 
         match partitioned_msgs {
             None => Ok(Response::new()),
-            Some((verified, unverified)) => self.verify_unverified_messages(verified, unverified),
+            Some((verified, unverified)) => Response::new()
+                .add_events(already_verified_events(verified))
+                .add_events(verifying_events(unverified.clone()))
+                .then(|response| self.verify_unverified_messages(response, unverified)),
         }
     }
 
@@ -97,29 +102,18 @@ where
 
         match partitioned_msgs {
             None => Ok(Response::new()),
-            Some((verified, unverified)) => self.route_verified_messages(verified, unverified),
+            Some((verified, unverified)) => Response::new()
+                .add_events(routing_events(verified.clone()))
+                .add_events(unfit_for_routing_events(unverified))
+                .then(|response| self.route_verified_messages(response, verified)),
         }
     }
 
     fn verify_unverified_messages(
         &self,
-        verified: Vec<Message>,
+        response: Response,
         unverified: Vec<Message>,
     ) -> Result<Response, ContractError> {
-        let response = Response::new()
-            .add_events(
-                verified
-                    .clone()
-                    .into_iter()
-                    .map(|msg| GatewayEvent::AlreadyVerified { msg }.into()),
-            )
-            .add_events(
-                unverified
-                    .clone()
-                    .into_iter()
-                    .map(|msg| GatewayEvent::Verifying { msg }.into()),
-            );
-
         let execute_msg = ignore_empty_msgs(unverified).try_map(|unverified| {
             self.verifier
                 .execute(&aggregate_verifier::msg::ExecuteMsg::VerifyMessages {
@@ -135,22 +129,9 @@ where
 
     fn route_verified_messages(
         &self,
+        response: Response,
         verified: Vec<Message>,
-        unverified: Vec<Message>,
     ) -> Result<Response, ContractError> {
-        let response = Response::new()
-            .add_events(
-                verified
-                    .clone()
-                    .into_iter()
-                    .map(|msg| GatewayEvent::Routing { msg }.into()),
-            )
-            .add_events(
-                unverified
-                    .into_iter()
-                    .map(|msg| GatewayEvent::UnfitForRouting { msg }.into()),
-            );
-
         let execute_msg = ignore_empty_msgs(verified).try_map(|verified| {
             self.router
                 .execute(&connection_router::msg::ExecuteMsg::RouteMessages(verified))
@@ -182,6 +163,32 @@ where
                 == VerificationStatus::SucceededOnChain
         }))
     }
+}
+
+fn already_verified_events(verified: Vec<Message>) -> impl Iterator<Item = Event> {
+    verified
+        .into_iter()
+        .map(|msg| GatewayEvent::AlreadyVerified { msg }.into())
+}
+
+fn verifying_events(unverified: Vec<Message>) -> impl Iterator<Item = Event> {
+    unverified
+        .into_iter()
+        .map(|msg| GatewayEvent::Verifying { msg }.into())
+}
+
+fn routing_events(verified: Vec<Message>) -> impl Iterator<Item = Event> {
+    verified
+        .into_iter()
+        .map(|msg| GatewayEvent::Routing { msg }.into())
+}
+
+fn unfit_for_routing_events(
+    unverified: Vec<Message>,
+) -> Map<IntoIter<Message>, fn(Message) -> Event> {
+    unverified
+        .into_iter()
+        .map(|msg| GatewayEvent::UnfitForRouting { msg }.into())
 }
 
 fn ignore_empty_msgs(msgs: Vec<Message>) -> Option<Vec<Message>> {
