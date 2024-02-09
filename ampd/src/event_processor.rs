@@ -2,14 +2,17 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use axelar_wasm_std::utils::InspectorResult;
 use error_stack::{Context, Result, ResultExt};
 use events::Event;
 use futures::StreamExt;
+use report::LoggableError;
 use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
+use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
@@ -68,10 +71,13 @@ where
                 },
             )
             .await
-            .or_else(|err| {
-                warn!("handler failed to process event {}: {}", event, err);
-
-                Ok::<(), ()>(())
+            // TODO: we may need to differentiate errors that we want to ignore
+            // and those that we want to crash the process
+            .tap_err(|err| {
+                warn!(
+                    err = LoggableError::from(err).as_value(),
+                    "handler failed to process event {}", event,
+                )
             });
         }
 
@@ -183,7 +189,7 @@ mod tests {
         assert!(result_with_timeout.unwrap().is_err());
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    #[tokio::test(start_paused = true)]
     async fn return_ok_when_handler_fails() {
         let events: Vec<Result<Event, event_processor::Error>> =
             vec![Ok(Event::BlockEnd(0_u32.into()))];

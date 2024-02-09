@@ -33,7 +33,7 @@ impl Display for Event {
                 f,
                 "Abci {{ event_type: {}, attributes: {} }}",
                 event_type,
-                serde_json::to_string(attributes).expect("must serialize event attributes")
+                serde_json::to_string(attributes).expect("event attributes must be serializable")
             ),
         }
     }

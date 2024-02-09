@@ -107,7 +107,7 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test(flavor = "current_thread")]
+    #[tokio::test]
     async fn should_return_ok_when_the_internal_future_returns_ok_immediately() {
         let fut = with_retry(
             || future::ready(Ok::<(), ()>(())),
@@ -122,7 +122,7 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(1));
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    #[tokio::test(start_paused = true)]
     async fn should_return_ok_when_the_internal_future_returns_ok_eventually() {
         let max_attempts = 3;
         let count = Mutex::new(0);
@@ -149,7 +149,7 @@ mod tests {
         assert!(start.elapsed() < Duration::from_secs(4));
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    #[tokio::test(start_paused = true)]
     async fn should_return_error_when_the_internal_future_returns_error_after_max_attempts() {
         let fut = with_retry(
             || future::ready(Err::<(), ()>(())),
