@@ -13,7 +13,7 @@ pub type EVMAddress = Address;
 pub type Hash = H256;
 pub type PublicKey = crypto::PublicKey;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(from = "Uint256")]
 pub struct U256(ethers::types::U256);
 
