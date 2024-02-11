@@ -199,7 +199,8 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
                     return Err(());
                 }
                 Ok(())
-            }).is_ok()
+            })
+            .is_ok()
     }
 }
 
