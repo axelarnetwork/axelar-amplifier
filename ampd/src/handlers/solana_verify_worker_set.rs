@@ -166,7 +166,7 @@ where
 
         let account_info = self
             .rpc_client
-            .get_account(&pub_key.to_string())
+            .get_account_info(&pub_key.to_string())
             .await
             .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
 

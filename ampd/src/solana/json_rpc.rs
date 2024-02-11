@@ -2,6 +2,8 @@ use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
 use serde::{Deserialize, Serialize};
+use solana_account_decoder::UiAccountEncoding;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 // use solana_sdk::transaction::Transaction;
 
 use crate::json_rpc::Client;
@@ -42,7 +44,12 @@ pub struct EncodedConfirmedTransactionWithStatusMeta {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct AccountInfo {
-    pub data: Vec<Vec<u8>>,
+    pub value: AccountInfoValue,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct AccountInfoValue {
+    pub data: Vec<String>,
 }
 
 #[automock]
@@ -53,7 +60,7 @@ pub trait SolanaClient {
         signature_str: &str,
     ) -> Result<EncodedConfirmedTransactionWithStatusMeta>;
 
-    async fn get_account(&self, pub_key: &str) -> Result<AccountInfo>;
+    async fn get_account_info(&self, pub_key: &str) -> Result<AccountInfo>;
 }
 
 #[async_trait]
@@ -70,10 +77,50 @@ where
             .await
     }
     // Gets an account with default commitment set to finalized. See (https://solana.com/docs/rpc/http/getaccountinfo)
-    async fn get_account(&self, pub_key: &str) -> Result<AccountInfo> {
-        self.request("getAccount", [pub_key, "json"]).await
+    async fn get_account_info(&self, pub_key: &str) -> Result<AccountInfo> {
+        let config = solana_client::rpc_config::RpcAccountInfoConfig {
+            commitment: Some(CommitmentConfig {
+                commitment: CommitmentLevel::Finalized,
+            }),
+            encoding: Some(UiAccountEncoding::Base64),
+            data_slice: None,
+            min_context_slot: None,
+        };
+        self.request("getAccountInfo", (pub_key, config)).await
     }
 }
+
+// Exploratory tests for checking integration with Solana. This could be automated in some way
+// in the future. See https://solana.com/developers/guides/getstarted/setup-local-development .
+
+#[cfg(test)]
+mod tests {
+
+    use std::str::FromStr;
+
+    use super::*;
+    use crate::url::Url;
+    use tokio::test as async_test;
+
+    const RPC_URL: &str = "http://127.0.0.1:8899"; // default.
+
+    #[async_test]
+    async fn test_get_transaction_works() {
+        // pubkey: EHgEeD1Z3pc29s3JKhfVv9AGk7HkQFZKkcHbkypdN1h6
+        let url = Url::from_str(RPC_URL).unwrap();
+        let client = Client::new_http(&url).unwrap();
+        let tx = client.get_transaction("<your transaction signature>").await.unwrap();
+        println!("tx - {}", tx.transaction.signatures[0]);
+    }
+
+    #[async_test]
+    async fn test_get_account_works() {
+        let url = Url::from_str(RPC_URL).unwrap();
+        let client = Client::new_http(&url).unwrap();
+        let acc = client
+            .get_account_info("<your account pub_key>")
             .await
+            .unwrap();
+        println!("acc - {:?}", acc.value.data);
     }
 }
