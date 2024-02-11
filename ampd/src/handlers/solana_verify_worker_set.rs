@@ -175,3 +175,186 @@ where
         self.broadcast_vote(poll_id, vote).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use axelar_wasm_std::{nonempty, operators::Operators};
+    use cosmwasm_std::HexBinary;
+    use prost::Message;
+    use tokio::sync::watch;
+    use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
+
+    use crate::{
+        handlers::tests::get_event, queue::queued_broadcaster::MockBroadcasterClient,
+        solana::json_rpc::MockSolanaClient, PREFIX,
+    };
+
+    use tokio::test as async_test;
+
+    use super::*;
+
+    #[async_test]
+    async fn must_abort_if_voting_verifier_is_same_as_contract_address() {
+        let worker = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockSolanaClient::new();
+        rpc_client.expect_get_transaction().never();
+        rpc_client.expect_get_account_info().never();
+
+        let broadcast_client = MockBroadcasterClient::new();
+
+        let expiration = 100u64;
+        let (_, rx) = watch::channel(expiration - 1);
+
+        let handler = Handler::new(
+            worker.clone(),
+            voting_verifier.clone(),
+            ChainName::from_str("solana").unwrap(),
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
+
+        let event = get_event(
+            worker_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
+            &TMAddress::random(PREFIX),
+        );
+
+        handler.handle(&event).await.unwrap();
+    }
+
+    #[async_test]
+    async fn must_abort_chain_does_not_match() {
+        let worker = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockSolanaClient::new();
+        rpc_client.expect_get_transaction().never();
+        rpc_client.expect_get_account_info().never();
+
+        let broadcast_client = MockBroadcasterClient::new();
+        let expiration = 100u64;
+        let (_, rx) = watch::channel(expiration - 1);
+
+        let handler = Handler::new(
+            worker.clone(),
+            voting_verifier.clone(),
+            ChainName::from_str("not_matching_chain").unwrap(),
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
+
+        let event = get_event(
+            worker_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
+            &voting_verifier,
+        );
+
+        handler.handle(&event).await.unwrap();
+    }
+
+    #[async_test]
+    async fn must_abort_if_worker_is_not_participant() {
+        let worker = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockSolanaClient::new();
+        rpc_client.expect_get_transaction().never();
+        rpc_client.expect_get_account_info().never();
+
+        let broadcast_client = MockBroadcasterClient::new();
+        let expiration = 100u64;
+        let (_, rx) = watch::channel(expiration - 1);
+
+        let handler = Handler::new(
+            worker.clone(),
+            voting_verifier.clone(),
+            ChainName::from_str("solana").unwrap(),
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
+
+        let event = get_event(
+            worker_set_poll_started_event(participants(2, None), expiration), // worker is not here.
+            &voting_verifier,
+        );
+
+        handler.handle(&event).await.unwrap();
+    }
+
+    #[async_test]
+    async fn must_abort_on_expired_poll() {
+        let worker = TMAddress::random(PREFIX);
+        let voting_verifier = TMAddress::random(PREFIX);
+
+        let mut rpc_client = MockSolanaClient::new();
+        rpc_client.expect_get_transaction().never();
+        rpc_client.expect_get_account_info().never();
+
+        let broadcast_client = MockBroadcasterClient::new();
+        let expiration = 100u64;
+        let (_, rx) = watch::channel(expiration);
+
+        let handler = Handler::new(
+            worker.clone(),
+            voting_verifier.clone(),
+            ChainName::from_str("solana").unwrap(),
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
+
+        let event = get_event(
+            worker_set_poll_started_event(participants(2, Some(worker.clone())), expiration),
+            &voting_verifier,
+        );
+
+        handler.handle(&event).await.unwrap();
+    }
+
+    fn worker_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
+        PollStarted::WorkerSet {
+            metadata: PollMetadata {
+                poll_id: "100".parse().unwrap(),
+                source_chain: "solana".parse().unwrap(),
+                source_gateway_address: nonempty::String::from_str(
+                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756a",
+                )
+                .unwrap(),
+                confirmation_height: 1,
+                expires_at,
+                participants: participants
+                    .into_iter()
+                    .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
+                    .collect(),
+            },
+            worker_set: WorkerSetConfirmation {
+                tx_id: nonempty::String::from_str("value").unwrap(),
+                event_index: 1,
+                operators: Operators::new(
+                    vec![(
+                        HexBinary::from(
+                            "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d"
+                                .to_string()
+                                .encode_to_vec(),
+                        ),
+                        1u64.into(),
+                    )],
+                    2u64.into(),
+                ),
+            },
+        }
+    }
+
+    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
+        (0..n)
+            .into_iter()
+            .map(|_| TMAddress::random(PREFIX))
+            .chain(worker.into_iter())
+            .collect()
+    }
+}
