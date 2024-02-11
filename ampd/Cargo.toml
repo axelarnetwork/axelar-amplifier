@@ -39,6 +39,7 @@ serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 serde_with = "3.2.0"
 service-registry = { workspace = true }
+solana-account-decoder = "1.18.1"
 solana-client = "1.18.1"
 solana-program = "1.18.1"
 solana-sdk = "1.18.1"
@@ -67,13 +68,13 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
+auth-weighted = { git = "ssh://git@github.com/eigerco/solana-axelar.git", branch = "poc"} ## Temporary POC repo import while its not public.
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"
 generic-array = "0.14.7"
 rand = "0.8.5"
 random-string = "1.0.0"
-gateway = { git = "ssh://git@github.com/eigerco/solana-axelar.git", branch = "poc" } ## Temporary POC repo import while its not public.
 
 [build-dependencies]
 ethers = "2.0.8"
