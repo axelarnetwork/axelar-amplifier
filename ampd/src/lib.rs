@@ -265,7 +265,7 @@ where
                     handlers::solana_verify_worker_set::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
-                        connection_router::state::ChainName::from(chain.name),
+                        chain.name,
                         json_rpc::Client::new_http(&chain.rpc_url)
                             .change_context(Error::Connection)?,
                         self.broadcaster.client(),

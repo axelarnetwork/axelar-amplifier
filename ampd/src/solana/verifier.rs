@@ -58,13 +58,13 @@ pub enum VerificationError {
 type Result<T> = std::result::Result<T, VerificationError>;
 
 pub fn parse_gateway_event(tx: &EncodedConfirmedTransactionWithStatusMeta) -> Result<GatewayEvent> {
-    if let None = tx.meta.log_messages {
+    if tx.meta.log_messages.is_none() {
         return Err(VerificationError::NoLogMessages);
     }
     let program_data = tx.meta.log_messages.as_ref().unwrap();
     program_data
-        .into_iter()
-        .find_map(|program_log| GatewayEvent::parse_log(program_log))
+        .iter()
+        .find_map(GatewayEvent::parse_log)
         .ok_or(VerificationError::NoGatewayEventFound)
 }
 
@@ -139,7 +139,7 @@ fn parse_onchain_operators(account_info: &AccountInfo) -> Result<Operators> {
         Err(err) => {
             return Err(VerificationError::ParsingError(format!(
                 "Cannot borsh decode account data: {}",
-                err.to_string()
+                err
             )))
         }
     };
@@ -164,10 +164,10 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
                 let sol_addr = hex::decode(sol_addr_hex).map_err(|e| {
                     VerificationError::ParsingError(format!(
                         "Failed hex-decoding sol address: {}",
-                        e.to_string()
+                        e
                     ))
                 })?;
-                Ok((sol_addr, sol_weight.clone()))
+                Ok((sol_addr, *sol_weight))
             })
             .collect();
 
@@ -180,7 +180,7 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
 
         // Iterate both iterators axelar addresses and weights which  at the same time,
         // while querying the previously created map, which contains
-        match aw_ops
+        aw_ops
             .addresses()
             .iter()
             .zip(aw_ops.weights())
@@ -199,10 +199,7 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
                     return Err(());
                 }
                 Ok(())
-            }) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+            }).is_ok()
     }
 }
 
@@ -344,7 +341,7 @@ mod tests {
     fn test_verify_worker_set_operators_data_fails_not_eq_threshold() {
         let (mut ops, sol_ops) = matching_axelar_operators_and_onchain_operators();
         ops.threshold = crate::types::U256::from(Uint256::MAX);
-        assert_eq!(false, verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(!verify_worker_set_operators_data(&ops, &sol_ops))
     }
 
     #[test]
@@ -362,7 +359,7 @@ mod tests {
                 crate::types::U256::from(Uint256::from_u128(200)),
             ),
         ];
-        assert_eq!(false, verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(!verify_worker_set_operators_data(&ops, &sol_ops))
     }
 
     #[test]
@@ -378,7 +375,7 @@ mod tests {
                 crate::types::U256::from(Uint256::from_u128(1)), // here is a different weight than expected.
             ),
         ];
-        assert_eq!(false, verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(!verify_worker_set_operators_data(&ops, &sol_ops))
     }
 
     fn matching_axelar_operators_and_onchain_operators(
