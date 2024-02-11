@@ -17,6 +17,12 @@ pub type PublicKey = crypto::PublicKey;
 #[serde(from = "Uint256")]
 pub struct U256(ethers::types::U256);
 
+impl U256 {
+    pub fn to_little_endian(&self, bytes: &mut [u8]) {
+        self.0.to_little_endian(bytes)
+    }
+}
+
 impl From<Uint256> for U256 {
     fn from(value: Uint256) -> Self {
         Self(ethers::types::U256::from_big_endian(
