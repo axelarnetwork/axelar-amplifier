@@ -64,6 +64,7 @@ valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 xrpl-multisig-prover = { workspace = true }
+xrpl_http_client = { version = "0.15.0" }
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"

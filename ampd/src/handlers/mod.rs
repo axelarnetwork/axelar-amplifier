@@ -8,6 +8,7 @@ pub mod multisig;
 pub mod xrpl_multisig;
 pub mod sui_verify_msg;
 pub mod sui_verify_worker_set;
+pub mod xrpl_verify_msg;
 
 #[cfg(test)]
 mod tests {

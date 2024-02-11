@@ -43,6 +43,7 @@ mod tm_client;
 mod tofnd;
 mod types;
 mod url;
+mod xrpl;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -283,6 +284,29 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
+                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    stream_timeout,
+                ),
+                handlers::config::Config::XRPLMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                    rpc_timeout
+                } => self.create_handler_task(
+                    "xrpl-msg-verifier",
+                    handlers::xrpl_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        xrpl_http_client::Client::builder()
+                            .base_url(rpc_url.as_str())
+                            .http_client(
+                                reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                            ).build(),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),

@@ -48,6 +48,11 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
+    XRPLMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+        rpc_timeout: Option<Duration>,
+    }
 }
 
 fn validate_multisig_signer_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
