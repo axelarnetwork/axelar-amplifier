@@ -178,8 +178,8 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
                                     // and preparing conversions beforehand in another type.
         };
 
-        // Iterate both iterators axelar addresses and weights which  at the same time,
-        // while querying the previously created map, which contains
+        // Iterate both iterators (addresses and weights) coming from Solana chain. At the same time,
+        // while querying the previously created map, which contains the Axelar counterpart.
         aw_ops
             .addresses()
             .iter()
