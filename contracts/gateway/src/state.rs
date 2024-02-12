@@ -50,7 +50,7 @@ pub(crate) enum Error {
     Parse(&'static str),
 }
 
-const CONFIG_NAME: &'static str = "config";
+const CONFIG_NAME: &str = "config";
 const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
-const OUTGOING_MESSAGES_NAME: &'static str = "outgoing_messages";
+const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
 const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES_NAME);

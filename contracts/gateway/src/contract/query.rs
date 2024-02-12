@@ -11,8 +11,7 @@ pub fn get_outgoing_messages(
 ) -> Result<Binary, Error> {
     let ids: Vec<_> = cross_chain_ids
         .into_iter()
-        .map(|id| state::may_load_outgoing_msg(storage, id).transpose())
-        .flatten()
+        .filter_map(|id| state::may_load_outgoing_msg(storage, id).transpose())
         .try_collect()
         .change_context(Error::InvalidStoreAccess)?;
 
