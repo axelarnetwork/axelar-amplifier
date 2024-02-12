@@ -7,7 +7,7 @@ use error_stack::{Result, ResultExt};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 
-pub(crate) struct Verifier<'a> {
+pub struct Verifier<'a> {
     pub querier: QuerierWrapper<'a>,
     pub address: Addr,
 }

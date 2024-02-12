@@ -38,7 +38,7 @@ pub fn query(
 }
 
 #[derive(thiserror::Error, Debug)]
-pub(crate) enum Error {
+pub enum Error {
     #[error("gateway contract config is missing")]
     ConfigMissing,
     #[error("invalid store access")]
@@ -63,7 +63,7 @@ mod internal {
     use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
 
-    pub fn instantiate(
+    pub(crate) fn instantiate(
         deps: DepsMut,
         _env: Env,
         _info: MessageInfo,
