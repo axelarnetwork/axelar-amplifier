@@ -7,14 +7,16 @@ pub enum GatewayEvent {
     AlreadyVerified { msg: Message },
     Routing { msg: Message },
     UnfitForRouting { msg: Message },
+    AlreadyRejected { msg: Message },
 }
 
 impl From<GatewayEvent> for Event {
     fn from(other: GatewayEvent) -> Self {
         match other {
             GatewayEvent::Verifying { msg } => make_message_event("verifying", msg),
-            GatewayEvent::Routing { msg } => make_message_event("routing", msg),
             GatewayEvent::AlreadyVerified { msg } => make_message_event("already_verified", msg),
+            GatewayEvent::AlreadyRejected { msg } => make_message_event("already_rejected", msg),
+            GatewayEvent::Routing { msg } => make_message_event("routing", msg),
             GatewayEvent::UnfitForRouting { msg } => make_message_event("unfit_for_routing", msg),
         }
     }

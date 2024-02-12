@@ -24,6 +24,8 @@ path = "src/bin/schema.rs"
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+# generate golden files for the tests
+generate_golden_files = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -49,6 +51,7 @@ schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 thiserror = { workspace = true }
+rand = "0.8.5"
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

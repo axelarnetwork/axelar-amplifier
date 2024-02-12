@@ -1,22 +1,20 @@
-use crate::error::ContractError;
-use crate::state::OUTGOING_MESSAGES;
+use crate::contract::Error;
+use crate::state;
 use connection_router::state::CrossChainId;
-use cosmwasm_std::{to_binary, Binary, Deps};
+use cosmwasm_std::{to_binary, Binary, Storage};
 use error_stack::{Result, ResultExt};
+use itertools::Itertools;
 
-pub fn get_messages(
-    deps: Deps,
+pub fn get_outgoing_messages(
+    storage: &dyn Storage,
     cross_chain_ids: Vec<CrossChainId>,
-) -> Result<Binary, ContractError> {
-    let msgs = cross_chain_ids
+) -> Result<Binary, Error> {
+    let ids: Vec<_> = cross_chain_ids
         .into_iter()
-        .map(|id| {
-            OUTGOING_MESSAGES
-                .load(deps.storage, id.clone())
-                .change_context(ContractError::LoadOutgoingMessage)
-                .attach_printable(id.to_string())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|id| state::may_load_outgoing_msg(storage, id).transpose())
+        .flatten()
+        .try_collect()
+        .change_context(Error::InvalidStoreAccess)?;
 
-    to_binary(&msgs).change_context(ContractError::LoadOutgoingMessage)
+    to_binary(&ids).change_context(Error::SerializeResponse)
 }

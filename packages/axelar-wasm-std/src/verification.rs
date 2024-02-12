@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
-#[derive(Copy)]
+#[derive(Copy, Hash, Eq)]
 pub enum VerificationStatus {
     SucceededOnChain,
     FailedOnChain,
