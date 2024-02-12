@@ -4810,7 +4810,6 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "enum-display-derive",
  "error-stack",
- "getrandom",
  "k256",
  "report",
  "rewards",
