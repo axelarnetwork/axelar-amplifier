@@ -3,7 +3,7 @@ use cosmwasm_std::{from_binary, Addr, Uint64};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::{nonempty, Threshold};
+use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
 use connection_router::state::{ChainName, CrossChainId, Message, ID_SEPARATOR};
 use mock::make_mock_rewards;
 use service_registry::state::Worker;
@@ -26,7 +26,10 @@ fn initialize_contract(app: &mut App, service_registry_address: nonempty::String
     let msg = msg::InstantiateMsg {
         service_registry_address,
         service_name: "service_name".parse().unwrap(),
-        voting_threshold: Threshold::try_from((1u64, 2u64)).unwrap(),
+        voting_threshold: Threshold::try_from((2u64, 3u64))
+            .unwrap()
+            .try_into()
+            .unwrap(),
         block_expiry: POLL_BLOCK_EXPIRY,
         confirmation_height: 100,
         source_gateway_address: "gateway_address".parse().unwrap(),
@@ -144,14 +147,14 @@ fn should_verify_messages_if_not_verified() {
                     id: "id:0".parse().unwrap(),
                     chain: source_chain()
                 },
-                false
+                VerificationStatus::None
             ),
             (
                 CrossChainId {
                     id: "id:1".parse().unwrap(),
                     chain: source_chain()
                 },
-                false
+                VerificationStatus::None
             ),
         ]
     );
@@ -264,6 +267,114 @@ fn should_retry_if_message_not_verified() {
 }
 
 #[test]
+fn should_retry_if_status_not_final() {
+    let mut app = App::default();
+
+    let service_registry_address = make_mock_service_registry(&mut app);
+
+    let contract_address =
+        initialize_contract(&mut app, service_registry_address.as_ref().parse().unwrap());
+
+    let workers: Vec<Worker> = app
+        .wrap()
+        .query_wasm_smart(
+            service_registry_address,
+            &service_registry::msg::QueryMsg::GetActiveWorkers {
+                service_name: "service_name".to_string(),
+                chain_name: source_chain(),
+            },
+        )
+        .unwrap();
+
+    let messages = messages(4);
+
+    let msg_verify = msg::ExecuteMsg::VerifyMessages {
+        messages: messages.clone(),
+    };
+    let res = app.execute_contract(
+        Addr::unchecked(SENDER),
+        contract_address.clone(),
+        &msg_verify,
+        &[],
+    );
+    assert!(res.is_ok());
+
+    workers.iter().enumerate().for_each(|(i, worker)| {
+        let msg = msg::ExecuteMsg::Vote {
+            poll_id: 1u64.into(),
+            votes: vec![
+                Vote::SucceededOnChain,
+                Vote::FailedOnChain,
+                Vote::NotFound,
+                if i % 2 == 0 {
+                    Vote::SucceededOnChain
+                } else {
+                    Vote::FailedOnChain
+                },
+            ],
+        };
+
+        let res = app.execute_contract(worker.address.clone(), contract_address.clone(), &msg, &[]);
+        assert!(res.is_ok());
+    });
+
+    app.update_block(|block| block.height += POLL_BLOCK_EXPIRY);
+
+    let msg = msg::ExecuteMsg::EndPoll {
+        poll_id: 1u64.into(),
+    };
+    let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
+    assert!(res.is_ok());
+
+    let query: msg::QueryMsg = msg::QueryMsg::GetMessagesStatus {
+        messages: messages.clone(),
+    };
+    let res: Result<Vec<(CrossChainId, VerificationStatus)>, _> = app
+        .wrap()
+        .query_wasm_smart(contract_address.clone(), &query);
+    assert!(res.is_ok());
+    assert_eq!(
+        res.unwrap(),
+        vec![
+            (
+                messages[0].cc_id.clone(),
+                VerificationStatus::SucceededOnChain
+            ),
+            (messages[1].cc_id.clone(), VerificationStatus::FailedOnChain),
+            (messages[2].cc_id.clone(), VerificationStatus::NotFound),
+            (
+                messages[3].cc_id.clone(),
+                VerificationStatus::FailedToVerify
+            )
+        ]
+    );
+
+    let res = app.execute_contract(
+        Addr::unchecked(SENDER),
+        contract_address.clone(),
+        &msg_verify,
+        &[],
+    );
+    assert!(res.is_ok());
+
+    let res: Result<Vec<(CrossChainId, VerificationStatus)>, _> =
+        app.wrap().query_wasm_smart(contract_address, &query);
+    assert!(res.is_ok());
+    assert_eq!(
+        res.unwrap(),
+        vec![
+            (
+                messages[0].cc_id.clone(),
+                VerificationStatus::SucceededOnChain
+            ),
+            (messages[1].cc_id.clone(), VerificationStatus::FailedOnChain),
+            (messages[2].cc_id.clone(), VerificationStatus::InProgress),
+            (messages[3].cc_id.clone(), VerificationStatus::InProgress)
+        ]
+    );
+}
+
+#[test]
 fn should_query_message_statuses() {
     let mut app = App::default();
 
@@ -289,15 +400,15 @@ fn should_query_message_statuses() {
         reply.verification_statuses,
         messages
             .iter()
-            .map(|message| (message.cc_id.clone(), false))
-            .collect::<Vec<(CrossChainId, bool)>>()
+            .map(|message| (message.cc_id.clone(), VerificationStatus::None))
+            .collect::<Vec<(_, _)>>()
     );
 
-    let query = msg::QueryMsg::IsVerified {
+    let query = msg::QueryMsg::GetMessagesStatus {
         messages: messages.clone(),
     };
 
-    let statuses: Vec<(CrossChainId, bool)> = app
+    let statuses: Vec<(CrossChainId, VerificationStatus)> = app
         .wrap()
         .query_wasm_smart(contract_address.clone(), &query)
         .unwrap();
@@ -306,8 +417,8 @@ fn should_query_message_statuses() {
         statuses,
         messages
             .iter()
-            .map(|message| (message.cc_id.clone(), false))
-            .collect::<Vec<(CrossChainId, bool)>>()
+            .map(|message| (message.cc_id.clone(), VerificationStatus::InProgress))
+            .collect::<Vec<(_, _)>>()
     );
 
     let msg: msg::ExecuteMsg = msg::ExecuteMsg::Vote {
@@ -320,7 +431,7 @@ fn should_query_message_statuses() {
                     Vote::NotFound
                 }
             })
-            .collect::<Vec<Vote>>(),
+            .collect::<Vec<_>>(),
     };
 
     app.execute_contract(
@@ -346,7 +457,7 @@ fn should_query_message_statuses() {
     app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[])
         .unwrap();
 
-    let statuses: Vec<(CrossChainId, bool)> = app
+    let statuses: Vec<(CrossChainId, VerificationStatus)> = app
         .wrap()
         .query_wasm_smart(contract_address.clone(), &query)
         .unwrap();
@@ -356,8 +467,15 @@ fn should_query_message_statuses() {
         messages
             .iter()
             .enumerate()
-            .map(|(i, message)| (message.cc_id.clone(), i % 2 == 0))
-            .collect::<Vec<(CrossChainId, bool)>>()
+            .map(|(i, message)| (
+                message.cc_id.clone(),
+                if i % 2 == 0 {
+                    VerificationStatus::SucceededOnChain
+                } else {
+                    VerificationStatus::NotFound
+                }
+            ))
+            .collect::<Vec<(_, _)>>()
     );
 }
 
@@ -378,12 +496,12 @@ fn should_start_worker_set_confirmation() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetVerified {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
-    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
     assert!(res.is_ok());
-    assert_eq!(res.unwrap(), false);
+    assert_eq!(res.unwrap(), VerificationStatus::InProgress);
 }
 
 #[test]
@@ -431,12 +549,12 @@ fn should_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetVerified {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
-    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
     assert!(res.is_ok());
-    assert_eq!(res.unwrap(), true);
+    assert_eq!(res.unwrap(), VerificationStatus::SucceededOnChain);
 }
 
 #[test]
@@ -484,12 +602,12 @@ fn should_not_confirm_worker_set() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetVerified {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
-    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
     assert!(res.is_ok());
-    assert_eq!(res.unwrap(), false);
+    assert_eq!(res.unwrap(), VerificationStatus::NotFound);
 }
 
 #[test]
@@ -537,14 +655,14 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetVerified {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators.clone(),
     };
-    let res: Result<bool, _> = app
+    let res: Result<VerificationStatus, _> = app
         .wrap()
         .query_wasm_smart(contract_address.clone(), &query);
     assert!(res.is_ok());
-    assert_eq!(res.unwrap(), false);
+    assert_eq!(res.unwrap(), VerificationStatus::NotFound);
 
     // try again, and this time vote true
     let msg = msg::ExecuteMsg::VerifyWorkerSet {
@@ -571,12 +689,12 @@ fn should_confirm_worker_set_after_failed() {
     let res = app.execute_contract(Addr::unchecked(SENDER), contract_address.clone(), &msg, &[]);
     assert!(res.is_ok());
 
-    let query = msg::QueryMsg::IsWorkerSetVerified {
+    let query = msg::QueryMsg::GetWorkerSetStatus {
         new_operators: operators,
     };
-    let res: Result<bool, _> = app.wrap().query_wasm_smart(contract_address, &query);
+    let res: Result<VerificationStatus, _> = app.wrap().query_wasm_smart(contract_address, &query);
     assert!(res.is_ok());
-    assert_eq!(res.unwrap(), true);
+    assert_eq!(res.unwrap(), VerificationStatus::SucceededOnChain);
 }
 
 #[test]

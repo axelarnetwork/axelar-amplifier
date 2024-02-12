@@ -1,14 +1,13 @@
 use std::str::FromStr;
 
 #[cfg(not(feature = "library"))]
-use axelar_wasm_std::Threshold;
-use connection_router::state::{CrossChainId, ChainName};
+use axelar_wasm_std::{Threshold, VerificationStatus};
+use connection_router::{state::{Address, ChainName, CrossChainId}, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, Storage, wasm_execute, SubMsg, Reply,
     DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_binary, Deps, StdResult, Binary, Addr, HexBinary,
 };
-use xrpl_voting_verifier::execute::MessageStatus;
 
 use crate::{
     error::ContractError,
@@ -120,8 +119,8 @@ pub fn execute(
         ExecuteMsg::UpdateWorkerSet {} => {
             construct_signer_list_set_proof(deps.storage, querier, env, &config)
         },
-        ExecuteMsg::UpdateTxStatus { multisig_session_id, signers, message_status } => {
-            update_tx_status(deps.storage, querier, &multisig_session_id, &signers, &message_status, config.axelar_multisig_address)
+        ExecuteMsg::UpdateTxStatus { multisig_session_id, signers, message_id, message_status } => {
+            update_tx_status(deps.storage, querier, &multisig_session_id, &signers, &message_id, message_status, config.axelar_multisig_address, config.xrpl_multisig_address)
         },
         ExecuteMsg::TicketCreate {} => {
             construct_ticket_create_proof(deps.storage, env.contract.address, &config)
@@ -269,12 +268,24 @@ fn update_tx_status(
     querier: Querier,
     multisig_session_id: &Uint64,
     signers: &Vec<Addr>,
-    status: &MessageStatus,
+    message_id: &CrossChainId,
+    status: VerificationStatus,
     axelar_multisig_address: impl Into<String>,
+    xrpl_multisig_address: String,
 ) -> Result<Response, ContractError> {
     let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
     let tx_info = TRANSACTION_INFO.load(storage, unsigned_tx_hash.clone())?;
     let multisig_session = querier.get_multisig_session(multisig_session_id.clone())?;
+    let message = Message {
+        destination_chain: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
+        source_address: Address::from_str(&xrpl_multisig_address).map_err(|_| ContractError::InvalidAddress)?,
+        destination_address: Address::from_str(match &tx_info.unsigned_contents {
+            xrpl_multisig::XRPLUnsignedTx::Payment(p) => p.destination.as_str(),
+            _ => &xrpl_multisig_address,
+        }).map_err(|_| ContractError::InvalidAddress)?,
+        cc_id: message_id.clone(),
+        payload_hash: [0; 32],
+    };
 
     let axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)> = multisig_session.signers
         .iter()
@@ -290,12 +301,12 @@ fn update_tx_status(
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
 
-    let cc_id = CrossChainId {
-        chain: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
-        id: axelar_wasm_std::nonempty::String::try_from(tx_hash.to_string() + ":0")?, // TODO: FIX
-    };
+    let actual_status = querier.get_message_status(message)?;
+    if parse_message_id(&message_id.id)?.0.to_string() != tx_hash.to_string() {
+        return Err(ContractError::InvalidMessageID(message_id.id.to_string()));
+    }
 
-    if !querier.get_message_confirmation(cc_id.clone(), status)? {
+    if status != actual_status {
         return Err(ContractError::InvalidMessageStatus)
     }
 

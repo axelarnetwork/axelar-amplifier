@@ -1,7 +1,7 @@
-use connection_router::state::CrossChainId;
+use connection_router::{state::CrossChainId, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64, Addr};
-use xrpl_voting_verifier::execute::MessageStatus;
+use axelar_wasm_std::VerificationStatus;
 
 use crate::types::{TxHash, XRPLToken};
 
@@ -37,7 +37,8 @@ pub enum ExecuteMsg {
     UpdateTxStatus {
         multisig_session_id: Uint64,
         signers: Vec<Addr>,
-        message_status: MessageStatus,
+        message_id: CrossChainId,
+        message_status: VerificationStatus,
     },
     UpdateWorkerSet,
     TicketCreate,

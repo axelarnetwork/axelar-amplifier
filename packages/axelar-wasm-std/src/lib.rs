@@ -2,11 +2,13 @@ pub use crate::{
     error::ContractError,
     fn_ext::FnExt,
     snapshot::{Participant, Snapshot},
-    threshold::Threshold,
+    threshold::{MajorityThreshold, Threshold},
+    verification::VerificationStatus,
 };
 
 pub mod counter;
-mod error;
+pub mod error;
+pub mod event;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;
@@ -16,4 +18,5 @@ pub mod operators;
 pub mod snapshot;
 pub mod threshold;
 pub mod utils;
+pub mod verification;
 pub mod voting;

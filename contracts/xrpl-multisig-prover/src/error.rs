@@ -1,6 +1,7 @@
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
+use gateway::error;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -91,6 +92,12 @@ pub enum ContractError {
 
     #[error("signature not found")]
     SignatureNotFound,
+
+    #[error("invalid message source address")]
+    InvalidMessageSourceAddress,
+
+    #[error("invalid message destination address")]
+    InvalidMessageDestinationAddress,
 }
 
 impl From<ContractError> for StdError {

@@ -1,3 +1,4 @@
+use axelar_wasm_std::VerificationStatus;
 use connection_router::state::Message;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
@@ -15,6 +16,6 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<(connection_router::state::CrossChainId, bool)>)]
-    IsVerified { messages: Vec<Message> },
+    #[returns(Vec<(connection_router::state::CrossChainId, VerificationStatus)>)]
+    GetMessagesStatus { messages: Vec<Message> },
 }

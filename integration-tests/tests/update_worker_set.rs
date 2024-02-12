@@ -1,6 +1,7 @@
-use connection_router::{Message, state::CrossChainId};
-use cosmwasm_std::Addr;
-use multisig::key::KeyType;
+use connection_router::{state::{Address, CrossChainId}, Message};
+use cosmwasm_std::{Addr, HexBinary};
+use axelar_wasm_std::VerificationStatus;
+use cw_multi_test::Executor;
 use test_utils::Worker;
 
 mod test_utils;
@@ -190,19 +191,26 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
     ));
     println!("SignerListSet proof: {:?}", proof);
 
-    let proof_msg_id = CrossChainId {
-        chain: xrpl.chain_name.clone(),
-        id: "cc9b3b3c7561a14449aa4baec9d1e72ea78068a74c5bf77d0c70629d53a46bd5:0"
-            .to_string()
-            .try_into()
-            .unwrap(),
-    };
+    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let proof_msgs = vec![Message {
+        destination_chain: xrpl.chain_name.clone(),
+        source_address: Address::try_from(xrpl_multisig_address.clone()).unwrap(),
+        destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
+        cc_id: CrossChainId {
+            chain: xrpl.chain_name.clone(),
+            id: "cc9b3b3c7561a14449aa4baec9d1e72ea78068a74c5bf77d0c70629d53a46bd5:0"
+                .to_string()
+                .try_into()
+                .unwrap(),
+        },
+        payload_hash: [0; 32],
+    }];
 
     // TODO: verify_message_statuses should be called through gateway, like verify_messages
-    let (poll_id, expiry) = test_utils::xrpl_verify_message_statuses(
+    let (poll_id, expiry) = test_utils::verify_messages(
         &mut protocol.app,
-        &xrpl.voting_verifier_address,
-        vec![(proof_msg_id.clone(), xrpl_voting_verifier::execute::MessageStatus::Succeeded)].to_vec(),
+        &xrpl.gateway_address,
+        &proof_msgs
     );
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
@@ -219,7 +227,8 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
         &xrpl.multisig_prover_address,
         initial_workers.iter().map(|w| w.addr.clone()).collect(),
         session_id,
-        xrpl_voting_verifier::execute::MessageStatus::Succeeded
+        proof_msgs[0].cc_id.clone(),
+        VerificationStatus::SucceededOnChain
     );
 
     let new_worker_set =
@@ -334,4 +343,103 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
         test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
 
     assert_eq!(new_worker_set, expected_new_worker_set);
+}
+
+#[test]
+fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed() {
+    let chains = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "Polygon".to_string().try_into().unwrap(),
+    ];
+    let (mut protocol, ethereum, _, initial_workers, min_worker_bond) =
+        test_utils::setup_test_case();
+
+    let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
+
+    let worker_set =
+        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+
+    assert_eq!(worker_set, simulated_worker_set);
+
+    // creating a new worker set that only consists of two new workers
+    let first_wave_of_new_workers = test_utils::create_new_workers_vec(
+        chains.clone(),
+        vec![("worker3".to_string(), 2), ("worker4".to_string(), 3)],
+    );
+
+    let first_wave_worker_set =
+        test_utils::workers_to_worker_set(&mut protocol, &first_wave_of_new_workers);
+
+    // register the new workers (3 and 4), deregister all old workers, then create proof and get id
+    let session_id = test_utils::update_registry_and_construct_proof(
+        &mut protocol,
+        &first_wave_of_new_workers,
+        &initial_workers,
+        &initial_workers,
+        &ethereum.multisig_prover_address,
+        min_worker_bond,
+    );
+
+    let proof = test_utils::get_proof(
+        &mut protocol.app,
+        &ethereum.multisig_prover_address,
+        &session_id,
+    );
+
+    // proof must be completed
+    assert!(matches!(
+        proof.status,
+        multisig_prover::msg::ProofStatus::Completed { .. }
+    ));
+    assert_eq!(proof.message_ids.len(), 0);
+
+    // starting and ending a poll for the first worker set rotation
+    test_utils::execute_worker_set_poll(
+        &mut protocol,
+        &Addr::unchecked("relayer"),
+        &ethereum.voting_verifier_address,
+        &first_wave_of_new_workers,
+    );
+
+    // try to rotate again. this should be ignored, because the first rotation is not yet confirmed
+    let second_wave_of_new_workers =
+        test_utils::create_new_workers_vec(chains.clone(), vec![("worker5".to_string(), 5)]);
+
+    let second_wave_session_id = test_utils::update_registry_and_construct_proof(
+        &mut protocol,
+        &second_wave_of_new_workers,
+        &first_wave_of_new_workers,
+        &initial_workers,
+        &ethereum.multisig_prover_address,
+        min_worker_bond,
+    );
+
+    // confirm the first rotation's set of workers
+    test_utils::confirm_worker_set(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        ethereum.multisig_prover_address.clone(),
+    );
+
+    // get the latest worker set, it should be equal to the first wave worker set
+    let latest_worker_set =
+        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+    assert_eq!(latest_worker_set, first_wave_worker_set);
+
+    // attempt to confirm the second rotation
+    test_utils::execute_worker_set_poll(
+        &mut protocol,
+        &Addr::unchecked("relayer"),
+        &ethereum.voting_verifier_address,
+        &second_wave_of_new_workers,
+    );
+
+    let response = protocol.app.execute_contract(
+        Addr::unchecked("relayer"),
+        ethereum.multisig_prover_address.clone(),
+        &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
+        &[],
+    );
+
+    assert!(response.is_err());
 }

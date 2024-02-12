@@ -1,58 +1,39 @@
-use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::voting::{PollStatus, Vote};
+use axelar_wasm_std::{
+    operators::Operators,
+    voting::{PollStatus, Vote},
+    VerificationStatus,
+};
 use connection_router::state::{CrossChainId, Message};
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
 use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 
-#[cw_serde]
-pub enum VerificationStatus {
-    Verified,
-    FailedToVerify,
-    InProgress,  // still in an open poll
-    NotVerified, // not in a poll
-}
-
-pub fn is_verified(
+pub fn messages_status(
     deps: Deps,
     messages: &[Message],
-) -> Result<Vec<(CrossChainId, bool)>, ContractError> {
+) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
     messages
         .iter()
         .map(|message| {
-            msg_verification_status(deps, message).map(|status| {
-                (
-                    message.cc_id.to_owned(),
-                    matches!(status, VerificationStatus::Verified),
-                )
-            })
+            message_status(deps, message).map(|status| (message.cc_id.to_owned(), status))
         })
         .collect::<Result<Vec<_>, _>>()
 }
 
-pub fn is_worker_set_verified(deps: Deps, operators: &Operators) -> Result<bool, ContractError> {
-    Ok(matches!(
-        worker_set_verification_status(deps, operators)?,
-        VerificationStatus::Verified
-    ))
-}
-
-pub fn msg_verification_status(
-    deps: Deps,
-    message: &Message,
-) -> Result<VerificationStatus, ContractError> {
+pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
     let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
+
     Ok(verification_status(deps, loaded_poll_content, message))
 }
 
-pub fn worker_set_verification_status(
+pub fn worker_set_status(
     deps: Deps,
     operators: &Operators,
 ) -> Result<VerificationStatus, ContractError> {
-    let poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
-    Ok(verification_status(deps, poll_content, operators))
+    let loaded_poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
+
+    Ok(verification_status(deps, loaded_poll_content, operators))
 }
 
 fn verification_status<T: PartialEq + std::fmt::Debug>(
@@ -69,25 +50,23 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
 
             let poll = POLLS
                 .load(deps.storage, stored.poll_id)
-                .expect("invalid invariant: message poll not found");
+                .expect("invalid invariant: content's poll not found");
 
-            let verified = match &poll {
-                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => {
-                    poll.consensus(stored.index_in_poll)
-                        .expect("invalid invariant: message not found in poll")
-                        == Some(Vote::SucceededOnChain) // TODO: consider Vote::FailedOnChain?
-                }
+            let consensus = match &poll {
+                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
+                    .consensus(stored.index_in_poll)
+                    .expect("invalid invariant: message not found in poll"),
             };
 
-            if verified {
-                VerificationStatus::Verified
-            } else if is_finished(&poll) {
-                VerificationStatus::FailedToVerify
-            } else {
-                VerificationStatus::InProgress
+            match consensus {
+                Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnChain,
+                Some(Vote::FailedOnChain) => VerificationStatus::FailedOnChain,
+                Some(Vote::NotFound) => VerificationStatus::NotFound,
+                None if is_finished(&poll) => VerificationStatus::FailedToVerify,
+                None => VerificationStatus::InProgress,
             }
         }
-        None => VerificationStatus::NotVerified,
+        None => VerificationStatus::None,
     }
 }
 
@@ -136,12 +115,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            msg_verification_status(deps.as_ref(), &msg).unwrap(),
-            VerificationStatus::InProgress
-        );
-        assert_eq!(
-            vec![(msg.cc_id.clone(), false)],
-            is_verified(deps.as_ref(), &[msg]).unwrap()
+            vec![(msg.cc_id.clone(), VerificationStatus::InProgress)],
+            messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -172,12 +147,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            msg_verification_status(deps.as_ref(), &msg).unwrap(),
-            VerificationStatus::Verified
-        );
-        assert_eq!(
-            vec![(msg.cc_id.clone(), true)],
-            is_verified(deps.as_ref(), &[msg]).unwrap()
+            vec![(msg.cc_id.clone(), VerificationStatus::SucceededOnChain)],
+            messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -207,12 +178,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            msg_verification_status(deps.as_ref(), &msg).unwrap(),
-            VerificationStatus::FailedToVerify
-        );
-        assert_eq!(
-            vec![(msg.cc_id.clone(), false)],
-            is_verified(deps.as_ref(), &[msg]).unwrap()
+            vec![(msg.cc_id.clone(), VerificationStatus::FailedToVerify)],
+            messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -222,12 +189,8 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            msg_verification_status(deps.as_ref(), &msg).unwrap(),
-            VerificationStatus::NotVerified
-        );
-        assert_eq!(
-            vec![(msg.cc_id.clone(), false)],
-            is_verified(deps.as_ref(), &[msg]).unwrap()
+            vec![(msg.cc_id.clone(), VerificationStatus::None)],
+            messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
 
@@ -259,7 +222,7 @@ mod tests {
         let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
         let threshold: Threshold = (numerator, denominator).try_into().unwrap();
 
-        let snapshot = Snapshot::new(threshold, participants);
+        let snapshot = Snapshot::new(threshold.try_into().unwrap(), participants);
 
         WeightedPoll::new(PollId::from(Uint64::one()), snapshot, 0, 5)
     }

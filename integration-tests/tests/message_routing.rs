@@ -1,7 +1,8 @@
-use connection_router::state::{CrossChainId, Message};
+use axelar_wasm_std::VerificationStatus;
+use connection_router::state::{Address, CrossChainId, Message};
 use cosmwasm_std::{HexBinary, Uint128, Coin};
 
-use crate::test_utils::{XRP_DENOMINATION, ETH_DENOMINATION};
+use crate::test_utils::ETH_DENOMINATION;
 
 mod test_utils;
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
@@ -140,18 +141,25 @@ fn xrpl_ticket_create_can_be_proven() {
     ));
     println!("TicketCreate proof: {:?}", proof);
 
-    let proof_msg_id = CrossChainId {
-        chain: xrpl.chain_name.clone(),
-        id: "3da9f142fdc0d570d040dde73de20a0625a549fc70cc564849dbc746b5c6469a:0"
-            .to_string()
-            .try_into()
-            .unwrap(),
-    };
+    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let proof_msgs = vec![Message {
+        destination_chain: xrpl.chain_name.clone(),
+        source_address: Address::try_from(xrpl_multisig_address.clone()).unwrap(),
+        destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
+        cc_id: CrossChainId {
+            chain: xrpl.chain_name.clone(),
+            id: "3da9f142fdc0d570d040dde73de20a0625a549fc70cc564849dbc746b5c6469a:0"
+                .to_string()
+                .try_into()
+                .unwrap(),
+        },
+        payload_hash: [0; 32],
+    }];
 
-    let (poll_id, expiry) = test_utils::xrpl_verify_message_statuses(
+    let (poll_id, expiry) = test_utils::verify_messages(
         &mut protocol.app,
-        &xrpl.voting_verifier_address,
-        vec![(proof_msg_id.clone(), xrpl_voting_verifier::execute::MessageStatus::Succeeded)].to_vec(),
+        &xrpl.gateway_address,
+        &proof_msgs,
     );
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
@@ -168,7 +176,8 @@ fn xrpl_ticket_create_can_be_proven() {
         &xrpl.multisig_prover_address,
         workers.iter().map(|w| w.addr.clone()).collect(),
         session_id,
-        xrpl_voting_verifier::execute::MessageStatus::Succeeded
+        proof_msgs[0].cc_id.clone(),
+        VerificationStatus::SucceededOnChain
     );
 }
 
@@ -195,13 +204,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
             .unwrap(),
         destination_chain: xrpl.chain_name.clone(),
         // TODO: payload_hash?
-        payload_hash: HexBinary::from_hex(
-            "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
-        )
-        .unwrap()
-        .as_slice()
-        .try_into()
-        .unwrap(),
+        payload_hash: [0; 32],
     };
     let msg_id: CrossChainId = msg.cc_id.clone();
     let msgs = vec![msg.clone()];
@@ -259,19 +262,25 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         xrpl_multisig_prover::msg::GetProofResponse::Completed { .. }
     ));
 
-    let proof_msg_id = CrossChainId {
-        chain: xrpl.chain_name.clone(),
-        id: "8108b96bdbc5ff44fd868d973bdcaae3f38e2fe3906a33a8dc1d881b20498ff7:0"
-            .to_string()
-            .try_into()
-            .unwrap(),
-    };
+    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let proof_msgs = vec![Message {
+        destination_chain: xrpl.chain_name.clone(),
+        source_address: Address::try_from(xrpl_multisig_address).unwrap(),
+        destination_address: Address::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".to_string()).unwrap(),
+        cc_id: CrossChainId {
+            chain: xrpl.chain_name.clone(),
+            id: "8108b96bdbc5ff44fd868d973bdcaae3f38e2fe3906a33a8dc1d881b20498ff7:0"
+                .to_string()
+                .try_into()
+                .unwrap(),
+        },
+        payload_hash: [0; 32],
+    }];
 
-    // TODO: verify_message_statuses should be called through gateway, like verify_messages?
-    let (poll_id, expiry) = test_utils::xrpl_verify_message_statuses(
+    let (poll_id, expiry) = test_utils::verify_messages(
         &mut protocol.app,
-        &xrpl.voting_verifier_address,
-        vec![(proof_msg_id.clone(), xrpl_voting_verifier::execute::MessageStatus::Succeeded)].to_vec(),
+        &xrpl.gateway_address,
+        &proof_msgs
     );
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
@@ -288,7 +297,8 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         &xrpl.multisig_prover_address,
         workers.iter().map(|w| w.addr.clone()).collect(),
         session_id,
-        xrpl_voting_verifier::execute::MessageStatus::Succeeded
+        proof_msgs[0].cc_id.clone(),
+        VerificationStatus::SucceededOnChain
     );
 
     // TODO: FIX REWARDS

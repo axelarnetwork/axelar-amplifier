@@ -3,7 +3,8 @@ use std::{fmt::Debug, ops::Add, str::FromStr};
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
-    Participant,
+    Participant, Threshold,
+    VerificationStatus,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
@@ -12,18 +13,21 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
-use k256::{ecdsa, pkcs8::der::Decode};
+use k256::ecdsa;
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
-use tofn::{ecdsa::KeyPair, ed25519};
 use xrpl_multisig_prover::types::XRPLToken;
+use sha3::{Digest, Keccak256};
+use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 pub const XRP_DENOMINATION: &str = "uxrp";
 pub const ETH_DENOMINATION: &str = "ueth";
+
+pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
 fn get_event_attribute<'a>(
     events: &'a [Event],
@@ -51,6 +55,7 @@ pub fn verify_messages(
         &gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
         &[],
     );
+    println!("Response: {:?}", response);
     assert!(response.is_ok());
     let response = response.unwrap();
 
@@ -58,32 +63,6 @@ pub fn verify_messages(
         .map(|attr| serde_json::from_str(&attr.value).unwrap())
         .expect("couldn't get poll_id");
     let expiry = get_event_attribute(&response.events, "wasm-messages_poll_started", "expires_at")
-        .map(|attr| attr.value.as_str().parse().unwrap())
-        .expect("couldn't get poll expiry");
-    (poll_id, expiry)
-}
-
-pub fn xrpl_verify_message_statuses(
-    app: &mut App,
-    voting_verifier_address: &Addr,
-    message_statuses: Vec<(CrossChainId, xrpl_voting_verifier::execute::MessageStatus)>,
-) -> (PollId, PollExpiryBlock) {
-    // TODO: should be verified through the gateway
-    let response = app.execute_contract(
-        Addr::unchecked("relayer"),
-        voting_verifier_address.clone(),
-        &xrpl_voting_verifier::msg::ExecuteMsg::VerifyMessageStatuses {
-            message_statuses
-        },
-        &[],
-    );
-    assert!(response.is_ok());
-    let response = response.unwrap();
-
-    let poll_id = get_event_attribute(&response.events, "wasm-message_statuses_poll_started", "poll_id")
-        .map(|attr| serde_json::from_str(&attr.value).unwrap())
-        .expect("couldn't get poll_id");
-    let expiry = get_event_attribute(&response.events, "wasm-message_statuses_poll_started", "expires_at")
         .map(|attr| attr.value.as_str().parse().unwrap())
         .expect("couldn't get poll expiry");
     (poll_id, expiry)
@@ -440,7 +419,8 @@ pub fn xrpl_update_tx_status(
     multisig_prover_address: &Addr,
     signers: Vec<Addr>,
     multisig_session_id: Uint64,
-    message_status: xrpl_voting_verifier::execute::MessageStatus,
+    message_id: CrossChainId,
+    message_status: VerificationStatus,
 ) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
@@ -448,10 +428,12 @@ pub fn xrpl_update_tx_status(
         &xrpl_multisig_prover::msg::ExecuteMsg::UpdateTxStatus {
             message_status,
             multisig_session_id,
+            message_id,
             signers,
         },
         &[],
     );
+    println!("response: {:?}", response);
     assert!(response.is_ok());
 }
 
@@ -558,7 +540,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         multisig::msg::InstantiateMsg {
             rewards_address: rewards_address.to_string(),
             governance_address: governance_address.to_string(),
-            grace_period: 2,
+            block_expiry: SIGNATURE_BLOCK_EXPIRY,
         },
     );
     let service_registry_address = instantiate_service_registry(
@@ -652,13 +634,22 @@ pub fn register_workers(
         let response = app.execute_contract(
             worker.addr.clone(),
             service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::DeclareChainSupport {
+            &service_registry::msg::ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.to_string(),
                 chains: worker.supported_chains.clone(),
             },
             &[],
         );
         assert!(response.is_ok());
+
+        let address_hash = Keccak256::digest(&worker.addr.as_bytes());
+
+        let sig = tofn::ecdsa::sign(
+            worker.key_pair.signing_key(),
+            &address_hash.as_slice().try_into().unwrap(),
+        )
+        .unwrap();
+        let sig = ecdsa::Signature::from_der(&sig).unwrap();
 
         let response = app.execute_contract(
             worker.addr.clone(),
@@ -667,6 +658,7 @@ pub fn register_workers(
                 public_key: PublicKey::Ecdsa(HexBinary::from(
                     worker.key_pair.encoded_verifying_key(),
                 )),
+                signed_sender_address: HexBinary::from(sig.to_vec()),
             },
             &[],
         );
@@ -831,6 +823,86 @@ pub fn xrpl_workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>
     )
 }
 
+pub fn create_new_workers_vec(
+    chains: Vec<ChainName>,
+    worker_details: Vec<(String, u32)>,
+) -> Vec<Worker> {
+    worker_details
+        .into_iter()
+        .map(|(name, seed)| Worker {
+            addr: Addr::unchecked(name),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(seed),
+        })
+        .collect()
+}
+
+pub fn update_registry_and_construct_proof(
+    protocol: &mut Protocol,
+    new_workers: &Vec<Worker>,
+    workers_to_remove: &Vec<Worker>,
+    current_workers: &Vec<Worker>,
+    chain_multisig_prover_address: &Addr,
+    min_worker_bond: Uint128,
+) -> Uint64 {
+    // Register new workers
+    register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        new_workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+
+    // Deregister old workers
+    deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        workers_to_remove,
+        protocol.service_name.clone(),
+    );
+
+    // Construct proof and sign
+    construct_proof_and_sign(
+        &mut protocol.app,
+        &chain_multisig_prover_address,
+        &protocol.multisig_address,
+        &Vec::<Message>::new(),
+        &current_workers,
+    )
+}
+
+pub fn execute_worker_set_poll(
+    protocol: &mut Protocol,
+    relayer_addr: &Addr,
+    verifier_address: &Addr,
+    new_workers: &Vec<Worker>,
+) {
+    // Create worker set
+    let new_worker_set = workers_to_worker_set(protocol, new_workers);
+
+    // Create worker set poll
+    let (poll_id, expiry) = create_worker_set_poll(
+        &mut protocol.app,
+        relayer_addr.clone(),
+        verifier_address.clone(),
+        new_worker_set.clone(),
+    );
+
+    // Vote for the worker set
+    vote_true_for_worker_set(&mut protocol.app, verifier_address, new_workers, poll_id);
+
+    // Advance to expiration height
+    advance_at_least_to_height(&mut protocol.app, expiry);
+
+    // End the poll
+    end_poll(&mut protocol.app, verifier_address, poll_id);
+}
+
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
@@ -850,7 +922,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
                 .unwrap(),
             service_name: protocol.service_name.clone(),
             source_gateway_address: "doesn't matter".to_string().try_into().unwrap(),
-            voting_threshold: (9, 10).try_into().unwrap(),
+            voting_threshold: Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
             block_expiry: 10,
             confirmation_height: 5,
             source_chain: chain_name.clone(),
@@ -873,10 +945,10 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             service_registry_address: protocol.service_registry_address.to_string(),
             voting_verifier_address: voting_verifier_address.to_string(),
             destination_chain_id: Uint256::zero(),
-            signing_threshold: (2, 3).try_into().unwrap(),
+            signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: protocol.service_name.to_string(),
             chain_name: chain_name.to_string(),
-            worker_set_diff_threshold: 1,
+            worker_set_diff_threshold: 0,
             encoder: multisig_prover::encoding::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
         },
@@ -947,9 +1019,9 @@ pub fn register_token(
 
 pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
     let chain_name = ChainName::from_str("XRPL").unwrap();
-    let voting_verifier_address = instantiate_xrpl_voting_verifier(
+    let voting_verifier_address = instantiate_voting_verifier(
         &mut protocol.app,
-        xrpl_voting_verifier::msg::InstantiateMsg {
+        voting_verifier::msg::InstantiateMsg {
             service_registry_address: protocol
                 .service_registry_address
                 .to_string()
@@ -957,7 +1029,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
                 .unwrap(),
             service_name: protocol.service_name.clone(),
             source_gateway_address: "doesn't matter".to_string().try_into().unwrap(),
-            voting_threshold: (9, 10).try_into().unwrap(),
+            voting_threshold: Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
             block_expiry: 10,
             confirmation_height: 5,
             source_chain: chain_name.clone(),
@@ -971,7 +1043,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
             verifier_address: voting_verifier_address.to_string(),
         },
     );
-    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string();
+    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
     let multisig_prover_address = instantiate_xrpl_multisig_prover(
         &mut protocol.app,
         xrpl_multisig_prover::contract::InstantiateMsg {
@@ -1136,30 +1208,6 @@ pub fn instantiate_voting_verifier(
         &instantiate_msg,
         &[],
         "voting_verifier",
-        None,
-    );
-
-    assert!(contract_addr.is_ok());
-    contract_addr.unwrap()
-}
-
-pub fn instantiate_xrpl_voting_verifier(
-    app: &mut App,
-    instantiate_msg: xrpl_voting_verifier::msg::InstantiateMsg,
-) -> Addr {
-    let code = ContractWrapper::new(
-        xrpl_voting_verifier::contract::execute,
-        xrpl_voting_verifier::contract::instantiate,
-        xrpl_voting_verifier::contract::query,
-    );
-    let code_id = app.store_code(Box::new(code));
-
-    let contract_addr = app.instantiate_contract(
-        code_id,
-        Addr::unchecked("anyone"),
-        &instantiate_msg,
-        &[],
-        "xrpl_voting_verifier",
         None,
     );
 

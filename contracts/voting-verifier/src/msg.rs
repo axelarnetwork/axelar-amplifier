@@ -4,7 +4,7 @@ use axelar_wasm_std::{
     nonempty,
     operators::Operators,
     voting::{PollId, PollState, Vote},
-    Threshold,
+    MajorityThreshold, VerificationStatus,
 };
 use connection_router::state::{ChainName, CrossChainId, Message};
 
@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
     pub service_name: nonempty::String,
 
     pub source_gateway_address: nonempty::String,
-    pub voting_threshold: Threshold,
+    pub voting_threshold: MajorityThreshold,
     pub block_expiry: u64,
     pub confirmation_height: u64,
     pub source_chain: ChainName,
@@ -61,16 +61,16 @@ pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollId },
 
-    #[returns(Vec<(connection_router::state::CrossChainId, bool)>)]
-    IsVerified { messages: Vec<Message> },
+    #[returns(Vec<(connection_router::state::CrossChainId, VerificationStatus)>)]
+    GetMessagesStatus { messages: Vec<Message> },
 
-    #[returns(bool)]
-    IsWorkerSetVerified { new_operators: Operators },
+    #[returns(VerificationStatus)]
+    GetWorkerSetStatus { new_operators: Operators },
 }
 
 #[cw_serde]
 pub struct VerifyMessagesResponse {
-    pub verification_statuses: Vec<(CrossChainId, bool)>,
+    pub verification_statuses: Vec<(CrossChainId, VerificationStatus)>,
 }
 
 #[cw_serde]

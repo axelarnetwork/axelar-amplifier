@@ -6,7 +6,7 @@ use cosmwasm_std::{
     to_binary, QueryRequest, WasmQuery, QuerierWrapper, Uint64,
 };
 use multisig::{key::PublicKey, msg::Multisig};
-use xrpl_voting_verifier::execute::MessageStatus;
+use axelar_wasm_std::{operators::Operators, VerificationStatus};
 
 use crate::{
     error::ContractError,
@@ -66,13 +66,13 @@ impl<'a> Querier<'a> {
         Ok(messages[0].clone())
     }
 
-    pub fn get_message_confirmation(&self, cc_id: CrossChainId, status: &MessageStatus) -> Result<bool, ContractError> {
-        let confirmations: Vec<(CrossChainId, MessageStatus, bool)> = query(self.querier, self.config.voting_verifier_address.to_string(),
-            &xrpl_voting_verifier::msg::QueryMsg::IsStatusVerified {
-                message_statuses: vec![(cc_id, status.clone())],
+    pub fn get_message_status(&self, message: Message) -> Result<VerificationStatus, ContractError> {
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = query(self.querier, self.config.voting_verifier_address.to_string(),
+            &voting_verifier::msg::QueryMsg::GetMessagesStatus {
+                messages: vec![message],
             }
         )?;
-        Ok(confirmations[0].2)
+        Ok(statuses[0].1)
     }
 
     pub fn get_multisig_session(&self, multisig_session_id: Uint64) -> Result<Multisig, ContractError> {

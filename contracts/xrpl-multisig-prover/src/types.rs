@@ -1,10 +1,9 @@
-use axelar_wasm_std::nonempty;
+use axelar_wasm_std::{nonempty, VerificationStatus};
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::key::Signature;
-use xrpl_voting_verifier::execute::MessageStatus;
 
 use crate::{xrpl_multisig::XRPLUnsignedTx, error::ContractError};
 
@@ -13,7 +12,7 @@ pub enum TransactionStatus {
     Pending,
     Succeeded,
     FailedOnChain,
-    FailedOffChain,
+    Inconclusive,
 }
 
 // TODO: import from verifier
@@ -53,12 +52,12 @@ impl Into<HexBinary> for TxHash {
     }
 }
 
-impl Into<TransactionStatus> for MessageStatus {
+impl Into<TransactionStatus> for VerificationStatus {
     fn into(self) -> TransactionStatus {
         match self {
-            MessageStatus::Succeeded => TransactionStatus::Succeeded,
-            MessageStatus::FailedOnChain => TransactionStatus::FailedOnChain,
-            MessageStatus::FailedOffChain => TransactionStatus::FailedOffChain,
+            VerificationStatus::SucceededOnChain => TransactionStatus::Succeeded,
+            VerificationStatus::FailedOnChain => TransactionStatus::FailedOnChain,
+            _ => TransactionStatus::Inconclusive,
         }
     }
 }

@@ -71,7 +71,7 @@ impl XRPLUnsignedTx {
         }
     }
     pub fn sequence_number_increment(&self, status: TransactionStatus) -> u32 {
-        if status == TransactionStatus::Pending || status == TransactionStatus::FailedOffChain {
+        if status == TransactionStatus::Pending || status == TransactionStatus::Inconclusive {
             return 0;
         }
 
@@ -92,7 +92,7 @@ impl XRPLUnsignedTx {
                 match status {
                     TransactionStatus::Succeeded => tx.ticket_count + 1,
                     TransactionStatus::FailedOnChain => 1,
-                    TransactionStatus::FailedOffChain |
+                    TransactionStatus::Inconclusive |
                     TransactionStatus::Pending => unreachable!(),
                 }
             },
@@ -132,7 +132,7 @@ impl XRPLSerialize for XRPLMemo {
         let mut result = obj.xrpl_serialize()?;
         result.extend(field_id(OBJECT_TYPE_CODE, 1));
         Ok(result)
- 
+
     }
 }
 
