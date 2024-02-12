@@ -29,6 +29,25 @@ impl Event {
     pub fn block_end(height: impl Into<block::Height>) -> Self {
         Event::BlockEnd(height.into())
     }
+
+    pub fn is_from_contract(&self, from_address: &AccountId) -> bool {
+        match self.contract_address() {
+            Some(emitting_address) => &emitting_address == from_address,
+            _ => false,
+        }
+    }
+
+    fn contract_address(&self) -> Option<AccountId> {
+        match self {
+            Event::Abci {
+                event_type: _,
+                attributes,
+            } => attributes
+                .get("_contract_address")
+                .and_then(|address| serde_json::from_value::<AccountId>(address.clone()).ok()),
+            _ => None,
+        }
+    }
 }
 
 impl TryFrom<abci::Event> for Event {
@@ -74,32 +93,13 @@ fn base64_to_utf8(base64_str: &str) -> std::result::Result<String, DecodingError
     Ok(STANDARD.decode(base64_str)?.then(String::from_utf8)?)
 }
 
-fn contract_address(event: &Event) -> Option<AccountId> {
-    match event {
-        Event::Abci {
-            event_type: _,
-            attributes,
-        } => attributes
-            .get("_contract_address")
-            .and_then(|address| serde_json::from_value::<AccountId>(address.clone()).ok()),
-        _ => None,
-    }
-}
-
-pub fn event_is_from_contract(event: &Event, from_address: &AccountId) -> bool {
-    match contract_address(event) {
-        Some(emitting_address) => &emitting_address == from_address,
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
 
     use cosmrs::AccountId;
 
-    use crate::{event::contract_address, event_is_from_contract, Event};
+    use crate::Event;
 
     fn make_event_with_contract_address(contract_address: &AccountId) -> Event {
         let mut attributes = serde_json::Map::new();
@@ -120,7 +120,7 @@ mod test {
 
         let event = make_event_with_contract_address(&expected_contract_address);
 
-        let contract_address = contract_address(&event);
+        let contract_address = event.contract_address();
         assert_eq!(contract_address, Some(expected_contract_address));
     }
 
@@ -130,7 +130,7 @@ mod test {
             event_type: "some_event".to_string(),
             attributes: serde_json::Map::new(),
         };
-        let contract_address = contract_address(&event);
+        let contract_address = event.contract_address();
         assert!(contract_address.is_none());
     }
 
@@ -139,11 +139,11 @@ mod test {
         let contract_address =
             AccountId::from_str("axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7").unwrap();
         let event = make_event_with_contract_address(&contract_address);
-        assert!(event_is_from_contract(&event, &contract_address));
+        assert!(event.is_from_contract(&contract_address));
 
         let diff_contract_address =
             AccountId::from_str("axelarvaloper1tee73c83k2vqky9gt59jd3ztwxhqjm27l588q6").unwrap();
-        assert!(!event_is_from_contract(&event, &diff_contract_address));
+        assert!(!event.is_from_contract(&diff_contract_address));
     }
 
     #[test]
@@ -156,9 +156,6 @@ mod test {
             attributes: serde_json::Map::new(),
         };
 
-        assert!(!event_is_from_contract(
-            &event_without_contract_address,
-            &contract_address
-        ));
+        assert!(!event_without_contract_address.is_from_contract(&contract_address));
     }
 }

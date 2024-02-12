@@ -100,7 +100,7 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> Result<()> {
-        if !events::event_is_from_contract(event, self.voting_verifier.as_ref()) {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
             return Ok(());
         }
 

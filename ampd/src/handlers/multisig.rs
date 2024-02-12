@@ -130,7 +130,7 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> error_stack::Result<(), Error> {
-        if !events::event_is_from_contract(event, self.multisig.as_ref()) {
+        if !event.is_from_contract(self.multisig.as_ref()) {
             return Ok(());
         }
 
