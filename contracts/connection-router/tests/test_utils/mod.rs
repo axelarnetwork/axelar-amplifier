@@ -1,10 +1,10 @@
-use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
-use integration_tests::contract::Contract;
 use connection_router::{
     contract::{execute, instantiate, query},
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
 };
+use cosmwasm_std::Addr;
+use cw_multi_test::{App, ContractWrapper, Executor};
+use integration_tests::contract::Contract;
 
 #[derive(Clone)]
 pub struct ConnectionRouterContract {
@@ -44,4 +44,3 @@ impl Contract for ConnectionRouterContract {
         self.contract_addr.clone()
     }
 }
-
