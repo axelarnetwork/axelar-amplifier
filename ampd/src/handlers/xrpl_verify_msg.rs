@@ -10,7 +10,6 @@ use tokio::sync::watch::Receiver;
 
 use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
-use xrpl_http_client::Amount;
 use events::{Error::EventTypeMismatch, Event};
 use tracing::info;
 
@@ -20,25 +19,14 @@ use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{Hash, TMAddress};
 use crate::xrpl::json_rpc::XRPLClient;
 use crate::xrpl::verifier::verify_message;
+use crate::xrpl::types::{TransactionId, XRPLAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
-
-#[derive(Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
-pub struct TransactionId(String);
-
-impl TransactionId {
-    pub fn as_str(&self) -> &str {
-        return self.0.as_str();
-    }
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-pub struct XRPLAddress(pub String);
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: TransactionId,
-    pub amount: Amount, // TODO: how is this going to be specified?
+    pub event_index: u64,
     pub destination_address: String,
     pub destination_chain: connection_router::state::ChainName,
     pub source_address: XRPLAddress,
@@ -162,8 +150,8 @@ where
             .map(|msg| {
                 tx_responses
                     .get(&msg.tx_id)
-                    .map_or(Vote::NotFound, |tx_block| {
-                        verify_message(&source_gateway_address, tx_block, msg)
+                    .map_or(Vote::NotFound, |tx_response| {
+                        verify_message(&source_gateway_address, &tx_response.tx, msg)
                     })
             })
             .collect();

@@ -1,24 +1,55 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use crate::types::Hash;
+use connection_router::state::ChainName;
 use k256::sha2::Sha256;
 use sha3::Digest;
-use xrpl_http_client::{client::Client, Memo, Transaction::Payment, TxRequest, TxResponse};
+use xrpl_http_client::ResultCategory;
+use xrpl_http_client::{Memo, Transaction::Payment, Transaction};
 use axelar_wasm_std::voting::Vote;
 
-use crate::handlers::xrpl_verify_msg::{Message, XRPLAddress};
+use crate::handlers::xrpl_verify_msg::Message;
+use crate::xrpl::types::XRPLAddress;
 
 pub fn verify_message(
-    gateway_address: &XRPLAddress,
-    tx_response: &TxResponse,
+    multisig_address: &XRPLAddress,
+    tx: &Transaction,
     message: &Message,
 ) -> Vote {
-    match &tx_response.tx {
-        Payment(payment_tx) if payment_tx.destination == gateway_address.0 && payment_tx.amount == message.amount && matches!(payment_tx.clone().common.memos, Some(_memos)) && verify_memos(payment_tx.clone().common.memos.unwrap(), message) => {
+    if is_validated_tx(tx) && (is_valid_multisig_tx(tx, multisig_address, message) || is_valid_deposit_tx(tx, multisig_address, message)) {
+        if is_successful_tx(tx) {
             Vote::SucceededOnChain
-        },
-        _ => Vote::NotFound,
+        } else {
+            Vote::FailedOnChain
+        }
+    } else {
+        Vote::NotFound
     }
+}
+
+pub fn is_validated_tx(tx: &Transaction) -> bool {
+    matches!(tx.common().validated, Some(true))
+}
+
+pub fn is_valid_multisig_tx(tx: &Transaction, multisig_address: &XRPLAddress, message: &Message) -> bool {
+    tx.common().account == multisig_address.0 && message.source_address == *multisig_address && message.destination_chain == ChainName::from_str("XRPL").unwrap()
+}
+
+pub fn is_valid_deposit_tx(tx: &Transaction, multisig_address: &XRPLAddress, message: &Message) -> bool {
+    if let Payment(payment_tx) = &tx {
+        if let Some(memos) = payment_tx.clone().common.memos {
+            return payment_tx.destination == multisig_address.0 && message.source_address.0 == tx.common().account && verify_memos(memos, message);
+        }
+    }
+    return false;
+}
+
+pub fn is_successful_tx(tx: &Transaction) -> bool {
+    if let Some(meta) = &tx.common().meta {
+        return meta.transaction_result.category() == ResultCategory::Tes;
+    }
+    return false;
 }
 
 pub fn verify_memos(memos: Vec<Memo>, message: &Message) -> bool {

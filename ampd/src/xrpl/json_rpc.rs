@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use mockall::automock;
-use crate::handlers::xrpl_verify_msg::TransactionId;
+use crate::xrpl::types::TransactionId;
 use xrpl_http_client::{TxRequest, TxResponse, Client, error};
 
 type Result<T> = error_stack::Result<T, error::Error>;
