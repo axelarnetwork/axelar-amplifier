@@ -34,6 +34,9 @@ pub enum Config {
     MultisigSigner {
         cosmwasm_contract: TMAddress,
     },
+    XRPLMultisigSigner {
+        cosmwasm_contract: TMAddress,
+    },
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,

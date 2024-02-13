@@ -253,6 +253,18 @@ where
                         ),
                         stream_timeout,
                     ),
+                handlers::config::Config::XRPLMultisigSigner { cosmwasm_contract } => self
+                    .create_handler_task(
+                        "xrpl-multisig-signer",
+                        handlers::xrpl_multisig::Handler::new(
+                            worker.clone(),
+                            cosmwasm_contract,
+                            self.broadcaster.client(),
+                            self.ecdsa_client.clone(),
+                            self.block_height_monitor.latest_block_height(),
+                        ),
+                        stream_timeout,
+                    ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,

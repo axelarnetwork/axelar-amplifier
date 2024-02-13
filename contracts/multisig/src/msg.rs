@@ -80,6 +80,7 @@ pub struct Signer {
 #[cw_serde]
 pub struct Multisig {
     pub state: MultisigState,
+    pub expires_at: u64,
     pub quorum: Uint256,
     pub signers: Vec<(Signer, Option<Signature>)>,
 }

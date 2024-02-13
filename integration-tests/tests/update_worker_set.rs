@@ -1,5 +1,6 @@
-use connection_router::Message;
-use cosmwasm_std::Addr;
+use connection_router::{state::{Address, CrossChainId}, Message};
+use cosmwasm_std::{Addr, HexBinary};
+use axelar_wasm_std::VerificationStatus;
 use cw_multi_test::Executor;
 use test_utils::Worker;
 
@@ -115,6 +116,123 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 
     let new_worker_set =
         test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+
+    assert_eq!(new_worker_set, expected_new_worker_set);
+}
+
+#[test]
+fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
+    let chains: Vec<connection_router::state::ChainName> = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "XRPL".to_string().try_into().unwrap(),
+    ];
+    let (mut protocol, _, xrpl, initial_workers, min_worker_bond) =
+        test_utils::setup_xrpl_destination_test_case();
+
+    let simulated_worker_set = test_utils::xrpl_workers_to_worker_set(&mut protocol, &initial_workers);
+
+    let worker_set =
+        test_utils::get_xrpl_worker_set(&mut protocol.app, &xrpl.multisig_prover_address);
+
+    assert_eq!(worker_set, simulated_worker_set);
+
+    // add third and fourth worker
+    let mut new_workers = Vec::new();
+    let new_worker = Worker {
+        addr: Addr::unchecked("worker3"),
+        supported_chains: chains.clone(),
+        key_pair: test_utils::generate_key(2),
+    };
+    new_workers.push(new_worker);
+    let new_worker = Worker {
+        addr: Addr::unchecked("worker4"),
+        supported_chains: chains.clone(),
+        key_pair: test_utils::generate_key(3),
+    };
+    new_workers.push(new_worker);
+
+    let expected_new_worker_set = test_utils::xrpl_workers_to_worker_set(&mut protocol, &new_workers);
+
+    test_utils::register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        &new_workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+
+    // remove old workers
+    test_utils::deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        &initial_workers,
+        protocol.service_name.clone(),
+    );
+
+    let session_id = test_utils::construct_xrpl_signer_list_set_proof_and_sign(
+        &mut protocol.app,
+        &xrpl.multisig_prover_address,
+        &protocol.multisig_address,
+        &initial_workers,
+    );
+
+    let proof = test_utils::get_xrpl_proof(
+        &mut protocol.app,
+        &xrpl.multisig_prover_address,
+        &session_id,
+    );
+    assert!(matches!(
+        proof,
+        xrpl_multisig_prover::msg::GetProofResponse::Completed { .. }
+    ));
+    println!("SignerListSet proof: {:?}", proof);
+
+    let xrpl_multisig_address = "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(); // TODO: fix duplicate definition
+    let proof_msgs = vec![Message {
+        destination_chain: xrpl.chain_name.clone(),
+        source_address: Address::try_from(xrpl_multisig_address.clone()).unwrap(),
+        destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
+        cc_id: CrossChainId {
+            chain: xrpl.chain_name.clone(),
+            id: "fbf428da41656ca3aef36287bfcb6d8491daa76f20c201c4a60172450ab517f9:0"
+                .to_string()
+                .try_into()
+                .unwrap(),
+        },
+        payload_hash: [0; 32],
+    }];
+
+    // TODO: verify_message_statuses should be called through gateway, like verify_messages
+    let (poll_id, expiry) = test_utils::verify_messages(
+        &mut protocol.app,
+        &xrpl.gateway_address,
+        &proof_msgs
+    );
+    test_utils::vote_success_for_all_messages(
+        &mut protocol.app,
+        &xrpl.voting_verifier_address,
+        1,
+        &new_workers,
+        poll_id,
+    );
+    test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
+    test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier_address, poll_id);
+
+    test_utils::xrpl_update_tx_status(
+        &mut protocol.app,
+        &xrpl.multisig_prover_address,
+        initial_workers.iter().map(|w| w.addr.clone()).collect(),
+        session_id,
+        proof_msgs[0].cc_id.clone(),
+        VerificationStatus::SucceededOnChain
+    );
+
+    let new_worker_set =
+        test_utils::get_worker_set(&mut protocol.app, &xrpl.multisig_prover_address);
 
     assert_eq!(new_worker_set, expected_new_worker_set);
 }

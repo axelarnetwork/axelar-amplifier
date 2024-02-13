@@ -20,6 +20,7 @@ pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
 
     Ok(Multisig {
         state: session.state,
+        expires_at: session.expires_at,
         quorum: worker_set.threshold,
         signers: signers_with_sigs,
     })
