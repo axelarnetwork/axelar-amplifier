@@ -10,7 +10,7 @@ use crate::{
     state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, msg::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError,
 };
 
-pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>, multisig_session_id: &Uint64) -> Result<XRPLSignedTransaction, ContractError> {
+pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
     let xrpl_signers: Vec<XRPLSigner> = axelar_signers
         .iter()
         .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
@@ -82,7 +82,7 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
                 .map(|(signer, signature)| (signer.clone(), signature.clone().unwrap()))
                 .collect();
 
-            let signed_tx = make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers, multisig_session_id)?;
+            let signed_tx = make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
             let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
             GetProofResponse::Completed { unsigned_tx_hash, tx_blob }
         }
