@@ -24,7 +24,7 @@ use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
-use xrpl_multisig_prover::xrpl_multisig::{public_key_to_xrpl_address, decode_address, xrpl_hash, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING};
+use xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address;
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -166,13 +166,11 @@ where
 
         match pub_keys.get(&self.worker) {
             Some(pub_key) => {
-                let pub_key_hex = HexBinary::from_hex(hex::encode_upper(pub_key.to_bytes()).as_str()).unwrap();
-                let multisig_pub_key = multisig::key::PublicKey::try_from((multisig::key::KeyType::Ecdsa, pub_key_hex)).unwrap();
+                let pub_key_hex = HexBinary::from(pub_key.to_bytes());
+                let multisig_pub_key = multisig::key::PublicKey::try_from((multisig::key::KeyType::Ecdsa, pub_key_hex)).map_err(|_e| Error::PublicKey)?;
                 let xrpl_address = public_key_to_xrpl_address(&multisig_pub_key);
 
-                let serialized_signer_xrpl_address = decode_address(&xrpl_address).unwrap();
-                let msg = &[unsigned_tx.to_vec(), serialized_signer_xrpl_address.into()].concat();
-                let msg_digest = MessageDigest::from(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg));
+                let msg_digest = MessageDigest::from(xrpl_multisig_prover::xrpl_multisig::message_to_sign(&unsigned_tx, &xrpl_address).map_err(|_e| Error::MessageToSign)?);
 
                 let signature = self
                     .signer

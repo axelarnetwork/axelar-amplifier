@@ -355,10 +355,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetProof {
             multisig_session_id,
         } => to_binary(&query::get_proof(deps.storage, querier, &multisig_session_id)?),
-        QueryMsg::GetMessageToSign {
-            multisig_session_id,
-            signer_xrpl_address,
-         } => to_binary(&query::get_message_to_sign(deps.storage, &multisig_session_id, &signer_xrpl_address)?),
         QueryMsg::VerifyMessage {
             multisig_session_id,
             public_key,
