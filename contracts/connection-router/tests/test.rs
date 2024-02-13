@@ -73,21 +73,25 @@ fn register_chain(config: &mut TestConfig, chain: &Chain) {
 fn generate_messages(
     src_chain: &Chain,
     dest_chain: &Chain,
-    nonce: usize,
+    nonce: &mut usize,
     count: usize,
 ) -> Vec<Message> {
-    (nonce..(nonce + count))
-        .map(|nonce| Message {
+    let mut msgs = vec![];
+    for x in 0..count {
+        *nonce = *nonce + 1;
+        let id = format!("tx_id:{}", nonce);
+        msgs.push(Message {
             cc_id: CrossChainId {
-                id: format!("tx_id:{}", nonce).parse().unwrap(),
+                id: id.parse().unwrap(),
                 chain: src_chain.chain_name.clone(),
             },
             destination_address: "idc".parse().unwrap(),
             destination_chain: dest_chain.chain_name.clone(),
             source_address: "idc".parse().unwrap(),
-            payload_hash: [nonce as u8; 32],
+            payload_hash: [x as u8; 32],
         })
-        .collect()
+    }
+    msgs
 }
 
 // tests that each message is properly delivered
@@ -101,27 +105,27 @@ fn route() {
     let _ = register_chain(&mut config, &polygon);
 
     let nonce: &mut usize = &mut 0;
-    let msgs = generate_messages(&eth, &polygon, *nonce, 255);
+    let messages = generate_messages(&eth, &polygon, nonce, 255);
 
     let _ = config
         .connection_router
         .execute(
             &mut config.app,
             eth.gateway.clone(),
-            &ExecuteMsg::RouteMessages(msgs.clone()),
+            &ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap();
 
-    let msgs_ret = mock::get_gateway_messages(&mut config.app, polygon.gateway, &msgs);
+    let messages_ret = mock::get_gateway_messages(&mut config.app, polygon.gateway, &messages);
 
-    assert_eq!(msgs.len(), msgs_ret.len());
-    assert_eq!(msgs, msgs_ret);
+    assert_eq!(messages.len(), messages_ret.len());
+    assert_eq!(messages, messages_ret);
 
     // try to route twice
     let res = config.app.execute_contract(
         eth.gateway.clone(),
         config.connection_router.contract_addr.clone(),
-        &ExecuteMsg::RouteMessages(msgs.clone()),
+        &ExecuteMsg::RouteMessages(messages.clone()),
         &[],
     );
 
