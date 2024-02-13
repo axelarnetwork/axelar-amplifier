@@ -460,6 +460,6 @@ fn sort_msgs_by_status(
 fn duplicate_msgs(msgs: Vec<Message>, amount: usize) -> Vec<Message> {
     msgs.clone()
         .into_iter()
-        .chain(msgs.into_iter().take(amount).cloned())
+        .chain(msgs.into_iter().take(amount))
         .collect()
 }
