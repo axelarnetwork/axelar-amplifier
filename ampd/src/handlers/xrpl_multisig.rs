@@ -24,7 +24,7 @@ use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
-use xrpl_multisig_prover::xrpl_multisig::{public_key_to_xrpl_address, decode_address, xrpl_hash};
+use xrpl_multisig_prover::xrpl_multisig::{public_key_to_xrpl_address, decode_address, xrpl_hash, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING};
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -172,7 +172,7 @@ where
 
                 let serialized_signer_xrpl_address = decode_address(&xrpl_address).unwrap();
                 let msg = &[unsigned_tx.to_vec(), serialized_signer_xrpl_address.into()].concat();
-                let msg_digest = MessageDigest::from(xrpl_hash(msg));
+                let msg_digest = MessageDigest::from(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg));
 
                 let signature = self
                     .signer
@@ -300,7 +300,7 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        let (tx, rx) = watch::channel(latest_block_height);
+        let (_tx, rx) = watch::channel(latest_block_height);
 
         Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }

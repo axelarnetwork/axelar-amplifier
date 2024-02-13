@@ -6,8 +6,10 @@ use multisig::key::PublicKey;
 // TODO: remove dependency?
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 
+use crate::msg::GetMessageToSignResponse;
+use crate::types::TxHash;
 use crate::{
-    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize}, querier::Querier, msg::{GetProofResponse, GetMessageToSignResponse}, types::TransactionStatus, error::ContractError,
+    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING}, querier::Querier, msg::GetProofResponse, types::TransactionStatus, error::ContractError,
 };
 
 pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
@@ -53,11 +55,11 @@ pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, 
     let serialized_tx = &[serialized_unsigned_tx, serialized_signer_xrpl_address.to_vec()].concat();
 
     Ok(GetMessageToSignResponse {
-        tx_hash: xrpl_multisig::xrpl_hash(serialized_tx).into()
+        tx_hash: xrpl_multisig::xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, serialized_tx).into()
     })
 }
 
-pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: PublicKey, signature: Signature) -> StdResult<bool> {
+pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: &PublicKey, signature: &Signature) -> StdResult<bool> {
     let signer_xrpl_address = xrpl_multisig::public_key_to_xrpl_address(&public_key);
     let m = get_message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
 

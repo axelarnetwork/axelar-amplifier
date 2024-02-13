@@ -374,6 +374,7 @@ pub fn decode_address(address: &String) -> Result<[u8; 20], ContractError> {
 }
 
 pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
+pub const HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
 
 pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, ContractError> {
     let encoded_unsigned_tx = serde_json::to_vec(unsigned_tx).map_err(|_| ContractError::FailedToSerialize)?;
@@ -385,8 +386,7 @@ pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, 
 }
 
 pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    let msg = [HASH_PREFIX_SIGNED_TRANSACTION.to_vec(), encoded_signed_tx].concat();
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(msg.as_slice()));
+    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()));
     let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
     Ok(tx_hash)
 }
@@ -458,18 +458,13 @@ impl XRPLSerialize for XRPLSignedTransaction {
         });
         let mut obj = XRPLObject::try_from(&self.unsigned_tx)?;
         obj.add_field(3, &XRPLArray{ field_code: 16, items: sorted_signers })?;
-
         obj.xrpl_serialize()
     }
 }
 
 impl XRPLSerialize for XRPLUnsignedTx {
     fn xrpl_serialize(self: &XRPLUnsignedTx) -> Result<Vec<u8>, ContractError> {
-        let obj = XRPLObject::try_from(self)?;
-
-        let mut result = Vec::from((0x534D5400 as u32).to_be_bytes()); // prefix for multisignature signing
-        result.extend(obj.xrpl_serialize()?);
-        Ok(result)
+        XRPLObject::try_from(self)?.xrpl_serialize()
     }
 }
 
@@ -641,8 +636,13 @@ impl XRPLSerialize for XRPLObject {
     }
 }
 
-pub fn xrpl_hash(tx_blob: &[u8]) -> [u8; 32] {
-    let hash: [u8; 64] = Sha512::digest(tx_blob).into();
+pub fn xrpl_hash(
+    prefix: [u8; 4],
+    tx_blob: &[u8],
+) -> [u8; 32] {
+    let mut hasher = Sha512::new_with_prefix(prefix);
+    hasher.update(tx_blob);
+    let hash: [u8; 64] = hasher.finalize().into();
     let mut half_hash: [u8; 32] = [0; 32];
     half_hash.copy_from_slice(&hash[..32]);
     half_hash
@@ -1149,7 +1149,7 @@ mod tests {
         };
         let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize().unwrap();
         assert_eq!(
-            "534D54001200002200000000240000000161D44BF89AC2A40B800000000000000000000000004A50590000000000000000000000000000000000000000000000000168400000000000000C730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
+            "1200002200000000240000000161D44BF89AC2A40B800000000000000000000000004A50590000000000000000000000000000000000000000000000000168400000000000000C730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
             hex::encode_upper(encoded_unsigned_tx)
         );
     }
@@ -1166,7 +1166,7 @@ mod tests {
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize().unwrap();
         assert_eq!(
-            "534D5400120000220000000024000000016140000000000003E868400000000000000A730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
+            "120000220000000024000000016140000000000003E868400000000000000A730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
             hex::encode_upper(encoded_unsigned_tx)
         );
 
@@ -1180,7 +1180,7 @@ mod tests {
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize().unwrap();
         assert_eq!(
-            "534D54001200002200000000240297B79361400000003B9ACA0068400000000000000373008114245409103F1B06F22FBCED389AAE0EFCE2F6689A83146919924835FA51D3991CDF5CF4505781227686E6",
+            "1200002200000000240297B79361400000003B9ACA0068400000000000000373008114245409103F1B06F22FBCED389AAE0EFCE2F6689A83146919924835FA51D3991CDF5CF4505781227686E6",
             hex::encode_upper(encoded_unsigned_tx)
         );
     }

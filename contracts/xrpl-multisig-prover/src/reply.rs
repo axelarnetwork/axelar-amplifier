@@ -1,12 +1,16 @@
-use cosmwasm_std::{from_binary, DepsMut, Reply, Response, Uint64};
+use std::collections::HashMap;
+
+use cosmwasm_std::{from_binary, Attribute, DepsMut, HexBinary, Reply, Response, SubMsgResult, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
+use serde_json::from_str;
+use std::str::FromStr;
 
 use crate::{
-    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_TX, REPLY_MESSAGE_ID, REPLY_TX_HASH}
+    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_TX, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO}, xrpl_multisig::XRPLSerialize
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
-    match parse_reply_execute_data(reply) {
+    match parse_reply_execute_data(reply.clone()) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             let tx_hash = REPLY_TX_HASH.load(deps.storage)?;
 
@@ -32,13 +36,29 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 None => (),
             }
 
+            let tx_info = TRANSACTION_INFO.load(deps.storage, tx_hash.clone())?;
+
+            let res = reply.result.unwrap();
+
+            let evt_attributes: Vec<Attribute> = res.events
+                .into_iter()
+                .filter(|e| e.ty == "signing_started")
+                .map(|e| e.attributes)
+                .flatten()
+                .filter(|a| a.key != "msg")
+                .collect();
+
+            let evt = cosmwasm_std::Event::new("xrpl_signing_started")
+                .add_attributes(evt_attributes)
+                .add_attribute("unsigned_tx", HexBinary::from(tx_info.unsigned_contents.xrpl_serialize()?).to_hex());
+
             Ok(Response::new().add_event(
                 Event::ProofUnderConstruction {
                     tx_hash,
                     multisig_session_id,
                 }
                 .into(),
-            ))
+            ).add_event(evt))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),

@@ -8,10 +8,16 @@ use cosmwasm_std::{
     entry_point, Storage, wasm_execute, SubMsg, Reply,
     DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_binary, Deps, StdResult, Binary, Addr, HexBinary,
 };
+
 use multisig::types::MultisigState;
 
 use crate::{
-    axelar_workers, error::ContractError, msg::{ExecuteMsg, QueryMsg}, querier::{Querier, XRPL_CHAIN_NAME}, query, reply, state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_TX, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_MESSAGE_ID, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO}, types::*, xrpl_multisig::{self, XRPLPaymentAmount, XRPLSerialize, XRPLTokenAmount}
+    error::ContractError,
+    state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MULTISIG_SESSION_TX, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO, REPLY_MESSAGE_ID, MESSAGE_ID_TO_MULTISIG_SESSION_ID},
+    msg::{ExecuteMsg, QueryMsg},
+    reply,
+    types::*,
+    xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount, XRPLSerialize}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
@@ -352,7 +358,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetMessageToSign {
             multisig_session_id,
             signer_xrpl_address,
-        } => to_binary(&query::get_message_to_sign(deps.storage, &multisig_session_id, &signer_xrpl_address)?),
+         } => to_binary(&query::get_message_to_sign(deps.storage, &multisig_session_id, &signer_xrpl_address)?),
+        QueryMsg::VerifyMessage {
+            multisig_session_id,
+            public_key,
+            signature
+        } => to_binary(&query::verify_message(deps.storage, &multisig_session_id, &public_key, &signature)?),
         QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps.storage)?),
     }
 }

@@ -1,7 +1,8 @@
-use connection_router::{state::CrossChainId, Message};
+use connection_router::state::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64, Addr};
 use axelar_wasm_std::VerificationStatus;
+use multisig::key::{PublicKey, Signature};
 
 use crate::types::{TxHash, XRPLToken};
 
@@ -13,6 +14,9 @@ pub enum QueryMsg {
 
     #[returns(GetMessageToSignResponse)]
     GetMessageToSign { multisig_session_id: Uint64, signer_xrpl_address: String },
+
+    #[returns(bool)]
+    VerifyMessage { multisig_session_id: Uint64, public_key: PublicKey, signature: Signature },
 
     #[returns(multisig::worker_set::WorkerSet)]
     GetWorkerSet,
