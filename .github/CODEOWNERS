@@ -2,3 +2,6 @@
 # Each line is a file pattern followed by one or more owners.
 
 * @axelarnetwork/core
+.github/workflows/* @axelarnetwork/devops
+.github/actions/* @axelarnetwork/devops
+**/Dockerfile @axelarnetwork/devops
