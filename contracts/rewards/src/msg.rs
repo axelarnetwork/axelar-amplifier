@@ -52,9 +52,7 @@ pub enum ExecuteMsg {
 
     /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
-    AddRewards {
-        pool_id: PoolId,
-    },
+    AddRewards { pool_id: PoolId },
 
     /// Overwrites the currently stored params. Callable only by governance.
     UpdateParams { params: Params },
