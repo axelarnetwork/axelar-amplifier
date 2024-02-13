@@ -1,0 +1,30 @@
+name: Amplifier - Build Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Github tag to release binaries for (reusing an existing tag will make the pipeline fail)
+        required: true
+        default: latest
+
+jobs:
+  release-binaries:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        arch: [amd64, arm64]
+
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-2
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ghwf-${{ github.event.repository.name }}
