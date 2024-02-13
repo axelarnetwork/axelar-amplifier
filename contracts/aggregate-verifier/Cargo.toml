@@ -42,13 +42,13 @@ cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw-utils = "1.0.1"
 error-stack = { workspace = true }
+itertools = { workspace = true }
 report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
-itertools = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
