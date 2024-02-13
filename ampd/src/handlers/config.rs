@@ -33,7 +33,6 @@ pub enum Config {
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
-        message_provider: Option<TMAddress>,
     },
     XRPLMultisigSigner {
         cosmwasm_contract: TMAddress,

@@ -77,7 +77,6 @@ where
     broadcaster: B,
     signer: SharableEcdsaClient,
     latest_block_height: Receiver<u64>,
-    message_provider: Option<TMAddress>,
 }
 
 impl<B> Handler<B>
@@ -90,7 +89,6 @@ where
         broadcaster: B,
         signer: SharableEcdsaClient,
         latest_block_height: Receiver<u64>,
-        message_provider: Option<TMAddress>,
     ) -> Self {
         Self {
             worker,
@@ -98,7 +96,6 @@ where
             broadcaster,
             signer,
             latest_block_height,
-            message_provider
         }
     }
 
@@ -165,10 +162,6 @@ where
                 "skipping expired signing session"
             );
             return Ok(());
-        }
-
-        if let Some(msg_provider_address) = &self.message_provider {
-            // call contract to get message to sign
         }
 
         match pub_keys.get(&self.worker) {
@@ -290,7 +283,6 @@ mod test {
         multisig: TMAddress,
         signer: SharableEcdsaClient,
         latest_block_height: u64,
-        message_provider: Option<TMAddress>,
     ) -> Handler<QueuedBroadcasterClient> {
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
@@ -302,7 +294,7 @@ mod test {
 
         let (tx, rx) = watch::channel(latest_block_height);
 
-        Handler::new(worker, multisig, broadcaster.client(), signer, rx, message_provider)
+        Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
 
     #[test]
@@ -372,7 +364,6 @@ mod test {
             rand_account(),
             SharableEcdsaClient::new(client),
             100u64,
-            None
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());
@@ -390,7 +381,6 @@ mod test {
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             100u64,
-            None
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());
@@ -411,7 +401,6 @@ mod test {
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             99u64,
-            None
         );
 
         assert!(matches!(
@@ -435,7 +424,6 @@ mod test {
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             101u64,
-            None
         );
 
         assert!(handler.handle(&signing_started_event()).await.is_ok());

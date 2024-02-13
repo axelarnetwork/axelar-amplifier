@@ -283,7 +283,6 @@ mod tests {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
-                    message_provider: None,
                 },
                 HandlerConfig::SuiMsgVerifier {
                     cosmwasm_contract: TMAddress::from(
