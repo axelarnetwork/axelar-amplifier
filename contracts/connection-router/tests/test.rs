@@ -57,50 +57,37 @@ fn make_chain(name: &str, config: &mut TestConfig) -> Chain {
 }
 
 fn register_chain(config: &mut TestConfig, chain: &Chain) {
-    let _ = config.connection_router.execute(
-        &mut config.app,
-        config.governance_address.clone(),
-        &ExecuteMsg::RegisterChain {
-            chain: chain.chain_name.clone(),
-            gateway_address: chain.gateway.to_string(),
-        },
-    );
-    // let _ = config
-    //     .app
-    //     .execute_contract(
-    //         config.governance_address.clone(),
-    //         config.contract_address.clone(),
-    //         &ExecuteMsg::RegisterChain {
-    //             chain: chain.chain_name.clone(),
-    //             gateway_address: chain.gateway.to_string(),
-    //         },
-    //         &[],
-    //     )
-    //     .unwrap();
+    config
+        .connection_router
+        .execute(
+            &mut config.app,
+            config.governance_address.clone(),
+            &ExecuteMsg::RegisterChain {
+                chain: chain.chain_name.clone(),
+                gateway_address: chain.gateway.to_string(),
+            },
+        )
+        .unwrap();
 }
 
 fn generate_messages(
     src_chain: &Chain,
     dest_chain: &Chain,
-    nonce: &mut usize,
+    nonce: usize,
     count: usize,
 ) -> Vec<Message> {
-    let mut msgs = vec![];
-    for x in 0..count {
-        *nonce = *nonce + 1;
-        let id = format!("tx_id:{}", nonce);
-        msgs.push(Message {
+    (nonce..(nonce + count))
+        .map(|nonce| Message {
             cc_id: CrossChainId {
-                id: id.parse().unwrap(),
+                id: format!("tx_id:{}", nonce).parse().unwrap(),
                 chain: src_chain.chain_name.clone(),
             },
             destination_address: "idc".parse().unwrap(),
             destination_chain: dest_chain.chain_name.clone(),
             source_address: "idc".parse().unwrap(),
-            payload_hash: [x as u8; 32],
+            payload_hash: [nonce as u8; 32],
         })
-    }
-    msgs
+        .collect()
 }
 
 // tests that each message is properly delivered
@@ -110,11 +97,11 @@ fn route() {
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
 
-    register_chain(&mut config, &eth);
-    register_chain(&mut config, &polygon);
+    let _ = register_chain(&mut config, &eth);
+    let _ = register_chain(&mut config, &polygon);
 
     let nonce: &mut usize = &mut 0;
-    let msgs = generate_messages(&eth, &polygon, nonce, 255);
+    let msgs = generate_messages(&eth, &polygon, *nonce, 255);
 
     let _ = config
         .connection_router

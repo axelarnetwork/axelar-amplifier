@@ -38,7 +38,6 @@ impl ConnectionRouterContract {
 impl Contract for ConnectionRouterContract {
     type QMsg = QueryMsg;
     type ExMsg = ExecuteMsg;
-    type Err = axelar_wasm_std::ContractError;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()
