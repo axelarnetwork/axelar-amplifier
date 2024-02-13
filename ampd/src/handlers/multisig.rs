@@ -28,8 +28,6 @@ use crate::types::TMAddress;
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
 struct SigningStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     session_id: u64,
     #[serde(deserialize_with = "deserialize_public_keys")]
     pub_keys: HashMap<TMAddress, PublicKey>,
@@ -132,8 +130,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> error_stack::Result<(), Error> {
+        if !event.is_from_contract(self.multisig.as_ref()) {
+            return Ok(());
+        }
+
         let SigningStartedEvent {
-            contract_address,
             session_id,
             pub_keys,
             msg,
@@ -144,10 +145,6 @@ where
             }
             result => result.change_context(DeserializeEvent)?,
         };
-
-        if self.multisig != contract_address {
-            return Ok(());
-        }
 
         info!(
             session_id = session_id,
@@ -278,6 +275,38 @@ mod test {
         .unwrap()
     }
 
+    // this returns an event that is named SigningStarted, but some expected fields are missing
+    fn signing_started_event_with_missing_fields(contract_address: &str) -> events::Event {
+        let pub_keys = (0..10)
+            .map(|_| (rand_account().to_string(), rand_public_key()))
+            .collect::<HashMap<String, PublicKey>>();
+
+        let poll_started = SigningStarted {
+            session_id: Uint64::one(),
+            worker_set_id: "worker_set_id".to_string(),
+            pub_keys,
+            msg: MsgToSign::unchecked(rand_message()),
+            chain_name: rand_chain_name(),
+            expires_at: 100u64,
+        };
+
+        let mut event: cosmwasm_std::Event = poll_started.into();
+        event.ty = format!("wasm-{}", event.ty);
+        event = event.add_attribute("_contract_address", contract_address);
+        event.attributes.retain(|attr| attr.key != "expires_at");
+
+        events::Event::try_from(abci::Event::new(
+            event.ty,
+            event
+                .attributes
+                .into_iter()
+                .map(|cosmwasm_std::Attribute { key, value }| {
+                    (STANDARD.encode(key), STANDARD.encode(value))
+                }),
+        ))
+        .unwrap()
+    }
+
     fn get_handler(
         worker: TMAddress,
         multisig: TMAddress,
@@ -292,7 +321,7 @@ mod test {
         let (broadcaster, _) =
             QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
 
-        let (tx, rx) = watch::channel(latest_block_height);
+        let (_, rx) = watch::channel(latest_block_height);
 
         Handler::new(worker, multisig, broadcaster.client(), signer, rx)
     }
@@ -353,11 +382,44 @@ mod test {
     }
 
     #[tokio::test]
+    async fn should_not_handle_event_with_missing_fields_if_multisig_address_does_not_match() {
+        let client = MockEcdsaClient::new();
+
+        let handler = get_handler(
+            rand_account(),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            SharableEcdsaClient::new(client),
+            100u64,
+        );
+
+        assert!(handler
+            .handle(&signing_started_event_with_missing_fields(
+                &rand_account().to_string()
+            ))
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn should_error_on_event_with_missing_fields_if_multisig_address_does_match() {
+        let client = MockEcdsaClient::new();
+
+        let handler = get_handler(
+            rand_account(),
+            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            SharableEcdsaClient::new(client),
+            100u64,
+        );
+
+        assert!(handler
+            .handle(&signing_started_event_with_missing_fields(MULTISIG_ADDRESS))
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
     async fn should_not_handle_event_if_multisig_address_does_not_match() {
-        let mut client = MockEcdsaClient::new();
-        client
-            .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+        let client = MockEcdsaClient::new();
 
         let handler = get_handler(
             rand_account(),
