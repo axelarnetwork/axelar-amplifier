@@ -141,14 +141,14 @@ fn xrpl_ticket_create_can_be_proven() {
     ));
     println!("TicketCreate proof: {:?}", proof);
 
-    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let xrpl_multisig_address = "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(); // TODO: fix duplicate definition
     let proof_msgs = vec![Message {
         destination_chain: xrpl.chain_name.clone(),
         source_address: Address::try_from(xrpl_multisig_address.clone()).unwrap(),
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "3da9f142fdc0d570d040dde73de20a0625a549fc70cc564849dbc746b5c6469a:0"
+            id: "9c2f220fe5ee650b3cd10b0a72af1206b3912afce8376214234354180198c5d5:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -262,14 +262,14 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         xrpl_multisig_prover::msg::GetProofResponse::Completed { .. }
     ));
 
-    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let xrpl_multisig_address = "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(); // TODO: fix duplicate definition
     let proof_msgs = vec![Message {
         destination_chain: xrpl.chain_name.clone(),
         source_address: Address::try_from(xrpl_multisig_address).unwrap(),
         destination_address: Address::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".to_string()).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "8108b96bdbc5ff44fd868d973bdcaae3f38e2fe3906a33a8dc1d881b20498ff7:0"
+            id: "3012df8615c9f1d8ac3bba050bf4fcbf3981156962108ca8751e12146ec4b584:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
