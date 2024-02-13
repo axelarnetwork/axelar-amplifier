@@ -1,9 +1,24 @@
 # Service Registry
 
-The service registry keeps track of the pool of workers that are related to each service.
+The service registry keeps track of the pool of workers that vote and sign for each chain.
 The core functionalities, such as registering a new service, worker authorization and un-authorization can only be called 
-from a governance address. To become active and be eligible to participate in voting for a specific service, 
-each worker should first be authorized and the bond enough stake. Service registry is used by ampd, verifier, and multisig prover.
+from a governance address. Worker bonding and unbonding, as well as registering support for specific chains, are called by the worker themselves. 
+To become active and be eligible to participate in voting for a specific chain,
+each worker should first be authorized and bond enough stake, and then register support for that chain.
+Service registry is used by ampd, verifier, and multisig prover.
+
+The term `service` refers to an upper-level entity that includes several 
+`chains`. The difference is in how they are related to each other, which is 
+hierarchical; a service is like an umbrella that regulates the activities of 
+several chains that fall under its purview. The service defines common 
+parameters, such as worker requirements, bonding details, and unbonding periods, which are applicable to all associated chains. 
+Thus, we use a single instance of service registry to organize and coordinate activities across all chains.
+
+
+
+
+
+
 
 
 ## Interface
@@ -64,16 +79,11 @@ pub enum ExecuteMsg {
 flowchart TD
 subgraph Axelar
     Vr{"Voting Verifier"}
-    Pr{"Prover"}
     R{"Service Registry"}
 end
 OC{"Workers"}
 
 Vr -- "GetActiveWorkers" --> R
-Pr -- "GetActiveWorkers" --> R
-R -- "Vec[Worker]" --> Vr
-R -- "Vec[Worker]" --> Pr
-OC -- "Vote(poll_id, votes)" --> Vr
 OC -- "De/RegisterChainSupport" --> R
 OC -- "Un/BondWorker" --> R
 OC -- "ClaimStake" --> R
@@ -94,19 +104,17 @@ actor Worker
 Governance->>+Service Registry: Register Service
 Governance->>+Service Registry: Authorize Workers
 
-
-Worker->>+Service Registry: Register Chain Support
 Worker->>+Service Registry: Bond Worker
-Worker->>+Service Registry: Claim Stake
+Worker->>+Service Registry: Register Chain Support
 
-
-Service Registry->>Worker: returns BankMsg with amount set to released_bond
 ```
 
 1. The Governance registers a new service by providing the necessary parameters for the service.
 2. Governance is also responsible for authorizing workers to join the service by sending an `Authorize Workers` message.
-3. Workers register support for specific chains within the service by specifying service name and chain names.
-4. Workers bond to the service, providing stake, by sending a `Bond Worker` message with appropriate funds denominator.
-5. Workers can claim released stake with `Claim Stake` message, and the Service Registry responds with a BankMsg containing the released bond.
+3. Workers bond to the service, providing stake, by sending a `Bond Worker` message with appropriate funds denominator. Note that authorizing and bonding can be done in any order.
+4. Workers register support for specific chains within the service by specifying service name and chain names.
 
 
+### Notes
+1. For the process of signing, workers need to register their public key in advance to be able to participate,
+ the details of which are available in [`multisig documentation`](multisig.md).
