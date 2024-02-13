@@ -56,7 +56,7 @@ jobs:
       - name: build and sign darwin binaries
         env:
           SEMVER: ${{ github.event.inputs.tag }}
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-12'
         run: |
           OS="darwin"
           ARCH="${{ matrix.arch }}"
@@ -79,7 +79,7 @@ jobs:
       - name: build and sign linux binaries
         env:
           SEMVER: ${{ github.event.inputs.tag }}
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           OS="linux"
           ARCH="${{ matrix.arch }}"
