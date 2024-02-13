@@ -1043,7 +1043,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
             verifier_address: voting_verifier_address.to_string(),
         },
     );
-    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let xrpl_multisig_address = "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(); // TODO: fix duplicate definition
     let multisig_prover_address = instantiate_xrpl_multisig_prover(
         &mut protocol.app,
         xrpl_multisig_prover::contract::InstantiateMsg {
@@ -1057,11 +1057,11 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
             xrpl_fee: 30,
             xrpl_multisig_address: xrpl_multisig_address.clone(),
             ticket_count_threshold: 1,
-            next_sequence_number: 45205906,
-            last_assigned_ticket_number: 45205895,
+            next_sequence_number: 44218446,
+            last_assigned_ticket_number: 44218195,
             available_tickets: vec![
                 vec![],
-                (45205896..45205907).collect::<Vec<_>>()
+                (44218195..44218200).collect::<Vec<_>>()
             ].concat(),
         },
     );

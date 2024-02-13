@@ -191,14 +191,14 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
     ));
     println!("SignerListSet proof: {:?}", proof);
 
-    let xrpl_multisig_address = "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(); // TODO: fix duplicate definition
+    let xrpl_multisig_address = "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".to_string(); // TODO: fix duplicate definition
     let proof_msgs = vec![Message {
         destination_chain: xrpl.chain_name.clone(),
         source_address: Address::try_from(xrpl_multisig_address.clone()).unwrap(),
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "cc9b3b3c7561a14449aa4baec9d1e72ea78068a74c5bf77d0c70629d53a46bd5:0"
+            id: "fbf428da41656ca3aef36287bfcb6d8491daa76f20c201c4a60172450ab517f9:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
