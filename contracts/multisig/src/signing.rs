@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use axelar_wasm_std::FnExt;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
+use signature_verifier_api::client::SignatureVerifier;
 
 use crate::{
     key::{PublicKey, Signature},
@@ -17,16 +19,24 @@ pub struct SigningSession {
     pub msg: MsgToSign,
     pub state: MultisigState,
     pub expires_at: u64,
+    pub sig_verifier: Option<Addr>,
 }
 
 impl SigningSession {
-    pub fn new(session_id: Uint64, worker_set_id: String, msg: MsgToSign, expires_at: u64) -> Self {
+    pub fn new(
+        session_id: Uint64,
+        worker_set_id: String,
+        msg: MsgToSign,
+        expires_at: u64,
+        sig_verifier: Option<Addr>,
+    ) -> Self {
         Self {
             id: session_id,
             worker_set_id,
             msg,
             state: MultisigState::Pending,
             expires_at,
+            sig_verifier,
         }
     }
 
@@ -52,12 +62,26 @@ pub fn validate_session_signature(
     signature: &Signature,
     pub_key: &PublicKey,
     block_height: u64,
+    sig_verifier: Option<SignatureVerifier>,
 ) -> Result<(), ContractError> {
     if session.expires_at < block_height {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
+
+    sig_verifier.map_or_else(
+        || signature.verify(&session.msg, pub_key),
+        |verifier| {
+            verifier.verify_signature(
+                signature.as_ref().into(),
+                session.msg.as_ref().into(),
+                pub_key.as_ref().into(),
+                signer.to_string(),
+                session.id,
+            )
+        },
+    )?;
 
     if !signature.verify(&session.msg, pub_key)? {
         return Err(ContractError::InvalidSignature {
@@ -113,8 +137,13 @@ mod tests {
 
         let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
         let expires_at = 12345;
-        let session =
-            SigningSession::new(Uint64::one(), worker_set_id, message.clone(), expires_at);
+        let session = SigningSession::new(
+            Uint64::one(),
+            worker_set_id,
+            message.clone(),
+            expires_at,
+            None,
+        );
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
@@ -146,8 +175,13 @@ mod tests {
 
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
         let expires_at = 12345;
-        let session =
-            SigningSession::new(Uint64::one(), worker_set_id, message.clone(), expires_at);
+        let session = SigningSession::new(
+            Uint64::one(),
+            worker_set_id,
+            message.clone(),
+            expires_at,
+            None,
+        );
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
