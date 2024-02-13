@@ -2,6 +2,7 @@
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -12,7 +13,7 @@ name: Basic
 jobs:
   test:
     name: Test Suite
-    runs-on: ubuntu-8-core-32-gb
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
@@ -27,7 +28,7 @@ jobs:
         uses: arduino/setup-protoc@v2
 
       - name: Cache build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
 
@@ -42,7 +43,7 @@ jobs:
 
   cosmwasm-compilation:
     name: Cosmwasm Compilation
-    runs-on: ubuntu-8-core-32-gb
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +56,7 @@ jobs:
           override: true
 
       - name: Cache build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
 
@@ -78,7 +79,7 @@ jobs:
 
   lints:
     name: Lints
-    runs-on: ubuntu-8-core-32-gb
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
@@ -96,7 +97,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
 
