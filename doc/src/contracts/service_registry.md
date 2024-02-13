@@ -56,6 +56,7 @@ pub enum ExecuteMsg {
         service_name: String,
     },
 }
+
 ```
 
 ## Service Registry graph
@@ -77,3 +78,35 @@ OC -- "De/RegisterChainSupport" --> R
 OC -- "Un/BondWorker" --> R
 OC -- "ClaimStake" --> R
 ```
+
+
+## Service Registry sequence diagram
+
+```mermaid
+sequenceDiagram
+autonumber
+box LightYellow Axelar
+    participant Service Registry
+end
+actor Governance
+actor Worker
+
+Governance->>+Service Registry: Register Service
+Governance->>+Service Registry: Authorize Workers
+
+
+Worker->>+Service Registry: Register Chain Support
+Worker->>+Service Registry: Bond Worker
+Worker->>+Service Registry: Claim Stake
+
+
+Service Registry->>Worker: returns BankMsg with amount set to released_bond
+```
+
+1. The Governance registers a new service by providing the necessary parameters for the service.
+2. Governance is also responsible for authorizing workers to join the service by sending an `Authorize Workers` message.
+3. Workers register support for specific chains within the service by specifying service name and chain names.
+4. Workers bond to the service, providing stake, by sending a `Bond Worker` message with appropriate funds denominator.
+5. Workers can claim released stake with `Claim Stake` message, and the Service Registry responds with a BankMsg containing the released bond.
+
+
