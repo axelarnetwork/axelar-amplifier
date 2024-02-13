@@ -70,11 +70,9 @@ pub fn execute(
 
             Ok(Response::new())
         }
-        ExecuteMsg::AddRewards {
-            chain_name,
-            contract_address,
-        } => {
-            let contract_address = deps.api.addr_validate(&contract_address)?;
+        ExecuteMsg::AddRewards { pool_id } => {
+            deps.api.addr_validate(pool_id.contract.as_str())?;
+
             let mut contract = Contract::new(deps);
             let amount = info
                 .funds
@@ -84,11 +82,6 @@ pub fn execute(
                 .ok_or(ContractError::WrongDenom)?
                 .amount;
 
-            let pool_id = PoolId {
-                chain_name,
-                contract: contract_address,
-            };
-
             contract.add_rewards(
                 pool_id,
                 nonempty::Uint128::try_from(amount).change_context(ContractError::ZeroRewards)?,
@@ -97,18 +90,12 @@ pub fn execute(
             Ok(Response::new())
         }
         ExecuteMsg::DistributeRewards {
-            chain_name,
-            contract_address,
+            pool_id,
             epoch_count,
         } => {
-            let contract_address = deps.api.addr_validate(&contract_address)?;
+            deps.api.addr_validate(pool_id.contract.as_str())?;
+
             let mut contract = Contract::new(deps);
-
-            let pool_id = PoolId {
-                chain_name,
-                contract: contract_address.clone(),
-            };
-
             let rewards = contract
                 .distribute_rewards(pool_id, env.block.height, epoch_count)
                 .map_err(axelar_wasm_std::ContractError::from)?;
@@ -141,6 +128,7 @@ mod tests {
     use cw_multi_test::{App, ContractWrapper, Executor};
 
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg};
+    use crate::state::PoolId;
 
     use super::{execute, instantiate};
 
@@ -198,8 +186,10 @@ mod tests {
             user.clone(),
             contract_address.clone(),
             &ExecuteMsg::AddRewards {
-                chain_name: chain_name.clone(),
-                contract_address: worker_contract.to_string(),
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: worker_contract.clone(),
+                },
             },
             &coins(200, AXL_DENOMINATION),
         );
@@ -253,8 +243,10 @@ mod tests {
             user,
             contract_address.clone(),
             &ExecuteMsg::DistributeRewards {
-                chain_name: chain_name.clone(),
-                contract_address: worker_contract.to_string(),
+                pool_id: PoolId {
+                    chain_name: chain_name.clone(),
+                    contract: worker_contract.clone(),
+                },
                 epoch_count: None,
             },
             &[],

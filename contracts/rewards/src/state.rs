@@ -65,12 +65,12 @@ impl<'a> Prefixer<'a> for PoolId {
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct TallyKey {
+pub struct TallyId {
     pub pool_id: PoolId,
     pub epoch_num: u64,
 }
 
-impl PrimaryKey<'_> for TallyKey {
+impl PrimaryKey<'_> for TallyId {
     type Prefix = PoolId;
     type SubPrefix = ();
     type Suffix = ();
@@ -83,12 +83,12 @@ impl PrimaryKey<'_> for TallyKey {
     }
 }
 
-impl KeyDeserialize for TallyKey {
+impl KeyDeserialize for TallyId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (pool_id, epoch_num) = <(PoolId, u64)>::from_vec(value)?;
-        Ok(TallyKey { pool_id, epoch_num })
+        Ok(TallyId { pool_id, epoch_num })
     }
 }
 
@@ -221,7 +221,7 @@ pub trait Store {
         epoch_num: u64,
     ) -> Result<Option<EpochTally>, ContractError>;
 
-    fn load_rewards_pool(&self, id: PoolId) -> Result<RewardsPool, ContractError>;
+    fn load_rewards_pool(&self, pool_id: PoolId) -> Result<RewardsPool, ContractError>;
 
     fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
 
@@ -242,7 +242,7 @@ pub trait Store {
 pub const PARAMS: Item<StoredParams> = Item::new("params");
 
 /// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
-const TALLIES: Map<TallyKey, EpochTally> = Map::new("tallies");
+const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
 
 /// Maps an (event id, pool id) pair to an Event
 const EVENTS: Map<(String, PoolId), Event> = Map::new("events");
@@ -287,17 +287,17 @@ impl Store for RewardsStore<'_> {
         epoch_num: u64,
     ) -> Result<Option<EpochTally>, ContractError> {
         TALLIES
-            .may_load(self.storage, TallyKey { pool_id, epoch_num })
+            .may_load(self.storage, TallyId { pool_id, epoch_num })
             .change_context(ContractError::LoadEpochTally)
     }
 
-    fn load_rewards_pool(&self, id: PoolId) -> Result<RewardsPool, ContractError> {
+    fn load_rewards_pool(&self, pool_id: PoolId) -> Result<RewardsPool, ContractError> {
         POOLS
-            .may_load(self.storage, id.clone())
+            .may_load(self.storage, pool_id.clone())
             .change_context(ContractError::LoadRewardsPool)
             .map(|pool| {
                 pool.unwrap_or(RewardsPool {
-                    id,
+                    id: pool_id,
                     balance: Uint128::zero(),
                 })
             })
@@ -330,13 +330,13 @@ impl Store for RewardsStore<'_> {
     }
 
     fn save_epoch_tally(&mut self, tally: &EpochTally) -> Result<(), ContractError> {
-        let tally_key = TallyKey {
+        let tally_id = TallyId {
             pool_id: tally.pool_id.clone(),
             epoch_num: tally.epoch.epoch_num,
         };
 
         TALLIES
-            .save(self.storage, tally_key, tally)
+            .save(self.storage, tally_id, tally)
             .change_context(ContractError::SaveEpochTally)
     }
 

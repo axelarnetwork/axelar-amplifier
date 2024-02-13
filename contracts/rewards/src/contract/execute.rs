@@ -256,7 +256,7 @@ mod test {
         msg::Params,
         state::{
             self, Config, Epoch, EpochTally, Event, PoolId, RewardsPool, Store, StoredParams,
-            TallyKey,
+            TallyId,
         },
     };
 
@@ -481,7 +481,7 @@ mod test {
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
-                    contract: Addr::unchecked("contract-3")
+                    contract: Addr::unchecked("contract-3"),
                 },
                 2,
             ),
@@ -1166,7 +1166,7 @@ mod test {
     fn create_contract(
         params_store: Arc<RwLock<StoredParams>>,
         events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
-        tally_store: Arc<RwLock<HashMap<TallyKey, EpochTally>>>,
+        tally_store: Arc<RwLock<HashMap<TallyId, EpochTally>>>,
         rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
         watermark_store: Arc<RwLock<HashMap<PoolId, u64>>>,
     ) -> Contract<state::MockStore> {
@@ -1198,19 +1198,19 @@ mod test {
             .expect_load_epoch_tally()
             .returning(move |pool_id, epoch_num| {
                 let tally_store = tally_store_cloned.read().unwrap();
-                let tally_key = TallyKey {
+                let tally_id = TallyId {
                     pool_id: pool_id.clone(),
                     epoch_num,
                 };
-                Ok(tally_store.get(&tally_key).cloned())
+                Ok(tally_store.get(&tally_id).cloned())
             });
         store.expect_save_epoch_tally().returning(move |tally| {
             let mut tally_store = tally_store.write().unwrap();
-            let tally_key = TallyKey {
+            let tally_id = TallyId {
                 pool_id: tally.pool_id.clone(),
                 epoch_num: tally.epoch.epoch_num,
             };
-            tally_store.insert(tally_key, tally.clone());
+            tally_store.insert(tally_id, tally.clone());
             Ok(())
         });
 
@@ -1254,7 +1254,7 @@ mod test {
     fn setup_with_stores(
         params_store: Arc<RwLock<StoredParams>>,
         events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
-        tally_store: Arc<RwLock<HashMap<TallyKey, EpochTally>>>,
+        tally_store: Arc<RwLock<HashMap<TallyId, EpochTally>>>,
         rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
         watermark_store: Arc<RwLock<HashMap<PoolId, u64>>>,
     ) -> Contract<state::MockStore> {

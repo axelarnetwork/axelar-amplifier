@@ -2,6 +2,8 @@ use axelar_wasm_std::{nonempty, Threshold};
 use connection_router::state::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
+use crate::state::PoolId;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub governance_address: String,
@@ -43,9 +45,7 @@ pub enum ExecuteMsg {
 
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
     DistributeRewards {
-        chain_name: ChainName,
-        /// Address of contract for which to process rewards. For example, address of a voting verifier instance.
-        contract_address: String,
+        pool_id: PoolId,
         /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest.
         epoch_count: Option<u64>,
     },
@@ -53,9 +53,7 @@ pub enum ExecuteMsg {
     /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
     AddRewards {
-        chain_name: ChainName,
-        /// Address of contract for which to reward participation. For example, address of a voting verifier instance.
-        contract_address: String,
+        pool_id: PoolId,
     },
 
     /// Overwrites the currently stored params. Callable only by governance.
