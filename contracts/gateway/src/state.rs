@@ -54,3 +54,69 @@ const CONFIG_NAME: &str = "config";
 const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
 const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
 const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES_NAME);
+
+#[cfg(test)]
+mod test {
+    use crate::state::{
+        load_config, may_load_outgoing_msg, save_config, save_outgoing_msg, Config,
+    };
+    use connection_router::state::CrossChainId;
+    use connection_router::Message;
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Addr;
+
+    #[test]
+    fn config_storage() {
+        let mut deps = mock_dependencies();
+
+        let config = Config {
+            verifier: Addr::unchecked("verifier"),
+            router: Addr::unchecked("router"),
+        };
+        assert!(save_config(deps.as_mut().storage, &config).is_ok());
+
+        assert_eq!(load_config(&deps.storage).unwrap(), config);
+    }
+
+    #[test]
+    fn outgoing_messages_storage() {
+        let mut deps = mock_dependencies();
+
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: "chain".parse().unwrap(),
+                id: "id".parse().unwrap(),
+            },
+            source_address: "source_address".parse().unwrap(),
+            destination_chain: "destination".parse().unwrap(),
+            destination_address: "destination_address".parse().unwrap(),
+            payload_hash: [1; 32],
+        };
+
+        assert!(save_outgoing_msg(deps.as_mut().storage, message.cc_id.clone(), &message).is_ok());
+
+        assert_eq!(
+            may_load_outgoing_msg(&deps.storage, message.cc_id.clone()).unwrap(),
+            Some(message)
+        );
+
+        let unknown_chain_id = CrossChainId {
+            chain: "unknown".parse().unwrap(),
+            id: "id".parse().unwrap(),
+        };
+
+        assert_eq!(
+            may_load_outgoing_msg(&deps.storage, unknown_chain_id).unwrap(),
+            None
+        );
+
+        let unknown_id = CrossChainId {
+            chain: "chain".parse().unwrap(),
+            id: "unknown".parse().unwrap(),
+        };
+        assert_eq!(
+            may_load_outgoing_msg(&deps.storage, unknown_id).unwrap(),
+            None
+        );
+    }
+}

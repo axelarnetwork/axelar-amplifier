@@ -47,20 +47,20 @@ pub enum Error {
     SerializeResponse,
     #[error("batch contains duplicate message ids")]
     DuplicateMessageIds,
-    #[error("could not query the verifier contract")]
-    QueryVerifier,
     #[error("invalid address")]
     InvalidAddress,
+    #[error("failed to query message status")]
+    MessageStatus,
 }
 
 mod internal {
     use crate::contract::Error;
     use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-    use crate::router::Router;
     use crate::state::Config;
-    use crate::verifier::Verifier;
     use crate::{contract, state};
-    use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
+    use aggregate_verifier::client::Verifier;
+    use connection_router::client::Router;
+    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
 
     pub(crate) fn instantiate(
@@ -118,7 +118,8 @@ mod internal {
     pub(crate) fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, Error> {
         match msg {
             QueryMsg::GetMessages { message_ids } => {
-                contract::query::get_outgoing_messages(deps.storage, message_ids)
+                let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
+                to_binary(&msgs).change_context(Error::SerializeResponse)
             }
         }
     }

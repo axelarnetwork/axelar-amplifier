@@ -1,11 +1,11 @@
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
-#[derive(Copy, Hash, Eq)]
+#[derive(Copy, Hash, Eq, Ord, PartialOrd)]
 pub enum VerificationStatus {
     SucceededOnChain,
     FailedOnChain,
-    NotFound,
+    NotFound,       // message was not found on source chain
     FailedToVerify, // verification process failed, e.g. no consensus reached
     InProgress,     // verification in progress
     None,           // not yet verified, e.g. not in a poll

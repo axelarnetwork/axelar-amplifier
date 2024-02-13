@@ -5,9 +5,9 @@ use cosmwasm_std::Event;
 pub enum GatewayEvent {
     Verifying { msg: Message },
     AlreadyVerified { msg: Message },
+    AlreadyRejected { msg: Message },
     Routing { msg: Message },
     UnfitForRouting { msg: Message },
-    AlreadyRejected { msg: Message },
 }
 
 impl From<GatewayEvent> for Event {

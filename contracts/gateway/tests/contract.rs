@@ -2,19 +2,19 @@ use axelar_wasm_std::{ContractError, VerificationStatus};
 use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, ContractResult, CosmosMsg, DepsMut, QuerierResult, Response,
-    WasmMsg, WasmQuery,
+    from_binary, to_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
 use gateway::contract::*;
 use gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use itertools::Itertools;
-use rand::seq::SliceRandom;
 use serde::Serialize;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
+
+#[cfg(not(feature = "generate_golden_files"))]
+use cosmwasm_std::Response;
 
 #[test]
 fn instantiate_works() {
@@ -60,8 +60,6 @@ fn successful_verify() {
 
         responses.push(response[0].clone());
     }
-
-    let responses = sort_msgs_and_events(responses);
 
     let golden_file = "tests/test_verify.json";
     #[cfg(feature = "generate_golden_files")]
@@ -109,8 +107,6 @@ fn successful_route_incoming() {
 
         responses.push(response[0].clone());
     }
-
-    let responses = sort_msgs_and_events(responses);
 
     let golden_file = "tests/test_route_incoming.json";
     #[cfg(feature = "generate_golden_files")]
@@ -173,8 +169,6 @@ fn successful_route_outgoing() {
             .take(2)
             .for_each(|response| assert_eq!(response, to_binary(&msgs).unwrap()));
     }
-
-    let responses = sort_msgs_and_events(responses);
 
     let golden_file = "tests/test_route_outgoing.json";
     #[cfg(feature = "generate_golden_files")]
@@ -329,10 +323,10 @@ fn test_cases_for_duplicate_msgs() -> (
     let mut test_cases = vec![];
 
     // one duplicate
-    test_cases.push(duplicate_random_msgs(all_messages.clone(), 1));
+    test_cases.push(duplicate_msgs(all_messages.clone(), 1));
 
     // multiple duplicates
-    test_cases.push(duplicate_random_msgs(all_messages.clone(), 10));
+    test_cases.push(duplicate_msgs(all_messages.clone(), 10));
 
     // all duplicates
     test_cases.push(
@@ -455,51 +449,17 @@ fn instantiate_contract(deps: DepsMut, verifier: &str, router: &str) {
     assert!(response.is_ok());
 }
 
-fn compare_status(
-    a: &(VerificationStatus, Vec<Message>),
-    b: &(VerificationStatus, Vec<Message>),
-) -> Ordering {
-    Ord::cmp(&format!("{:?}", a.0), &format!("{:?}", b.0))
-}
-
-fn sort_msgs_and_events(responses: Vec<Response>) -> Vec<Response> {
-    responses
-        .into_iter()
-        .map(|mut response| {
-            response.events.sort_by(|a, b| {
-                let id1 = a.attributes.iter().find(|attr| attr.key == "id").unwrap();
-                let id2 = b.attributes.iter().find(|attr| attr.key == "id").unwrap();
-                Ord::cmp(&id1.value, &id2.value)
-            });
-
-            response.messages.sort_by(|a, b| {
-                let CosmosMsg::Wasm(WasmMsg::Execute { msg: a, .. }) = a.msg.clone() else {
-                    unreachable!()
-                };
-                let CosmosMsg::Wasm(WasmMsg::Execute { msg: b, .. }) = b.msg.clone() else {
-                    unreachable!()
-                };
-                a.cmp(&b)
-            });
-            response
-        })
-        .collect::<Vec<_>>()
-}
-
 fn sort_msgs_by_status(
     msgs: HashMap<VerificationStatus, Vec<Message>>,
 ) -> impl Iterator<Item = Vec<Message>> {
     msgs.into_iter()
-        .sorted_by(|a, b| compare_status(a, b))
+        .sorted_by_key(|(status, _)| *status)
         .map(|(_, msgs)| msgs)
 }
 
-fn duplicate_random_msgs(msgs: Vec<Message>, amount: usize) -> Vec<Message> {
+fn duplicate_msgs(msgs: Vec<Message>, amount: usize) -> Vec<Message> {
     msgs.clone()
         .into_iter()
-        .chain(
-            msgs.choose_multiple(&mut rand::thread_rng(), amount)
-                .cloned(),
-        )
+        .chain(msgs.into_iter().take(amount).cloned())
         .collect()
 }
