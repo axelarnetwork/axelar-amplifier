@@ -55,7 +55,6 @@ pub fn verify_messages(
         &gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
         &[],
     );
-    println!("Response: {:?}", response);
     assert!(response.is_ok());
     let response = response.unwrap();
 
@@ -433,7 +432,6 @@ pub fn xrpl_update_tx_status(
         },
         &[],
     );
-    println!("response: {:?}", response);
     assert!(response.is_ok());
 }
 
