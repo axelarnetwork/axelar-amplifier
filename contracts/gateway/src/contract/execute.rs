@@ -53,11 +53,7 @@ fn apply(
         .change_context(Error::MessageStatus)?
         .then(group_by_status)
         .then(action)
-        .then(|(msgs, events)| {
-            Response::new()
-                .add_messages(msgs.into_iter())
-                .add_events(events)
-        })
+        .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
         .then(Ok)
 }
 
