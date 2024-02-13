@@ -8,14 +8,10 @@ use cosmwasm_std::{
     entry_point, Storage, wasm_execute, SubMsg, Reply,
     DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_binary, Deps, StdResult, Binary, Addr, HexBinary,
 };
+use multisig::types::MultisigState;
 
 use crate::{
-    error::ContractError,
-    state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MULTISIG_SESSION_TX, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO},
-    msg::{ExecuteMsg, QueryMsg},
-    reply,
-    types::*,
-    xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount, XRPLSerialize}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
+    axelar_workers, error::ContractError, msg::{ExecuteMsg, QueryMsg}, querier::{Querier, XRPL_CHAIN_NAME}, query, reply, state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_TX, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_MESSAGE_ID, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO}, types::*, xrpl_multisig::{self, XRPLPaymentAmount, XRPLSerialize, XRPLTokenAmount}
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
@@ -114,7 +110,7 @@ pub fn execute(
             register_token(deps.storage, denom, &token)
         },
         ExecuteMsg::ConstructProof { message_id } => {
-            construct_payment_proof(deps.storage, querier, info, env.contract.address, &config, message_id)
+            construct_payment_proof(deps.storage, querier, info, env.contract.address, env.block.height, &config, message_id)
         },
         ExecuteMsg::UpdateWorkerSet {} => {
             construct_signer_list_set_proof(deps.storage, querier, env, &config)
@@ -135,12 +131,27 @@ fn construct_payment_proof(
     querier: Querier,
     info: MessageInfo,
     self_address: Addr,
+    block_height: u64,
     config: &Config,
     message_id: CrossChainId,
 ) -> Result<Response, ContractError> {
     if info.funds.len() != 1 {
         return Err(ContractError::InvalidPaymentAmount);
     }
+
+    match MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, message_id.clone())? {
+        Some(multisig_session_id) => {
+            let multisig_session = querier.get_multisig_session(Uint64::from(multisig_session_id))?;
+            if let MultisigState::Completed { .. } = multisig_session.state {
+                return Err(ContractError::PaymentAlreadySigned);
+            }
+
+            if multisig_session.expires_at <= block_height {
+                return Err(ContractError::PaymentAlreadyHasActiveSigningSession);
+            }
+        },
+        None => (),
+    };
 
     let mut funds = info.funds;
     let coin = funds.remove(0);
@@ -164,9 +175,10 @@ fn construct_payment_proof(
         config,
         message.destination_address.to_string().try_into()?,
         xrpl_payment_amount,
-        message_id,
+        message_id.clone(),
     )?;
 
+    REPLY_MESSAGE_ID.save(storage, &message_id)?;
     Ok(
         start_signing_session(
             storage,

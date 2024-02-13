@@ -98,6 +98,12 @@ pub enum ContractError {
 
     #[error("invalid message destination address")]
     InvalidMessageDestinationAddress,
+
+    #[error("payment already has active signing session")]
+    PaymentAlreadyHasActiveSigningSession,
+
+    #[error("payment already signed")]
+    PaymentAlreadySigned,
 }
 
 impl From<ContractError> for StdError {

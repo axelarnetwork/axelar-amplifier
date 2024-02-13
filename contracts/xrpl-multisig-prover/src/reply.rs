@@ -2,9 +2,7 @@ use cosmwasm_std::{from_binary, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
-    error::ContractError,
-    events::Event,
-    state::{MULTISIG_SESSION_TX, REPLY_TX_HASH},
+    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_TX, REPLY_MESSAGE_ID, REPLY_TX_HASH}
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -22,6 +20,17 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 multisig_session_id.u64(),
                 &tx_hash,
             )?;
+
+            match REPLY_MESSAGE_ID.may_load(deps.storage)? {
+                Some(message_id) => {
+                    MESSAGE_ID_TO_MULTISIG_SESSION_ID.save(
+                        deps.storage,
+                        message_id,
+                        &multisig_session_id.u64(),
+                    )?
+                },
+                None => (),
+            }
 
             Ok(Response::new().add_event(
                 Event::ProofUnderConstruction {
