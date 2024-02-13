@@ -209,6 +209,7 @@ dependencies = [
  "valuable",
  "valuable-serde",
  "voting-verifier",
+ "xrpl-multisig-prover",
 ]
 
 [[package]]

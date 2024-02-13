@@ -385,7 +385,8 @@ pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, 
 }
 
 pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(Some(HASH_PREFIX_SIGNED_TRANSACTION), encoded_signed_tx.as_slice()));
+    let msg = [HASH_PREFIX_SIGNED_TRANSACTION.to_vec(), encoded_signed_tx].concat();
+    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(msg.as_slice()));
     let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
     Ok(tx_hash)
 }
@@ -640,19 +641,8 @@ impl XRPLSerialize for XRPLObject {
     }
 }
 
-// TODO: impl XRPLSerialize for all types implementing Into<XRPLObject>
-
-// TODO: fix to not take prefix as param
-pub fn xrpl_hash(
-    prefix: Option<[u8; 4]>,
-    tx_blob: &[u8],
-) -> [u8; 32] {
-    let mut hasher = match prefix {
-        Some(prefix) => Sha512::new_with_prefix(prefix),
-        None => Sha512::new(),
-    };
-    hasher.update(tx_blob);
-    let hash: [u8; 64] = hasher.finalize().into();
+pub fn xrpl_hash(tx_blob: &[u8]) -> [u8; 32] {
+    let hash: [u8; 64] = Sha512::digest(tx_blob).into();
     let mut half_hash: [u8; 32] = [0; 32];
     half_hash.copy_from_slice(&hash[..32]);
     half_hash
@@ -755,15 +745,15 @@ fn make_xrpl_signer_entries(signers: BTreeSet<AxelarSigner>) -> Vec<XRPLSignerEn
         .map(
             |worker| {
                 XRPLSignerEntry {
-                    account: public_key_to_xrpl_address(worker.pub_key),
+                    account: public_key_to_xrpl_address(&worker.pub_key),
                     signer_weight: worker.weight,
                 }
             }
         ).collect()
 }
 
-pub fn public_key_to_xrpl_address(public_key: multisig::key::PublicKey) -> String {
-    let public_key_hex: HexBinary = public_key.into();
+pub fn public_key_to_xrpl_address(public_key: &multisig::key::PublicKey) -> String {
+    let public_key_hex: HexBinary = public_key.clone().into();
 
     assert!(public_key_hex.len() == 33);
 
@@ -1357,7 +1347,7 @@ mod tests {
     #[test]
     fn ed25519_public_key_to_xrpl_address() {
         assert_eq!(
-            public_key_to_xrpl_address(PublicKey::Ed25519(HexBinary::from(hex::decode("ED9434799226374926EDA3B54B1B461B4ABF7237962EAE18528FEA67595397FA32").unwrap()))),
+            public_key_to_xrpl_address(&PublicKey::Ed25519(HexBinary::from(hex::decode("ED9434799226374926EDA3B54B1B461B4ABF7237962EAE18528FEA67595397FA32").unwrap()))),
             "rDTXLQ7ZKZVKz33zJbHjgVShjsBnqMBhmN"
         );
     }
@@ -1365,7 +1355,7 @@ mod tests {
     #[test]
     fn secp256k1_public_key_to_xrpl_address() {
         assert_eq!(
-            public_key_to_xrpl_address(PublicKey::Ecdsa(HexBinary::from(hex::decode("0303E20EC6B4A39A629815AE02C0A1393B9225E3B890CAE45B59F42FA29BE9668D").unwrap()))),
+            public_key_to_xrpl_address(&PublicKey::Ecdsa(HexBinary::from(hex::decode("0303E20EC6B4A39A629815AE02C0A1393B9225E3B890CAE45B59F42FA29BE9668D").unwrap()))),
             "rnBFvgZphmN39GWzUJeUitaP22Fr9be75H"
         );
     }

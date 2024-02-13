@@ -291,7 +291,7 @@ pub fn sign_xrpl_proof(
 
     for worker in workers {
         let xrpl_signer_address = xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address(
-            multisig::key::PublicKey::Ecdsa(worker.key_pair.encoded_verifying_key().into())
+            &multisig::key::PublicKey::Ecdsa(worker.key_pair.encoded_verifying_key().into())
         );
 
         let msg_to_sign = match get_xrpl_message_to_sign(

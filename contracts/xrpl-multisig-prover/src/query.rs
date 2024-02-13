@@ -14,7 +14,7 @@ pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(mul
     let xrpl_signers: Vec<XRPLSigner> = axelar_signers
         .iter()
         .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
-            let xrpl_address = xrpl_multisig::public_key_to_xrpl_address(axelar_signer.pub_key.clone());
+            let xrpl_address = xrpl_multisig::public_key_to_xrpl_address(&axelar_signer.pub_key);
             let txn_signature = match signature {
                 // TODO: use unwrapped signature instead of ignoring it
                 multisig::key::Signature::Ecdsa(_) |
@@ -53,12 +53,12 @@ pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, 
     let serialized_tx = &[serialized_unsigned_tx, serialized_signer_xrpl_address.to_vec()].concat();
 
     Ok(GetMessageToSignResponse {
-        tx_hash: xrpl_multisig::xrpl_hash(None, serialized_tx).into()
+        tx_hash: xrpl_multisig::xrpl_hash(serialized_tx).into()
     })
 }
 
 pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: PublicKey, signature: Signature) -> StdResult<bool> {
-    let signer_xrpl_address = xrpl_multisig::public_key_to_xrpl_address(public_key.clone());
+    let signer_xrpl_address = xrpl_multisig::public_key_to_xrpl_address(&public_key);
     let m = get_message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
 
     // m.tx_hash is going to be over 32 bytes due to inclusion of the signer address, so it has to be passed unchecked 
