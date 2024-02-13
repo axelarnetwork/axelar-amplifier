@@ -2884,6 +2884,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "base64 0.21.4",
+ "cosmrs",
  "error-stack",
  "serde_json",
  "tendermint 0.33.0",
