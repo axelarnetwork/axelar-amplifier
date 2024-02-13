@@ -39,6 +39,9 @@ pub enum ExecuteMsg {
     },
     RegisterPublicKey {
         public_key: PublicKey,
+        /* To prevent anyone from registering a public key that belongs to someone else, we require the sender
+        to sign their own address using the private key */
+        signed_sender_address: HexBinary,
     },
     // Authorizes a contract to call StartSigningSession.
     AuthorizeCaller {

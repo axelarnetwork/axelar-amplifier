@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::path::Path;
 
 use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg};
@@ -8,6 +9,7 @@ use multisig::{
     msg::ExecuteMsg,
 };
 use report::ResultCompatExt;
+use sha3::{Digest, Keccak256};
 use tracing::info;
 
 use crate::commands::{broadcast_tx, worker_pub_key};
@@ -22,24 +24,44 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
     let multisig_address = get_multisig_address(&config)?;
 
     let tofnd_config = config.tofnd_config.clone();
-    let multisig_key = SharableEcdsaClient::new(
+
+    let ecdsa_client = SharableEcdsaClient::new(
         MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
             .await
             .change_context(Error::Connection)?,
-    )
-    .keygen(&multisig_address.to_string())
-    .await
-    .change_context(Error::Tofnd)?;
+    );
+    let multisig_key = ecdsa_client
+        .keygen(&multisig_address.to_string())
+        .await
+        .change_context(Error::Tofnd)?;
     info!(key_id = multisig_address.to_string(), "keygen successful");
+
+    let sender = pub_key.account_id(PREFIX).change_context(Error::Tofnd)?;
+
+    let address_hash: [u8; 32] = Keccak256::digest(sender.as_ref().as_bytes())
+        .as_slice()
+        .try_into()
+        .expect("wrong length");
+
+    let signed_sender_address = ecdsa_client
+        .sign(
+            &multisig_address.to_string(),
+            address_hash.into(),
+            &multisig_key,
+        )
+        .await
+        .change_context(Error::Tofnd)?
+        .into();
 
     let msg = serde_json::to_vec(&ExecuteMsg::RegisterPublicKey {
         public_key: PublicKey::try_from((KeyType::Ecdsa, multisig_key.to_bytes().into()))
             .change_context(Error::Tofnd)?,
+        signed_sender_address,
     })
     .expect("register public key msg should serialize");
 
     let tx = MsgExecuteContract {
-        sender: pub_key.account_id(PREFIX).change_context(Error::Tofnd)?,
+        sender,
         contract: multisig_address.as_ref().clone(),
         msg,
         funds: vec![],

@@ -1,7 +1,8 @@
 [package]
-edition = "2018"
+edition = "2021"
 name = "ampd"
 version = "0.1.0"
+rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -34,10 +35,12 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1
 multisig = { workspace = true }
 prost = "0.11.9"
 report = { workspace = true }
+reqwest = { version = "0.11.24", default-features = false }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 serde_with = "3.2.0"
 service-registry = { workspace = true }
+sha3 = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.14.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.14.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.

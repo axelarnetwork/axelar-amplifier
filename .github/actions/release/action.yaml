@@ -1,0 +1,164 @@
+---
+name: 'Release'
+description: 'Wrapper around the Semver library to create releases'
+inputs:
+  binary-to-release:
+    description: "Name of binary to release"
+    required: true
+    default: 'ampd'
+  dry-run:
+    description: "When true, just output plan"
+    required: true
+    default: 'true'
+  major-pattern:
+    description: "major pattern match string"
+  minor-pattern:
+    description: "minor pattern match string"
+  change-path:
+    description: "paths to observe for changes"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Print inputs
+      id: print-inputs
+      shell: bash
+      run: |
+        echo "binary-to-release:
+          ${{ inputs.binary-to-release }}"
+        echo "dry-run:
+          ${{ inputs.dry-run }}"
+        echo "major-pattern:
+          ${{ inputs.major-pattern }}"
+        echo "minor-pattern:
+          ${{ inputs.minor-pattern }}"
+        echo "change-path:
+          ${{ inputs.change-path }}"
+
+    - name: Determine next semantic version
+      id: semantic-version
+      uses: paulhatch/semantic-version@v5.3.0
+      with:
+        major_pattern: ${{ inputs.major-pattern }}
+        minor_pattern: ${{ inputs.minor-pattern }}
+        change_path: ${{ inputs.change-path }}
+        tag_prefix: ${{ inputs.binary-to-release }}-v
+        version_from_branch: false
+
+    - name: Print determined semantic version
+      id: print-semantic-version
+      shell: bash
+      run: |
+        echo "MAJOR:
+          ${{ steps.semantic-version.outputs.major }}"
+        echo "MINOR:
+          ${{ steps.semantic-version.outputs.minor }}"
+        echo "PATCH:
+          ${{ steps.semantic-version.outputs.patch }}"
+        echo "VERSION:
+          ${{ steps.semantic-version.outputs.version }}"
+        echo "VERSION-TAG:
+          ${{ steps.semantic-version.outputs.version_tag }}"
+        echo "VERSION-TYPE:
+          ${{ steps.semantic-version.outputs.version_type }}"
+        echo "IS-TAGGED:
+          ${{ steps.semantic-version.outputs.is_tagged }}"
+        echo "CHANGED:
+          ${{ steps.semantic-version.outputs.changed }}"
+        echo "PREVIOUS-VERSION:
+          ${{ steps.semantic-version.outputs.previous_version }}"
+
+    - name: Check if tag already exists (possible collision with an orphaned
+        commit tagged as patch)
+      id: validate-tag
+      shell: bash
+      if: ${{ steps.semantic-version.outputs.changed == 'true' }}
+      run: |
+        if [[
+          ! -z "$(git tag -l ${{ steps.semantic-version.outputs.version_tag }})"
+           ]]; then
+          cat << EOF
+          Tag already exists: ${{ steps.semantic-version.outputs.version_tag }}
+          This means that there is a commit tagged as patch that is not part of
+          the main branch. Under these circumstances the preferred way to
+          release is to create a new minor release from the main branch
+
+          However, if you must release a patch, please follow the steps below
+
+          Please check the tags and use the patch commit as the base for the
+          new release.
+
+          Retreive the latest patch commit from the tag:
+          git tag --list ${{inputs.binary-to-release}}-v*
+
+          Checkout the tag:
+          git checkout <latest-existing-patch>
+
+          Create a new branch from the commit:
+          git checkout -b patch/${{inputs.binary-to-release}}/<new-patch>
+
+          Cherry pick current changes to the new branch:
+          git cherry-pick ${{ github.sha }}
+
+          Push the new branch:
+          git push origin <branch-name>
+
+          Create a PR from the new branch to the previous patch tag
+          hub pull-request -b <previous-latest-patch-tag>
+
+          Once the PR is approved, run the release workflow and choose the
+          branch created above as the base branch. Note that this patch will not
+          be part of the main branch unless explicitly merged into it. And none
+          of the commits from the main branch since the last patch will be part
+          of this release.
+        EOF
+          exit 1
+        else
+          echo "Tag is unique. OK to proceed"
+        fi
+
+    - name: Check major and minor releases are from main branch only
+      id: validate-branch
+      shell: bash
+      if:
+        steps.semantic-version.outputs.changed == 'true' &&
+        (steps.semantic-version.outputs.version_type == 'major' ||
+        steps.semantic-version.outputs.version_type == 'minor')
+      run: |
+        if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+          echo "Major and Minor releases are only allowed from main branch"
+          exit 1
+        else
+          echo "Release from main branch. OK to proceed"
+        fi
+
+    - name: Install cargo-release
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        wget -q https://github.com/crate-ci/cargo-release/releases/download/v0.25.4/cargo-release-v0.25.4-x86_64-unknown-linux-gnu.tar.gz
+        tar -zxf cargo-release-v0.25.4-x86_64-unknown-linux-gnu.tar.gz
+        mv cargo-release /home/runner/.cargo/bin/cargo-release
+
+    - name: Release cargo crate (dry run)
+      shell: bash
+      if:
+        inputs.dry-run == 'true' &&
+        steps.semantic-version.outputs.changed == 'true'
+      run: |
+        cargo release -p ${{ inputs.binary-to-release }} \
+          ${{ steps.semantic-version.outputs.version_type }} \
+          -v
+
+    - name: Release cargo crate
+      shell: bash
+      if:
+        inputs.dry-run == 'false' &&
+        steps.semantic-version.outputs.changed == 'true'
+      run: |
+        git config --global user.email "devops@axelar.network"
+        git config --global user.name "Axelar DevOps"
+        cargo release -x \
+          --no-confirm \
+          -p ${{ inputs.binary-to-release }} \
+          ${{ steps.semantic-version.outputs.version_type }}

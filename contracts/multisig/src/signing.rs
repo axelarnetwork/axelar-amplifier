@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn success_validation_expiry_not_reached() {
         for config in [ecdsa_setup(), ed25519_setup()] {
-            let mut session = config.session;
+            let session = config.session;
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn signing_session_closed_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
-            let mut session = config.session;
+            let session = config.session;
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();

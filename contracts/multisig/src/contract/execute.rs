@@ -1,13 +1,14 @@
 use connection_router::state::ChainName;
 use cosmwasm_std::WasmMsg;
+use sha3::{Digest, Keccak256};
 
 use crate::signing::validate_session_signature;
-use crate::state::{load_session_signatures, save_signature};
+use crate::state::{load_session_signatures, save_pub_key, save_signature};
 use crate::worker_set::WorkerSet;
 use crate::{
     key::{KeyTyped, PublicKey, Signature},
     signing::SigningSession,
-    state::{AUTHORIZED_CALLERS, PUB_KEYS},
+    state::AUTHORIZED_CALLERS,
 };
 use error_stack::ResultExt;
 
@@ -121,12 +122,20 @@ pub fn register_pub_key(
     deps: DepsMut,
     info: MessageInfo,
     public_key: PublicKey,
+    signed_sender_address: HexBinary,
 ) -> Result<Response, ContractError> {
-    PUB_KEYS.save(
-        deps.storage,
-        (info.sender.clone(), public_key.key_type()),
-        &public_key.clone().into(),
-    )?;
+    let signed_sender_address: Signature =
+        (public_key.key_type(), signed_sender_address).try_into()?;
+
+    let address_hash = Keccak256::digest(info.sender.as_bytes());
+
+    // to prevent anyone from registering a public key that belongs to someone else,
+    // we require the sender to sign their own address using the private key
+    if !signed_sender_address.verify(address_hash.as_slice(), &public_key)? {
+        return Err(ContractError::InvalidPublicKeyRegistrationSignature);
+    }
+
+    save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 
     Ok(Response::new().add_event(
         Event::PublicKeyRegistered {

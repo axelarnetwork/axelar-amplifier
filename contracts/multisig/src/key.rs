@@ -1,4 +1,4 @@
-use crate::{ed25519::ed25519_verify, secp256k1::ecdsa_verify, types::MsgToSign, ContractError};
+use crate::{ed25519::ed25519_verify, secp256k1::ecdsa_verify, ContractError};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
@@ -167,7 +167,11 @@ impl KeyTyped for Signature {
 }
 
 impl Signature {
-    pub fn verify(&self, msg: &MsgToSign, pub_key: &PublicKey) -> Result<bool, ContractError> {
+    pub fn verify<T: AsRef<[u8]>>(
+        &self,
+        msg: T,
+        pub_key: &PublicKey,
+    ) -> Result<bool, ContractError> {
         if !self.matches_type(pub_key) {
             return Err(ContractError::KeyTypeMismatch);
         }

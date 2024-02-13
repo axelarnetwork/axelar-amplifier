@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::broadcaster;
 use crate::commands::ServiceRegistryConfig;
@@ -12,6 +13,8 @@ pub struct Config {
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub event_buffer_cap: usize,
+    #[serde(with = "humantime_serde")]
+    pub event_stream_timeout: Duration,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
@@ -28,6 +31,7 @@ impl Default for Config {
             handlers: vec![],
             tofnd_config: TofndConfig::default(),
             event_buffer_cap: 100000,
+            event_stream_timeout: Duration::from_secs(15),
             service_registry: ServiceRegistryConfig::default(),
         }
     }
@@ -40,6 +44,7 @@ mod tests {
     use std::io::Write;
     use std::path::PathBuf;
     use std::str::FromStr;
+    use std::time::Duration;
 
     use cosmrs::AccountId;
 
@@ -63,6 +68,10 @@ mod tests {
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7545/'
 
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
             [[handlers]]
             type = 'EvmMsgVerifier'
             cosmwasm_contract = '{}'
@@ -75,11 +84,19 @@ mod tests {
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7545/'
 
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
+
             [[handlers]]
             type = 'EvmWorkerSetVerifier'
             cosmwasm_contract = '{}'
             chain_name = 'Polygon'
             chain_rpc_url = 'http://localhost:7546/'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
 
             [[handlers]]
             type = 'MultisigSigner'
@@ -89,6 +106,10 @@ mod tests {
             type = 'SuiMsgVerifier'
             cosmwasm_contract = '{}'
             rpc_url = 'http://localhost:7545/'
+
+            [handlers.rpc_timeout]
+            secs = 3
+            nanos = 0
             ",
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -243,6 +264,7 @@ mod tests {
                         name: ChainName::Ethereum,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
+                    rpc_timeout: Some(Duration::from_secs(3)),
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -255,6 +277,7 @@ mod tests {
                         name: ChainName::Other("Fantom".to_string()),
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
+                    rpc_timeout: Some(Duration::from_secs(3)),
                 },
                 HandlerConfig::MultisigSigner {
                     cosmwasm_contract: TMAddress::from(
@@ -266,6 +289,14 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::SuiWorkerSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],
             ..Config::default()
