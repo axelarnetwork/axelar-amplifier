@@ -36,7 +36,7 @@ jobs:
           aws s3 ls s3://axelar-releases/ampd/"$SEMVER" && echo "tag already exists, use a new one" && exit 1
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: '0'
           ref: ${{ github.event.inputs.tag }}
@@ -48,7 +48,7 @@ jobs:
 
       - name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v4
+        uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
