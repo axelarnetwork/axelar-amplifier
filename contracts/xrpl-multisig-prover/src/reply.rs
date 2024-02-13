@@ -42,10 +42,10 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             let evt_attributes: Vec<Attribute> = res.events
                 .into_iter()
-                .filter(|e| e.ty == "signing_started")
+                .filter(|e| e.ty == "wasm-signing_started")
                 .map(|e| e.attributes)
                 .flatten()
-                .filter(|a| a.key != "msg")
+                .filter(|a| !a.key.starts_with("_") && a.key != "msg")
                 .collect();
 
             let evt = cosmwasm_std::Event::new("xrpl_signing_started")

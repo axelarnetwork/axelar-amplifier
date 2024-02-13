@@ -12,9 +12,6 @@ pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
 
-    #[returns(GetMessageToSignResponse)]
-    GetMessageToSign { multisig_session_id: Uint64, signer_xrpl_address: String },
-
     #[returns(bool)]
     VerifyMessage { multisig_session_id: Uint64, public_key: PublicKey, signature: Signature },
 
@@ -27,11 +24,6 @@ pub enum QueryMsg {
 pub enum GetProofResponse {
     Completed { unsigned_tx_hash: TxHash, tx_blob: HexBinary},
     Pending { unsigned_tx_hash: TxHash },
-}
-
-#[cw_serde]
-pub struct GetMessageToSignResponse {
-    pub tx_hash: HexBinary,
 }
 
 #[cw_serde]

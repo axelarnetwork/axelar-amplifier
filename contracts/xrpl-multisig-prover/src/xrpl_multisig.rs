@@ -391,6 +391,12 @@ pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, Cont
     Ok(tx_hash)
 }
 
+pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_xrpl_address: &String) -> Result<[u8; 32], ContractError> {
+    let serialized_signer_xrpl_address = decode_address(&signer_xrpl_address)?;
+    let msg = &[encoded_unsigned_tx.to_vec(), serialized_signer_xrpl_address.into()].concat();
+    Ok(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg))
+}
+
 pub struct XRPLAddress(String);
 
 pub trait XRPLSerialize {

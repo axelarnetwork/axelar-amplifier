@@ -12,4 +12,8 @@ pub enum Error {
     Sign,
     #[error("failed to get transaction receipts")]
     TxReceipts,
+    #[error("failed to parse public key")]
+    PublicKey,
+    #[error("failed to prepare message for signing")]
+    MessageToSign,
 }

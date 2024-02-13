@@ -288,23 +288,21 @@ pub fn sign_xrpl_proof(
             .map(|attr| attr.value.as_str().try_into().unwrap())
             .expect("couldn't get session_id");
 
+    let unsigned_tx: HexBinary =
+        get_event_attribute(&response.events, "wasm-xrpl_signing_started", "unsigned_tx")
+            .map(|attr| HexBinary::from_hex(attr.value.as_str()).unwrap())
+            .expect("couldn't get unsigned_tx");
+
     for worker in workers {
         let xrpl_signer_address = xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address(
             &multisig::key::PublicKey::Ecdsa(worker.key_pair.encoded_verifying_key().into())
         );
-
-        let msg_to_sign = match get_xrpl_message_to_sign(
-            app,
-            multisig_prover_address,
-            &session_id,
-            &xrpl_signer_address
-        ) {
-            xrpl_multisig_prover::msg::GetMessageToSignResponse { tx_hash } => tx_hash,
-        };
+        
+        let msg = xrpl_multisig_prover::xrpl_multisig::message_to_sign(&unsigned_tx, &xrpl_signer_address).unwrap();
 
         let signature = tofn::ecdsa::sign(
             worker.key_pair.signing_key(),
-            &msg_to_sign
+            &msg
                 .as_slice()
                 .try_into()
                 .unwrap(),
@@ -390,23 +388,6 @@ pub fn get_xrpl_proof(
         multisig_prover_address,
         &xrpl_multisig_prover::msg::QueryMsg::GetProof {
             multisig_session_id: *multisig_session_id,
-        },
-    );
-    assert!(query_response.is_ok());
-    query_response.unwrap()
-}
-
-pub fn get_xrpl_message_to_sign(
-    app: &mut App,
-    multisig_prover_address: &Addr,
-    multisig_session_id: &Uint64,
-    xrpl_signer_address: &String,
-) -> xrpl_multisig_prover::msg::GetMessageToSignResponse {
-    let query_response = app.wrap().query_wasm_smart(
-        multisig_prover_address,
-        &xrpl_multisig_prover::msg::QueryMsg::GetMessageToSign {
-            multisig_session_id: *multisig_session_id,
-            signer_xrpl_address: xrpl_signer_address.clone(),
         },
     );
     assert!(query_response.is_ok());
