@@ -6,7 +6,7 @@ use cosmwasm_std::{
     to_binary, QueryRequest, WasmQuery, QuerierWrapper, Uint64,
 };
 use multisig::{key::PublicKey, msg::Multisig};
-use axelar_wasm_std::{operators::Operators, VerificationStatus};
+use axelar_wasm_std::VerificationStatus;
 
 use crate::{
     error::ContractError,
