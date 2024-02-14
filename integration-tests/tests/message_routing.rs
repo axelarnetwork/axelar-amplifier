@@ -301,8 +301,6 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         VerificationStatus::SucceededOnChain
     );
 
-    // TODO: FIX REWARDS
-    /*
     // Advance the height to be able to distribute rewards
     test_utils::advance_height(
         &mut protocol.app,
@@ -332,5 +330,5 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
             .query_balance(worker.addr, test_utils::AXL_DENOMINATION)
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
-    }*/
+    }
 }
