@@ -297,7 +297,7 @@ pub fn sign_xrpl_proof(
         let xrpl_signer_address = xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address(
             &multisig::key::PublicKey::Ecdsa(worker.key_pair.encoded_verifying_key().into())
         );
-        
+
         let msg = xrpl_multisig_prover::xrpl_multisig::message_to_sign(&unsigned_tx, &xrpl_signer_address).unwrap();
 
         let signature = tofn::ecdsa::sign(
@@ -1043,16 +1043,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
                 (44218195..44218200).collect::<Vec<_>>()
             ].concat(),
             governance_address: protocol.governance_address.to_string(),
-        },
-    );
-
-    register_token(
-        protocol,
-        multisig_prover_address.clone(),
-        XRP_DENOMINATION.to_string(),
-        XRPLToken {
-            issuer: "".to_string(),
-            currency: XRPLToken::NATIVE_CURRENCY.to_string(),
+            xrp_denom: "uxrp".to_string(),
         },
     );
 

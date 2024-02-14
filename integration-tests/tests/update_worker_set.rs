@@ -198,7 +198,7 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "fbf428da41656ca3aef36287bfcb6d8491daa76f20c201c4a60172450ab517f9:0"
+            id: "f6471a07847f853d13601496cb643c6f111856ab336b204deefde520657900fb:0"
                 .to_string()
                 .try_into()
                 .unwrap(),

@@ -96,7 +96,7 @@ fn convert_or_scale_weights(weights: Vec<Uint256>) -> Vec<u16> {
 }
 
 pub fn get_active_worker_set(
-    querier: Querier,
+    querier: &Querier,
     signing_threshold: Threshold,
     block_height: u64,
 ) -> Result<WorkerSet, ContractError> {

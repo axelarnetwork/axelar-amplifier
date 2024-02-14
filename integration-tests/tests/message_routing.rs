@@ -148,7 +148,7 @@ fn xrpl_ticket_create_can_be_proven() {
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "9c2f220fe5ee650b3cd10b0a72af1206b3912afce8376214234354180198c5d5:0"
+            id: "8c23c331f52ed2856308fea85be7583f8ff726ad87b0dbbcbe5e371563b7c02d:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -269,7 +269,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         destination_address: Address::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".to_string()).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "3012df8615c9f1d8ac3bba050bf4fcbf3981156962108ca8751e12146ec4b584:0"
+            id: "21b61845c5a4e3b00e60f21c0fde6c0208eff28c9e57709306f47672bf8f984d:0"
                 .to_string()
                 .try_into()
                 .unwrap(),

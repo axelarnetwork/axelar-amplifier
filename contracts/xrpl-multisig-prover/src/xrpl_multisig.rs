@@ -147,7 +147,7 @@ pub struct XRPLPaymentTx {
     pub sequence: Sequence,
     pub amount: XRPLPaymentAmount,
     pub destination: nonempty::String,
-    pub multisig_session_id: Option<Uint64>
+    pub multisig_session_id: Uint64
 }
 
 impl TryFrom<&XRPLPaymentTx> for XRPLObject {
@@ -166,11 +166,9 @@ impl TryFrom<&XRPLPaymentTx> for XRPLObject {
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
         obj.add_field(3, &XRPLAddress(tx.destination.to_string()))?;
 
-        if let Some(multisig_session_id) = tx.multisig_session_id {
-            let memo_data: Vec<u8> = multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
-            let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
-            obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
-        }
+        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
+        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
 
         Ok(obj)
     }
@@ -183,7 +181,7 @@ pub struct XRPLSignerListSetTx {
     pub sequence: Sequence,
     pub signer_quorum: u32,
     pub signer_entries: Vec<XRPLSignerEntry>,
-    pub multisig_session_id: Option<Uint64>
+    pub multisig_session_id: Uint64
 }
 
 impl TryFrom<&XRPLSignerListSetTx> for XRPLObject {
@@ -202,11 +200,9 @@ impl TryFrom<&XRPLSignerListSetTx> for XRPLObject {
 
         obj.add_field(4, &XRPLArray{ field_code: 11, items: tx.signer_entries.clone() })?;
 
-        if let Some(multisig_session_id) = tx.multisig_session_id {
-            let memo_data: Vec<u8> = multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
-            let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
-            obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
-        }
+        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
+        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
 
         Ok(obj)
     }
@@ -219,7 +215,7 @@ pub struct XRPLTicketCreateTx {
     pub fee: u64,
     pub sequence: Sequence,
     pub ticket_count: u32,
-    pub multisig_session_id: Option<Uint64>
+    pub multisig_session_id: Uint64
 }
 
 impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
@@ -236,11 +232,9 @@ impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
         obj.add_field(3, &HexBinary::from_hex("")?)?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
 
-        if let Some(multisig_session_id) = tx.multisig_session_id {
-            let memo_data: Vec<u8> = multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
-            let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
-            obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
-        }
+        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
+        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
+        obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
 
         Ok(obj)
     }
@@ -689,6 +683,7 @@ pub fn issue_payment(
     destination: nonempty::String,
     amount: XRPLPaymentAmount,
     message_id: CrossChainId,
+    multisig_session_id: Uint64,
 ) -> Result<TxHash, ContractError> {
     let ticket_number = assign_ticket_number(storage, message_id.clone())?;
 
@@ -696,7 +691,7 @@ pub fn issue_payment(
         account: config.xrpl_multisig_address.to_string(),
         fee: config.xrpl_fee,
         sequence: Sequence::Ticket(ticket_number),
-        multisig_session_id: None,
+        multisig_session_id,
         amount,
         destination
     };
@@ -708,7 +703,12 @@ pub fn issue_payment(
     )
 }
 
-pub fn issue_ticket_create(storage: &mut dyn Storage, config: &Config, ticket_count: u32) -> Result<TxHash, ContractError> {
+pub fn issue_ticket_create(
+    storage: &mut dyn Storage,
+    config: &Config,
+    ticket_count: u32,
+    multisig_session_id: Uint64
+) -> Result<TxHash, ContractError> {
     let sequence_number = get_next_sequence_number(storage)?;
 
     let tx = XRPLTicketCreateTx {
@@ -716,7 +716,7 @@ pub fn issue_ticket_create(storage: &mut dyn Storage, config: &Config, ticket_co
         fee: config.xrpl_fee,
         sequence: Sequence::Plain(sequence_number.clone()),
         ticket_count,
-        multisig_session_id: None
+        multisig_session_id,
     };
 
     issue_tx(
@@ -726,7 +726,12 @@ pub fn issue_ticket_create(storage: &mut dyn Storage, config: &Config, ticket_co
     )
 }
 
-pub fn issue_signer_list_set(storage: &mut dyn Storage, config: &Config, workers: WorkerSet) -> Result<TxHash, ContractError> {
+pub fn issue_signer_list_set(
+    storage: &mut dyn Storage,
+    config: &Config,
+    workers: WorkerSet,
+    multisig_session_id: Uint64
+) -> Result<TxHash, ContractError> {
     let sequence_number = get_next_sequence_number(storage)?;
 
     let tx = XRPLSignerListSetTx {
@@ -735,7 +740,7 @@ pub fn issue_signer_list_set(storage: &mut dyn Storage, config: &Config, workers
         sequence: Sequence::Plain(sequence_number.clone()),
         signer_quorum: workers.quorum,
         signer_entries: make_xrpl_signer_entries(workers.signers),
-        multisig_session_id: None
+        multisig_session_id,
     };
 
     issue_tx(
@@ -1151,11 +1156,11 @@ mod tests {
                 XRPLTokenAmount("0.3369568318".to_string()),
             ),
             destination: nonempty::String::try_from("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
-            multisig_session_id: None,
+            multisig_session_id: Uint64::from(1u8),
         };
         let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize().unwrap();
         assert_eq!(
-            "1200002200000000240000000161D44BF89AC2A40B800000000000000000000000004A50590000000000000000000000000000000000000000000000000168400000000000000C730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
+            "1200002200000000240000000161D44BF89AC2A40B800000000000000000000000004A50590000000000000000000000000000000000000000000000000168400000000000000C730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8F9EA7D0101E1F1",
             hex::encode_upper(encoded_unsigned_tx)
         );
     }
@@ -1168,11 +1173,11 @@ mod tests {
             sequence: Sequence::Plain(1),
             amount: XRPLPaymentAmount::Drops(1000),
             destination: nonempty::String::try_from("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
-            multisig_session_id: None,
+            multisig_session_id: Uint64::from(0u8),
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize().unwrap();
         assert_eq!(
-            "120000220000000024000000016140000000000003E868400000000000000A730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8",
+            "120000220000000024000000016140000000000003E868400000000000000A730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8F9EA7D00E1F1",
             hex::encode_upper(encoded_unsigned_tx)
         );
 
@@ -1182,11 +1187,11 @@ mod tests {
             sequence: Sequence::Plain(43497363),
             amount: XRPLPaymentAmount::Drops(1000000000),
             destination: nonempty::String::try_from("rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq").unwrap(),
-            multisig_session_id: None,
+            multisig_session_id: Uint64::from(1337u16),
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize().unwrap();
         assert_eq!(
-            "1200002200000000240297B79361400000003B9ACA0068400000000000000373008114245409103F1B06F22FBCED389AAE0EFCE2F6689A83146919924835FA51D3991CDF5CF4505781227686E6",
+            "1200002200000000240297B79361400000003B9ACA0068400000000000000373008114245409103F1B06F22FBCED389AAE0EFCE2F6689A83146919924835FA51D3991CDF5CF4505781227686E6F9EA7D020539E1F1",
             hex::encode_upper(encoded_unsigned_tx)
         );
     }
@@ -1200,7 +1205,7 @@ mod tests {
                 sequence: Sequence::Ticket(44218193),
                 amount: XRPLPaymentAmount::Drops(100000000),
                 destination: nonempty::String::try_from("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG").unwrap(),
-                multisig_session_id: Some(Uint64::from(5461264u64)),
+                multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
                     account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
@@ -1230,7 +1235,7 @@ mod tests {
                 sequence: Sequence::Ticket(44218193),
                 amount: XRPLPaymentAmount::Drops(100000000),
                 destination: nonempty::String::try_from("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG").unwrap(),
-                multisig_session_id: Some(Uint64::from(5461264u64)),
+                multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
                     account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
@@ -1260,7 +1265,7 @@ mod tests {
                 sequence: Sequence::Ticket(45205896),
                 amount: XRPLPaymentAmount::Token(XRPLToken{ currency: "ETH".to_string(), issuer: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string() }, XRPLTokenAmount("100000000".to_string())),
                 destination: nonempty::String::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
-                multisig_session_id: Some(Uint64::from(5461264u64)),
+                multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
                     account: "rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj".to_string(),
@@ -1290,7 +1295,7 @@ mod tests {
                 fee: 30,
                 sequence: Sequence::Plain(44218194),
                 ticket_count: 3,
-                multisig_session_id: Some(Uint64::from(5461264u64)),
+                multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
                     account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
@@ -1329,7 +1334,7 @@ mod tests {
                         signer_weight: 1
                     }
                 ],
-                multisig_session_id: Some(Uint64::from(5461264u64))
+                multisig_session_id: Uint64::from(5461264u64)
             }), signers: vec![
                 XRPLSigner{
                     account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
