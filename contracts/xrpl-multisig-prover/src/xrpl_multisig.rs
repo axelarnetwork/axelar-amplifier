@@ -5,6 +5,7 @@ use axelar_wasm_std::{nonempty, FnExt};
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
+use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 use multisig::key::PublicKey;
 use ripemd::Ripemd160;
 use sha2::{Sha512, Digest, Sha256};
@@ -827,6 +828,35 @@ fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(),
             .collect())
     })?;
     Ok(())
+}
+
+pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
+    let xrpl_signers: Vec<XRPLSigner> = axelar_signers
+        .iter()
+        .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
+            let xrpl_address = public_key_to_xrpl_address(&axelar_signer.pub_key);
+            let txn_signature = match signature {
+                // TODO: use unwrapped signature instead of ignoring it
+                multisig::key::Signature::Ecdsa(_) |
+                multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
+                    &ecdsa::Signature::try_from(signature.clone().as_ref())
+                        .map_err(|_| ContractError::FailedToEncodeSignature)?
+                ).to_vec()),
+                _ => unimplemented!("Unsupported signature type"),
+            };
+
+            Ok(XRPLSigner {
+                account: xrpl_address,
+                signing_pub_key: axelar_signer.pub_key.clone().into(),
+                txn_signature,
+            })
+        })
+        .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;
+
+    Ok(XRPLSignedTransaction {
+        unsigned_tx,
+        signers: xrpl_signers,
+    })
 }
 
 pub fn update_tx_status(
