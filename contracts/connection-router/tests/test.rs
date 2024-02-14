@@ -116,17 +116,16 @@ fn route() {
         )
         .unwrap();
 
-    let messages_ret = mock::get_gateway_messages(&mut config.app, polygon.gateway, &messages);
+    let outgoing_messages = mock::get_gateway_messages(&mut config.app, polygon.gateway, &messages);
 
-    assert_eq!(messages.len(), messages_ret.len());
-    assert_eq!(messages, messages_ret);
+    assert_eq!(messages.len(), outgoing_messages.len());
+    assert_eq!(messages, outgoing_messages);
 
     // try to route twice
-    let res = config.app.execute_contract(
+    let res = config.connection_router.execute(
+        &mut config.app,
         eth.gateway.clone(),
-        config.connection_router.contract_addr.clone(),
         &ExecuteMsg::RouteMessages(messages.clone()),
-        &[],
     );
 
     assert!(res.is_ok());
