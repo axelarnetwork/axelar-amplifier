@@ -41,8 +41,6 @@ pub struct WorkerSetConfirmation {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-worker_set_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
     poll_id: PollId,
     source_chain: connection_router::state::ChainName,
@@ -146,8 +144,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> Result<()> {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_chain,
             source_gateway_address,
@@ -161,10 +162,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if self.chain != source_chain {
             return Ok(());
