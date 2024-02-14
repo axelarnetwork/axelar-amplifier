@@ -69,7 +69,7 @@ pub fn validate_session_signature(
         });
     }
 
-    sig_verifier.map_or_else(
+    let valid = sig_verifier.map_or_else(
         || signature.verify(&session.msg, pub_key),
         |verifier| {
             verifier
@@ -86,7 +86,7 @@ pub fn validate_session_signature(
         },
     )?;
 
-    if !signature.verify(&session.msg, pub_key)? {
+    if !valid {
         return Err(ContractError::InvalidSignature {
             session_id: session.id,
             signer: signer.into(),
