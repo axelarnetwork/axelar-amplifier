@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use axelar_wasm_std::FnExt;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
 use signature_verifier_api::client::SignatureVerifier;
@@ -73,13 +72,17 @@ pub fn validate_session_signature(
     sig_verifier.map_or_else(
         || signature.verify(&session.msg, pub_key),
         |verifier| {
-            verifier.verify_signature(
-                signature.as_ref().into(),
-                session.msg.as_ref().into(),
-                pub_key.as_ref().into(),
-                signer.to_string(),
-                session.id,
-            )
+            verifier
+                .verify_signature(
+                    signature.as_ref().into(),
+                    session.msg.as_ref().into(),
+                    pub_key.as_ref().into(),
+                    signer.to_string(),
+                    session.id,
+                )
+                .map_err(|err| ContractError::SignatureVerificationFailed {
+                    reason: err.to_string(),
+                })
         },
     )?;
 
@@ -232,7 +235,9 @@ mod tests {
             let signature = config.signatures.values().next().unwrap();
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            assert!(validate_session_signature(&session, &signer, signature, pub_key, 0).is_ok());
+            assert!(
+                validate_session_signature(&session, &signer, signature, pub_key, 0, None).is_ok()
+            );
         }
     }
 
@@ -251,7 +256,8 @@ mod tests {
                 &signer,
                 signature,
                 pub_key,
-                block_height
+                block_height,
+                None
             )
             .is_ok());
         }
@@ -267,8 +273,14 @@ mod tests {
             let block_height = 12346;
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            let result =
-                validate_session_signature(&session, &signer, signature, pub_key, block_height);
+            let result = validate_session_signature(
+                &session,
+                &signer,
+                signature,
+                pub_key,
+                block_height,
+                None,
+            );
 
             assert_eq!(
                 result.unwrap_err(),
@@ -296,7 +308,8 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0);
+            let result =
+                validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, None);
 
             assert_eq!(
                 result.unwrap_err(),
