@@ -24,6 +24,8 @@ jobs:
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libclang-dev
         run: sudo apt-get install libclang-dev
