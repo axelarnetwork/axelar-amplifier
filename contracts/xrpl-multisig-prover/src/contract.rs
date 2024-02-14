@@ -343,11 +343,11 @@ fn update_tx_status(
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
 
-    let actual_status = querier.get_message_status(message)?;
     if parse_message_id(&message_id.id)?.0.to_string() != tx_hash.to_string() {
         return Err(ContractError::InvalidMessageID(message_id.id.to_string()));
     }
 
+    let actual_status = querier.get_message_status(message)?;
     if status != actual_status {
         return Err(ContractError::InvalidMessageStatus)
     }
