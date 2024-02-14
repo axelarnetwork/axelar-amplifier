@@ -3,41 +3,9 @@ use cosmwasm_std::{StdResult, Uint64, HexBinary, Storage};
 use multisig::{key::Signature, types::MultisigState};
 use multisig::key::PublicKey;
 
-// TODO: remove dependency?
-use k256::{ecdsa, schnorr::signature::SignatureEncoding};
-
 use crate::{
-    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{XRPLUnsignedTx, XRPLSignedTransaction, XRPLSigner, self, XRPLSerialize, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING}, querier::Querier, msg::GetProofResponse, types::TransactionStatus, error::ContractError,
+    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{self, XRPLSerialize, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING}, querier::Querier, msg::GetProofResponse, types::TransactionStatus, error::ContractError,
 };
-
-pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
-    let xrpl_signers: Vec<XRPLSigner> = axelar_signers
-        .iter()
-        .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
-            let xrpl_address = xrpl_multisig::public_key_to_xrpl_address(&axelar_signer.pub_key);
-            let txn_signature = match signature {
-                // TODO: use unwrapped signature instead of ignoring it
-                multisig::key::Signature::Ecdsa(_) |
-                multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
-                    &ecdsa::Signature::try_from(signature.clone().as_ref())
-                        .map_err(|_| ContractError::FailedToEncodeSignature)?
-                ).to_vec()),
-                _ => unimplemented!("Unsupported signature type"),
-            };
-
-            Ok(XRPLSigner {
-                account: xrpl_address,
-                signing_pub_key: axelar_signer.pub_key.clone().into(),
-                txn_signature,
-            })
-        })
-        .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;
-
-    Ok(XRPLSignedTransaction {
-        unsigned_tx,
-        signers: xrpl_signers,
-    })
-}
 
 pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, signer_xrpl_address: &String) -> StdResult<HexBinary> {
     let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
@@ -80,7 +48,7 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
                 .map(|(signer, signature)| (signer.clone(), signature.clone().unwrap()))
                 .collect();
 
-            let signed_tx = make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
+            let signed_tx = xrpl_multisig::make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
             let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
             GetProofResponse::Completed { unsigned_tx_hash, tx_blob }
         }

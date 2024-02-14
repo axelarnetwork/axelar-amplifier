@@ -339,7 +339,7 @@ fn update_tx_status(
         return Err(ContractError::SignatureNotFound);
     }
 
-    let signed_tx = query::make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?; // TODO: RELOCATE FUNCTION
+    let signed_tx = xrpl_multisig::make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
 
