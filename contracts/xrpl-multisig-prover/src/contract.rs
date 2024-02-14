@@ -38,6 +38,7 @@ pub struct InstantiateMsg {
     pub next_sequence_number: u32,
     pub last_assigned_ticket_number: u32,
     pub governance_address: String,
+    pub xrp_denom: String,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -70,6 +71,7 @@ pub fn instantiate(
         ticket_count_threshold: msg.ticket_count_threshold,
         key_type: multisig::key::KeyType::Ecdsa,
         governance_address,
+        xrp_denom: msg.xrp_denom,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -79,7 +81,7 @@ pub fn instantiate(
     AVAILABLE_TICKETS.save(deps.storage, &msg.available_tickets)?;
 
     let querier = Querier::new(deps.querier, config.clone());
-    let new_worker_set = axelar_workers::get_active_worker_set(querier, msg.signing_threshold, env.block.height)?;
+    let new_worker_set = axelar_workers::get_active_worker_set(&querier, msg.signing_threshold, env.block.height)?;
 
     CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
 
@@ -108,6 +110,10 @@ fn register_token(
     denom: String,
     token: &XRPLToken,
 ) -> Result<Response, ContractError> {
+    if token.currency == "XRP" || token.currency.len() != 3 {
+        return Err(ContractError::InvalidTokenDenom);
+    }
+
     require_governance(&config.governance_address, sender)?;
     TOKENS.save(storage, denom, token)?;
     Ok(Response::default())
@@ -128,16 +134,16 @@ pub fn execute(
             register_token(deps.storage, &config, &info.sender, denom, &token)
         },
         ExecuteMsg::ConstructProof { message_id } => {
-            construct_payment_proof(deps.storage, querier, info, env.contract.address, env.block.height, &config, message_id)
+            construct_payment_proof(deps.storage, &querier, info, env.contract.address, env.block.height, &config, message_id)
         },
         ExecuteMsg::UpdateWorkerSet {} => {
-            construct_signer_list_set_proof(deps.storage, querier, env, &config)
+            construct_signer_list_set_proof(deps.storage, &querier, env, &config)
         },
         ExecuteMsg::UpdateTxStatus { multisig_session_id, signers, message_id, message_status } => {
-            update_tx_status(deps.storage, querier, &multisig_session_id, &signers, &message_id, message_status, config.axelar_multisig_address, config.xrpl_multisig_address)
+            update_tx_status(deps.storage, &querier, &multisig_session_id, &signers, &message_id, message_status, config.axelar_multisig_address, config.xrpl_multisig_address)
         },
         ExecuteMsg::TicketCreate {} => {
-            construct_ticket_create_proof(deps.storage, env.contract.address, &config)
+            construct_ticket_create_proof(deps.storage, &querier, env.contract.address, &config)
         },
     }?;
 
@@ -146,7 +152,7 @@ pub fn execute(
 
 fn construct_payment_proof(
     storage: &mut dyn Storage,
-    querier: Querier,
+    querier: &Querier,
     info: MessageInfo,
     self_address: Addr,
     block_height: u64,
@@ -157,6 +163,7 @@ fn construct_payment_proof(
         return Err(ContractError::InvalidPaymentAmount);
     }
 
+    // Protect against double signing the same message ID
     match MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, message_id.clone())? {
         Some(multisig_session_id) => {
             let multisig_session = querier.get_multisig_session(Uint64::from(multisig_session_id))?;
@@ -173,27 +180,27 @@ fn construct_payment_proof(
 
     let mut funds = info.funds;
     let coin = funds.remove(0);
-    let xrpl_token = TOKENS.load(storage, coin.denom.clone())?;
     let message = querier.get_message(message_id.clone())?;
-    let xrpl_payment_amount = if xrpl_token.currency == XRPLToken::NATIVE_CURRENCY {
+    let xrpl_payment_amount = if coin.denom == config.xrp_denom {
+        // TODO: handle decimal precision conversion
         let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount { amount: coin.amount.to_string(), reason: "overflow".to_string() })?;
         XRPLPaymentAmount::Drops(drops)
     } else {
+        let xrpl_token = TOKENS.load(storage, coin.denom.clone())?;
         XRPLPaymentAmount::Token(
-            XRPLToken {
-                issuer: xrpl_token.issuer,
-                currency: xrpl_token.currency,
-            },
+            xrpl_token,
             XRPLTokenAmount(coin.amount.to_string()),
         )
     };
 
+    let multisig_session_id = querier.get_next_multisig_session_id()?;
     let tx_hash = xrpl_multisig::issue_payment(
         storage,
         config,
         message.destination_address.to_string().try_into()?,
         xrpl_payment_amount,
         message_id.clone(),
+        multisig_session_id,
     )?;
 
     REPLY_MESSAGE_ID.save(storage, &message_id)?;
@@ -231,7 +238,7 @@ pub fn start_signing_session(
 
 fn construct_signer_list_set_proof(
     storage: &mut dyn Storage,
-    querier: Querier,
+    querier: &Querier,
     env: Env,
     config: &Config,
 ) -> Result<Response, ContractError> {
@@ -249,10 +256,12 @@ fn construct_signer_list_set_proof(
         return Err(ContractError::WorkerSetUnchanged.into())
     }
 
+    let multisig_session_id = querier.get_next_multisig_session_id()?;
     let tx_hash = xrpl_multisig::issue_signer_list_set(
         storage,
         config,
         cur_worker_set,
+        multisig_session_id,
     )?;
 
     NEXT_WORKER_SET.save(storage, tx_hash.clone(), &new_worker_set)?;
@@ -269,6 +278,7 @@ fn construct_signer_list_set_proof(
 
 fn construct_ticket_create_proof(
     storage: &mut dyn Storage,
+    querier: &Querier,
     self_address: Addr,
     config: &Config,
 ) -> Result<Response, ContractError> {
@@ -277,10 +287,12 @@ fn construct_ticket_create_proof(
         return Err(ContractError::TicketCountThresholdNotReached.into());
     }
 
+    let multisig_session_id = querier.get_next_multisig_session_id()?;
     let tx_hash = xrpl_multisig::issue_ticket_create(
         storage,
         config,
         ticket_count,
+        multisig_session_id,
     )?;
 
     let response = start_signing_session(
@@ -295,7 +307,7 @@ fn construct_ticket_create_proof(
 
 fn update_tx_status(
     storage: &mut dyn Storage,
-    querier: Querier,
+    querier: &Querier,
     multisig_session_id: &Uint64,
     signers: &Vec<Addr>,
     message_id: &CrossChainId,

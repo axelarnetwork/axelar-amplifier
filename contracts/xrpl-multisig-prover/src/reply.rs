@@ -36,6 +36,8 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 None => (),
             }
 
+            REPLY_MESSAGE_ID.remove(deps.storage);
+
             let tx_info = TRANSACTION_INFO.load(deps.storage, tx_hash.clone())?;
 
             let res = reply.result.unwrap();

@@ -125,7 +125,3 @@ pub struct XRPLToken {
     pub issuer: String,
     pub currency: String,
 }
-
-impl XRPLToken {
-    pub const NATIVE_CURRENCY: &'static str = "XRP";
-}

@@ -81,4 +81,10 @@ impl<'a> Querier<'a> {
         };
         query(self.querier, self.config.axelar_multisig_address.to_string(), &query_msg)
     }
+
+    pub fn get_next_multisig_session_id(&self) -> Result<Uint64, ContractError> {
+        query(self.querier, self.config.axelar_multisig_address.to_string(),
+            &multisig::msg::QueryMsg::GetNextSessionId,
+        )
+    }
 }

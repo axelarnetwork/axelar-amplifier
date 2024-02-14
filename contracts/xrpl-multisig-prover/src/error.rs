@@ -103,6 +103,9 @@ pub enum ContractError {
 
     #[error("payment already signed")]
     PaymentAlreadySigned,
+
+    #[error("invalid token denomination")]
+    InvalidTokenDenom,
 }
 
 impl From<ContractError> for StdError {
