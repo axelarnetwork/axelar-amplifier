@@ -115,7 +115,10 @@ fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSe
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::MockStorage, Addr, HexBinary};
+    use cosmwasm_std::{
+        testing::{MockQuerier, MockStorage},
+        to_binary, Addr, HexBinary, QuerierWrapper,
+    };
 
     use crate::{
         key::KeyType,
@@ -244,6 +247,47 @@ mod tests {
             assert!(
                 validate_session_signature(&session, &signer, signature, pub_key, 0, None).is_ok()
             );
+        }
+    }
+
+    #[test]
+    fn validation_through_signature_verifier_contract() {
+        for config in [ecdsa_setup(), ed25519_setup()] {
+            let session = config.session;
+            let worker_set = config.worker_set;
+            let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
+            let signature = config.signatures.values().next().unwrap();
+            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+
+            for verification in [true, false] {
+                let mut querier = MockQuerier::default();
+                querier.update_wasm(move |_| Ok(to_binary(&verification).into()).into());
+                let sig_verifier = Some(SignatureVerifier {
+                    address: Addr::unchecked("verifier".to_string()),
+                    querier: QuerierWrapper::new(&querier),
+                });
+
+                let result = validate_session_signature(
+                    &session,
+                    &signer,
+                    signature,
+                    pub_key,
+                    0,
+                    sig_verifier,
+                );
+
+                if verification {
+                    assert!(result.is_ok());
+                } else {
+                    assert_eq!(
+                        result.unwrap_err(),
+                        ContractError::InvalidSignature {
+                            session_id: session.id,
+                            signer: signer.clone().into(),
+                        }
+                    );
+                }
+            }
         }
     }
 
