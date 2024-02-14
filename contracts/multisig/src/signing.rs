@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use connection_router::state::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
 use signature_verifier_api::client::SignatureVerifier;
@@ -15,6 +16,7 @@ use crate::{
 pub struct SigningSession {
     pub id: Uint64,
     pub worker_set_id: String,
+    pub chain_name: ChainName,
     pub msg: MsgToSign,
     pub state: MultisigState,
     pub expires_at: u64,
@@ -25,6 +27,7 @@ impl SigningSession {
     pub fn new(
         session_id: Uint64,
         worker_set_id: String,
+        chain_name: ChainName,
         msg: MsgToSign,
         expires_at: u64,
         sig_verifier: Option<Addr>,
@@ -32,6 +35,7 @@ impl SigningSession {
         Self {
             id: session_id,
             worker_set_id,
+            chain_name,
             msg,
             state: MultisigState::Pending,
             expires_at,
@@ -143,6 +147,7 @@ mod tests {
         let session = SigningSession::new(
             Uint64::one(),
             worker_set_id,
+            "mock-chain".parse().unwrap(),
             message.clone(),
             expires_at,
             None,
@@ -181,6 +186,7 @@ mod tests {
         let session = SigningSession::new(
             Uint64::one(),
             worker_set_id,
+            "mock-chain".parse().unwrap(),
             message.clone(),
             expires_at,
             None,
