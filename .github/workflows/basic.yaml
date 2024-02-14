@@ -12,7 +12,7 @@ name: Basic
 jobs:
   test:
     name: Test Suite
-    runs-on: blacksmith-16vcpu-ubuntu-2204
+    runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
