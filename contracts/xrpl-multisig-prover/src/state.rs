@@ -18,6 +18,7 @@ pub struct Config {
     pub xrpl_fee: u64,
     pub ticket_count_threshold: u32,
     pub key_type: multisig::key::KeyType,
+    pub governance_address: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
