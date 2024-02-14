@@ -201,6 +201,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .map(|address| WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
             msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                chain_name: config.source_chain.clone(),
                 event_id: poll_id
                     .to_string()
                     .try_into()

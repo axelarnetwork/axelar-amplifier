@@ -1,9 +1,8 @@
 use connection_router::state::{CrossChainId, Message};
-use cosmwasm_std::{Addr, HexBinary, Uint128};
+use cosmwasm_std::{HexBinary, Uint128};
 
 use crate::test_utils::AXL_DENOMINATION;
-use cw_multi_test::Executor;
-use test_utils::{Chain, Protocol, Worker};
+
 mod test_utils;
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
 /// gateway, votes on the poll, routes the message to the outgoing gateway, triggers signing at the prover
@@ -28,7 +27,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain2.chain_name,
+        destination_chain: chain2.chain_name.clone(),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )
@@ -95,11 +94,13 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     test_utils::distribute_rewards(
         &mut protocol.app,
         &protocol.rewards_address,
+        &chain1.chain_name,
         &chain1.voting_verifier_address,
     );
     test_utils::distribute_rewards(
         &mut protocol.app,
         &protocol.rewards_address,
+        &chain2.chain_name,
         &protocol.multisig_address,
     );
 
@@ -112,7 +113,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         let balance = protocol
             .app
             .wrap()
-            .query_balance(worker.addr, test_utils::AXL_DENOMINATION)
+            .query_balance(worker.addr, AXL_DENOMINATION)
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
     }
