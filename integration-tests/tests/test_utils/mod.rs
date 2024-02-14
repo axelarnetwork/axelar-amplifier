@@ -985,7 +985,7 @@ pub fn register_token(
     token: XRPLToken,
 ) {
     let response = protocol.app.execute_contract(
-        Addr::unchecked("doesn't matter"), // TODO: should fail unless admin
+        protocol.governance_address.clone(),
         multisig_prover_address.clone(),
         &xrpl_multisig_prover::msg::ExecuteMsg::RegisterToken {
             denom,
@@ -1042,6 +1042,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
                 vec![],
                 (44218195..44218200).collect::<Vec<_>>()
             ].concat(),
+            governance_address: protocol.governance_address.to_string(),
         },
     );
 

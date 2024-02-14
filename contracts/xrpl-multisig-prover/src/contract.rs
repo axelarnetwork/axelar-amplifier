@@ -37,6 +37,7 @@ pub struct InstantiateMsg {
     pub available_tickets: Vec<u32>,
     pub next_sequence_number: u32,
     pub last_assigned_ticket_number: u32,
+    pub governance_address: String,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -50,6 +51,7 @@ pub fn instantiate(
     let gateway_address = deps.api.addr_validate(&msg.gateway_address)?;
     let voting_verifier_address = deps.api.addr_validate(&msg.voting_verifier_address)?;
     let service_registry_address = deps.api.addr_validate(&msg.service_registry_address)?;
+    let governance_address = deps.api.addr_validate(&msg.governance_address)?;
 
     if msg.signing_threshold.numerator() > u32::MAX.into() {
         return Err(ContractError::InvalidSigningThreshold.into());
@@ -67,6 +69,7 @@ pub fn instantiate(
         xrpl_fee: msg.xrpl_fee,
         ticket_count_threshold: msg.ticket_count_threshold,
         key_type: multisig::key::KeyType::Ecdsa,
+        governance_address,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -91,11 +94,21 @@ pub fn instantiate(
     Ok(Response::new().add_message(msg))
 }
 
+pub fn require_governance(governance: &Addr, sender: &Addr) -> Result<(), ContractError> {
+    if governance != sender {
+        return Err(ContractError::Unauthorized);
+    }
+    Ok(())
+}
+
 fn register_token(
     storage: &mut dyn Storage,
+    config: &Config,
+    sender: &Addr,
     denom: String,
     token: &XRPLToken,
 ) -> Result<Response, ContractError> {
+    require_governance(&config.governance_address, sender)?;
     TOKENS.save(storage, denom, token)?;
     Ok(Response::default())
 }
@@ -111,9 +124,8 @@ pub fn execute(
     let querier = Querier::new(deps.querier, config.clone());
 
     let res = match msg {
-        // TODO: should be admin-only
         ExecuteMsg::RegisterToken { denom, token } => {
-            register_token(deps.storage, denom, &token)
+            register_token(deps.storage, &config, &info.sender, denom, &token)
         },
         ExecuteMsg::ConstructProof { message_id } => {
             construct_payment_proof(deps.storage, querier, info, env.contract.address, env.block.height, &config, message_id)
