@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin};
+use cosmwasm_std::{Addr, Coin, StdError};
 use cw_multi_test::{App, AppResponse, Executor};
 use error_stack::{report, Result};
 use serde::de::DeserializeOwned;
@@ -48,6 +48,10 @@ pub trait Contract {
             execute_message,
             funds,
         )
-        .map_err(|err| report!(err.downcast::<axelar_wasm_std::ContractError>().unwrap()))
+        .map_err(|err| {
+            report!(err
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap_or_else(|err| err.downcast::<StdError>().unwrap().into()))
+        })
     }
 }

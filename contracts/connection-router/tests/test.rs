@@ -56,7 +56,7 @@ fn make_chain(name: &str, config: &mut TestConfig) -> Chain {
 }
 
 fn register_chain(config: &mut TestConfig, chain: &Chain) {
-    config
+    let _ = config
         .connection_router
         .execute(
             &mut config.app,
@@ -100,8 +100,8 @@ fn route() {
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
 
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let nonce: &mut usize = &mut 0;
     let messages = generate_messages(&eth, &polygon, nonce, 255);
@@ -136,8 +136,8 @@ fn wrong_source_chain() {
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
 
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let messages = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
 
@@ -163,7 +163,7 @@ fn multi_chain_route() {
         make_chain("moonbeam", &mut config),
     ];
     for c in &chains {
-        let _ = register_chain(&mut config, c);
+        register_chain(&mut config, c);
     }
 
     let nonce = &mut 0;
@@ -363,8 +363,8 @@ fn upgrade_gateway_outgoing() {
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
 
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
     let new_gateway = mock::make_mock_gateway(&mut config.app);
 
     let _ = config
@@ -405,8 +405,8 @@ fn upgrade_gateway_incoming() {
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
 
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
     let new_gateway = mock::make_mock_gateway(&mut config.app);
 
     let _ = config
@@ -461,8 +461,8 @@ fn register_chain_test() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(err, ContractError::GatewayNotRegistered);
 
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -476,7 +476,7 @@ fn register_chain_test() {
 fn chain_already_registered() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
-    let _ = register_chain(&mut config, &eth);
+    register_chain(&mut config, &eth);
 
     let err = config
         .connection_router
@@ -524,7 +524,7 @@ fn gateway_already_registered() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
+    register_chain(&mut config, &eth);
 
     let err = config
         .connection_router
@@ -539,7 +539,7 @@ fn gateway_already_registered() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(err, ContractError::GatewayAlreadyRegistered);
 
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &polygon);
     let err = config
         .connection_router
         .execute(
@@ -560,8 +560,8 @@ fn freeze_incoming() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let _ = config
         .connection_router
@@ -632,8 +632,8 @@ fn freeze_outgoing() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     // freeze outgoing
     let res = config.connection_router.execute(
@@ -690,8 +690,8 @@ fn freeze_chain() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let nonce = &mut 0;
 
@@ -796,8 +796,8 @@ fn unfreeze_incoming() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -856,8 +856,8 @@ fn unfreeze_outgoing() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -916,8 +916,8 @@ fn freeze_incoming_then_outgoing() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let _ = config
         .connection_router
@@ -984,8 +984,8 @@ fn freeze_outgoing_then_incoming() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let _ = config
         .connection_router
@@ -1052,8 +1052,8 @@ fn unfreeze_incoming_then_outgoing() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -1116,8 +1116,8 @@ fn unfreeze_outgoing_then_incoming() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -1180,8 +1180,8 @@ fn unfreeze_nothing() {
     let mut config = setup();
     let eth = make_chain("ethereum", &mut config);
     let polygon = make_chain("polygon", &mut config);
-    let _ = register_chain(&mut config, &eth);
-    let _ = register_chain(&mut config, &polygon);
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -1241,33 +1241,33 @@ fn unfreeze_nothing() {
     );
 }
 
-// #[test]
-// fn bad_gateway() {
-//     let mut config = setup();
-//     let eth = make_chain("ethereum", &mut config);
-//     let polygon = make_chain("polygon", &mut config);
-//
-//     let _ = register_chain(&mut config, &eth);
-//     let _ = register_chain(&mut config, &polygon);
-//
-//     let res = config.connection_router.execute(
-//         &mut config.app,
-//         config.governance_address.clone(),
-//         &ExecuteMsg::UpgradeGateway {
-//             chain: polygon.chain_name.clone(),
-//             contract_address: Addr::unchecked("some random address").to_string(), // gateway address does not implement required interface
-//         },
-//     );
-//
-//     assert!(res.is_ok());
-//
-//     let nonce: &mut usize = &mut 0;
-//     let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
-//
-//     let res = config.connection_router.execute(
-//         &mut config.app,
-//         eth.gateway.clone(),
-//         &ExecuteMsg::RouteMessages(vec![message.clone()]),
-//     );
-//     assert!(res.is_err());
-// }
+#[test]
+fn bad_gateway() {
+    let mut config = setup();
+    let eth = make_chain("ethereum", &mut config);
+    let polygon = make_chain("polygon", &mut config);
+
+    register_chain(&mut config, &eth);
+    register_chain(&mut config, &polygon);
+
+    let res = config.connection_router.execute(
+        &mut config.app,
+        config.governance_address.clone(),
+        &ExecuteMsg::UpgradeGateway {
+            chain: polygon.chain_name.clone(),
+            contract_address: Addr::unchecked("some random address").to_string(), // gateway address does not implement required interface
+        },
+    );
+
+    assert!(res.is_ok());
+
+    let nonce: &mut usize = &mut 0;
+    let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+
+    let res = config.connection_router.execute(
+        &mut config.app,
+        eth.gateway.clone(),
+        &ExecuteMsg::RouteMessages(vec![message.clone()]),
+    );
+    assert!(res.is_err());
+}
