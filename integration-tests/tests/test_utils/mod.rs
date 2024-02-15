@@ -9,14 +9,15 @@ use cosmwasm_std::{
     Uint256, Uint64,
 };
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
-
 use k256::ecdsa;
+use sha3::{Digest, Keccak256};
+
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
-use sha3::{Digest, Keccak256};
+use rewards::state::PoolId;
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -243,10 +244,7 @@ pub fn get_proof(
     query_response.unwrap()
 }
 
-pub fn get_worker_set(
-    app: &mut App,
-    multisig_prover_address: &Addr,
-) -> multisig::worker_set::WorkerSet {
+pub fn get_worker_set(app: &mut App, multisig_prover_address: &Addr) -> WorkerSet {
     let query_response = app.wrap().query_wasm_smart(
         multisig_prover_address,
         &multisig_prover::msg::QueryMsg::GetWorkerSet,
@@ -273,12 +271,20 @@ pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
     }
 }
 
-pub fn distribute_rewards(app: &mut App, rewards_address: &Addr, contract_address: &Addr) {
+pub fn distribute_rewards(
+    app: &mut App,
+    rewards_address: &Addr,
+    chain_name: &ChainName,
+    contract_address: &Addr,
+) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         rewards_address.clone(),
         &rewards::msg::ExecuteMsg::DistributeRewards {
-            contract_address: contract_address.to_string(),
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: contract_address.clone(),
+            },
             epoch_count: None,
         },
         &[],
@@ -347,16 +353,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             governance_account: governance_address.to_string(),
         },
     );
-    // voting rewards are added when setting up individual chains
-    let response = app.execute_contract(
-        genesis.clone(),
-        rewards_address.clone(),
-        &rewards::msg::ExecuteMsg::AddRewards {
-            contract_address: multisig_address.to_string(),
-        },
-        &coins(1000, AXL_DENOMINATION),
-    );
-    assert!(response.is_ok());
 
     Protocol {
         genesis_address: genesis,
@@ -710,8 +706,8 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             service_name: protocol.service_name.to_string(),
             chain_name: chain_name.to_string(),
             worker_set_diff_threshold: 0,
-            encoder: multisig_prover::encoding::Encoder::Abi,
-            key_type: multisig::key::KeyType::Ecdsa,
+            encoder: Encoder::Abi,
+            key_type: KeyType::Ecdsa,
         },
     );
     let response = protocol.app.execute_contract(
@@ -746,7 +742,23 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         protocol.genesis_address.clone(),
         protocol.rewards_address.clone(),
         &rewards::msg::ExecuteMsg::AddRewards {
-            contract_address: voting_verifier_address.to_string(),
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: voting_verifier_address.clone(),
+            },
+        },
+        &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.app.execute_contract(
+        protocol.genesis_address.clone(),
+        protocol.rewards_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: protocol.multisig_address.clone(),
+            },
         },
         &coins(1000, AXL_DENOMINATION),
     );
