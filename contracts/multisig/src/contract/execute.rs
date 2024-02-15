@@ -21,7 +21,7 @@ pub fn start_signing_session(
     worker_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
-    sig_verifier: Option<String>,
+    sig_verifier: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
@@ -42,9 +42,7 @@ pub fn start_signing_session(
         chain_name.clone(),
         msg.clone(),
         expires_at,
-        sig_verifier
-            .map(|addr| deps.api.addr_validate(&addr))
-            .transpose()?,
+        sig_verifier,
     );
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;

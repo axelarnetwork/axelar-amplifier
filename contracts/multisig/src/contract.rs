@@ -52,6 +52,10 @@ pub fn execute(
             sig_verifier,
         } => {
             execute::require_authorized_caller(&deps, info.sender)?;
+
+            let sig_verifier = sig_verifier
+                .map(|addr| deps.api.addr_validate(&addr))
+                .transpose()?;
             execute::start_signing_session(
                 deps,
                 env,
