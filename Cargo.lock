@@ -87,6 +87,7 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
  "error-stack",
+ "itertools 0.11.0",
  "report",
  "schemars",
  "serde",

@@ -24,6 +24,8 @@ path = "src/bin/schema.rs"
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+# generate golden files for the tests
+generate_golden_files = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
