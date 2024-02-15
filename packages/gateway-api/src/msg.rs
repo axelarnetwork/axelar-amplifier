@@ -1,4 +1,4 @@
-use connection_router_api::primitives::Message;
+use connection_router_api::Message;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
