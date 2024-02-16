@@ -115,7 +115,7 @@ fn register_token(
     }
 
     require_governance(&config.governance_address, sender)?;
-    TOKENS.save(storage, denom, token)?;
+    TOKENS.save(storage, &denom, token)?;
     Ok(Response::default())
 }
 
@@ -164,9 +164,9 @@ fn construct_payment_proof(
     }
 
     // Protect against double signing the same message ID
-    match MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, message_id.clone())? {
+    match MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, &message_id)? {
         Some(multisig_session_id) => {
-            let multisig_session = querier.get_multisig_session(Uint64::from(multisig_session_id))?;
+            let multisig_session = querier.get_multisig_session(&Uint64::from(multisig_session_id))?;
             if let MultisigState::Completed { .. } = multisig_session.state {
                 return Err(ContractError::PaymentAlreadySigned);
             }
@@ -180,13 +180,13 @@ fn construct_payment_proof(
 
     let mut funds = info.funds;
     let coin = funds.remove(0);
-    let message = querier.get_message(message_id.clone())?;
+    let message = querier.get_message(&message_id)?;
     let xrpl_payment_amount = if coin.denom == config.xrp_denom {
         // TODO: handle decimal precision conversion
         let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount { amount: coin.amount.to_string(), reason: "overflow".to_string() })?;
         XRPLPaymentAmount::Drops(drops)
     } else {
-        let xrpl_token = TOKENS.load(storage, coin.denom.clone())?;
+        let xrpl_token = TOKENS.load(storage, &coin.denom)?;
         XRPLPaymentAmount::Token(
             xrpl_token,
             XRPLTokenAmount(coin.amount.to_string()),
@@ -198,9 +198,9 @@ fn construct_payment_proof(
         storage,
         config,
         message.destination_address.to_string().try_into()?,
-        xrpl_payment_amount,
-        message_id.clone(),
-        multisig_session_id,
+        &xrpl_payment_amount,
+        &message_id,
+        &multisig_session_id,
     )?;
 
     REPLY_MESSAGE_ID.save(storage, &message_id)?;
@@ -231,7 +231,7 @@ pub fn start_signing_session(
         sig_verifier: None,
     };
 
-    let wasm_msg = wasm_execute(config.axelar_multisig_address.clone(), &start_sig_msg, vec![])?;
+    let wasm_msg = wasm_execute(&config.axelar_multisig_address, &start_sig_msg, vec![])?;
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
 }
@@ -264,7 +264,7 @@ fn construct_signer_list_set_proof(
         multisig_session_id,
     )?;
 
-    NEXT_WORKER_SET.save(storage, tx_hash.clone(), &new_worker_set)?;
+    NEXT_WORKER_SET.save(storage, &tx_hash, &new_worker_set)?;
 
     Ok(
         start_signing_session(
@@ -316,8 +316,8 @@ fn update_tx_status(
     xrpl_multisig_address: String,
 ) -> Result<Response, ContractError> {
     let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
-    let tx_info = TRANSACTION_INFO.load(storage, unsigned_tx_hash.clone())?;
-    let multisig_session = querier.get_multisig_session(multisig_session_id.clone())?;
+    let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
+    let multisig_session = querier.get_multisig_session(&multisig_session_id)?;
     let message = Message {
         destination_chain: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
         source_address: Address::from_str(&xrpl_multisig_address).map_err(|_| ContractError::InvalidAddress)?,
@@ -331,8 +331,8 @@ fn update_tx_status(
 
     let axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)> = multisig_session.signers
         .iter()
-        .filter(|(signer, signature)| signature.is_some() && signers.contains(&signer.address))
-        .map(|(signer, signature)| (signer.clone(), signature.clone().unwrap()))
+        .filter(|(signer, _)| signers.contains(&signer.address))
+        .filter_map(|(signer, signature)| signature.as_ref().map(|signature| (signer.clone(), signature.clone())))
         .collect();
 
     if axelar_signers.len() != signers.len() {
@@ -352,7 +352,7 @@ fn update_tx_status(
         return Err(ContractError::InvalidMessageStatus)
     }
 
-    match xrpl_multisig::update_tx_status(storage, axelar_multisig_address, unsigned_tx_hash, status.clone().into())? {
+    match xrpl_multisig::update_tx_status(storage, axelar_multisig_address, unsigned_tx_hash, status.into())? {
         None => Ok(Response::default()),
         Some(msg) => Ok(Response::new().add_message(msg))
     }
