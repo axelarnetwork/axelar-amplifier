@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::Worker;
 
 use crate::{

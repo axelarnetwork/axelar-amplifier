@@ -1,4 +1,4 @@
-use connection_router::state::{CrossChainId, Message};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[cw_serde]

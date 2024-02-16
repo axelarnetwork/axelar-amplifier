@@ -1,6 +1,6 @@
 use crate::types::BatchId;
 use axelar_wasm_std::event;
-use connection_router::state::{ChainName, CrossChainId};
+use connection_router_api::{ChainName, CrossChainId};
 use cosmwasm_std::Uint64;
 
 pub enum Event {

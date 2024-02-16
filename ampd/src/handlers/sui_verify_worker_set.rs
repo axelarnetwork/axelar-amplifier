@@ -9,7 +9,7 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::ID_SEPARATOR;
+use connection_router_api::ID_SEPARATOR;
 use cosmwasm_std::HexBinary;
 use cosmwasm_std::Uint128;
 use events::{Error::EventTypeMismatch, Event};

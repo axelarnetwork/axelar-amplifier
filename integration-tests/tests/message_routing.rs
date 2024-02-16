@@ -1,4 +1,4 @@
-use connection_router::state::{CrossChainId, Message};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::{HexBinary, Uint128};
 
 use crate::test_utils::AXL_DENOMINATION;

@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Attribute, Event};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::{Address, ChainName, Message, ID_SEPARATOR};
+use connection_router_api::{Address, ChainName, Message, ID_SEPARATOR};
 
 use crate::error::ContractError;
 use crate::state::Config;

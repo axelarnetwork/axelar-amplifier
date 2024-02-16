@@ -1,7 +1,6 @@
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router::state::CrossChainId;
-use connection_router::Message;
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use serde::de::DeserializeOwned;
@@ -91,7 +90,7 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::VerificationStatus;
-    use connection_router::state::CrossChainId;
+    use connection_router_api::CrossChainId;
     use cosmwasm_std::testing::MockQuerier;
     use std::str::FromStr;
 
