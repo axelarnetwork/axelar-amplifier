@@ -2,10 +2,10 @@ mod test_utils;
 
 use std::{str::FromStr, vec};
 
-use crate::test_utils::Contract;
 use connection_router::state::ChainName;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 use cw_multi_test::{App, Executor};
+use integration_tests::contract::Contract;
 use service_registry::msg::QueryMsg;
 use service_registry::{
     msg::ExecuteMsg,
@@ -38,25 +38,23 @@ fn register_service() {
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
-        &mut app,
-        Addr::unchecked("some other account"),
-        &ExecuteMsg::RegisterService {
-            service_name: "validators".into(),
-            service_contract: Addr::unchecked("nowhere"),
-            min_num_workers: 0,
-            max_num_workers: Some(100),
-            min_worker_bond: Uint128::zero(),
-            bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: 10,
-            description: "Some service".into(),
-        },
-    );
-    assert!(res.is_err());
-    assert_eq!(
-        res.unwrap_err().to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
-    );
+    let err = service_registry
+        .execute(
+            &mut app,
+            Addr::unchecked("some other account"),
+            &ExecuteMsg::RegisterService {
+                service_name: "validators".into(),
+                service_contract: Addr::unchecked("nowhere"),
+                min_num_workers: 0,
+                max_num_workers: Some(100),
+                min_worker_bond: Uint128::zero(),
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        )
+        .unwrap_err();
+    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
 }
 
 #[test]
@@ -93,18 +91,17 @@ fn authorize_worker() {
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute(
-        &mut app,
-        Addr::unchecked("some other address"),
-        &ExecuteMsg::AuthorizeWorkers {
-            workers: vec![Addr::unchecked("worker").into()],
-            service_name: service_name.into(),
-        },
-    );
-    assert_eq!(
-        res.unwrap_err().to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
-    );
+    let err = service_registry
+        .execute(
+            &mut app,
+            Addr::unchecked("some other address"),
+            &ExecuteMsg::AuthorizeWorkers {
+                workers: vec![Addr::unchecked("worker").into()],
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
 }
 
 #[test]
@@ -933,10 +930,7 @@ fn deregister_from_unregistered_worker_single_chain() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        err.to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::WorkerNotFound).to_string()
-    );
+    test_utils::are_contract_err_strings_equal(err, ContractError::WorkerNotFound);
 
     let workers: Vec<Worker> = service_registry.query(
         &app,
@@ -976,10 +970,7 @@ fn deregister_single_chain_for_nonexistent_service() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        err.to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::ServiceNotFound).to_string()
-    );
+    test_utils::are_contract_err_strings_equal(err, ContractError::ServiceNotFound);
 }
 
 #[test]
@@ -1094,19 +1085,18 @@ fn bond_wrong_denom() {
     );
     assert!(res.is_ok());
 
-    let res = service_registry.execute_with_funds(
-        &mut app,
-        worker.clone(),
-        &ExecuteMsg::BondWorker {
-            service_name: service_name.into(),
-        },
-        &coins(min_worker_bond.u128(), "funnydenom"),
-    );
-    assert!(res.is_err());
-    assert_eq!(
-        res.unwrap_err().to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::WrongDenom).to_string()
-    );
+    let err = service_registry
+        .execute_with_funds(
+            &mut app,
+            worker.clone(),
+            &ExecuteMsg::BondWorker {
+                service_name: service_name.into(),
+            },
+            &coins(min_worker_bond.u128(), "funnydenom"),
+        )
+        .unwrap_err();
+
+    test_utils::are_contract_err_strings_equal(err, ContractError::WrongDenom);
 }
 
 #[test]

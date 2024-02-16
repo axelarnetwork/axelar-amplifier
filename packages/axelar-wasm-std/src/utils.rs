@@ -62,3 +62,13 @@ impl<T, E> InspectorResult<T, E> for Result<T, E> {
         })
     }
 }
+
+pub trait TryMapExt<T, B, E> {
+    fn try_map(self, func: impl FnOnce(T) -> Result<B, E>) -> Result<Option<B>, E>;
+}
+
+impl<T, B, E> TryMapExt<T, B, E> for Option<T> {
+    fn try_map(self, func: impl FnOnce(T) -> Result<B, E>) -> Result<Option<B>, E> {
+        self.map(func).transpose()
+    }
+}

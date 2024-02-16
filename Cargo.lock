@@ -87,6 +87,7 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
  "error-stack",
+ "itertools 0.11.0",
  "report",
  "schemars",
  "serde",
@@ -1476,6 +1477,7 @@ dependencies = [
  "error-stack",
  "flagset",
  "hex",
+ "integration-tests",
  "itertools 0.11.0",
  "mockall",
  "rand",
@@ -1493,16 +1495,22 @@ name = "connection-router-api"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.1.0",
  "error-stack",
  "flagset",
+ "hex",
+ "rand",
  "regex",
+ "report",
  "schemars",
  "serde",
  "serde_json",
+ "sha3 0.10.8",
  "thiserror",
+ "valuable",
 ]
 
 [[package]]
@@ -2884,6 +2892,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "base64 0.21.4",
+ "cosmrs",
  "error-stack",
  "serde_json",
  "tendermint 0.33.0",
@@ -4817,6 +4826,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3 0.10.8",
+ "signature-verifier-api",
  "thiserror",
 ]
 
@@ -6444,6 +6454,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "connection-router",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -7112,6 +7123,7 @@ dependencies = [
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "error-stack",
+ "integration-tests",
  "report",
  "schemars",
  "serde",
@@ -7237,6 +7249,17 @@ checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "signature-verifier-api"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "error-stack",
+ "thiserror",
 ]
 
 [[package]]
