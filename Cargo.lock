@@ -87,6 +87,7 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
  "error-stack",
+ "itertools 0.11.0",
  "report",
  "schemars",
  "serde",
@@ -4825,6 +4826,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3 0.10.8",
+ "signature-verifier-api",
  "thiserror",
 ]
 
@@ -7247,6 +7249,17 @@ checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "signature-verifier-api"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "error-stack",
+ "thiserror",
 ]
 
 [[package]]
