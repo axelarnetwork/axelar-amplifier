@@ -100,10 +100,39 @@ jobs:
             gpg --armor --detach-sign  "./ampdbin/ampd-$OS-$ARCH-$SEMVER"
           fi
 
-      - name: Test ampd
+      - name: Test Binary Format
         working-directory: ./ampdbin
         run: |
-          file ./ampd-*
+          for binary in ./ampd-*; do
+          if [[ "$binary" != *.asc ]]; then
+            echo "Testing binary: $binary"
+            OUTPUT=$(file "$binary" | cut -d: -f2- | awk -F, '{print $1"," $2}')
+            if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+              if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+                EXPECTED="ELF 64-bit LSB pie executable, x86-64"
+              elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+                EXPECTED="ELF 64-bit LSB pie executable, ARM aarch64"
+              fi
+            elif [[ "${{ matrix.os }}" == "macos-12" ]]; then
+              OUTPUT=$(file "$binary" | cut -d: -f2-)
+              if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+                EXPECTED="Mach-O 64-bit executable x86_64"
+              elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+                EXPECTED="Mach-O 64-bit executable arm64"
+              fi
+            fi
+        
+            echo "Output: $OUTPUT"
+            echo "Expected: $EXPECTED"
+        
+            if [[ "$OUTPUT" == *"$EXPECTED"* ]]; then
+              echo "The binary format is correct."
+            else
+              echo "Error: The binary format does not match the expected format."
+              exit 1
+            fi
+          fi
+          done
 
       - name: Create zip and sha256 files
         working-directory: ./ampdbin
