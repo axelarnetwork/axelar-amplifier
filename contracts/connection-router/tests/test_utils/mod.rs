@@ -1,38 +1,41 @@
-use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
-use integration_tests::contract::Contract;
-use service_registry::{
+use connection_router::{
     contract::{execute, instantiate, query},
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
 };
+use cosmwasm_std::Addr;
+use cw_multi_test::{App, ContractWrapper, Executor};
+use integration_tests::contract::Contract;
 
-pub struct ServiceRegistryContract {
+#[derive(Clone)]
+pub struct ConnectionRouterContract {
     pub contract_addr: Addr,
 }
 
-impl ServiceRegistryContract {
-    pub fn instantiate_contract(app: &mut App, governance: Addr) -> Self {
+impl ConnectionRouterContract {
+    pub fn instantiate_contract(app: &mut App, admin: Addr, governance: Addr, nexus: Addr) -> Self {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
             .instantiate_contract(
                 code_id,
-                Addr::unchecked("anyone"),
+                Addr::unchecked("router"),
                 &InstantiateMsg {
-                    governance_account: governance.clone().into(),
+                    admin_address: admin.to_string(),
+                    governance_address: governance.to_string(),
+                    nexus_gateway: nexus.to_string(),
                 },
                 &[],
-                "service_registry",
+                "Contract",
                 None,
             )
             .unwrap();
 
-        ServiceRegistryContract { contract_addr }
+        ConnectionRouterContract { contract_addr }
     }
 }
 
-impl Contract for ServiceRegistryContract {
+impl Contract for ConnectionRouterContract {
     type QMsg = QueryMsg;
     type ExMsg = ExecuteMsg;
 
