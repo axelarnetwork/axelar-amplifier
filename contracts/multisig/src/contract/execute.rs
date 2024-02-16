@@ -1,6 +1,7 @@
 use connection_router::state::ChainName;
 use cosmwasm_std::WasmMsg;
 use sha3::{Digest, Keccak256};
+use signature_verifier_api::client::SignatureVerifier;
 
 use crate::signing::validate_session_signature;
 use crate::state::{load_session_signatures, save_pub_key, save_signature};
@@ -20,6 +21,7 @@ pub fn start_signing_session(
     worker_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
+    sig_verifier: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
@@ -40,6 +42,7 @@ pub fn start_signing_session(
         chain_name.clone(),
         msg.clone(),
         expires_at,
+        sig_verifier,
     );
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
@@ -81,12 +84,21 @@ pub fn submit_signature(
 
     let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
+    let sig_verifier = session
+        .sig_verifier
+        .clone()
+        .map(|address| SignatureVerifier {
+            address,
+            querier: deps.querier,
+        });
+
     validate_session_signature(
         &session,
         &info.sender,
         &signature,
         pub_key,
         env.block.height,
+        sig_verifier,
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 

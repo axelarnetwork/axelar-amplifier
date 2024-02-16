@@ -53,9 +53,9 @@ pub fn execute(
         } => {
             execute::require_authorized_caller(&deps, info.sender)?;
 
-            let _sig_verifier = sig_verifier
+            let sig_verifier = sig_verifier
                 .map(|addr| deps.api.addr_validate(&addr))
-                .transpose()?; // TODO: handle callback
+                .transpose()?;
             execute::start_signing_session(
                 deps,
                 env,
@@ -63,6 +63,7 @@ pub fn execute(
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
                 chain_name,
+                sig_verifier,
             )
         }
         ExecuteMsg::SubmitSignature {
