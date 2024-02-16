@@ -62,6 +62,7 @@ where
             .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
+            // if handlers run into errors we log them and then move on to the next event
             let _ = future::with_retry(
                 || handler.handle(event),
                 // TODO: make timeout and max_attempts configurable
@@ -71,8 +72,6 @@ where
                 },
             )
             .await
-            // TODO: we may need to differentiate errors that we want to ignore
-            // and those that we want to crash the process
             .tap_err(|err| {
                 warn!(
                     err = LoggableError::from(err).as_value(),
