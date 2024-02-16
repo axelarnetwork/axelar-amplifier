@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use axelar_wasm_std::FnExt;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -19,6 +21,24 @@ pub enum Event {
         event_type: String,
         attributes: serde_json::Map<String, serde_json::Value>,
     },
+}
+
+impl Display for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Event::BlockBegin(height) => write!(f, "BlockBegin({})", height),
+            Event::BlockEnd(height) => write!(f, "BlockEnd({})", height),
+            Event::Abci {
+                event_type,
+                attributes,
+            } => write!(
+                f,
+                "Abci {{ event_type: {}, attributes: {} }}",
+                event_type,
+                serde_json::to_string(attributes).expect("event attributes must be serializable")
+            ),
+        }
+    }
 }
 
 impl Event {

@@ -2,16 +2,20 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use axelar_wasm_std::utils::InspectorResult;
 use error_stack::{Context, Result, ResultExt};
 use events::Event;
 use futures::StreamExt;
+use report::LoggableError;
 use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
+use tracing::warn;
+use valuable::Valuable;
 
+use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-
 use crate::handlers::chain;
 
 #[async_trait]
@@ -31,8 +35,6 @@ pub trait EventHandler {
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("handler failed to process event")]
-    Handler,
     #[error("could not consume events from stream")]
     EventStream,
     #[error("handler stopped prematurely")]
@@ -60,7 +62,22 @@ where
             .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
-            handler.handle(event).await.change_context(Error::Handler)?;
+            // if handlers run into errors we log them and then move on to the next event
+            let _ = future::with_retry(
+                || handler.handle(event),
+                // TODO: make timeout and max_attempts configurable
+                RetryPolicy::RepeatConstant {
+                    sleep: Duration::from_secs(1),
+                    max_attempts: 3,
+                },
+            )
+            .await
+            .tap_err(|err| {
+                warn!(
+                    err = LoggableError::from(err).as_value(),
+                    "handler failed to process event {}", event,
+                )
+            });
         }
 
         if should_task_stop(stream_status, &token) {
@@ -171,21 +188,19 @@ mod tests {
         assert!(result_with_timeout.unwrap().is_err());
     }
 
-    #[tokio::test]
-    async fn return_error_when_handler_fails() {
-        let events: Vec<Result<Event, event_processor::Error>> = vec![
-            Ok(Event::BlockEnd(0_u32.into())),
-            Ok(Event::BlockEnd(1_u32.into())),
-        ];
+    #[tokio::test(start_paused = true)]
+    async fn return_ok_when_handler_fails() {
+        let events: Vec<Result<Event, event_processor::Error>> =
+            vec![Ok(Event::BlockEnd(0_u32.into()))];
 
         let mut handler = MockEventHandler::new();
         handler
             .expect_handle()
-            .times(1)
+            .times(3)
             .returning(|_| Err(report!(EventHandlerError::Failed)));
 
         let result_with_timeout = timeout(
-            Duration::from_secs(1),
+            Duration::from_secs(3),
             consume_events(
                 handler,
                 stream::iter(events),
@@ -196,7 +211,7 @@ mod tests {
         .await;
 
         assert!(result_with_timeout.is_ok());
-        assert!(result_with_timeout.unwrap().is_err());
+        assert!(result_with_timeout.unwrap().is_ok());
     }
 
     #[tokio::test]
