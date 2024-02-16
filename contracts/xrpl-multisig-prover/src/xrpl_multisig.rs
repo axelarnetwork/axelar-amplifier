@@ -58,16 +58,16 @@ pub enum XRPLUnsignedTx {
 }
 
 impl XRPLUnsignedTx {
-    pub fn sequence(&self) -> Sequence {
+    pub fn sequence(&self) -> &Sequence {
         match self {
             XRPLUnsignedTx::Payment(tx) => {
-                tx.sequence.clone()
+                &tx.sequence
             },
             XRPLUnsignedTx::TicketCreate(tx) => {
-                tx.sequence.clone()
+                &tx.sequence
             },
             XRPLUnsignedTx::SignerListSet(tx) => {
-                tx.sequence.clone()
+                &tx.sequence
             }
         }
     }
@@ -119,7 +119,6 @@ impl TryFrom<&XRPLMemo> for XRPLObject {
     type Error = ContractError;
 
     fn try_from(memo: &XRPLMemo) -> Result<Self, ContractError> {
-        println!("memo contents hex {}", hex::encode(memo.0.clone()));
         let mut obj = XRPLObject::new();
         obj.add_field(13, &memo.0)?;
         Ok(obj)
@@ -201,7 +200,7 @@ impl TryFrom<&XRPLSignerListSetTx> for XRPLObject {
 
         obj.add_field(4, &XRPLArray{ field_code: 11, items: tx.signer_entries.clone() })?;
 
-        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
+        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().into_iter().skip_while(|&byte| byte == 0).collect();
         let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
         obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
 
@@ -233,7 +232,7 @@ impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
         obj.add_field(3, &HexBinary::from_hex("")?)?;
         obj.add_field(1, &XRPLAddress(tx.account.clone()))?;
 
-        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
+        let memo_data: Vec<u8> = tx.multisig_session_id.to_be_bytes().into_iter().skip_while(|&byte| byte == 0).collect();
         let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
         obj.add_field(9, &XRPLArray{field_code: 10, items: vec![XRPLMemo(memo)]})?;
 
@@ -242,8 +241,40 @@ impl TryFrom<&XRPLTicketCreateTx> for XRPLObject {
 }
 
 #[cw_serde]
+pub struct XRPLAccountId([u8; 20]);
+
+impl XRPLSerialize for XRPLAccountId {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        let mut result: Vec<u8> = Vec::new();
+        result.extend(vec![20]); // 0x14, length-encoding
+        result.extend(self.0);
+        Ok(result)
+    }
+}
+
+impl XRPLTypedSerialize for XRPLAccountId {
+    const TYPE_CODE: u8 = ACCOUNT_ID_TYPE_CODE;
+}
+
+impl TryFrom<&PublicKey> for XRPLAccountId {
+    type Error = ContractError;
+
+    fn try_from(pub_key: &PublicKey) -> Result<Self, ContractError> {
+        Ok(XRPLAccountId(decode_address(&public_key_to_xrpl_address(&pub_key))?))
+    }
+}
+
+impl TryFrom<&str> for XRPLAccountId {
+    type Error = ContractError;
+
+    fn try_from(address: &str) -> Result<Self, ContractError> {
+        Ok(XRPLAccountId(decode_address(&address)?))
+    }
+}
+
+#[cw_serde]
 pub struct XRPLSigner {
-    pub account: String,
+    pub account: XRPLAccountId,
     pub txn_signature: HexBinary,
     pub signing_pub_key: PublicKey,
 }
@@ -252,6 +283,20 @@ pub struct XRPLSigner {
 pub struct XRPLSignedTransaction {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>
+}
+
+impl XRPLSerialize for XRPLSignedTransaction {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        let mut sorted_signers = self.signers.clone();
+        sorted_signers.sort_by(|a, b| {
+            // the Signers array must be sorted based on the numeric value of the signer addresses
+            // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
+            a.account.0.cmp(&b.account.0)
+        });
+        let mut obj = XRPLObject::try_from(&self.unsigned_tx)?;
+        obj.add_field(3, &XRPLArray{ field_code: 16, items: sorted_signers })?;
+        obj.xrpl_serialize()
+    }
 }
 
 pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
@@ -357,7 +402,7 @@ pub fn currency_to_bytes(currency: &String) -> Result<[u8; 20], ContractError> {
     Ok(buffer)
 }
 
-pub fn decode_address(address: &String) -> Result<[u8; 20], ContractError> {
+pub fn decode_address(address: &str) -> Result<[u8; 20], ContractError> {
     let res = bs58::decode(address).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
     // .map_err(|_| ContractError::InvalidAddress)?;
     if res.len() != 25 {
@@ -375,15 +420,11 @@ pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, 
     let encoded_unsigned_tx = serde_json::to_vec(unsigned_tx).map_err(|_| ContractError::FailedToSerialize)?;
 
     let d = Sha256::digest(encoded_unsigned_tx);
-    let tx_hash_hex: HexBinary = HexBinary::from(d.to_vec());
-    let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
-    Ok(tx_hash)
+    Ok(TxHash(HexBinary::from(d.to_vec())))
 }
 
 pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    let tx_hash_hex: HexBinary = HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()));
-    let tx_hash: TxHash = TxHash(tx_hash_hex.clone());
-    Ok(tx_hash)
+    Ok(TxHash(HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()))))
 }
 
 pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_xrpl_address: &String) -> Result<[u8; 32], ContractError> {
@@ -393,6 +434,19 @@ pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_xrpl_address: &St
 }
 
 pub struct XRPLAddress(String);
+
+impl XRPLSerialize for XRPLAddress {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        let mut result: Vec<u8> = Vec::new();
+        result.extend(vec![20]); // 0x14, length-encoding
+        result.extend(decode_address(&self.0)?);
+        Ok(result)
+    }
+}
+
+impl XRPLTypedSerialize for XRPLAddress {
+    const TYPE_CODE: u8 = ACCOUNT_ID_TYPE_CODE;
+}
 
 pub trait XRPLSerialize {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError>;
@@ -445,22 +499,6 @@ impl XRPLSerialize for XRPLPaymentAmount {
 
 impl XRPLTypedSerialize for XRPLPaymentAmount {
     const TYPE_CODE: u8 = AMOUNT_TYPE_CODE;
-}
-
-impl XRPLSerialize for XRPLSignedTransaction {
-    fn xrpl_serialize(self: &XRPLSignedTransaction) -> Result<Vec<u8>, ContractError> {
-        let mut sorted_signers = self.signers.clone();
-        sorted_signers.sort_by(|a, b| {
-            // the Signers array must be sorted based on the numeric value of the signer addresses
-            // https://xrpl.org/multi-signing.html#sending-multi-signed-transactions
-            let a = bs58::decode(a.account.clone()).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
-            let b = bs58::decode(b.account.clone()).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().unwrap();
-            return a.cmp(&b);
-        });
-        let mut obj = XRPLObject::try_from(&self.unsigned_tx)?;
-        obj.add_field(3, &XRPLArray{ field_code: 16, items: sorted_signers })?;
-        obj.xrpl_serialize()
-    }
 }
 
 impl XRPLSerialize for XRPLUnsignedTx {
@@ -549,7 +587,7 @@ impl XRPLSerialize for XRPLSigner {
         let mut obj = XRPLObject::new();
         obj.add_field(3, &self.signing_pub_key)?;
         obj.add_field(4, &self.txn_signature)?;
-        obj.add_field(1, &XRPLAddress(self.account.clone()))?;
+        obj.add_field(1, &self.account)?;
         let mut result = obj.xrpl_serialize()?;
         result.extend(field_id(OBJECT_TYPE_CODE, 1));
         Ok(result)
@@ -559,20 +597,6 @@ impl XRPLSerialize for XRPLSigner {
 impl XRPLTypedSerialize for XRPLSigner {
     const TYPE_CODE: u8 = OBJECT_TYPE_CODE;
 }
-
-impl XRPLSerialize for XRPLAddress {
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        let mut result: Vec<u8> = Vec::new();
-        result.extend(vec![20]); // 0x14, length-encoding
-        result.extend(decode_address(&self.0)?);
-        Ok(result)
-    }
-}
-
-impl XRPLTypedSerialize for XRPLAddress {
-    const TYPE_CODE: u8 = ACCOUNT_ID_TYPE_CODE;
-}
-
 
 impl XRPLSerialize for XRPLSignerEntry {
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
@@ -658,7 +682,7 @@ fn issue_tx(
 
     TRANSACTION_INFO.save(
         storage,
-        tx_hash.clone(),
+        &tx_hash,
         &TransactionInfo {
             status: TransactionStatus::Pending,
             unsigned_contents: tx.clone(),
@@ -682,25 +706,25 @@ pub fn issue_payment(
     storage: &mut dyn Storage,
     config: &Config,
     destination: nonempty::String,
-    amount: XRPLPaymentAmount,
-    message_id: CrossChainId,
-    multisig_session_id: Uint64,
+    amount: &XRPLPaymentAmount,
+    message_id: &CrossChainId,
+    multisig_session_id: &Uint64,
 ) -> Result<TxHash, ContractError> {
-    let ticket_number = assign_ticket_number(storage, message_id.clone())?;
+    let ticket_number = assign_ticket_number(storage, message_id)?;
 
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig_address.to_string(),
         fee: config.xrpl_fee,
         sequence: Sequence::Ticket(ticket_number),
-        multisig_session_id,
-        amount,
+        multisig_session_id: multisig_session_id.clone(),
+        amount: amount.clone(),
         destination
     };
 
     issue_tx(
         storage,
         XRPLUnsignedTx::Payment(tx),
-        Some(message_id),
+        Some(message_id.clone()),
     )
 }
 
@@ -791,7 +815,7 @@ pub fn account_id_bytes_to_address(account_id: &[u8]) -> String {
 fn get_next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
     match load_latest_sequential_tx_info(storage)? {
         Some(latest_sequential_tx_info) if latest_sequential_tx_info.status == TransactionStatus::Pending => {
-            Ok(latest_sequential_tx_info.unsigned_contents.sequence().into())
+            Ok(latest_sequential_tx_info.unsigned_contents.sequence().clone().into())
         },
         _ => NEXT_SEQUENCE_NUMBER.load(storage).map_err(|e| e.into())
     }
@@ -800,21 +824,15 @@ fn get_next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError>
 fn load_latest_sequential_tx_info(
     storage: &dyn Storage,
 ) -> Result<Option<TransactionInfo>, ContractError> {
-    let latest_sequential_tx_hash = LATEST_SEQUENTIAL_TX_HASH.may_load(storage)?;
-    if latest_sequential_tx_hash.is_none() {
-        return Ok(None)
-    }
-
-    Ok(TRANSACTION_INFO.may_load(storage, latest_sequential_tx_hash.unwrap())?)
+    LATEST_SEQUENTIAL_TX_HASH
+    .may_load(storage)?
+    .map_or(Ok(None), |tx_hash| Ok(TRANSACTION_INFO.may_load(storage, &tx_hash)?))
 }
 
 fn mark_tickets_available(storage: &mut dyn Storage, tickets: impl Iterator<Item = u32>) -> Result<(), ContractError> {
     AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
         let mut new_available_tickets = available_tickets.clone();
-        for i in tickets {
-            new_available_tickets.push(i);
-        }
-
+        new_available_tickets.extend(tickets);
         Ok(new_available_tickets)
     })?;
     Ok(())
@@ -834,7 +852,6 @@ pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(mul
     let xrpl_signers: Vec<XRPLSigner> = axelar_signers
         .iter()
         .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
-            let xrpl_address = public_key_to_xrpl_address(&axelar_signer.pub_key);
             let txn_signature = match signature {
                 // TODO: use unwrapped signature instead of ignoring it
                 multisig::key::Signature::Ecdsa(_) |
@@ -846,7 +863,7 @@ pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(mul
             };
 
             Ok(XRPLSigner {
-                account: xrpl_address,
+                account: XRPLAccountId::try_from(&axelar_signer.pub_key)?,
                 signing_pub_key: axelar_signer.pub_key.clone().into(),
                 txn_signature,
             })
@@ -865,7 +882,7 @@ pub fn update_tx_status(
     unsigned_tx_hash: TxHash,
     new_status: TransactionStatus
 ) -> Result<Option<WasmMsg>, ContractError> {
-    let mut tx_info = TRANSACTION_INFO.load(storage, unsigned_tx_hash.clone())?;
+    let mut tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != TransactionStatus::Pending {
         return Err(ContractError::TransactionStatusAlreadyUpdated);
     }
@@ -880,17 +897,17 @@ pub fn update_tx_status(
     }
 
     if new_status == TransactionStatus::Succeeded || new_status == TransactionStatus::FailedOnChain {
-        CONFIRMED_TRANSACTIONS.save(storage, tx_sequence_number, &unsigned_tx_hash)?;
+        CONFIRMED_TRANSACTIONS.save(storage, &tx_sequence_number, &unsigned_tx_hash)?;
         mark_ticket_unavailable(storage, tx_sequence_number)?;
     }
 
-    TRANSACTION_INFO.save(storage, unsigned_tx_hash.clone(), &tx_info)?;
+    TRANSACTION_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
 
     if tx_info.status != TransactionStatus::Succeeded {
         return Ok(None);
     }
 
-    let res = match tx_info.unsigned_contents.clone() {
+    let res = match &tx_info.unsigned_contents {
         XRPLUnsignedTx::TicketCreate(tx) => {
             mark_tickets_available(
                 storage,
@@ -899,9 +916,9 @@ pub fn update_tx_status(
             None
         },
         XRPLUnsignedTx::SignerListSet(_tx) => {
-            let next_worker_set = NEXT_WORKER_SET.load(storage, unsigned_tx_hash.clone())?;
+            let next_worker_set = NEXT_WORKER_SET.load(storage, &unsigned_tx_hash)?;
             CURRENT_WORKER_SET.save(storage, &next_worker_set)?;
-            NEXT_WORKER_SET.remove(storage, unsigned_tx_hash);
+            NEXT_WORKER_SET.remove(storage, &unsigned_tx_hash);
 
             let msg = wasm_execute(
                 axelar_multisig_address,
@@ -921,20 +938,16 @@ pub fn update_tx_status(
 // A message ID can be ticketed a different ticket number
 // only if the previous ticket number has been consumed
 // by a TX that doesn't correspond to this message.
-pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: CrossChainId) -> Result<u32, ContractError> {
+pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId) -> Result<u32, ContractError> {
     // If this message ID has already been ticketed,
     // then use the same ticket number as before,
-    if let Some(ticket_number) = MESSAGE_ID_TO_TICKET.may_load(storage, message_id.clone())? {
+    if let Some(ticket_number) = MESSAGE_ID_TO_TICKET.may_load(storage, &message_id)? {
+        let confirmed_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, &ticket_number)?;
         // as long as it has not already been consumed
-        let confirmed_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, ticket_number)?;
-        if confirmed_tx_hash.is_none() {
-            return Ok(ticket_number)
-        }
-
+        if confirmed_tx_hash.is_none() 
         // or if it has been consumed by the same message.
-        let tx_info = TRANSACTION_INFO.load(storage, confirmed_tx_hash.unwrap())?;
-        if tx_info.message_id.map_or(false, |id| id == message_id) {
-            return Ok(ticket_number)
+        || TRANSACTION_INFO.load(storage, &confirmed_tx_hash.unwrap())?.message_id.as_ref() == Some(message_id) {
+            return Ok(ticket_number);
         }
     }
 
@@ -1238,12 +1251,12 @@ mod tests {
                 multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
+                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
+                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 }
@@ -1268,12 +1281,12 @@ mod tests {
                 multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
+                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
+                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
@@ -1298,12 +1311,12 @@ mod tests {
                 multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
-                    account: "rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj".to_string(),
+                    account: "rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("531B9E854C81AEFA573C00DF1603C3DE80C1F3680D39A80F3FB725A0388D177E3EC5E28AD6760D9EEF8203FEB1FC61F9D9451F777114B97943E5702B54589E09").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ed25519, HexBinary::from(hex::decode("45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
-                    account: "rhAdaMDgF89314TfNRHc5GsA6LQZdk35S5".to_string(),
+                    account: "rhAdaMDgF89314TfNRHc5GsA6LQZdk35S5".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("76CF2097D7038B90445CB952AE52CBDBE6D55FE7C0562493FE3D9AAE5E05A66A43777CBCDAA89233CAFD4D1D0F9B02DB0619B9BB14957CC3ADAA8D7D343E0106").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ed25519, HexBinary::from(hex::decode("dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b").unwrap()))).unwrap(),
                 },
@@ -1328,12 +1341,12 @@ mod tests {
                 multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
+                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("304402203C10D5295AE4A34FD702355B075E951CF9FFE3A73F8B7557FB68E5DF64D87D3702200945D65BAAD7F10A14EA57E08914005F412709D10F27D868D63BE3052F30363F").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
+                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3045022100EF2CBAC3B2D81E1E3502B064BA198D9D0D3F1FFE6604DAC5019C53C262B5F9E7022000808A438BD5CA808649DCDA6766D2BA0E8FA7E94150675F73FC41B2F73C9C58").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 },
@@ -1367,12 +1380,12 @@ mod tests {
                 multisig_session_id: Uint64::from(5461264u64)
             }), signers: vec![
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".to_string(),
+                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3045022100B94B346A418BE9EF5AEE7806EE984E3E9B48EB4ED48E79B5BFB69C607167023E02206B14BD72B69206D14DADA82ACCDD2539D275719FB187ECE2A46BAC9025877B39").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856").unwrap()))).unwrap(),
                 },
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".to_string(),
+                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into().unwrap(),
                     txn_signature: HexBinary::from(hex::decode("3044022072A1028FF972D9D6E950810AF72443EEE352ADB1BC54B1112983842C857C464502206D74A77387979A47863F08F9191611D142C2BD6B32D5C750EF58513C5669F21A").unwrap()),
                     signing_pub_key: PublicKey::try_from((KeyType::Ecdsa, HexBinary::from(hex::decode("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE").unwrap()))).unwrap(),
                 },

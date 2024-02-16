@@ -56,8 +56,7 @@ impl WorkerSet {
     pub fn pub_keys_by_address(&self) -> HashMap<String, (KeyType, HexBinary), RandomState> {
         self
             .signers
-            .clone()
-            .into_iter()
+            .iter()
             .map(|signer| {
                 (
                     signer.address.to_string(),
@@ -82,8 +81,7 @@ fn convert_or_scale_weights(weights: Vec<Uint256>) -> Vec<u16> {
             let max_u16_as_uint256 = Uint256::from(u16::MAX);
             // Scaling down
             weights
-                .clone()
-                .into_iter()
+                .iter()
                 .map(|weight| {
                     // multiply_ratio returns a rounded down value
                     let scaled = weight.multiply_ratio(max_u16_as_uint256, *max_weight);
@@ -103,21 +101,20 @@ pub fn get_active_worker_set(
     let workers: Vec<Worker> = querier.get_active_workers()?;
 
     let participants: Vec<Participant> = workers
-        .into_iter()
-        .map(|worker| Participant::try_from(worker))
+        .iter()
+        .map(|worker| Participant::try_from(worker.clone()))
         .filter(|result| result.is_ok())
         .map(|result| result.unwrap())
         .collect();
 
     let weights = convert_or_scale_weights(participants
-        .clone()
-        .into_iter()
+        .iter()
         .map(|participant| Uint256::from(participant.weight))
         .collect());
 
     let mut signers: Vec<AxelarSigner> = vec![];
     for (i, participant) in participants.iter().enumerate() {
-        let pub_key: PublicKey = querier.get_public_key(participant.address.clone().to_string())?;
+        let pub_key: PublicKey = querier.get_public_key(&participant.address.to_string())?;
         signers.push(AxelarSigner {
             address: participant.address.clone(),
             weight: weights[i],
@@ -134,7 +131,7 @@ pub fn get_active_worker_set(
         .unwrap() as u32;
 
     let worker_set = WorkerSet {
-        signers: signers.into_iter().collect(),
+        signers: BTreeSet::from_iter(signers.into_iter()),
         quorum,
         created_at: block_height,
     };

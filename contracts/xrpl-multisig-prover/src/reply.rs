@@ -29,7 +29,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 Some(message_id) => {
                     MESSAGE_ID_TO_MULTISIG_SESSION_ID.save(
                         deps.storage,
-                        message_id,
+                        &message_id,
                         &multisig_session_id.u64(),
                     )?
                 },
@@ -38,7 +38,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             REPLY_MESSAGE_ID.remove(deps.storage);
 
-            let tx_info = TRANSACTION_INFO.load(deps.storage, tx_hash.clone())?;
+            let tx_info = TRANSACTION_INFO.load(deps.storage, &tx_hash)?;
 
             let res = reply.result.unwrap();
 

@@ -48,22 +48,22 @@ impl<'a> Querier<'a> {
         )
     }
 
-    pub fn get_public_key(&self, worker_address: String) -> Result<PublicKey, ContractError> {
+    pub fn get_public_key(&self, worker_address: &String) -> Result<PublicKey, ContractError> {
         query(self.querier, self.config.axelar_multisig_address.to_string(),
             &multisig::msg::QueryMsg::GetPublicKey {
-                worker_address,
+                worker_address: worker_address.clone(),
                 key_type: self.config.key_type,
             },
         )
     }
 
-    pub fn get_message(&self, message_id: CrossChainId) -> Result<Message, ContractError> {
+    pub fn get_message(&self, message_id: &CrossChainId) -> Result<Message, ContractError> {
         let messages: Vec<Message> = query(self.querier, self.config.gateway_address.to_string(),
             &gateway::msg::QueryMsg::GetMessages {
-                message_ids: vec![message_id],
+                message_ids: vec![message_id.clone()],
             }
         )?;
-        Ok(messages[0].clone())
+        Ok(messages[0])
     }
 
     pub fn get_message_status(&self, message: Message) -> Result<VerificationStatus, ContractError> {
@@ -75,9 +75,9 @@ impl<'a> Querier<'a> {
         Ok(statuses[0].1)
     }
 
-    pub fn get_multisig_session(&self, multisig_session_id: Uint64) -> Result<Multisig, ContractError> {
+    pub fn get_multisig_session(&self, multisig_session_id: &Uint64) -> Result<Multisig, ContractError> {
         let query_msg = multisig::msg::QueryMsg::GetMultisig {
-            session_id: multisig_session_id,
+            session_id: multisig_session_id.clone(),
         };
         query(self.querier, self.config.axelar_multisig_address.to_string(), &query_msg)
     }

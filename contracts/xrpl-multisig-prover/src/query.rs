@@ -10,7 +10,7 @@ use crate::{
 pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, signer_xrpl_address: &String) -> StdResult<HexBinary> {
     let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
 
-    let tx_info = TRANSACTION_INFO.load(storage, unsigned_tx_hash.clone())?;
+    let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != TransactionStatus::Pending {
         return Err(ContractError::TransactionStatusNotPending.into());
     }
@@ -35,9 +35,9 @@ pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, publi
 pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &Uint64) -> StdResult<GetProofResponse> {
     let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
 
-    let tx_info = TRANSACTION_INFO.load(storage, unsigned_tx_hash.clone())?;
+    let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
 
-    let multisig_session= querier.get_multisig_session(multisig_session_id.clone())?;
+    let multisig_session= querier.get_multisig_session(&multisig_session_id)?;
 
     let response = match multisig_session.state {
         MultisigState::Pending => GetProofResponse::Pending { unsigned_tx_hash },
