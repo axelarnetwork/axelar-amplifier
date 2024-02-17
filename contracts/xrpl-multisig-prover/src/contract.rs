@@ -183,13 +183,13 @@ fn construct_payment_proof(
     let message = querier.get_message(&message_id)?;
     let xrpl_payment_amount = if coin.denom == config.xrp_denom {
         // TODO: handle decimal precision conversion
-        let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount { amount: coin.amount.to_string(), reason: "overflow".to_string() })?;
+        let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount { reason: "overflow".to_string() })?;
         XRPLPaymentAmount::Drops(drops)
     } else {
         let xrpl_token = TOKENS.load(storage, &coin.denom)?;
         XRPLPaymentAmount::Token(
             xrpl_token,
-            XRPLTokenAmount(coin.amount.to_string()),
+            coin.amount.to_string().try_into()?,
         )
     };
 

@@ -25,7 +25,7 @@ pub enum XRPLPaymentAmount {
     Drops(
         u64,
     ),
-    Token(XRPLToken, XRPLTokenAmount),
+    Token(XRPLToken, Decimal),
 }
 
 #[cw_serde]
@@ -345,100 +345,116 @@ const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
 const MIN_EXPONENT: i64 = -96;
 const MAX_EXPONENT: i64 = 80;
 
+// Decimal always in canonicalized XRPL mantissa-exponent format,
+// such that MIN_MANTISSA <= mantissa <= MAX_MANTISSA, MIN_EXPONENT <= exponent <= MAX_EXPONENT,
+// unless value is considered zero.
+#[cw_serde]
+pub struct Decimal {
+    mantissa: Uint256,
+    exponent: i64
+}
 
-// see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
-pub fn amount_to_bytes(amount: &XRPLTokenAmount) -> Result<Vec<u8>, ContractError> {
-    let (sign, mut mantissa, mut exponent) = parse_decimal(amount.0.trim())?;
-    
-    let mut serial: u64 = 0x8000000000000000;
-    if mantissa.is_zero() {
-        return Ok(Vec::from(serial.to_be_bytes()))
+impl Decimal {
+    pub fn is_zero(&self) -> bool {
+        return self.mantissa.is_zero() || self.exponent < MIN_EXPONENT || self.mantissa < MIN_MANTISSA.into();
     }
 
-    let ten = Uint256::from_u128(10u128);
+    // always called when Decimal instantiated
+    // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
+    pub fn canonicalize(&mut self) -> Result<(), ContractError> {
+        let ten = Uint256::from_u128(10u128);
 
-    while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
-        mantissa *= ten;
-        exponent -= 1;
-    }
-
-    while mantissa > MAX_MANTISSA.into() && exponent > MIN_EXPONENT {
-        if exponent > MAX_EXPONENT {
-            return Err(ContractError::InvalidAmount { amount: amount.clone().0, reason: "overflow 1".to_string() });
+        while self.mantissa < MIN_MANTISSA.into() && self.exponent > MIN_EXPONENT {
+            self.mantissa *= ten;
+            self.exponent -= 1;
         }
-        mantissa /= ten;
-        exponent += 1;
+
+        while self.mantissa > MAX_MANTISSA.into() && self.exponent > MIN_EXPONENT {
+            if self.exponent > MAX_EXPONENT {
+                return Err(ContractError::InvalidAmount { reason: "overflow 1".to_string() });
+            }
+            self.mantissa /= ten;
+            self.exponent += 1;
+        }
+
+        if self.exponent < MIN_EXPONENT || self.mantissa < MIN_MANTISSA.into() {
+            return Ok(());
+        }
+
+        if self.exponent > MAX_EXPONENT || self.mantissa > MAX_MANTISSA.into() {
+            return Err(ContractError::InvalidAmount { reason: format!("overflow exponent {} mantissa {}", self.exponent, self.mantissa).to_string() });
+        }
+
+        return Ok(());
     }
 
-    if exponent < MIN_EXPONENT || mantissa < MIN_MANTISSA.into() {
-        return Ok(Vec::from(serial.to_be_bytes()));
-    }
+    pub fn to_bytes(&self) -> [u8; 8] {
+        let mut serial: u64 = 0x8000000000000000;
 
-    if exponent > MAX_EXPONENT || mantissa > MAX_MANTISSA.into() {
-        return Err(ContractError::InvalidAmount { amount: amount.clone().0, reason: format!("overflow exponent {} mantissa {}", exponent, mantissa).to_string() });
-    }
+        if self.clone().is_zero() {
+            return serial.to_be_bytes();
+        }
 
-    if sign == Sign::Plus {
         serial |= 0x4000000000000000; // set positive bit
+
+        serial |= ((self.exponent+97) as u64) << 54; // next 8 bits are exponent
+
+        serial |= u64::from_be_bytes(self.mantissa.to_be_bytes()[24..].try_into().unwrap()); // last 54 bits are mantissa
+
+        serial.to_be_bytes()
     }
-
-    serial |= ((exponent+97) as u64) << 54; // next 8 bits are exponent
-
-    serial |= u64::from_be_bytes(mantissa.to_be_bytes()[24..].try_into().unwrap()); // last 54 bits are mantissa
-
-    Ok(Vec::from(serial.to_be_bytes()))
 }
 
-#[derive(Debug, PartialEq)]
-enum Sign {
-    Plus,
-    Minus
-}
+impl TryFrom<String> for Decimal {
+    type Error = ContractError;
 
-fn parse_decimal(s: &str) -> Result<(Sign, Uint256, i64), ContractError> {
-    let exp_separator: &[_] = &['e', 'E'];
+    fn try_from(s: String) -> Result<Decimal, ContractError> {
+        let exp_separator: &[_] = &['e', 'E'];
 
-    let (base_part, exponent_value) = match s.find(exp_separator) {
-        None => (s, 0),
-        Some(loc) => {
-            let (base, exp) = (&s[..loc], &s[loc + 1..]);
-            (base, i64::from_str(exp).map_err(|e| ContractError::InvalidAmount { reason: "invalid exponent".to_string(), amount: s.to_string() })?)
+        let (base_part, exponent_value) = match s.find(exp_separator) {
+            None => (s.as_str(), 0),
+            Some(loc) => {
+                let (base, exp) = (&s[..loc], &s[loc + 1..]);
+                (base, i64::from_str(exp).map_err(|e| ContractError::InvalidAmount { reason: "invalid exponent".to_string() })?)
+            }
+        };
+
+        if base_part.is_empty() {
+            return Err(ContractError::InvalidAmount { reason: "base part empty".to_string() });
         }
-    };
 
-    if base_part.is_empty() {
-        return Err(ContractError::InvalidAmount { reason: "base part empty".to_string(), amount: s.to_string()});
+        let (mut digits, decimal_offset): (String, _) = match base_part.find('.') {
+            None => (base_part.to_string(), 0),
+            Some(loc) => {
+                let (lead, trail) = (&base_part[..loc], &base_part[loc + 1..]);
+                let mut digits = String::from(lead);
+                digits.push_str(trail);
+                let trail_digits = trail.chars().filter(|c| *c != '_').count();
+                (digits, trail_digits as i64)
+            }
+        };
+
+        let exponent = match decimal_offset.checked_sub(exponent_value) {
+            Some(exponent) => exponent,
+            None => {
+                return Err(ContractError::InvalidAmount { reason: "overflow".to_string() });
+            }
+        };
+
+        if digits.starts_with('-') {
+            return Err(ContractError::InvalidAmount { reason: "negative amount".to_string() });
+        }
+
+        if digits.starts_with('+') {
+            digits = digits[1..].to_string();
+        }
+
+        let mantissa = Uint256::from_str(digits.as_str()).map_err(|e| ContractError::InvalidAmount { reason: e.to_string() })?;
+
+        let mut d = Decimal { mantissa, exponent: exponent * -1 };
+        d.canonicalize()?;
+        Ok(d)
     }
-
-    let (digits, decimal_offset): (String, _) = match base_part.find('.') {
-        None => (base_part.to_string(), 0),
-        Some(loc) => {
-            let (lead, trail) = (&base_part[..loc], &base_part[loc + 1..]);
-            let mut digits = String::from(lead);
-            digits.push_str(trail);
-            let trail_digits = trail.chars().filter(|c| *c != '_').count();
-            (digits, trail_digits as i64)
-        }
-    };
-
-    let exponent = match decimal_offset.checked_sub(exponent_value) {
-        Some(exponent) => exponent,
-        None => {
-            return Err(ContractError::InvalidAmount { reason: "overflow".to_string(), amount: s.to_string() });
-        }
-    };
-
-    let (sign, digits) = if digits.starts_with('-') {
-        (Sign::Minus, &digits[1..])
-    } else if digits.starts_with('+') {
-        (Sign::Plus, &digits[1..])
-    } else {
-        (Sign::Plus, digits.as_str())
-    };
-
-    let mantissa = Uint256::from_str(digits).map_err(|e| ContractError::InvalidAmount { reason: e.to_string(), amount: s.to_string()})?;
-
-    Ok((sign, mantissa, exponent*-1))
 }
 
 pub fn currency_to_bytes(currency: &String) -> Result<[u8; 20], ContractError> {
@@ -531,12 +547,12 @@ impl XRPLSerialize for XRPLPaymentAmount {
                 if *value <= 10u64.pow(17) {
                     Ok((value | POSITIVE_BIT).to_be_bytes().to_vec())
                 } else {
-                    Err(ContractError::InvalidAmount { reason: "more than maximum amount of drops".to_string(), amount: value.to_string() })
+                    Err(ContractError::InvalidAmount { reason: "more than maximum amount of drops".to_string() })
                 }
             },
             XRPLPaymentAmount::Token(token, amount) => {
                 let mut result = Vec::new();
-                result.extend(amount_to_bytes(amount)?);
+                result.extend(amount.to_bytes());
                 result.extend(currency_to_bytes(&token.currency)?);
                 result.extend(decode_address(&token.issuer)?);
                 Ok(result)
@@ -1049,7 +1065,7 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount("0".to_string()))
+            }, "0".to_string().try_into()?)
             .xrpl_serialize()?
         );
         assert_hex_eq!(
@@ -1057,34 +1073,18 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount("1".to_string()))
+            }, "1".to_string().try_into()?)
             .xrpl_serialize()?
         );
-        // minimum amount
-        assert_hex_eq!(
-            "AC6386F26FC0FFFF00000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
-                currency: "USD".to_string(),
-            }, XRPLTokenAmount("-9999999999999999e80".to_string()))
-            .xrpl_serialize()?
-        );
-        // less than minimum amount fails
-        assert!(
-            XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
-                currency: "USD".to_string(),
-            }, XRPLTokenAmount("-10000000000000000e80".to_string()))
-            .xrpl_serialize()
-            .is_err()
-        );
+        // negative amount fails
+        assert!(Decimal::try_from("-1".to_string()).is_err());
         // minimum absolute amount
         assert_hex_eq!(
             "C0438D7EA4C6800000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount("1000000000000000e-96".to_string()))
+            }, "1000000000000000e-96".to_string().try_into()?)
             .xrpl_serialize()?
         );
         // less than minimum absolute positive amount serializes to 0
@@ -1093,16 +1093,7 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount("999999999999999e-96".to_string()))
-            .xrpl_serialize()?
-        );
-        // less than minimum absolute negative amount serializes to 0
-        assert_hex_eq!(
-            "800000000000000000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
-            XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
-                currency: "USD".to_string(),
-            }, XRPLTokenAmount("-999999999999999e-96".to_string()))
+            }, "999999999999999e-96".to_string().try_into()?)
             .xrpl_serialize()?
         );
         // maximum amount
@@ -1111,25 +1102,18 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount("9999999999999999e80".to_string()))
+            }, "9999999999999999e80".to_string().try_into()?)
             .xrpl_serialize()?
         );
         // more than maximum amount fails
-        assert!(
-            XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
-                currency: "USD".to_string(),
-            }, XRPLTokenAmount("10000000000000000e80".to_string()))
-            .xrpl_serialize()
-            .is_err()
-        );
+        assert!(Decimal::try_from("10000000000000000e80".to_string()).is_err());
         // test integer and fractional part with zeroes
         assert_hex_eq!(
             "D58462510B02ED1500000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount("0012340.0012345678900".to_string()))
+            }, "0012340.0012345678900".to_string().try_into()?)
             .xrpl_serialize()?
         );
         // currency can contain non-alphanumeric ascii letters
@@ -1138,7 +1122,7 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "${;".to_string(),
-            }, XRPLTokenAmount("42".to_string()))
+            }, "42".to_string().try_into()?)
             .xrpl_serialize()?
         );
         // TODO: these could be enforced on a type level:
@@ -1150,7 +1134,7 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
                 currency: "XRP".to_string(),
-            }, XRPLTokenAmount("42".to_string()))
+            }, "42".to_string().try_into()?)
             .xrpl_serialize()
             .is_err()
         );
@@ -1234,7 +1218,7 @@ mod tests {
     }
 
     #[test]
-    fn serialize_xrpl_unsigned_token_payment_transaction() {
+    fn serialize_xrpl_unsigned_token_payment_transaction() -> Result<(), ContractError> {
         let unsigned_tx = XRPLPaymentTx {
             account: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".to_string(),
             fee: 12,
@@ -1244,7 +1228,7 @@ mod tests {
                     currency: "JPY".to_string(),
                     issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji".to_string(),
                 },
-                XRPLTokenAmount("0.3369568318".to_string()),
+                "0.3369568318".to_string().try_into()?,
             ),
             destination: nonempty::String::try_from("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh").unwrap(),
             multisig_session_id: Uint64::from(1u8),
@@ -1254,6 +1238,7 @@ mod tests {
             "1200002200000000240000000161D44BF89AC2A40B800000000000000000000000004A50590000000000000000000000000000000000000000000000000168400000000000000C730081145B812C9D57731E27A2DA8B1830195F88EF32A3B68314B5F762798A53D543A014CAF8B297CFF8F2F937E8F9EA7D0101E1F1",
             hex::encode_upper(encoded_unsigned_tx)
         );
+        Ok(())
     }
 
     #[test]
@@ -1348,13 +1333,13 @@ mod tests {
     }
 
     #[test]
-    fn tx_serialization_ed25519_signers() {
+    fn tx_serialization_ed25519_signers() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
                 account: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string(),
                 fee: 30,
                 sequence: Sequence::Ticket(45205896),
-                amount: XRPLPaymentAmount::Token(XRPLToken{ currency: "ETH".to_string(), issuer: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string() }, XRPLTokenAmount("100000000".to_string())),
+                amount: XRPLPaymentAmount::Token(XRPLToken{ currency: "ETH".to_string(), issuer: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".to_string() }, "100000000".to_string().try_into()?),
                 destination: nonempty::String::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo").unwrap(),
                 multisig_session_id: Uint64::from(5461264u64),
             }), signers: vec![
@@ -1375,6 +1360,7 @@ mod tests {
             "12000022000000002400000000202902B1C98861D6838D7EA4C680000000000000000000000000004554480000000000EC792533BC26024CFAA5DDC2D04128E59581309C68400000000000001E73008114EC792533BC26024CFAA5DDC2D04128E59581309C831439659AAAD4DC8603798352FCF954419A67977536F3E0107321EDDD9822C7FA239DDA9913EBEE813ECBE69E35D88FF651548D5CC42C033A8A667B744076CF2097D7038B90445CB952AE52CBDBE6D55FE7C0562493FE3D9AAE5E05A66A43777CBCDAA89233CAFD4D1D0F9B02DB0619B9BB14957CC3ADAA8D7D343E010681142B3CF7B1986F5CB4EFEF11F933F40EC3106412C2E1E0107321ED45E67EAF446E6C26EB3A2B55B64339ECF3A4D1D03180BEE20EB5AFDD23FA644F7440531B9E854C81AEFA573C00DF1603C3DE80C1F3680D39A80F3FB725A0388D177E3EC5E28AD6760D9EEF8203FEB1FC61F9D9451F777114B97943E5702B54589E09811472C14C0DB6CEF64A87CC3D152D7B0E917D372BE7E1F1F9EA7D03535510E1F1",
             hex::encode_upper(encoded_signed_tx)
         );
+        Ok(())
     }
 
 
