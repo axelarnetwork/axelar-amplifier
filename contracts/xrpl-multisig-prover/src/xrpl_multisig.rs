@@ -1,15 +1,14 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, ops::MulAssign};
 
 
-use axelar_wasm_std::{nonempty, FnExt};
+use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
+use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint256, Uint64, WasmMsg};
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 use multisig::key::PublicKey;
 use ripemd::Ripemd160;
 use sha2::{Sha512, Digest, Sha256};
-use bigdecimal::{BigDecimal, Signed, ToPrimitive, Zero};
 use std::str::FromStr;
 
 use crate::{
@@ -349,19 +348,17 @@ const MAX_EXPONENT: i64 = 80;
 
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
 pub fn amount_to_bytes(amount: &XRPLTokenAmount) -> Result<Vec<u8>, ContractError> {
-    let decimal = BigDecimal::from_str(amount.0.trim()).map_err(|e| { ContractError::InvalidAmount { amount: amount.clone().0, reason: e.to_string() } })?;
-
-    let is_negative = decimal.is_negative();
-
+    let (sign, mut mantissa, mut exponent) = parse_decimal(amount.0.trim())?;
+    
     let mut serial: u64 = 0x8000000000000000;
-    if decimal.is_zero() {
+    if mantissa.is_zero() {
         return Ok(Vec::from(serial.to_be_bytes()))
     }
 
-    let (mut mantissa, mut exponent) = decimal.into_bigint_and_exponent().then(|(m, e)| (m.abs().to_biguint().unwrap(), e * -1));
+    let ten = Uint256::from_u128(10u128);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
-        mantissa *= 10u8;
+        mantissa *= ten;
         exponent -= 1;
     }
 
@@ -369,7 +366,7 @@ pub fn amount_to_bytes(amount: &XRPLTokenAmount) -> Result<Vec<u8>, ContractErro
         if exponent > MAX_EXPONENT {
             return Err(ContractError::InvalidAmount { amount: amount.clone().0, reason: "overflow 1".to_string() });
         }
-        mantissa /= 10u8;
+        mantissa /= ten;
         exponent += 1;
     }
 
@@ -381,17 +378,68 @@ pub fn amount_to_bytes(amount: &XRPLTokenAmount) -> Result<Vec<u8>, ContractErro
         return Err(ContractError::InvalidAmount { amount: amount.clone().0, reason: format!("overflow exponent {} mantissa {}", exponent, mantissa).to_string() });
     }
 
-    if !is_negative {
+    if sign == Sign::Plus {
         serial |= 0x4000000000000000; // set positive bit
     }
 
     serial |= ((exponent+97) as u64) << 54; // next 8 bits are exponent
 
-    serial |= mantissa.to_u64().unwrap(); // last 54 bits are mantissa
+    serial |= u64::from_be_bytes(mantissa.to_be_bytes()[24..].try_into().unwrap()); // last 54 bits are mantissa
 
     Ok(Vec::from(serial.to_be_bytes()))
 }
 
+#[derive(Debug, PartialEq)]
+enum Sign {
+    Plus,
+    Minus
+}
+
+fn parse_decimal(s: &str) -> Result<(Sign, Uint256, i64), ContractError> {
+    let exp_separator: &[_] = &['e', 'E'];
+
+    let (base_part, exponent_value) = match s.find(exp_separator) {
+        None => (s, 0),
+        Some(loc) => {
+            let (base, exp) = (&s[..loc], &s[loc + 1..]);
+            (base, i64::from_str(exp).map_err(|e| ContractError::InvalidAmount { reason: "invalid exponent".to_string(), amount: s.to_string() })?)
+        }
+    };
+
+    if base_part.is_empty() {
+        return Err(ContractError::InvalidAmount { reason: "base part empty".to_string(), amount: s.to_string()});
+    }
+
+    let (digits, decimal_offset): (String, _) = match base_part.find('.') {
+        None => (base_part.to_string(), 0),
+        Some(loc) => {
+            let (lead, trail) = (&base_part[..loc], &base_part[loc + 1..]);
+            let mut digits = String::from(lead);
+            digits.push_str(trail);
+            let trail_digits = trail.chars().filter(|c| *c != '_').count();
+            (digits, trail_digits as i64)
+        }
+    };
+
+    let exponent = match decimal_offset.checked_sub(exponent_value) {
+        Some(exponent) => exponent,
+        None => {
+            return Err(ContractError::InvalidAmount { reason: "overflow".to_string(), amount: s.to_string() });
+        }
+    };
+
+    let (sign, digits) = if digits.starts_with('-') {
+        (Sign::Minus, &digits[1..])
+    } else if digits.starts_with('+') {
+        (Sign::Plus, &digits[1..])
+    } else {
+        (Sign::Plus, digits.as_str())
+    };
+
+    let mantissa = Uint256::from_str(digits).map_err(|e| ContractError::InvalidAmount { reason: e.to_string(), amount: s.to_string()})?;
+
+    Ok((sign, mantissa, exponent*-1))
+}
 
 pub fn currency_to_bytes(currency: &String) -> Result<[u8; 20], ContractError> {
     if currency.len() != 3 || !currency.is_ascii() || currency == "XRP" {
