@@ -63,7 +63,7 @@ impl<'a> Querier<'a> {
                 message_ids: vec![message_id.clone()],
             }
         )?;
-        Ok(messages[0])
+        messages.first().cloned().ok_or(ContractError::InvalidMessageID(message_id.id.to_string()))
     }
 
     pub fn get_message_status(&self, message: Message) -> Result<VerificationStatus, ContractError> {
