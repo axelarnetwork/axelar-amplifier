@@ -189,7 +189,7 @@ fn construct_payment_proof(
         let xrpl_token = TOKENS.load(storage, &coin.denom)?;
         XRPLPaymentAmount::Token(
             xrpl_token,
-            coin.amount.to_string().try_into()?,
+            coin.amount.try_into()?,
         )
     };
 
