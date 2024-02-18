@@ -54,7 +54,7 @@ pub fn instantiate(
     let service_registry_address = deps.api.addr_validate(&msg.service_registry_address)?;
     let governance_address = deps.api.addr_validate(&msg.governance_address)?;
 
-    if msg.signing_threshold.numerator() > u32::MAX.into() {
+    if msg.signing_threshold.numerator() > u32::MAX.into() || msg.signing_threshold.denominator() == Uint64::zero() {
         return Err(ContractError::InvalidSigningThreshold.into());
     }
 
@@ -318,13 +318,16 @@ fn update_tx_status(
     let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
     let multisig_session = querier.get_multisig_session(&multisig_session_id)?;
+
+    let destination_str = match &tx_info.unsigned_contents {
+        xrpl_multisig::XRPLUnsignedTx::Payment(p) => p.destination.to_string(),
+        _ => xrpl_multisig_address.to_string(),
+    };
+
     let message = Message {
         destination_chain: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
         source_address: Address::from_str(&xrpl_multisig_address).map_err(|_| ContractError::InvalidAddress)?,
-        destination_address: Address::from_str(match &tx_info.unsigned_contents {
-            xrpl_multisig::XRPLUnsignedTx::Payment(p) => p.destination.as_str(),
-            _ => &xrpl_multisig_address,
-        }).map_err(|_| ContractError::InvalidAddress)?,
+        destination_address: Address::from_str(destination_str.as_ref()).map_err(|_| ContractError::InvalidAddress)?,
         cc_id: message_id.clone(),
         payload_hash: [0; 32],
     };

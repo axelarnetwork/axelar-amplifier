@@ -16,6 +16,7 @@ use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;
 use multisig::msg::ExecuteMsg;
+use xrpl_multisig_prover::xrpl_multisig::XRPLAccountId;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
@@ -24,7 +25,6 @@ use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
 use crate::types::TMAddress;
-use xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address;
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -168,7 +168,7 @@ where
             Some(pub_key) => {
                 let pub_key_hex = HexBinary::from(pub_key.to_bytes());
                 let multisig_pub_key = multisig::key::PublicKey::try_from((multisig::key::KeyType::Ecdsa, pub_key_hex)).map_err(|_e| Error::PublicKey)?;
-                let xrpl_address = public_key_to_xrpl_address(&multisig_pub_key);
+                let xrpl_address = XRPLAccountId::from(&multisig_pub_key);
 
                 let msg_digest = MessageDigest::from(xrpl_multisig_prover::xrpl_multisig::message_to_sign(&unsigned_tx, &xrpl_address).map_err(|_e| Error::MessageToSign)?);
 

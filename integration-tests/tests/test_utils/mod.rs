@@ -19,7 +19,7 @@ use multisig::{
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
-use xrpl_multisig_prover::types::XRPLToken;
+use xrpl_multisig_prover::{types::XRPLToken, xrpl_multisig::XRPLAccountId};
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 
@@ -294,7 +294,7 @@ pub fn sign_xrpl_proof(
             .expect("couldn't get unsigned_tx");
 
     for worker in workers {
-        let xrpl_signer_address = xrpl_multisig_prover::xrpl_multisig::public_key_to_xrpl_address(
+        let xrpl_signer_address = XRPLAccountId::from(
             &multisig::key::PublicKey::Ecdsa(worker.key_pair.encoded_verifying_key().into())
         );
 

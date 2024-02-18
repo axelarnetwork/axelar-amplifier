@@ -101,10 +101,9 @@ pub fn get_active_worker_set(
     let workers: Vec<Worker> = querier.get_active_workers()?;
 
     let participants: Vec<Participant> = workers
-        .iter()
-        .map(|worker| Participant::try_from(worker.clone()))
-        .filter(|result| result.is_ok())
-        .map(|result| result.unwrap())
+        .into_iter()
+        .map(|worker| Participant::try_from(worker))
+        .filter_map(|result| result.ok())
         .collect();
 
     let weights = convert_or_scale_weights(participants
