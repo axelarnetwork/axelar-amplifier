@@ -1052,7 +1052,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
         multisig_prover_address.clone(),
         ETH_DENOMINATION.to_string(),
         XRPLToken {
-            issuer: xrpl_multisig_address,
+            issuer: xrpl_multisig_address.as_str().try_into().unwrap(),
             currency: "ETH".to_string(),
         },
     );

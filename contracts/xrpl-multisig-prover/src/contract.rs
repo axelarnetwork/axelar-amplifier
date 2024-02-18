@@ -17,7 +17,8 @@ use crate::{
     msg::{ExecuteMsg, QueryMsg},
     reply,
     types::*,
-    xrpl_multisig::{self, XRPLPaymentAmount, XRPLTokenAmount, XRPLSerialize}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
+    xrpl_multisig::{self, XRPLPaymentAmount}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
+    xrpl_serialize::XRPLSerialize,
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;

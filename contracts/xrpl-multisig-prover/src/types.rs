@@ -5,7 +5,7 @@ use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::key::Signature;
 
-use crate::{xrpl_multisig::XRPLUnsignedTx, error::ContractError};
+use crate::{error::ContractError, xrpl_multisig::{XRPLAccountId, XRPLUnsignedTx}};
 
 #[cw_serde]
 pub enum TransactionStatus {
@@ -122,6 +122,6 @@ impl Operator {
 
 #[cw_serde]
 pub struct XRPLToken {
-    pub issuer: String,
+    pub issuer: XRPLAccountId,
     pub currency: String,
 }
