@@ -126,7 +126,7 @@ pub struct XRPLTicketCreateTx {
 pub struct XRPLAccountId([u8; 20]);
 
 impl XRPLAccountId {
-    pub fn to_bytes(&self) -> [u8; 20] {
+    pub const fn to_bytes(&self) -> [u8; 20] {
         return self.0;
     }
 
