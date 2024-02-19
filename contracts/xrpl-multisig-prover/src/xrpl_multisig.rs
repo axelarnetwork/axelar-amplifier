@@ -2,188 +2,13 @@ use std::collections::BTreeSet;
 
 use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint128, Uint64, WasmMsg};
+use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
-use multisig::key::PublicKey;
-use ripemd::Ripemd160;
 use sha2::{Sha512, Digest, Sha256};
 
 use crate::{
-    axelar_workers::{AxelarSigner, WorkerSet}, error::ContractError, state::{Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_TX_HASH, MESSAGE_ID_TO_TICKET, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, TRANSACTION_INFO}, types::*, xrpl_serialize::XRPLTokenAmount
+    axelar_workers::{AxelarSigner, WorkerSet}, error::ContractError, state::{Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_TX_HASH, MESSAGE_ID_TO_TICKET, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, TRANSACTION_INFO}, types::*
 };
-
-#[cw_serde]
-pub enum XRPLPaymentAmount {
-    Drops(
-        u64,
-    ),
-    Token(XRPLToken, XRPLTokenAmount),
-}
-
-#[cw_serde]
-pub enum Sequence {
-    Plain(u32),
-    Ticket(u32),
-}
-
-impl Into<u32> for Sequence {
-    fn into(self) -> u32 {
-        match self {
-            Sequence::Plain(sequence) => sequence,
-            Sequence::Ticket(ticket) => ticket,
-        }
-    }
-}
-
-#[cw_serde]
-pub struct XRPLSignerEntry {
-    pub account: XRPLAccountId,
-    pub signer_weight: u16,
-}    
-
-#[cw_serde]
-pub enum XRPLUnsignedTx {
-    Payment(XRPLPaymentTx),
-    SignerListSet(XRPLSignerListSetTx),
-    TicketCreate(XRPLTicketCreateTx),
-}
-
-impl XRPLUnsignedTx {
-    pub fn sequence(&self) -> &Sequence {
-        match self {
-            XRPLUnsignedTx::Payment(tx) => {
-                &tx.sequence
-            },
-            XRPLUnsignedTx::TicketCreate(tx) => {
-                &tx.sequence
-            },
-            XRPLUnsignedTx::SignerListSet(tx) => {
-                &tx.sequence
-            }
-        }
-    }
-    pub fn sequence_number_increment(&self, status: TransactionStatus) -> u32 {
-        if status == TransactionStatus::Pending || status == TransactionStatus::Inconclusive {
-            return 0;
-        }
-
-        match self {
-            XRPLUnsignedTx::Payment(tx ) => {
-                match tx.sequence {
-                    Sequence::Plain(_) => 1,
-                    Sequence::Ticket(_) => 0,
-                }
-            }
-            XRPLUnsignedTx::SignerListSet(tx) => {
-                match tx.sequence {
-                    Sequence::Plain(_) => 1,
-                    Sequence::Ticket(_) => 0,
-                }
-            },
-            XRPLUnsignedTx::TicketCreate(tx) => {
-                match status {
-                    TransactionStatus::Succeeded => tx.ticket_count + 1,
-                    TransactionStatus::FailedOnChain => 1,
-                    TransactionStatus::Inconclusive |
-                    TransactionStatus::Pending => unreachable!(),
-                }
-            },
-        }
-    }
-}
-
-#[cw_serde]
-pub struct XRPLPaymentTx {
-    pub account: XRPLAccountId,
-    pub fee: u64,
-    pub sequence: Sequence,
-    pub amount: XRPLPaymentAmount,
-    pub destination: XRPLAccountId,
-    pub multisig_session_id: Uint64
-}
-
-#[cw_serde]
-pub struct XRPLSignerListSetTx {
-    pub account: XRPLAccountId,
-    pub fee: u64,
-    pub sequence: Sequence,
-    pub signer_quorum: u32,
-    pub signer_entries: Vec<XRPLSignerEntry>,
-    pub multisig_session_id: Uint64
-}
-
-#[cw_serde]
-pub struct XRPLTicketCreateTx {
-    pub account: XRPLAccountId,
-    pub fee: u64,
-    pub sequence: Sequence,
-    pub ticket_count: u32,
-    pub multisig_session_id: Uint64
-}
-
-#[cw_serde]
-pub struct XRPLAccountId([u8; 20]);
-
-impl XRPLAccountId {
-    pub const fn to_bytes(&self) -> [u8; 20] {
-        return self.0;
-    }
-
-    pub fn to_string(&self) -> String {
-        let address_type_prefix: &[u8] = &[0x00];
-        let payload = [address_type_prefix, &self.to_bytes()].concat();
-
-        let checksum_hash1 = Sha256::digest(payload.clone());
-        let checksum_hash2 = Sha256::digest(checksum_hash1);
-        let checksum = &checksum_hash2[0..4];
-
-        bs58::encode([payload, checksum.to_vec()].concat())
-            .with_alphabet(bs58::Alphabet::RIPPLE)
-            .into_string()
-    }
-}
-
-impl From<&PublicKey> for XRPLAccountId {
-    fn from(pub_key: &PublicKey) -> Self {
-        let public_key_hex: HexBinary = pub_key.clone().into();
-
-        assert!(public_key_hex.len() == 33);
-
-        let public_key_inner_hash = Sha256::digest(public_key_hex);
-        let account_id = Ripemd160::digest(public_key_inner_hash);
-
-        return XRPLAccountId(account_id.into());
-    }
-}
-
-impl TryFrom<&str> for XRPLAccountId {
-    type Error = ContractError;
-
-    fn try_from(address: &str) -> Result<Self, ContractError> {
-        let res = bs58::decode(address).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().map_err(|_| ContractError::InvalidAddress)?;
-        // .map_err(|_| ContractError::InvalidAddress)?;
-        if res.len() != 25 {
-            return Err(ContractError::InvalidAddress);
-        }
-        let mut buffer = [0u8; 20];
-        buffer.copy_from_slice(&res[1..21]);
-        return Ok(XRPLAccountId(buffer))
-    }
-}
-
-#[cw_serde]
-pub struct XRPLSigner {
-    pub account: XRPLAccountId,
-    pub txn_signature: HexBinary,
-    pub signing_pub_key: PublicKey,
-}
-
-#[cw_serde]
-pub struct XRPLSignedTransaction {
-    pub unsigned_tx: XRPLUnsignedTx,
-    pub signers: Vec<XRPLSigner>
-}
 
 pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
     let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
@@ -501,8 +326,8 @@ mod tests {
 
     #[test]
     fn test_account_id_to_bytes_address() {
-        assert_eq!("rrrrrrrrrrrrrrrrrrrrrhoLvTp", XRPLAccountId([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string());
-        assert_eq!("rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi", XRPLAccountId([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]).to_string());
+        assert_eq!("rrrrrrrrrrrrrrrrrrrrrhoLvTp", XRPLAccountId::from_bytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to_string());
+        assert_eq!("rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi", XRPLAccountId::from_bytes([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]).to_string());
     }
     #[test]
     fn ed25519_public_key_to_xrpl_address() -> Result<(), ContractError> {

@@ -3,8 +3,8 @@ use cosmwasm_std::{StdResult, Uint64, HexBinary, Storage};
 use multisig::{key::Signature, types::MultisigState};
 use multisig::key::PublicKey;
 
-use crate::xrpl_multisig::XRPLAccountId;
 use crate::{
+    types::*,
     state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{self, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING}, querier::Querier, msg::GetProofResponse, types::TransactionStatus, error::ContractError,
     xrpl_serialize::XRPLSerialize
 };

@@ -16,15 +16,14 @@ use events::Error::EventTypeMismatch;
 use events_derive;
 use events_derive::try_from;
 use multisig::msg::ExecuteMsg;
-use xrpl_multisig_prover::xrpl_multisig::XRPLAccountId;
+use crate::types::*;
+use xrpl_multisig_prover::types::*;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
-use crate::types::PublicKey;
-use crate::types::TMAddress;
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
