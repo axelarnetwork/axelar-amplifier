@@ -1,13 +1,11 @@
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint128};
+use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 
-use crate::{error::ContractError, xrpl_multisig::{Sequence, XRPLAccountId, XRPLPaymentAmount, XRPLPaymentTx, XRPLSignedTransaction, XRPLSigner, XRPLSignerEntry, XRPLSignerListSetTx, XRPLTicketCreateTx, XRPLUnsignedTx}};
+use crate::{error::ContractError, types::*};
 
 const PAYMENT_TX_TYPE: u16 = 0;
 const TICKET_CREATE_TX_TYPE: u16 = 10;
 const SIGNER_LIST_SET_TX_TYPE: u16 = 12;
-
 const POSITIVE_BIT: u64 = 0x4000000000000000;
 
 pub trait XRPLSerialize {
@@ -25,6 +23,7 @@ impl XRPLSerialize for u16 {
 
 impl XRPLSerialize for u32 {
     const TYPE_CODE: u8 = 2;
+
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         Ok(self.to_be_bytes().to_vec())
     }
@@ -64,6 +63,7 @@ pub fn currency_to_bytes(currency: &String) -> Result<[u8; 20], ContractError> {
 
 impl XRPLSerialize for HexBinary {
     const TYPE_CODE: u8 = 7;
+
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let encoded_length = encode_length(self.len())?;
         let mut result = Vec::new();
@@ -210,6 +210,10 @@ impl XRPLSerialize for XRPLAccountId {
     }
 }
 
+pub fn hex_encode_session_id(session_id: Uint64) -> HexBinary {
+    HexBinary::from(session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect::<Vec<u8>>())
+}
+
 impl TryInto<XRPLObject> for XRPLPaymentTx {
     type Error = ContractError;
 
@@ -223,11 +227,7 @@ impl TryInto<XRPLObject> for XRPLPaymentTx {
         obj.add_field(Field::SigningPubKey, &HexBinary::from_hex("")?)?;
         obj.add_field(Field::Account, &self.account)?;
         obj.add_field(Field::Destination, &self.destination)?;
-
-        let memo_data: Vec<u8> = self.multisig_session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect();
-        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
-        obj.add_field(Field::Memos, &XRPLArray{field: Field::Memo, items: vec![XRPLMemo(memo)]})?;
-
+        obj.add_field(Field::Memos, &XRPLArray{field: Field::Memo, items: vec![XRPLMemo(hex_encode_session_id(self.multisig_session_id))]})?;
         Ok(obj)
     }
 }
@@ -398,78 +398,6 @@ pub fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
     }
 }
 
-const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
-const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
-const MIN_EXPONENT: i64 = -96;
-const MAX_EXPONENT: i64 = 80;
-
-// XRPLTokenAmount always in canonicalized XRPL mantissa-exponent format,
-// such that MIN_MANTISSA <= mantissa <= MAX_MANTISSA (or equal to zero), MIN_EXPONENT <= exponent <= MAX_EXPONENT,
-// In XRPL generally it can be decimal and even negative (!) but in our case that doesn't apply.
-#[cw_serde]
-pub struct XRPLTokenAmount {
-    mantissa: u64,
-    exponent: i64
-}
-
-impl XRPLTokenAmount {
-    pub fn new(mantissa: u64, exponent: i64) -> Self {
-        assert!(mantissa == 0 || (MIN_MANTISSA <= mantissa && mantissa <= MAX_MANTISSA && MIN_EXPONENT <= exponent && exponent <= MAX_EXPONENT));
-        Self { mantissa, exponent }
-    }
-
-    pub fn to_bytes(&self) -> [u8; 8] {
-        if self.mantissa == 0 {
-            0x8000000000000000u64.to_be_bytes()
-        } else {
-            // not xrp-bit | positive bit | 8 bits exponent | 54 bits mantissa
-            (0xC000000000000000u64 | ((self.exponent + 97) as u64) << 54 | self.mantissa).to_be_bytes()
-        }
-    }
-}
-
-impl TryFrom<Uint128> for XRPLTokenAmount {
-    type Error = ContractError;
-
-    fn try_from(amount: Uint128) -> Result<XRPLTokenAmount, ContractError> {
-        let (mantissa, exponent) = canonicalize_mantissa(amount)?;
-        Ok(XRPLTokenAmount::new(mantissa, exponent))
-    }
-}
-
-// always called when XRPLTokenAmount instantiated
-// see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
-pub fn canonicalize_mantissa(mut mantissa: Uint128) -> Result<(u64, i64), ContractError> {
-    let mut exponent = 0i64;
-
-    let ten = Uint128::from(10u128);
-
-    while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
-        mantissa *= ten;
-        exponent -= 1;
-    }
-
-    while mantissa > MAX_MANTISSA.into() && exponent > MIN_EXPONENT {
-        if exponent > MAX_EXPONENT {
-            return Err(ContractError::InvalidAmount { reason: "overflow".to_string() });
-        }
-        mantissa /= ten;
-        exponent += 1;
-    }
-
-    if exponent < MIN_EXPONENT || mantissa < MIN_MANTISSA.into() {
-        return Ok((0, 1));
-    }
-
-    if exponent > MAX_EXPONENT || mantissa > MAX_MANTISSA.into() {
-        return Err(ContractError::InvalidAmount { reason: format!("overflow exponent {} mantissa {}", exponent, mantissa).to_string() });
-    }
-
-    let mantissa = u64::from_be_bytes(mantissa.to_be_bytes()[8..].try_into().unwrap());
-
-    return Ok((mantissa, exponent));
-}
-
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{Uint128, Uint64};
@@ -529,7 +457,7 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount { mantissa: MIN_MANTISSA, exponent: MIN_EXPONENT })
+            }, XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT))
             .xrpl_serialize()?
         );
         // maximum amount
@@ -538,7 +466,7 @@ mod tests {
             XRPLPaymentAmount::Token(XRPLToken {
                 issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
                 currency: "USD".to_string(),
-            }, XRPLTokenAmount { mantissa: MAX_MANTISSA, exponent: MAX_EXPONENT })
+            }, XRPLTokenAmount::new(MAX_MANTISSA, MAX_EXPONENT))
             .xrpl_serialize()?
         );
         // currency can contain non-alphanumeric ascii letters
@@ -653,7 +581,7 @@ mod tests {
                     currency: "JPY".to_string(),
                     issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji".try_into()?,
                 },
-                XRPLTokenAmount { mantissa: 3369568318000000u64, exponent: -16 }
+                XRPLTokenAmount::new(3369568318000000u64, -16)
             ),
             destination: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".try_into()?,
             multisig_session_id: Uint64::from(1u8),

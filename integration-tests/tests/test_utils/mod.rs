@@ -19,7 +19,7 @@ use multisig::{
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
-use xrpl_multisig_prover::{types::XRPLToken, xrpl_multisig::XRPLAccountId};
+use xrpl_multisig_prover::types::{XRPLToken, XRPLAccountId};
 use sha3::{Digest, Keccak256};
 use tofn::ecdsa::KeyPair;
 

@@ -17,7 +17,7 @@ use crate::{
     msg::{ExecuteMsg, QueryMsg},
     reply,
     types::*,
-    xrpl_multisig::{self, XRPLPaymentAmount}, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
+    xrpl_multisig, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
     xrpl_serialize::XRPLSerialize,
 };
 
@@ -321,7 +321,7 @@ fn update_tx_status(
     let multisig_session = querier.get_multisig_session(&multisig_session_id)?;
 
     let destination_str = match &tx_info.unsigned_contents {
-        xrpl_multisig::XRPLUnsignedTx::Payment(p) => p.destination.to_string(),
+        XRPLUnsignedTx::Payment(p) => p.destination.to_string(),
         _ => xrpl_multisig_address.to_string(),
     };
 
