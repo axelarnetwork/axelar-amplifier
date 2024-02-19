@@ -5,6 +5,7 @@ use connection_router::state::CrossChainId;
 use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 use sha2::{Sha512, Digest, Sha256};
+use multisig::key::PublicKey;
 
 use crate::{
     axelar_workers::{AxelarSigner, WorkerSet}, error::ContractError, state::{Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_TX_HASH, MESSAGE_ID_TO_TICKET, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, TRANSACTION_INFO}, types::*
