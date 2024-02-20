@@ -3,7 +3,7 @@ use std::str::FromStr;
 #[cfg(not(feature = "library"))]
 use cosmwasm_schema::serde::{de::DeserializeOwned, Serialize};
 use cosmwasm_std::{
-    to_binary, QueryRequest, WasmQuery, QuerierWrapper, Uint64,
+    to_json_binary, QueryRequest, WasmQuery, QuerierWrapper, Uint64,
 };
 use multisig::{key::PublicKey, msg::Multisig};
 use axelar_wasm_std::VerificationStatus;
@@ -22,7 +22,7 @@ fn query<U, T>(querier: QuerierWrapper, contract_addr: String, query_msg: &T) ->
 where U: DeserializeOwned, T: Serialize + ?Sized {
     querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr,
-        msg: to_binary(&query_msg)?,
+        msg: to_json_binary(&query_msg)?,
     })).map_err(ContractError::from)
 }
 
