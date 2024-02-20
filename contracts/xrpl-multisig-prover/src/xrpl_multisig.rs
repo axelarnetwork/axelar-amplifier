@@ -26,10 +26,10 @@ fn issue_tx(
     )?;
 
     match tx.sequence() {
-        Sequence::Ticket(ticket_number) => {
+        XRPLSequence::Ticket(ticket_number) => {
             LAST_ASSIGNED_TICKET_NUMBER.save(storage, &ticket_number)?;
         },
-        Sequence::Plain(_) => {
+        XRPLSequence::Plain(_) => {
             LATEST_SEQUENTIAL_TX_HASH.save(storage, &tx_hash)?;
         },
     };
@@ -50,7 +50,7 @@ pub fn issue_payment(
     let tx = XRPLPaymentTx {
         account: config.xrpl_multisig_address.as_str().try_into()?,
         fee: config.xrpl_fee,
-        sequence: Sequence::Ticket(ticket_number),
+        sequence: XRPLSequence::Ticket(ticket_number),
         multisig_session_id: multisig_session_id.clone(),
         amount: amount.clone(),
         destination: XRPLAccountId::try_from(destination.as_str())?
@@ -74,7 +74,7 @@ pub fn issue_ticket_create(
     let tx = XRPLTicketCreateTx {
         account: config.xrpl_multisig_address.as_str().try_into()?,
         fee: config.xrpl_fee,
-        sequence: Sequence::Plain(sequence_number.clone()),
+        sequence: XRPLSequence::Plain(sequence_number.clone()),
         ticket_count,
         multisig_session_id,
     };
@@ -97,7 +97,7 @@ pub fn issue_signer_list_set(
     let tx = XRPLSignerListSetTx {
         account: config.xrpl_multisig_address.as_str().try_into()?,
         fee: config.xrpl_fee,
-        sequence: Sequence::Plain(sequence_number.clone()),
+        sequence: XRPLSequence::Plain(sequence_number.clone()),
         signer_quorum: workers.quorum,
         signer_entries: workers.signers.into_iter().map(|worker| XRPLSignerEntry::from(worker)).collect(),
         multisig_session_id,

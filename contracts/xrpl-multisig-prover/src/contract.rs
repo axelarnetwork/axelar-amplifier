@@ -111,10 +111,6 @@ fn register_token(
     denom: String,
     token: &XRPLToken,
 ) -> Result<Response, ContractError> {
-    if token.currency == "XRP" || token.currency.len() != 3 {
-        return Err(ContractError::InvalidTokenDenom);
-    }
-
     require_governance(&config.governance_address, sender)?;
     TOKENS.save(storage, &denom, token)?;
     Ok(Response::default())

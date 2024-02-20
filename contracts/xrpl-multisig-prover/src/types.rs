@@ -127,7 +127,7 @@ impl Operator {
 #[cw_serde]
 pub struct XRPLToken {
     pub issuer: XRPLAccountId,
-    pub currency: String,
+    pub currency: XRPLCurrency,
 }
 
 #[cw_serde]
@@ -139,16 +139,16 @@ pub enum XRPLPaymentAmount {
 }
 
 #[cw_serde]
-pub enum Sequence {
+pub enum XRPLSequence {
     Plain(u32),
     Ticket(u32),
 }
 
-impl Into<u32> for Sequence {
+impl Into<u32> for XRPLSequence {
     fn into(self) -> u32 {
         match self {
-            Sequence::Plain(sequence) => sequence,
-            Sequence::Ticket(ticket) => ticket,
+            XRPLSequence::Plain(sequence) => sequence,
+            XRPLSequence::Ticket(ticket) => ticket,
         }
     }
 }
@@ -176,7 +176,7 @@ pub enum XRPLUnsignedTx {
 }
 
 impl XRPLUnsignedTx {
-    pub fn sequence(&self) -> &Sequence {
+    pub fn sequence(&self) -> &XRPLSequence {
         match self {
             XRPLUnsignedTx::Payment(tx) => {
                 &tx.sequence
@@ -197,14 +197,14 @@ impl XRPLUnsignedTx {
         match self {
             XRPLUnsignedTx::Payment(tx ) => {
                 match tx.sequence {
-                    Sequence::Plain(_) => 1,
-                    Sequence::Ticket(_) => 0,
+                    XRPLSequence::Plain(_) => 1,
+                    XRPLSequence::Ticket(_) => 0,
                 }
             }
             XRPLUnsignedTx::SignerListSet(tx) => {
                 match tx.sequence {
-                    Sequence::Plain(_) => 1,
-                    Sequence::Ticket(_) => 0,
+                    XRPLSequence::Plain(_) => 1,
+                    XRPLSequence::Ticket(_) => 0,
                 }
             },
             XRPLUnsignedTx::TicketCreate(tx) => {
@@ -223,7 +223,7 @@ impl XRPLUnsignedTx {
 pub struct XRPLPaymentTx {
     pub account: XRPLAccountId,
     pub fee: u64,
-    pub sequence: Sequence,
+    pub sequence: XRPLSequence,
     pub amount: XRPLPaymentAmount,
     pub destination: XRPLAccountId,
     pub multisig_session_id: Uint64
@@ -233,7 +233,7 @@ pub struct XRPLPaymentTx {
 pub struct XRPLSignerListSetTx {
     pub account: XRPLAccountId,
     pub fee: u64,
-    pub sequence: Sequence,
+    pub sequence: XRPLSequence,
     pub signer_quorum: u32,
     pub signer_entries: Vec<XRPLSignerEntry>,
     pub multisig_session_id: Uint64
@@ -243,7 +243,7 @@ pub struct XRPLSignerListSetTx {
 pub struct XRPLTicketCreateTx {
     pub account: XRPLAccountId,
     pub fee: u64,
-    pub sequence: Sequence,
+    pub sequence: XRPLSequence,
     pub ticket_count: u32,
     pub multisig_session_id: Uint64
 }
@@ -315,6 +315,34 @@ pub struct XRPLSignedTransaction {
     pub signers: Vec<XRPLSigner>
 }
 
+#[cw_serde]
+pub struct XRPLCurrency(String);
+
+impl XRPLCurrency {
+    pub fn to_bytes(self) -> [u8; 20] {
+        let mut buffer = [0u8; 20];
+        buffer[12..15].copy_from_slice(self.to_string().as_bytes());
+        buffer
+    }
+
+    // Convert the CurrencyCode to a String
+    fn to_string(self) -> String {
+        self.0
+    }
+}
+
+const ALLOWED_CURRENCY_CHARS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
+
+impl TryFrom<String> for XRPLCurrency {
+    type Error = ContractError;
+
+    fn try_from(s: String) -> Result<XRPLCurrency, ContractError> {
+        if s.len() != 3 || s == "XRP" || !s.chars().all(|c| ALLOWED_CURRENCY_CHARS.contains(c)) {
+            return Err(ContractError::InvalidCurrency);
+        }
+        Ok(XRPLCurrency(s))
+    }
+}
 
 pub const MIN_MANTISSA: u64 = 1_000_000_000_000_000;
 pub const MAX_MANTISSA: u64 = 10_000_000_000_000_000 - 1;
