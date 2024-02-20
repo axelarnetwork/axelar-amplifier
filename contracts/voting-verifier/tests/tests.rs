@@ -1,18 +1,21 @@
 use axelar_wasm_std::voting::Vote;
 use cosmwasm_std::{from_binary, Addr, Uint64};
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{App, Executor};
 
 use axelar_wasm_std::operators::Operators;
-use axelar_wasm_std::{nonempty, Threshold, VerificationStatus};
+use axelar_wasm_std::{nonempty, VerificationStatus};
 use connection_router::state::{ChainName, CrossChainId, Message, ID_SEPARATOR};
+use integration_tests::contract::Contract;
 use mock::make_mock_rewards;
 use service_registry::state::Worker;
 use voting_verifier::events::TxEventConfirmation;
-use voting_verifier::{contract, error::ContractError, msg};
+use voting_verifier::{error::ContractError, msg};
 
 use crate::mock::make_mock_service_registry;
+use crate::test_utils::VotingVerifierContract;
 
 pub mod mock;
+mod test_utils;
 
 const SENDER: &str = "sender";
 const POLL_BLOCK_EXPIRY: u64 = 100;
@@ -20,38 +23,37 @@ fn source_chain() -> ChainName {
     "source_chain".parse().unwrap()
 }
 
-fn initialize_contract(app: &mut App, service_registry_address: nonempty::String) -> Addr {
-    let rewards_address = make_mock_rewards(app).into();
+struct TestConfig {
+    app: App,
+    service_registry_address: Addr,
+    voting_verifier: VotingVerifierContract,
+}
 
-    let msg = msg::InstantiateMsg {
+
+fn setup() -> TestConfig {
+    let mut app = App::default();
+    let service_registry_address = make_mock_service_registry(&mut app);
+    let rewards_address: String = make_mock_rewards(&mut app).into();
+    let voting_verifier = VotingVerifierContract::instantiate_contract(
+        &mut app,
+        service_registry_address.as_ref().parse().unwrap(),
+        rewards_address.clone(),
+    );
+    TestConfig {
+        app,
         service_registry_address,
-        service_name: "service_name".parse().unwrap(),
-        voting_threshold: Threshold::try_from((2u64, 3u64))
-            .unwrap()
-            .try_into()
-            .unwrap(),
-        block_expiry: POLL_BLOCK_EXPIRY,
-        confirmation_height: 100,
-        source_gateway_address: "gateway_address".parse().unwrap(),
-        source_chain: source_chain(),
-        rewards_address,
-    };
+        voting_verifier,
+    }
+}
 
-    let code = ContractWrapper::new(contract::execute, contract::instantiate, contract::query);
-    let code_id = app.store_code(Box::new(code));
-
-    let address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked(SENDER),
-            &msg,
-            &[],
-            "voting-verifier",
-            None,
-        )
-        .unwrap();
-
-    address
+fn initialize_contract(app: &mut App, service_registry_address: nonempty::String) -> Addr {
+    let rewards_address: String = make_mock_rewards(app).into();
+    let verifier_address = VotingVerifierContract::instantiate_contract(
+        app,
+        service_registry_address.clone(),
+        rewards_address.clone(),
+    );
+    verifier_address.contract_addr
 }
 
 fn message_id(id: &str, index: u64) -> nonempty::String {
@@ -77,12 +79,7 @@ fn messages(len: u64) -> Vec<Message> {
 
 #[test]
 fn should_failed_if_messages_are_not_from_same_source() {
-    let mut app = App::default();
-
-    let service_registry_address = make_mock_service_registry(&mut app);
-
-    let contract_address =
-        initialize_contract(&mut app, service_registry_address.as_ref().parse().unwrap());
+    let mut config = setup();
 
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: vec![
@@ -108,17 +105,12 @@ fn should_failed_if_messages_are_not_from_same_source() {
             },
         ],
     };
-
-    let err = app
-        .execute_contract(Addr::unchecked(SENDER), contract_address, &msg, &[])
-        .unwrap_err();
-    assert_eq!(
-        err.downcast::<axelar_wasm_std::ContractError>()
-            .unwrap()
-            .to_string(),
-        axelar_wasm_std::ContractError::from(ContractError::SourceChainMismatch(source_chain(),))
-            .to_string()
-    );
+    let err = config.voting_verifier.execute(
+        &mut config.app,
+        Addr::unchecked(SENDER),
+        &msg,
+    ).unwrap_err();
+    test_utils::are_contract_err_strings_equal(err, ContractError::SourceChainMismatch(source_chain(),));
 }
 
 #[test]
