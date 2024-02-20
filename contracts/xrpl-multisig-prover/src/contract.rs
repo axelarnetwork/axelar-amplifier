@@ -8,12 +8,13 @@ use cosmwasm_std::{
     entry_point, Storage, wasm_execute, SubMsg, Reply,
     DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_json_binary, Deps, StdResult, Binary, Addr, HexBinary,
 };
+use voting_verifier::events::parse_message_id;
 
 use multisig::types::MultisigState;
 
 use crate::{
     error::ContractError,
-    state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MULTISIG_SESSION_TX, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO, REPLY_MESSAGE_ID, MESSAGE_ID_TO_MULTISIG_SESSION_ID},
+    state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MULTISIG_SESSION_ID_TO_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO, REPLY_MESSAGE_ID, MESSAGE_ID_TO_MULTISIG_SESSION_ID},
     msg::{ExecuteMsg, QueryMsg},
     reply,
     types::*,
@@ -312,7 +313,7 @@ fn update_tx_status(
     axelar_multisig_address: impl Into<String>,
     xrpl_multisig_address: String,
 ) -> Result<Response, ContractError> {
-    let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
+    let unsigned_tx_hash = MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
     let multisig_session = querier.get_multisig_session(&multisig_session_id)?;
 
@@ -343,7 +344,7 @@ fn update_tx_status(
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
 
-    if parse_message_id(&message_id.id)?.0.to_string() != tx_hash.to_string() {
+    if parse_message_id(&message_id.id).map_err(|e| ContractError::InvalidMessageID(message_id.id.to_string()))?.0.to_string() != tx_hash.to_string() {
         return Err(ContractError::InvalidMessageID(message_id.id.to_string()));
     }
 

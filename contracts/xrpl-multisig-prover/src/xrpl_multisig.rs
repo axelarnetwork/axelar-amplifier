@@ -1,6 +1,7 @@
 use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
 use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
+use hex::ToHex;
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 use sha2::{Sha512, Digest, Sha256};
 
@@ -21,7 +22,7 @@ fn issue_tx(
         &TransactionInfo {
             status: TransactionStatus::Pending,
             unsigned_contents: tx.clone(),
-            message_id,
+            original_message_id: message_id,
         }
     )?;
 
@@ -182,7 +183,7 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId
         // as long as it has not already been consumed
         if confirmed_tx_hash.is_none() 
         // or if it has been consumed by the same message.
-        || TRANSACTION_INFO.load(storage, &confirmed_tx_hash.unwrap())?.message_id.as_ref() == Some(message_id) {
+        || TRANSACTION_INFO.load(storage, &confirmed_tx_hash.unwrap())?.original_message_id.as_ref() == Some(message_id) {
             return Ok(ticket_number);
         }
     }
@@ -193,14 +194,16 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId
     Ok(new_ticket_number)
 }
 
-
 pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
     let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
-    // TODO: handle no available tickets
+
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
 
+    if available_tickets.len() == 0 {
+        return Err(ContractError::NoAvailableTickets);
+    }
+
     // find next largest in available, otherwise use available_tickets[0]
-    // TODO: handle IndexOutOfBounds error on available_tickets[0]
     let ticket_number = available_tickets.iter().find(|&x| x > &last_assigned_ticket_number).unwrap_or(&available_tickets[0]);
     Ok(*ticket_number)
 }
@@ -283,7 +286,6 @@ pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(mul
         .iter()
         .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
             let txn_signature = match signature {
-                // TODO: use unwrapped signature instead of ignoring it
                 multisig::key::Signature::Ecdsa(_) |
                 multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
                     &ecdsa::Signature::try_from(signature.clone().as_ref())

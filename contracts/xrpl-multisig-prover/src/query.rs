@@ -5,12 +5,12 @@ use multisig::key::PublicKey;
 
 use crate::{
     types::*,
-    state::{MULTISIG_SESSION_TX, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{self, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING}, querier::Querier, msg::GetProofResponse, types::TransactionStatus, error::ContractError,
+    state::{MULTISIG_SESSION_ID_TO_TX_HASH, TRANSACTION_INFO, CURRENT_WORKER_SET}, xrpl_multisig::{self, HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING}, querier::Querier, msg::GetProofResponse, types::TransactionStatus, error::ContractError,
     xrpl_serialize::XRPLSerialize
 };
 
 pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, signer_xrpl_address: &XRPLAccountId) -> StdResult<HexBinary> {
-    let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
+    let unsigned_tx_hash = MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
 
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != TransactionStatus::Pending {
@@ -34,7 +34,7 @@ pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, publi
 }
 
 pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &Uint64) -> StdResult<GetProofResponse> {
-    let unsigned_tx_hash = MULTISIG_SESSION_TX.load(storage, multisig_session_id.u64())?;
+    let unsigned_tx_hash = MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
 
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
 

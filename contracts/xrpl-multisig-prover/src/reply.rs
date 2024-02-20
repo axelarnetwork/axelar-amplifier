@@ -2,7 +2,7 @@ use cosmwasm_std::{from_json, Attribute, DepsMut, HexBinary, Reply, Response, Ui
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
-    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_TX, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO},
+    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO},
     xrpl_serialize::XRPLSerialize
 };
 
@@ -16,7 +16,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
-            MULTISIG_SESSION_TX.save(
+            MULTISIG_SESSION_ID_TO_TX_HASH.save(
                 deps.storage,
                 multisig_session_id.u64(),
                 &tx_hash,

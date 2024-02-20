@@ -25,8 +25,7 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const REPLY_TX_HASH: Item<TxHash> = Item::new("reply_tx_hash");
 pub const REPLY_MESSAGE_ID: Item<CrossChainId> = Item::new("reply_message_id");
-// TODO: rename to MULTISIG_SESSION_ID_TO_TX_HASH
-pub const MULTISIG_SESSION_TX: Map<u64, TxHash> = Map::new("multisig_session_tx");
+pub const MULTISIG_SESSION_ID_TO_TX_HASH: Map<u64, TxHash> = Map::new("multisig_session_tx");
 
 // The next seq. no. is determined on TicketCreate and depends on the number of created tickets,
 // not solely on the last sequence number used.
