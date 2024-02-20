@@ -1,4 +1,4 @@
-use axelar_wasm_std::{nonempty, VerificationStatus};
+use axelar_wasm_std::VerificationStatus;
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128, Uint64};
@@ -8,6 +8,7 @@ use multisig::key::PublicKey;
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 
+use voting_verifier::events::parse_message_id;
 use crate::axelar_workers::AxelarSigner;
 use crate::error::ContractError;
 
@@ -19,33 +20,13 @@ pub enum TransactionStatus {
     Inconclusive,
 }
 
-// TODO: import from verifier
-pub fn parse_message_id(
-    message_id: &nonempty::String,
-) -> Result<(nonempty::String, u64), ContractError> {
-    // expected format: <tx_id>:<index>
-    let components = message_id.split(":").collect::<Vec<_>>();
-
-    if components.len() != 2 {
-        return Err(ContractError::InvalidMessageID(message_id.to_string()));
-    }
-
-    Ok((
-        components[0].try_into()?,
-        components[1]
-            .parse::<u64>()
-            .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-    ))
-}
-
 #[cw_serde]
 pub struct TxHash(pub HexBinary);
 
 impl TryFrom<CrossChainId> for TxHash {
     type Error = ContractError;
     fn try_from(cc_id: CrossChainId) -> Result<Self, ContractError> {
-        // TODO check this is correct
-        let (tx_id, _event_index) = parse_message_id(&cc_id.id)?;
+        let (tx_id, _event_index) = parse_message_id(&cc_id.id).map_err(|_e| ContractError::InvalidMessageID(cc_id.id.to_string()))?;
         Ok(Self(HexBinary::from_hex(tx_id.to_ascii_lowercase().as_str())?))
     }
 }
@@ -69,10 +50,8 @@ impl Into<TransactionStatus> for VerificationStatus {
 #[cw_serde]
 pub struct TransactionInfo {
     pub status: TransactionStatus,
-    // TODO: save only the hash of the unsigned tx
     pub unsigned_contents: XRPLUnsignedTx,
-    // TODO: rename: original_message_id or similar, the message id that triggered this tx
-    pub message_id: Option<CrossChainId>,
+    pub original_message_id: Option<CrossChainId>,
 }
 
 impl From<HexBinary> for TxHash {

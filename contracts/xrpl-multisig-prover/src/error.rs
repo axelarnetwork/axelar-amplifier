@@ -106,6 +106,9 @@ pub enum ContractError {
 
     #[error("invalid token denomination")]
     InvalidTokenDenom,
+
+    #[error("no available tickets")]
+    NoAvailableTickets
 }
 
 impl From<ContractError> for StdError {
