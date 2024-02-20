@@ -1,13 +1,14 @@
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256, Uint128, Uint64};
+use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128, Uint64};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use multisig::key::Signature;
 use multisig::key::PublicKey;
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 
+use crate::axelar_workers::AxelarSigner;
 use crate::error::ContractError;
 
 #[cw_serde]
@@ -101,7 +102,7 @@ impl KeyDeserialize for TxHash {
     type Output = TxHash;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        Ok(from_binary(&value.into()).expect("violated invariant: TxHash is not deserializable"))
+        Ok(from_json(&Binary::from(value)).expect("violated invariant: TxHash is not deserializable"))
     }
 }
 
@@ -157,6 +158,15 @@ pub struct XRPLSignerEntry {
     pub account: XRPLAccountId,
     pub signer_weight: u16,
 }    
+
+impl From<AxelarSigner> for XRPLSignerEntry {
+    fn from(signer: AxelarSigner) -> Self {
+        Self {
+            account: XRPLAccountId::from(&signer.pub_key),
+            signer_weight: signer.weight,
+        }
+    }
+}
 
 #[cw_serde]
 pub enum XRPLUnsignedTx {

@@ -1,4 +1,4 @@
-use cosmwasm_std::{from_binary, Attribute, DepsMut, HexBinary, Reply, Response, Uint64};
+use cosmwasm_std::{from_json, Attribute, DepsMut, HexBinary, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
@@ -12,7 +12,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let tx_hash = REPLY_TX_HASH.load(deps.storage)?;
 
             let multisig_session_id: Uint64 =
-                from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
+                from_json(&data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 

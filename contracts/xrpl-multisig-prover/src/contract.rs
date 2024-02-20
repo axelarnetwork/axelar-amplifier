@@ -6,7 +6,7 @@ use connection_router::{state::{Address, ChainName, CrossChainId}, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     entry_point, Storage, wasm_execute, SubMsg, Reply,
-    DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_binary, Deps, StdResult, Binary, Addr, HexBinary,
+    DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_json_binary, Deps, StdResult, Binary, Addr, HexBinary,
 };
 
 use multisig::types::MultisigState;
@@ -382,12 +382,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
-        } => to_binary(&query::get_proof(deps.storage, querier, &multisig_session_id)?),
+        } => to_json_binary(&query::get_proof(deps.storage, querier, &multisig_session_id)?),
         QueryMsg::VerifyMessage {
             multisig_session_id,
             public_key,
             signature
-        } => to_binary(&query::verify_message(deps.storage, &multisig_session_id, &public_key, &signature)?),
-        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps.storage)?),
+        } => to_json_binary(&query::verify_message(deps.storage, &multisig_session_id, &public_key, &signature)?),
+        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps.storage)?),
     }
 }

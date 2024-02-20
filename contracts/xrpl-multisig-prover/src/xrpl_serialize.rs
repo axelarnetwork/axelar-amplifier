@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 
@@ -42,11 +44,7 @@ impl XRPLSerialize for XRPLPaymentAmount {
                 }
             },
             XRPLPaymentAmount::Token(token, amount) => {
-                let mut result = Vec::new();
-                result.extend(amount.to_bytes());
-                result.extend(currency_to_bytes(&token.currency)?);
-                result.extend(token.issuer.to_bytes());
-                Ok(result)
+                Ok([amount.to_bytes().as_ref(), currency_to_bytes(&token.currency)?.as_ref(), token.issuer.to_bytes().as_ref()].concat())
             }
         }
     }
@@ -65,11 +63,7 @@ impl XRPLSerialize for HexBinary {
     const TYPE_CODE: u8 = 7;
 
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        let encoded_length = encode_length(self.len())?;
-        let mut result = Vec::new();
-        result.extend(encoded_length);
-        result.extend(self.to_vec());
-        Ok(result)
+        Ok([encode_length(self.len())?, self.to_vec()].concat())
     }
 }
 
@@ -237,7 +231,6 @@ impl TryInto<XRPLObject> for XRPLSignerListSetTx {
 
     fn try_into(self) -> Result<XRPLObject, ContractError> {
         let mut obj = XRPLObject::new();
-
         obj.add_field(Field::TransactionType, &SIGNER_LIST_SET_TX_TYPE)?;
         obj.add_field(Field::Flags, &0u32)?; // flags
         obj.add_sequence(&self.sequence)?;
@@ -245,13 +238,8 @@ impl TryInto<XRPLObject> for XRPLSignerListSetTx {
         obj.add_field(Field::Fee, &XRPLPaymentAmount::Drops(self.fee))?;
         obj.add_field(Field::Account, &self.account)?;
         obj.add_field(Field::SigningPubKey, &HexBinary::from_hex("")?)?;
-
         obj.add_field(Field::SignerEntries, &XRPLArray{ field: Field::SignerEntry, items: self.signer_entries.clone() })?;
-
-        let memo_data: Vec<u8> = self.multisig_session_id.to_be_bytes().into_iter().skip_while(|&byte| byte == 0).collect();
-        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
-        obj.add_field(Field::Memos, &XRPLArray{field: Field::Memo, items: vec![XRPLMemo(memo)]})?;
-
+        obj.add_field(Field::Memos, &XRPLArray{field: Field::Memo, items: vec![XRPLMemo(hex_encode_session_id(self.multisig_session_id))]})?;
         Ok(obj)
     }
 }
@@ -268,11 +256,7 @@ impl TryInto<XRPLObject> for XRPLTicketCreateTx {
         obj.add_field(Field::Fee, &XRPLPaymentAmount::Drops(self.fee))?;
         obj.add_field(Field::SigningPubKey, &HexBinary::from_hex("")?)?;
         obj.add_field(Field::Account, &self.account)?;
-
-        let memo_data: Vec<u8> = self.multisig_session_id.to_be_bytes().into_iter().skip_while(|&byte| byte == 0).collect();
-        let memo = HexBinary::from_hex(hex::encode(memo_data).as_ref())?;
-        obj.add_field(Field::Memos, &XRPLArray{field: Field::Memo, items: vec![XRPLMemo(memo)]})?;
-
+        obj.add_field(Field::Memos, &XRPLArray{field: Field::Memo, items: vec![XRPLMemo(hex_encode_session_id(self.multisig_session_id))]})?;
         Ok(obj)
     }
 }
@@ -325,9 +309,37 @@ impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SerializedField {
+    type_code: u8,
+    field_code: u8,
+    serialized_value: Vec<u8>
+}
+
+impl SerializedField {
+    fn new(type_code: u8, field_code: u8, serialized_value: Vec<u8>) -> Self {
+        Self { type_code, field_code, serialized_value }
+    }
+    fn to_vec(&self) -> Vec<u8> {
+        return [field_id(self.type_code, self.field_code), self.clone().serialized_value].concat()
+    }
+}
+
+impl PartialOrd for SerializedField {
+    fn partial_cmp(&self, other: &SerializedField) -> Option<Ordering> {
+        return (self.type_code, self.field_code).partial_cmp(&(other.type_code, other.field_code))
+    }
+}
+
+impl Ord for SerializedField {
+    fn cmp(&self, other: &SerializedField) -> Ordering {
+        return (self.type_code, self.field_code).cmp(&(other.type_code, other.field_code))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct XRPLObject {
-    fields: Vec<(u8, u8, Vec<u8>)>
+    fields: Vec<SerializedField>
 }
 
 impl XRPLObject {
@@ -338,7 +350,7 @@ impl XRPLObject {
     }
 
     pub fn add_field<T: XRPLSerialize>(&mut self, field: Field, value: &T) -> Result<(), ContractError> {
-        self.fields.push((T::TYPE_CODE, field.to_u8(), value.xrpl_serialize()?));
+        self.fields.push(SerializedField::new(T::TYPE_CODE, field.to_u8(), value.xrpl_serialize()?));
         Ok(())
     }
 
@@ -359,18 +371,9 @@ impl XRPLSerialize for XRPLObject {
     const TYPE_CODE: u8 = 14;
 
     fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
-        let mut tmp: Vec<(u8, u8, Vec<u8>)> = self.fields.clone();
-        tmp.sort_by(|a, b| { (a.0, a.1).cmp(&(b.0, b.1)) });
-        let res = tmp.into_iter()
-            .map(|f| {
-                let mut res = Vec::new();
-                res.extend(field_id(f.0, f.1));
-                res.extend(f.2);
-                return res;
-            })
-            .collect::<Vec<Vec<u8>>>()
-            .concat();
-        Ok(res)
+        let mut fields: Vec<SerializedField> = self.fields.clone();
+        fields.sort();
+        Ok(fields.into_iter().map(|f| { f.to_vec() }).collect::<Vec<Vec<u8>>>().concat())
     }
 }
 
@@ -547,7 +550,7 @@ mod tests {
         // { "NetworkID": 0 }
         assert_hex_eq!(
             "2100000000",
-            XRPLObject { fields: vec![(2, 1, 0u32.xrpl_serialize()?)]}
+            XRPLObject { fields: vec![SerializedField::new(2, 1, 0u32.xrpl_serialize()?)]}
             .xrpl_serialize()?
         );
         // empty array

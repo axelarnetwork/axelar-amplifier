@@ -1,64 +1,12 @@
-use std::collections::BTreeSet;
-
 use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
 use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
 use k256::{ecdsa, schnorr::signature::SignatureEncoding};
 use sha2::{Sha512, Digest, Sha256};
-use multisig::key::PublicKey;
 
 use crate::{
-    axelar_workers::{AxelarSigner, WorkerSet}, error::ContractError, state::{Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_TX_HASH, MESSAGE_ID_TO_TICKET, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, TRANSACTION_INFO}, types::*
+    axelar_workers::WorkerSet, error::ContractError, state::{Config, AVAILABLE_TICKETS, CONFIRMED_TRANSACTIONS, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, LATEST_SEQUENTIAL_TX_HASH, MESSAGE_ID_TO_TICKET, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, TRANSACTION_INFO}, types::*
 };
-
-pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
-    let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
-    // TODO: handle no available tickets
-    let available_tickets = AVAILABLE_TICKETS.load(storage)?;
-
-    // find next largest in available, otherwise use available_tickets[0]
-    // TODO: handle IndexOutOfBounds error on available_tickets[0]
-    let ticket_number = available_tickets.iter().find(|&x| x > &last_assigned_ticket_number).unwrap_or(&available_tickets[0]);
-    Ok(*ticket_number)
-}
-
-pub fn available_ticket_count(storage: &mut dyn Storage) -> Result<u32, ContractError> {
-    let available_tickets = AVAILABLE_TICKETS.load(storage)?;
-    let ticket_count = 250 - (available_tickets.len() as u32);
-    Ok(ticket_count)
-}
-
-
-pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
-pub const HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
-
-pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, ContractError> {
-    let encoded_unsigned_tx = serde_json::to_vec(unsigned_tx).map_err(|_| ContractError::FailedToSerialize)?;
-
-    let d = Sha256::digest(encoded_unsigned_tx);
-    Ok(TxHash(HexBinary::from(d.to_vec())))
-}
-
-pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    Ok(TxHash(HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()))))
-}
-
-pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_address: &XRPLAccountId) -> Result<[u8; 32], ContractError> {
-    let msg = &[encoded_unsigned_tx.to_vec(), signer_address.to_bytes().into()].concat();
-    Ok(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg))
-}
-
-pub fn xrpl_hash(
-    prefix: [u8; 4],
-    tx_blob: &[u8],
-) -> [u8; 32] {
-    let mut hasher = Sha512::new_with_prefix(prefix);
-    hasher.update(tx_blob);
-    let hash: [u8; 64] = hasher.finalize().into();
-    let mut half_hash: [u8; 32] = [0; 32];
-    half_hash.copy_from_slice(&hash[..32]);
-    half_hash
-}
 
 fn issue_tx(
     storage: &mut dyn Storage,
@@ -151,7 +99,7 @@ pub fn issue_signer_list_set(
         fee: config.xrpl_fee,
         sequence: Sequence::Plain(sequence_number.clone()),
         signer_quorum: workers.quorum,
-        signer_entries: make_xrpl_signer_entries(workers.signers)?,
+        signer_entries: workers.signers.into_iter().map(|worker| XRPLSignerEntry::from(worker)).collect(),
         multisig_session_id,
     };
 
@@ -160,84 +108,6 @@ pub fn issue_signer_list_set(
         XRPLUnsignedTx::SignerListSet(tx),
         None,
     )
-}
-
-fn make_xrpl_signer_entries(signers: BTreeSet<AxelarSigner>) -> Result<Vec<XRPLSignerEntry>, ContractError> {
-    signers
-        .into_iter()
-        .map(
-            |worker| -> Result<XRPLSignerEntry, ContractError> {
-                Ok(XRPLSignerEntry {
-                    account: XRPLAccountId::from(&worker.pub_key),
-                    signer_weight: worker.weight,
-                })
-            }
-        ).collect()
-}
-
-
-fn get_next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
-    match load_latest_sequential_tx_info(storage)? {
-        Some(latest_sequential_tx_info) if latest_sequential_tx_info.status == TransactionStatus::Pending => {
-            Ok(latest_sequential_tx_info.unsigned_contents.sequence().clone().into())
-        },
-        _ => NEXT_SEQUENCE_NUMBER.load(storage).map_err(|e| e.into())
-    }
-}
-
-fn load_latest_sequential_tx_info(
-    storage: &dyn Storage,
-) -> Result<Option<TransactionInfo>, ContractError> {
-    LATEST_SEQUENTIAL_TX_HASH
-    .may_load(storage)?
-    .map_or(Ok(None), |tx_hash| Ok(TRANSACTION_INFO.may_load(storage, &tx_hash)?))
-}
-
-fn mark_tickets_available(storage: &mut dyn Storage, tickets: impl Iterator<Item = u32>) -> Result<(), ContractError> {
-    AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
-        let mut new_available_tickets = available_tickets.clone();
-        new_available_tickets.extend(tickets);
-        Ok(new_available_tickets)
-    })?;
-    Ok(())
-}
-
-fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(), ContractError> {
-    AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
-        Ok(available_tickets
-            .into_iter()
-            .filter(|&x| x != ticket)
-            .collect())
-    })?;
-    Ok(())
-}
-
-pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
-    let xrpl_signers: Vec<XRPLSigner> = axelar_signers
-        .iter()
-        .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
-            let txn_signature = match signature {
-                // TODO: use unwrapped signature instead of ignoring it
-                multisig::key::Signature::Ecdsa(_) |
-                multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
-                    &ecdsa::Signature::try_from(signature.clone().as_ref())
-                        .map_err(|_| ContractError::FailedToEncodeSignature)?
-                ).to_vec()),
-                _ => unimplemented!("Unsupported signature type"),
-            };
-
-            Ok(XRPLSigner {
-                account: XRPLAccountId::from(&axelar_signer.pub_key),
-                signing_pub_key: axelar_signer.pub_key.clone().into(),
-                txn_signature,
-            })
-        })
-        .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;
-
-    Ok(XRPLSignedTransaction {
-        unsigned_tx,
-        signers: xrpl_signers,
-    })
 }
 
 pub fn update_tx_status(
@@ -299,6 +169,8 @@ pub fn update_tx_status(
     Ok(res)
 }
 
+// TICKET / SEQUENCE NUMBER ASSIGNEMENT LOGIC
+
 // A message ID can be ticketed a different ticket number
 // only if the previous ticket number has been consumed
 // by a TX that doesn't correspond to this message.
@@ -321,9 +193,123 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId
     Ok(new_ticket_number)
 }
 
+
+pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
+    let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
+    // TODO: handle no available tickets
+    let available_tickets = AVAILABLE_TICKETS.load(storage)?;
+
+    // find next largest in available, otherwise use available_tickets[0]
+    // TODO: handle IndexOutOfBounds error on available_tickets[0]
+    let ticket_number = available_tickets.iter().find(|&x| x > &last_assigned_ticket_number).unwrap_or(&available_tickets[0]);
+    Ok(*ticket_number)
+}
+
+pub fn available_ticket_count(storage: &mut dyn Storage) -> Result<u32, ContractError> {
+    let available_tickets = AVAILABLE_TICKETS.load(storage)?;
+    let ticket_count = 250 - (available_tickets.len() as u32);
+    Ok(ticket_count)
+}
+
+fn get_next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {
+    match load_latest_sequential_tx_info(storage)? {
+        Some(latest_sequential_tx_info) if latest_sequential_tx_info.status == TransactionStatus::Pending => {
+            Ok(latest_sequential_tx_info.unsigned_contents.sequence().clone().into())
+        },
+        _ => NEXT_SEQUENCE_NUMBER.load(storage).map_err(|e| e.into())
+    }
+}
+
+fn load_latest_sequential_tx_info(
+    storage: &dyn Storage,
+) -> Result<Option<TransactionInfo>, ContractError> {
+    LATEST_SEQUENTIAL_TX_HASH
+    .may_load(storage)?
+    .map_or(Ok(None), |tx_hash| Ok(TRANSACTION_INFO.may_load(storage, &tx_hash)?))
+}
+
+fn mark_tickets_available(storage: &mut dyn Storage, tickets: impl Iterator<Item = u32>) -> Result<(), ContractError> {
+    AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
+        let mut new_available_tickets = available_tickets.clone();
+        new_available_tickets.extend(tickets);
+        Ok(new_available_tickets)
+    })?;
+    Ok(())
+}
+
+fn mark_ticket_unavailable(storage: &mut dyn Storage, ticket: u32) -> Result<(), ContractError> {
+    AVAILABLE_TICKETS.update(storage, |available_tickets| -> Result<_, ContractError> {
+        Ok(available_tickets
+            .into_iter()
+            .filter(|&x| x != ticket)
+            .collect())
+    })?;
+    Ok(())
+}
+
+// HASHING LOGIC
+
+pub const HASH_PREFIX_SIGNED_TRANSACTION: [u8; 4] = [0x54, 0x58, 0x4E, 0x00];
+pub const HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING: [u8; 4] = [0x53, 0x4D, 0x54, 0x00];
+
+pub fn xrpl_hash(
+    prefix: [u8; 4],
+    tx_blob: &[u8],
+) -> [u8; 32] {
+    let mut hasher = Sha512::new_with_prefix(prefix);
+    hasher.update(tx_blob);
+    let hash: [u8; 64] = hasher.finalize().into();
+    hash[..32].try_into().unwrap()
+}
+
+pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, ContractError> {
+    let encoded_unsigned_tx = serde_json::to_vec(unsigned_tx).map_err(|_| ContractError::FailedToSerialize)?;
+
+    let d = Sha256::digest(encoded_unsigned_tx);
+    Ok(TxHash(HexBinary::from(d.to_vec())))
+}
+
+pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
+    Ok(TxHash(HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()))))
+}
+
+pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_address: &XRPLAccountId) -> Result<[u8; 32], ContractError> {
+    let msg = &[encoded_unsigned_tx.to_vec(), signer_address.to_bytes().into()].concat();
+    Ok(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg))
+}
+
+pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
+    let xrpl_signers: Vec<XRPLSigner> = axelar_signers
+        .iter()
+        .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
+            let txn_signature = match signature {
+                // TODO: use unwrapped signature instead of ignoring it
+                multisig::key::Signature::Ecdsa(_) |
+                multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
+                    &ecdsa::Signature::try_from(signature.clone().as_ref())
+                        .map_err(|_| ContractError::FailedToEncodeSignature)?
+                ).to_vec()),
+                _ => unimplemented!("Unsupported signature type"),
+            };
+
+            Ok(XRPLSigner {
+                account: XRPLAccountId::from(&axelar_signer.pub_key),
+                signing_pub_key: axelar_signer.pub_key.clone().into(),
+                txn_signature,
+            })
+        })
+        .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;
+
+    Ok(XRPLSignedTransaction {
+        unsigned_tx,
+        signers: xrpl_signers,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use multisig::key::PublicKey;
 
     #[test]
     fn test_account_id_to_bytes_address() {
