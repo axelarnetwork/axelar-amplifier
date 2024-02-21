@@ -4,8 +4,8 @@ use cw_multi_test::{App, Executor};
 
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::{nonempty, VerificationStatus};
-use integration_tests::contract::Contract;
 use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
+use integration_tests::contract::Contract;
 use mock::make_mock_rewards;
 use service_registry::state::Worker;
 use voting_verifier::events::TxEventConfirmation;
