@@ -1,9 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use std::fmt::Debug;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::InstantiateMsg;
 
 mod execute;
 mod query;
@@ -58,9 +59,10 @@ mod internal {
     use connection_router_api::client::Router;
     use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
+    use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
     use crate::contract::Error;
-    use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+    use crate::msg::InstantiateMsg;
     use crate::state::Config;
     use crate::{contract, state};
 

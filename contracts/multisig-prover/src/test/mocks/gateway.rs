@@ -1,7 +1,8 @@
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
-use gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use gateway::msg::InstantiateMsg;
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::test::test_data;
 
