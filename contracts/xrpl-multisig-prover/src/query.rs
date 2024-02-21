@@ -44,12 +44,12 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
         MultisigState::Pending => GetProofResponse::Pending { unsigned_tx_hash },
         MultisigState::Completed { .. } => {
             let axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)> = multisig_session.signers
-                .iter()
-                .filter(|(_, signature)| signature.is_some())
-                .map(|(signer, signature)| (signer.clone(), signature.clone().unwrap()))
+                .into_iter()
+                .filter_map(|(signer, sig)| sig.map(|sig| (signer, sig)))
                 .collect();
 
-            let signed_tx = xrpl_multisig::make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
+            let xrpl_signers = axelar_signers.into_iter().map(|p| XRPLSigner::try_from(p)).collect::<Result<Vec<_>, ContractError>>()?;
+            let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
             let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
             GetProofResponse::Completed { unsigned_tx_hash, tx_blob }
         }

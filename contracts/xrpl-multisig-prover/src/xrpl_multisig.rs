@@ -281,33 +281,6 @@ pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_address: &XRPLAcc
     Ok(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg))
 }
 
-pub fn make_xrpl_signed_tx(unsigned_tx: XRPLUnsignedTx, axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)>) -> Result<XRPLSignedTransaction, ContractError> {
-    let xrpl_signers: Vec<XRPLSigner> = axelar_signers
-        .iter()
-        .map(|(axelar_signer, signature)| -> Result<XRPLSigner, ContractError> {
-            let txn_signature = match signature {
-                multisig::key::Signature::Ecdsa(_) |
-                multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
-                    &ecdsa::Signature::try_from(signature.clone().as_ref())
-                        .map_err(|_| ContractError::FailedToEncodeSignature)?
-                ).to_vec()),
-                _ => unimplemented!("Unsupported signature type"),
-            };
-
-            Ok(XRPLSigner {
-                account: XRPLAccountId::from(&axelar_signer.pub_key),
-                signing_pub_key: axelar_signer.pub_key.clone().into(),
-                txn_signature,
-            })
-        })
-        .collect::<Result<Vec<XRPLSigner>, ContractError>>()?;
-
-    Ok(XRPLSignedTransaction {
-        unsigned_tx,
-        signers: xrpl_signers,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

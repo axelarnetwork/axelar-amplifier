@@ -726,7 +726,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn serialize_xrpl_signed_xrp_ticket_create_transaction() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {

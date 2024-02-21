@@ -330,17 +330,17 @@ fn update_tx_status(
         payload_hash: [0; 32],
     };
 
-    let axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)> = multisig_session.signers
+    let xrpl_signers: Vec<XRPLSigner> = multisig_session.signers
         .iter()
         .filter(|(signer, _)| signers.contains(&signer.address))
-        .filter_map(|(signer, signature)| signature.as_ref().map(|signature| (signer.clone(), signature.clone())))
-        .collect();
+        .filter_map(|(signer, signature)| signature.as_ref().map(|signature| XRPLSigner::try_from((signer.clone(), signature.clone()))))
+        .collect::<Result<Vec<_>, ContractError>>()?;
 
-    if axelar_signers.len() != signers.len() {
+    if xrpl_signers.len() != signers.len() {
         return Err(ContractError::SignatureNotFound);
     }
 
-    let signed_tx = xrpl_multisig::make_xrpl_signed_tx(tx_info.unsigned_contents, axelar_signers)?;
+    let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
 
