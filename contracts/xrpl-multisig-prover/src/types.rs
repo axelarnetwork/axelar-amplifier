@@ -3,6 +3,8 @@ use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128, Uint64};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use k256::ecdsa;
+use k256::schnorr::signature::SignatureEncoding;
 use multisig::key::Signature;
 use multisig::key::PublicKey;
 use ripemd::Ripemd160;
@@ -288,10 +290,37 @@ pub struct XRPLSigner {
     pub signing_pub_key: PublicKey,
 }
 
+impl TryFrom<(multisig::msg::Signer, multisig::key::Signature)> for XRPLSigner {
+    type Error = ContractError;
+
+    fn try_from((axelar_signer, signature): (multisig::msg::Signer, multisig::key::Signature)) -> Result<Self, ContractError> {
+        let txn_signature = match signature {
+            multisig::key::Signature::Ecdsa(_) |
+            multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
+                &ecdsa::Signature::try_from(signature.clone().as_ref())
+                    .map_err(|_| ContractError::FailedToEncodeSignature)?
+            ).to_vec()),
+            _ => unimplemented!("Unsupported signature type"),
+        };
+
+        Ok(XRPLSigner {
+            account: XRPLAccountId::from(&axelar_signer.pub_key),
+            signing_pub_key: axelar_signer.pub_key.clone().into(),
+            txn_signature,
+        })
+    }
+}
+
 #[cw_serde]
 pub struct XRPLSignedTransaction {
     pub unsigned_tx: XRPLUnsignedTx,
     pub signers: Vec<XRPLSigner>
+}
+
+impl XRPLSignedTransaction {
+    pub fn new(unsigned_tx: XRPLUnsignedTx, signers: Vec<XRPLSigner>) -> Self {
+        Self { unsigned_tx, signers }
+    }
 }
 
 #[cw_serde]
