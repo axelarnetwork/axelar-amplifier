@@ -237,7 +237,7 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
-    use connection_router::state::CrossChainId;
+    use connection_router_api::CrossChainId;
     use elliptic_curve::consts::U32;
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;

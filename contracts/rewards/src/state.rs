@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use axelar_wasm_std::{nonempty, Threshold};
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
@@ -368,7 +368,7 @@ mod test {
     use super::{Epoch, EpochTally, Event, PoolId, RewardsPool, RewardsStore, Store};
     use crate::error::ContractError;
     use crate::{msg::Params, state::StoredParams};
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use std::collections::HashMap;
 

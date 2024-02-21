@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use axelar_wasm_std::{Participant, Snapshot};
-use connection_router::state::CrossChainId;
+use connection_router_api::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};

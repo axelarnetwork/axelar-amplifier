@@ -1,6 +1,6 @@
 use aggregate_verifier::msg::ExecuteMsg;
 use axelar_wasm_std::VerificationStatus;
-use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
+use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, Executor};

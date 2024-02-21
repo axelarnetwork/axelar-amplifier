@@ -114,7 +114,7 @@ pub fn execute(
 }
 
 pub mod execute {
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
 
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 
@@ -370,7 +370,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 pub mod query {
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
 
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 

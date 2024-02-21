@@ -1,5 +1,10 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fs::File;
+use std::iter;
+
 use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router::state::{CrossChainId, Message, ID_SEPARATOR};
+use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 use cosmwasm_std::{
     from_binary, to_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
@@ -8,10 +13,6 @@ use gateway::contract::*;
 use gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use itertools::Itertools;
 use serde::Serialize;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fs::File;
-use std::iter;
 
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
-use connection_router::state::Message;
+use connection_router_api::Message;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{

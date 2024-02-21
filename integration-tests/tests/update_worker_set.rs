@@ -1,4 +1,4 @@
-use connection_router::Message;
+use connection_router_api::Message;
 use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
 use test_utils::Worker;
@@ -7,7 +7,7 @@ mod test_utils;
 
 #[test]
 fn worker_set_can_be_initialized_and_then_manually_updated() {
-    let chains: Vec<connection_router::state::ChainName> = vec![
+    let chains: Vec<connection_router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -287,7 +287,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let second_wave_of_new_workers =
         test_utils::create_new_workers_vec(chains.clone(), vec![("worker5".to_string(), 5)]);
 
-    let second_wave_session_id = test_utils::update_registry_and_construct_proof(
+    let _second_wave_session_id = test_utils::update_registry_and_construct_proof(
         &mut protocol,
         &second_wave_of_new_workers,
         &first_wave_of_new_workers,

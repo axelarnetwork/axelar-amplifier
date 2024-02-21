@@ -4,14 +4,14 @@ mod test_utils;
 use std::str::FromStr;
 use std::{collections::HashMap, vec};
 
+use connection_router_api::error::Error;
+use connection_router_api::msg::ExecuteMsg;
+use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::Addr;
-use cw_multi_test::{App, Executor};
+use cw_multi_test::App;
+use integration_tests::contract::Contract;
 
 use crate::test_utils::ConnectionRouterContract;
-use connection_router::error::ContractError;
-use connection_router::msg::ExecuteMsg;
-use connection_router::state::{ChainName, CrossChainId, GatewayDirection, Message};
-use integration_tests::contract::Contract;
 
 struct TestConfig {
     app: App,
@@ -63,7 +63,7 @@ fn register_chain(config: &mut TestConfig, chain: &Chain) {
             config.governance_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
-                gateway_address: chain.gateway.to_string(),
+                gateway_address: chain.gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap();
@@ -149,7 +149,7 @@ fn wrong_source_chain() {
             &ExecuteMsg::RouteMessages(vec![messages.clone()]),
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::WrongSourceChain);
+    test_utils::are_contract_err_strings_equal(err, Error::WrongSourceChain);
 }
 
 #[test]
@@ -219,11 +219,11 @@ fn authorization() {
             Addr::unchecked("random"),
             &ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
-                gateway_address: chain.gateway.to_string(),
+                gateway_address: chain.gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let err = config
         .connection_router
@@ -232,18 +232,18 @@ fn authorization() {
             config.admin_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: chain.chain_name.clone(),
-                gateway_address: chain.gateway.to_string(),
+                gateway_address: chain.gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let res = config.connection_router.execute(
         &mut config.app,
         config.governance_address.clone(),
         &ExecuteMsg::RegisterChain {
             chain: chain.chain_name.clone(),
-            gateway_address: chain.gateway.to_string(),
+            gateway_address: chain.gateway.to_string().try_into().unwrap(),
         },
     );
     assert!(res.is_ok());
@@ -259,7 +259,7 @@ fn authorization() {
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let err = config
         .connection_router
@@ -272,7 +272,7 @@ fn authorization() {
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -295,7 +295,7 @@ fn authorization() {
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let err = config
         .connection_router
@@ -308,7 +308,7 @@ fn authorization() {
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -327,11 +327,14 @@ fn authorization() {
             Addr::unchecked("random"),
             &ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: Addr::unchecked("new gateway").to_string(),
+                contract_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let err = config
         .connection_router
@@ -340,18 +343,24 @@ fn authorization() {
             config.admin_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: chain.chain_name.clone(),
-                contract_address: Addr::unchecked("new gateway").to_string(),
+                contract_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::Unauthorized);
+    test_utils::are_contract_err_strings_equal(err, Error::Unauthorized);
 
     let res = config.connection_router.execute(
         &mut config.app,
         config.governance_address.clone(),
         &ExecuteMsg::UpgradeGateway {
             chain: chain.chain_name.clone(),
-            contract_address: Addr::unchecked("new gateway").to_string(),
+            contract_address: Addr::unchecked("new gateway")
+                .to_string()
+                .try_into()
+                .unwrap(),
         },
     );
     assert!(res.is_ok());
@@ -374,7 +383,7 @@ fn upgrade_gateway_outgoing() {
             config.governance_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
-                contract_address: new_gateway.to_string(),
+                contract_address: new_gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap();
@@ -416,7 +425,7 @@ fn upgrade_gateway_incoming() {
             config.governance_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: polygon.chain_name.clone(),
-                contract_address: new_gateway.to_string(),
+                contract_address: new_gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap();
@@ -430,7 +439,7 @@ fn upgrade_gateway_incoming() {
             &ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::GatewayNotRegistered);
+    test_utils::are_contract_err_strings_equal(err, Error::GatewayNotRegistered);
 
     let res = config.connection_router.execute(
         &mut config.app,
@@ -459,7 +468,7 @@ fn register_chain_test() {
             &ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::GatewayNotRegistered);
+    test_utils::are_contract_err_strings_equal(err, Error::GatewayNotRegistered);
 
     register_chain(&mut config, &eth);
     register_chain(&mut config, &polygon);
@@ -485,11 +494,14 @@ fn chain_already_registered() {
             config.governance_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: eth.chain_name,
-                gateway_address: Addr::unchecked("new gateway").to_string(),
+                gateway_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::ChainAlreadyExists);
+    test_utils::are_contract_err_strings_equal(err, Error::ChainAlreadyExists);
 
     // case insensitive
     let err = config
@@ -499,23 +511,26 @@ fn chain_already_registered() {
             config.governance_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: ChainName::from_str("ETHEREUM").unwrap(),
-                gateway_address: Addr::unchecked("new gateway").to_string(),
+                gateway_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::ChainAlreadyExists);
+    test_utils::are_contract_err_strings_equal(err, Error::ChainAlreadyExists);
 }
 
 #[test]
 fn invalid_chain_name() {
     test_utils::are_contract_err_strings_equal(
         ChainName::from_str("bad:").unwrap_err(),
-        ContractError::InvalidChainName,
+        Error::InvalidChainName,
     );
 
     test_utils::are_contract_err_strings_equal(
         ChainName::from_str("").unwrap_err(),
-        ContractError::InvalidChainName,
+        Error::InvalidChainName,
     );
 }
 
@@ -533,11 +548,11 @@ fn gateway_already_registered() {
             config.governance_address.clone(),
             &ExecuteMsg::RegisterChain {
                 chain: polygon.chain_name.clone(),
-                gateway_address: eth.gateway.to_string(),
+                gateway_address: eth.gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap_err();
-    test_utils::are_contract_err_strings_equal(err, ContractError::GatewayAlreadyRegistered);
+    test_utils::are_contract_err_strings_equal(err, Error::GatewayAlreadyRegistered);
 
     register_chain(&mut config, &polygon);
     let err = config
@@ -547,12 +562,12 @@ fn gateway_already_registered() {
             config.governance_address.clone(),
             &ExecuteMsg::UpgradeGateway {
                 chain: eth.chain_name,
-                contract_address: polygon.gateway.to_string(),
+                contract_address: polygon.gateway.to_string().try_into().unwrap(),
             },
         )
         .unwrap_err();
 
-    test_utils::are_contract_err_strings_equal(err, ContractError::GatewayAlreadyRegistered);
+    test_utils::are_contract_err_strings_equal(err, Error::GatewayAlreadyRegistered);
 }
 
 #[test]
@@ -587,7 +602,7 @@ fn freeze_incoming() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -658,7 +673,7 @@ fn freeze_outgoing() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -728,7 +743,7 @@ fn freeze_chain() {
     // can't route to frozen chain
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -745,7 +760,7 @@ fn freeze_chain() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -845,7 +860,7 @@ fn unfreeze_incoming() {
     // can't route to the chain
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -896,7 +911,7 @@ fn unfreeze_outgoing() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -956,7 +971,7 @@ fn freeze_incoming_then_outgoing() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -973,7 +988,7 @@ fn freeze_incoming_then_outgoing() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -1024,7 +1039,7 @@ fn freeze_outgoing_then_incoming() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -1041,7 +1056,7 @@ fn freeze_outgoing_then_incoming() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -1218,7 +1233,7 @@ fn unfreeze_nothing() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -1235,7 +1250,7 @@ fn unfreeze_nothing() {
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
-        ContractError::ChainFrozen {
+        Error::ChainFrozen {
             chain: polygon.chain_name.clone(),
         },
     );
@@ -1255,7 +1270,10 @@ fn bad_gateway() {
         config.governance_address.clone(),
         &ExecuteMsg::UpgradeGateway {
             chain: polygon.chain_name.clone(),
-            contract_address: Addr::unchecked("some random address").to_string(), // gateway address does not implement required interface
+            contract_address: Addr::unchecked("some random address")
+                .to_string()
+                .try_into()
+                .unwrap(), // gateway address does not implement required interface
         },
     );
 

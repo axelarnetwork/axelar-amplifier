@@ -1,9 +1,10 @@
+use connection_router_api::msg::{ExecuteMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::events::RouterInstantiated;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::InstantiateMsg;
 use crate::state::{Config, RouterStore, Store};
 
 mod execute;

@@ -123,7 +123,7 @@ mod tests {
     };
 
     use super::*;
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},

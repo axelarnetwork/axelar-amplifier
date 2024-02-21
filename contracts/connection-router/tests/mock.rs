@@ -1,5 +1,5 @@
-use connection_router::state::{CrossChainId, Message};
-use connection_router::ContractError;
+use connection_router_api::error::Error;
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 use cw_multi_test::{App, ContractWrapper, Executor};
@@ -17,7 +17,7 @@ pub fn mock_gateway_execute(
     _env: Env,
     _info: MessageInfo,
     msg: MockGatewayExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response, Error> {
     match msg {
         MockGatewayExecuteMsg::RouteMessages(messages) => {
             for m in messages {
@@ -66,9 +66,7 @@ pub fn get_gateway_messages(
 pub fn make_mock_gateway(app: &mut App) -> Addr {
     let code = ContractWrapper::new(
         mock_gateway_execute,
-        |_, _, _, _: connection_router::msg::InstantiateMsg| {
-            Ok::<Response, ContractError>(Response::new())
-        },
+        |_, _, _, _: connection_router::msg::InstantiateMsg| Ok::<Response, Error>(Response::new()),
         mock_gateway_query,
     );
     let code_id = app.store_code(Box::new(code));
