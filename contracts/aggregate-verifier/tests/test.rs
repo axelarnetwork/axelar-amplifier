@@ -1,13 +1,14 @@
-use aggregate_verifier::contract::*;
-use aggregate_verifier::msg::{ExecuteMsg, InstantiateMsg};
+use aggregate_verifier::msg::ExecuteMsg;
 use axelar_wasm_std::VerificationStatus;
 use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{App, Executor};
+use integration_tests::contract::Contract;
 
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
 pub mod mock;
+mod test_utils;
 
 fn generate_messages(count: usize) -> Vec<Message> {
     let mut msgs = vec![];
@@ -33,28 +34,16 @@ fn verify_messages_empty() {
     let mut app = App::default();
     let voting_verifier_address = make_mock_voting_verifier(&mut app);
 
-    let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
-    let code_id = app.store_code(Box::new(code));
+    let aggregate_verifier = test_utils::AggregateVerifierContract::instantiate_contract(
+        &mut app,
+        voting_verifier_address.clone(),
+    );
 
-    let verifier_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("gateway"),
-            &InstantiateMsg {
-                verifier_address: voting_verifier_address.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-
-    let res = app
-        .execute_contract(
+    let res = aggregate_verifier
+        .execute(
+            &mut app,
             Addr::unchecked("relayer"),
-            verifier_address.clone(),
             &ExecuteMsg::VerifyMessages { messages: vec![] },
-            &[],
         )
         .unwrap();
     let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
@@ -66,37 +55,26 @@ fn verify_messages_not_verified() {
     let mut app = App::default();
     let voting_verifier_address = make_mock_voting_verifier(&mut app);
 
-    let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
-    let code_id = app.store_code(Box::new(code));
+    let aggregate_verifier = test_utils::AggregateVerifierContract::instantiate_contract(
+        &mut app,
+        voting_verifier_address.clone(),
+    );
 
-    let verifier_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("gateway"),
-            &InstantiateMsg {
-                verifier_address: voting_verifier_address.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-
-    let msgs = generate_messages(10);
-    let res = app
-        .execute_contract(
+    let messages = generate_messages(10);
+    let res = aggregate_verifier
+        .execute(
+            &mut app,
             Addr::unchecked("relayer"),
-            verifier_address.clone(),
             &ExecuteMsg::VerifyMessages {
-                messages: msgs.clone(),
+                messages: messages.clone(),
             },
-            &[],
         )
         .unwrap();
     let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
-        msgs.iter()
+        messages
+            .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::None))
             .collect::<Vec<(_, _)>>()
     );
@@ -107,39 +85,28 @@ fn verify_messages_verified() {
     let mut app = App::default();
     let voting_verifier_address = make_mock_voting_verifier(&mut app);
 
-    let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
-    let code_id = app.store_code(Box::new(code));
+    let aggregate_verifier = test_utils::AggregateVerifierContract::instantiate_contract(
+        &mut app,
+        voting_verifier_address.clone(),
+    );
 
-    let verifier_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("gateway"),
-            &InstantiateMsg {
-                verifier_address: voting_verifier_address.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
+    let messages = generate_messages(10);
+    mark_messages_as_verified(&mut app, voting_verifier_address, messages.clone());
 
-    let msgs = generate_messages(10);
-    mark_messages_as_verified(&mut app, voting_verifier_address, msgs.clone());
-
-    let res = app
-        .execute_contract(
+    let res = aggregate_verifier
+        .execute(
+            &mut app,
             Addr::unchecked("relayer"),
-            verifier_address.clone(),
             &ExecuteMsg::VerifyMessages {
-                messages: msgs.clone(),
+                messages: messages.clone(),
             },
-            &[],
         )
         .unwrap();
     let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
-        msgs.iter()
+        messages
+            .iter()
             .map(|msg| (msg.cc_id.clone(), VerificationStatus::SucceededOnChain))
             .collect::<Vec<(_, _)>>()
     );
@@ -150,40 +117,29 @@ fn verify_messages_mixed_status() {
     let mut app = App::default();
     let voting_verifier_address = make_mock_voting_verifier(&mut app);
 
-    let code = ContractWrapper::new(execute, instantiate, query).with_reply(reply);
-    let code_id = app.store_code(Box::new(code));
+    let aggregate_verifier = test_utils::AggregateVerifierContract::instantiate_contract(
+        &mut app,
+        voting_verifier_address.clone(),
+    );
 
-    let verifier_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("gateway"),
-            &InstantiateMsg {
-                verifier_address: voting_verifier_address.to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-
-    let msgs = generate_messages(10);
-    let (verified, _) = msgs.split_at(5);
+    let messages = generate_messages(10);
+    let (verified, _) = messages.split_at(5);
     mark_messages_as_verified(&mut app, voting_verifier_address, verified.to_vec());
 
-    let res = app
-        .execute_contract(
+    let res = aggregate_verifier
+        .execute(
+            &mut app,
             Addr::unchecked("relayer"),
-            verifier_address.clone(),
             &ExecuteMsg::VerifyMessages {
-                messages: msgs.clone(),
+                messages: messages.clone(),
             },
-            &[],
         )
         .unwrap();
     let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
-        msgs.iter()
+        messages
+            .iter()
             .map(|msg| {
                 if verified
                     .iter()
