@@ -23,13 +23,13 @@ fn source_chain() -> ChainName {
     "source_chain".parse().unwrap()
 }
 
-struct TestConfig {
+struct TestFixure {
     app: App,
     service_registry_address: Addr,
     voting_verifier: VotingVerifierContract,
 }
 
-fn setup() -> TestConfig {
+fn setup() -> TestFixure {
     let mut app = App::default();
     let service_registry_address = make_mock_service_registry(&mut app);
     let rewards_address: String = make_mock_rewards(&mut app).into();
@@ -38,7 +38,7 @@ fn setup() -> TestConfig {
         service_registry_address.as_ref().parse().unwrap(),
         rewards_address.clone(),
     );
-    TestConfig {
+    TestFixure {
         app,
         service_registry_address,
         voting_verifier,
@@ -78,7 +78,7 @@ fn messages(len: u64) -> Vec<Message> {
 
 #[test]
 fn should_failed_if_messages_are_not_from_same_source() {
-    let mut config = setup();
+    let mut fixture = setup();
 
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: vec![
@@ -104,9 +104,9 @@ fn should_failed_if_messages_are_not_from_same_source() {
             },
         ],
     };
-    let err = config
+    let err = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg)
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg)
         .unwrap_err();
     test_utils::are_contract_err_strings_equal(
         err,
@@ -116,15 +116,15 @@ fn should_failed_if_messages_are_not_from_same_source() {
 
 #[test]
 fn should_verify_messages_if_not_verified() {
-    let mut config = setup();
+    let mut fixture = setup();
 
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: messages(2),
     };
 
-    let res = config
+    let res = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg)
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg)
         .unwrap();
     let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(reply.verification_statuses.len(), 2);
@@ -151,14 +151,14 @@ fn should_verify_messages_if_not_verified() {
 
 #[test]
 fn should_not_verify_messages_if_in_progress() {
-    let mut config = setup();
+    let mut fixture = setup();
     let messages_in_progress = 3;
     let new_messages = 2;
 
-    config
+    fixture
         .voting_verifier
         .execute(
-            &mut config.app,
+            &mut fixture.app,
             Addr::unchecked(SENDER),
             &msg::ExecuteMsg::VerifyMessages {
                 messages: messages(messages_in_progress),
@@ -166,10 +166,10 @@ fn should_not_verify_messages_if_in_progress() {
         )
         .unwrap();
 
-    let res = config
+    let res = fixture
         .voting_verifier
         .execute(
-            &mut config.app,
+            &mut fixture.app,
             Addr::unchecked(SENDER),
             &msg::ExecuteMsg::VerifyMessages {
                 messages: messages(messages_in_progress + new_messages), // creates the same messages + some new ones
@@ -200,24 +200,24 @@ fn should_not_verify_messages_if_in_progress() {
 
 #[test]
 fn should_retry_if_message_not_verified() {
-    let mut config = setup();
+    let mut fixture = setup();
 
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: messages(1),
     };
-    config
+    fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg)
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg)
         .unwrap();
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
-    config
+    fixture
         .voting_verifier
         .execute(
-            &mut config.app,
+            &mut fixture.app,
             Addr::unchecked(SENDER),
             &msg::ExecuteMsg::EndPoll {
                 poll_id: Uint64::one().into(),
@@ -226,9 +226,9 @@ fn should_retry_if_message_not_verified() {
         .unwrap();
 
     // retries same message
-    let res = config
+    let res = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg)
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg)
         .unwrap();
 
     let messages: Vec<TxEventConfirmation> = serde_json::from_str(
@@ -254,12 +254,12 @@ fn should_retry_if_message_not_verified() {
 
 #[test]
 fn should_retry_if_status_not_final() {
-    let mut config = setup();
-    let workers: Vec<Worker> = config
+    let mut fixture = setup();
+    let workers: Vec<Worker> = fixture
         .app
         .wrap()
         .query_wasm_smart(
-            config.service_registry_address,
+            fixture.service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
                 chain_name: source_chain(),
@@ -272,9 +272,10 @@ fn should_retry_if_status_not_final() {
         messages: messages.clone(),
     };
 
-    let res = config
-        .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg_verify);
+    let res =
+        fixture
+            .voting_verifier
+            .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg_verify);
     assert!(res.is_ok());
 
     workers.iter().enumerate().for_each(|(i, worker)| {
@@ -292,13 +293,13 @@ fn should_retry_if_status_not_final() {
             ],
         };
 
-        let res = config
+        let res = fixture
             .voting_verifier
-            .execute(&mut config.app, worker.address.clone(), &msg);
+            .execute(&mut fixture.app, worker.address.clone(), &msg);
         assert!(res.is_ok());
     });
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
@@ -306,13 +307,13 @@ fn should_retry_if_status_not_final() {
         poll_id: 1u64.into(),
     };
 
-    let res = config
+    let res = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg);
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg);
     assert!(res.is_ok());
 
-    let res: Vec<(CrossChainId, VerificationStatus)> = config.voting_verifier.query(
-        &config.app,
+    let res: Vec<(CrossChainId, VerificationStatus)> = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetMessagesStatus {
             messages: messages.clone(),
         },
@@ -333,13 +334,14 @@ fn should_retry_if_status_not_final() {
         ]
     );
 
-    let res = config
-        .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg_verify);
+    let res =
+        fixture
+            .voting_verifier
+            .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg_verify);
     assert!(res.is_ok());
 
-    let res: Vec<(CrossChainId, VerificationStatus)> = config.voting_verifier.query(
-        &config.app,
+    let res: Vec<(CrossChainId, VerificationStatus)> = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetMessagesStatus {
             messages: messages.clone(),
         },
@@ -360,16 +362,16 @@ fn should_retry_if_status_not_final() {
 
 #[test]
 fn should_query_message_statuses() {
-    let mut config = setup();
+    let mut fixture = setup();
 
     let messages = messages(10);
     let msg = msg::ExecuteMsg::VerifyMessages {
         messages: messages.clone(),
     };
 
-    let res = config
+    let res = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg)
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg)
         .unwrap();
 
     let reply: msg::VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
@@ -383,8 +385,8 @@ fn should_query_message_statuses() {
             .collect::<Vec<(_, _)>>()
     );
 
-    let statuses: Vec<(CrossChainId, VerificationStatus)> = config.voting_verifier.query(
-        &config.app,
+    let statuses: Vec<(CrossChainId, VerificationStatus)> = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetMessagesStatus {
             messages: messages.clone(),
         },
@@ -410,17 +412,17 @@ fn should_query_message_statuses() {
             .collect::<Vec<_>>(),
     };
 
-    config
+    fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked("addr1"), &msg)
+        .execute(&mut fixture.app, Addr::unchecked("addr1"), &msg)
         .unwrap();
 
-    config
+    fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked("addr2"), &msg)
+        .execute(&mut fixture.app, Addr::unchecked("addr2"), &msg)
         .unwrap();
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
@@ -428,13 +430,13 @@ fn should_query_message_statuses() {
         poll_id: Uint64::one().into(),
     };
 
-    config
+    fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg)
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg)
         .unwrap();
 
-    let statuses: Vec<(CrossChainId, VerificationStatus)> = config.voting_verifier.query(
-        &config.app,
+    let statuses: Vec<(CrossChainId, VerificationStatus)> = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetMessagesStatus {
             messages: messages.clone(),
         },
@@ -459,20 +461,20 @@ fn should_query_message_statuses() {
 
 #[test]
 fn should_start_worker_set_confirmation() {
-    let mut config = setup();
+    let mut fixture = setup();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
     let msg = msg::ExecuteMsg::VerifyWorkerSet {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
-    let res = config
+    let res = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg);
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg);
     assert!(res.is_ok());
 
-    let res: VerificationStatus = config.voting_verifier.query(
-        &config.app,
+    let res: VerificationStatus = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetWorkerSetStatus {
             new_operators: operators.clone(),
         },
@@ -482,13 +484,13 @@ fn should_start_worker_set_confirmation() {
 
 #[test]
 fn should_confirm_worker_set() {
-    let mut config = setup();
+    let mut fixture = setup();
 
-    let workers: Vec<Worker> = config
+    let workers: Vec<Worker> = fixture
         .app
         .wrap()
         .query_wasm_smart(
-            config.service_registry_address,
+            fixture.service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
                 chain_name: source_chain(),
@@ -501,9 +503,9 @@ fn should_confirm_worker_set() {
         message_id: message_id("id", 0),
         new_operators: operators.clone(),
     };
-    let res = config
+    let res = fixture
         .voting_verifier
-        .execute(&mut config.app, Addr::unchecked(SENDER), &msg);
+        .execute(&mut fixture.app, Addr::unchecked(SENDER), &msg);
     assert!(res.is_ok());
 
     let msg = msg::ExecuteMsg::Vote {
@@ -511,18 +513,18 @@ fn should_confirm_worker_set() {
         votes: vec![Vote::SucceededOnChain],
     };
     for worker in workers {
-        let res = config
+        let res = fixture
             .voting_verifier
-            .execute(&mut config.app, worker.address.clone(), &msg);
+            .execute(&mut fixture.app, worker.address.clone(), &msg);
         assert!(res.is_ok());
     }
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::EndPoll {
             poll_id: 1u64.into(),
@@ -530,8 +532,8 @@ fn should_confirm_worker_set() {
     );
     assert!(res.is_ok());
 
-    let res: VerificationStatus = config.voting_verifier.query(
-        &config.app,
+    let res: VerificationStatus = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetWorkerSetStatus {
             new_operators: operators.clone(),
         },
@@ -541,13 +543,13 @@ fn should_confirm_worker_set() {
 
 #[test]
 fn should_not_confirm_worker_set() {
-    let mut config = setup();
+    let mut fixture = setup();
 
-    let workers: Vec<Worker> = config
+    let workers: Vec<Worker> = fixture
         .app
         .wrap()
         .query_wasm_smart(
-            config.service_registry_address,
+            fixture.service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
                 chain_name: source_chain(),
@@ -556,8 +558,8 @@ fn should_not_confirm_worker_set() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0),
@@ -567,8 +569,8 @@ fn should_not_confirm_worker_set() {
     assert!(res.is_ok());
 
     for worker in workers {
-        let res = config.voting_verifier.execute(
-            &mut config.app,
+        let res = fixture.voting_verifier.execute(
+            &mut fixture.app,
             worker.address.clone(),
             &msg::ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
@@ -578,12 +580,12 @@ fn should_not_confirm_worker_set() {
         assert!(res.is_ok());
     }
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::EndPoll {
             poll_id: 1u64.into(),
@@ -591,8 +593,8 @@ fn should_not_confirm_worker_set() {
     );
     assert!(res.is_ok());
 
-    let res: VerificationStatus = config.voting_verifier.query(
-        &config.app,
+    let res: VerificationStatus = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetWorkerSetStatus {
             new_operators: operators.clone(),
         },
@@ -602,13 +604,13 @@ fn should_not_confirm_worker_set() {
 
 #[test]
 fn should_confirm_worker_set_after_failed() {
-    let mut config = setup();
+    let mut fixture = setup();
 
-    let workers: Vec<Worker> = config
+    let workers: Vec<Worker> = fixture
         .app
         .wrap()
         .query_wasm_smart(
-            config.service_registry_address,
+            fixture.service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
                 chain_name: source_chain(),
@@ -617,8 +619,8 @@ fn should_confirm_worker_set_after_failed() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0),
@@ -628,8 +630,8 @@ fn should_confirm_worker_set_after_failed() {
     assert!(res.is_ok());
 
     for worker in &workers {
-        let res = config.voting_verifier.execute(
-            &mut config.app,
+        let res = fixture.voting_verifier.execute(
+            &mut fixture.app,
             worker.address.clone(),
             &msg::ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
@@ -639,12 +641,12 @@ fn should_confirm_worker_set_after_failed() {
         assert!(res.is_ok());
     }
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::EndPoll {
             poll_id: 1u64.into(),
@@ -652,16 +654,16 @@ fn should_confirm_worker_set_after_failed() {
     );
     assert!(res.is_ok());
 
-    let res: VerificationStatus = config.voting_verifier.query(
-        &config.app,
+    let res: VerificationStatus = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetWorkerSetStatus {
             new_operators: operators.clone(),
         },
     );
     assert_eq!(res, VerificationStatus::NotFound);
 
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0),
@@ -671,8 +673,8 @@ fn should_confirm_worker_set_after_failed() {
     assert!(res.is_ok());
 
     for worker in workers {
-        let res = config.voting_verifier.execute(
-            &mut config.app,
+        let res = fixture.voting_verifier.execute(
+            &mut fixture.app,
             worker.address.clone(),
             &msg::ExecuteMsg::Vote {
                 poll_id: 2u64.into(),
@@ -682,12 +684,12 @@ fn should_confirm_worker_set_after_failed() {
         assert!(res.is_ok());
     }
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::EndPoll {
             poll_id: 2u64.into(),
@@ -695,8 +697,8 @@ fn should_confirm_worker_set_after_failed() {
     );
     assert!(res.is_ok());
 
-    let res: VerificationStatus = config.voting_verifier.query(
-        &config.app,
+    let res: VerificationStatus = fixture.voting_verifier.query(
+        &fixture.app,
         &msg::QueryMsg::GetWorkerSetStatus {
             new_operators: operators.clone(),
         },
@@ -706,13 +708,13 @@ fn should_confirm_worker_set_after_failed() {
 
 #[test]
 fn should_not_confirm_twice() {
-    let mut config = setup();
+    let mut fixture = setup();
 
-    let workers: Vec<Worker> = config
+    let workers: Vec<Worker> = fixture
         .app
         .wrap()
         .query_wasm_smart(
-            config.service_registry_address,
+            fixture.service_registry_address,
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: "service_name".to_string(),
                 chain_name: source_chain(),
@@ -721,8 +723,8 @@ fn should_not_confirm_twice() {
         .unwrap();
 
     let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0),
@@ -732,8 +734,8 @@ fn should_not_confirm_twice() {
     assert!(res.is_ok());
 
     for worker in workers {
-        let res = config.voting_verifier.execute(
-            &mut config.app,
+        let res = fixture.voting_verifier.execute(
+            &mut fixture.app,
             worker.address.clone(),
             &msg::ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
@@ -743,12 +745,12 @@ fn should_not_confirm_twice() {
         assert!(res.is_ok());
     }
 
-    config
+    fixture
         .app
         .update_block(|block| block.height += POLL_BLOCK_EXPIRY);
 
-    let res = config.voting_verifier.execute(
-        &mut config.app,
+    let res = fixture.voting_verifier.execute(
+        &mut fixture.app,
         Addr::unchecked(SENDER),
         &msg::ExecuteMsg::EndPoll {
             poll_id: 1u64.into(),
@@ -757,10 +759,10 @@ fn should_not_confirm_twice() {
     assert!(res.is_ok());
 
     // try again, should fail
-    let err = config
+    let err = fixture
         .voting_verifier
         .execute(
-            &mut config.app,
+            &mut fixture.app,
             Addr::unchecked(SENDER),
             &msg::ExecuteMsg::VerifyWorkerSet {
                 message_id: message_id("id", 0),
