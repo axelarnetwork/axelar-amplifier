@@ -23,13 +23,13 @@ fn source_chain() -> ChainName {
     "source_chain".parse().unwrap()
 }
 
-struct TestFixure {
+struct TestFixture {
     app: App,
     service_registry_address: Addr,
     voting_verifier: VotingVerifierContract,
 }
 
-fn setup() -> TestFixure {
+fn setup() -> TestFixture {
     let mut app = App::default();
     let service_registry_address = make_mock_service_registry(&mut app);
     let rewards_address: String = make_mock_rewards(&mut app).into();
@@ -38,7 +38,7 @@ fn setup() -> TestFixure {
         service_registry_address.as_ref().parse().unwrap(),
         rewards_address.clone(),
     );
-    TestFixure {
+    TestFixture {
         app,
         service_registry_address,
         voting_verifier,
