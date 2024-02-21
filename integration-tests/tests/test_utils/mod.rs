@@ -47,7 +47,7 @@ pub fn verify_messages(
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
+        &gateway_api::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
         &[],
     );
     assert!(response.is_ok());
@@ -66,7 +66,7 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &gateway::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+        &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
         &[],
     );
 
@@ -221,7 +221,7 @@ pub fn get_messages_from_gateway(
 ) -> Vec<Message> {
     let query_response = app.wrap().query_wasm_smart(
         gateway_address,
-        &gateway::msg::QueryMsg::GetMessages {
+        &gateway_api::msg::QueryMsg::GetMessages {
             message_ids: message_ids.to_owned(),
         },
     );

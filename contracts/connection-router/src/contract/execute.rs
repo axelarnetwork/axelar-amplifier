@@ -2,7 +2,6 @@ use std::vec;
 
 use axelar_wasm_std::flagset::FlagSet;
 use connection_router_api::error::Error;
-use connection_router_api::msg::ExecuteMsg;
 use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 use cosmwasm_std::{to_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
 use error_stack::report;
@@ -175,9 +174,10 @@ where
 
                 Ok(WasmMsg::Execute {
                     contract_addr: gateway.to_string(),
-                    // TODO: this happens to work because the router and the gateways have the same definition of RouteMessages
-                    msg: to_binary(&ExecuteMsg::RouteMessages(msgs.cloned().collect()))
-                        .expect("must serialize message"),
+                    msg: to_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
+                        msgs.cloned().collect(),
+                    ))
+                    .expect("must serialize message"),
                     funds: vec![],
                 })
             })
