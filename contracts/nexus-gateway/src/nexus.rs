@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use connection_router::state::{Address, ChainName, CrossChainId, ID_SEPARATOR};
+use connection_router_api::{Address, ChainName, CrossChainId, ID_SEPARATOR};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Result, ResultExt};
 use hex::{FromHex, ToHex};
@@ -45,8 +45,8 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Contra
     Ok((tx_id, index))
 }
 
-impl From<connection_router::Message> for Message {
-    fn from(msg: connection_router::Message) -> Self {
+impl From<connection_router_api::Message> for Message {
+    fn from(msg: connection_router_api::Message) -> Self {
         // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
@@ -63,7 +63,7 @@ impl From<connection_router::Message> for Message {
     }
 }
 
-impl From<Message> for connection_router::Message {
+impl From<Message> for connection_router_api::Message {
     fn from(msg: Message) -> Self {
         Self {
             cc_id: CrossChainId {

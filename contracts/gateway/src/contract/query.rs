@@ -1,10 +1,10 @@
-use crate::contract::Error;
-use crate::state;
-use connection_router::state::CrossChainId;
-use connection_router::Message;
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::Storage;
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
+
+use crate::contract::Error;
+use crate::state;
 
 pub fn get_outgoing_messages(
     storage: &dyn Storage,

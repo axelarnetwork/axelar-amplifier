@@ -54,14 +54,15 @@ pub enum Error {
 }
 
 mod internal {
+    use aggregate_verifier::client::Verifier;
+    use connection_router_api::client::Router;
+    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+    use error_stack::{Result, ResultExt};
+
     use crate::contract::Error;
     use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
     use crate::state::Config;
     use crate::{contract, state};
-    use aggregate_verifier::client::Verifier;
-    use connection_router::client::Router;
-    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
-    use error_stack::{Result, ResultExt};
 
     pub(crate) fn instantiate(
         deps: DepsMut,

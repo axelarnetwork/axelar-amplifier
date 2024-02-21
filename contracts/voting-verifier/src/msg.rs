@@ -6,7 +6,7 @@ use axelar_wasm_std::{
     voting::{PollId, PollState, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -61,7 +61,7 @@ pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollId },
 
-    #[returns(Vec<(connection_router::state::CrossChainId, VerificationStatus)>)]
+    #[returns(Vec<(CrossChainId, VerificationStatus)>)]
     GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]

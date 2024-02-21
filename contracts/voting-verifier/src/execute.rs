@@ -10,7 +10,7 @@ use axelar_wasm_std::{
     VerificationStatus,
 };
 
-use connection_router::state::{ChainName, Message};
+use connection_router_api::{ChainName, Message};
 use service_registry::msg::QueryMsg;
 use service_registry::state::Worker;
 

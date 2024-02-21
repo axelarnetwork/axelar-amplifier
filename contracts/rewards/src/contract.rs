@@ -123,7 +123,7 @@ pub fn execute(
 
 #[cfg(test)]
 mod tests {
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
     use cosmwasm_std::{coins, Addr, Binary, BlockInfo, Deps, Env, StdResult, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
 

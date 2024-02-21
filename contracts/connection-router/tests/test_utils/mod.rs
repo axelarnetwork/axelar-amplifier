@@ -1,7 +1,8 @@
 use connection_router::{
     contract::{execute, instantiate, query},
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
+    msg::InstantiateMsg,
 };
+use connection_router_api::msg::{ExecuteMsg, QueryMsg};
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 use integration_tests::contract::Contract;

@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
     Uint256, Uint64,
@@ -730,9 +730,9 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = protocol.app.execute_contract(
         protocol.governance_address.clone(),
         protocol.router_address.clone(),
-        &connection_router::msg::ExecuteMsg::RegisterChain {
+        &connection_router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
-            gateway_address: gateway_address.to_string(),
+            gateway_address: gateway_address.to_string().try_into().unwrap(),
         },
         &[],
     );

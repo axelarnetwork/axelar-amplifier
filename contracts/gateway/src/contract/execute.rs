@@ -1,13 +1,14 @@
-use crate::contract::Error;
-use crate::events::GatewayEvent;
-use crate::state;
 use aggregate_verifier::client::Verifier;
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router::client::Router;
-use connection_router::state::Message;
+use connection_router_api::client::Router;
+use connection_router_api::Message;
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
+
+use crate::contract::Error;
+use crate::events::GatewayEvent;
+use crate::state;
 
 pub fn verify_messages(verifier: &Verifier, msgs: Vec<Message>) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {

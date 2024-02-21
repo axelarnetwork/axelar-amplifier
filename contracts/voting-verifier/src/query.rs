@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollStatus, Vote},
     VerificationStatus,
 };
-use connection_router::state::{CrossChainId, Message};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::Deps;
 
 use crate::error::ContractError;
