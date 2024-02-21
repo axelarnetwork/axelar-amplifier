@@ -8821,6 +8821,7 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "either",
  "error-stack",
+ "integration-tests",
  "report",
  "rewards",
  "schemars",
