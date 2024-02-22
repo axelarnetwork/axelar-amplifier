@@ -49,6 +49,7 @@ pub fn execute(
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -67,13 +68,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::{voting::Vote, Threshold, VerificationStatus};
-    use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
+
+    use axelar_wasm_std::{
+        nonempty, operators::Operators, voting::Vote, Threshold, VerificationStatus,
+    };
+    use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
     use service_registry::state::{AuthorizationState, BondingState, Worker};
 
     use crate::{error::ContractError, events::TxEventConfirmation, msg::VerifyMessagesResponse};
@@ -148,6 +152,12 @@ mod test {
         });
 
         deps
+    }
+
+    fn message_id(id: &str, index: u64) -> nonempty::String {
+        format!("{}{}{}", id, ID_SEPARATOR, index)
+            .try_into()
+            .unwrap()
     }
 
     fn messages(len: u64) -> Vec<Message> {
@@ -437,5 +447,133 @@ mod test {
                 (messages[3].cc_id.clone(), VerificationStatus::InProgress)
             ]
         );
+    }
+
+    #[test]
+    fn should_query_message_statuses() {
+        let mut deps = setup();
+
+        let messages = messages(10);
+        let msg = ExecuteMsg::VerifyMessages {
+            messages: messages.clone(),
+        };
+
+        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
+
+        let reply: VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+
+        assert_eq!(reply.verification_statuses.len(), messages.len());
+        assert_eq!(
+            reply.verification_statuses,
+            messages
+                .iter()
+                .map(|message| (message.cc_id.clone(), VerificationStatus::None))
+                .collect::<Vec<(_, _)>>()
+        );
+
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetMessagesStatus {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            messages
+                .iter()
+                .map(|message| (message.cc_id.clone(), VerificationStatus::InProgress))
+                .collect::<Vec<(_, _)>>()
+        );
+
+        let msg = ExecuteMsg::Vote {
+            poll_id: Uint64::one().into(),
+            votes: (0..messages.len())
+                .map(|i| {
+                    if i % 2 == 0 {
+                        Vote::SucceededOnChain
+                    } else {
+                        Vote::NotFound
+                    }
+                })
+                .collect::<Vec<_>>(),
+        };
+
+        workers().iter().for_each(|worker| {
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                msg.clone(),
+            )
+            .unwrap();
+        });
+
+        let mut mock_env_expired = mock_env();
+        mock_env_expired.block.height += POLL_BLOCK_EXPIRY;
+
+        let msg = ExecuteMsg::EndPoll {
+            poll_id: Uint64::one().into(),
+        };
+
+        execute(deps.as_mut(), mock_env_expired, mock_info(SENDER, &[]), msg).unwrap();
+
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetMessagesStatus {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            statuses,
+            messages
+                .iter()
+                .enumerate()
+                .map(|(i, message)| (
+                    message.cc_id.clone(),
+                    if i % 2 == 0 {
+                        VerificationStatus::SucceededOnChain
+                    } else {
+                        VerificationStatus::NotFound
+                    }
+                ))
+                .collect::<Vec<(_, _)>>()
+        );
+    }
+
+    #[test]
+    fn should_start_worker_set_confirmation() {
+        let mut deps = setup();
+
+        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let msg = ExecuteMsg::VerifyWorkerSet {
+            message_id: message_id("id", 0),
+            new_operators: operators.clone(),
+        };
+        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetWorkerSetStatus {
+                    new_operators: operators.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::InProgress);
     }
 }
