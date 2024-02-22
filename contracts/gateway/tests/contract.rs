@@ -10,7 +10,8 @@ use cosmwasm_std::{
     from_binary, to_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
 use gateway::contract::*;
-use gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use gateway::msg::InstantiateMsg;
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
 use serde::Serialize;
 
