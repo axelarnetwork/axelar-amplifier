@@ -153,6 +153,11 @@ where
             Some(pub_key) => {
                 let signature = self
                     .signer
+                    // NOTE from Eiger to Axelar, when in PR: With our local setup
+                    // sign() function works only when we pass in the string "axelar"
+                    // as a first argument.
+                    // Is there something specific we should do anything special
+                    // with that first argument or it should work the way it is now?
                     .sign(self.multisig.to_string().as_str(), msg.clone(), pub_key)
                     .await
                     .change_context(Error::Sign)?;

@@ -1,0 +1,36 @@
+{
+    "meta": {
+        "fee": 5000,
+        "postBalances": [],
+        "postTokenBalances": [],
+        "preBalances": [],
+        "status": {
+            "Ok": null
+        },
+        "logMessages": [
+            "BAD_LOG_MESSAGE",
+            "Program data: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAGFicgMAAAAweDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "Program data: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAGV0aAMAAAAweDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        ]
+    },
+    "slot": 430,
+    "transaction": {
+        "message": {
+            "accountKeys": [
+                "sol_gateway_addr"
+            ],
+            "header": {
+                "numReadonlySignedAccounts": 0,
+                "numReadonlyUnsignedAccounts": 1,
+                "numRequiredSignatures": 1
+            },
+            "instructions": [],
+            "recentBlockhash": "mfcyqEXB3DnHXki6KjjmZck6YjmZLvpAByy2fj4nh6B"
+        },
+        "signatures": [
+            "fake_tx_id"
+        ]
+    },
+    "blockTime": null,
+    "id": 1
+}

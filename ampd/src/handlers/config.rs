@@ -38,6 +38,10 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
     },
+    SolanaMsgVerifier {
+        cosmwasm_contract: TMAddress,
+        rpc_url: Url,
+    },
 }
 
 fn validate_multisig_signer_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
@@ -133,6 +137,22 @@ where
     }
 }
 
+fn validate_solana_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match configs
+        .iter()
+        .filter(|config| matches!(config, Config::SolanaMsgVerifier { .. }))
+        .count()
+    {
+        count if count > 1 => Err(de::Error::custom(
+            "only one Solana msg verifier config is allowed",
+        )),
+        _ => Ok(()),
+    }
+}
+
 pub fn deserialize_handler_configs<'de, D>(deserializer: D) -> Result<Vec<Config>, D::Error>
 where
     D: Deserializer<'de>,
@@ -144,6 +164,7 @@ where
     validate_multisig_signer_config::<D>(&configs)?;
     validate_sui_msg_verifier_config::<D>(&configs)?;
     validate_sui_worker_set_verifier_config::<D>(&configs)?;
+    validate_solana_msg_verifier_config::<D>(&configs)?;
 
     Ok(configs)
 }

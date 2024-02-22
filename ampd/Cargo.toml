@@ -9,6 +9,7 @@ async-trait = "0.1.59"
 axelar-wasm-std = { workspace = true }
 base64 = "0.21.2"
 bcs = "0.1.5"
+borsh = { version = "1.2.0", features = ["derive"] }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 connection-router = { workspace = true }
@@ -38,8 +39,14 @@ serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 serde_with = "3.2.0"
 service-registry = { workspace = true }
+solana-client = "1.18.1"
+solana-program = "1.18.1"
+solana-sdk = "1.18.1"
+solana-transaction-status = "1.18.1"
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.14.2" }
-sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.14.2" }
+sui-types = { git = "https://github.com/mystenlabs/sui", features = [
+  "test-utils",
+], tag = "mainnet-v1.14.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
 # Can switch back once https://github.com/informalsystems/tendermint-rs/issues/1216 is resolved.
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
@@ -60,6 +67,7 @@ url = "2.3.1"
 valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
+gateway = { git = "ssh://git@github.com/eigerco/solana-axelar.git", branch = "poc" }
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"
@@ -70,3 +78,18 @@ random-string = "1.0.0"
 [build-dependencies]
 ethers = "2.0.8"
 tonic-build = "0.8.3"
+
+[patch.crates-io]
+# aes-gcm-siv 0.10.3 and curve25519-dalek 3.x pin zeroize to <1.4
+# which conflicts with other dependencies requiring zeroize ^1.5.
+# We’re patching both crates to unpin zeroize.
+#
+# For aes-gcm-siv we’re using the same revision Solana uses in
+# an (as of now) unreleased commit, see
+# https://github.com/solana-labs/solana/commit/01f1bf27994d9813fadfcd134befd3a449aaa0bd
+#
+# For curve25519-dalek we’re using commit from a PR, see
+# https://github.com/dalek-cryptography/curve25519-dalek/pull/606
+aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
+curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
+ahash = "=0.8.6"
