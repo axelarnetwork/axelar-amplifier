@@ -175,6 +175,12 @@ mod test {
             .collect()
     }
 
+    fn mock_env_expired() -> Env {
+        let mut env = mock_env();
+        env.block.height += POLL_BLOCK_EXPIRY;
+        env
+    }
+
     #[test]
     fn should_fail_if_messages_are_not_from_same_source() {
         let mut deps = setup();
@@ -301,12 +307,9 @@ mod test {
         )
         .unwrap();
 
-        let mut mock_env_expired = mock_env();
-        mock_env_expired.block.height += POLL_BLOCK_EXPIRY;
-
         execute(
             deps.as_mut(),
-            mock_env_expired,
+            mock_env_expired(),
             mock_info(SENDER, &[]),
             ExecuteMsg::EndPoll {
                 poll_id: Uint64::one().into(),
@@ -379,14 +382,16 @@ mod test {
             assert!(res.is_ok());
         });
 
-        let mut mock_env_expired = mock_env();
-        mock_env_expired.block.height += POLL_BLOCK_EXPIRY;
-
         let msg = ExecuteMsg::EndPoll {
             poll_id: 1u64.into(),
         };
 
-        let res = execute(deps.as_mut(), mock_env_expired, mock_info(SENDER, &[]), msg);
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            msg,
+        );
         assert!(res.is_ok());
 
         let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
@@ -513,14 +518,17 @@ mod test {
             .unwrap();
         });
 
-        let mut mock_env_expired = mock_env();
-        mock_env_expired.block.height += POLL_BLOCK_EXPIRY;
-
         let msg = ExecuteMsg::EndPoll {
             poll_id: Uint64::one().into(),
         };
 
-        execute(deps.as_mut(), mock_env_expired, mock_info(SENDER, &[]), msg).unwrap();
+        execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            msg,
+        )
+        .unwrap();
 
         let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
             &query(
@@ -575,5 +583,263 @@ mod test {
         )
         .unwrap();
         assert_eq!(res, VerificationStatus::InProgress);
+    }
+
+    #[test]
+    fn should_confirm_worker_set() {
+        let mut deps = setup();
+
+        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let msg = ExecuteMsg::VerifyWorkerSet {
+            message_id: message_id("id", 0),
+            new_operators: operators.clone(),
+        };
+        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
+        assert!(res.is_ok());
+
+        let msg = ExecuteMsg::Vote {
+            poll_id: 1u64.into(),
+            votes: vec![Vote::SucceededOnChain],
+        };
+        for worker in workers() {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                msg.clone(),
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetWorkerSetStatus {
+                    new_operators: operators.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::SucceededOnChain);
+    }
+
+    #[test]
+    fn should_not_confirm_worker_set() {
+        let mut deps = setup();
+
+        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyWorkerSet {
+                message_id: message_id("id", 0),
+                new_operators: operators.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for worker in workers() {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::NotFound],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetWorkerSetStatus {
+                    new_operators: operators.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::NotFound);
+    }
+
+    #[test]
+    fn should_confirm_worker_set_after_failed() {
+        let mut deps = setup();
+
+        let workers = workers();
+
+        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyWorkerSet {
+                message_id: message_id("id", 0),
+                new_operators: operators.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for worker in &workers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::NotFound],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetWorkerSetStatus {
+                    new_operators: operators.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::NotFound);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyWorkerSet {
+                message_id: message_id("id", 0),
+                new_operators: operators.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for worker in workers {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 2u64.into(),
+                    votes: vec![Vote::SucceededOnChain],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 2u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res: VerificationStatus = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetWorkerSetStatus {
+                    new_operators: operators.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(res, VerificationStatus::SucceededOnChain);
+    }
+
+    #[test]
+    fn should_not_confirm_twice() {
+        let mut deps = setup();
+
+        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyWorkerSet {
+                message_id: message_id("id", 0),
+                new_operators: operators.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for worker in workers() {
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                ExecuteMsg::Vote {
+                    poll_id: 1u64.into(),
+                    votes: vec![Vote::SucceededOnChain],
+                },
+            );
+            assert!(res.is_ok());
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // try again, should fail
+        let err = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyWorkerSet {
+                message_id: message_id("id", 0),
+                new_operators: operators.clone(),
+            },
+        )
+        .unwrap_err();
+        are_contract_err_strings_equal(err, ContractError::WorkerSetAlreadyConfirmed);
     }
 }
