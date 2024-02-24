@@ -16,7 +16,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
-use crate::solana::{json_rpc::SolanaClient, verifier::verify_message};
+use crate::solana::{json_rpc::SolanaClient, msg_verifier::verify_message};
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
