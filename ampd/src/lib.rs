@@ -257,6 +257,19 @@ where
                         self.block_height_monitor.latest_block_height(),
                     ),
                 ),
+                handlers::config::Config::SolanaMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                } => self.configure_handler(
+                    "solana-msg-verifier",
+                    handlers::solana_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                ),
                 handlers::config::Config::SolanaWorkerSetVerifier {
                     cosmwasm_contract,
                     chain,

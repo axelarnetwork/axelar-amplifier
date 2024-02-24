@@ -4,43 +4,11 @@ use mockall::automock;
 use serde::{Deserialize, Serialize};
 use solana_account_decoder::UiAccountEncoding;
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-// use solana_sdk::transaction::Transaction;
+use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 
 use crate::json_rpc::Client;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
-
-// TODO: This should come from solana-sdk crate
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct Transaction {
-    pub message: SolMessage,
-    pub signatures: Vec<String>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SolMessage {
-    pub instructions: Vec<SolInstruction>,
-    pub account_keys: Vec<String>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UiTransactionStatusMeta {
-    pub log_messages: Option<Vec<String>>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct SolInstruction {
-    pub data: String,
-}
-
-// TODO: This should come from the solana-transaction-status crate
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct EncodedConfirmedTransactionWithStatusMeta {
-    pub transaction: Transaction,
-    pub meta: UiTransactionStatusMeta,
-}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct AccountInfo {
@@ -109,8 +77,11 @@ mod tests {
         // pubkey: EHgEeD1Z3pc29s3JKhfVv9AGk7HkQFZKkcHbkypdN1h6
         let url = Url::from_str(RPC_URL).unwrap();
         let client = Client::new_http(&url).unwrap();
-        let tx = client.get_transaction("<your transaction signature>").await.unwrap();
-        println!("tx - {}", tx.transaction.signatures[0]);
+        let tx = client
+            .get_transaction("<your transaction signature>")
+            .await
+            .unwrap();
+        println!("tx - {:?}", tx.transaction);
     }
 
     #[async_test]

@@ -18,8 +18,10 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::solana::json_rpc::SolanaClient;
-use crate::solana::ws_verifier::{parse_gateway_event, verify_worker_set, GatewayEvent};
+use crate::solana::ws_verifier::{parse_gateway_event, verify_worker_set};
 use crate::types::{TMAddress, U256};
+
+use gmp_gateway::events::GatewayEvent;
 
 type Result<T> = error_stack::Result<T, Error>;
 

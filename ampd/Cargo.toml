@@ -43,7 +43,7 @@ solana-account-decoder = "1.18.1"
 solana-client = "1.18.1"
 solana-program = "1.18.1"
 solana-sdk = "1.18.1"
-solana-transaction-status = "1.17.9"
+solana-transaction-status = "1.18.1"
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.14.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = [
   "test-utils",
@@ -69,6 +69,7 @@ valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 auth-weighted = { git = "ssh://git@github.com/eigerco/solana-axelar.git", branch = "poc"} ## Temporary POC repo import while its not public.
+gmp-gateway = { git = "ssh://git@github.com/eigerco/solana-axelar.git", branch = "poc" }
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"

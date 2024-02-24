@@ -19,7 +19,6 @@ multisig-prover = { version = "^0.1.0", path = "contracts/multisig-prover" }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
-gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
 connection-router-api = { version = "^0.1.0", path = "packages/connection-router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
 rewards = { version = "^0.1.0", path = "contracts/rewards" }

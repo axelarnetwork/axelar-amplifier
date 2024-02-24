@@ -6,39 +6,14 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use auth_weighted::types::operator::Operators;
 use base64::{self, engine::general_purpose};
+use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use thiserror::Error;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::handlers::solana_verify_worker_set::{self, WorkerSetConfirmation};
 
-use super::{
-    json_rpc::{AccountInfo, EncodedConfirmedTransactionWithStatusMeta},
-    pub_key_wrapper::PubkeyWrapper,
-};
-
-// Gateway program logs.
-// Logged when the Gateway receives an outbound message.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
-#[repr(u8)]
-pub enum GatewayEvent {
-    OperatorshipTransferred {
-        /// Pubkey of the account that stores the key rotation information.
-        info_account_address: PubkeyWrapper,
-    },
-}
-
-impl GatewayEvent {
-    // Try to parse a [`CallContractEvent`] out of a Solana program log line.
-    fn parse_log(log: &String) -> Option<Self> {
-        let cleaned_input = log
-            .trim()
-            .trim_start_matches("Program data:")
-            .split_whitespace()
-            .flat_map(decode_base64)
-            .next()?;
-        borsh::from_slice(&cleaned_input).ok()
-    }
-}
+use super::{json_rpc::AccountInfo};
+use gmp_gateway::events::GatewayEvent;
 
 #[inline]
 fn decode_base64(input: &str) -> Option<Vec<u8>> {
@@ -58,11 +33,18 @@ pub enum VerificationError {
 type Result<T> = std::result::Result<T, VerificationError>;
 
 pub fn parse_gateway_event(tx: &EncodedConfirmedTransactionWithStatusMeta) -> Result<GatewayEvent> {
-    if tx.meta.log_messages.is_none() {
+    if tx.transaction.meta.is_none() {
         return Err(VerificationError::NoLogMessages);
     }
-    let program_data = tx.meta.log_messages.as_ref().unwrap();
-    program_data
+
+    let meta = tx.transaction.meta.as_ref().unwrap();
+
+    let log_messages = match &meta.log_messages {
+        solana_transaction_status::option_serializer::OptionSerializer::Some(log_msg) => log_msg,
+        _ => return Err(VerificationError::NoLogMessages),
+    };
+
+    log_messages
         .iter()
         .find_map(GatewayEvent::parse_log)
         .ok_or(VerificationError::NoGatewayEventFound)
@@ -74,26 +56,44 @@ pub async fn verify_worker_set(
     worker_set: &WorkerSetConfirmation,
     account_info: &AccountInfo,
 ) -> Vote {
-    if !sol_tx
-        .transaction
-        .message
-        .account_keys
-        .contains(source_gateway_address)
-    {
+    let ui_tx = match &sol_tx.transaction.transaction {
+        solana_transaction_status::EncodedTransaction::Json(tx) => tx,
+        _ => {
+            error!("failed to parse solana tx.");
+            return Vote::FailedOnChain;
+        }
+    };
+
+    // NOTE: first signature is always tx_id
+    let tx_id = match ui_tx.signatures.first() {
+        Some(tx) => tx,
+        None => {
+            error!("failed to parse solana tx signatures.");
+            return Vote::FailedOnChain;
+        }
+    };
+
+    if worker_set.tx_id != *tx_id {
+        info!(tx_id = &worker_set.tx_id, "tx_id do not match");
+        return Vote::FailedOnChain;
+    }
+
+    let ui_parsed_msg = match &ui_tx.message {
+        solana_transaction_status::UiMessage::Raw(msg) => msg,
+        _ => {
+            error!(
+                tx_id = tx_id,
+                "Could not gather tx message for checking account keys."
+            );
+            return Vote::FailedOnChain;
+        }
+    };
+
+    if !ui_parsed_msg.account_keys.contains(source_gateway_address) {
         info!(
             tx_id = &worker_set.tx_id,
             "tx does not contains source_gateway_address"
         );
-        return Vote::FailedOnChain;
-    }
-
-    if sol_tx.transaction.signatures.is_empty() {
-        info!(tx_id = &worker_set.tx_id, "tx do not contain signatures");
-        return Vote::FailedOnChain;
-    }
-
-    if worker_set.tx_id != sol_tx.transaction.signatures[0] {
-        info!(tx_id = &worker_set.tx_id, "tx_id do not match");
         return Vote::FailedOnChain;
     }
 
