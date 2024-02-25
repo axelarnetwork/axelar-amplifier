@@ -72,6 +72,7 @@ mod tests {
 
     const RPC_URL: &str = "http://127.0.0.1:8899"; // default.
 
+    #[ignore = "Exploratory test, still not intended to run in CI"]
     #[async_test]
     async fn test_get_transaction_works() {
         // pubkey: EHgEeD1Z3pc29s3JKhfVv9AGk7HkQFZKkcHbkypdN1h6
@@ -84,6 +85,7 @@ mod tests {
         println!("tx - {:?}", tx.transaction);
     }
 
+    #[ignore = "Exploratory test, still not intended to run in CI"]
     #[async_test]
     async fn test_get_account_works() {
         let url = Url::from_str(RPC_URL).unwrap();
