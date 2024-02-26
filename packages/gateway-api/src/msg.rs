@@ -17,6 +17,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
+    // messages that can be relayed to the chain corresponding to this gateway
     #[returns(Vec<Message>)]
-    GetMessages { message_ids: Vec<CrossChainId> },
+    GetOutgoingMessages { message_ids: Vec<CrossChainId> },
 }

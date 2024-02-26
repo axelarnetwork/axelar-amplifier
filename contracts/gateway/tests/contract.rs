@@ -137,7 +137,7 @@ fn successful_route_outgoing() {
         let router = "router";
         instantiate_contract(deps.as_mut(), "verifier", router);
 
-        let query_msg = QueryMsg::GetMessages {
+        let query_msg = QueryMsg::GetOutgoingMessages {
             message_ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
         };
 
