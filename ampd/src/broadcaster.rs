@@ -142,11 +142,7 @@ where
             ..
         } = &response;
 
-        info!(height, tx_hash, "broadcasted transaction");
-
         self.confirm_tx(tx_hash).await?;
-
-        info!(height, tx_hash, "confirmed transaction");
 
         self.acc_sequence += 1;
         Ok(response)
