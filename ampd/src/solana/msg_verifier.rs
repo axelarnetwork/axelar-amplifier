@@ -171,7 +171,7 @@ mod tests {
         Message,
     ) {
         // Common fields among tx and message.
-        let tx_id = "fake_tx_id".to_string();
+        let tx_id = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP".to_string();
         let destination_chain = "eth".to_string();
         let destination_address = "0x0".to_string();
         let _payload: Vec<u8> = Vec::new();

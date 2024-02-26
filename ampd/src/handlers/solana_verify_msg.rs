@@ -2,9 +2,12 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
-use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::signature::Signature;
+use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::str::FromStr;
 use tracing::info;
 
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -16,7 +19,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
-use crate::solana::{json_rpc::SolanaClient, msg_verifier::verify_message};
+use crate::solana::msg_verifier::verify_message;
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -44,27 +47,25 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
-pub struct Handler<C, B>
+pub struct Handler<B>
 where
-    C: SolanaClient + Send + Sync,
     B: BroadcasterClient,
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
-    rpc_client: C,
+    rpc_client: RpcClient,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
 
-impl<C, B> Handler<C, B>
+impl<B> Handler<B>
 where
-    C: SolanaClient + Send + Sync,
     B: BroadcasterClient,
 {
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
-        rpc_client: C,
+        rpc_client: RpcClient,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
@@ -94,9 +95,8 @@ where
 }
 
 #[async_trait]
-impl<C, B> EventHandler for Handler<C, B>
+impl<B> EventHandler for Handler<B>
 where
-    C: SolanaClient + Send + Sync,
     B: BroadcasterClient + Send + Sync,
 {
     type Err = Error;
@@ -135,7 +135,14 @@ where
 
         let mut sol_txs: Vec<EncodedConfirmedTransactionWithStatusMeta> = Vec::new();
         for msg_tx in tx_ids_from_msg {
-            let sol_tx = self.rpc_client.get_transaction(&msg_tx).await.map_err(|_|Error::TxReceipts)?;
+            let sol_tx = self
+                .rpc_client
+                .get_transaction(
+                    &Signature::from_str(&msg_tx).unwrap(),
+                    UiTransactionEncoding::Json,
+                )
+                .await
+                .map_err(|_| Error::TxReceipts)?;
             sol_txs.push(sol_tx);
         }
 
@@ -157,13 +164,14 @@ mod test {
     use axelar_wasm_std::nonempty;
     use base64::{engine::general_purpose::STANDARD, Engine};
     use events::Event;
+    use solana_client::rpc_request::RpcRequest;
     use tendermint::abci;
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::{
         queue::queued_broadcaster::MockBroadcasterClient,
-        solana::json_rpc::MockSolanaClient,
+        solana::test_utils::rpc_client_with_recorder,
         types::{EVMAddress, Hash},
         PREFIX,
     };
@@ -185,11 +193,8 @@ mod test {
             .expect_broadcast::<MsgExecuteContract>()
             .once()
             .returning(|_| Ok(()));
-        let mut sol_client = MockSolanaClient::new();
-        sol_client
-            .expect_get_transaction()
-            .times(2)
-            .returning(|_| Ok(dummy_tx_type()));
+
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
             get_poll_started_event(participants(5, Some(worker.clone())), 100),
@@ -197,9 +202,13 @@ mod test {
         );
 
         let handler =
-            super::Handler::new(worker, voting_verifier, sol_client, broadcast_client, rx);
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
 
         handler.handle(&event).await.unwrap();
+        assert_eq!(
+            Some(&2),
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
     }
 
     #[async_test]
@@ -216,11 +225,8 @@ mod test {
             .expect_broadcast::<MsgExecuteContract>()
             .once()
             .returning(|_| Ok(()));
-        let mut sol_client = MockSolanaClient::new();
-        sol_client
-            .expect_get_transaction()
-            .once() // Only the first msg is verified, skipping the duplicated one.
-            .returning(|_| Ok(dummy_tx_type()));
+
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
             get_poll_started_event_with_duplicates(participants(5, Some(worker.clone())), 100),
@@ -228,9 +234,14 @@ mod test {
         );
 
         let handler =
-            super::Handler::new(worker, voting_verifier, sol_client, broadcast_client, rx);
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            Some(&1),
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
     }
 
     fn dummy_tx_type() -> EncodedConfirmedTransactionWithStatusMeta {
@@ -252,8 +263,7 @@ mod test {
             .expect_broadcast::<MsgExecuteContract>()
             .never();
 
-        let mut sol_client = MockSolanaClient::new();
-        sol_client.expect_get_transaction().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
             get_poll_started_event(participants(5, Some(worker.clone())), 100),
@@ -261,9 +271,14 @@ mod test {
         );
 
         let handler =
-            super::Handler::new(worker, voting_verifier, sol_client, broadcast_client, rx);
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
     }
 
     #[async_test]
@@ -280,8 +295,7 @@ mod test {
             .expect_broadcast::<MsgExecuteContract>()
             .never();
 
-        let mut sol_client = MockSolanaClient::new();
-        sol_client.expect_get_transaction().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
             get_poll_started_event(participants(5, None), 100), // This worker is not in participant set. So will skip the event.
@@ -289,9 +303,14 @@ mod test {
         );
 
         let handler =
-            super::Handler::new(worker, voting_verifier, sol_client, broadcast_client, rx);
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
     }
 
     #[async_test]
@@ -308,8 +327,7 @@ mod test {
             .expect_broadcast::<MsgExecuteContract>()
             .never();
 
-        let mut sol_client = MockSolanaClient::new();
-        sol_client.expect_get_transaction().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
             get_poll_started_event(participants(5, Some(worker.clone())), 100),
@@ -317,9 +335,14 @@ mod test {
         );
 
         let handler =
-            super::Handler::new(worker, voting_verifier, sol_client, broadcast_client, rx);
+            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
     }
 
     fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
@@ -364,7 +387,7 @@ mod test {
             },
             messages: vec![
                 TxEventConfirmation {
-                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
+                    tx_id: nonempty::String::from_str("3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP").unwrap(),
                     event_index: 10,
                     source_address: "sol".to_string().parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
@@ -372,7 +395,7 @@ mod test {
                     payload_hash: Hash::random().to_fixed_bytes(),
                 },
                 TxEventConfirmation {
-                    tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
+                    tx_id: nonempty::String::from_str("41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT").unwrap(),
                     event_index: 11,
                     source_address: "sol".to_string().parse().unwrap(),
                     destination_chain: "ethereum".parse().unwrap(),
@@ -387,7 +410,7 @@ mod test {
         participants: Vec<TMAddress>,
         expires_at: u64,
     ) -> PollStarted {
-        let tx_id: nonempty::String = format!("0x{:x}", Hash::random()).parse().unwrap();
+        let tx_id = nonempty::String::from_str("41SgBTfsWbkdixDdVNESM6YmDAzEcKEubGPkaXmtTVUd2EhMaqPEy3qh5ReTtTb4Le4F16SSBFjQCxkekamNrFNT").unwrap();
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),

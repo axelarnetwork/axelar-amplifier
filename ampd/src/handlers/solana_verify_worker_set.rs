@@ -3,6 +3,9 @@ use std::convert::TryInto;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
+use solana_sdk::signature::Signature;
+use solana_transaction_status::UiTransactionEncoding;
+use std::str::FromStr;
 use tokio::sync::watch::Receiver;
 use tracing::info;
 
@@ -12,12 +15,12 @@ use events_derive::try_from;
 
 use axelar_wasm_std::voting::{PollId, Vote};
 use connection_router::state::ChainName;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
-use crate::solana::json_rpc::SolanaClient;
 use crate::solana::ws_verifier::{parse_gateway_event, verify_worker_set};
 use crate::types::{TMAddress, U256};
 
@@ -52,29 +55,27 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
-pub struct Handler<C, B>
+pub struct Handler<B>
 where
-    C: SolanaClient + Send + Sync,
     B: BroadcasterClient,
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
     chain: ChainName,
-    rpc_client: C,
+    rpc_client: RpcClient,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
 
-impl<C, B> Handler<C, B>
+impl<B> Handler<B>
 where
-    C: SolanaClient + Send + Sync,
     B: BroadcasterClient,
 {
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
         chain: ChainName,
-        rpc_client: C,
+        rpc_client: RpcClient,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
@@ -109,9 +110,8 @@ where
 }
 
 #[async_trait]
-impl<C, B> EventHandler for Handler<C, B>
+impl<B> EventHandler for Handler<B>
 where
-    C: SolanaClient + Send + Sync,
     B: BroadcasterClient + Send + Sync,
 {
     type Err = Error;
@@ -153,7 +153,10 @@ where
 
         let sol_tx = self
             .rpc_client
-            .get_transaction(&worker_set.tx_id)
+            .get_transaction(
+                &Signature::from_str(&worker_set.tx_id).unwrap(),
+                UiTransactionEncoding::Json,
+            )
             .await
             .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
 
@@ -166,14 +169,14 @@ where
             _ => return self.broadcast_vote(poll_id, Vote::FailedOnChain).await,
         };
 
-        let account_info = self
+        let account_data = self
             .rpc_client
-            .get_account_info(&pub_key.to_string())
+            .get_account_data(&pub_key)
             .await
             .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
 
         let vote =
-            verify_worker_set(&source_gateway_address, &sol_tx, &worker_set, &account_info).await;
+            verify_worker_set(&source_gateway_address, &sol_tx, &worker_set, &account_data).await;
         self.broadcast_vote(poll_id, vote).await
     }
 }
@@ -185,12 +188,13 @@ mod tests {
     use axelar_wasm_std::{nonempty, operators::Operators};
     use cosmwasm_std::HexBinary;
     use prost::Message;
+    use solana_client::rpc_request::RpcRequest;
     use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
 
     use crate::{
         handlers::tests::get_event, queue::queued_broadcaster::MockBroadcasterClient,
-        solana::json_rpc::MockSolanaClient, PREFIX,
+        solana::test_utils::rpc_client_with_recorder, PREFIX,
     };
 
     use tokio::test as async_test;
@@ -202,9 +206,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
         let voting_verifier = TMAddress::random(PREFIX);
 
-        let mut rpc_client = MockSolanaClient::new();
-        rpc_client.expect_get_transaction().never();
-        rpc_client.expect_get_account_info().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let broadcast_client = MockBroadcasterClient::new();
 
@@ -226,6 +228,9 @@ mod tests {
         );
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
     }
 
     #[async_test]
@@ -233,9 +238,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
         let voting_verifier = TMAddress::random(PREFIX);
 
-        let mut rpc_client = MockSolanaClient::new();
-        rpc_client.expect_get_transaction().never();
-        rpc_client.expect_get_account_info().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let broadcast_client = MockBroadcasterClient::new();
         let expiration = 100u64;
@@ -255,7 +258,10 @@ mod tests {
             &voting_verifier,
         );
 
-        handler.handle(&event).await.unwrap();
+        handler.handle(&event).await.unwrap();       
+
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
     }
 
     #[async_test]
@@ -263,9 +269,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
         let voting_verifier = TMAddress::random(PREFIX);
 
-        let mut rpc_client = MockSolanaClient::new();
-        rpc_client.expect_get_transaction().never();
-        rpc_client.expect_get_account_info().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let broadcast_client = MockBroadcasterClient::new();
         let expiration = 100u64;
@@ -286,6 +290,9 @@ mod tests {
         );
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
     }
 
     #[async_test]
@@ -293,9 +300,7 @@ mod tests {
         let worker = TMAddress::random(PREFIX);
         let voting_verifier = TMAddress::random(PREFIX);
 
-        let mut rpc_client = MockSolanaClient::new();
-        rpc_client.expect_get_transaction().never();
-        rpc_client.expect_get_account_info().never();
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let broadcast_client = MockBroadcasterClient::new();
         let expiration = 100u64;
@@ -316,6 +321,9 @@ mod tests {
         );
 
         handler.handle(&event).await.unwrap();
+
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
+        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
     }
 
     fn worker_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {

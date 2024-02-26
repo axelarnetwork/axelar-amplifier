@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::voting::Vote;
 use base64::Engine as _;
-use borsh::{BorshDeserialize, BorshSerialize};
 
 use auth_weighted::types::operator::Operators;
 use base64::{self, engine::general_purpose};
@@ -12,7 +11,6 @@ use tracing::{error, info};
 
 use crate::handlers::solana_verify_worker_set::{self, WorkerSetConfirmation};
 
-use super::{json_rpc::AccountInfo};
 use gmp_gateway::events::GatewayEvent;
 
 #[inline]
@@ -54,7 +52,7 @@ pub async fn verify_worker_set(
     source_gateway_address: &String,
     sol_tx: &EncodedConfirmedTransactionWithStatusMeta,
     worker_set: &WorkerSetConfirmation,
-    account_info: &AccountInfo,
+    account_data: &Vec<u8>,
 ) -> Vote {
     let ui_tx = match &sol_tx.transaction.transaction {
         solana_transaction_status::EncodedTransaction::Json(tx) => tx,
@@ -97,7 +95,7 @@ pub async fn verify_worker_set(
         return Vote::FailedOnChain;
     }
 
-    let onchain_operators = match parse_onchain_operators(account_info) {
+    let onchain_operators = match parse_onchain_operators(account_data) {
         Ok(ops) => ops,
         Err(err) => {
             info!(tx_id = &worker_set.tx_id, err = err.to_string());
@@ -118,23 +116,14 @@ fn verify_worker_set_operators_data(
     ops == aw_ops
 }
 
-fn parse_onchain_operators(account_info: &AccountInfo) -> Result<Operators> {
-    if account_info.value.data.len() < 2 {
+fn parse_onchain_operators(account_data: &Vec<u8>) -> Result<Operators> {
+    if account_data.is_empty() {
         return Err(VerificationError::ParsingError(
             "Could not find solana account data.".to_string(),
         ));
     }
 
-    let account_data = match decode_base64(&account_info.value.data[0]) {
-        Some(data) => data,
-        None => {
-            return Err(VerificationError::ParsingError(
-                "Cannot base64 decode account data.".to_string(),
-            ))
-        }
-    };
-
-    let operators = match borsh::de::from_slice::<Operators>(&account_data) {
+    let operators = match borsh::de::from_slice::<Operators>(account_data) {
         Ok(ops) => ops,
         Err(err) => {
             return Err(VerificationError::ParsingError(format!(
@@ -222,12 +211,11 @@ impl PartialEq<auth_weighted::types::u256::U256> for crate::types::U256 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        handlers::solana_verify_worker_set::Operators, solana::json_rpc::AccountInfoValue,
-    };
+    use crate::handlers::solana_verify_worker_set::Operators;
 
     use super::*;
     use auth_weighted::types::{address::Address, u256::U256};
+    use borsh::BorshSerialize;
     use cosmwasm_std::Uint256;
     use std::convert::TryFrom;
 
@@ -250,48 +238,19 @@ mod tests {
 
         let mut op_buff = Vec::new();
         onchain_operators.serialize(&mut op_buff).unwrap();
-        let onchain_operators_b64 = general_purpose::STANDARD.encode(op_buff);
-
-        let onchain_account_info = AccountInfo {
-            value: AccountInfoValue {
-                data: vec![onchain_operators_b64, "base64".to_string()],
-            },
-        };
 
         assert_eq!(
             onchain_operators,
-            parse_onchain_operators(&onchain_account_info).unwrap()
+            parse_onchain_operators(&op_buff).unwrap()
         )
     }
 
     #[test]
     fn test_incorrect_deserialization_auth_weight_operators_failing_index() {
-        let onchain_account_info = AccountInfo {
-            value: AccountInfoValue {
-                data: vec![], // No data
-            },
-        };
-
         assert_eq!(
-            parse_onchain_operators(&onchain_account_info),
+            parse_onchain_operators(&vec![]),
             Err(VerificationError::ParsingError(
                 "Could not find solana account data.".to_string()
-            ))
-        )
-    }
-
-    #[test]
-    fn test_incorrect_deserialization_auth_weight_operators_failing_base64() {
-        let onchain_account_info = AccountInfo {
-            value: AccountInfoValue {
-                data: vec!["22".to_string(), "base64".to_string()], // Bad data base64.
-            },
-        };
-
-        assert_eq!(
-            parse_onchain_operators(&onchain_account_info),
-            Err(VerificationError::ParsingError(
-                "Cannot base64 decode account data.".to_string()
             ))
         )
     }
@@ -316,16 +275,9 @@ mod tests {
         let mut op_buff = Vec::new();
         onchain_operators.serialize(&mut op_buff).unwrap();
         op_buff[0] = 1; // We mangle the data in order to borsh to fail.
-        let onchain_operators_b64 = general_purpose::STANDARD.encode(op_buff);
-
-        let onchain_account_info = AccountInfo {
-            value: AccountInfoValue {
-                data: vec![onchain_operators_b64, "base64".to_string()],
-            },
-        };
 
         assert_eq!(
-            parse_onchain_operators(&onchain_account_info),
+            parse_onchain_operators(&op_buff),
             Err(VerificationError::ParsingError(
                 "Cannot borsh decode account data: failed to fill whole buffer".to_string()
             ))
