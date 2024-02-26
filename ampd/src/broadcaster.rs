@@ -20,7 +20,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tonic::Status;
 use tracing::debug;
-use tracing::info;
 use valuable::Valuable;
 
 use crate::tofnd::grpc::SharableEcdsaClient;
@@ -137,7 +136,7 @@ where
             .change_context(Error::Broadcast)
             .await?;
         let TxResponse {
-            height,
+            height: _height,
             txhash: tx_hash,
             ..
         } = &response;
