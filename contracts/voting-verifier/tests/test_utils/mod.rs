@@ -56,10 +56,3 @@ impl Contract for VotingVerifierContract {
         self.contract_addr.clone()
     }
 }
-
-pub fn are_contract_err_strings_equal(
-    actual: impl Into<axelar_wasm_std::ContractError>,
-    expected: impl Into<axelar_wasm_std::ContractError>,
-) {
-    assert_eq!(actual.into().to_string(), expected.into().to_string());
-}
