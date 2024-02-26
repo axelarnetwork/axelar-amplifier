@@ -151,14 +151,22 @@ where
             return Ok(());
         }
 
-        let sol_tx = self
+        let sol_tx = match self
             .rpc_client
             .get_transaction(
                 &Signature::from_str(&worker_set.tx_id).unwrap(),
                 UiTransactionEncoding::Json,
             )
             .await
-            .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
+        {
+            Ok(tx) => tx,
+            Err(err) => match err.kind() {
+                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
+                    return self.broadcast_vote(poll_id, Vote::NotFound).await
+                }
+                _ => return Err(Error::TxReceipts)?,
+            },
+        };
 
         let gw_event = parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
 
@@ -169,11 +177,15 @@ where
             _ => return self.broadcast_vote(poll_id, Vote::FailedOnChain).await,
         };
 
-        let account_data = self
-            .rpc_client
-            .get_account_data(&pub_key)
-            .await
-            .map_err(|_| Error::TxReceipts)?; // Todo, maybe we should check wether this is an empty response or a network failure. The later, should throw Error::TxReceipts. But if the RPC clients fails on a not found entity, we should probably emit Vote::FailedOnChain vote instead.
+        let account_data = match self.rpc_client.get_account_data(&pub_key).await {
+            Ok(data) => data,
+            Err(err) => match err.kind() {
+                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
+                    return self.broadcast_vote(poll_id, Vote::FailedOnChain).await
+                }
+                _ => return Err(Error::TxReceipts)?,
+            },
+        };
 
         let vote =
             verify_worker_set(&source_gateway_address, &sol_tx, &worker_set, &account_data).await;
@@ -229,8 +241,14 @@ mod tests {
 
         handler.handle(&event).await.unwrap();
 
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
+        );
     }
 
     #[async_test]
@@ -258,10 +276,16 @@ mod tests {
             &voting_verifier,
         );
 
-        handler.handle(&event).await.unwrap();       
+        handler.handle(&event).await.unwrap();
 
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
+        );
     }
 
     #[async_test]
@@ -291,8 +315,14 @@ mod tests {
 
         handler.handle(&event).await.unwrap();
 
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
+        );
     }
 
     #[async_test]
@@ -322,8 +352,14 @@ mod tests {
 
         handler.handle(&event).await.unwrap();
 
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetTransaction));
-        assert_eq!(None, rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo));
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
+        assert_eq!(
+            None,
+            rpc_recorder.read().await.get(&RpcRequest::GetAccountInfo)
+        );
     }
 
     fn worker_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
