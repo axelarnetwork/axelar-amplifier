@@ -94,7 +94,7 @@ mod test {
         "source_chain".parse().unwrap()
     }
 
-    fn are_contract_err_strings_equal(
+    fn assert_contract_err_strings_equal(
         actual: impl Into<axelar_wasm_std::ContractError>,
         expected: impl Into<axelar_wasm_std::ContractError>,
     ) {
@@ -122,10 +122,6 @@ mod test {
         ]
     }
 
-    fn mock_service_registry_query() -> StdResult<Binary> {
-        to_binary(&workers())
-    }
-
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
 
@@ -146,7 +142,7 @@ mod test {
 
         deps.querier.update_wasm(|wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
-                Ok(mock_service_registry_query().into()).into()
+                Ok(to_binary(&workers()).into()).into()
             }
             _ => panic!("no mock for this query"),
         });
@@ -210,7 +206,7 @@ mod test {
             ],
         };
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
-        are_contract_err_strings_equal(err, ContractError::SourceChainMismatch(source_chain()));
+        assert_contract_err_strings_equal(err, ContractError::SourceChainMismatch(source_chain()));
     }
 
     #[test]
@@ -346,6 +342,9 @@ mod test {
         let mut deps = setup();
 
         let messages = messages(4);
+
+        // 1. First verification
+
         let msg_verify = ExecuteMsg::VerifyMessages {
             messages: messages.clone(),
         };
@@ -358,6 +357,8 @@ mod test {
         );
         assert!(res.is_ok());
 
+        // 2. Workers cast votes, but only reach consensus on the first three messages
+
         workers().iter().enumerate().for_each(|(i, worker)| {
             let msg = ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
@@ -366,6 +367,7 @@ mod test {
                     Vote::FailedOnChain,
                     Vote::NotFound,
                     if i % 2 == 0 {
+                        // workers vote is divided so no consensus is reached
                         Vote::SucceededOnChain
                     } else {
                         Vote::FailedOnChain
@@ -381,6 +383,8 @@ mod test {
             );
             assert!(res.is_ok());
         });
+
+        // 3. Poll is ended. First three messages reach consensus, last one does not
 
         let msg = ExecuteMsg::EndPoll {
             poll_id: 1u64.into(),
@@ -420,6 +424,9 @@ mod test {
                 )
             ]
         );
+
+        // 3. Retry verification. From the three messages that reached consensus, only the first two have a
+        // status considered final (SucceddedOnChan or FailedOnChain), so the last two are retried
 
         let res = execute(
             deps.as_mut(),
@@ -840,6 +847,6 @@ mod test {
             },
         )
         .unwrap_err();
-        are_contract_err_strings_equal(err, ContractError::WorkerSetAlreadyConfirmed);
+        assert_contract_err_strings_equal(err, ContractError::WorkerSetAlreadyConfirmed);
     }
 }
