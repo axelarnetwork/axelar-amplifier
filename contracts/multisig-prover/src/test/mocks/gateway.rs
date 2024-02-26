@@ -26,7 +26,7 @@ pub fn execute(
 
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetMessages { message_ids: _ } => {
+        QueryMsg::GetOutgoingMessages { message_ids: _ } => {
             let res = test_data::messages();
             to_binary(&res)
         }

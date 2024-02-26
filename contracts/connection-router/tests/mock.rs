@@ -30,13 +30,13 @@ pub fn mock_gateway_execute(
 
 #[cw_serde]
 pub enum MockGatewayQueryMsg {
-    GetMessages { ids: Vec<CrossChainId> },
+    GetOutgoingMessages { ids: Vec<CrossChainId> },
 }
 pub fn mock_gateway_query(deps: Deps, _env: Env, msg: MockGatewayQueryMsg) -> StdResult<Binary> {
     let mut msgs = vec![];
 
     match msg {
-        MockGatewayQueryMsg::GetMessages { ids } => {
+        MockGatewayQueryMsg::GetOutgoingMessages { ids } => {
             for id in ids {
                 match MOCK_GATEWAY_MESSAGES.may_load(deps.storage, id)? {
                     Some(m) => msgs.push(m),
@@ -56,7 +56,7 @@ pub fn get_gateway_messages(
     app.wrap()
         .query_wasm_smart(
             gateway_address,
-            &MockGatewayQueryMsg::GetMessages {
+            &MockGatewayQueryMsg::GetOutgoingMessages {
                 ids: msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
             },
         )

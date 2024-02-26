@@ -221,7 +221,7 @@ pub fn get_messages_from_gateway(
 ) -> Vec<Message> {
     let query_response = app.wrap().query_wasm_smart(
         gateway_address,
-        &gateway_api::msg::QueryMsg::GetMessages {
+        &gateway_api::msg::QueryMsg::GetOutgoingMessages {
             message_ids: message_ids.to_owned(),
         },
     );

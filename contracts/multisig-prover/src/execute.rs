@@ -85,7 +85,7 @@ fn get_messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway_api::msg::QueryMsg::GetMessages { message_ids };
+    let query = gateway_api::msg::QueryMsg::GetOutgoingMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,
