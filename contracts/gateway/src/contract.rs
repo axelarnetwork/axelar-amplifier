@@ -120,7 +120,7 @@ mod internal {
 
     pub(crate) fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, Error> {
         match msg {
-            QueryMsg::GetMessages { message_ids } => {
+            QueryMsg::GetOutgoingMessages { message_ids } => {
                 let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
                 to_binary(&msgs).change_context(Error::SerializeResponse)
             }
