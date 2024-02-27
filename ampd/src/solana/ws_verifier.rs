@@ -31,9 +31,9 @@ pub enum VerificationError {
 type Result<T> = std::result::Result<T, VerificationError>;
 
 pub fn parse_gateway_event(tx: &EncodedConfirmedTransactionWithStatusMeta) -> Result<GatewayEvent> {
-    let Some(meta) = tx.transaction.meta else {
+    let Some(meta) = &tx.transaction.meta else {
         return Err(VerificationError::NoLogMessages);
-    }
+    };
 
     let log_messages = match &meta.log_messages {
         solana_transaction_status::option_serializer::OptionSerializer::Some(log_msg) => log_msg,
@@ -61,7 +61,7 @@ pub async fn verify_worker_set(
     };
 
     // NOTE: first signature is always tx_id
-    let Some(tx_id) = match ui_tx.signatures.first() else {
+    let Some(tx_id) = ui_tx.signatures.first() else {
         error!("failed to parse solana tx signatures.");
         return Vote::FailedOnChain;
     };
@@ -95,10 +95,10 @@ pub async fn verify_worker_set(
         }
     };
 
-    if worker_set.operators == onchain_operators) {
+    if worker_set.operators == onchain_operators {
         Vote::SucceededOnChain
     } else {
-        Vote::FailedOnChain,
+        Vote::FailedOnChain
     }
 }
 
@@ -236,7 +236,7 @@ mod tests {
         assert_eq!(
             parse_onchain_operators(&vec![]),
             Err(VerificationError::ParsingError(
-                "Could not find solana account data.".to_string()
+                "Solana account is empty.".to_string()
             ))
         )
     }
@@ -273,14 +273,14 @@ mod tests {
     #[test]
     fn test_verify_worker_set_operators_data_happy_path() {
         let (ops, sol_ops) = matching_axelar_operators_and_onchain_operators();
-        assert!(verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(&ops == &sol_ops)
     }
 
     #[test]
     fn test_verify_worker_set_operators_data_fails_not_eq_threshold() {
         let (mut ops, sol_ops) = matching_axelar_operators_and_onchain_operators();
         ops.threshold = crate::types::U256::from(Uint256::MAX);
-        assert!(!verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(&ops != &sol_ops)
     }
 
     #[test]
@@ -298,7 +298,7 @@ mod tests {
                 crate::types::U256::from(Uint256::from_u128(200)),
             ),
         ];
-        assert!(!verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(&ops != &sol_ops)
     }
 
     #[test]
@@ -314,7 +314,7 @@ mod tests {
                 crate::types::U256::from(Uint256::from_u128(1)), // here is a different weight than expected.
             ),
         ];
-        assert!(!verify_worker_set_operators_data(&ops, &sol_ops))
+        assert!(&ops != &sol_ops)
     }
 
     fn matching_axelar_operators_and_onchain_operators(
