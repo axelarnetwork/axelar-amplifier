@@ -95,17 +95,11 @@ pub async fn verify_worker_set(
         }
     };
 
-    match verify_worker_set_operators_data(&worker_set.operators, &onchain_operators) {
-        true => Vote::SucceededOnChain,
-        false => Vote::FailedOnChain,
+    if worker_set.operators == onchain_operators) {
+        Vote::SucceededOnChain
+    } else {
+        Vote::FailedOnChain,
     }
-}
-
-fn verify_worker_set_operators_data(
-    ops: &solana_verify_worker_set::Operators,
-    aw_ops: &Operators,
-) -> bool {
-    ops == aw_ops
 }
 
 fn parse_onchain_operators(account_data: &Vec<u8>) -> Result<Operators> {
