@@ -71,15 +71,12 @@ pub async fn verify_worker_set(
         return Vote::FailedOnChain;
     }
 
-    let ui_parsed_msg = match &ui_tx.message {
-        solana_transaction_status::UiMessage::Raw(msg) => msg,
-        _ => {
-            error!(
-                tx_id = tx_id,
-                "Could not gather tx message for checking account keys."
-            );
-            return Vote::FailedOnChain;
-        }
+    let solana_transaction_status::UiMessage::Raw(ui_parsed_msg) = &ui_tx.message else {
+        error!(
+            tx_id = tx_id,
+            "Could not gather tx message for checking account keys."
+        );
+        return Vote::FailedOnChain;
     };
 
     if !ui_parsed_msg.account_keys.contains(source_gateway_address) {
