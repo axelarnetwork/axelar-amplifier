@@ -31,11 +31,9 @@ pub enum VerificationError {
 type Result<T> = std::result::Result<T, VerificationError>;
 
 pub fn parse_gateway_event(tx: &EncodedConfirmedTransactionWithStatusMeta) -> Result<GatewayEvent> {
-    if tx.transaction.meta.is_none() {
+    let Some(meta) = tx.transaction.meta else {
         return Err(VerificationError::NoLogMessages);
     }
-
-    let meta = tx.transaction.meta.as_ref().unwrap();
 
     let log_messages = match &meta.log_messages {
         solana_transaction_status::option_serializer::OptionSerializer::Some(log_msg) => log_msg,
