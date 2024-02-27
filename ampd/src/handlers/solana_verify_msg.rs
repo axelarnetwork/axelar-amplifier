@@ -147,11 +147,34 @@ where
                 }
             };
 
-            let sol_tx = self
+            let sol_tx = match self
                 .rpc_client
                 .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
                 .await
-                .map_err(|_| Error::TxReceipts)?;
+            {
+                Ok(tx) => tx,
+                Err(err) => match err.kind() {
+                    // When tx is not found a null is returned.
+                    solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
+                        error!(
+                            tx_id = msg_tx,
+                            poll_id = poll_id.to_string(),
+                            err = err.to_string(),
+                            "Cannot find solana tx signature"
+                        );
+                        continue;
+                    }
+                    _ => {
+                        error!(
+                            tx_id = msg_tx,
+                            poll_id = poll_id.to_string(),
+                            "RPC error while fetching solana tx"
+                        );
+                        continue;
+                    }
+                },
+            };
+
             sol_txs.push(sol_tx);
         }
 
