@@ -105,7 +105,7 @@ pub async fn verify_worker_set(
 fn parse_onchain_operators(account_data: &Vec<u8>) -> Result<Operators> {
     if account_data.is_empty() {
         return Err(VerificationError::ParsingError(
-            "Could not find solana account data.".to_string(),
+            "Solana account is empty.".to_string(),
         ));
     }
 
