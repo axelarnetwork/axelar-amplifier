@@ -61,12 +61,9 @@ pub async fn verify_worker_set(
     };
 
     // NOTE: first signature is always tx_id
-    let tx_id = match ui_tx.signatures.first() {
-        Some(tx) => tx,
-        None => {
-            error!("failed to parse solana tx signatures.");
-            return Vote::FailedOnChain;
-        }
+    let Some(tx_id) = match ui_tx.signatures.first() else {
+        error!("failed to parse solana tx signatures.");
+        return Vote::FailedOnChain;
     };
 
     if worker_set.tx_id != *tx_id {
