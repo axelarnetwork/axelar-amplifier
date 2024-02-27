@@ -157,11 +157,9 @@ impl PartialEq<gmp_gateway::types::operator::Operators> for solana_verify_worker
             .iter()
             .zip(aw_ops.weights())
             .try_for_each(|(address, weight)| {
-                let axelar_addr_weight = addresses_weights.get_key_value(address.as_ref());
-                if axelar_addr_weight.is_none() {
+                let Some((axelar_address, axelar_weight)) = addresses_weights.get_key_value(address.as_ref()) else {
                     return Err(());
-                }
-                let (axelar_address, axelar_weight) = axelar_addr_weight.unwrap();
+                };
 
                 if address.as_ref() != axelar_address {
                     return Err(());
