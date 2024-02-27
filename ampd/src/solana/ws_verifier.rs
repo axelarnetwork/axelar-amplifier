@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::voting::Vote;
-use base64::Engine as _;
 
 use gmp_gateway::types::operator::Operators;
-use base64::{self, engine::general_purpose};
 use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use thiserror::Error;
 use tracing::{error, info};
@@ -12,11 +10,6 @@ use tracing::{error, info};
 use crate::handlers::solana_verify_worker_set::{self, WorkerSetConfirmation};
 
 use gmp_gateway::events::GatewayEvent;
-
-#[inline]
-fn decode_base64(input: &str) -> Option<Vec<u8>> {
-    general_purpose::STANDARD.decode(input).ok()
-}
 
 #[derive(Error, Debug, PartialEq)]
 pub enum VerificationError {
@@ -204,9 +197,9 @@ mod tests {
     use crate::handlers::solana_verify_worker_set::Operators;
 
     use super::*;
-    use gmp_gateway::types::{address::Address, u256::U256};
     use borsh::BorshSerialize;
     use cosmwasm_std::Uint256;
+    use gmp_gateway::types::{address::Address, u256::U256};
     use std::convert::TryFrom;
 
     #[test]
