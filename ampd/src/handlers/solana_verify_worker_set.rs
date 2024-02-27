@@ -94,7 +94,8 @@ where
             poll_id,
             votes: vec![vote],
         })
-        .expect("vote msg should serialize");
+        .map_err(|_| Error::Broadcaster)?;
+
         let tx = MsgExecuteContract {
             sender: self.worker.as_ref().clone(),
             contract: self.voting_verifier.as_ref().clone(),
