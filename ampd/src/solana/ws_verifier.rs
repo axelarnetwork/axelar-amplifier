@@ -67,7 +67,7 @@ pub async fn verify_worker_set(
     };
 
     if worker_set.tx_id != *tx_id {
-        info!(tx_id = &worker_set.tx_id, "tx_id do not match");
+        error!(tx_id = &worker_set.tx_id, "tx_id do not match");
         return Vote::FailedOnChain;
     }
 
