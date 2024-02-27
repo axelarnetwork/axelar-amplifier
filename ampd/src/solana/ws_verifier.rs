@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axelar_wasm_std::voting::Vote;
 use base64::Engine as _;
 
-use auth_weighted::types::operator::Operators;
+use gmp_gateway::types::operator::Operators;
 use base64::{self, engine::general_purpose};
 use solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta;
 use thiserror::Error;
@@ -122,14 +122,14 @@ fn parse_onchain_operators(account_data: &Vec<u8>) -> Result<Operators> {
     Ok(operators)
 }
 
-impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_worker_set::Operators {
-    fn eq(&self, aw_ops: &auth_weighted::types::operator::Operators) -> bool {
+impl PartialEq<gmp_gateway::types::operator::Operators> for solana_verify_worker_set::Operators {
+    fn eq(&self, aw_ops: &gmp_gateway::types::operator::Operators) -> bool {
         if self.threshold != *aw_ops.threshold() {
             return false;
         }
 
         // Creating a hashmap for querying the data later. Using a not fixed size key like
-        // Vec<u8> could not be the best. We expect a 33 bytes slice as address. See ['auth_weighted::types::Address::ECDSA_COMPRESSED_PUBKEY_LEN']
+        // Vec<u8> could not be the best. We expect a 33 bytes slice as address. See ['gmp_gateway::types::Address::ECDSA_COMPRESSED_PUBKEY_LEN']
         // So probably we should try to use that after testing the first POC in order to reduce the domain of the key.
         let addresses_weights_res: Result<HashMap<Vec<u8>, crate::types::U256>> = self
             .weights_by_addresses
@@ -153,7 +153,7 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
                                     // and preparing conversions beforehand in another type.
         };
 
-        if aw_ops.weights_len() != aw_ops.addresses_len() {
+        if aw_ops.weights().len() != aw_ops.addresses().len() {
             return false;
         }
 
@@ -183,7 +183,7 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
     }
 }
 
-impl PartialEq<crate::types::U256> for auth_weighted::types::u256::U256 {
+impl PartialEq<crate::types::U256> for gmp_gateway::types::u256::U256 {
     fn eq(&self, loc_u256: &crate::types::U256) -> bool {
         let mut b: [u8; 32] = [0; 32];
         loc_u256.to_little_endian(&mut b);
@@ -191,8 +191,8 @@ impl PartialEq<crate::types::U256> for auth_weighted::types::u256::U256 {
     }
 }
 
-impl PartialEq<auth_weighted::types::u256::U256> for crate::types::U256 {
-    fn eq(&self, aw_u256: &auth_weighted::types::u256::U256) -> bool {
+impl PartialEq<gmp_gateway::types::u256::U256> for crate::types::U256 {
+    fn eq(&self, aw_u256: &gmp_gateway::types::u256::U256) -> bool {
         let mut b: [u8; 32] = [0; 32];
         self.to_little_endian(&mut b);
         aw_u256.to_le_bytes() == b
@@ -204,14 +204,14 @@ mod tests {
     use crate::handlers::solana_verify_worker_set::Operators;
 
     use super::*;
-    use auth_weighted::types::{address::Address, u256::U256};
+    use gmp_gateway::types::{address::Address, u256::U256};
     use borsh::BorshSerialize;
     use cosmwasm_std::Uint256;
     use std::convert::TryFrom;
 
     #[test]
     fn test_correct_deserialization_auth_weight_operators() {
-        let onchain_operators = auth_weighted::types::operator::Operators::new(
+        let onchain_operators = gmp_gateway::types::operator::Operators::new(
             vec![
                 Address::try_from(
                     "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn test_incorrect_deserialization_auth_weight_operators_failing_borsh_deserialization() {
-        let onchain_operators = auth_weighted::types::operator::Operators::new(
+        let onchain_operators = gmp_gateway::types::operator::Operators::new(
             vec![
                 Address::try_from(
                     "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
@@ -325,7 +325,7 @@ mod tests {
     fn test_verify_worker_set_operators_data_fails_not_same_elements() {
         let (ops, _) = matching_axelar_operators_and_onchain_operators();
 
-        let sol_ops = auth_weighted::types::operator::Operators::new(
+        let sol_ops = gmp_gateway::types::operator::Operators::new(
             vec![
                 Address::try_from(
                     "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
@@ -344,8 +344,8 @@ mod tests {
     }
 
     fn matching_axelar_operators_and_onchain_operators(
-    ) -> (Operators, auth_weighted::types::operator::Operators) {
-        let onchain_operators = auth_weighted::types::operator::Operators::new(
+    ) -> (Operators, gmp_gateway::types::operator::Operators) {
+        let onchain_operators = gmp_gateway::types::operator::Operators::new(
             vec![
                 Address::try_from(
                     "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn comparing_u256_and_aw_u256_works() {
         let u256 = crate::types::U256::from(Uint256::MAX);
-        let aw_u256 = auth_weighted::types::u256::U256::from_le_bytes([255; 32]); // Does not have a U256::MAX
+        let aw_u256 = gmp_gateway::types::u256::U256::from_le_bytes([255; 32]); // Does not have a U256::MAX
         assert!(u256 == aw_u256);
     }
 }

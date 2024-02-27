@@ -211,7 +211,6 @@ name = "ampd"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "auth-weighted",
  "axelar-wasm-std 0.1.0",
  "base64 0.21.7",
  "bcs",
@@ -764,25 +763,6 @@ dependencies = [
  "hermit-abi 0.1.19",
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "auth-weighted"
-version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/solana-axelar.git?branch=poc#465b8510cfdebd10d2a43eba70175af5c7793f70"
-dependencies = [
- "base64 0.21.7",
- "bimap",
- "bnum 0.10.0",
- "borsh 1.3.1",
- "bytemuck",
- "hex",
- "k256",
- "libsecp256k1 0.7.1",
- "num-derive 0.4.2",
- "num-traits",
- "solana-program",
- "thiserror",
 ]
 
 [[package]]
