@@ -7,7 +7,7 @@ use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
 use std::str::FromStr;
 use tokio::sync::watch::Receiver;
-use tracing::info;
+use tracing::{error, info};
 
 use async_trait::async_trait;
 use events::Error::EventTypeMismatch;
@@ -151,12 +151,22 @@ where
             return Ok(());
         }
 
+        let sol_tx_signature = match Signature::from_str(&worker_set.tx_id) {
+            Ok(sig) => sig,
+            Err(err) => {
+                error!(
+                    poll_id = poll_id.to_string(),
+                    err = err.to_string(),
+                    "Cannot decode solana tx signature"
+                );
+
+                return self.broadcast_vote(poll_id, Vote::FailedOnChain).await;
+            }
+        };
+
         let sol_tx = match self
             .rpc_client
-            .get_transaction(
-                &Signature::from_str(&worker_set.tx_id).unwrap(),
-                UiTransactionEncoding::Json,
-            )
+            .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
             .await
         {
             Ok(tx) => tx,

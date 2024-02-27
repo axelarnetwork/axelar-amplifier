@@ -8,7 +8,7 @@ use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTra
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::str::FromStr;
-use tracing::info;
+use tracing::{error, info};
 
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
@@ -135,12 +135,21 @@ where
 
         let mut sol_txs: Vec<EncodedConfirmedTransactionWithStatusMeta> = Vec::new();
         for msg_tx in tx_ids_from_msg {
+            let sol_tx_signature = match Signature::from_str(&msg_tx) {
+                Ok(sig) => sig,
+                Err(err) => {
+                    error!(
+                        poll_id = poll_id.to_string(),
+                        err = err.to_string(),
+                        "Cannot decode solana tx signature"
+                    );
+                    continue;
+                }
+            };
+
             let sol_tx = self
                 .rpc_client
-                .get_transaction(
-                    &Signature::from_str(&msg_tx).unwrap(),
-                    UiTransactionEncoding::Json,
-                )
+                .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
                 .await
                 .map_err(|_| Error::TxReceipts)?;
             sol_txs.push(sol_tx);
