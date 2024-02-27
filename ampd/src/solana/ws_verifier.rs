@@ -153,6 +153,10 @@ impl PartialEq<auth_weighted::types::operator::Operators> for solana_verify_work
                                     // and preparing conversions beforehand in another type.
         };
 
+        if aw_ops.weights_len() != aw_ops.addresses_len() {
+            return false;
+        }
+
         // Iterate both iterators (addresses and weights) coming from Solana chain. At the same time,
         // while querying the previously created map, which contains the Axelar counterpart.
         aw_ops
@@ -314,6 +318,28 @@ mod tests {
                 crate::types::U256::from(Uint256::from_u128(1)), // here is a different weight than expected.
             ),
         ];
+        assert!(&ops != &sol_ops)
+    }
+
+    #[test]
+    fn test_verify_worker_set_operators_data_fails_not_same_elements() {
+        let (ops, _) = matching_axelar_operators_and_onchain_operators();
+
+        let sol_ops = auth_weighted::types::operator::Operators::new(
+            vec![
+                Address::try_from(
+                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756d",
+                )
+                .unwrap(),
+                Address::try_from(
+                    "03f57d1a813febaccbe6429603f9ec57969511b76cd680452dba91fa01f54e756e",
+                )
+                .unwrap(),
+            ],
+            vec![U256::from(100u8)], // missing element !
+            U256::from(1u8),
+        );
+
         assert!(&ops != &sol_ops)
     }
 
