@@ -211,10 +211,6 @@ impl KeyDeserialize for KeyType {
     }
 }
 
-const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33;
-const ECDSA_UNCOMPRESSED_PUBKEY_LEN: usize = 65;
-
-const ED25519_PUBKEY_LEN: usize = 32;
 const ED25519_SIGNATURE_LEN: usize = 64;
 
 impl TryFrom<(KeyType, HexBinary)> for PublicKey {
@@ -223,22 +219,24 @@ impl TryFrom<(KeyType, HexBinary)> for PublicKey {
     fn try_from((key_type, pub_key): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
         match key_type {
             KeyType::Ecdsa => {
-                if pub_key.len() != ECDSA_COMPRESSED_PUBKEY_LEN
-                    && pub_key.len() != ECDSA_UNCOMPRESSED_PUBKEY_LEN
-                {
-                    return Err(ContractError::InvalidPublicKeyFormat {
-                        reason: "Invalid input length".into(),
-                    });
-                }
+                let pub_key = k256::PublicKey::from_sec1_bytes(pub_key.as_slice())
+                    .map_err(|_| ContractError::InvalidPublicKey)?
+                    .to_sec1_bytes()
+                    .as_ref()
+                    .into();
+
                 Ok(PublicKey::Ecdsa(pub_key))
             }
-
             KeyType::Ed25519 => {
-                if pub_key.len() != ED25519_PUBKEY_LEN {
-                    return Err(ContractError::InvalidPublicKeyFormat {
-                        reason: "Invalid input length".into(),
-                    });
-                }
+                let pub_key = ed25519_dalek::VerifyingKey::from_bytes(
+                    pub_key
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| ContractError::InvalidPublicKey)?,
+                )
+                .map_err(|_| ContractError::InvalidPublicKey)?
+                .to_bytes()
+                .into();
 
                 Ok(PublicKey::Ed25519(pub_key))
             }
@@ -339,9 +337,7 @@ mod ecdsa_tests {
         let hex = HexBinary::from_hex("049b").unwrap();
         assert_eq!(
             PublicKey::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
-            ContractError::InvalidPublicKeyFormat {
-                reason: "Invalid input length".into()
-            }
+            ContractError::InvalidPublicKey
         );
     }
 
@@ -451,9 +447,7 @@ mod ed25519_tests {
         let hex = HexBinary::from_hex("049b").unwrap();
         assert_eq!(
             PublicKey::try_from((KeyType::Ed25519, hex.clone())).unwrap_err(),
-            ContractError::InvalidPublicKeyFormat {
-                reason: "Invalid input length".into()
-            }
+            ContractError::InvalidPublicKey
         );
     }
 
@@ -513,7 +507,7 @@ mod ed25519_tests {
         let signature =
             Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
-        let public_key = PublicKey::try_from((KeyType::Ed25519, invalid_pub_key)).unwrap();
+        let public_key = PublicKey::Ed25519(invalid_pub_key);
         let result = signature.verify(&message, &public_key).unwrap();
         assert_eq!(result, false);
     }
