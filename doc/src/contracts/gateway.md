@@ -2,31 +2,33 @@
 
 The name `gateway` used in this documentation refers to those entities which reside
 on axelar chain, which can also be called internal gateways. On the other hand we have
-external gateways, which are on the external chains that axelar supports. 
+external gateways, which are gateways deployed on external chains connected to Axelar. 
 
-Gateway is how messages enter amplifier. Here are the steps taken throughout the lifecycle of 
+The gateway contract is how messages enter the amplifier protocol. 
+Here are the steps taken throughout the lifecycle of
 a message:
-1. Incoming messages are directed to the gateway.
-2. The gateway sends the messages to the verifier for verification.
-3. The verifier confirms the verification status back to the gateway.
-4. Upon verification, the gateway forwards the messages to the router.
-5. The router then transfers the messages to the gateway of other chains.
-6. The prover retrieves the messages from the gateway and organizes them into a batch.
-7. The relayer picks up the batch for further processing.
+1. User sends a message to the external gateway. We call this incoming message.
+2. Incoming messages are sent to the gateway via `VerifyMessages`.
+3. The gateway calls `VerifyMessages` on the verifier, which submits the messages for verification (or just returns true if already verified).
+4. The messages are verified asynchronously, and the verification status is stored in the verifier.
+5. Once the messages are verified, `RouteMessages` is called at the gateway, which forwards the verified messages to the router.
+6. The router forwards each message to the gateway registered to the destination chain specified in the message.
+7. The prover retrieves the messages from the gateway, organizes them into a batch and submits the batch for signing.
+8. The relayer sends the signed batch to the external gateway.
 
 
 ## Gateway graph
 ```mermaid
 flowchart TD
 subgraph Axelar
-    Rl{"Relayer"}
     Sg{"Source Gateway"}
     Dg{"Destination Gateway"}
     Rt{"Router"}
 end
+Rl{"Relayer"}
 Eg{"External Gateway"}
 
-Eg -- "Message:M1" --> Rl
+Rl -- "Listen for Message:M1 Event" --> Eg
 Rl -- "M1" --> Sg
 Sg -- "M1" --> Rt
 Rt -- "M1" --> Dg
