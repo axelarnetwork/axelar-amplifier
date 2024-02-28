@@ -172,10 +172,23 @@ where
         {
             Ok(tx) => tx,
             Err(err) => match err.kind() {
-                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
-                    return self.broadcast_vote(poll_id, Vote::NotFound).await
+                solana_client::client_error::ClientErrorKind::SerdeJson(err) => {
+                    error!(
+                        tx_signature = sol_tx_signature.to_string(),
+                        err = err.to_string(),
+                        poll_id = poll_id.to_string(),
+                        "Could not find solana transaction."
+                    );
+                    return self.broadcast_vote(poll_id, Vote::NotFound).await;
                 }
-                _ => return Err(Error::TxReceipts)?,
+                _ => {
+                    error!(
+                        tx_signature = sol_tx_signature.to_string(),
+                        poll_id = poll_id.to_string(),
+                        "RPC error while fetching transaction."
+                    );
+                    return Err(Error::TxReceipts)?;
+                }
             },
         };
 
@@ -185,17 +198,27 @@ where
             GatewayEvent::OperatorshipTransferred {
                 info_account_address,
             } => info_account_address,
-            _ => return self.broadcast_vote(poll_id, Vote::FailedOnChain).await,
+            _ => {
+                error!(
+                    tx_signature = sol_tx_signature.to_string(),
+                    poll_id = poll_id.to_string(),
+                    "Error parsing gateway event."
+                );
+                return self.broadcast_vote(poll_id, Vote::FailedOnChain).await;
+            }
         };
 
         let account_data = match self.rpc_client.get_account_data(&pub_key).await {
             Ok(data) => data,
-            Err(err) => match err.kind() {
-                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
-                    return self.broadcast_vote(poll_id, Vote::FailedOnChain).await
-                }
-                _ => return Err(Error::TxReceipts)?,
-            },
+            Err(err) => {
+                error!(
+                    tx_signature = sol_tx_signature.to_string(),
+                    pub_key = pub_key.to_string(),
+                    poll_id = poll_id.to_string(),
+                    err = format!("Error fetching account data: {}", err),
+                );
+                return self.broadcast_vote(poll_id, Vote::FailedOnChain).await;
+            }
         };
 
         let vote =
