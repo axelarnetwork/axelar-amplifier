@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tonic::Status;
 use tracing::debug;
+use tracing::info;
 use valuable::Valuable;
 
 use crate::tofnd::grpc::SharableEcdsaClient;
@@ -136,12 +137,14 @@ where
             .change_context(Error::Broadcast)
             .await?;
         let TxResponse {
-            height: _height,
-            txhash: tx_hash,
-            ..
+            txhash: tx_hash, ..
         } = &response;
 
+        info!(tx_hash, "broadcasted transaction");
+
         self.confirm_tx(tx_hash).await?;
+
+        info!(tx_hash, "confirmed transaction");
 
         self.acc_sequence += 1;
         Ok(response)
