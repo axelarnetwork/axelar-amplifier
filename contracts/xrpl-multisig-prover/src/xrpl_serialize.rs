@@ -71,7 +71,7 @@ macro_rules! xrpl_json {
 
         // Process each key-value pair.
         $(
-            obj.add_field($key, &$value)?;
+            obj.add_field($key, $value)?;
         )*
 
         obj
@@ -80,13 +80,13 @@ macro_rules! xrpl_json {
 
 pub trait XRPLSerialize {
     const TYPE_CODE: u8;
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError>;
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError>;
 }
 
 impl XRPLSerialize for u16 {
     const TYPE_CODE: u8 = 1;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         Ok(self.to_be_bytes().to_vec())
     }
 }
@@ -94,7 +94,7 @@ impl XRPLSerialize for u16 {
 impl XRPLSerialize for u32 {
     const TYPE_CODE: u8 = 2;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         Ok(self.to_be_bytes().to_vec())
     }
 }
@@ -102,10 +102,10 @@ impl XRPLSerialize for u32 {
 impl XRPLSerialize for XRPLPaymentAmount {
     const TYPE_CODE: u8 = 6;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         match self {
             XRPLPaymentAmount::Drops(value) => {
-                if *value <= 10u64.pow(17) {
+                if value <= 10u64.pow(17) {
                     Ok((value | POSITIVE_BIT).to_be_bytes().to_vec())
                 } else {
                     Err(ContractError::InvalidAmount { reason: "more than maximum amount of drops".to_string() })
@@ -121,7 +121,7 @@ impl XRPLSerialize for XRPLPaymentAmount {
 impl XRPLSerialize for HexBinary {
     const TYPE_CODE: u8 = 7;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         Ok([encode_length(self.len())?, self.to_vec()].concat())
     }
 }
@@ -148,7 +148,7 @@ pub fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
 
 impl XRPLSerialize for PublicKey {
     const TYPE_CODE: u8 = 7;
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         match self.clone() {
             // rippled prefixes Ed25519 public keys with the byte 0xED so both types of public key are 33 bytes.
             // https://xrpl.org/cryptographic-keys.html
@@ -203,7 +203,7 @@ impl TryInto<XRPLObject> for XRPLMemo {
 impl XRPLSerialize for XRPLAccountId {
     const TYPE_CODE: u8 = 8;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
         result.extend(vec![self.to_bytes().len() as u8]);
         result.extend(self.to_bytes());
@@ -229,7 +229,7 @@ impl TryInto<XRPLObject> for XRPLPaymentTx {
             Destination: self.destination,
             Memos: XRPLArray{ field: Field::Memo, items: vec![XRPLMemo(hex_encode_session_id(self.multisig_session_id))]}
         });
-        obj.add_sequence(&self.sequence)?;
+        obj.add_sequence(self.sequence)?;
         Ok(obj)
     }
 }
@@ -248,7 +248,7 @@ impl TryInto<XRPLObject> for XRPLSignerListSetTx {
             SignerEntries: XRPLArray{ field: Field::SignerEntry, items: self.signer_entries.clone() },
             Memos: XRPLArray{ field: Field::Memo, items: vec![XRPLMemo(hex_encode_session_id(self.multisig_session_id))]}
         });
-        obj.add_sequence(&self.sequence)?;
+        obj.add_sequence(self.sequence)?;
         Ok(obj)
     }
 }
@@ -266,7 +266,7 @@ impl TryInto<XRPLObject> for XRPLTicketCreateTx {
             SigningPubKey: HexBinary::from(vec![]),
             Memos: XRPLArray{ field: Field::Memo, items: vec![XRPLMemo(hex_encode_session_id(self.multisig_session_id))]}
         });
-        obj.add_sequence(&self.sequence)?;
+        obj.add_sequence(self.sequence)?;
         Ok(obj)
     }
 }
@@ -294,7 +294,7 @@ impl TryInto<XRPLObject> for XRPLSignedTransaction {
             a.account.to_bytes().cmp(&b.account.to_bytes())
         });
         let mut obj: XRPLObject = self.unsigned_tx.clone().try_into()?;
-        obj.add_field(Field::Signers, &XRPLArray{ field: Field::Signer, items: sorted_signers })?;
+        obj.add_field(Field::Signers, XRPLArray{ field: Field::Signer, items: sorted_signers })?;
         Ok(obj)
     }
 }
@@ -307,9 +307,9 @@ struct XRPLArray<T> {
 impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
     const TYPE_CODE: u8 = 15;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
-        for item in &self.items {
+        for item in self.items {
             result.extend(field_id(T::TYPE_CODE, self.field.clone().to_u8()));
             result.extend(item.xrpl_serialize()?);
             result.extend(field_id(T::TYPE_CODE, 1));
@@ -359,18 +359,18 @@ impl XRPLObject {
         }
     }
 
-    pub fn add_field<T: XRPLSerialize>(&mut self, field: Field, value: &T) -> Result<(), ContractError> {
+    pub fn add_field<T: XRPLSerialize>(&mut self, field: Field, value: T) -> Result<(), ContractError> {
         self.fields.push(SerializedField::new(T::TYPE_CODE, field.to_u8(), value.xrpl_serialize()?));
         Ok(())
     }
 
-    pub fn add_sequence(&mut self, sequence: &XRPLSequence) -> Result<(), ContractError> {
+    pub fn add_sequence(&mut self, sequence: XRPLSequence) -> Result<(), ContractError> {
         match sequence {
             XRPLSequence::Plain(seq) => {
                 self.add_field(Field::Sequence, seq)
             },
             XRPLSequence::Ticket(seq) => {
-                self.add_field(Field::Sequence, &0u32)?;
+                self.add_field(Field::Sequence, 0u32)?;
                 self.add_field(Field::TicketSequence, seq)
             }
         }
@@ -380,7 +380,7 @@ impl XRPLObject {
 impl XRPLSerialize for XRPLObject {
     const TYPE_CODE: u8 = 14;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         let mut fields: Vec<SerializedField> = self.fields.clone();
         fields.sort();
         Ok(fields.into_iter().map(|f| { f.to_vec() }).collect::<Vec<Vec<u8>>>().concat())
@@ -394,7 +394,7 @@ where
 {
     const TYPE_CODE: u8 = XRPLObject::TYPE_CODE;
 
-    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         let obj: XRPLObject = self.clone().try_into()?;
         obj.xrpl_serialize()
     }
