@@ -211,38 +211,45 @@ impl KeyDeserialize for KeyType {
     }
 }
 
-const ED25519_SIGNATURE_LEN: usize = 64;
+// It is possible for the same public key to be represented in different formats. For example
+// an ECDSA public key can be represented as compressed or uncompressed. This function
+// validates and normalizes the public key to a single format.
+fn validate_and_normalize_public_key(
+    key_type: KeyType,
+    pub_key: HexBinary,
+) -> Result<HexBinary, ContractError> {
+    match key_type {
+        KeyType::Ecdsa => Ok(k256::PublicKey::from_sec1_bytes(pub_key.as_slice())
+            .map_err(|_| ContractError::InvalidPublicKey)?
+            .to_sec1_bytes()
+            .as_ref()
+            .into()),
+        KeyType::Ed25519 => Ok(ed25519_dalek::VerifyingKey::from_bytes(
+            pub_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| ContractError::InvalidPublicKey)?,
+        )
+        .map_err(|_| ContractError::InvalidPublicKey)?
+        .to_bytes()
+        .into()),
+    }
+}
 
 impl TryFrom<(KeyType, HexBinary)> for PublicKey {
     type Error = ContractError;
 
     fn try_from((key_type, pub_key): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
+        let pub_key = validate_and_normalize_public_key(key_type, pub_key)?;
+
         match key_type {
-            KeyType::Ecdsa => {
-                let pub_key = k256::PublicKey::from_sec1_bytes(pub_key.as_slice())
-                    .map_err(|_| ContractError::InvalidPublicKey)?
-                    .to_sec1_bytes()
-                    .as_ref()
-                    .into();
-
-                Ok(PublicKey::Ecdsa(pub_key))
-            }
-            KeyType::Ed25519 => {
-                let pub_key = ed25519_dalek::VerifyingKey::from_bytes(
-                    pub_key
-                        .as_slice()
-                        .try_into()
-                        .map_err(|_| ContractError::InvalidPublicKey)?,
-                )
-                .map_err(|_| ContractError::InvalidPublicKey)?
-                .to_bytes()
-                .into();
-
-                Ok(PublicKey::Ed25519(pub_key))
-            }
+            KeyType::Ecdsa => Ok(PublicKey::Ecdsa(pub_key)),
+            KeyType::Ed25519 => Ok(PublicKey::Ed25519(pub_key)),
         }
     }
 }
+
+const ED25519_SIGNATURE_LEN: usize = 64;
 
 impl TryFrom<(KeyType, HexBinary)> for Signature {
     type Error = ContractError;
@@ -339,6 +346,20 @@ mod ecdsa_tests {
             PublicKey::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
             ContractError::InvalidPublicKey
         );
+    }
+
+    #[test]
+    fn should_normalize_compressed_and_uncompressed_public_keys() {
+        let uncompressed = HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap();
+        let compressed = HexBinary::from_hex(
+            "029bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1da",
+        )
+        .unwrap();
+
+        assert_eq!(
+            PublicKey::try_from((KeyType::Ecdsa, uncompressed.clone())),
+            PublicKey::try_from((KeyType::Ecdsa, compressed.clone()))
+        )
     }
 
     #[test]
