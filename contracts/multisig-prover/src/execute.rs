@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::Worker;
 
 use crate::{
@@ -85,7 +85,7 @@ fn get_messages(
 ) -> Result<Vec<Message>, ContractError> {
     let length = message_ids.len();
 
-    let query = gateway::msg::QueryMsg::GetMessages { message_ids };
+    let query = gateway_api::msg::QueryMsg::GetOutgoingMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
         msg: to_binary(&query)?,

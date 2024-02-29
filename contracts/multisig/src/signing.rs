@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256, Uint64};
 use signature_verifier_api::client::SignatureVerifier;

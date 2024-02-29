@@ -33,6 +33,7 @@ aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 connection-router = { workspace = true }
+connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
@@ -40,6 +41,7 @@ cw-multi-test = "0.15.1"
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 gateway = { workspace = true }
+gateway-api = { workspace = true }
 itertools = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.11.3"

@@ -1,5 +1,5 @@
 use axelar_wasm_std::MajorityThreshold;
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};

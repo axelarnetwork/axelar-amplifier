@@ -1,4 +1,4 @@
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_std::WasmMsg;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;

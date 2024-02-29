@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
 use serde_json::to_string;
 

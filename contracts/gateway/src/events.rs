@@ -1,6 +1,5 @@
-use connection_router::events::make_message_event;
-use connection_router::state::Message;
-use cosmwasm_std::Event;
+use connection_router_api::Message;
+use cosmwasm_std::{Attribute, Event};
 
 pub enum GatewayEvent {
     Verifying { msg: Message },
@@ -8,6 +7,12 @@ pub enum GatewayEvent {
     AlreadyRejected { msg: Message },
     Routing { msg: Message },
     UnfitForRouting { msg: Message },
+}
+
+fn make_message_event(event_name: &str, msg: Message) -> Event {
+    let attrs: Vec<Attribute> = msg.into();
+
+    Event::new(event_name).add_attributes(attrs)
 }
 
 impl From<GatewayEvent> for Event {

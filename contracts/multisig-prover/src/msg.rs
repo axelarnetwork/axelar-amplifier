@@ -1,5 +1,5 @@
 use axelar_wasm_std::MajorityThreshold;
-use connection_router::state::CrossChainId;
+use connection_router_api::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use multisig::key::KeyType;

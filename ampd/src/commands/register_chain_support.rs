@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use axelar_wasm_std::nonempty;
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use error_stack::Result;

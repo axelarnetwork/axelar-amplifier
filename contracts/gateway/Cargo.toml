@@ -38,12 +38,13 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
-connection-router = { workspace = true, features = ["library"] }
+connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
+gateway-api = { workspace = true }
 itertools = { workspace = true }
 mockall = "0.11.3"
 report = { workspace = true }

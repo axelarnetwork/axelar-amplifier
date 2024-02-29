@@ -1,4 +1,4 @@
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 

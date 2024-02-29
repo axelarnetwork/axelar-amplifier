@@ -2,9 +2,9 @@ mod test_utils;
 
 use std::{str::FromStr, vec};
 
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
-use cw_multi_test::{App, Executor};
+use cw_multi_test::App;
 use integration_tests::contract::Contract;
 use service_registry::msg::QueryMsg;
 use service_registry::{

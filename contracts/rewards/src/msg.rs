@@ -1,5 +1,5 @@
 use axelar_wasm_std::{nonempty, Threshold};
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::state::PoolId;

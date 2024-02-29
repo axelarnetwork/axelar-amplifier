@@ -1,6 +1,6 @@
 use aggregate_verifier::error::ContractError;
 use axelar_wasm_std::VerificationStatus;
-use connection_router::state::{CrossChainId, Message};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Addr, DepsMut, Env, MessageInfo, Response};
 use cw_multi_test::{App, ContractWrapper, Executor};

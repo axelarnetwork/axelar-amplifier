@@ -1,5 +1,5 @@
 use axelar_wasm_std::VerificationStatus;
-use connection_router::state::CrossChainId;
+use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -47,7 +47,7 @@ pub fn execute(
 pub mod execute {
     use cosmwasm_std::{to_binary, SubMsg, WasmMsg};
 
-    use connection_router::state::Message;
+    use connection_router_api::Message;
 
     use super::*;
 

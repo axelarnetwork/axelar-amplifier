@@ -4,10 +4,6 @@ use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
 };
 
-use std::str::FromStr;
-
-use connection_router::state::ChainName;
-
 use crate::{
     error::ContractError,
     execute,
@@ -41,7 +37,9 @@ pub fn instantiate(
         destination_chain_id: msg.destination_chain_id,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
-        chain_name: ChainName::from_str(&msg.chain_name)
+        chain_name: msg
+            .chain_name
+            .parse()
             .map_err(|_| ContractError::InvalidChainName)?,
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
         encoder: msg.encoder,
@@ -98,7 +96,7 @@ mod tests {
 
     use anyhow::Error;
     use axelar_wasm_std::Threshold;
-    use connection_router::state::CrossChainId;
+    use connection_router_api::CrossChainId;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, Fraction, Uint256, Uint64,

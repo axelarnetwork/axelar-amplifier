@@ -1,6 +1,8 @@
+use axelar_wasm_std_derive::IntoContractError;
+use cosmwasm_std::StdError;
 use thiserror::Error;
 
-use axelar_wasm_std_derive::IntoContractError;
+use crate::ChainName;
 
 /// A chain name must adhere to the following rules:
 /// 1. it can optionally start with an uppercase letter, followed by one or more lowercase letters
@@ -9,12 +11,39 @@ pub const CHAIN_NAME_REGEX: &str = "^[A-Z]?[a-z]+(-?[0-9]+)?$";
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum Error {
-    #[error("address is invalid")]
-    InvalidAddress,
+    #[error(transparent)]
+    Std(#[from] StdError),
+
+    #[error("caller is not authorized")]
+    Unauthorized,
+
+    #[error("chain already exists")]
+    ChainAlreadyExists,
+
+    #[error("chain name is invalid")]
+    InvalidChainName,
 
     #[error("message ID is invalid")]
     InvalidMessageId,
 
-    #[error("chain name is invalid")]
-    InvalidChainName,
+    #[error("chain is not found")]
+    ChainNotFound,
+
+    #[error("gateway is not registered")]
+    GatewayNotRegistered,
+
+    #[error("gateway is already registered")]
+    GatewayAlreadyRegistered,
+
+    #[error("chain is frozen")]
+    ChainFrozen { chain: ChainName },
+
+    #[error("address is invalid")]
+    InvalidAddress,
+
+    #[error("source chain does not match registered gateway")]
+    WrongSourceChain,
+
+    #[error("store failed saving/loading data")]
+    StoreFailure,
 }

@@ -248,7 +248,7 @@ mod test {
     };
 
     use axelar_wasm_std::nonempty;
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
     use cosmwasm_std::{Addr, Uint128, Uint64};
 
     use crate::{

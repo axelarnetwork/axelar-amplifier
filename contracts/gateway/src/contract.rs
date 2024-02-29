@@ -1,9 +1,10 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use std::fmt::Debug;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::InstantiateMsg;
 
 mod execute;
 mod query;
@@ -54,14 +55,16 @@ pub enum Error {
 }
 
 mod internal {
-    use crate::contract::Error;
-    use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-    use crate::state::Config;
-    use crate::{contract, state};
     use aggregate_verifier::client::Verifier;
-    use connection_router::client::Router;
+    use connection_router_api::client::Router;
     use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
+    use gateway_api::msg::{ExecuteMsg, QueryMsg};
+
+    use crate::contract::Error;
+    use crate::msg::InstantiateMsg;
+    use crate::state::Config;
+    use crate::{contract, state};
 
     pub(crate) fn instantiate(
         deps: DepsMut,
@@ -117,7 +120,7 @@ mod internal {
 
     pub(crate) fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, Error> {
         match msg {
-            QueryMsg::GetMessages { message_ids } => {
+            QueryMsg::GetOutgoingMessages { message_ids } => {
                 let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
                 to_binary(&msgs).change_context(Error::SerializeResponse)
             }

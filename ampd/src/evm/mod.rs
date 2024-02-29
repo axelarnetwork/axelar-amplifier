@@ -15,17 +15,19 @@ pub enum ChainName {
     Other(String),
 }
 
-impl PartialEq<connection_router::state::ChainName> for ChainName {
-    fn eq(&self, other: &connection_router::state::ChainName) -> bool {
+impl PartialEq<connection_router_api::ChainName> for ChainName {
+    fn eq(&self, other: &connection_router_api::ChainName) -> bool {
         self.to_string().eq_ignore_ascii_case(other.as_ref())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::evm;
-    use connection_router::state::ChainName;
     use std::str::FromStr;
+
+    use connection_router_api::ChainName;
+
+    use crate::evm;
 
     #[test]
     fn chain_name_partial_eq() {
