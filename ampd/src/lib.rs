@@ -5,6 +5,8 @@ use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{FutureExt, Result, ResultExt};
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -265,7 +267,27 @@ where
                     handlers::solana_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
-                        json_rpc::Client::new_http(&rpc_url).change_context(Error::Connection)?,
+                        RpcClient::new_with_commitment(
+                            rpc_url.to_string(),
+                            CommitmentConfig::finalized(),
+                        ),
+                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                ),
+                handlers::config::Config::SolanaWorkerSetVerifier {
+                    cosmwasm_contract,
+                    chain,
+                } => self.configure_handler(
+                    format!("{}-worker-set-verifier", chain.name),
+                    handlers::solana_verify_worker_set::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        chain.name,
+                        RpcClient::new_with_commitment(
+                            chain.rpc_url.to_string(),
+                            CommitmentConfig::finalized(),
+                        ),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),

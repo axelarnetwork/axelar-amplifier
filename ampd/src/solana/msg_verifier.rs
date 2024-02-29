@@ -2,7 +2,7 @@ use axelar_wasm_std::voting::Vote;
 use base64::Engine as _;
 
 use base64::{self, engine::general_purpose};
-use gateway::events::GatewayEvent;
+use gmp_gateway::events::GatewayEvent;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
@@ -143,7 +143,7 @@ fn find_first_log_message_match(
 #[cfg(test)]
 mod tests {
     use borsh::BorshSerialize;
-    use gateway::types::PubkeyWrapper;
+    use gmp_gateway::types::PubkeyWrapper;
 
     use std::str::FromStr;
 
@@ -171,7 +171,7 @@ mod tests {
         Message,
     ) {
         // Common fields among tx and message.
-        let tx_id = "fake_tx_id".to_string();
+        let tx_id = "3GLo4z4siudHxW1BMHBbkTKy7kfbssNFaxLR5hTjhEXCUzp2Pi2VVwybc1s96pEKjRre7CcKKeLhni79zWTNUseP".to_string();
         let destination_chain = "eth".to_string();
         let destination_address = "0x0".to_string();
         let _payload: Vec<u8> = Vec::new();
@@ -219,7 +219,7 @@ mod tests {
         payload: Vec<u8>,
         payload_hash: [u8; 32],
     ) -> String {
-        let event = gateway::events::GatewayEvent::CallContract {
+        let event = gmp_gateway::events::GatewayEvent::CallContract {
             sender,
             destination_chain,
             destination_address,
