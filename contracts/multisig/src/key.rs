@@ -1,4 +1,8 @@
-use crate::{ed25519::ed25519_verify, secp256k1::ecdsa_verify, ContractError};
+use crate::{
+    ed25519::{ed25519_verify, ED25519_SIGNATURE_LEN},
+    secp256k1::ecdsa_verify,
+    ContractError,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
@@ -249,8 +253,6 @@ impl TryFrom<(KeyType, HexBinary)> for PublicKey {
     }
 }
 
-const ED25519_SIGNATURE_LEN: usize = 64;
-
 impl TryFrom<(KeyType, HexBinary)> for Signature {
     type Error = ContractError;
 
@@ -357,8 +359,8 @@ mod ecdsa_tests {
         .unwrap();
 
         assert_eq!(
-            PublicKey::try_from((KeyType::Ecdsa, uncompressed.clone())),
-            PublicKey::try_from((KeyType::Ecdsa, compressed.clone()))
+            PublicKey::try_from((KeyType::Ecdsa, uncompressed.clone())).unwrap(),
+            PublicKey::try_from((KeyType::Ecdsa, compressed.clone())).unwrap()
         )
     }
 
