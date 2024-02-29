@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("invalid public key")]
     InvalidPublicKey,
 
+    #[error("ECDSA public key must be in compressed format (33 bytes)")]
+    InvalidEcdsaPublicKeyFormat,
+
     #[error("public key is already registered")]
     DuplicatePublicKey,
 

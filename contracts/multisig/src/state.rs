@@ -125,8 +125,7 @@ mod tests {
     #[test]
     fn should_fail_if_duplicate_public_key() {
         let mut deps = mock_dependencies();
-        let uncompressed_pub_key = HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap();
-        let compressed_pub_key = HexBinary::from_hex(
+        let pub_key = HexBinary::from_hex(
             "029bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1da",
         )
         .unwrap();
@@ -135,9 +134,7 @@ mod tests {
         save_pub_key(
             deps.as_mut().storage,
             Addr::unchecked("1"),
-            (KeyType::Ecdsa, uncompressed_pub_key.clone())
-                .try_into()
-                .unwrap(),
+            (KeyType::Ecdsa, pub_key.clone()).try_into().unwrap(),
         )
         .unwrap();
 
@@ -146,24 +143,13 @@ mod tests {
             save_pub_key(
                 deps.as_mut().storage,
                 Addr::unchecked("2"),
-                (KeyType::Ecdsa, uncompressed_pub_key).try_into().unwrap(),
+                (KeyType::Ecdsa, pub_key).try_into().unwrap(),
             )
             .unwrap_err(),
             ContractError::DuplicatePublicKey
         );
 
-        // 3. Fails to store the compressed version of the same key
-        assert_eq!(
-            save_pub_key(
-                deps.as_mut().storage,
-                Addr::unchecked("3"),
-                (KeyType::Ecdsa, compressed_pub_key).try_into().unwrap(),
-            )
-            .unwrap_err(),
-            ContractError::DuplicatePublicKey
-        );
-
-        // 4. Storing a different key succeeds
+        // 3. Storing a different key succeeds
         save_pub_key(
             deps.as_mut().storage,
             Addr::unchecked("4"),

@@ -10,6 +10,8 @@ use enum_display_derive::Display;
 use serde::{de::Error, Deserialize, Deserializer};
 use std::fmt::Display;
 
+const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33;
+
 #[cw_serde]
 #[derive(Copy, Display)]
 pub enum KeyType {
@@ -114,6 +116,7 @@ impl TryFrom<HexBinary> for Recoverable {
 #[cw_serde]
 #[derive(Ord, PartialOrd, Eq)]
 pub enum PublicKey {
+    /// ECDSA public key must be in compressed format (33 bytes)
     #[serde(deserialize_with = "deserialize_ecdsa_key")]
     Ecdsa(HexBinary),
 
@@ -215,19 +218,29 @@ impl KeyDeserialize for KeyType {
     }
 }
 
-// It is possible for the same public key to be represented in different formats. For example
-// an ECDSA public key can be represented as compressed or uncompressed. This function
-// validates and normalizes the public key to a single format.
+fn check_ecdsa_format(pub_key: HexBinary) -> Result<HexBinary, ContractError> {
+    if pub_key.len() != ECDSA_COMPRESSED_PUBKEY_LEN {
+        return Err(ContractError::InvalidEcdsaPublicKeyFormat);
+    }
+    Ok(pub_key)
+}
+
+// It is possible for the same public key to be represented in different formats/encodings.
+// This function validates and normalizes the public key to a single format.
 fn validate_and_normalize_public_key(
     key_type: KeyType,
     pub_key: HexBinary,
 ) -> Result<HexBinary, ContractError> {
+    // TODO: ensure proper validation, since external crates may only check format.
     match key_type {
-        KeyType::Ecdsa => Ok(k256::PublicKey::from_sec1_bytes(pub_key.as_slice())
-            .map_err(|_| ContractError::InvalidPublicKey)?
-            .to_sec1_bytes()
-            .as_ref()
-            .into()),
+        KeyType::Ecdsa => Ok(k256::PublicKey::from_sec1_bytes(
+            check_ecdsa_format(pub_key)?.as_slice(),
+        )
+        .map_err(|_| ContractError::InvalidPublicKey)?
+        .to_sec1_bytes()
+        .as_ref()
+        .into()),
+        // TODO: verify encoding scheme is standard
         KeyType::Ed25519 => Ok(ed25519_dalek::VerifyingKey::from_bytes(
             pub_key
                 .as_slice()
@@ -327,9 +340,9 @@ mod ecdsa_tests {
 
     #[test]
     fn deserialize_ecdsa_key_fails() {
-        let key = PublicKey::Ecdsa(HexBinary::from_hex("deadbeef").unwrap());
+        let uncompressed_pub_key = PublicKey::Ecdsa(HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap());
 
-        let serialized = serde_json::to_string(&key).unwrap();
+        let serialized = serde_json::to_string(&uncompressed_pub_key).unwrap();
         let deserialized: Result<PublicKey, _> = serde_json::from_str(&serialized);
         assert!(deserialized.is_err());
     }
@@ -342,26 +355,13 @@ mod ecdsa_tests {
     }
 
     #[test]
-    fn test_try_from_hexbinary_to_eccdsa_public_key_fails() {
-        let hex = HexBinary::from_hex("049b").unwrap();
+    fn should_fail_from_hexbinary_to_ecdsa_if_wrong_format() {
+        let uncompressed_pub_key = HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap();
+
         assert_eq!(
-            PublicKey::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
-            ContractError::InvalidPublicKey
+            PublicKey::try_from((KeyType::Ecdsa, uncompressed_pub_key.clone())).unwrap_err(),
+            ContractError::InvalidEcdsaPublicKeyFormat
         );
-    }
-
-    #[test]
-    fn should_normalize_compressed_and_uncompressed_public_keys() {
-        let uncompressed = HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap();
-        let compressed = HexBinary::from_hex(
-            "029bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1da",
-        )
-        .unwrap();
-
-        assert_eq!(
-            PublicKey::try_from((KeyType::Ecdsa, uncompressed.clone())).unwrap(),
-            PublicKey::try_from((KeyType::Ecdsa, compressed.clone())).unwrap()
-        )
     }
 
     #[test]
