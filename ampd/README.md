@@ -119,3 +119,6 @@ Prior to running the ampd daemon, workers need to perform the following onboardi
 `ampd --config config.toml --state state.json`
 
 The state file will be created if it doesn't yet exist.
+
+#### Default paths
+Note, `--config` or `--state` may be omitted in any command, in which case the default path of `~/.ampd/config.toml` or `~/.ampd/state.json` will be used.
