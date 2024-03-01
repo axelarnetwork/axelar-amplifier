@@ -25,7 +25,7 @@ pub struct Message {
     pub destination_chain: ChainName,
     pub destination_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
-    /// but internally, we treat it as raw bytes to enforce it's format.
+    /// but internally, we treat it as raw bytes to enforce its format.
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub payload_hash: [u8; 32],

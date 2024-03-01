@@ -170,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_handlers_more_then_one_for_mulsitig_signer() {
+    fn deserialize_handlers_more_then_one_for_multisig_signer() {
         let config_str = format!(
             "
             [[handlers]]

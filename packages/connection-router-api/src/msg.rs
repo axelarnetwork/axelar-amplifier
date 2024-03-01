@@ -6,7 +6,7 @@ use crate::primitives::*;
 pub enum ExecuteMsg {
     /*
      * Governance Methods
-     * All of the below messages should only be called by governance
+     * All the below messages should only be called by governance
      */
     // Registers a new chain with the router
     RegisterChain {
@@ -21,7 +21,7 @@ pub enum ExecuteMsg {
 
     /*
      * Router Admin Methods
-     * All of the below messages should only be called by the router admin
+     * All the below messages should only be called by the router admin
      */
     // Freezes a chain, in the specified direction.
     FreezeChain {
