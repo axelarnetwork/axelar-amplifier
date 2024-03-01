@@ -220,7 +220,7 @@ impl KeyDeserialize for KeyType {
 
 fn check_ecdsa_format(pub_key: HexBinary) -> Result<HexBinary, ContractError> {
     if pub_key.len() != ECDSA_COMPRESSED_PUBKEY_LEN {
-        return Err(ContractError::InvalidEcdsaPublicKeyFormat);
+        return Err(ContractError::InvalidPublicKey);
     }
     Ok(pub_key)
 }
@@ -360,7 +360,7 @@ mod ecdsa_tests {
 
         assert_eq!(
             PublicKey::try_from((KeyType::Ecdsa, uncompressed_pub_key.clone())).unwrap_err(),
-            ContractError::InvalidEcdsaPublicKeyFormat
+            ContractError::InvalidPublicKey
         );
     }
 
