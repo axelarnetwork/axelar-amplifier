@@ -400,7 +400,7 @@ mod ecdsa_tests {
     }
 
     #[test]
-    fn test_verify_signature_invalid_signature() {
+    fn should_fail_sig_verification_when_using_different_valid_sig() {
         let invalid_signature = HexBinary::from_hex(
             "a112231719403227b297139cc6beef82a4e034663bfe48cf732687860b16227a51e4bd6be96fceeecf8e77fe7cdd4f5567d71aed5388484d1f2ba355298c954e",
         )
@@ -414,6 +414,25 @@ mod ecdsa_tests {
             result.unwrap_err(),
             ContractError::SignatureVerificationFailed {
                 reason: "unable to verify signature".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn should_fail_sig_verification_when_invalid_sig() {
+        let invalid_signature = HexBinary::from_hex(
+            "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+
+        let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
+        let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
+        let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
+        let result = signature.verify(&message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "Crypto error: signature error".into(),
             }
         );
     }
