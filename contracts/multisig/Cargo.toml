@@ -46,6 +46,7 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
+ed25519-dalek = { version = "2.1.1", default-features = false }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }
