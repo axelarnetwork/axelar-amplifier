@@ -16,11 +16,13 @@ events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
+h2 = "0.3.24"
 integration-tests = { version = "^0.1.0", path = "integration-tests" }
 itertools = "0.11.0"
 voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
 multisig = { version = "^0.1.0", path = "contracts/multisig" }
 multisig-prover = { version = "^0.1.0", path = "contracts/multisig-prover" }
+quinn-proto = "0.10.5"
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
