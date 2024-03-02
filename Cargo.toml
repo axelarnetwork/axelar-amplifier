@@ -31,6 +31,7 @@ connection-router-api = { version = "^0.1.0", path = "packages/connection-router
 report = { version = "^0.1.0", path = "packages/report" }
 rewards = { version = "^0.1.0", path = "contracts/rewards" }
 thiserror = "1.0.47"
+tungstenite = "0.20.1"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 serde-json-wasm = "0.5.2"
