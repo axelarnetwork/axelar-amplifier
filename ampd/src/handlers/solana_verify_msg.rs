@@ -4,10 +4,8 @@ use error_stack::ResultExt;
 use serde::Deserialize;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
-use std::collections::HashSet;
 use std::convert::TryInto;
 use std::str::FromStr;
-use std::sync::Arc;
 use tracing::{error, info};
 
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -132,11 +130,10 @@ where
             return Ok(());
         }
 
-        let tx_ids_from_msg: HashSet<_> = messages.iter().map(|msg| msg.tx_id.clone()).collect();
+        let mut votes: Vec<Vote> = Vec::new();
 
-        let mut sol_txs: Vec<Arc<EncodedConfirmedTransactionWithStatusMeta>> = Vec::new();
-        for msg_tx in tx_ids_from_msg {
-            let sol_tx_signature = match Signature::from_str(&msg_tx) {
+        for msg in messages {
+            let sol_tx_signature = match Signature::from_str(&msg.tx_id) {
                 Ok(sig) => sig,
                 Err(err) => {
                     error!(
@@ -144,6 +141,7 @@ where
                         err = err.to_string(),
                         "Cannot decode solana tx signature"
                     );
+                    votes.push(Vote::FailedOnChain);
                     continue;
                 }
             };
@@ -158,33 +156,26 @@ where
                     // When tx is not found a null is returned.
                     solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
                         error!(
-                            tx_id = msg_tx,
+                            tx_id = msg.tx_id,
                             poll_id = poll_id.to_string(),
                             err = err.to_string(),
                             "Cannot find solana tx signature"
                         );
+                        votes.push(Vote::NotFound);
                         continue;
                     }
                     _ => {
                         error!(
-                            tx_id = msg_tx,
+                            tx_id = msg.tx_id,
                             poll_id = poll_id.to_string(),
                             "RPC error while fetching solana tx"
                         );
-                        continue;
+                        return Err(Error::TxReceipts)?;
                     }
                 },
             };
 
-            sol_txs.push(sol_tx);
-        }
-
-        let mut votes: Vec<Vote> = vec![Vote::NotFound; messages.len()];
-        for msg in messages {
-            votes = sol_txs
-                .iter()
-                .map(|tx| verify_message(&source_gateway_address, tx, &msg))
-                .collect();
+            votes.push(verify_message(&source_gateway_address, sol_tx, &msg));
         }
 
         self.broadcast_votes(poll_id, votes).await

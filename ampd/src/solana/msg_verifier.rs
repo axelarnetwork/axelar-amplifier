@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axelar_wasm_std::voting::Vote;
 use base64::Engine as _;
 
@@ -42,7 +44,7 @@ fn decode_base64(input: &str) -> Option<Vec<u8>> {
 
 pub fn verify_message(
     source_gateway_address: &String,
-    tx: &EncodedConfirmedTransactionWithStatusMeta,
+    tx: Arc<EncodedConfirmedTransactionWithStatusMeta>,
     message: &Message,
 ) -> Vote {
     let ui_tx = match &tx.transaction.transaction {
@@ -157,7 +159,7 @@ mod tests {
         let (source_gateway_address, _, tx, msg) = get_matching_msg_and_tx_block();
         assert_eq!(
             Vote::SucceededOnChain,
-            verify_message(&source_gateway_address, &tx, &msg)
+            verify_message(&source_gateway_address, Arc::new(tx), &msg)
         );
     }
 
@@ -241,7 +243,7 @@ mod tests {
         msg.tx_id = "wrong_tx_id".to_string();
         assert_eq!(
             Vote::FailedOnChain,
-            verify_message(&source_gateway_address, &tx, &msg)
+            verify_message(&source_gateway_address, Arc::new(tx), &msg)
         );
     }
 
@@ -250,7 +252,7 @@ mod tests {
     fn should_not_verify_msg_if_event_index_does_not_match() {
         let (gateway_address, _, tx, mut msg) = get_matching_msg_and_tx_block();
         msg.event_index = rand::random::<u64>();
-        assert_eq!(Vote::NotFound, verify_message(&gateway_address, &tx, &msg));
+        assert_eq!(Vote::NotFound, verify_message(&gateway_address, Arc::new(tx), &msg));
     }
 
     #[test]
@@ -259,7 +261,7 @@ mod tests {
         msg.destination_chain = ChainName::from_str("bad_chain").unwrap();
         assert_eq!(
             Vote::FailedOnChain,
-            verify_message(&gateway_address, &tx, &msg)
+            verify_message(&gateway_address, Arc::new(tx), &msg)
         );
     }
 
@@ -269,7 +271,7 @@ mod tests {
         msg.source_address = PubkeyWrapper::from(Pubkey::from([13; 32])).to_string();
         assert_eq!(
             Vote::FailedOnChain,
-            verify_message(&source_gateway_address, &tx, &msg)
+            verify_message(&source_gateway_address, Arc::new(tx), &msg)
         );
     }
 
@@ -279,7 +281,7 @@ mod tests {
         msg.destination_address = "bad_address".to_string();
         assert_eq!(
             Vote::FailedOnChain,
-            verify_message(&gateway_address, &tx, &msg)
+            verify_message(&gateway_address, Arc::new(tx), &msg)
         );
     }
 
@@ -289,7 +291,7 @@ mod tests {
         msg.payload_hash = [1; 32];
         assert_eq!(
             Vote::FailedOnChain,
-            verify_message(&gateway_address, &tx, &msg)
+            verify_message(&gateway_address, Arc::new(tx), &msg)
         );
     }
 
