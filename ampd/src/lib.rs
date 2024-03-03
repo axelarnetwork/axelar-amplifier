@@ -5,6 +5,7 @@ use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{FutureExt, Result, ResultExt};
+use solana::rpc::RpcCacheWrapper;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
@@ -267,10 +268,10 @@ where
                     handlers::solana_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
-                        RpcClient::new_with_commitment(
+                        RpcCacheWrapper::new(RpcClient::new_with_commitment(
                             rpc_url.to_string(),
                             CommitmentConfig::finalized(),
-                        ),
+                        )),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),

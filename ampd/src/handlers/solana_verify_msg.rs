@@ -2,12 +2,12 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::str::FromStr;
+use std::sync::Arc;
 use tracing::{error, info};
 
 use axelar_wasm_std::voting::{PollId, Vote};
@@ -20,6 +20,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::solana::msg_verifier::verify_message;
+use crate::solana::rpc::RpcCacheWrapper;
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -53,7 +54,7 @@ where
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
-    rpc_client: RpcClient,
+    rpc_client: RpcCacheWrapper,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
@@ -65,7 +66,7 @@ where
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
-        rpc_client: RpcClient,
+        rpc_client: RpcCacheWrapper,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
@@ -133,7 +134,7 @@ where
 
         let tx_ids_from_msg: HashSet<_> = messages.iter().map(|msg| msg.tx_id.clone()).collect();
 
-        let mut sol_txs: Vec<EncodedConfirmedTransactionWithStatusMeta> = Vec::new();
+        let mut sol_txs: Vec<Arc<EncodedConfirmedTransactionWithStatusMeta>> = Vec::new();
         for msg_tx in tx_ids_from_msg {
             let sol_tx_signature = match Signature::from_str(&msg_tx) {
                 Ok(sig) => sig,
@@ -233,8 +234,13 @@ mod test {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            RpcCacheWrapper::new(rpc_client),
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
         assert_eq!(
@@ -265,8 +271,13 @@ mod test {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            RpcCacheWrapper::new(rpc_client),
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -302,8 +313,13 @@ mod test {
             &TMAddress::random(PREFIX), // A different, unexpected address comes from the event.
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            RpcCacheWrapper::new(rpc_client),
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -334,8 +350,13 @@ mod test {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            RpcCacheWrapper::new(rpc_client),
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -366,8 +387,13 @@ mod test {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            RpcCacheWrapper::new(rpc_client),
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
