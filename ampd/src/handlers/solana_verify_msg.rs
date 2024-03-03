@@ -278,11 +278,6 @@ mod test {
         );
     }
 
-    fn dummy_tx_type() -> EncodedConfirmedTransactionWithStatusMeta {
-        // Example from https://solana.com/docs/rpc/http/gettransaction
-        serde_json::from_str(include_str!("../solana/tests/solana_tx.json")).unwrap()
-    }
-
     #[async_test]
     async fn ignores_poll_event_if_voting_verifier_address_not_match_event_address() {
         // Setup the context

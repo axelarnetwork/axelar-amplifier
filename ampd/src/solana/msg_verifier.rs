@@ -1,13 +1,9 @@
-use std::sync::Arc;
-
 use axelar_wasm_std::voting::Vote;
-use base64::Engine as _;
-
-use base64::{self, engine::general_purpose};
 use gmp_gateway::events::GatewayEvent;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
+use std::sync::Arc;
 use tracing::error;
 
 use crate::handlers::solana_verify_msg::Message;
@@ -35,11 +31,6 @@ impl PartialEq<&Message> for GatewayEvent {
             _ => false,
         }
     }
-}
-
-#[inline]
-fn decode_base64(input: &str) -> Option<Vec<u8>> {
-    general_purpose::STANDARD.decode(input).ok()
 }
 
 pub fn verify_message(
@@ -144,6 +135,7 @@ fn find_first_log_message_match(
 
 #[cfg(test)]
 mod tests {
+    use base64::{engine::general_purpose, Engine};
     use borsh::BorshSerialize;
     use gmp_gateway::types::PubkeyWrapper;
 
@@ -252,7 +244,10 @@ mod tests {
     fn should_not_verify_msg_if_event_index_does_not_match() {
         let (gateway_address, _, tx, mut msg) = get_matching_msg_and_tx_block();
         msg.event_index = rand::random::<u64>();
-        assert_eq!(Vote::NotFound, verify_message(&gateway_address, Arc::new(tx), &msg));
+        assert_eq!(
+            Vote::NotFound,
+            verify_message(&gateway_address, Arc::new(tx), &msg)
+        );
     }
 
     #[test]
