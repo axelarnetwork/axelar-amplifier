@@ -3,7 +3,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
+use solana_transaction_status::{UiTransactionEncoding};
 use std::convert::TryInto;
 use std::str::FromStr;
 use tracing::{error, info};

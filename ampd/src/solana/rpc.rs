@@ -32,7 +32,7 @@ impl RpcCacheWrapper {
         self.tx_cache
             .write()
             .await
-            .insert(signature.clone(), tx.clone());
+            .insert(*signature, tx.clone());
 
         Ok(tx)
     }
