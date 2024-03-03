@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use connection_router::state::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
@@ -42,6 +43,7 @@ struct PollStartedEvent {
     contract_address: TMAddress,
     poll_id: PollId,
     source_gateway_address: String,
+    source_chain: ChainName,
     messages: Vec<Message>,
     participants: Vec<TMAddress>,
     expires_at: u64,
@@ -54,6 +56,7 @@ where
     worker: TMAddress,
     voting_verifier: TMAddress,
     rpc_client: RpcClient,
+    chain: ChainName,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
@@ -65,6 +68,7 @@ where
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
+        chain: ChainName,
         rpc_client: RpcClient,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
@@ -72,6 +76,7 @@ where
         Self {
             worker,
             voting_verifier,
+            chain,
             rpc_client,
             broadcast_client,
             latest_block_height,
@@ -105,6 +110,7 @@ where
         let PollStartedEvent {
             contract_address,
             poll_id,
+            source_chain,
             source_gateway_address,
             messages,
             participants,
@@ -116,6 +122,10 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
+
+        if self.chain != source_chain {
+            return Ok(());
+        }
 
         if self.voting_verifier != contract_address {
             return Ok(());
@@ -218,6 +228,7 @@ mod test {
         let worker = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
+        let source_chain = ChainName::from_str("solana").unwrap();
 
         // Prepare the message verifier and the vote broadcaster
         let mut broadcast_client = MockBroadcasterClient::new();
@@ -229,16 +240,66 @@ mod test {
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(worker.clone())), 100),
+            get_poll_started_event(participants(5, Some(worker.clone())), 100, source_chain.clone()),
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            source_chain,
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
         assert_eq!(
             Some(&2),
+            rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
+        );
+    }
+
+    #[async_test]
+    async fn ignores_events_from_other_chains() {
+        // Setup the context
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let expiration = 100u64;
+        let (_, rx) = watch::channel(expiration - 1);
+        let source_chain = ChainName::from_str("solana").unwrap();
+        let poll_started_source_chain = ChainName::from_str("other_chain").unwrap(); // A different, unexpected source chain.
+
+        // Prepare the message verifier and the vote broadcaster
+        let mut broadcast_client = MockBroadcasterClient::new();
+        broadcast_client
+            .expect_broadcast::<MsgExecuteContract>()
+            .never();
+
+        let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
+
+        let event: Event = get_event(
+            get_poll_started_event(
+                participants(5, Some(worker.clone())),
+                100,
+                poll_started_source_chain,
+            ),
+            &voting_verifier,
+        );
+
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            source_chain,
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
+
+        handler.handle(&event).await.unwrap();
+
+        assert_eq!(
+            None,
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
         );
     }
@@ -250,6 +311,7 @@ mod test {
         let worker = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
+        let source_chain = ChainName::from_str("solana").unwrap();
 
         // Prepare the message verifier and the vote broadcaster
         let mut broadcast_client = MockBroadcasterClient::new();
@@ -265,8 +327,14 @@ mod test {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            source_chain,
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -288,6 +356,7 @@ mod test {
         let worker = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
+        let source_chain = ChainName::from_str("solana").unwrap();
 
         // Prepare the message verifier and the vote broadcaster
         let mut broadcast_client = MockBroadcasterClient::new();
@@ -298,12 +367,22 @@ mod test {
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(worker.clone())), 100),
+            get_poll_started_event(
+                participants(5, Some(worker.clone())),
+                100,
+                source_chain.clone(),
+            ),
             &TMAddress::random(PREFIX), // A different, unexpected address comes from the event.
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            source_chain,
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -320,6 +399,7 @@ mod test {
         let worker = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
+        let source_chain = ChainName::from_str("solana").unwrap();
 
         // Prepare the message verifier and the vote broadcaster
         let mut broadcast_client = MockBroadcasterClient::new();
@@ -330,12 +410,18 @@ mod test {
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
-            get_poll_started_event(participants(5, None), 100), // This worker is not in participant set. So will skip the event.
+            get_poll_started_event(participants(5, None), 100, source_chain.clone()), // This worker is not in participant set. So will skip the event.
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            source_chain,
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -352,6 +438,7 @@ mod test {
         let worker = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration); // expired !
+        let source_chain = ChainName::from_str("solana").unwrap();
 
         // Prepare the message verifier and the vote broadcaster
         let mut broadcast_client = MockBroadcasterClient::new();
@@ -362,12 +449,22 @@ mod test {
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(worker.clone())), 100),
+            get_poll_started_event(
+                participants(5, Some(worker.clone())),
+                100,
+                source_chain.clone(),
+            ),
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(
+            worker,
+            voting_verifier,
+            source_chain,
+            rpc_client,
+            broadcast_client,
+            rx,
+        );
 
         handler.handle(&event).await.unwrap();
 
@@ -396,19 +493,23 @@ mod test {
         .unwrap()
     }
 
-    fn get_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        get_poll_started_event_with_source_chain(participants, expires_at, "starknet")
+    fn get_poll_started_event(
+        participants: Vec<TMAddress>,
+        expires_at: u64,
+        source_chain: ChainName,
+    ) -> PollStarted {
+        get_poll_started_event_with_source_chain(participants, expires_at, source_chain)
     }
 
     fn get_poll_started_event_with_source_chain(
         participants: Vec<TMAddress>,
         expires_at: u64,
-        source_chain: &str,
+        source_chain: ChainName,
     ) -> PollStarted {
         PollStarted::Messages {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
-                source_chain: source_chain.parse().unwrap(),
+                source_chain,
                 source_gateway_address: "sol".to_string().parse().unwrap(),
                 confirmation_height: 15,
                 expires_at,
