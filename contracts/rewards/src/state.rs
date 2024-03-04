@@ -513,7 +513,7 @@ mod test {
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
-        // save the first water mark
+        // save the first watermark
         let res = store.save_rewards_watermark(pool_id.clone(), epoch.epoch_num);
         assert!(res.is_ok());
 
@@ -541,7 +541,7 @@ mod test {
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
-        // save the first water mark for this contract
+        // save the first watermark for this contract
         let res = store.save_rewards_watermark(diff_pool_id.clone(), epoch.epoch_num + 7);
         assert!(res.is_ok());
 

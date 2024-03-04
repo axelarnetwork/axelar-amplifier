@@ -11,7 +11,7 @@
    to the list of messages in the poll. Participants vote on the validity of the transactions via
    cast_vote. Once everyone has voted, the contract calls tally_results to get the results of the poll.
    The contract then processes the results and takes appropriate action for each transaction, depending
-   on whether or not the transaction was successfully verified.
+   on whether the transaction was successfully verified.
 */
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
@@ -219,7 +219,7 @@ pub struct WeightedPoll {
 
 impl WeightedPoll {
     pub fn new(poll_id: PollId, snapshot: Snapshot, expiry: u64, poll_size: usize) -> Self {
-        // initialize the map with all possible voters so it always have the same size and therefore
+        // initialize the map with all possible voters, so it always have the same size and therefore
         // all voters will use roughly the same amount of gas when casting a vote.
         let participation = snapshot
             .participants

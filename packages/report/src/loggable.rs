@@ -65,7 +65,7 @@ impl<T> From<&Report<T>> for LoggableError {
                 // context        of error i-1
                 // ...
                 //
-                // so a context frame denotes the end of one error and we can break to create the next
+                // so a context frame denotes the end of one error, and we can break to create the next
                 match FrameType::from(f) {
                     FrameType::Context(c) => {
                         error.msg = c.to_string();

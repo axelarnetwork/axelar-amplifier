@@ -8,7 +8,7 @@ on:
         type: choice
         options:
           - ampd
-          - agggregate-verifier
+          - aggregate-verifier
           - connection-router
           - gateway
           - multisig
