@@ -262,11 +262,13 @@ where
                 handlers::config::Config::SolanaMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
+                    chain,
                 } => self.configure_handler(
-                    "solana-msg-verifier",
+                    format!("{}-msg-verifier", chain.name),
                     handlers::solana_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
+                        chain.name,
                         RpcClient::new_with_commitment(
                             rpc_url.to_string(),
                             CommitmentConfig::finalized(),
