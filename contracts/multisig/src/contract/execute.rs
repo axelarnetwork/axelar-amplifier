@@ -143,9 +143,9 @@ pub fn register_pub_key(
 
     // to prevent anyone from registering a public key that belongs to someone else,
     // we require the sender to sign their own address using the private key
-    if !signed_sender_address.verify(address_hash.as_slice(), &public_key)? {
-        return Err(ContractError::InvalidPublicKeyRegistrationSignature);
-    }
+    signed_sender_address
+        .verify(address_hash.as_slice(), &public_key)
+        .map_err(|_| ContractError::InvalidPublicKeyRegistrationSignature)?;
 
     save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 

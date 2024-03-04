@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use signature_verifier_api::client::SignatureVerifier;
 
 use crate::{
@@ -73,31 +73,49 @@ pub fn validate_session_signature(
         });
     }
 
-    let valid = sig_verifier.map_or_else(
-        || signature.verify(&session.msg, pub_key),
-        |verifier| {
-            verifier
-                .verify_signature(
+    sig_verifier
+        .map_or_else(
+            || signature.verify(&session.msg, pub_key),
+            |sig_verifier| {
+                call_sig_verifier(
+                    sig_verifier,
                     signature.as_ref().into(),
                     session.msg.as_ref().into(),
                     pub_key.as_ref().into(),
                     signer.to_string(),
                     session.id,
                 )
-                .map_err(|err| ContractError::SignatureVerificationFailed {
-                    reason: err.to_string(),
-                })
-        },
-    )?;
-
-    if !valid {
-        return Err(ContractError::InvalidSignature {
+            },
+        )
+        .map_err(|_| ContractError::InvalidSignature {
             session_id: session.id,
             signer: signer.into(),
-        });
-    }
+        })?;
 
     Ok(())
+}
+
+fn call_sig_verifier(
+    sig_verifier: SignatureVerifier,
+    signature: HexBinary,
+    message: HexBinary,
+    pub_key: HexBinary,
+    signer: String,
+    session_id: Uint64,
+) -> Result<(), ContractError> {
+    let res = sig_verifier
+        .verify_signature(signature, message, pub_key, signer, session_id)
+        .map_err(|err| ContractError::SignatureVerificationFailed {
+            reason: err.to_string(),
+        })?;
+
+    if !res {
+        Err(ContractError::SignatureVerificationFailed {
+            reason: "unable to verify signature".into(),
+        })
+    } else {
+        Ok(())
+    }
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint256 {
