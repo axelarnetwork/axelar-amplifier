@@ -96,6 +96,48 @@ where
             .await
             .change_context(Error::Broadcaster)
     }
+
+    async fn process_message(
+        &self,
+        msg: &Message,
+        source_gateway_address: &String,
+    ) -> Result<Vote> {
+        let sol_tx_signature = match Signature::from_str(&msg.tx_id) {
+            Ok(sig) => sig,
+            Err(err) => {
+                error!(
+                    tx_id = msg.tx_id.to_string(),
+                    err = err.to_string(),
+                    "Cannot decode solana tx signature"
+                );
+                return Ok(Vote::FailedOnChain);
+            }
+        };
+
+        let sol_tx = match self
+            .rpc_client
+            .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
+            .await
+        {
+            Ok(tx) => tx,
+            Err(err) => match err.kind() {
+                // When tx is not found a null is returned.
+                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
+                    error!(
+                        tx_id = msg.tx_id,
+                        err = err.to_string(),
+                        "Cannot find solana tx signature"
+                    );
+                    return Ok(Vote::NotFound);
+                }
+                _ => {
+                    error!(tx_id = msg.tx_id, "RPC error while fetching solana tx");
+                    return Err(Error::TxReceipts)?;
+                }
+            },
+        };
+        Ok(verify_message(source_gateway_address, sol_tx, &msg))
+    }
 }
 
 #[async_trait]
@@ -143,49 +185,7 @@ where
         let mut votes: Vec<Vote> = Vec::new();
 
         for msg in messages {
-            let sol_tx_signature = match Signature::from_str(&msg.tx_id) {
-                Ok(sig) => sig,
-                Err(err) => {
-                    error!(
-                        poll_id = poll_id.to_string(),
-                        err = err.to_string(),
-                        "Cannot decode solana tx signature"
-                    );
-                    votes.push(Vote::FailedOnChain);
-                    continue;
-                }
-            };
-
-            let sol_tx = match self
-                .rpc_client
-                .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
-                .await
-            {
-                Ok(tx) => tx,
-                Err(err) => match err.kind() {
-                    // When tx is not found a null is returned.
-                    solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
-                        error!(
-                            tx_id = msg.tx_id,
-                            poll_id = poll_id.to_string(),
-                            err = err.to_string(),
-                            "Cannot find solana tx signature"
-                        );
-                        votes.push(Vote::NotFound);
-                        continue;
-                    }
-                    _ => {
-                        error!(
-                            tx_id = msg.tx_id,
-                            poll_id = poll_id.to_string(),
-                            "RPC error while fetching solana tx"
-                        );
-                        return Err(Error::TxReceipts)?;
-                    }
-                },
-            };
-
-            votes.push(verify_message(&source_gateway_address, sol_tx, &msg));
+            votes.push(self.process_message(&msg, &source_gateway_address).await?);
         }
 
         self.broadcast_votes(poll_id, votes).await
