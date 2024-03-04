@@ -144,7 +144,7 @@ pub fn encode(data: &Data) -> HexBinary {
 pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
     // Sui is just mimicking EVM here
     let unsigned = [
-        "\x19Sui Signed Message:\n".as_bytes(), // Keccek256 hash length = 32
+        "\x19Sui Signed Message:\n".as_bytes(), // Keccak256 hash length = 32
         encode(&command_batch.data).as_slice(),
     ]
     .concat();
