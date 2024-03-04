@@ -174,18 +174,22 @@ impl KeyTyped for Signature {
 }
 
 impl Signature {
-    pub fn verify<T: AsRef<[u8]>>(
-        &self,
-        msg: T,
-        pub_key: &PublicKey,
-    ) -> Result<bool, ContractError> {
+    pub fn verify<T: AsRef<[u8]>>(&self, msg: T, pub_key: &PublicKey) -> Result<(), ContractError> {
         if !self.matches_type(pub_key) {
             return Err(ContractError::KeyTypeMismatch);
         }
 
-        match self.key_type() {
+        let res = match self.key_type() {
             KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self, pub_key.as_ref()),
             KeyType::Ed25519 => ed25519_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
+        }?;
+
+        if res {
+            Ok(())
+        } else {
+            Err(ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            })
         }
     }
 }
@@ -391,12 +395,12 @@ mod ecdsa_tests {
             .unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, true);
+        let result = signature.verify(&message, &public_key);
+        assert!(result.is_ok(), "{:?}", result)
     }
 
     #[test]
-    fn test_verify_signature_invalid_signature() {
+    fn should_fail_sig_verification_when_using_different_valid_sig() {
         let invalid_signature = HexBinary::from_hex(
             "a112231719403227b297139cc6beef82a4e034663bfe48cf732687860b16227a51e4bd6be96fceeecf8e77fe7cdd4f5567d71aed5388484d1f2ba355298c954e",
         )
@@ -405,8 +409,32 @@ mod ecdsa_tests {
         let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(&message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn should_fail_sig_verification_when_invalid_sig() {
+        let invalid_signature = HexBinary::from_hex(
+            "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+
+        let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
+        let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
+        let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
+        let result = signature.verify(&message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "Crypto error: signature error".into(),
+            }
+        );
     }
 
     #[test]
@@ -421,8 +449,13 @@ mod ecdsa_tests {
             .unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(&message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
     }
 }
 
@@ -502,8 +535,8 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, true);
+        let result = signature.verify(&message, &public_key);
+        assert!(result.is_ok(), "{:?}", result)
     }
 
     #[test]
@@ -517,8 +550,13 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(&message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
     }
 
     #[test]
@@ -531,7 +569,12 @@ mod ed25519_tests {
             Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key = PublicKey::Ed25519(invalid_pub_key);
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(&message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
     }
 }
