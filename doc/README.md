@@ -1,6 +1,6 @@
 ## How to read the docs
 
-You can directly navigate through the markdown files [here](./src) or build the book locally using `mdbook`.
+You can directly navigate through the markdown files [here](src) or build the book locally using `mdbook`.
 
 ## Prerequisites to build book
 
@@ -32,4 +32,5 @@ mdbook serve doc --open
 
 ## Contributing
 
-Information about how to contribute to the documentation can be found in the documentation chapter [here](http://localhost:3000/contributing/documentation.html)
+Information about how to contribute to the documentation can be found in the documentation
+chapter [here](http://localhost:3000/contributing/documentation.html)

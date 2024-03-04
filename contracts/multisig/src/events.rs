@@ -19,7 +19,7 @@ pub enum Event {
         chain_name: ChainName,
         expires_at: u64,
     },
-    // Emitted when a participants submits a signature
+    // Emitted when a participant submits a signature
     SignatureSubmitted {
         session_id: Uint64,
         participant: Addr,

@@ -811,7 +811,7 @@ fn deregister_previously_unsupported_single_chain() {
     assert_eq!(workers, vec![])
 }
 
-/// If a unbonded but authorized worker deregisters support for a chain they previously registered support for,
+/// If an unbonded but authorized worker deregisters support for a chain they previously registered support for,
 /// that worker should not be part of the active worker set for that chain.
 #[test]
 fn register_and_deregister_support_for_single_chain_unbonded() {
