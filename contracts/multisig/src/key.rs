@@ -184,12 +184,12 @@ impl Signature {
             KeyType::Ed25519 => ed25519_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
         }?;
 
-        if !res {
+        if res {
+            Ok(())
+        } else {
             Err(ContractError::SignatureVerificationFailed {
                 reason: "unable to verify signature".into(),
             })
-        } else {
-            Ok(())
         }
     }
 }
