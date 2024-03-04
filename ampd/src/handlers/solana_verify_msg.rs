@@ -185,6 +185,8 @@ where
 #[cfg(test)]
 mod test {
 
+    use std::num::NonZeroUsize;
+
     use axelar_wasm_std::nonempty;
     use base64::{engine::general_purpose::STANDARD, Engine};
     use events::Event;
@@ -228,7 +230,7 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            RpcCacheWrapper::new(rpc_client),
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             broadcast_client,
             rx,
         );
@@ -265,7 +267,7 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            RpcCacheWrapper::new(rpc_client),
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             broadcast_client,
             rx,
         );
@@ -302,7 +304,7 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            RpcCacheWrapper::new(rpc_client),
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             broadcast_client,
             rx,
         );
@@ -339,7 +341,7 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            RpcCacheWrapper::new(rpc_client),
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             broadcast_client,
             rx,
         );
@@ -376,7 +378,7 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            RpcCacheWrapper::new(rpc_client),
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             broadcast_client,
             rx,
         );

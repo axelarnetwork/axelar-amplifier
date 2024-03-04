@@ -47,6 +47,7 @@ pub enum Config {
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+        max_tx_cache_entries: usize
     },
     SolanaWorkerSetVerifier {
         cosmwasm_contract: TMAddress,

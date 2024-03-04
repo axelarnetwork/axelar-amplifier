@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 
 use block_height_monitor::BlockHeightMonitor;
@@ -263,15 +264,19 @@ where
                 handlers::config::Config::SolanaMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
+                    max_tx_cache_entries,
                 } => self.configure_handler(
                     "solana-msg-verifier",
                     handlers::solana_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
-                        RpcCacheWrapper::new(RpcClient::new_with_commitment(
-                            rpc_url.to_string(),
-                            CommitmentConfig::finalized(),
-                        )),
+                        RpcCacheWrapper::new(
+                            RpcClient::new_with_commitment(
+                                rpc_url.to_string(),
+                                CommitmentConfig::finalized(),
+                            ),
+                            NonZeroUsize::new(max_tx_cache_entries).unwrap(),
+                        ),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
