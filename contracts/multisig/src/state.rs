@@ -125,8 +125,12 @@ mod tests {
     #[test]
     fn should_fail_if_duplicate_public_key() {
         let mut deps = mock_dependencies();
-        let pub_key = ecdsa_test_data::pub_key();
+        let pub_key = HexBinary::from_hex(
+            "029bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1da",
+        )
+        .unwrap();
 
+        // 1. Store first key
         save_pub_key(
             deps.as_mut().storage,
             Addr::unchecked("1"),
@@ -134,6 +138,7 @@ mod tests {
         )
         .unwrap();
 
+        // 2. Fails to store the same key
         assert_eq!(
             save_pub_key(
                 deps.as_mut().storage,
@@ -143,6 +148,16 @@ mod tests {
             .unwrap_err(),
             ContractError::DuplicatePublicKey
         );
+
+        // 3. Storing a different key succeeds
+        save_pub_key(
+            deps.as_mut().storage,
+            Addr::unchecked("4"),
+            (KeyType::Ecdsa, ecdsa_test_data::pub_key())
+                .try_into()
+                .unwrap(),
+        )
+        .unwrap();
     }
 
     #[test]
