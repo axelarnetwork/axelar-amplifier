@@ -2,6 +2,8 @@ use async_trait::async_trait;
 use connection_router::state::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
+use futures::stream::FuturesOrdered;
+use futures::{StreamExt, TryStreamExt};
 use serde::Deserialize;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
@@ -183,9 +185,14 @@ where
         }
 
         let mut votes: Vec<Vote> = Vec::new();
+        let mut ord_fut = FuturesOrdered::new();
 
-        for msg in messages {
-            votes.push(self.process_message(&msg, &source_gateway_address).await?);
+        messages
+            .iter()
+            .for_each(|msg| ord_fut.push_back(self.process_message(&msg, &source_gateway_address)));
+
+        while let Some(vote_result) = ord_fut.next().await {
+            votes.push(vote_result?) // If there is a failure, its due to a network error, so we abort this handler operation and all messages need to be processed again.
         }
 
         self.broadcast_votes(poll_id, votes).await
