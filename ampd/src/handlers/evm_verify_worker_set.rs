@@ -13,12 +13,13 @@ use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::ID_SEPARATOR;
+use connection_router_api::{ChainName, ID_SEPARATOR};
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::evm::finalizer::FinalizerType;
 use crate::evm::verifier::verify_worker_set;
-use crate::evm::{finalizer, json_rpc::EthereumClient, ChainName};
+use crate::evm::{finalizer, json_rpc::EthereumClient};
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress, U256};
@@ -58,6 +59,7 @@ where
     worker: TMAddress,
     voting_verifier: TMAddress,
     chain: ChainName,
+    finalizer_type: FinalizerType,
     rpc_client: C,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
@@ -72,6 +74,7 @@ where
         worker: TMAddress,
         voting_verifier: TMAddress,
         chain: ChainName,
+        finalizer_type: FinalizerType,
         rpc_client: C,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
@@ -80,6 +83,7 @@ where
             worker,
             voting_verifier,
             chain,
+            finalizer_type,
             rpc_client,
             broadcast_client,
             latest_block_height,
@@ -92,7 +96,7 @@ where
         confirmation_height: u64,
     ) -> Result<Option<TransactionReceipt>> {
         let latest_finalized_block_height =
-            finalizer::pick(&self.chain, &self.rpc_client, confirmation_height)
+            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
                 .latest_finalized_block_height()
                 .await
                 .change_context(Error::Finalizer)?;
@@ -209,10 +213,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
+    use std::{convert::TryInto, str::FromStr};
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use connection_router_api::ChainName;
     use ethers::providers::ProviderError;
     use tendermint::abci;
 
@@ -223,7 +228,7 @@ mod tests {
 
     use crate::{
         event_processor::EventHandler,
-        evm::{json_rpc::MockEthereumClient, ChainName},
+        evm::{finalizer::FinalizerType, json_rpc::MockEthereumClient},
         handlers::evm_verify_worker_set::PollStartedEvent,
         queue::queued_broadcaster::MockBroadcasterClient,
         types::{EVMAddress, Hash, TMAddress},
@@ -268,7 +273,8 @@ mod tests {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            ChainName::Ethereum,
+            ChainName::from_str("ethereum").unwrap(),
+            FinalizerType::Ethereum,
             rpc_client,
             broadcast_client,
             rx,
