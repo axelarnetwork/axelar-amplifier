@@ -47,7 +47,9 @@ pub enum Config {
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
-        max_tx_cache_entries: usize
+        max_tx_cache_entries: usize,
+        #[serde(flatten, with = "chain")]
+        chain: GenericChain,
     },
     SolanaWorkerSetVerifier {
         cosmwasm_contract: TMAddress,
@@ -153,6 +155,23 @@ fn validate_solana_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(),
 where
     D: Deserializer<'de>,
 {
+
+    if !configs
+        .iter()
+        .filter_map(|config| match config {
+            Config::SolanaMsgVerifier {
+                chain: GenericChain { name, .. },
+                ..
+            } => Some(name),
+            _ => None,
+        })
+        .all_unique()
+    {
+        return Err(de::Error::custom(
+            "the chain name Solana msg verifier configs must be unique",
+        ));
+    }
+ 
     match configs
         .iter()
         .filter(|config| matches!(config, Config::SolanaMsgVerifier { .. }))

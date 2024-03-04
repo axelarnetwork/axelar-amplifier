@@ -265,8 +265,9 @@ where
                     cosmwasm_contract,
                     rpc_url,
                     max_tx_cache_entries,
+                    chain,
                 } => self.configure_handler(
-                    "solana-msg-verifier",
+                    format!("{}-msg-verifier", chain.name),
                     handlers::solana_verify_msg::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
@@ -277,6 +278,7 @@ where
                             ),
                             NonZeroUsize::new(max_tx_cache_entries).unwrap(),
                         ),
+                        chain.name,
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
