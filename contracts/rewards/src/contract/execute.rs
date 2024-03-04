@@ -298,7 +298,7 @@ mod test {
             .is_err());
     }
 
-    /// Tests that the current epoch is computed correctly when the expected epoch is different than the stored epoch
+    /// Tests that the current epoch is computed correctly when the expected epoch is different from the stored epoch
     #[test]
     fn current_epoch_different_epoch() {
         let cur_epoch_num = 1u64;
@@ -896,7 +896,7 @@ mod test {
         }
 
         // we add 2 epochs worth of rewards. There were 2 epochs of participation, but only 2 epochs where rewards should be given out
-        // This tests we are accounting correctly, and only removing from the pool when we actually give out rewards
+        // These tests we are accounting correctly, and only removing from the pool when we actually give out rewards
         let rewards_added = 2 * rewards_per_epoch;
         let _ = contract.add_rewards(
             pool_id.clone(),

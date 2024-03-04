@@ -232,7 +232,7 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        // need to change the block height so we can claim rewards
+        // need to change the block height, so we can claim rewards
         let old_height = app.block_info().height;
         app.set_block(BlockInfo {
             height: old_height + u64::from(initial_params.epoch_duration) * 2,

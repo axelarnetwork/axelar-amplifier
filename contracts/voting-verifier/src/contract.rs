@@ -426,7 +426,7 @@ mod test {
         );
 
         // 3. Retry verification. From the three messages that reached consensus, only the first two have a
-        // status considered final (SucceddedOnChan or FailedOnChain), so the last two are retried
+        // status considered final (SucceededOnChan or FailedOnChain), so the last two are retried
 
         let res = execute(
             deps.as_mut(),
