@@ -396,7 +396,7 @@ mod ecdsa_tests {
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
         let result = signature.verify(&message, &public_key);
-        assert_eq!(result.unwrap(), ());
+        assert!(result.is_ok(), "{:?}", result)
     }
 
     #[test]
@@ -535,8 +535,8 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, ());
+        let result = signature.verify(&message, &public_key);
+        assert!(result.is_ok(), "{:?}", result)
     }
 
     #[test]
