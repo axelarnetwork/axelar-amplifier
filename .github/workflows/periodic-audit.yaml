@@ -7,7 +7,7 @@ name: Cargo security audit
 on:
   push:
     paths:
-      - '**.yml'
+      - '**.yaml'
     branches:
       - fix/outdated-dependencies
 
