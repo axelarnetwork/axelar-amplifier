@@ -187,9 +187,10 @@ where
         let mut votes: Vec<Vote> = Vec::new();
         let mut ord_fut = FuturesOrdered::new();
 
-        messages
+        let mut ord_fut: FuturesOrdered<_> =  messages
             .iter()
-            .for_each(|msg| ord_fut.push_back(self.process_message(&msg, &source_gateway_address)));
+            .map(|msg| self.process_message(msg, &source_gateway_address))
+            .collect();
 
         while let Some(vote_result) = ord_fut.next().await {
             votes.push(vote_result?) // If there is a failure, its due to a network error, so we abort this handler operation and all messages need to be processed again.
