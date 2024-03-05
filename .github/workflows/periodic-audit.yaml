@@ -1,12 +1,46 @@
 name: Cargo security audit
+
+#on:
+#  schedule:
+#    - cron: '0 0 * * 0'
+
 on:
-  schedule:
-    - cron: '0 0 * * 0'
+  push:
+    paths:
+      - '**.yml'
+    branches:
+      - fix/outdated-dependencies
+
+
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: rustsec/audit-check@v1.4.1
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust environment
+        uses: actions-rs/toolchain@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: '1.73.0'
+          override: true
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        id: cargo-audit
+        run: |
+          AUDIT_OUTPUT=$(cargo audit)
+          TRIMMED_RESULTS=$(echo "$AUDIT_OUTPUT" | grep -vE '^│|^[[:space:]]')
+          echo "$TRIMMED_RESULTS"
+          echo "trimmed_results=$TRIMMED_RESULTS" >> $GITHUB_ENV
+
+      - name: Post to Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: 'C06N3BKMA5A'
+          slack-message: "Cargo Audit Results for: $(date '+%Y-%m-%d')\n${{ steps.cargo-audit.outputs.trimmed_results }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
