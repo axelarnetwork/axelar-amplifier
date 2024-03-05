@@ -2,11 +2,11 @@ use async_trait::async_trait;
 use connection_router::state::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
+use futures::stream::FuturesOrdered;
+use futures::{StreamExt, TryStreamExt};
 use serde::Deserialize;
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{EncodedConfirmedTransactionWithStatusMeta, UiTransactionEncoding};
-use std::collections::HashSet;
+use solana_transaction_status::UiTransactionEncoding;
 use std::convert::TryInto;
 use std::str::FromStr;
 use tracing::{error, info};
@@ -21,6 +21,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::solana::msg_verifier::verify_message;
+use crate::solana::rpc::RpcCacheWrapper;
 use crate::types::TMAddress;
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -55,7 +56,7 @@ where
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
-    rpc_client: RpcClient,
+    rpc_client: RpcCacheWrapper,
     chain: ChainName,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
@@ -68,16 +69,16 @@ where
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
+        rpc_client: RpcCacheWrapper,
         chain: ChainName,
-        rpc_client: RpcClient,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             voting_verifier,
-            chain,
             rpc_client,
+            chain,
             broadcast_client,
             latest_block_height,
         }
@@ -96,6 +97,48 @@ where
             .broadcast(tx)
             .await
             .change_context(Error::Broadcaster)
+    }
+
+    async fn process_message(
+        &self,
+        msg: &Message,
+        source_gateway_address: &String,
+    ) -> Result<Vote> {
+        let sol_tx_signature = match Signature::from_str(&msg.tx_id) {
+            Ok(sig) => sig,
+            Err(err) => {
+                error!(
+                    tx_id = msg.tx_id.to_string(),
+                    err = err.to_string(),
+                    "Cannot decode solana tx signature"
+                );
+                return Ok(Vote::FailedOnChain);
+            }
+        };
+
+        let sol_tx = match self
+            .rpc_client
+            .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
+            .await
+        {
+            Ok(tx) => tx,
+            Err(err) => match err.kind() {
+                // When tx is not found a null is returned.
+                solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
+                    error!(
+                        tx_id = msg.tx_id,
+                        err = err.to_string(),
+                        "Cannot find solana tx signature"
+                    );
+                    return Ok(Vote::NotFound);
+                }
+                _ => {
+                    error!(tx_id = msg.tx_id, "RPC error while fetching solana tx");
+                    return Err(Error::TxReceipts)?;
+                }
+            },
+        };
+        Ok(verify_message(source_gateway_address, sol_tx, &msg))
     }
 }
 
@@ -141,59 +184,16 @@ where
             return Ok(());
         }
 
-        let tx_ids_from_msg: HashSet<_> = messages.iter().map(|msg| msg.tx_id.clone()).collect();
+        let mut votes: Vec<Vote> = Vec::new();
+        let mut ord_fut = FuturesOrdered::new();
 
-        let mut sol_txs: Vec<EncodedConfirmedTransactionWithStatusMeta> = Vec::new();
-        for msg_tx in tx_ids_from_msg {
-            let sol_tx_signature = match Signature::from_str(&msg_tx) {
-                Ok(sig) => sig,
-                Err(err) => {
-                    error!(
-                        poll_id = poll_id.to_string(),
-                        err = err.to_string(),
-                        "Cannot decode solana tx signature"
-                    );
-                    continue;
-                }
-            };
+        let mut ord_fut: FuturesOrdered<_> =  messages
+            .iter()
+            .map(|msg| self.process_message(msg, &source_gateway_address))
+            .collect();
 
-            let sol_tx = match self
-                .rpc_client
-                .get_transaction(&sol_tx_signature, UiTransactionEncoding::Json)
-                .await
-            {
-                Ok(tx) => tx,
-                Err(err) => match err.kind() {
-                    // When tx is not found a null is returned.
-                    solana_client::client_error::ClientErrorKind::SerdeJson(_) => {
-                        error!(
-                            tx_id = msg_tx,
-                            poll_id = poll_id.to_string(),
-                            err = err.to_string(),
-                            "Cannot find solana tx signature"
-                        );
-                        continue;
-                    }
-                    _ => {
-                        error!(
-                            tx_id = msg_tx,
-                            poll_id = poll_id.to_string(),
-                            "RPC error while fetching solana tx"
-                        );
-                        continue;
-                    }
-                },
-            };
-
-            sol_txs.push(sol_tx);
-        }
-
-        let mut votes: Vec<Vote> = vec![Vote::NotFound; messages.len()];
-        for msg in messages {
-            votes = sol_txs
-                .iter()
-                .map(|tx| verify_message(&source_gateway_address, tx, &msg))
-                .collect();
+        while let Some(vote_result) = ord_fut.next().await {
+            votes.push(vote_result?) // If there is a failure, its due to a network error, so we abort this handler operation and all messages need to be processed again.
         }
 
         self.broadcast_votes(poll_id, votes).await
@@ -202,6 +202,8 @@ where
 
 #[cfg(test)]
 mod test {
+
+    use std::num::NonZeroUsize;
 
     use axelar_wasm_std::nonempty;
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -240,15 +242,19 @@ mod test {
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(worker.clone())), 100, source_chain.clone()),
+            get_poll_started_event(
+                participants(5, Some(worker.clone())),
+                100,
+                source_chain.clone(),
+            ),
             &voting_verifier,
         );
 
         let handler = super::Handler::new(
             worker,
             voting_verifier,
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            rpc_client,
             broadcast_client,
             rx,
         );
@@ -290,8 +296,8 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            rpc_client,
             broadcast_client,
             rx,
         );
@@ -330,8 +336,8 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            rpc_client,
             broadcast_client,
             rx,
         );
@@ -342,11 +348,6 @@ mod test {
             Some(&1),
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
         );
-    }
-
-    fn dummy_tx_type() -> EncodedConfirmedTransactionWithStatusMeta {
-        // Example from https://solana.com/docs/rpc/http/gettransaction
-        serde_json::from_str(include_str!("../solana/tests/solana_tx.json")).unwrap()
     }
 
     #[async_test]
@@ -378,8 +379,8 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            rpc_client,
             broadcast_client,
             rx,
         );
@@ -417,8 +418,8 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            rpc_client,
             broadcast_client,
             rx,
         );
@@ -460,8 +461,8 @@ mod test {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
+            RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            rpc_client,
             broadcast_client,
             rx,
         );

@@ -71,6 +71,7 @@ valuable = { version = "0.1.0", features = ["derive"] }
 valuable-serde = { version = "0.1.0", features = ["std"] }
 voting-verifier = { workspace = true }
 gmp-gateway = { git = "ssh://git@github.com/eigerco/solana-axelar.git", branch = "poc" }
+lru = "0.12.3"
 
 [dev-dependencies]
 elliptic-curve = "0.13.5"

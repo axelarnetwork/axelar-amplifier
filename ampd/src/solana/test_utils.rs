@@ -12,8 +12,6 @@ use solana_rpc_client_api::client_error::Result;
 use tokio::sync::RwLock;
 use tonic::async_trait;
 
-pub const PUBKEY: &str = "7RoSF9fUmdphVCpabEoefH81WwrW7orsWonXWqTXkKV8";
-
 type Registry = Arc<RwLock<HashMap<RpcRequest, u64>>>;
 
 pub struct RpcRecorder {
