@@ -173,29 +173,32 @@ mod tests {
     }
 
     #[test]
-    async fn pick_should_work() {
+    async fn pick_should_work_for_ethereum_finalizer() {
         let mut rpc_client = MockEthereumClient::new();
         let mut block = Block::<Hash>::default();
         let block_number: U64 = 10.into();
         block.number = Some(block_number.clone());
-        let pow_confirmation_height = 6;
 
         rpc_client
             .expect_finalized_block()
             .returning(move || Ok(block.clone()));
-        rpc_client
-            .expect_block_number()
-            .returning(move || Ok(block_number));
 
-        let finalizer = pick(
-            &FinalizerType::Ethereum,
-            &rpc_client,
-            pow_confirmation_height,
-        );
+        let finalizer = pick(&FinalizerType::Ethereum, &rpc_client, 1);
         assert_eq!(
             finalizer.latest_finalized_block_height().await.unwrap(),
             block_number
         );
+    }
+
+    #[test]
+    async fn pick_should_work_for_pow_finalizer() {
+        let mut rpc_client = MockEthereumClient::new();
+        let block_number: U64 = 10.into();
+        let pow_confirmation_height = 6;
+
+        rpc_client
+            .expect_block_number()
+            .returning(move || Ok(block_number));
 
         let finalizer = pick(&FinalizerType::PoW, &rpc_client, pow_confirmation_height);
         assert_eq!(
