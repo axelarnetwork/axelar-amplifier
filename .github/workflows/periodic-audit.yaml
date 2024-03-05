@@ -34,7 +34,7 @@ jobs:
           AUDIT_OUTPUT=$(cargo audit)
           TRIMMED_RESULTS=$(echo "$AUDIT_OUTPUT" | grep -vE '^│|^[[:space:]]')
           echo "$TRIMMED_RESULTS"
-          echo "trimmed_results=$TRIMMED_RESULTS" >> $GITHUB_ENV
+          echo "trimmed_results=$TRIMMED_RESULTS" >> GITHUB_OUTPUT
 
       - name: Post to Slack channel
         id: slack
