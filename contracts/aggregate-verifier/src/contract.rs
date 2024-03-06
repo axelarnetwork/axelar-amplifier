@@ -1,4 +1,5 @@
-use connection_router::state::CrossChainId;
+use axelar_wasm_std::VerificationStatus;
+use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -46,7 +47,7 @@ pub fn execute(
 pub mod execute {
     use cosmwasm_std::{to_binary, SubMsg, WasmMsg};
 
-    use connection_router::state::Message;
+    use connection_router_api::Message;
 
     use super::*;
 
@@ -78,7 +79,7 @@ pub fn reply(
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             // check format of data
-            let _: Vec<(CrossChainId, bool)> = from_binary(&data)?;
+            let _: Vec<(CrossChainId, VerificationStatus)> = from_binary(&data)?;
 
             // only one verifier, so just return the response as is
             Ok(Response::new().set_data(data))
@@ -97,11 +98,11 @@ pub fn reply(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::IsVerified { messages } => {
+        QueryMsg::GetMessagesStatus { messages } => {
             let verifier = CONFIG.load(deps.storage)?.verifier;
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: verifier.to_string(),
-                msg: to_binary(&voting_msg::QueryMsg::IsVerified { messages })?,
+                msg: to_binary(&voting_msg::QueryMsg::GetMessagesStatus { messages })?,
             }))
         }
     }

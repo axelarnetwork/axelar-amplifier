@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use enum_display_derive::Display;
-use ethers::types::U64;
 use serde::{Deserialize, Serialize};
 
 pub mod error;
@@ -16,37 +15,19 @@ pub enum ChainName {
     Other(String),
 }
 
-impl PartialEq<connection_router::state::ChainName> for ChainName {
-    fn eq(&self, other: &connection_router::state::ChainName) -> bool {
+impl PartialEq<connection_router_api::ChainName> for ChainName {
+    fn eq(&self, other: &connection_router_api::ChainName) -> bool {
         self.to_string().eq_ignore_ascii_case(other.as_ref())
-    }
-}
-
-impl ChainName {
-    pub fn finalizer<'a, C, H>(
-        &'a self,
-        rpc_client: &'a C,
-        confirmation_height: H,
-    ) -> Box<dyn finalizer::Finalizer + 'a>
-    where
-        C: json_rpc::EthereumClient + Send + Sync,
-        H: Into<U64>,
-    {
-        match self {
-            ChainName::Ethereum => Box::new(finalizer::EthereumFinalizer::new(rpc_client)),
-            ChainName::Other(_) => Box::new(finalizer::PoWFinalizer::new(
-                rpc_client,
-                confirmation_height,
-            )),
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::evm;
-    use connection_router::state::ChainName;
     use std::str::FromStr;
+
+    use connection_router_api::ChainName;
+
+    use crate::evm;
 
     #[test]
     fn chain_name_partial_eq() {

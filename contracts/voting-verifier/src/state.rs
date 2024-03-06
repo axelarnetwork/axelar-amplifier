@@ -10,7 +10,7 @@ use axelar_wasm_std::{
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };
-use connection_router::state::{ChainName, Message};
+use connection_router_api::{ChainName, Message};
 
 use crate::error::ContractError;
 

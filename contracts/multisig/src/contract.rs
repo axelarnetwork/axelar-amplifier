@@ -15,6 +15,9 @@ use crate::{
     ContractError,
 };
 
+mod execute;
+mod query;
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -25,7 +28,7 @@ pub fn instantiate(
     let config = Config {
         governance: deps.api.addr_validate(&msg.governance_address)?,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
-        grace_period: msg.grace_period,
+        block_expiry: msg.block_expiry,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -50,15 +53,17 @@ pub fn execute(
         } => {
             execute::require_authorized_caller(&deps, info.sender)?;
 
-            let _sig_verifier = sig_verifier
+            let sig_verifier = sig_verifier
                 .map(|addr| deps.api.addr_validate(&addr))
-                .transpose()?; // TODO: handle callback
+                .transpose()?;
             execute::start_signing_session(
                 deps,
+                env,
                 worker_set_id,
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
                 chain_name,
+                sig_verifier,
             )
         }
         ExecuteMsg::SubmitSignature {
@@ -68,9 +73,10 @@ pub fn execute(
         ExecuteMsg::RegisterWorkerSet { worker_set } => {
             execute::register_worker_set(deps, worker_set)
         }
-        ExecuteMsg::RegisterPublicKey { public_key } => {
-            execute::register_pub_key(deps, info, public_key)
-        }
+        ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCaller { contract_address } => {
             execute::require_governance(&deps, info.sender)?;
             execute::authorize_caller(deps, contract_address)
@@ -81,219 +87,6 @@ pub fn execute(
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
-}
-
-pub mod execute {
-    use connection_router::state::ChainName;
-    use cosmwasm_std::WasmMsg;
-
-    use crate::signing::validate_session_signature;
-    use crate::state::{load_session_signatures, save_signature};
-    use crate::worker_set::WorkerSet;
-    use crate::{
-        key::{KeyTyped, PublicKey, Signature},
-        signing::SigningSession,
-        state::{AUTHORIZED_CALLERS, PUB_KEYS},
-    };
-    use error_stack::ResultExt;
-
-    use super::*;
-
-    pub fn start_signing_session(
-        deps: DepsMut,
-        worker_set_id: String,
-        msg: MsgToSign,
-        chain_name: ChainName,
-    ) -> Result<Response, ContractError> {
-        let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
-
-        let session_id = SIGNING_SESSION_COUNTER.update(
-            deps.storage,
-            |mut counter| -> Result<Uint64, ContractError> {
-                counter += Uint64::one();
-                Ok(counter)
-            },
-        )?;
-
-        let signing_session = SigningSession::new(session_id, worker_set_id.clone(), msg.clone());
-
-        SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
-
-        let event = Event::SigningStarted {
-            session_id,
-            worker_set_id,
-            pub_keys: worker_set.get_pub_keys(),
-            msg,
-            chain_name,
-        };
-
-        Ok(Response::new()
-            .set_data(to_binary(&session_id)?)
-            .add_event(event.into()))
-    }
-
-    pub fn submit_signature(
-        deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        session_id: Uint64,
-        signature: HexBinary,
-    ) -> Result<Response, ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        let mut session = SIGNING_SESSIONS
-            .load(deps.storage, session_id.into())
-            .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-        let worker_set = WORKER_SETS.load(deps.storage, &session.worker_set_id)?;
-
-        let pub_key = match worker_set.signers.get(&info.sender.to_string()) {
-            Some(signer) => Ok(&signer.pub_key),
-            None => Err(ContractError::NotAParticipant {
-                session_id,
-                signer: info.sender.to_string(),
-            }),
-        }?;
-
-        let signature: Signature = (pub_key.key_type(), signature).try_into()?;
-
-        validate_session_signature(
-            &session,
-            &info.sender,
-            &signature,
-            pub_key,
-            config.grace_period,
-            env.block.height,
-        )?;
-        let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
-
-        let signatures = load_session_signatures(deps.storage, session_id.u64())?;
-
-        let old_state = session.state.clone();
-
-        session.recalculate_session_state(&signatures, &worker_set, env.block.height);
-        SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
-
-        let state_changed = old_state != session.state;
-
-        signing_response(
-            session_id,
-            session.state,
-            state_changed,
-            info.sender,
-            signature,
-            config.rewards_contract.into_string(),
-        )
-    }
-
-    pub fn register_worker_set(
-        deps: DepsMut,
-        worker_set: WorkerSet,
-    ) -> Result<Response, ContractError> {
-        let worker_set_id = worker_set.id();
-        WORKER_SETS.save(deps.storage, &worker_set_id, &worker_set)?;
-
-        Ok(Response::default())
-    }
-
-    pub fn register_pub_key(
-        deps: DepsMut,
-        info: MessageInfo,
-        public_key: PublicKey,
-    ) -> Result<Response, ContractError> {
-        PUB_KEYS.save(
-            deps.storage,
-            (info.sender.clone(), public_key.key_type()),
-            &public_key.clone().into(),
-        )?;
-
-        Ok(Response::new().add_event(
-            Event::PublicKeyRegistered {
-                worker: info.sender,
-                public_key,
-            }
-            .into(),
-        ))
-    }
-
-    pub fn require_authorized_caller(
-        deps: &DepsMut,
-        contract_address: Addr,
-    ) -> error_stack::Result<(), ContractError> {
-        AUTHORIZED_CALLERS
-            .load(deps.storage, &contract_address)
-            .change_context(ContractError::Unauthorized)
-    }
-
-    pub fn authorize_caller(
-        deps: DepsMut,
-        contract_address: Addr,
-    ) -> Result<Response, ContractError> {
-        AUTHORIZED_CALLERS.save(deps.storage, &contract_address, &())?;
-
-        Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
-    }
-
-    pub fn unauthorize_caller(
-        deps: DepsMut,
-        contract_address: Addr,
-    ) -> Result<Response, ContractError> {
-        AUTHORIZED_CALLERS.remove(deps.storage, &contract_address);
-
-        Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
-    }
-
-    pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        if config.governance != sender {
-            return Err(ContractError::Unauthorized);
-        }
-        Ok(())
-    }
-
-    fn signing_response(
-        session_id: Uint64,
-        session_state: MultisigState,
-        state_changed: bool,
-        signer: Addr,
-        signature: Signature,
-        rewards_contract: String,
-    ) -> Result<Response, ContractError> {
-        let rewards_msg = WasmMsg::Execute {
-            contract_addr: rewards_contract,
-            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-                event_id: session_id
-                    .to_string()
-                    .try_into()
-                    .expect("couldn't convert session_id to nonempty string"),
-                worker_address: signer.to_string(),
-            })?,
-            funds: vec![],
-        };
-
-        let event = Event::SignatureSubmitted {
-            session_id,
-            participant: signer,
-            signature,
-        };
-
-        let mut response = Response::new()
-            .add_message(rewards_msg)
-            .add_event(event.into());
-
-        if let MultisigState::Completed { completed_at } = session_state {
-            if state_changed {
-                // only send event if state changed
-                response = response.add_event(
-                    Event::SigningCompleted {
-                        session_id,
-                        completed_at,
-                    }
-                    .into(),
-                )
-            }
-        }
-
-        Ok(response)
-    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -314,46 +107,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub mod query {
-    use crate::{
-        key::{KeyType, PublicKey},
-        state::{load_session_signatures, PUB_KEYS},
-        worker_set::WorkerSet,
-    };
-
-    use super::*;
-
-    pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
-        let session = SIGNING_SESSIONS.load(deps.storage, session_id.into())?;
-
-        let worker_set = WORKER_SETS.load(deps.storage, &session.worker_set_id)?;
-        let signatures = load_session_signatures(deps.storage, session.id.u64())?;
-
-        let signers_with_sigs = worker_set
-            .signers
-            .into_iter()
-            .map(|(address, signer)| (signer, signatures.get(&address).cloned()))
-            .collect::<Vec<_>>();
-
-        Ok(Multisig {
-            state: session.state,
-            quorum: worker_set.threshold,
-            signers: signers_with_sigs,
-        })
-    }
-
-    pub fn get_worker_set(deps: Deps, worker_set_id: String) -> StdResult<WorkerSet> {
-        WORKER_SETS.load(deps.storage, &worker_set_id)
-    }
-
-    pub fn get_public_key(deps: Deps, worker: Addr, key_type: KeyType) -> StdResult<PublicKey> {
-        let raw = PUB_KEYS.load(deps.storage, (worker, key_type))?;
-        Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use serde_json::from_str;
     use std::vec;
 
     use crate::{
@@ -367,17 +123,18 @@ mod tests {
     };
 
     use super::*;
+    use connection_router_api::ChainName;
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, OwnedDeps, Uint256, WasmMsg,
     };
 
-    use serde_json::from_str;
-
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
     const REWARDS_CONTRACT: &str = "rewards";
+
+    const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
     fn do_instantiate(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(INSTANTIATOR, &[]);
@@ -386,7 +143,7 @@ mod tests {
         let msg = InstantiateMsg {
             governance_address: "governance".parse().unwrap(),
             rewards_address: REWARDS_CONTRACT.to_string(),
-            grace_period: 2,
+            block_expiry: SIGNATURE_BLOCK_EXPIRY,
         };
 
         instantiate(deps, env, info, msg)
@@ -427,6 +184,7 @@ mod tests {
         deps: DepsMut,
         sender: &str,
         worker_set_id: &str,
+        chain_name: ChainName,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
@@ -435,7 +193,7 @@ mod tests {
         let msg = ExecuteMsg::StartSigningSession {
             worker_set_id: worker_set_id.to_string(),
             msg: message.clone(),
-            chain_name: "Ethereum".to_string().try_into().unwrap(),
+            chain_name,
             sig_verifier: None,
         };
         execute(deps, env, info, msg)
@@ -458,8 +216,12 @@ mod tests {
         deps: DepsMut,
         worker: Addr,
         public_key: PublicKey,
+        signed_sender_address: HexBinary,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let msg = ExecuteMsg::RegisterPublicKey { public_key };
+        let msg = ExecuteMsg::RegisterPublicKey {
+            public_key,
+            signed_sender_address,
+        };
         execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
     }
 
@@ -609,7 +371,12 @@ mod tests {
             .into_iter()
             .enumerate()
         {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, &subkey);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &subkey,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert!(res.is_ok());
 
@@ -663,7 +430,12 @@ mod tests {
         let sender = "someone else";
 
         for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
-            let res = do_start_signing_session(deps.as_mut(), sender, &worker_set_id);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                sender,
+                &worker_set_id,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert_eq!(
                 res.unwrap_err().to_string(),
@@ -678,16 +450,20 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+
         for (key_type, worker_set_id, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, worker_set_id).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, worker_set_id, chain_name.clone())
+                .unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
                 })
@@ -745,7 +521,8 @@ mod tests {
         for (key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
+                .unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
@@ -790,14 +567,16 @@ mod tests {
     }
 
     #[test]
-    fn submit_signature_during_grace_period() {
+    fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
 
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, chain_name.clone()).unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
@@ -806,12 +585,13 @@ mod tests {
             let signer = signers.get(1).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
-            // third signature, grace period
+            // third signature
             let signer = signers.get(2).unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
                 })
@@ -831,19 +611,20 @@ mod tests {
             assert!(!res
                 .events
                 .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted during grace period
+                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted
         }
     }
 
     #[test]
-    fn submit_signature_grace_period_over() {
+    fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
+                .unwrap();
 
             let signer = signers.get(0).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
@@ -852,16 +633,16 @@ mod tests {
             let signer = signers.get(1).unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
-            // third signature, grace period over
+            // third signature, expiration block passed
             let signer = signers.get(2).unwrap().to_owned();
             let mut env = mock_env();
-            env.block.height += 10;
+            env.block.height += 101;
             let res = do_sign(deps.as_mut(), env, session_id, &signer);
 
             assert_eq!(
                 res.unwrap_err().to_string(),
                 axelar_wasm_std::ContractError::from(ContractError::SigningSessionClosed {
-                    session_id: session_id
+                    session_id
                 })
                 .to_string()
             )
@@ -872,7 +653,13 @@ mod tests {
     fn submit_signature_wrong_session_id() {
         let (mut deps, ecdsa_subkey, _) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
-        do_start_signing_session(deps.as_mut(), PROVER, &ecdsa_subkey).unwrap();
+        do_start_signing_session(
+            deps.as_mut(),
+            PROVER,
+            &ecdsa_subkey,
+            "mock-chain".parse().unwrap(),
+        )
+        .unwrap();
 
         let invalid_session_id = Uint64::zero();
         let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
@@ -895,7 +682,8 @@ mod tests {
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
+                .unwrap();
 
             do_sign(
                 deps.as_mut(),
@@ -960,14 +748,21 @@ mod tests {
         let ecdsa_signers = ecdsa_test_data::signers();
         let ecdsa_pub_keys = ecdsa_signers
             .iter()
-            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
-            .collect::<Vec<(Addr, HexBinary)>>();
+            .map(|signer| {
+                (
+                    signer.address.clone(),
+                    signer.pub_key.clone(),
+                    signer.signed_address.clone(),
+                )
+            })
+            .collect::<Vec<(Addr, HexBinary, HexBinary)>>();
 
-        for (addr, pub_key) in &ecdsa_pub_keys {
+        for (addr, pub_key, signed_address) in &ecdsa_pub_keys {
             let res = do_register_key(
                 deps.as_mut(),
                 addr.clone(),
                 PublicKey::Ecdsa(pub_key.clone()),
+                signed_address.clone(),
             );
             assert!(res.is_ok());
         }
@@ -976,14 +771,21 @@ mod tests {
         let ed25519_signers = ed25519_test_data::signers();
         let ed25519_pub_keys = ed25519_signers
             .iter()
-            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
-            .collect::<Vec<(Addr, HexBinary)>>();
+            .map(|signer| {
+                (
+                    signer.address.clone(),
+                    signer.pub_key.clone(),
+                    signer.signed_address.clone(),
+                )
+            })
+            .collect::<Vec<(Addr, HexBinary, HexBinary)>>();
 
-        for (addr, pub_key) in &ed25519_pub_keys {
+        for (addr, pub_key, signed_address) in &ed25519_pub_keys {
             let res = do_register_key(
                 deps.as_mut(),
                 addr.clone(),
                 PublicKey::Ed25519(pub_key.clone()),
+                signed_address.clone(),
             );
             assert!(res.is_ok());
         }
@@ -995,7 +797,7 @@ mod tests {
         ] {
             let mut ret_pub_keys: Vec<PublicKey> = vec![];
 
-            for (addr, _) in &expected_pub_keys {
+            for (addr, _, _) in &expected_pub_keys {
                 let res = query_registered_public_key(deps.as_ref(), addr.clone(), key_type);
                 assert!(res.is_ok());
                 ret_pub_keys.push(from_binary(&res.unwrap()).unwrap());
@@ -1003,7 +805,7 @@ mod tests {
             assert_eq!(
                 expected_pub_keys
                     .into_iter()
-                    .map(|(_, pk)| PublicKey::try_from((key_type, pk)).unwrap())
+                    .map(|(_, pk, _)| PublicKey::try_from((key_type, pk)).unwrap())
                     .collect::<Vec<PublicKey>>(),
                 ret_pub_keys
             );
@@ -1017,27 +819,35 @@ mod tests {
         let signers = ecdsa_test_data::signers();
         let pub_keys = signers
             .iter()
-            .map(|signer| (signer.address.clone(), signer.pub_key.clone()))
-            .collect::<Vec<(Addr, HexBinary)>>();
+            .map(|signer| {
+                (
+                    signer.address.clone(),
+                    signer.pub_key.clone(),
+                    signer.signed_address.clone(),
+                )
+            })
+            .collect::<Vec<(Addr, HexBinary, HexBinary)>>();
 
-        for (addr, pub_key) in &pub_keys {
+        for (addr, pub_key, signed_address) in &pub_keys {
             let res = do_register_key(
                 deps.as_mut(),
                 addr.clone(),
                 PublicKey::Ecdsa(pub_key.clone()),
+                signed_address.clone(),
             );
             assert!(res.is_ok());
         }
 
         // Update ECDSA key
         let new_pub_key = HexBinary::from_hex(
-            "021a381b3e07347d3a05495347e1fb2fe04764afcea5a74084fa957947b59f9026",
+            "03a7e532333ba40803b7e5744cbc94e94e905c9ced87bbe08065e0cd36fa7e01c6",
         )
         .unwrap();
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
             PublicKey::Ecdsa(new_pub_key.clone()),
+            HexBinary::from_hex("b8b4c7e4423e80a71171d40709a1ca3b464b09ca93c4df9e13ef98df5d6d2d3b77a2fdf22a34b2946574801ee0d7fa886d8c3b34e63ca4158b74e02fe343ca47").unwrap(),
         );
         assert!(res.is_ok());
 
@@ -1050,13 +860,14 @@ mod tests {
 
         // Register an ED25519 key, it should not affect our ECDSA key
         let ed25519_pub_key =
-            HexBinary::from_hex("13606a37daa030d02a72986dc01e45904678c8001429cd34514e69e2d054636a")
+            HexBinary::from_hex("2753ddea3de0211433a8f743474cbb48a9a5bc2d2e9ade1e4e7975b95f14c902")
                 .unwrap();
 
         let res = do_register_key(
             deps.as_mut(),
             pub_keys[0].0.clone(),
             PublicKey::Ed25519(ed25519_pub_key.clone()),
+            HexBinary::from_hex("e9e4863bfe418eb1e85b08e71db9580247ced6d6c0bac8dfa1fce64e96cff79ee327992fc46f70902834ab23b0584c2a613ad5c608d640a71db5d6784117c80a").unwrap(),
         );
         assert!(res.is_ok());
 
@@ -1077,6 +888,81 @@ mod tests {
     }
 
     #[test]
+    fn should_fail_register_key_if_signature_invalid() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        // Ecdsa
+        let signers = ecdsa_test_data::signers();
+        let signer1 = signers.first().unwrap();
+        let signer2 = signers.last().unwrap();
+
+        let res = do_register_key(
+            deps.as_mut(),
+            signer1.address.clone(),
+            PublicKey::Ecdsa(signer1.pub_key.clone()),
+            signer2.signed_address.clone(),
+        );
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(
+                ContractError::InvalidPublicKeyRegistrationSignature
+            )
+            .to_string()
+        );
+
+        // Ed25519
+        let signers = ed25519_test_data::signers();
+        let signer1 = signers.first().unwrap();
+        let signer2 = signers.last().unwrap();
+
+        let res = do_register_key(
+            deps.as_mut(),
+            signer1.address.clone(),
+            PublicKey::Ed25519(signer1.pub_key.clone()),
+            signer2.signed_address.clone(),
+        );
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(
+                ContractError::InvalidPublicKeyRegistrationSignature
+            )
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn should_fail_duplicate_public_key_registration() {
+        let mut deps = mock_dependencies();
+        do_instantiate(deps.as_mut()).unwrap();
+
+        // Ecdsa
+        let mut signers = ecdsa_test_data::signers();
+        let signer1 = signers.remove(0);
+        let signer2 = signers.remove(0);
+
+        do_register_key(
+            deps.as_mut(),
+            signer1.address.clone(),
+            PublicKey::Ecdsa(signer1.pub_key.clone()),
+            signer1.signed_address.clone(),
+        )
+        .unwrap();
+
+        let res = do_register_key(
+            deps.as_mut(),
+            signer2.address.clone(),
+            PublicKey::Ecdsa(signer1.pub_key.clone()),
+            HexBinary::from_hex("9c7b758232a7a9c7362bda880dd659450b45237fbb3bd8fbe61464bd9a8271e06b9867f419a8a5e1ed173980ee3f8567637bb7e028093dcb6c1115d2379886d9").unwrap(),
+        );
+
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::DuplicatePublicKey).to_string()
+        );
+    }
+
+    #[test]
     fn authorize_and_unauthorize_caller() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
 
@@ -1084,7 +970,12 @@ mod tests {
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for worker_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, &worker_set_id);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &worker_set_id,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert!(res.is_ok());
         }
@@ -1092,7 +983,12 @@ mod tests {
         // unauthorize
         do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
         for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, &worker_set_id);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &worker_set_id,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert_eq!(
                 res.unwrap_err().to_string(),

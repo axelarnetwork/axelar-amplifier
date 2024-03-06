@@ -1,3 +1,6 @@
+mod primitives;
+
 pub mod error;
 pub mod msg;
-pub mod primitives;
+pub use primitives::*;
+pub mod client;

@@ -9,7 +9,7 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::ID_SEPARATOR;
+use connection_router_api::ID_SEPARATOR;
 use cosmwasm_std::HexBinary;
 use cosmwasm_std::Uint128;
 use events::{Error::EventTypeMismatch, Event};
@@ -40,8 +40,6 @@ pub struct WorkerSetConfirmation {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-worker_set_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     poll_id: PollId,
     source_gateway_address: SuiAddress,
     worker_set: WorkerSetConfirmation,
@@ -110,8 +108,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> error_stack::Result<(), Error> {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_gateway_address,
             worker_set,
@@ -124,10 +125,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if !participants.contains(&self.worker) {
             return Ok(());

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use signature_verifier_api::client::SignatureVerifier;
 
 use crate::{
     key::{PublicKey, Signature},
@@ -14,17 +16,30 @@ use crate::{
 pub struct SigningSession {
     pub id: Uint64,
     pub worker_set_id: String,
+    pub chain_name: ChainName,
     pub msg: MsgToSign,
     pub state: MultisigState,
+    pub expires_at: u64,
+    pub sig_verifier: Option<Addr>,
 }
 
 impl SigningSession {
-    pub fn new(session_id: Uint64, worker_set_id: String, msg: MsgToSign) -> Self {
+    pub fn new(
+        session_id: Uint64,
+        worker_set_id: String,
+        chain_name: ChainName,
+        msg: MsgToSign,
+        expires_at: u64,
+        sig_verifier: Option<Addr>,
+    ) -> Self {
         Self {
             id: session_id,
             worker_set_id,
+            chain_name,
             msg,
             state: MultisigState::Pending,
+            expires_at,
+            sig_verifier,
         }
     }
 
@@ -49,24 +64,58 @@ pub fn validate_session_signature(
     signer: &Addr,
     signature: &Signature,
     pub_key: &PublicKey,
-    grace_period: u64,
     block_height: u64,
+    sig_verifier: Option<SignatureVerifier>,
 ) -> Result<(), ContractError> {
-    if matches!(session.state, MultisigState::Completed { completed_at } if completed_at + grace_period < block_height)
-    {
+    if session.expires_at < block_height {
         return Err(ContractError::SigningSessionClosed {
             session_id: session.id,
         });
     }
 
-    if !signature.verify(&session.msg, pub_key)? {
-        return Err(ContractError::InvalidSignature {
+    sig_verifier
+        .map_or_else(
+            || signature.verify(&session.msg, pub_key),
+            |sig_verifier| {
+                call_sig_verifier(
+                    sig_verifier,
+                    signature.as_ref().into(),
+                    session.msg.as_ref().into(),
+                    pub_key.as_ref().into(),
+                    signer.to_string(),
+                    session.id,
+                )
+            },
+        )
+        .map_err(|_| ContractError::InvalidSignature {
             session_id: session.id,
             signer: signer.into(),
-        });
-    }
+        })?;
 
     Ok(())
+}
+
+fn call_sig_verifier(
+    sig_verifier: SignatureVerifier,
+    signature: HexBinary,
+    message: HexBinary,
+    pub_key: HexBinary,
+    signer: String,
+    session_id: Uint64,
+) -> Result<(), ContractError> {
+    let res = sig_verifier
+        .verify_signature(signature, message, pub_key, signer, session_id)
+        .map_err(|err| ContractError::SignatureVerificationFailed {
+            reason: err.to_string(),
+        })?;
+
+    if !res {
+        Err(ContractError::SignatureVerificationFailed {
+            reason: "unable to verify signature".into(),
+        })
+    } else {
+        Ok(())
+    }
 }
 
 fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint256 {
@@ -84,7 +133,10 @@ fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSe
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{testing::MockStorage, Addr, HexBinary};
+    use cosmwasm_std::{
+        testing::{MockQuerier, MockStorage},
+        to_binary, Addr, HexBinary, QuerierWrapper,
+    };
 
     use crate::{
         key::KeyType,
@@ -112,7 +164,15 @@ mod tests {
         let worker_set = build_worker_set(KeyType::Ecdsa, &signers);
 
         let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
+        let expires_at = 12345;
+        let session = SigningSession::new(
+            Uint64::one(),
+            worker_set_id,
+            "mock-chain".parse().unwrap(),
+            message.clone(),
+            expires_at,
+            None,
+        );
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
@@ -143,7 +203,15 @@ mod tests {
         let worker_set = build_worker_set(key_type, &signers);
 
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
-        let session = SigningSession::new(Uint64::one(), worker_set_id, message.clone());
+        let expires_at = 12345;
+        let session = SigningSession::new(
+            Uint64::one(),
+            worker_set_id,
+            "mock-chain".parse().unwrap(),
+            message.clone(),
+            expires_at,
+            None,
+        );
 
         let signatures: HashMap<String, Signature> = signers
             .iter()
@@ -195,31 +263,69 @@ mod tests {
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
             assert!(
-                validate_session_signature(&session, &signer, signature, pub_key, 0, 0).is_ok()
+                validate_session_signature(&session, &signer, signature, pub_key, 0, None).is_ok()
             );
         }
     }
 
     #[test]
-    fn success_validation_grace_period() {
+    fn validation_through_signature_verifier_contract() {
         for config in [ecdsa_setup(), ed25519_setup()] {
-            let mut session = config.session;
+            let session = config.session;
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let completed_at = 12345;
-            let grace_period = 10;
-            let block_height = completed_at + grace_period; // inclusive
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            session.state = MultisigState::Completed { completed_at };
+            for verification in [true, false] {
+                let mut querier = MockQuerier::default();
+                querier.update_wasm(move |_| Ok(to_binary(&verification).into()).into());
+                let sig_verifier = Some(SignatureVerifier {
+                    address: Addr::unchecked("verifier".to_string()),
+                    querier: QuerierWrapper::new(&querier),
+                });
+
+                let result = validate_session_signature(
+                    &session,
+                    &signer,
+                    signature,
+                    pub_key,
+                    0,
+                    sig_verifier,
+                );
+
+                if verification {
+                    assert!(result.is_ok());
+                } else {
+                    assert_eq!(
+                        result.unwrap_err(),
+                        ContractError::InvalidSignature {
+                            session_id: session.id,
+                            signer: signer.clone().into(),
+                        }
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn success_validation_expiry_not_reached() {
+        for config in [ecdsa_setup(), ed25519_setup()] {
+            let session = config.session;
+            let worker_set = config.worker_set;
+            let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
+            let signature = config.signatures.values().next().unwrap();
+            let block_height = 12340; // inclusive
+            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+
             assert!(validate_session_signature(
                 &session,
                 &signer,
                 signature,
                 pub_key,
-                grace_period,
-                block_height
+                block_height,
+                None
             )
             .is_ok());
         }
@@ -228,23 +334,20 @@ mod tests {
     #[test]
     fn signing_session_closed_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
-            let mut session = config.session;
+            let session = config.session;
             let worker_set = config.worker_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let completed_at = 12345;
-            let grace_period = 10;
-            let block_height = completed_at + grace_period + 1;
+            let block_height = 12346;
             let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
 
-            session.state = MultisigState::Completed { completed_at };
             let result = validate_session_signature(
                 &session,
                 &signer,
                 signature,
                 pub_key,
-                grace_period,
                 block_height,
+                None,
             );
 
             assert_eq!(
@@ -273,7 +376,8 @@ mod tests {
                 .try_into()
                 .unwrap();
 
-            let result = validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, 0);
+            let result =
+                validate_session_signature(&session, &signer, &invalid_sig, pub_key, 0, None);
 
             assert_eq!(
                 result.unwrap_err(),

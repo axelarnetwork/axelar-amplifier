@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use futures::stream::FuturesOrdered;
@@ -31,7 +31,7 @@ pub struct Message {
     pub tx_id: String,
     pub event_index: u64,
     pub destination_address: String,
-    pub destination_chain: connection_router::state::ChainName,
+    pub destination_chain: connection_router_api::ChainName,
     pub source_address: String,
     #[serde(with = "axelar_wasm_std::hex")]
     pub payload_hash: [u8; 32],
@@ -185,7 +185,6 @@ where
         }
 
         let mut votes: Vec<Vote> = Vec::new();
-        let mut ord_fut = FuturesOrdered::new();
 
         let mut ord_fut: FuturesOrdered<_> =  messages
             .iter()

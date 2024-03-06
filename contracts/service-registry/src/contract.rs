@@ -94,10 +94,14 @@ pub fn execute(
                 AuthorizationState::NotAuthorized,
             )
         }
-        ExecuteMsg::DeclareChainSupport {
+        ExecuteMsg::RegisterChainSupport {
             service_name,
             chains,
-        } => execute::declare_chains_support(deps, info, service_name, chains),
+        } => execute::register_chains_support(deps, info, service_name, chains),
+        ExecuteMsg::DeregisterChainSupport {
+            service_name,
+            chains,
+        } => execute::deregister_chains_support(deps, info, service_name, chains),
         ExecuteMsg::BondWorker { service_name } => execute::bond_worker(deps, info, service_name),
         ExecuteMsg::UnbondWorker { service_name } => {
             execute::unbond_worker(deps, env, info, service_name)
@@ -110,7 +114,7 @@ pub fn execute(
 }
 
 pub mod execute {
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
 
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 
@@ -237,7 +241,7 @@ pub mod execute {
         Ok(Response::new())
     }
 
-    pub fn declare_chains_support(
+    pub fn register_chains_support(
         deps: DepsMut,
         info: MessageInfo,
         service_name: String,
@@ -253,6 +257,27 @@ pub mod execute {
 
         for chain in chains {
             WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
+        }
+
+        Ok(Response::new())
+    }
+
+    pub fn deregister_chains_support(
+        deps: DepsMut,
+        info: MessageInfo,
+        service_name: String,
+        chains: Vec<ChainName>,
+    ) -> Result<Response, ContractError> {
+        SERVICES
+            .may_load(deps.storage, &service_name)?
+            .ok_or(ContractError::ServiceNotFound)?;
+
+        WORKERS
+            .may_load(deps.storage, (&service_name, &info.sender))?
+            .ok_or(ContractError::WorkerNotFound)?;
+
+        for chain in chains {
+            WORKERS_PER_CHAIN.remove(deps.storage, (&service_name, &chain, &info.sender));
         }
 
         Ok(Response::new())
@@ -345,7 +370,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 pub mod query {
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
 
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 

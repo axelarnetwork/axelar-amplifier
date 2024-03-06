@@ -6,6 +6,8 @@ use super::{mocks, test_data};
 pub const INSTANTIATOR: &str = "instantiator";
 pub const RELAYER: &str = "relayer";
 
+pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
+
 pub struct TestCaseConfig {
     pub app: App,
     pub admin: Addr,
@@ -45,7 +47,7 @@ fn instantiate_mock_multisig(app: &mut App) -> Addr {
     let msg = multisig::msg::InstantiateMsg {
         governance_address: "governance".parse().unwrap(),
         rewards_address: "rewards".to_string(),
-        grace_period: 2,
+        block_expiry: SIGNATURE_BLOCK_EXPIRY,
     };
 
     app.instantiate_contract(

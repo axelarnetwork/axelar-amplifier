@@ -1,5 +1,9 @@
 [workspace]
 members = ["ampd", "contracts/*", "integration-tests", "packages/*"]
+resolver = "2"
+
+[workspace.package]
+rust-version = "1.73.0"
 
 [workspace.dependencies]
 connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
@@ -12,6 +16,7 @@ events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
+integration-tests = { version = "^0.1.0", path = "integration-tests" }
 itertools = "0.11.0"
 voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
 multisig = { version = "^0.1.0", path = "contracts/multisig" }
@@ -19,6 +24,8 @@ multisig-prover = { version = "^0.1.0", path = "contracts/multisig-prover" }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
+gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
+
 connection-router-api = { version = "^0.1.0", path = "packages/connection-router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
 rewards = { version = "^0.1.0", path = "contracts/rewards" }
@@ -27,6 +34,7 @@ serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
 schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
+signature-verifier-api = { version = "^0.1.0", path = "packages/signature-verifier-api" }
 
 [profile.release]
 opt-level = 3
