@@ -13,7 +13,7 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-use axelar_wasm_std::snapshot::Participant;
+use axelar_wasm_std::{nonempty, snapshot::Participant};
 
 use crate::ContractError;
 
@@ -37,9 +37,18 @@ pub struct Worker {
     pub service_name: String,
 }
 
+#[cw_serde]
+pub struct WeightedWorker {
+    pub worker: Worker,
+    pub weight: nonempty::Uint256,
+}
+
+pub const WORKER_WEIGHT: nonempty::Uint256 = nonempty::Uint256::one();
+
 impl TryFrom<Worker> for Participant {
     type Error = ContractError;
 
+    // TODO: change this to accept WeightedWorker and just extract the weight
     fn try_from(worker: Worker) -> Result<Participant, ContractError> {
         match worker.bonding_state {
             BondingState::Bonded { amount: _ } => Ok(Self {
