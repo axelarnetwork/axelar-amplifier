@@ -14,7 +14,7 @@ use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -48,7 +48,7 @@ struct PollStartedEvent {
     contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
     poll_id: PollId,
-    source_chain: connection_router::state::ChainName,
+    source_chain: connection_router_api::ChainName,
     source_gateway_address: String,
     expires_at: u64,
     confirmation_height: u64,

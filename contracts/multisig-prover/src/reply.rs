@@ -1,6 +1,7 @@
 use cosmwasm_std::{from_binary, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
+use crate::state::{COMMANDS_BATCH, CONFIG};
 use crate::{
     error::ContractError,
     events::Event,
@@ -8,6 +9,8 @@ use crate::{
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
             let command_batch_id = REPLY_BATCH.load(deps.storage)?;
@@ -25,6 +28,10 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             Ok(Response::new().add_event(
                 Event::ProofUnderConstruction {
+                    destination_chain: config.chain_name,
+                    msg_ids: COMMANDS_BATCH
+                        .load(deps.storage, &command_batch_id)?
+                        .message_ids,
                     command_batch_id,
                     multisig_session_id,
                 }

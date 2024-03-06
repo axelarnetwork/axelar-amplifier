@@ -3,22 +3,26 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, Binary, BlockInfo, Deps, Env, Event, HexBinary, StdResult, Uint128,
     Uint256, Uint64,
 };
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
-
 use k256::ecdsa;
+use sha3::{Digest, Keccak256};
+
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
+use rewards::state::PoolId;
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
+
+pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
 fn get_event_attribute<'a>(
     events: &'a [Event],
@@ -43,7 +47,7 @@ pub fn verify_messages(
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &gateway::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
+        &gateway_api::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
         &[],
     );
     assert!(response.is_ok());
@@ -62,7 +66,7 @@ pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         gateway_address.clone(),
-        &gateway::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+        &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
         &[],
     );
 
@@ -217,7 +221,7 @@ pub fn get_messages_from_gateway(
 ) -> Vec<Message> {
     let query_response = app.wrap().query_wasm_smart(
         gateway_address,
-        &gateway::msg::QueryMsg::GetMessages {
+        &gateway_api::msg::QueryMsg::GetOutgoingMessages {
             message_ids: message_ids.to_owned(),
         },
     );
@@ -240,10 +244,7 @@ pub fn get_proof(
     query_response.unwrap()
 }
 
-pub fn get_worker_set(
-    app: &mut App,
-    multisig_prover_address: &Addr,
-) -> multisig::worker_set::WorkerSet {
+pub fn get_worker_set(app: &mut App, multisig_prover_address: &Addr) -> WorkerSet {
     let query_response = app.wrap().query_wasm_smart(
         multisig_prover_address,
         &multisig_prover::msg::QueryMsg::GetWorkerSet,
@@ -270,12 +271,20 @@ pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
     }
 }
 
-pub fn distribute_rewards(app: &mut App, rewards_address: &Addr, contract_address: &Addr) {
+pub fn distribute_rewards(
+    app: &mut App,
+    rewards_address: &Addr,
+    chain_name: &ChainName,
+    contract_address: &Addr,
+) {
     let response = app.execute_contract(
         Addr::unchecked("relayer"),
         rewards_address.clone(),
         &rewards::msg::ExecuteMsg::DistributeRewards {
-            contract_address: contract_address.to_string(),
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: contract_address.clone(),
+            },
             epoch_count: None,
         },
         &[],
@@ -335,7 +344,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         multisig::msg::InstantiateMsg {
             rewards_address: rewards_address.to_string(),
             governance_address: governance_address.to_string(),
-            grace_period: 2,
+            block_expiry: SIGNATURE_BLOCK_EXPIRY,
         },
     );
     let service_registry_address = instantiate_service_registry(
@@ -344,16 +353,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             governance_account: governance_address.to_string(),
         },
     );
-    // voting rewards are added when setting up individual chains
-    let response = app.execute_contract(
-        genesis.clone(),
-        rewards_address.clone(),
-        &rewards::msg::ExecuteMsg::AddRewards {
-            contract_address: multisig_address.to_string(),
-        },
-        &coins(1000, AXL_DENOMINATION),
-    );
-    assert!(response.is_ok());
 
     Protocol {
         genesis_address: genesis,
@@ -428,13 +427,22 @@ pub fn register_workers(
         let response = app.execute_contract(
             worker.addr.clone(),
             service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::DeclareChainSupport {
+            &service_registry::msg::ExecuteMsg::RegisterChainSupport {
                 service_name: service_name.to_string(),
                 chains: worker.supported_chains.clone(),
             },
             &[],
         );
         assert!(response.is_ok());
+
+        let address_hash = Keccak256::digest(&worker.addr.as_bytes());
+
+        let sig = tofn::ecdsa::sign(
+            worker.key_pair.signing_key(),
+            &address_hash.as_slice().try_into().unwrap(),
+        )
+        .unwrap();
+        let sig = ecdsa::Signature::from_der(&sig).unwrap();
 
         let response = app.execute_contract(
             worker.addr.clone(),
@@ -443,6 +451,7 @@ pub fn register_workers(
                 public_key: PublicKey::Ecdsa(HexBinary::from(
                     worker.key_pair.encoded_verifying_key(),
                 )),
+                signed_sender_address: HexBinary::from(sig.to_vec()),
             },
             &[],
         );
@@ -571,6 +580,86 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
     )
 }
 
+pub fn create_new_workers_vec(
+    chains: Vec<ChainName>,
+    worker_details: Vec<(String, u32)>,
+) -> Vec<Worker> {
+    worker_details
+        .into_iter()
+        .map(|(name, seed)| Worker {
+            addr: Addr::unchecked(name),
+            supported_chains: chains.clone(),
+            key_pair: generate_key(seed),
+        })
+        .collect()
+}
+
+pub fn update_registry_and_construct_proof(
+    protocol: &mut Protocol,
+    new_workers: &Vec<Worker>,
+    workers_to_remove: &Vec<Worker>,
+    current_workers: &Vec<Worker>,
+    chain_multisig_prover_address: &Addr,
+    min_worker_bond: Uint128,
+) -> Uint64 {
+    // Register new workers
+    register_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.multisig_address.clone(),
+        protocol.governance_address.clone(),
+        protocol.genesis_address.clone(),
+        new_workers,
+        protocol.service_name.clone(),
+        min_worker_bond,
+    );
+
+    // Deregister old workers
+    deregister_workers(
+        &mut protocol.app,
+        protocol.service_registry_address.clone(),
+        protocol.governance_address.clone(),
+        workers_to_remove,
+        protocol.service_name.clone(),
+    );
+
+    // Construct proof and sign
+    construct_proof_and_sign(
+        &mut protocol.app,
+        &chain_multisig_prover_address,
+        &protocol.multisig_address,
+        &Vec::<Message>::new(),
+        &current_workers,
+    )
+}
+
+pub fn execute_worker_set_poll(
+    protocol: &mut Protocol,
+    relayer_addr: &Addr,
+    verifier_address: &Addr,
+    new_workers: &Vec<Worker>,
+) {
+    // Create worker set
+    let new_worker_set = workers_to_worker_set(protocol, new_workers);
+
+    // Create worker set poll
+    let (poll_id, expiry) = create_worker_set_poll(
+        &mut protocol.app,
+        relayer_addr.clone(),
+        verifier_address.clone(),
+        new_worker_set.clone(),
+    );
+
+    // Vote for the worker set
+    vote_true_for_worker_set(&mut protocol.app, verifier_address, new_workers, poll_id);
+
+    // Advance to expiration height
+    advance_at_least_to_height(&mut protocol.app, expiry);
+
+    // End the poll
+    end_poll(&mut protocol.app, verifier_address, poll_id);
+}
+
 #[derive(Clone)]
 pub struct Chain {
     pub gateway_address: Addr,
@@ -616,9 +705,9 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: protocol.service_name.to_string(),
             chain_name: chain_name.to_string(),
-            worker_set_diff_threshold: 1,
-            encoder: multisig_prover::encoding::Encoder::Abi,
-            key_type: multisig::key::KeyType::Ecdsa,
+            worker_set_diff_threshold: 0,
+            encoder: Encoder::Abi,
+            key_type: KeyType::Ecdsa,
         },
     );
     let response = protocol.app.execute_contract(
@@ -641,9 +730,9 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = protocol.app.execute_contract(
         protocol.governance_address.clone(),
         protocol.router_address.clone(),
-        &connection_router::msg::ExecuteMsg::RegisterChain {
+        &connection_router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
-            gateway_address: gateway_address.to_string(),
+            gateway_address: gateway_address.to_string().try_into().unwrap(),
         },
         &[],
     );
@@ -653,7 +742,23 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         protocol.genesis_address.clone(),
         protocol.rewards_address.clone(),
         &rewards::msg::ExecuteMsg::AddRewards {
-            contract_address: voting_verifier_address.to_string(),
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: voting_verifier_address.clone(),
+            },
+        },
+        &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.app.execute_contract(
+        protocol.genesis_address.clone(),
+        protocol.rewards_address.clone(),
+        &rewards::msg::ExecuteMsg::AddRewards {
+            pool_id: PoolId {
+                chain_name: chain_name.clone(),
+                contract: protocol.multisig_address.clone(),
+            },
         },
         &coins(1000, AXL_DENOMINATION),
     );
@@ -827,7 +932,7 @@ pub fn instantiate_multisig_prover(
     contract_addr.unwrap()
 }
 
-// Creates an instance of Axelar Amplifier with an initial workerset registered, and returns the instance, the chains, the workers, and the minimum worker bond.
+// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns the instance, the chains, the workers, and the minimum worker bond.
 pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
     let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
     let chains = vec![

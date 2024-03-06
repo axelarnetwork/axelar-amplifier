@@ -121,8 +121,8 @@ where
                   let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
 
                   if fee.gas_limit + queue.gas_cost() >= self.batch_gas_limit {
-                    interval.reset();
                     broadcast_all(&mut queue, &mut broadcaster).await?;
+                    interval.reset();
                   }
 
                   let message_type = msg.type_url.clone();
@@ -135,10 +135,13 @@ where
                   );
                 }
               },
-              _ = interval.tick() => broadcast_all(&mut queue, &mut broadcaster).await?,
-              _ = self.broadcast_rx.recv() => {
-                interval.reset();
+              _ = interval.tick() => {
                 broadcast_all(&mut queue, &mut broadcaster).await?;
+                interval.reset();
+              },
+              _ = self.broadcast_rx.recv() => {
+                broadcast_all(&mut queue, &mut broadcaster).await?;
+                interval.reset();
               },
             }
         }

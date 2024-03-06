@@ -141,7 +141,7 @@ mod tests {
 
     use std::str::FromStr;
 
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
     use solana_program::pubkey::Pubkey;
 
     use super::*;

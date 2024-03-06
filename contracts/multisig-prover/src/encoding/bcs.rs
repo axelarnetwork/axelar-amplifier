@@ -144,7 +144,7 @@ pub fn encode(data: &Data) -> HexBinary {
 pub fn msg_digest(command_batch: &CommandBatch) -> HexBinary {
     // Sui is just mimicking EVM here
     let unsigned = [
-        "\x19Sui Signed Message:\n".as_bytes(), // Keccek256 hash length = 32
+        "\x19Sui Signed Message:\n".as_bytes(), // Keccak256 hash length = 32
         encode(&command_batch.data).as_slice(),
     ]
     .concat();
@@ -199,7 +199,7 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router::state::{CrossChainId, Message};
+    use connection_router_api::{CrossChainId, Message};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
     use multisig::{

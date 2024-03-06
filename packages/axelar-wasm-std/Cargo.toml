@@ -1,18 +1,19 @@
 [package]
 name = "axelar-wasm-std"
 version = "0.1.0"
+rust-version = { workspace = true }
 edition = "2021"
 description = "Axelar cosmwasm standard library crate"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [features]
 # for more explicit tests, cargo test --features=backtraces

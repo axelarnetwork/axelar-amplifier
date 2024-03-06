@@ -1,7 +1,8 @@
 [package]
-edition = "2018"
+edition = "2021"
 name = "ampd"
 version = "0.1.0"
+rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -12,7 +13,7 @@ bcs = "0.1.5"
 borsh = { version = "1.2.0", features = ["derive"] }
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
-connection-router = { workspace = true }
+connection-router-api = { workspace = true }
 cosmos-sdk-proto = "0.16.0"
 cosmrs = { version = "0.14.0", features = ["cosmwasm"] }
 cosmwasm-std = { version = "1.2.1", features = ["stargate"] }
@@ -35,6 +36,7 @@ move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1
 multisig = { workspace = true }
 prost = "0.11.9"
 report = { workspace = true }
+reqwest = { version = "0.11.24", default-features = false }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 serde_with = "3.2.0"
@@ -46,6 +48,7 @@ solana-sdk = "1.18.1"
 solana-rpc-client-api = "1.18.1"
 solana-version = "1.18.1"
 solana-transaction-status = "1.18.1"
+sha3 = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.14.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = [
   "test-utils",

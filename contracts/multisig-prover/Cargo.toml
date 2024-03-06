@@ -1,18 +1,23 @@
 [package]
 name = "multisig-prover"
 version = "0.1.0"
+rust-version = { workspace = true }
 edition = "2021"
 description = "Multisig prover contract"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "multisig-prover-schema"
+path = "src/bin/schema.rs"
 
 [features]
 # for more explicit tests, cargo test --features=backtraces
@@ -31,7 +36,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 bcs = "0.1.5"
-connection-router = { workspace = true, features = ["library"] }
+connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
@@ -41,6 +46,7 @@ either = "1.8.1"
 error-stack = { workspace = true }
 ethabi = { version = "18.0.0", default-features = false, features = [] }
 gateway = { workspace = true }
+gateway-api = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = [] }
 itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }

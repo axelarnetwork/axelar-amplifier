@@ -1,25 +1,28 @@
-use connection_router::events::make_message_event;
-use connection_router::state::Message;
-use cosmwasm_std::Event;
+use connection_router_api::Message;
+use cosmwasm_std::{Attribute, Event};
 
 pub enum GatewayEvent {
-    MessageVerified { msg: Message },
-    MessageVerificationFailed { msg: Message },
-    MessageRouted { msg: Message },
-    MessageRoutingFailed { msg: Message },
+    Verifying { msg: Message },
+    AlreadyVerified { msg: Message },
+    AlreadyRejected { msg: Message },
+    Routing { msg: Message },
+    UnfitForRouting { msg: Message },
+}
+
+fn make_message_event(event_name: &str, msg: Message) -> Event {
+    let attrs: Vec<Attribute> = msg.into();
+
+    Event::new(event_name).add_attributes(attrs)
 }
 
 impl From<GatewayEvent> for Event {
     fn from(other: GatewayEvent) -> Self {
         match other {
-            GatewayEvent::MessageVerified { msg } => make_message_event("message_verified", msg),
-            GatewayEvent::MessageRouted { msg } => make_message_event("message_routed", msg),
-            GatewayEvent::MessageVerificationFailed { msg } => {
-                make_message_event("message_verification_failed", msg)
-            }
-            GatewayEvent::MessageRoutingFailed { msg } => {
-                make_message_event("message_routing_failed", msg)
-            }
+            GatewayEvent::Verifying { msg } => make_message_event("verifying", msg),
+            GatewayEvent::AlreadyVerified { msg } => make_message_event("already_verified", msg),
+            GatewayEvent::AlreadyRejected { msg } => make_message_event("already_rejected", msg),
+            GatewayEvent::Routing { msg } => make_message_event("routing", msg),
+            GatewayEvent::UnfitForRouting { msg } => make_message_event("unfit_for_routing", msg),
         }
     }
 }

@@ -1,18 +1,23 @@
 [package]
 name = "voting-verifier"
 version = "0.1.0"
+rust-version = { workspace = true }
 edition = "2021"
 description = "Voting verifier contract"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "voting-verifier-schema"
+path = "src/bin/schema.rs"
 
 [features]
 # for more explicit tests, cargo test --features=backtraces
@@ -30,7 +35,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 [dependencies]
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
-connection-router = { workspace = true, features = ["library"] }
+connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
@@ -48,3 +53,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+integration-tests = { workspace = true }

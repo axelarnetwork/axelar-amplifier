@@ -4,9 +4,9 @@ use axelar_wasm_std::{
     nonempty,
     operators::Operators,
     voting::{PollId, PollState, Vote},
-    MajorityThreshold,
+    MajorityThreshold, VerificationStatus,
 };
-use connection_router::state::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -61,16 +61,16 @@ pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollId },
 
-    #[returns(Vec<(connection_router::state::CrossChainId, bool)>)]
-    IsVerified { messages: Vec<Message> },
+    #[returns(Vec<(CrossChainId, VerificationStatus)>)]
+    GetMessagesStatus { messages: Vec<Message> },
 
-    #[returns(bool)]
-    IsWorkerSetVerified { new_operators: Operators },
+    #[returns(VerificationStatus)]
+    GetWorkerSetStatus { new_operators: Operators },
 }
 
 #[cw_serde]
 pub struct VerifyMessagesResponse {
-    pub verification_statuses: Vec<(CrossChainId, bool)>,
+    pub verification_statuses: Vec<(CrossChainId, VerificationStatus)>,
 }
 
 #[cw_serde]

@@ -13,12 +13,12 @@ use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::ID_SEPARATOR;
+use connection_router_api::ID_SEPARATOR;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::evm::verifier::verify_worker_set;
-use crate::evm::{json_rpc::EthereumClient, ChainName};
+use crate::evm::{finalizer, json_rpc::EthereumClient, ChainName};
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress, U256};
@@ -41,11 +41,9 @@ pub struct WorkerSetConfirmation {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-worker_set_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
     poll_id: PollId,
-    source_chain: connection_router::state::ChainName,
+    source_chain: connection_router_api::ChainName,
     source_gateway_address: EVMAddress,
     expires_at: u64,
     confirmation_height: u64,
@@ -93,12 +91,11 @@ where
         tx_hash: Hash,
         confirmation_height: u64,
     ) -> Result<Option<TransactionReceipt>> {
-        let latest_finalized_block_height = self
-            .chain
-            .finalizer(&self.rpc_client, confirmation_height)
-            .latest_finalized_block_height()
-            .await
-            .change_context(Error::Finalizer)?;
+        let latest_finalized_block_height =
+            finalizer::pick(&self.chain, &self.rpc_client, confirmation_height)
+                .latest_finalized_block_height()
+                .await
+                .change_context(Error::Finalizer)?;
         let tx_receipt = self
             .rpc_client
             .transaction_receipt(tx_hash)
@@ -147,8 +144,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> Result<()> {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_chain,
             source_gateway_address,
@@ -162,10 +162,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if self.chain != source_chain {
             return Ok(());

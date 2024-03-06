@@ -1,48 +1,122 @@
-use crate::error::ContractError;
-use connection_router::state::{CrossChainId, Message};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
-use mockall::automock;
-
-#[automock]
-pub trait Store {
-    fn load_config(&self) -> Config;
-    fn save_outgoing_msg(
-        &mut self,
-        key: CrossChainId,
-        value: &Message,
-    ) -> Result<(), ContractError>;
-}
 
 #[cw_serde]
-pub struct Config {
+pub(crate) struct Config {
     pub verifier: Addr,
     pub router: Addr,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
-pub const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new("outgoing_messages");
-
-pub struct GatewayStore<'a> {
-    pub storage: &'a mut dyn Storage,
+pub(crate) fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
+    CONFIG
+        .save(storage, value)
+        .change_context(Error::SaveValue(CONFIG_NAME))
+}
+pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
+    CONFIG
+        .load(storage)
+        .change_context(Error::LoadValue(CONFIG_NAME))
 }
 
-impl Store for GatewayStore<'_> {
-    fn load_config(&self) -> Config {
-        CONFIG
-            .load(self.storage)
-            .expect("config should be set during contract instantiation")
+pub(crate) fn save_outgoing_msg(
+    storage: &mut dyn Storage,
+    key: CrossChainId,
+    value: &Message,
+) -> Result<(), Error> {
+    OUTGOING_MESSAGES
+        .save(storage, key, value)
+        .change_context(Error::SaveValue(OUTGOING_MESSAGES_NAME))
+}
+pub(crate) fn may_load_outgoing_msg(
+    storage: &dyn Storage,
+    id: CrossChainId,
+) -> Result<Option<Message>, Error> {
+    OUTGOING_MESSAGES
+        .may_load(storage, id.clone())
+        .change_context(Error::Parse(OUTGOING_MESSAGES_NAME))
+        .attach_printable(id.to_string())
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(crate) enum Error {
+    #[error("failed to save {0}")]
+    SaveValue(&'static str),
+    #[error("failed to load {0}")]
+    LoadValue(&'static str),
+    #[error("failed to parse key for {0}")]
+    Parse(&'static str),
+}
+
+const CONFIG_NAME: &str = "config";
+const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
+const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
+const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES_NAME);
+
+#[cfg(test)]
+mod test {
+    use connection_router_api::{CrossChainId, Message};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Addr;
+
+    use crate::state::{
+        load_config, may_load_outgoing_msg, save_config, save_outgoing_msg, Config,
+    };
+
+    #[test]
+    fn config_storage() {
+        let mut deps = mock_dependencies();
+
+        let config = Config {
+            verifier: Addr::unchecked("verifier"),
+            router: Addr::unchecked("router"),
+        };
+        assert!(save_config(deps.as_mut().storage, &config).is_ok());
+
+        assert_eq!(load_config(&deps.storage).unwrap(), config);
     }
 
-    fn save_outgoing_msg(
-        &mut self,
-        key: CrossChainId,
-        value: &Message,
-    ) -> Result<(), ContractError> {
-        OUTGOING_MESSAGES
-            .save(self.storage, key, value)
-            .change_context(ContractError::StoreOutgoingMessage)
+    #[test]
+    fn outgoing_messages_storage() {
+        let mut deps = mock_dependencies();
+
+        let message = Message {
+            cc_id: CrossChainId {
+                chain: "chain".parse().unwrap(),
+                id: "id".parse().unwrap(),
+            },
+            source_address: "source_address".parse().unwrap(),
+            destination_chain: "destination".parse().unwrap(),
+            destination_address: "destination_address".parse().unwrap(),
+            payload_hash: [1; 32],
+        };
+
+        assert!(save_outgoing_msg(deps.as_mut().storage, message.cc_id.clone(), &message).is_ok());
+
+        assert_eq!(
+            may_load_outgoing_msg(&deps.storage, message.cc_id.clone()).unwrap(),
+            Some(message)
+        );
+
+        let unknown_chain_id = CrossChainId {
+            chain: "unknown".parse().unwrap(),
+            id: "id".parse().unwrap(),
+        };
+
+        assert_eq!(
+            may_load_outgoing_msg(&deps.storage, unknown_chain_id).unwrap(),
+            None
+        );
+
+        let unknown_id = CrossChainId {
+            chain: "chain".parse().unwrap(),
+            id: "unknown".parse().unwrap(),
+        };
+        assert_eq!(
+            may_load_outgoing_msg(&deps.storage, unknown_id).unwrap(),
+            None
+        );
     }
 }

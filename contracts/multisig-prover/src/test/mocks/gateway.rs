@@ -1,7 +1,8 @@
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
-use gateway::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use gateway::msg::InstantiateMsg;
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::test::test_data;
 
@@ -25,7 +26,7 @@ pub fn execute(
 
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetMessages { message_ids: _ } => {
+        QueryMsg::GetOutgoingMessages { message_ids: _ } => {
             let res = test_data::messages();
             to_binary(&res)
         }

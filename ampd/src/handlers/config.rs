@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use itertools::Itertools;
 use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,7 @@ pub struct Chain {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct GenericChain {
-    pub name: connection_router::state::ChainName,
+    pub name: connection_router_api::ChainName,
     pub rpc_url: Url,
 }
 
@@ -27,11 +29,13 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
+        rpc_timeout: Option<Duration>,
     },
     EvmWorkerSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
+        rpc_timeout: Option<Duration>,
     },
     MultisigSigner {
         cosmwasm_contract: TMAddress,
@@ -39,10 +43,12 @@ pub enum Config {
     SuiMsgVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+        rpc_timeout: Option<Duration>,
     },
     SuiWorkerSetVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
+        rpc_timeout: Option<Duration>,
     },
     SolanaMsgVerifier {
         cosmwasm_contract: TMAddress,
@@ -155,7 +161,6 @@ fn validate_solana_msg_verifier_config<'de, D>(configs: &[Config]) -> Result<(),
 where
     D: Deserializer<'de>,
 {
-
     if !configs
         .iter()
         .filter_map(|config| match config {
@@ -171,7 +176,7 @@ where
             "the chain name Solana msg verifier configs must be unique",
         ));
     }
- 
+
     match configs
         .iter()
         .filter(|config| matches!(config, Config::SolanaMsgVerifier { .. }))

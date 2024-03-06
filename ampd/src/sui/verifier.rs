@@ -132,7 +132,7 @@ pub fn verify_worker_set(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::voting::Vote;
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
     use cosmwasm_std::HexBinary;
     use ethers::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;

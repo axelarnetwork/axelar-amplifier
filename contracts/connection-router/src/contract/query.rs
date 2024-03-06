@@ -1,27 +1,25 @@
+use connection_router_api::error::Error;
+use connection_router_api::{ChainEndpoint, ChainName};
 use cosmwasm_std::Deps;
-
-use crate::{
-    state::{chain_endpoints, ChainEndpoint, ChainName},
-    ContractError,
-};
 use error_stack::{Result, ResultExt};
 
-pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, ContractError> {
+use crate::state::chain_endpoints;
+
+pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, Error> {
     chain_endpoints()
         .may_load(deps.storage, chain)
-        .change_context(ContractError::StoreFailure)?
-        .ok_or(ContractError::ChainNotFound.into())
+        .change_context(Error::StoreFailure)?
+        .ok_or(Error::ChainNotFound.into())
 }
 
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::flagset::FlagSet;
+    use connection_router_api::error::Error;
+    use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
     use cosmwasm_std::{testing::mock_dependencies, Addr};
 
-    use crate::{
-        state::{chain_endpoints, ChainEndpoint, ChainName, Gateway, GatewayDirection},
-        ContractError,
-    };
+    use crate::state::chain_endpoints;
 
     use super::get_chain_info;
 
@@ -51,9 +49,6 @@ mod test {
         let chain_name: ChainName = "Ethereum".to_string().try_into().unwrap();
         let result = get_chain_info(deps.as_ref(), chain_name);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().current_context(),
-            &ContractError::ChainNotFound
-        );
+        assert_eq!(result.unwrap_err().current_context(), &Error::ChainNotFound);
     }
 }

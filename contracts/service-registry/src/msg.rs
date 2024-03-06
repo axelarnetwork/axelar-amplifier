@@ -1,4 +1,4 @@
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
 
@@ -31,11 +31,17 @@ pub enum ExecuteMsg {
         service_name: String,
     },
 
-    // Declares support for the specified chains. Called by the worker.
-    DeclareChainSupport {
+    // Register support for the specified chains. Called by the worker.
+    RegisterChainSupport {
         service_name: String,
         chains: Vec<ChainName>,
     },
+    // Deregister support for the specified chains. Called by the worker.
+    DeregisterChainSupport {
+        service_name: String,
+        chains: Vec<ChainName>,
+    },
+
     // Locks up any funds sent with the message as stake. Called by the worker.
     BondWorker {
         service_name: String,

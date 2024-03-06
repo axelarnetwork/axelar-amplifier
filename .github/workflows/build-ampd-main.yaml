@@ -1,20 +1,20 @@
-name: Build and push latest docker image
+name: Amplifier - Build main branch
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
 jobs:
   build-and-push-latest-docker-image:
-    strategy:
-      matrix:
-        os:
-          - ubuntu-20.04
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     permissions:
       id-token: write
       contents: read
+    env:
+      REPOSITORY: axelar-amplifier
+      IMAGE_TAG: ${{ github.sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -33,12 +33,19 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: check if an image already build on same commit hash
+        id: image-tag-check
+        run: |
+          image_tag_exists=$(aws ecr batch-get-image --repository-name ${REPOSITORY} --image-ids "imageTag=${IMAGE_TAG}" | jq '.images | length')
+          echo "image_tag_exists=${image_tag_exists}" >> $GITHUB_OUTPUT
+
       - uses: docker/setup-buildx-action@v3
+        if: steps.image-tag-check.outputs.image_tag_exists == 0
+
       - uses: docker/build-push-action@v5
+        if: steps.image-tag-check.outputs.image_tag_exists == 0
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: axelar-amplifier
-          IMAGE_TAG: ${{ github.sha }}
         with:
           context: .
           push: true

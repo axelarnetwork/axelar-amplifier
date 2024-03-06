@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Attribute, Event};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::{Address, ChainName, Message, ID_SEPARATOR};
+use connection_router_api::{Address, ChainName, Message, ID_SEPARATOR};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -135,7 +135,7 @@ pub struct TxEventConfirmation {
     pub destination_chain: ChainName,
     pub source_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
-    /// but internally, we treat it as raw bytes to enforce it's format.
+    /// but internally, we treat it as raw bytes to enforce its format.
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub payload_hash: [u8; 32],
