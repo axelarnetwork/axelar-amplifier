@@ -25,8 +25,8 @@ pub enum ContractError {
     #[error("signed sender address could not be verified using submitted public key")]
     InvalidPublicKeyRegistrationSignature,
 
-    #[error("invalid public key format: {reason:?}")]
-    InvalidPublicKeyFormat { reason: String },
+    #[error("invalid public key")]
+    InvalidPublicKey,
 
     #[error("public key is already registered")]
     DuplicatePublicKey,

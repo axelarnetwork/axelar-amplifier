@@ -46,7 +46,7 @@ pub enum ExecuteMsg {
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
     DistributeRewards {
         pool_id: PoolId,
-        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest.
+        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest. If not specified, distribute rewards for 10 epochs.
         epoch_count: Option<u64>,
     },
 

@@ -932,7 +932,7 @@ pub fn instantiate_multisig_prover(
     contract_addr.unwrap()
 }
 
-// Creates an instance of Axelar Amplifier with an initial workerset registered, and returns the instance, the chains, the workers, and the minimum worker bond.
+// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns the instance, the chains, the workers, and the minimum worker bond.
 pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
     let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
     let chains = vec![

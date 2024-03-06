@@ -48,7 +48,7 @@ pub enum ExecuteMsg {
     AuthorizeCaller {
         contract_address: Addr,
     },
-    // Unauthorizes a contract so it can no longer call StartSigningSession.
+    // Unauthorizes a contract, so it can no longer call StartSigningSession.
     UnauthorizeCaller {
         contract_address: Addr,
     },
