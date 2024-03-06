@@ -16,7 +16,7 @@
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::ops::AddAssign;
+use std::ops::Add;
 use std::ops::Mul;
 use std::str::FromStr;
 
@@ -24,6 +24,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::One;
+use num_traits::SaturatingAdd;
 use strum::EnumIter;
 use strum::EnumString;
 use strum::IntoEnumIterator;
@@ -90,7 +91,7 @@ impl Mul for PollId {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Self(self.0 * rhs.0)
+        Self(self.0.mul(rhs.0))
     }
 }
 
@@ -100,9 +101,17 @@ impl One for PollId {
     }
 }
 
-impl AddAssign for PollId {
-    fn add_assign(&mut self, other: Self) {
-        self.0 += other.0;
+impl Add for PollId {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0.add(other.0))
+    }
+}
+
+impl SaturatingAdd for PollId {
+    fn saturating_add(&self, other: &Self) -> Self {
+        Self(self.0.saturating_add(other.0))
     }
 }
 
@@ -179,10 +188,10 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weight: &Uint256) {
-        *self
-            .0
-            .get_mut(&vote.to_string())
-            .unwrap_or(&mut Uint256::zero()) += weight;
+        let mut binding = Uint256::zero();
+        let tally = self.0.get_mut(&vote.to_string()).unwrap_or(&mut binding);
+
+        *tally = tally.saturating_add(*weight);
     }
 }
 

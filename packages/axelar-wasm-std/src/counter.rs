@@ -1,16 +1,14 @@
-use std::ops::AddAssign;
-
 use cosmwasm_std::{StdResult, Storage};
 use cw_storage_plus::Item;
-use num_traits::One;
+use num_traits::{One, SaturatingAdd};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub struct Counter<'a, T: AddAssign + Copy + Default> {
+pub struct Counter<'a, T: Copy + Default> {
     item: Item<'a, T>,
 }
 
-impl<'a, T: AddAssign + Copy + Default + One + Serialize + DeserializeOwned> Counter<'a, T> {
+impl<'a, T: Copy + Default + One + SaturatingAdd + Serialize + DeserializeOwned> Counter<'a, T> {
     pub const fn new(name: &'a str) -> Self {
         Counter {
             item: Item::new(name),
@@ -23,7 +21,7 @@ impl<'a, T: AddAssign + Copy + Default + One + Serialize + DeserializeOwned> Cou
 
     pub fn incr(&self, store: &mut dyn Storage) -> StdResult<T> {
         let mut value = self.cur(store);
-        value += T::one();
+        value = value.saturating_add(&T::one());
         self.item.save(store, &value)?;
         Ok(value)
     }
