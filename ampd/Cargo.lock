@@ -2688,17 +2688,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mio"
-version = "0.8.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "927a765cd3fc26206e66b296465fa9d3e5ab003e651c1b3c060e7956d96b19d2"
-dependencies = [
- "libc",
- "wasi",
- "windows-sys 0.48.0",
-]
-
-[[package]]
 name = "mockall"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
