@@ -31,14 +31,15 @@ jobs:
       - name: Run cargo audit
         id: cargo-audit
         run: |
-          AUDIT_OUTPUT=$(cargo audit)
-          echo "trimmed_results=$AUDIT_OUTPUT" >> GITHUB_OUTPUT
+          cargo audit
+#          audit_output=$(cargo audit)
+#          echo "trimmed_results=audit_output" >> GITHUB_OUTPUT
 
-      - name: Post to Slack channel
-        id: slack
-        uses: slackapi/slack-github-action@v1.25.0
-        with:
-          channel-id: 'C06N3BKMA5A'
-          slack-message: "Cargo Audit Results for: $(date '+%Y-%m-%d')\n${{ steps.cargo-audit.outputs.trimmed_results }}"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+#      - name: Post to Slack channel
+#        id: slack
+#        uses: slackapi/slack-github-action@v1.25.0
+#        with:
+#          channel-id: 'C06N3BKMA5A'
+#          slack-message: "Cargo Audit Results for: $(date '+%Y-%m-%d')\n${{ steps.cargo-audit.outputs.trimmed_results }}"
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
