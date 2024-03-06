@@ -32,7 +32,7 @@ jobs:
         id: cargo-audit
         continue-on-error: true
         run: |
-          cargo audit > audit_output.txt
+          cargo audit > audit_output.txt 2>&1
           cat audit_output.txt
           RESULTS=$(cat audit_output.txt)
           echo "results=$RESULTS" >> GITHUB_OUTPUT
