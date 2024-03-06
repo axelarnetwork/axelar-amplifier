@@ -32,7 +32,7 @@ jobs:
         id: cargo-audit
         run: |
           AUDIT_OUTPUT=$(cargo audit) || true
-          echo "results=AUDIT_OUTPUT" >> GITHUB_OUTPUT
+          echo "results=$AUDIT_OUTPUT" >> GITHUB_OUTPUT
 #          audit_output=$(cargo audit)
 #          echo "trimmed_results=audit_output" >> GITHUB_OUTPUT
 
@@ -41,6 +41,6 @@ jobs:
         uses: slackapi/slack-github-action@v1.25.0
         with:
           channel-id: 'C06N3BKMA5A'
-          slack-message: "Cargo Audit Results for: $(date '+%Y-%m-%d')\n${{ steps.cargo-audit.outputs.results }}"
+          slack-message: "Cargo Audit Results:${{ steps.cargo-audit.outputs.results }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
