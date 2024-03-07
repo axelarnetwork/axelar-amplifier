@@ -3,7 +3,7 @@ mod test_utils;
 use std::{str::FromStr, vec};
 
 use connection_router_api::ChainName;
-use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
+use cosmwasm_std::{coins, Addr, BlockInfo, StdResult, Uint128};
 use cw_multi_test::App;
 use integration_tests::contract::Contract;
 use service_registry::msg::QueryMsg;
@@ -218,13 +218,15 @@ fn register_chain_support() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(
         workers,
         vec![Worker {
@@ -237,13 +239,15 @@ fn register_chain_support() {
         }]
     );
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name: ChainName::from_str("random chain").unwrap(),
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name: ChainName::from_str("random chain").unwrap(),
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![]);
 }
 
@@ -322,13 +326,15 @@ fn register_and_deregister_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![]);
 }
 
@@ -411,13 +417,15 @@ fn register_and_deregister_support_for_multiple_chains() {
     assert!(res.is_ok());
 
     for chain in chains {
-        let workers: Vec<Worker> = service_registry.query(
-            &app,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name: chain,
-            },
-        );
+        let workers: Vec<Worker> = service_registry
+            .query(
+                &app,
+                &QueryMsg::GetActiveWorkers {
+                    service_name: service_name.into(),
+                    chain_name: chain,
+                },
+            )
+            .unwrap();
         assert_eq!(workers, vec![]);
     }
 }
@@ -504,24 +512,28 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     // Verify that worker is not associated with the deregistered chain
     let deregistered_chain = chains[0].clone();
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name: deregistered_chain,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name: deregistered_chain,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![]);
 
     // Verify that worker is still associated with other chains
     for chain in chains.iter().skip(1) {
-        let workers: Vec<Worker> = service_registry.query(
-            &app,
-            &QueryMsg::GetActiveWorkers {
-                service_name: service_name.into(),
-                chain_name: chain.clone(),
-            },
-        );
+        let workers: Vec<Worker> = service_registry
+            .query(
+                &app,
+                &QueryMsg::GetActiveWorkers {
+                    service_name: service_name.into(),
+                    chain_name: chain.clone(),
+                },
+            )
+            .unwrap();
         assert_eq!(
             workers,
             vec![Worker {
@@ -612,13 +624,15 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(
         workers,
         vec![Worker {
@@ -717,13 +731,15 @@ fn register_deregister_register_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(
         workers,
         vec![Worker {
@@ -801,13 +817,15 @@ fn deregister_previously_unsupported_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![])
 }
 
@@ -875,13 +893,15 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![]);
 }
 
@@ -932,13 +952,15 @@ fn deregister_from_unregistered_worker_single_chain() {
 
     test_utils::are_contract_err_strings_equal(err, ContractError::WorkerNotFound);
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![]);
 }
 
@@ -1044,13 +1066,15 @@ fn unbond_worker() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![])
 }
 
@@ -1151,13 +1175,15 @@ fn bond_but_not_authorized() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![])
 }
 
@@ -1223,13 +1249,15 @@ fn bond_but_not_enough() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(workers, vec![])
 }
 
@@ -1295,13 +1323,15 @@ fn bond_before_authorize() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(
         workers,
         vec![Worker {
@@ -1395,13 +1425,15 @@ fn unbond_then_rebond() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<Worker> = service_registry.query(
-        &app,
-        &QueryMsg::GetActiveWorkers {
-            service_name: service_name.into(),
-            chain_name,
-        },
-    );
+    let workers: Vec<Worker> = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name,
+            },
+        )
+        .unwrap();
     assert_eq!(
         workers,
         vec![Worker {
@@ -1550,4 +1582,119 @@ fn unbonding_period() {
             .u128(),
         initial_bal
     );
+}
+
+#[test]
+fn get_active_workers_should_not_return_less_than_min() {
+    let workers = vec![Addr::unchecked("worker1"), Addr::unchecked("worker2")];
+    let min_num_workers = workers.len() as u16;
+
+    let mut app = App::new(|router, _, storage| {
+        for worker in &workers {
+            router
+                .bank
+                .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
+                .unwrap()
+        }
+    });
+
+    let governance = Addr::unchecked("gov");
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
+
+    let service_name = "validators";
+    let min_worker_bond = Uint128::new(100);
+    let _ = service_registry
+        .execute(
+            &mut app,
+            governance.clone(),
+            &ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                service_contract: Addr::unchecked("nowhere"),
+                min_num_workers,
+                max_num_workers: Some(100),
+                min_worker_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        )
+        .unwrap();
+
+    let _ = service_registry
+        .execute(
+            &mut app,
+            governance,
+            &ExecuteMsg::AuthorizeWorkers {
+                workers: workers.iter().map(|w| w.into()).collect(),
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap();
+
+    let chain_name = ChainName::from_str("ethereum").unwrap();
+
+    for worker in &workers {
+        // should return err until all workers are registered
+        let res: StdResult<Vec<Worker>> = service_registry.query(
+            &app,
+            &QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name: chain_name.clone(),
+            },
+        );
+        assert!(res.is_err());
+
+        let _ = service_registry
+            .execute_with_funds(
+                &mut app,
+                worker.clone(),
+                &ExecuteMsg::BondWorker {
+                    service_name: service_name.into(),
+                },
+                &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+            )
+            .unwrap();
+
+        let _ = service_registry
+            .execute(
+                &mut app,
+                worker.clone(),
+                &ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.into(),
+                    chains: vec![chain_name.clone()],
+                },
+            )
+            .unwrap();
+    }
+
+    // all workers registered, should not return err now
+    let res: StdResult<Vec<Worker>> = service_registry.query(
+        &app,
+        &QueryMsg::GetActiveWorkers {
+            service_name: service_name.into(),
+            chain_name: chain_name.clone(),
+        },
+    );
+    assert!(res.is_ok());
+
+    // remove one, should return err again
+    let _ = service_registry
+        .execute(
+            &mut app,
+            workers[0].clone(),
+            &ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap();
+    let res: StdResult<Vec<Worker>> = service_registry.query(
+        &app,
+        &QueryMsg::GetActiveWorkers {
+            service_name: service_name.into(),
+            chain_name: chain_name.clone(),
+        },
+    );
+    assert!(res.is_err());
 }
