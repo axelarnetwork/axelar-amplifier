@@ -65,9 +65,8 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
     // trigger signing and submit all necessary signatures
     let session_id = test_utils::construct_proof_and_sign(
-        &mut protocol.app,
+        &mut protocol,
         &chain2.multisig_prover_address,
-        &protocol.multisig_address,
         &msgs,
         &workers,
     );
@@ -97,7 +96,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         chain1.voting_verifier_address.clone(),
     );
 
-    let protocol_multisig_address = protocol.multisig_address.clone();
+    let protocol_multisig_address = protocol.multisig.contract_addr.clone();
     test_utils::distribute_rewards(&mut protocol, &chain2.chain_name, protocol_multisig_address);
 
     // rewards split evenly amongst all workers, but there are two contracts that rewards should have been distributed for

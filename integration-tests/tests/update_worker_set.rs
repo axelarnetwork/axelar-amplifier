@@ -51,8 +51,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 
     // sign with old workers
     let session_id = test_utils::sign_proof(
-        &mut protocol.app,
-        &protocol.multisig_address,
+        &mut protocol,
         &initial_workers,
         response,
     );
@@ -143,9 +142,8 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
     test_utils::deregister_workers(&mut protocol, &initial_workers);
 
     let session_id = test_utils::construct_proof_and_sign(
-        &mut protocol.app,
+        &mut protocol,
         &ethereum.multisig_prover_address,
-        &protocol.multisig_address,
         &Vec::<Message>::new(),
         &initial_workers,
     );
