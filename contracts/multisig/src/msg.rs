@@ -44,11 +44,11 @@ pub enum ExecuteMsg {
         to sign their own address using the private key */
         signed_sender_address: HexBinary,
     },
-    // Authorizes a contract to call StartSigningSession.
+    // Authorizes a contract to call StartSigningSession. Callable only by governance
     AuthorizeCaller {
         contract_address: Addr,
     },
-    // Unauthorizes a contract, so it can no longer call StartSigningSession.
+    // Unauthorizes a contract, so it can no longer call StartSigningSession. Callable only by governance
     UnauthorizeCaller {
         contract_address: Addr,
     },
