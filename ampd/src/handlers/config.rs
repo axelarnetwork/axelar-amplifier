@@ -5,7 +5,7 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
-use crate::evm::finalizer::FinalizerType;
+use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
 use connection_router_api::ChainName;
@@ -15,7 +15,7 @@ pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
     #[serde(default)]
-    pub finalizer: FinalizerType,
+    pub finalization: Finalization,
 }
 
 with_prefix!(chain "chain_");
@@ -160,7 +160,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{evm::finalizer::FinalizerType, handlers::config::Chain};
+    use crate::{evm::finalizer::Finalization, handlers::config::Chain};
 
     #[test]
     fn finalizer_should_default_to_ethereum() {
@@ -170,6 +170,6 @@ mod tests {
         ";
 
         let chain_config: Chain = toml::from_str(&chain_config_toml).unwrap();
-        assert_eq!(chain_config.finalizer, FinalizerType::Ethereum);
+        assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
     }
 }

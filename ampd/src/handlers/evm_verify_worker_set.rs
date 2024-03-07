@@ -17,7 +17,7 @@ use connection_router_api::{ChainName, ID_SEPARATOR};
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
-use crate::evm::finalizer::FinalizerType;
+use crate::evm::finalizer::Finalization;
 use crate::evm::verifier::verify_worker_set;
 use crate::evm::{finalizer, json_rpc::EthereumClient};
 use crate::handlers::errors::Error;
@@ -59,7 +59,7 @@ where
     worker: TMAddress,
     voting_verifier: TMAddress,
     chain: ChainName,
-    finalizer_type: FinalizerType,
+    finalizer_type: Finalization,
     rpc_client: C,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
@@ -74,7 +74,7 @@ where
         worker: TMAddress,
         voting_verifier: TMAddress,
         chain: ChainName,
-        finalizer_type: FinalizerType,
+        finalizer_type: Finalization,
         rpc_client: C,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
@@ -228,7 +228,7 @@ mod tests {
 
     use crate::{
         event_processor::EventHandler,
-        evm::{finalizer::FinalizerType, json_rpc::MockEthereumClient},
+        evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
         handlers::evm_verify_worker_set::PollStartedEvent,
         queue::queued_broadcaster::MockBroadcasterClient,
         types::{EVMAddress, Hash, TMAddress},
@@ -274,7 +274,7 @@ mod tests {
             worker,
             voting_verifier,
             ChainName::from_str("ethereum").unwrap(),
-            FinalizerType::Ethereum,
+            Finalization::RPCFinalizedBlock,
             rpc_client,
             broadcast_client,
             rx,

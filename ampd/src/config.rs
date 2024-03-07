@@ -49,7 +49,7 @@ mod tests {
     use connection_router_api::ChainName;
     use cosmrs::AccountId;
 
-    use crate::evm::finalizer::FinalizerType;
+    use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
     use crate::handlers::config::Config as HandlerConfig;
     use crate::types::TMAddress;
@@ -263,7 +263,7 @@ mod tests {
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
                         name: ChainName::from_str("Ethereum").unwrap(),
-                        finalizer: FinalizerType::Ethereum,
+                        finalization: Finalization::RPCFinalizedBlock,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),
@@ -277,7 +277,7 @@ mod tests {
                     ),
                     chain: Chain {
                         name: ChainName::from_str("Fantom").unwrap(),
-                        finalizer: FinalizerType::PoW,
+                        finalization: Finalization::ConfirmationHeight,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),

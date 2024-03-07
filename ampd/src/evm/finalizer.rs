@@ -16,14 +16,14 @@ pub trait Finalizer: Send + Sync {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
-pub enum FinalizerType {
+pub enum Finalization {
     #[default]
-    Ethereum,
-    PoW,
+    RPCFinalizedBlock,
+    ConfirmationHeight,
 }
 
 pub fn pick<'a, C, H>(
-    finalizer_type: &'a FinalizerType,
+    finalizer_type: &'a Finalization,
     rpc_client: &'a C,
     confirmation_height: H,
 ) -> Box<dyn Finalizer + 'a>
@@ -32,8 +32,10 @@ where
     H: Into<U64>,
 {
     match finalizer_type {
-        FinalizerType::Ethereum => Box::new(EthereumFinalizer::new(rpc_client)),
-        FinalizerType::PoW => Box::new(PoWFinalizer::new(rpc_client, confirmation_height)),
+        Finalization::RPCFinalizedBlock => Box::new(EthereumFinalizer::new(rpc_client)),
+        Finalization::ConfirmationHeight => {
+            Box::new(PoWFinalizer::new(rpc_client, confirmation_height))
+        }
     }
 }
 
@@ -109,7 +111,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::evm::finalizer::{pick, Finalizer, FinalizerType, PoWFinalizer};
+    use crate::evm::finalizer::{pick, Finalization, Finalizer, PoWFinalizer};
     use crate::evm::json_rpc::MockEthereumClient;
     use ethers::{
         abi::Hash,
@@ -183,7 +185,7 @@ mod tests {
             .expect_finalized_block()
             .returning(move || Ok(block.clone()));
 
-        let finalizer = pick(&FinalizerType::Ethereum, &rpc_client, 1);
+        let finalizer = pick(&Finalization::RPCFinalizedBlock, &rpc_client, 1);
         assert_eq!(
             finalizer.latest_finalized_block_height().await.unwrap(),
             block_number
@@ -200,7 +202,11 @@ mod tests {
             .expect_block_number()
             .returning(move || Ok(block_number));
 
-        let finalizer = pick(&FinalizerType::PoW, &rpc_client, pow_confirmation_height);
+        let finalizer = pick(
+            &Finalization::ConfirmationHeight,
+            &rpc_client,
+            pow_confirmation_height,
+        );
         assert_eq!(
             finalizer.latest_finalized_block_height().await.unwrap(),
             block_number - U64::from(pow_confirmation_height - 1)

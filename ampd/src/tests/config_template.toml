@@ -18,7 +18,7 @@ type = 'EvmMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 chain_name = 'ethereum'
 chain_rpc_url = 'http://127.0.0.1/'
-chain_finalizer = 'Ethereum'
+chain_finalization = 'RPCFinalizedBlock'
 
 [handlers.rpc_timeout]
 secs = 3
@@ -29,7 +29,7 @@ type = 'EvmWorkerSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 chain_name = 'fantom'
 chain_rpc_url = 'http://127.0.0.1/'
-chain_finalizer = 'PoW'
+chain_finalization = 'ConfirmationHeight'
 
 [handlers.rpc_timeout]
 secs = 3
