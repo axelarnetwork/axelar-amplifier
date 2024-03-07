@@ -62,25 +62,21 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     let (poll_id, expiry) = test_utils::create_worker_set_poll(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        ethereum.voting_verifier_address.clone(),
+        &ethereum.voting_verifier,
         expected_new_worker_set.clone(),
     );
 
     // do voting
     test_utils::vote_true_for_worker_set(
         &mut protocol.app,
-        &ethereum.voting_verifier_address,
+        &ethereum.voting_verifier,
         &new_workers,
         poll_id,
     );
 
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
 
-    test_utils::end_poll(
-        &mut protocol.app,
-        &ethereum.voting_verifier_address,
-        poll_id,
-    );
+    test_utils::end_poll(&mut protocol.app, &ethereum.voting_verifier, poll_id);
 
     test_utils::confirm_worker_set(
         &mut protocol.app,
@@ -148,25 +144,21 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
     let (poll_id, expiry) = test_utils::create_worker_set_poll(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        ethereum.voting_verifier_address.clone(),
+        &ethereum.voting_verifier,
         expected_new_worker_set.clone(),
     );
 
     // do voting
     test_utils::vote_true_for_worker_set(
         &mut protocol.app,
-        &ethereum.voting_verifier_address,
+        &ethereum.voting_verifier,
         &new_workers,
         poll_id,
     );
 
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
 
-    test_utils::end_poll(
-        &mut protocol.app,
-        &ethereum.voting_verifier_address,
-        poll_id,
-    );
+    test_utils::end_poll(&mut protocol.app, &ethereum.voting_verifier, poll_id);
 
     test_utils::confirm_worker_set(
         &mut protocol.app,
@@ -226,7 +218,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     test_utils::execute_worker_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
-        &ethereum.voting_verifier_address,
+        &ethereum.voting_verifier,
         &first_wave_of_new_workers,
     );
 
@@ -259,7 +251,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     test_utils::execute_worker_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
-        &ethereum.voting_verifier_address,
+        &ethereum.voting_verifier,
         &second_wave_of_new_workers,
     );
 

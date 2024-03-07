@@ -44,7 +44,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     // do voting
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
-        &chain1.voting_verifier_address,
+        &chain1.voting_verifier,
         &msgs,
         &workers,
         poll_id,
@@ -52,7 +52,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
 
-    test_utils::end_poll(&mut protocol.app, &chain1.voting_verifier_address, poll_id);
+    test_utils::end_poll(&mut protocol.app, &chain1.voting_verifier, poll_id);
 
     // should be verified, now route
     test_utils::route_messages(&mut protocol.app, &chain1.gateway, &msgs);
@@ -88,7 +88,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     test_utils::distribute_rewards(
         &mut protocol,
         &chain1.chain_name,
-        chain1.voting_verifier_address.clone(),
+        chain1.voting_verifier.contract_addr.clone(),
     );
 
     let protocol_multisig_address = protocol.multisig.contract_addr.clone();

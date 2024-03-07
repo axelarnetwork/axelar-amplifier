@@ -7,7 +7,7 @@ use axelar_wasm_std::{
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
 use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Event, HexBinary, Uint128, Uint256, Uint64};
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
+use cw_multi_test::{App, AppResponse, Executor};
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
@@ -75,20 +75,19 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 
 pub fn vote_success_for_all_messages(
     app: &mut App,
-    voting_verifier_address: &Addr,
+    voting_verifier: &VotingVerifierContract,
     messages: &Vec<Message>,
     workers: &Vec<Worker>,
     poll_id: PollId,
 ) {
     for worker in workers {
-        let response = app.execute_contract(
+        let response = voting_verifier.execute(
+            app,
             worker.addr.clone(),
-            voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
                 votes: vec![Vote::SucceededOnChain; messages.len()],
             },
-            &[],
         );
         assert!(response.is_ok());
     }
@@ -96,33 +95,30 @@ pub fn vote_success_for_all_messages(
 
 pub fn vote_true_for_worker_set(
     app: &mut App,
-    voting_verifier_address: &Addr,
+    voting_verifier: &VotingVerifierContract,
     workers: &Vec<Worker>,
     poll_id: PollId,
 ) {
     for worker in workers {
-        let response = app.execute_contract(
+        let response = voting_verifier.execute(
+            app,
             worker.addr.clone(),
-            voting_verifier_address.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
                 votes: vec![Vote::SucceededOnChain; 1],
             },
-            &[],
         );
-        assert!(response.is_ok());
+        assert!(response.is_ok())
     }
 }
 
 /// Ends the poll. Be sure the current block height has advanced at least to the poll expiration, else this will fail
-pub fn end_poll(app: &mut App, voting_verifier_address: &Addr, poll_id: PollId) {
-    let response = app.execute_contract(
+pub fn end_poll(app: &mut App, voting_verifier: &VotingVerifierContract, poll_id: PollId) {
+    let response = voting_verifier.execute(
+        app,
         Addr::unchecked("relayer"),
-        voting_verifier_address.clone(),
         &voting_verifier::msg::ExecuteMsg::EndPoll { poll_id },
-        &[],
     );
-
     assert!(response.is_ok());
 }
 
@@ -486,17 +482,16 @@ fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpi
 pub fn create_worker_set_poll(
     app: &mut App,
     relayer_addr: Addr,
-    voting_verifier: Addr,
+    voting_verifier: &VotingVerifierContract,
     worker_set: WorkerSet,
 ) -> (PollId, PollExpiryBlock) {
-    let response = app.execute_contract(
+    let response = voting_verifier.execute(
+        app,
         relayer_addr.clone(),
-        voting_verifier.clone(),
         &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
             message_id: "ethereum:00".parse().unwrap(),
             new_operators: make_operators(worker_set.clone(), Encoder::Abi),
         },
-        &[],
     );
     assert!(response.is_ok());
 
@@ -573,7 +568,7 @@ pub fn update_registry_and_construct_proof(
 pub fn execute_worker_set_poll(
     protocol: &mut Protocol,
     relayer_addr: &Addr,
-    verifier_address: &Addr,
+    voting_verifier: &VotingVerifierContract,
     new_workers: &Vec<Worker>,
 ) {
     // Create worker set
@@ -583,52 +578,50 @@ pub fn execute_worker_set_poll(
     let (poll_id, expiry) = create_worker_set_poll(
         &mut protocol.app,
         relayer_addr.clone(),
-        verifier_address.clone(),
+        voting_verifier,
         new_worker_set.clone(),
     );
 
     // Vote for the worker set
-    vote_true_for_worker_set(&mut protocol.app, verifier_address, new_workers, poll_id);
+    vote_true_for_worker_set(&mut protocol.app, voting_verifier, new_workers, poll_id);
 
     // Advance to expiration height
     advance_at_least_to_height(&mut protocol.app, expiry);
 
     // End the poll
-    end_poll(&mut protocol.app, verifier_address, poll_id);
+    end_poll(&mut protocol.app, voting_verifier, poll_id);
 }
 
 #[derive(Clone)]
 pub struct Chain {
     pub gateway: GatewayContract,
-    pub voting_verifier_address: Addr,
+    pub voting_verifier: VotingVerifierContract,
     pub multisig_prover: MultisigProverContract,
     pub chain_name: ChainName,
 }
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
-    let voting_verifier_address = instantiate_voting_verifier(
+    let voting_verifier = VotingVerifierContract::instantiate_contract(
         &mut protocol.app,
-        voting_verifier::msg::InstantiateMsg {
-            service_registry_address: protocol
-                .service_registry
-                .contract_addr
-                .to_string()
-                .try_into()
-                .unwrap(),
-            service_name: protocol.service_name.clone(),
-            source_gateway_address: "doesn't matter".to_string().try_into().unwrap(),
-            voting_threshold: Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
-            block_expiry: 10,
-            confirmation_height: 5,
-            source_chain: chain_name.clone(),
-            rewards_address: protocol.rewards.contract_addr.to_string(),
-        },
+        protocol
+            .service_registry
+            .contract_addr
+            .to_string()
+            .try_into()
+            .unwrap(),
+        protocol.service_name.clone(),
+        "doesn't matter".to_string().try_into().unwrap(),
+        Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
+        10,
+        5,
+        chain_name.clone(),
+        protocol.rewards.contract_addr.clone(),
     );
 
     let gateway = GatewayContract::instantiate_contract(
         &mut protocol.app,
         protocol.connection_router.contract_address().clone(),
-        voting_verifier_address.clone(),
+        voting_verifier.contract_addr.clone(),
     );
 
     let multisig_prover = MultisigProverContract::instantiate_contract(
@@ -637,7 +630,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         gateway.contract_addr.clone(),
         protocol.multisig.contract_addr.clone(),
         protocol.service_registry.contract_addr.clone(),
-        voting_verifier_address.clone(),
+        voting_verifier.contract_addr.clone(),
         Uint256::zero(),
         Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
         protocol.service_name.to_string(),
@@ -677,7 +670,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: voting_verifier_address.clone(),
+                contract: voting_verifier.contract_addr.clone(),
             },
         },
         &coins(1000, AXL_DENOMINATION),
@@ -699,34 +692,10 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     Chain {
         gateway,
-        voting_verifier_address,
+        voting_verifier,
         multisig_prover,
         chain_name,
     }
-}
-
-pub fn instantiate_voting_verifier(
-    app: &mut App,
-    instantiate_msg: voting_verifier::msg::InstantiateMsg,
-) -> Addr {
-    let code = ContractWrapper::new(
-        voting_verifier::contract::execute,
-        voting_verifier::contract::instantiate,
-        voting_verifier::contract::query,
-    );
-    let code_id = app.store_code(Box::new(code));
-
-    let contract_addr = app.instantiate_contract(
-        code_id,
-        Addr::unchecked("anyone"),
-        &instantiate_msg,
-        &[],
-        "voting_verifier",
-        None,
-    );
-
-    assert!(contract_addr.is_ok());
-    contract_addr.unwrap()
 }
 
 // Creates an instance of Axelar Amplifier with an initial worker set registered, and returns the instance, the chains, the workers, and the minimum worker bond.
