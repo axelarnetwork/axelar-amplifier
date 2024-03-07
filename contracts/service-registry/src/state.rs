@@ -80,7 +80,7 @@ impl BondingState {
             | BondingState::Unbonding {
                 amount,
                 unbonded_at: _,
-            } => amount + to_add,
+            } => amount.saturating_add(to_add),
             BondingState::Unbonded => to_add,
         };
         if amount.is_zero() {

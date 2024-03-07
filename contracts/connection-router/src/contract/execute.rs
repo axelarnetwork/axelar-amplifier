@@ -81,6 +81,7 @@ pub fn freeze_chain(
     Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 pub fn unfreeze_chain(
     deps: DepsMut,
     chain: ChainName,
