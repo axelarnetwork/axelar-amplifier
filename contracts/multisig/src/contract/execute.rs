@@ -1,5 +1,5 @@
 use connection_router_api::ChainName;
-use cosmwasm_std::WasmMsg;
+use cosmwasm_std::{StdError, WasmMsg};
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
@@ -29,7 +29,9 @@ pub fn start_signing_session(
     let session_id = SIGNING_SESSION_COUNTER.update(
         deps.storage,
         |mut counter| -> Result<Uint64, ContractError> {
-            counter += Uint64::one();
+            counter = counter
+                .checked_add(Uint64::one())
+                .map_err(|source| StdError::overflow(source))?;
             Ok(counter)
         },
     )?;

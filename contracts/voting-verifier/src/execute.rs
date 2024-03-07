@@ -59,7 +59,7 @@ pub fn verify_worker_set(
                 source_chain: config.source_chain,
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
-                expires_at: env.block.height + config.block_expiry,
+                expires_at: env.block.height.saturating_add(config.block_expiry),
                 participants,
             },
         }
@@ -146,7 +146,7 @@ pub fn verify_messages(
                 source_chain: config.source_chain,
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
-                expires_at: env.block.height + config.block_expiry,
+                expires_at: env.block.height.saturating_add(config.block_expiry),
                 participants,
             },
         }
@@ -258,7 +258,7 @@ fn create_worker_set_poll(
 ) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
-    let poll = WeightedPoll::new(id, snapshot, block_height + expiry, 1);
+    let poll = WeightedPoll::new(id, snapshot, block_height.saturating_add(expiry), 1);
     POLLS.save(store, id, &state::Poll::ConfirmWorkerSet(poll))?;
 
     Ok(id)
@@ -273,7 +273,7 @@ fn create_messages_poll(
 ) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
-    let poll = WeightedPoll::new(id, snapshot, block_height + expiry, poll_size);
+    let poll = WeightedPoll::new(id, snapshot, block_height.saturating_add(expiry), poll_size);
     POLLS.save(store, id, &state::Poll::Messages(poll))?;
 
     Ok(id)
