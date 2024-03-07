@@ -1,3 +1,5 @@
+mod trait_mod;
+
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
@@ -12,12 +14,14 @@ use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
+use integration_tests::contract::Contract;
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
+use service_registry::msg::ExecuteMsg;
 use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
@@ -189,27 +193,20 @@ pub fn sign_proof(
     session_id
 }
 
-pub fn register_service(
-    app: &mut App,
-    service_registry: Addr,
-    governance_addr: Addr,
-    service_name: nonempty::String,
-    min_worker_bond: Uint128,
-) {
-    let response = app.execute_contract(
-        governance_addr,
-        service_registry,
-        &service_registry::msg::ExecuteMsg::RegisterService {
-            service_name: service_name.to_string(),
+pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
+    let response = protocol.service_registry.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &ExecuteMsg::RegisterService {
+            service_name: protocol.service_name.to_string(),
             service_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
-            min_worker_bond: min_worker_bond,
+            min_worker_bond,
             bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days: 10,
             description: "Some service".into(),
         },
-        &[],
     );
     assert!(response.is_ok());
 }
@@ -298,7 +295,7 @@ pub struct Protocol {
     pub router_address: Addr,
     pub router_admin_address: Addr,
     pub multisig_address: Addr,
-    pub service_registry_address: Addr,
+    pub service_registry: trait_mod::ServiceRegistryContract,
     pub service_name: nonempty::String,
     pub rewards_address: Addr,
     pub rewards_params: rewards::msg::Params,
@@ -347,11 +344,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
         },
     );
-    let service_registry_address = instantiate_service_registry(
+    let service_registry = trait_mod::ServiceRegistryContract::instantiate_contract(
         &mut app,
-        service_registry::msg::InstantiateMsg {
-            governance_account: governance_address.to_string(),
-        },
+        governance_address.clone(),
     );
 
     Protocol {
@@ -360,7 +355,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         router_address,
         router_admin_address,
         multisig_address,
-        service_registry_address,
+        service_registry,
         service_name,
         rewards_address,
         rewards_params,
@@ -383,55 +378,45 @@ pub struct Worker {
     pub key_pair: KeyPair,
 }
 
-pub fn register_workers(
-    app: &mut App,
-    service_registry: Addr,
-    multisig: Addr,
-    governance_addr: Addr,
-    genesis: Addr,
-    workers: &Vec<Worker>,
-    service_name: nonempty::String,
-    min_worker_bond: Uint128,
-) {
-    let response = app.execute_contract(
-        governance_addr,
-        service_registry.clone(),
-        &service_registry::msg::ExecuteMsg::AuthorizeWorkers {
+pub fn register_workers(protocol: &mut Protocol, workers: &Vec<Worker>, min_worker_bond: Uint128) {
+    let response = protocol.service_registry.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &ExecuteMsg::AuthorizeWorkers {
             workers: workers
                 .iter()
                 .map(|worker| worker.addr.to_string())
                 .collect(),
-            service_name: service_name.to_string(),
+            service_name: protocol.service_name.to_string(),
         },
-        &[],
     );
     assert!(response.is_ok());
 
     for worker in workers {
-        let response = app.send_tokens(
-            genesis.clone(),
+        let response = protocol.app.send_tokens(
+            protocol.genesis_address.clone(),
             worker.addr.clone(),
             &coins(min_worker_bond.u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
-        let response = app.execute_contract(
+
+        let response = protocol.service_registry.execute_with_funds(
+            &mut protocol.app,
             worker.addr.clone(),
-            service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::BondWorker {
-                service_name: service_name.to_string(),
+            &ExecuteMsg::BondWorker {
+                service_name: protocol.service_name.to_string(),
             },
             &coins(min_worker_bond.u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
-        let response = app.execute_contract(
+        let response = protocol.service_registry.execute(
+            &mut protocol.app,
             worker.addr.clone(),
-            service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::RegisterChainSupport {
-                service_name: service_name.to_string(),
+            &ExecuteMsg::RegisterChainSupport {
+                service_name: protocol.service_name.to_string(),
                 chains: worker.supported_chains.clone(),
             },
-            &[],
         );
         assert!(response.is_ok());
 
@@ -444,9 +429,9 @@ pub fn register_workers(
         .unwrap();
         let sig = ecdsa::Signature::from_der(&sig).unwrap();
 
-        let response = app.execute_contract(
+        let response = protocol.app.execute_contract(
             worker.addr.clone(),
-            multisig.clone(),
+            protocol.multisig_address.clone(),
             &multisig::msg::ExecuteMsg::RegisterPublicKey {
                 public_key: PublicKey::Ecdsa(HexBinary::from(
                     worker.key_pair.encoded_verifying_key(),
@@ -459,35 +444,27 @@ pub fn register_workers(
     }
 }
 
-pub fn deregister_workers(
-    app: &mut App,
-    service_registry: Addr,
-    governance_addr: Addr,
-    workers: &Vec<Worker>,
-    service_name: nonempty::String,
-) {
-    let response = app.execute_contract(
-        governance_addr,
-        service_registry.clone(),
-        &service_registry::msg::ExecuteMsg::UnauthorizeWorkers {
+pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
+    let response = protocol.service_registry.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &ExecuteMsg::UnauthorizeWorkers {
             workers: workers
                 .iter()
                 .map(|worker| worker.addr.to_string())
                 .collect(),
-            service_name: service_name.to_string(),
+            service_name: protocol.service_name.to_string(),
         },
-        &[],
     );
     assert!(response.is_ok());
 
     for worker in workers {
-        let response = app.execute_contract(
+        let response = protocol.service_registry.execute(
+            &mut protocol.app,
             worker.addr.clone(),
-            service_registry.clone(),
-            &service_registry::msg::ExecuteMsg::UnbondWorker {
-                service_name: service_name.to_string(),
+            &ExecuteMsg::UnbondWorker {
+                service_name: protocol.service_name.to_string(),
             },
-            &[],
         );
         assert!(response.is_ok());
     }
@@ -603,25 +580,10 @@ pub fn update_registry_and_construct_proof(
     min_worker_bond: Uint128,
 ) -> Uint64 {
     // Register new workers
-    register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        new_workers,
-        protocol.service_name.clone(),
-        min_worker_bond,
-    );
+    register_workers(protocol, new_workers, min_worker_bond);
 
     // Deregister old workers
-    deregister_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        workers_to_remove,
-        protocol.service_name.clone(),
-    );
+    deregister_workers(protocol, workers_to_remove);
 
     // Construct proof and sign
     construct_proof_and_sign(
@@ -673,7 +635,8 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &mut protocol.app,
         voting_verifier::msg::InstantiateMsg {
             service_registry_address: protocol
-                .service_registry_address
+                .service_registry
+                .contract_addr
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -699,7 +662,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             admin_address: Addr::unchecked("doesn't matter").to_string(),
             gateway_address: gateway_address.to_string(),
             multisig_address: protocol.multisig_address.to_string(),
-            service_registry_address: protocol.service_registry_address.to_string(),
+            service_registry_address: protocol.service_registry.contract_addr.to_string(),
             voting_verifier_address: voting_verifier_address.to_string(),
             destination_chain_id: Uint256::zero(),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
@@ -952,24 +915,9 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
         },
     ];
     let min_worker_bond = Uint128::new(100);
-    register_service(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.service_name.clone(),
-        min_worker_bond.clone(),
-    );
+    register_service(&mut protocol, min_worker_bond.clone());
 
-    register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &workers,
-        protocol.service_name.clone(),
-        min_worker_bond,
-    );
+    register_workers(&mut protocol, &workers, min_worker_bond);
     let chain1 = setup_chain(&mut protocol, chains.get(0).unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     (protocol, chain1, chain2, workers, min_worker_bond)

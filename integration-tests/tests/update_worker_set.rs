@@ -38,25 +38,10 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 
     let expected_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
 
-    test_utils::register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &new_workers,
-        protocol.service_name.clone(),
-        min_worker_bond,
-    );
+    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
 
     // remove old workers
-    test_utils::deregister_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        &initial_workers,
-        protocol.service_name.clone(),
-    );
+    test_utils::deregister_workers(&mut protocol, &initial_workers);
 
     let response = test_utils::update_worker_set(
         &mut protocol.app,
@@ -152,25 +137,10 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
 
     let expected_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
 
-    test_utils::register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &new_workers,
-        protocol.service_name.clone(),
-        min_worker_bond,
-    );
+    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
 
     // remove old workers
-    test_utils::deregister_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        &initial_workers,
-        protocol.service_name.clone(),
-    );
+    test_utils::deregister_workers(&mut protocol, &initial_workers);
 
     let session_id = test_utils::construct_proof_and_sign(
         &mut protocol.app,
