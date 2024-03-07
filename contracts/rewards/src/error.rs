@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("error saving event")]
     SaveEvent,
 
+    #[error("error adding rewards")]
+    AddRewards,
+
     #[error("error saving rewards pool")]
     SaveRewardsPool,
 

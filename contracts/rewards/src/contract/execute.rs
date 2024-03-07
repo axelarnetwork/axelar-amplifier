@@ -93,7 +93,7 @@ where
             .record_participation(worker)
             .then(|mut tally| {
                 if matches!(event, StorageState::New(_)) {
-                    tally.event_count += 1
+                    tally.event_count = tally.event_count.saturating_add(1)
                 }
                 self.store.save_epoch_tally(&tally)
             })
@@ -131,10 +131,10 @@ where
         let from = self
             .store
             .load_rewards_watermark(pool_id.clone())?
-            .map_or(0, |last_processed| last_processed + 1);
+            .map_or(0, |last_processed| last_processed.saturating_add(1));
 
         let to = std::cmp::min(
-            (from + epoch_process_limit).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
+            (from.saturating_add(epoch_process_limit)).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
             cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
         );
 
@@ -195,12 +195,14 @@ where
         // (i.e. we are in epoch 0, which started at block 0 and epoch duration is 1000. At epoch 500, the params
         // are updated to shorten the epoch duration to 100 blocks. We set the epoch number to 1, to prevent skipping
         // epochs 1-4, and so all events prior to the start of epoch 1 have an epoch number of 0)
-        let should_end =
-            cur_epoch.block_height_started + u64::from(new_params.epoch_duration) < block_height;
+        let should_end = cur_epoch
+            .block_height_started
+            .saturating_add(u64::from(new_params.epoch_duration))
+            < block_height;
         let cur_epoch = if should_end {
             Epoch {
                 block_height_started: block_height,
-                epoch_num: cur_epoch.epoch_num + 1,
+                epoch_num: cur_epoch.epoch_num.saturating_add(1),
             }
         } else {
             cur_epoch
@@ -218,7 +220,10 @@ where
         amount: nonempty::Uint128,
     ) -> Result<(), ContractError> {
         let mut pool = self.store.load_rewards_pool(pool_id)?;
-        pool.balance += Uint128::from(amount);
+        pool.balance = pool
+            .balance
+            .checked_add(Uint128::from(amount))
+            .map_err(|_| ContractError::AddRewards)?;
 
         self.store.save_rewards_pool(&pool)?;
 
