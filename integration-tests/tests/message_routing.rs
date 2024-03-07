@@ -66,16 +66,12 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     // trigger signing and submit all necessary signatures
     let session_id = test_utils::construct_proof_and_sign(
         &mut protocol,
-        &chain2.multisig_prover_address,
+        &chain2.multisig_prover,
         &msgs,
         &workers,
     );
 
-    let proof = test_utils::get_proof(
-        &mut protocol.app,
-        &chain2.multisig_prover_address,
-        &session_id,
-    );
+    let proof = test_utils::get_proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
 
     // proof should be complete by now
     assert!(matches!(

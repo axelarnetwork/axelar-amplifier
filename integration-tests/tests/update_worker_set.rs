@@ -16,8 +16,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
-    let worker_set =
-        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+    let worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(worker_set, simulated_worker_set);
 
@@ -46,21 +45,13 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     let response = test_utils::update_worker_set(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        ethereum.multisig_prover_address.clone(),
+        &ethereum.multisig_prover,
     );
 
     // sign with old workers
-    let session_id = test_utils::sign_proof(
-        &mut protocol,
-        &initial_workers,
-        response,
-    );
+    let session_id = test_utils::sign_proof(&mut protocol, &initial_workers, response);
 
-    let proof = test_utils::get_proof(
-        &mut protocol.app,
-        &ethereum.multisig_prover_address,
-        &session_id,
-    );
+    let proof = test_utils::get_proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         multisig_prover::msg::ProofStatus::Completed { .. }
@@ -94,11 +85,10 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     test_utils::confirm_worker_set(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        ethereum.multisig_prover_address.clone(),
+        &ethereum.multisig_prover,
     );
 
-    let new_worker_set =
-        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+    let new_worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_worker_set, expected_new_worker_set);
 }
@@ -114,8 +104,7 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
-    let worker_set =
-        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+    let worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(worker_set, simulated_worker_set);
 
@@ -143,16 +132,12 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
 
     let session_id = test_utils::construct_proof_and_sign(
         &mut protocol,
-        &ethereum.multisig_prover_address,
+        &ethereum.multisig_prover,
         &Vec::<Message>::new(),
         &initial_workers,
     );
 
-    let proof = test_utils::get_proof(
-        &mut protocol.app,
-        &ethereum.multisig_prover_address,
-        &session_id,
-    );
+    let proof = test_utils::get_proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
     assert!(matches!(
         proof.status,
         multisig_prover::msg::ProofStatus::Completed { .. }
@@ -186,11 +171,10 @@ fn worker_set_can_be_initialized_and_then_automatically_updated_during_proof_con
     test_utils::confirm_worker_set(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        ethereum.multisig_prover_address.clone(),
+        &ethereum.multisig_prover,
     );
 
-    let new_worker_set =
-        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+    let new_worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_worker_set, expected_new_worker_set);
 }
@@ -206,8 +190,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
-    let worker_set =
-        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+    let worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(worker_set, simulated_worker_set);
 
@@ -226,15 +209,11 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         &first_wave_of_new_workers,
         &initial_workers,
         &initial_workers,
-        &ethereum.multisig_prover_address,
+        &ethereum.multisig_prover,
         min_worker_bond,
     );
 
-    let proof = test_utils::get_proof(
-        &mut protocol.app,
-        &ethereum.multisig_prover_address,
-        &session_id,
-    );
+    let proof = test_utils::get_proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
 
     // proof must be completed
     assert!(matches!(
@@ -260,7 +239,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         &second_wave_of_new_workers,
         &first_wave_of_new_workers,
         &initial_workers,
-        &ethereum.multisig_prover_address,
+        &ethereum.multisig_prover,
         min_worker_bond,
     );
 
@@ -268,12 +247,12 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     test_utils::confirm_worker_set(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        ethereum.multisig_prover_address.clone(),
+        &ethereum.multisig_prover,
     );
 
     // get the latest worker set, it should be equal to the first wave worker set
     let latest_worker_set =
-        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover_address);
+        test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
     assert_eq!(latest_worker_set, first_wave_worker_set);
 
     // attempt to confirm the second rotation
@@ -286,7 +265,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
 
     let response = protocol.app.execute_contract(
         Addr::unchecked("relayer"),
-        ethereum.multisig_prover_address.clone(),
+        ethereum.multisig_prover.contract_addr,
         &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
         &[],
     );
