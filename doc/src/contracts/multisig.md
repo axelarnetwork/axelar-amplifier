@@ -94,6 +94,11 @@ SignatureVerifier->>Multisig: returns true/false
 deactivate Multisig
 ```
 
+## Authorization
+Prior to calling `StartSigningSession`, the prover contract must first be *authorized*.
+For a contract to become authorized, the governance account needs to call `AuthorizeCaller`, and specify the contract address to authorize.
+Similarly, the governance account can revoke authorization of a particular contract by calling `UnauthorizeCaller`.
+
 ## Interface
 
 ```Rust
@@ -108,9 +113,14 @@ pub enum ExecuteMsg {
         session_id: Uint64,
         signature: HexBinary,
     },
+    RegisterWorkerSet {
+        worker_set: WorkerSet,
+    },
+    // callable only by governance
     AuthorizeCaller {
         contract_address: Addr,
     },
+    // callable only by governance
     UnauthorizeCaller {
         contract_address: Addr,
     },
@@ -161,11 +171,11 @@ pub enum Event {
         worker: Addr,
         public_key: PublicKey,
     },
-    // Emitted when a StartSigningSession caller is authorized
+    // Emitted when a contract is authorized by governance to create signing sessions
     CallerAuthorized {
         contract_address: Addr,
     },
-    // Emitted when a StartSigningSession caller is unauthorized
+    // Emitted when a contract is unauthorized by governance to create signing sessions
     CallerUnauthorized {
         contract_address: Addr,
     },
