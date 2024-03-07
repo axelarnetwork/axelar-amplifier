@@ -39,8 +39,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     let msg_ids: Vec<CrossChainId> = msgs.iter().map(|msg| msg.cc_id.clone()).collect();
 
     // start the flow by submitting the message to the gateway
-    let (poll_id, expiry) =
-        test_utils::verify_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
+    let (poll_id, expiry) = test_utils::verify_messages(&mut protocol.app, &chain1.gateway, &msgs);
 
     // do voting
     test_utils::vote_success_for_all_messages(
@@ -56,11 +55,11 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     test_utils::end_poll(&mut protocol.app, &chain1.voting_verifier_address, poll_id);
 
     // should be verified, now route
-    test_utils::route_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
+    test_utils::route_messages(&mut protocol.app, &chain1.gateway, &msgs);
 
     // check that the message can be found at the outgoing gateway
     let found_msgs =
-        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway_address, &msg_ids);
+        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
     // trigger signing and submit all necessary signatures

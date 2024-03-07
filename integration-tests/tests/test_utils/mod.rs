@@ -6,10 +6,7 @@ use axelar_wasm_std::{
     Participant, Threshold,
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
-use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, Uint128,
-    Uint256, Uint64,
-};
+use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Event, HexBinary, Uint128, Uint256, Uint64};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
@@ -46,16 +43,16 @@ type PollExpiryBlock = u64;
 
 pub fn verify_messages(
     app: &mut App,
-    gateway_address: &Addr,
+    gateway: &GatewayContract,
     msgs: &[Message],
 ) -> (PollId, PollExpiryBlock) {
-    let response = app.execute_contract(
+    let response = gateway.execute(
+        app,
         Addr::unchecked("relayer"),
-        gateway_address.clone(),
         &gateway_api::msg::ExecuteMsg::VerifyMessages(msgs.to_vec()),
-        &[],
     );
     assert!(response.is_ok());
+
     let response = response.unwrap();
 
     let poll_id = get_event_attribute(&response.events, "wasm-messages_poll_started", "poll_id")
@@ -67,14 +64,12 @@ pub fn verify_messages(
     (poll_id, expiry)
 }
 
-pub fn route_messages(app: &mut App, gateway_address: &Addr, msgs: &[Message]) {
-    let response = app.execute_contract(
+pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]) {
+    let response = gateway.execute(
+        app,
         Addr::unchecked("relayer"),
-        gateway_address.clone(),
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
-        &[],
     );
-
     assert!(response.is_ok());
 }
 
@@ -205,17 +200,16 @@ pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
 
 pub fn get_messages_from_gateway(
     app: &mut App,
-    gateway_address: &Addr,
+    gateway: &GatewayContract,
     message_ids: &[CrossChainId],
 ) -> Vec<Message> {
-    let query_response = app.wrap().query_wasm_smart(
-        gateway_address,
+    let query_response: Vec<Message> = gateway.query(
+        &app,
         &gateway_api::msg::QueryMsg::GetOutgoingMessages {
             message_ids: message_ids.to_owned(),
         },
     );
-    assert!(query_response.is_ok());
-    query_response.unwrap()
+    query_response
 }
 
 pub fn get_proof(
@@ -408,16 +402,15 @@ pub fn register_workers(protocol: &mut Protocol, workers: &Vec<Worker>, min_work
         .unwrap();
         let sig = ecdsa::Signature::from_der(&sig).unwrap();
 
-        let response = protocol.app.execute_contract(
+        let response = protocol.multisig.execute(
+            &mut protocol.app,
             worker.addr.clone(),
-            protocol.multisig.contract_addr.clone(),
             &multisig::msg::ExecuteMsg::RegisterPublicKey {
                 public_key: PublicKey::Ecdsa(HexBinary::from(
                     worker.key_pair.encoded_verifying_key(),
                 )),
                 signed_sender_address: HexBinary::from(sig.to_vec()),
             },
-            &[],
         );
         assert!(response.is_ok());
     }
@@ -606,7 +599,7 @@ pub fn execute_worker_set_poll(
 
 #[derive(Clone)]
 pub struct Chain {
-    pub gateway_address: Addr,
+    pub gateway: GatewayContract,
     pub voting_verifier_address: Addr,
     pub multisig_prover: MultisigProverContract,
     pub chain_name: ChainName,
@@ -631,18 +624,17 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             rewards_address: protocol.rewards.contract_addr.to_string(),
         },
     );
-    let gateway_address = instantiate_gateway(
+
+    let gateway = GatewayContract::instantiate_contract(
         &mut protocol.app,
-        gateway::msg::InstantiateMsg {
-            router_address: protocol.connection_router.contract_address().to_string(),
-            verifier_address: voting_verifier_address.to_string(),
-        },
+        protocol.connection_router.contract_address().clone(),
+        voting_verifier_address.clone(),
     );
 
     let multisig_prover = MultisigProverContract::instantiate_contract(
         &mut protocol.app,
         Addr::unchecked("doesn't matter"),
-        gateway_address.clone(),
+        gateway.contract_addr.clone(),
         protocol.multisig.contract_addr.clone(),
         protocol.service_registry.contract_addr.clone(),
         voting_verifier_address.clone(),
@@ -674,7 +666,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         protocol.governance_address.clone(),
         &connection_router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
-            gateway_address: gateway_address.to_string().try_into().unwrap(),
+            gateway_address: gateway.contract_addr.to_string().try_into().unwrap(),
         },
     );
     assert!(response.is_ok());
@@ -706,7 +698,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     assert!(response.is_ok());
 
     Chain {
-        gateway_address,
+        gateway,
         voting_verifier_address,
         multisig_prover,
         chain_name,
@@ -730,27 +722,6 @@ pub fn instantiate_voting_verifier(
         &instantiate_msg,
         &[],
         "voting_verifier",
-        None,
-    );
-
-    assert!(contract_addr.is_ok());
-    contract_addr.unwrap()
-}
-
-pub fn instantiate_gateway(app: &mut App, instantiate_msg: gateway::msg::InstantiateMsg) -> Addr {
-    let code = ContractWrapper::new(
-        gateway::contract::execute,
-        gateway::contract::instantiate,
-        gateway::contract::query,
-    );
-    let code_id = app.store_code(Box::new(code));
-
-    let contract_addr = app.instantiate_contract(
-        code_id,
-        Addr::unchecked("anyone"),
-        &instantiate_msg,
-        &[],
-        "gateway",
         None,
     );
 
