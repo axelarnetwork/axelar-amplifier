@@ -1,10 +1,7 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 use integration_tests::contract::Contract;
-use service_registry::{
-    contract::{execute, instantiate, query},
-    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-};
+use service_registry::contract::{execute, instantiate, query};
 
 #[derive(Clone)]
 pub struct ServiceRegistryContract {
@@ -20,7 +17,7 @@ impl ServiceRegistryContract {
             .instantiate_contract(
                 code_id,
                 Addr::unchecked("anyone"),
-                &InstantiateMsg {
+                &service_registry::msg::InstantiateMsg {
                     governance_account: governance.clone().into(),
                 },
                 &[],
@@ -34,8 +31,8 @@ impl ServiceRegistryContract {
 }
 
 impl Contract for ServiceRegistryContract {
-    type QMsg = QueryMsg;
-    type ExMsg = ExecuteMsg;
+    type QMsg = service_registry::msg::QueryMsg;
+    type ExMsg = service_registry::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()
@@ -66,7 +63,7 @@ impl ConnectionRouterContract {
                     nexus_gateway: nexus.to_string(),
                 },
                 &[],
-                "Contract",
+                "connection_router",
                 None,
             )
             .unwrap();
@@ -78,6 +75,53 @@ impl ConnectionRouterContract {
 impl Contract for ConnectionRouterContract {
     type QMsg = connection_router_api::msg::QueryMsg;
     type ExMsg = connection_router_api::msg::ExecuteMsg;
+
+    fn contract_address(&self) -> Addr {
+        self.contract_addr.clone()
+    }
+}
+
+#[derive(Clone)]
+pub struct RewardsContract {
+    pub contract_addr: Addr,
+}
+
+impl RewardsContract {
+    pub fn instantiate_contract(
+        app: &mut App,
+        governance: Addr,
+        rewards_denom: String,
+        params: rewards::msg::Params,
+    ) -> Self {
+        let code = ContractWrapper::new(
+            rewards::contract::execute,
+            rewards::contract::instantiate,
+            connection_router::contract::query,
+        );
+        let code_id = app.store_code(Box::new(code));
+
+        let contract_addr = app
+            .instantiate_contract(
+                code_id,
+                Addr::unchecked("anyone"),
+                &rewards::msg::InstantiateMsg {
+                    governance_address: governance.to_string(),
+                    rewards_denom,
+                    params,
+                },
+                &[],
+                "rewards",
+                None,
+            )
+            .unwrap();
+
+        RewardsContract { contract_addr }
+    }
+}
+
+impl Contract for RewardsContract {
+    type QMsg = rewards::msg::QueryMsg;
+    type ExMsg = rewards::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()

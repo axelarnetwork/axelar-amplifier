@@ -269,23 +269,17 @@ pub fn advance_at_least_to_height(app: &mut App, desired_height: u64) {
     }
 }
 
-pub fn distribute_rewards(
-    app: &mut App,
-    rewards_address: &Addr,
-    chain_name: &ChainName,
-    contract_address: &Addr,
-) {
-    let response = app.execute_contract(
+pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contract_address: Addr) {
+    let response = protocol.rewards.execute(
+        &mut protocol.app,
         Addr::unchecked("relayer"),
-        rewards_address.clone(),
         &rewards::msg::ExecuteMsg::DistributeRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
-                contract: contract_address.clone(),
+                contract: contract_address,
             },
             epoch_count: None,
         },
-        &[],
     );
     assert!(response.is_ok());
 }
@@ -298,7 +292,7 @@ pub struct Protocol {
     pub multisig_address: Addr,
     pub service_registry: ServiceRegistryContract,
     pub service_name: nonempty::String,
-    pub rewards_address: Addr,
+    pub rewards: RewardsContract,
     pub rewards_params: rewards::msg::Params,
     pub app: App,
 }
@@ -315,14 +309,6 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
-    // let router_address = instantiate_connection_router(
-    //     &mut app,
-    //     connection_router::msg::InstantiateMsg {
-    //         admin_address: router_admin_address.to_string(),
-    //         governance_address: governance_address.to_string(),
-    //         nexus_gateway: nexus_gateway.to_string(),
-    //     },
-    // );
     let connection_router = ConnectionRouterContract::instantiate_contract(
         &mut app,
         router_admin_address.clone(),
@@ -335,18 +321,17 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
         participation_threshold: (1, 2).try_into().unwrap(),
     };
-    let rewards_address = instantiate_rewards(
+    let rewards = RewardsContract::instantiate_contract(
         &mut app,
-        rewards::msg::InstantiateMsg {
-            governance_address: governance_address.to_string(),
-            rewards_denom: AXL_DENOMINATION.to_string(),
-            params: rewards_params.clone(),
-        },
+        governance_address.clone(),
+        AXL_DENOMINATION.to_string(),
+        rewards_params.clone(),
     );
+
     let multisig_address = instantiate_multisig(
         &mut app,
         multisig::msg::InstantiateMsg {
-            rewards_address: rewards_address.to_string(),
+            rewards_address: rewards.contract_addr.to_string(),
             governance_address: governance_address.to_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
         },
@@ -362,7 +347,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         multisig_address,
         service_registry,
         service_name,
-        rewards_address,
+        rewards,
         rewards_params,
         app,
     }
@@ -651,7 +636,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             block_expiry: 10,
             confirmation_height: 5,
             source_chain: chain_name.clone(),
-            rewards_address: protocol.rewards_address.to_string(),
+            rewards_address: protocol.rewards.contract_addr.to_string(),
         },
     );
     let gateway_address = instantiate_gateway(
@@ -708,7 +693,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     let response = protocol.app.execute_contract(
         protocol.genesis_address.clone(),
-        protocol.rewards_address.clone(),
+        protocol.rewards.contract_addr.clone(),
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),
@@ -721,7 +706,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     let response = protocol.app.execute_contract(
         protocol.genesis_address.clone(),
-        protocol.rewards_address.clone(),
+        protocol.rewards.contract_addr.clone(),
         &rewards::msg::ExecuteMsg::AddRewards {
             pool_id: PoolId {
                 chain_name: chain_name.clone(),

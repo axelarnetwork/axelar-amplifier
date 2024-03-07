@@ -92,17 +92,13 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     );
 
     test_utils::distribute_rewards(
-        &mut protocol.app,
-        &protocol.rewards_address,
+        &mut protocol,
         &chain1.chain_name,
-        &chain1.voting_verifier_address,
+        chain1.voting_verifier_address.clone(),
     );
-    test_utils::distribute_rewards(
-        &mut protocol.app,
-        &protocol.rewards_address,
-        &chain2.chain_name,
-        &protocol.multisig_address,
-    );
+
+    let protocol_multisig_address = protocol.multisig_address.clone();
+    test_utils::distribute_rewards(&mut protocol, &chain2.chain_name, protocol_multisig_address);
 
     // rewards split evenly amongst all workers, but there are two contracts that rewards should have been distributed for
     let expected_rewards = Uint128::from(protocol.rewards_params.rewards_per_epoch)
