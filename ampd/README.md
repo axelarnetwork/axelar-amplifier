@@ -106,7 +106,7 @@ chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
 By default, ampd loads the config file from `~/.ampd/config.toml` when running any command.
 This can be overridden by passing `--config [path]`.
 
-### Prerequiste: tofnd
+### Prerequisite: tofnd
 Ampd needs access to a running tofnd instance in order to onboard as a worker
 or run the daemon. See the [tofnd repository](https://github.com/axelarnetwork/tofnd) for more info.
 
