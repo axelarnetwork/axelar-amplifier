@@ -23,6 +23,7 @@ use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
 use tofn::ecdsa::KeyPair;
+use trait_mod::*;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
@@ -292,10 +293,10 @@ pub fn distribute_rewards(
 pub struct Protocol {
     pub genesis_address: Addr, // holds u128::max coins, can use to send coins to other addresses
     pub governance_address: Addr,
-    pub router_address: Addr,
+    pub connection_router: ConnectionRouterContract,
     pub router_admin_address: Addr,
     pub multisig_address: Addr,
-    pub service_registry: trait_mod::ServiceRegistryContract,
+    pub service_registry: ServiceRegistryContract,
     pub service_name: nonempty::String,
     pub rewards_address: Addr,
     pub rewards_params: rewards::msg::Params,
@@ -314,13 +315,19 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
-    let router_address = instantiate_connection_router(
+    // let router_address = instantiate_connection_router(
+    //     &mut app,
+    //     connection_router::msg::InstantiateMsg {
+    //         admin_address: router_admin_address.to_string(),
+    //         governance_address: governance_address.to_string(),
+    //         nexus_gateway: nexus_gateway.to_string(),
+    //     },
+    // );
+    let connection_router = ConnectionRouterContract::instantiate_contract(
         &mut app,
-        connection_router::msg::InstantiateMsg {
-            admin_address: router_admin_address.to_string(),
-            governance_address: governance_address.to_string(),
-            nexus_gateway: nexus_gateway.to_string(),
-        },
+        router_admin_address.clone(),
+        governance_address.clone(),
+        nexus_gateway.clone(),
     );
 
     let rewards_params = rewards::msg::Params {
@@ -344,15 +351,13 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
         },
     );
-    let service_registry = trait_mod::ServiceRegistryContract::instantiate_contract(
-        &mut app,
-        governance_address.clone(),
-    );
+    let service_registry =
+        ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
 
     Protocol {
         genesis_address: genesis,
         governance_address,
-        router_address,
+        connection_router,
         router_admin_address,
         multisig_address,
         service_registry,
@@ -652,7 +657,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let gateway_address = instantiate_gateway(
         &mut protocol.app,
         gateway::msg::InstantiateMsg {
-            router_address: protocol.router_address.to_string(),
+            router_address: protocol.connection_router.contract_address().to_string(),
             verifier_address: voting_verifier_address.to_string(),
         },
     );
@@ -692,7 +697,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     let response = protocol.app.execute_contract(
         protocol.governance_address.clone(),
-        protocol.router_address.clone(),
+        protocol.connection_router.contract_address().clone(),
         &connection_router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
             gateway_address: gateway_address.to_string().try_into().unwrap(),
