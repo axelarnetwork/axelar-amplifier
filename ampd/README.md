@@ -103,22 +103,32 @@ chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
 
 ```
 
+By default, ampd loads the config file from `~/.ampd/config.toml` when running any command.
+This can be overridden by passing `--config [path]`.
+
+### Prerequisite: tofnd
+Ampd needs access to a running tofnd instance in order to onboard as a worker
+or run the daemon. See the [tofnd repository](https://github.com/axelarnetwork/tofnd) for more info.
+
 ### Worker Onboarding
 Prior to running the ampd daemon, workers need to perform the following onboarding steps.
-1. Determine your worker address: `ampd --config config.toml worker-address`
+1. Determine your worker address: `ampd worker-address`
 
 2. Fund your worker address. This can be achieved in a number of ways and is dependent on the environment (mainnet, testnet or devnet).
 
-3. Bond your worker: `ampd --config config.toml bond-worker [service name] [amount] [denom]`
+3. Bond your worker: `ampd bond-worker [service name] [amount] [denom]`
 
-4. Register your public key: `ampd --config config.toml register-public-key`
+4. Register your public key: `ampd register-public-key`
 
 5. Authorize your worker. This is dependent on the environment, and can be done via governance, or by the network operators.
 
+6. Register support for desired chains. This enables ampd to participate in voting and signing for the specified chains. Multiple chain names can be passed, separated by a space.
+`ampd register-chain-support [service name] [chains]...`
+
 ### Run the daemon
-`ampd --config config.toml --state state.json`
+`ampd`
 
-The state file will be created if it doesn't yet exist.
+A state file will be created if it doesn't yet exist. The default location of the state file is `~/.ampd/state.json`, which can be overridden by passing `--state [path]`.
 
-#### Default paths
-Note, `--config` or `--state` may be omitted in any command, in which case the default path of `~/.ampd/config.toml` or `~/.ampd/state.json` will be used.
+### Help
+For more info about the available commands and options, run `ampd --help`.
