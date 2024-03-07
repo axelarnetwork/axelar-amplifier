@@ -6,7 +6,9 @@ use axelar_wasm_std::{
     Participant, Threshold,
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
-use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Event, HexBinary, Uint128, Uint256, Uint64};
+use cosmwasm_std::{
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
+};
 use cw_multi_test::{App, AppResponse, Executor};
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
@@ -199,13 +201,15 @@ pub fn get_messages_from_gateway(
     gateway: &GatewayContract,
     message_ids: &[CrossChainId],
 ) -> Vec<Message> {
-    let query_response: Vec<Message> = gateway.query(
+    let query_response: Result<Vec<Message>, StdError> = gateway.query(
         &app,
         &gateway_api::msg::QueryMsg::GetOutgoingMessages {
             message_ids: message_ids.to_owned(),
         },
     );
-    query_response
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
 }
 
 pub fn get_proof(
@@ -213,22 +217,27 @@ pub fn get_proof(
     multisig_prover: &MultisigProverContract,
     multisig_session_id: &Uint64,
 ) -> multisig_prover::msg::GetProofResponse {
-    let query_response: multisig_prover::msg::GetProofResponse = multisig_prover.query(
-        &app,
-        &multisig_prover::msg::QueryMsg::GetProof {
-            multisig_session_id: *multisig_session_id,
-        },
-    );
-    query_response
+    let query_response: Result<multisig_prover::msg::GetProofResponse, StdError> = multisig_prover
+        .query(
+            &app,
+            &multisig_prover::msg::QueryMsg::GetProof {
+                multisig_session_id: *multisig_session_id,
+            },
+        );
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
 }
 
 pub fn get_worker_set(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> WorkerSet {
-    let query_response: WorkerSet =
+    let query_response: Result<WorkerSet, StdError> =
         multisig_prover_contract.query(&app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
-    query_response
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
 }
 
 pub fn advance_height(app: &mut App, increment: u64) {
