@@ -31,12 +31,12 @@ pub fn start_signing_session(
         |mut counter| -> Result<Uint64, ContractError> {
             counter = counter
                 .checked_add(Uint64::one())
-                .map_err(|source| StdError::overflow(source))?;
+                .map_err(StdError::overflow)?;
             Ok(counter)
         },
     )?;
 
-    let expires_at = env.block.height + config.block_expiry;
+    let expires_at = env.block.height.saturating_add(config.block_expiry);
 
     let signing_session = SigningSession::new(
         session_id,

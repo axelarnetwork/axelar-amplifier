@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
 use cosmwasm_std::{Addr, DepsMut, Uint128};
-use error_stack::Result;
+use error_stack::{Report, Result};
 
 use crate::{
     error::ContractError,
@@ -153,7 +153,7 @@ where
         from: u64,
         to: u64,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let rewards = self.cumulate_rewards(&pool_id, from, to);
+        let rewards = self.cumulate_rewards(&pool_id, from, to)?;
         self.store
             .load_rewards_pool(pool_id.clone())?
             .sub_reward(rewards.values().sum())?
@@ -162,10 +162,15 @@ where
         Ok(rewards)
     }
 
-    fn cumulate_rewards(&mut self, pool_id: &PoolId, from: u64, to: u64) -> HashMap<Addr, Uint128> {
+    fn cumulate_rewards(
+        &mut self,
+        pool_id: &PoolId,
+        from: u64,
+        to: u64,
+    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
         self.iterate_epoch_tallies(pool_id, from, to)
             .map(|tally| tally.rewards_by_worker())
-            .fold(HashMap::new(), merge_rewards)
+            .try_fold(HashMap::new(), merge_rewards)
     }
 
     fn iterate_epoch_tallies<'a>(
@@ -223,7 +228,8 @@ where
         pool.balance = pool
             .balance
             .checked_add(Uint128::from(amount))
-            .map_err(|_| ContractError::AddRewards)?;
+            .map_err(Into::<ContractError>::into)
+            .map_err(Report::from)?;
 
         self.store.save_rewards_pool(&pool)?;
 
@@ -239,12 +245,17 @@ where
 fn merge_rewards(
     rewards_1: HashMap<Addr, Uint128>,
     rewards_2: HashMap<Addr, Uint128>,
-) -> HashMap<Addr, Uint128> {
+) -> Result<HashMap<Addr, Uint128>, ContractError> {
     rewards_2
         .into_iter()
-        .fold(rewards_1, |mut rewards, (addr, amt)| {
-            *rewards.entry(addr).or_default() += amt;
-            rewards
+        .try_fold(rewards_1, |mut rewards, (addr, amt)| {
+            let r = rewards.entry(addr).or_default();
+            *r = r
+                .checked_add(amt)
+                .map_err(Into::<ContractError>::into)
+                .map_err(Report::from)?;
+
+            Ok(rewards)
         })
 }
 
