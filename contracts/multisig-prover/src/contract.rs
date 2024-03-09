@@ -59,9 +59,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::ConstructProof { message_ids } => {
-            execute::construct_proof(deps, env, message_ids)
-        }
+        ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::UpdateWorkerSet {} => execute::update_worker_set(deps, env),
         ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps),
     }
