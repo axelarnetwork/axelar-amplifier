@@ -12,15 +12,16 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::ID_SEPARATOR;
+use connection_router_api::{ChainName, ID_SEPARATOR};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::evm::finalizer;
+use crate::evm::finalizer::Finalization;
 use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_message;
-use crate::evm::{finalizer, ChainName};
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
 use crate::queue::queued_broadcaster::BroadcasterClient;
@@ -58,6 +59,7 @@ where
     worker: TMAddress,
     voting_verifier: TMAddress,
     chain: ChainName,
+    finalizer_type: Finalization,
     rpc_client: C,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
@@ -72,6 +74,7 @@ where
         worker: TMAddress,
         voting_verifier: TMAddress,
         chain: ChainName,
+        finalizer_type: Finalization,
         rpc_client: C,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
@@ -80,6 +83,7 @@ where
             worker,
             voting_verifier,
             chain,
+            finalizer_type,
             rpc_client,
             broadcast_client,
             latest_block_height,
@@ -95,7 +99,7 @@ where
         T: IntoIterator<Item = Hash>,
     {
         let latest_finalized_block_height =
-            finalizer::pick(&self.chain, &self.rpc_client, confirmation_height)
+            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
                 .latest_finalized_block_height()
                 .await
                 .change_context(Error::Finalizer)?;
@@ -231,9 +235,11 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
+    use std::str::FromStr;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use connection_router_api::ChainName;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
@@ -245,8 +251,8 @@ mod tests {
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::event_processor::EventHandler;
+    use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
-    use crate::evm::ChainName;
     use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
@@ -378,7 +384,8 @@ mod tests {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            ChainName::Ethereum,
+            ChainName::from_str("ethereum").unwrap(),
+            Finalization::RPCFinalizedBlock,
             rpc_client,
             broadcast_client,
             rx,

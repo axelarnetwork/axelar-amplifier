@@ -447,27 +447,9 @@ pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
     }
 }
 
-pub fn update_worker_set(
-    app: &mut App,
-    relayer_addr: Addr,
-    multisig_prover: &MultisigProverContract,
-) -> AppResponse {
-    let response = multisig_prover.execute(
-        app,
-        relayer_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
-    );
-    assert!(response.is_ok());
-    response.unwrap()
-}
 
-pub fn confirm_worker_set(
-    app: &mut App,
-    relayer_addr: Addr,
-    multisig_prover: &MultisigProverContract,
-) {
-    let response = multisig_prover.execute(
-        app,
+pub fn confirm_worker_set(app: &mut App, relayer_addr: Addr, multisig_prover: Addr) {
+    let response = app.execute_contract(
         relayer_addr.clone(),
         &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
     );
@@ -551,7 +533,7 @@ pub fn create_new_workers_vec(
         .collect()
 }
 
-pub fn update_registry_and_construct_proof(
+pub fn update_registry_and_construct_worker_set_update_proof(
     protocol: &mut Protocol,
     new_workers: &Vec<Worker>,
     workers_to_remove: &Vec<Worker>,
@@ -565,12 +547,21 @@ pub fn update_registry_and_construct_proof(
     // Deregister old workers
     deregister_workers(protocol, workers_to_remove);
 
-    // Construct proof and sign
-    construct_proof_and_sign(
-        protocol,
-        &chain_multisig_prover,
-        &Vec::<Message>::new(),
-        &current_workers,
+    let response = protocol
+        .app
+        .execute_contract(
+            Addr::unchecked("relayer"),
+            chain_multisig_prover_address.clone(),
+            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &[],
+        )
+        .unwrap();
+
+    sign_proof(
+        &mut protocol.app,
+        &protocol.multisig_address,
+        current_workers,
+        response,
     )
 }
 
