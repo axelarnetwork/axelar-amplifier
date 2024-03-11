@@ -22,7 +22,12 @@ use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
 use tofn::ecdsa::KeyPair;
-use trait_mod::*;
+use trait_mod::{
+    connection_router_trait::ConnectionRouterContract, gateway_trait::GatewayContract,
+    multisig_prover_trait::MultisigProverContract, multisig_trait::MultisigContract,
+    rewards_trait::RewardsContract, service_registry_trait::ServiceRegistryContract,
+    voting_verifier_trait::VotingVerifierContract,
+};
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
