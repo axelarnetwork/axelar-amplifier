@@ -1,6 +1,6 @@
+use crate::contract::Contract;
 use cosmwasm_std::{Addr, Binary, Deps, Env, StdResult};
 use cw_multi_test::{App, ContractWrapper, Executor};
-use integration_tests::contract::Contract;
 
 #[derive(Clone)]
 pub struct RewardsContract {

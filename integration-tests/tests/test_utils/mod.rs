@@ -1,5 +1,3 @@
-mod trait_mod;
-
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
@@ -10,10 +8,19 @@ use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
+
+use integration_tests::connection_router_contract::ConnectionRouterContract;
+use integration_tests::contract::Contract;
+use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::multisig_contract::MultisigContract;
+use integration_tests::multisig_prover_contract::MultisigProverContract;
+use integration_tests::rewards_contract::RewardsContract;
+use integration_tests::service_registry_contract::ServiceRegistryContract;
+use integration_tests::voting_verifier_contract::VotingVerifierContract;
+
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
-use integration_tests::contract::Contract;
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -22,12 +29,6 @@ use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
 use tofn::ecdsa::KeyPair;
-use trait_mod::{
-    connection_router_trait::ConnectionRouterContract, gateway_trait::GatewayContract,
-    multisig_prover_trait::MultisigProverContract, multisig_trait::MultisigContract,
-    rewards_trait::RewardsContract, service_registry_trait::ServiceRegistryContract,
-    voting_verifier_trait::VotingVerifierContract,
-};
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 

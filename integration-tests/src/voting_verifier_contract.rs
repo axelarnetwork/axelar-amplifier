@@ -1,9 +1,9 @@
+use crate::contract::Contract;
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::MajorityThreshold;
 use connection_router_api::ChainName;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
-use integration_tests::contract::Contract;
 
 #[derive(Clone)]
 pub struct VotingVerifierContract {

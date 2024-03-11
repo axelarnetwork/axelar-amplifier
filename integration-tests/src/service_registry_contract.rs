@@ -1,6 +1,6 @@
+use crate::contract::Contract;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
-use integration_tests::contract::Contract;
 use service_registry::contract::{execute, instantiate, query};
 
 #[derive(Clone)]

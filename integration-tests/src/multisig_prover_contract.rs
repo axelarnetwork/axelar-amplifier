@@ -1,7 +1,7 @@
+use crate::contract::Contract;
 use axelar_wasm_std::MajorityThreshold;
 use cosmwasm_std::{Addr, Uint256};
 use cw_multi_test::{App, ContractWrapper, Executor};
-use integration_tests::contract::Contract;
 use multisig::key::KeyType;
 use multisig_prover::encoding::Encoder;
 
