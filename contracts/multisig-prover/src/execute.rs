@@ -7,7 +7,7 @@ use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
 use connection_router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::Worker;
+use service_registry::state::{WeightedWorker, Worker};
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
@@ -103,10 +103,16 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
         chain_name: config.chain_name.clone(),
     };
 
-    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.service_registry.to_string(),
-        msg: to_binary(&active_workers_query)?,
-    }))?;
+    let weighted_workers: Vec<WeightedWorker> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.service_registry.to_string(),
+            msg: to_binary(&active_workers_query)?,
+        }))?;
+
+    let workers: Vec<Worker> = weighted_workers
+        .into_iter()
+        .map(|weighted_worker| weighted_worker.worker)
+        .collect();
 
     let participants = workers
         .clone()
