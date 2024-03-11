@@ -60,7 +60,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     let response = protocol
         .app
         .execute_contract(
-            Addr::unchecked("relayer"),
+            ethereum.multisig_prover_admin.clone(),
             ethereum.multisig_prover_address.clone(),
             &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
             &[],
@@ -167,7 +167,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let response = protocol
         .app
         .execute_contract(
-            Addr::unchecked("relayer"),
+            ethereum.multisig_prover_admin.clone(),
             ethereum.multisig_prover_address.clone(),
             &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
             &[],

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
-    SubMsg, WasmQuery,
+    to_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
+    Response, Storage, SubMsg, WasmQuery,
 };
 
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
@@ -16,6 +16,14 @@ use crate::{
     state::{Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH},
     types::{BatchId, WorkersInfo},
 };
+
+pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.admin != info.sender {
+        return Err(ContractError::Unauthorized);
+    }
+    Ok(())
+}
 
 pub fn construct_proof(
     deps: DepsMut,

@@ -660,6 +660,7 @@ pub struct Chain {
     pub gateway_address: Addr,
     pub voting_verifier_address: Addr,
     pub multisig_prover_address: Addr,
+    pub multisig_prover_admin: Addr,
     pub chain_name: ChainName,
 }
 
@@ -688,10 +689,11 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             verifier_address: voting_verifier_address.to_string(),
         },
     );
+    let multisig_prover_admin = Addr::unchecked(chain_name.to_string() + "prover_admin");
     let multisig_prover_address = instantiate_multisig_prover(
         &mut protocol.app,
         multisig_prover::msg::InstantiateMsg {
-            admin_address: Addr::unchecked("doesn't matter").to_string(),
+            admin_address: multisig_prover_admin.to_string(),
             gateway_address: gateway_address.to_string(),
             multisig_address: protocol.multisig_address.to_string(),
             service_registry_address: protocol.service_registry_address.to_string(),
@@ -706,7 +708,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         },
     );
     let response = protocol.app.execute_contract(
-        Addr::unchecked("doesn't matter"),
+        multisig_prover_admin.clone(),
         multisig_prover_address.clone(),
         &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
         &[],
@@ -763,6 +765,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         gateway_address,
         voting_verifier_address,
         multisig_prover_address,
+        multisig_prover_admin,
         chain_name,
     }
 }
