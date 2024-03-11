@@ -286,10 +286,12 @@ pub fn should_update_worker_set(
         .iter()
         .filter(|item| !cur_workers_signers.contains(item))
         .count()
-        + cur_workers_signers
-            .iter()
-            .filter(|item| !new_workers_signers.contains(item))
-            .count()
+        .saturating_add(
+            cur_workers_signers
+                .iter()
+                .filter(|item| !new_workers_signers.contains(item))
+                .count(),
+        )
         > max_diff
 }
 

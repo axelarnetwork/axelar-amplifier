@@ -120,7 +120,7 @@ where
                 Some(msg) => {
                   let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
 
-                  if fee.gas_limit + queue.gas_cost() >= self.batch_gas_limit {
+                  if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
                     broadcast_all(&mut queue, &mut broadcaster).await?;
                     interval.reset();
                   }

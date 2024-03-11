@@ -90,7 +90,7 @@ where
         token.cancel();
         info!(
             "shutting down sub-tasks ({}/{})",
-            total_task_count - running_tasks.len(),
+            total_task_count.wrapping_sub(running_tasks.len()),
             total_task_count
         );
 

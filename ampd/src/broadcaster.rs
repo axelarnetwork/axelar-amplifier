@@ -199,7 +199,7 @@ where
     async fn confirm_tx(&mut self, tx_hash: &str) -> Result<(), Error> {
         let mut result: Result<(), Status> = Ok(());
 
-        for i in 0..self.config.tx_fetch_max_retries + 1 {
+        for i in 0..self.config.tx_fetch_max_retries.saturating_add(1) {
             if i > 0 {
                 thread::sleep(self.config.tx_fetch_interval)
             }

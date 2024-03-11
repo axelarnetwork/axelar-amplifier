@@ -167,7 +167,9 @@ fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
 }
 
 fn add27(recovery_byte: u8) -> u8 {
-    recovery_byte + 27
+    recovery_byte
+        .checked_add(27)
+        .expect("overflow when adding 27 to recovery byte")
 }
 
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
