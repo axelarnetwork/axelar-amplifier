@@ -78,7 +78,9 @@ mod test {
         nonempty, operators::Operators, voting::Vote, Threshold, VerificationStatus,
     };
     use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
-    use service_registry::state::{AuthorizationState, BondingState, Worker};
+    use service_registry::state::{
+        AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
+    };
 
     use crate::{error::ContractError, events::TxEventConfirmation, msg::VerifyMessagesResponse};
 
@@ -142,7 +144,17 @@ mod test {
 
         deps.querier.update_wasm(|wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
-                Ok(to_binary(&workers()).into()).into()
+                Ok(to_binary(
+                    &workers()
+                        .into_iter()
+                        .map(|w| WeightedWorker {
+                            worker: w,
+                            weight: WORKER_WEIGHT,
+                        })
+                        .collect::<Vec<WeightedWorker>>(),
+                )
+                .into())
+                .into()
             }
             _ => panic!("no mock for this query"),
         });
