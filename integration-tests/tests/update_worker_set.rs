@@ -1,5 +1,6 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
+use integration_tests::contract::Contract;
 use test_utils::Worker;
 
 mod test_utils;
@@ -45,7 +46,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
         .app
         .execute_contract(
             Addr::unchecked("relayer"),
-            ethereum.multisig_prover_address.clone(),
+            ethereum.multisig_prover.contract_addr.clone(),
             &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
             &[],
         )
@@ -113,42 +114,22 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         vec![("worker3".to_string(), 2), ("worker4".to_string(), 3)],
     );
 
-    test_utils::register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &first_wave_of_new_workers,
-        protocol.service_name.clone(),
-        min_worker_bond,
-    );
+    test_utils::register_workers(&mut protocol, &first_wave_of_new_workers, min_worker_bond);
 
     // Deregister old workers
-    test_utils::deregister_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        &initial_workers,
-        protocol.service_name.clone(),
-    );
+    test_utils::deregister_workers(&mut protocol, &initial_workers);
 
     let response = protocol
         .app
         .execute_contract(
             Addr::unchecked("relayer"),
-            ethereum.multisig_prover_address.clone(),
+            ethereum.multisig_prover.contract_addr.clone(),
             &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
             &[],
         )
         .unwrap();
 
-    let session_id = test_utils::sign_proof(
-        &mut protocol.app,
-        &protocol.multisig_address,
-        &initial_workers,
-        response,
-    );
+    let session_id = test_utils::sign_proof(&mut protocol, &initial_workers, response);
 
     let proof = test_utils::get_proof(&mut protocol.app, &ethereum.multisig_prover, &session_id);
 
@@ -171,32 +152,15 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let second_wave_of_new_workers =
         test_utils::create_new_workers_vec(chains.clone(), vec![("worker5".to_string(), 5)]);
 
-    test_utils::register_workers(
-        &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.multisig_address.clone(),
-        protocol.governance_address.clone(),
-        protocol.genesis_address.clone(),
-        &second_wave_of_new_workers,
-        protocol.service_name.clone(),
-        min_worker_bond,
-    );
+    test_utils::register_workers(&mut protocol, &second_wave_of_new_workers, min_worker_bond);
 
     // Deregister old workers
-    test_utils::deregister_workers(
+    test_utils::deregister_workers(&mut protocol, &first_wave_of_new_workers);
+
+    let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
-        protocol.service_registry_address.clone(),
-        protocol.governance_address.clone(),
-        &first_wave_of_new_workers,
-        protocol.service_name.clone(),
-    );
-
-    let response = protocol.app.execute_contract(
         Addr::unchecked("relayer"),
-        ethereum.multisig_prover_address.clone(),
         &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
-        &[],
     );
-
     assert!(response.is_err());
 }
