@@ -387,7 +387,7 @@ pub mod query {
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound)?;
 
-        let workers = WORKERS_PER_CHAIN
+        let workers: Vec<_> = WORKERS_PER_CHAIN
             .prefix((&service_name, &chain_name))
             .range(deps.storage, None, None, Order::Ascending)
             .map(|res| res.and_then(|(addr, _)| WORKERS.load(deps.storage, (&service_name, &addr))))
@@ -404,7 +404,11 @@ pub mod query {
             })
             .collect();
 
-        Ok(workers)
+        if workers.len() < service.min_num_workers.into() {
+            Err(ContractError::NotEnoughWorkers)
+        } else {
+            Ok(workers)
+        }
     }
 
     pub fn get_worker(
