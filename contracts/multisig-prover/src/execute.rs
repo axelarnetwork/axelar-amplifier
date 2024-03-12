@@ -7,7 +7,7 @@ use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
 use connection_router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::Worker;
+use service_registry::state::{WeightedWorker, Worker};
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
@@ -19,7 +19,6 @@ use crate::{
 
 pub fn construct_proof(
     deps: DepsMut,
-    env: Env,
     message_ids: Vec<CrossChainId>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -35,20 +34,7 @@ pub fn construct_proof(
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let new_worker_set = get_next_worker_set(&deps, &env, &config)?;
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-
-            if let Some(new_worker_set) = new_worker_set {
-                match save_next_worker_set(deps.storage, &new_worker_set) {
-                    Ok(()) => {
-                        builder.add_new_worker_set(new_worker_set)?;
-                    }
-                    Err(ContractError::WorkerSetConfirmationInProgress) => {}
-                    Err(other_error) => {
-                        return Err(other_error);
-                    }
-                }
-            }
 
             for msg in messages {
                 builder.add_message(msg)?;
@@ -64,7 +50,12 @@ pub fn construct_proof(
     // keep track of the batch id to use during submessage reply
     REPLY_BATCH.save(deps.storage, &command_batch.id)?;
 
-    let worker_set_id = CURRENT_WORKER_SET.load(deps.storage)?.id();
+    let worker_set_id = match CURRENT_WORKER_SET.may_load(deps.storage)? {
+        Some(worker_set) => worker_set.id(),
+        None => {
+            return Err(ContractError::NoWorkerSet);
+        }
+    };
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         worker_set_id,
         msg: command_batch.msg_digest(),
@@ -112,10 +103,16 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
         chain_name: config.chain_name.clone(),
     };
 
-    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.service_registry.to_string(),
-        msg: to_binary(&active_workers_query)?,
-    }))?;
+    let weighted_workers: Vec<WeightedWorker> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.service_registry.to_string(),
+            msg: to_binary(&active_workers_query)?,
+        }))?;
+
+    let workers: Vec<Worker> = weighted_workers
+        .into_iter()
+        .map(|weighted_worker| weighted_worker.worker)
+        .collect();
 
     let participants = workers
         .clone()

@@ -372,7 +372,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub mod query {
     use connection_router_api::ChainName;
 
-    use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
+    use crate::state::{
+        AuthorizationState, WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT,
+    };
 
     use super::*;
 
@@ -380,12 +382,12 @@ pub mod query {
         deps: Deps,
         service_name: String,
         chain_name: ChainName,
-    ) -> Result<Vec<Worker>, ContractError> {
+    ) -> Result<Vec<WeightedWorker>, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound)?;
 
-        let workers = WORKERS_PER_CHAIN
+        let workers: Vec<_> = WORKERS_PER_CHAIN
             .prefix((&service_name, &chain_name))
             .range(deps.storage, None, None, Order::Ascending)
             .map(|res| res.and_then(|(addr, _)| WORKERS.load(deps.storage, (&service_name, &addr))))
@@ -396,9 +398,17 @@ pub mod query {
                 _ => false,
             })
             .filter(|worker| worker.authorization_state == AuthorizationState::Authorized)
+            .map(|worker| WeightedWorker {
+                worker,
+                weight: WORKER_WEIGHT, // all workers have an identical const weight for now
+            })
             .collect();
 
-        Ok(workers)
+        if workers.len() < service.min_num_workers.into() {
+            Err(ContractError::NotEnoughWorkers)
+        } else {
+            Ok(workers)
+        }
     }
 
     pub fn get_worker(

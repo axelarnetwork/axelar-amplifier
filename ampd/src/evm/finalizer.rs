@@ -1,8 +1,8 @@
-use crate::evm::ChainName;
 use async_trait::async_trait;
 use error_stack::{self, Report, ResultExt};
 use ethers::types::U64;
 use mockall::automock;
+use serde::{Deserialize, Serialize};
 
 use super::error::Error;
 use crate::evm::json_rpc::EthereumClient;
@@ -15,8 +15,15 @@ pub trait Finalizer: Send + Sync {
     async fn latest_finalized_block_height(&self) -> Result<U64>;
 }
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
+pub enum Finalization {
+    #[default]
+    RPCFinalizedBlock,
+    ConfirmationHeight,
+}
+
 pub fn pick<'a, C, H>(
-    chain: &'a ChainName,
+    finalizer_type: &'a Finalization,
     rpc_client: &'a C,
     confirmation_height: H,
 ) -> Box<dyn Finalizer + 'a>
@@ -24,9 +31,11 @@ where
     C: EthereumClient + Send + Sync,
     H: Into<U64>,
 {
-    match chain {
-        ChainName::Ethereum => Box::new(EthereumFinalizer::new(rpc_client)),
-        ChainName::Other(_) => Box::new(PoWFinalizer::new(rpc_client, confirmation_height)),
+    match finalizer_type {
+        Finalization::RPCFinalizedBlock => Box::new(EthereumFinalizer::new(rpc_client)),
+        Finalization::ConfirmationHeight => {
+            Box::new(PoWFinalizer::new(rpc_client, confirmation_height))
+        }
     }
 }
 
@@ -102,9 +111,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::evm::finalizer::{Finalizer, PoWFinalizer};
+    use crate::evm::finalizer::{pick, Finalization, Finalizer, PoWFinalizer};
     use crate::evm::json_rpc::MockEthereumClient;
-    use ethers::types::U64;
+    use ethers::{
+        abi::Hash,
+        types::{Block, U64},
+    };
     use tokio::test;
 
     #[test]
@@ -159,6 +171,45 @@ mod tests {
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
+        );
+    }
+
+    #[test]
+    async fn pick_should_work_for_ethereum_finalizer() {
+        let mut rpc_client = MockEthereumClient::new();
+        let mut block = Block::<Hash>::default();
+        let block_number: U64 = 10.into();
+        block.number = Some(block_number.clone());
+
+        rpc_client
+            .expect_finalized_block()
+            .returning(move || Ok(block.clone()));
+
+        let finalizer = pick(&Finalization::RPCFinalizedBlock, &rpc_client, 1);
+        assert_eq!(
+            finalizer.latest_finalized_block_height().await.unwrap(),
+            block_number
+        );
+    }
+
+    #[test]
+    async fn pick_should_work_for_pow_finalizer() {
+        let mut rpc_client = MockEthereumClient::new();
+        let block_number: U64 = 10.into();
+        let pow_confirmation_height = 6;
+
+        rpc_client
+            .expect_block_number()
+            .returning(move || Ok(block_number));
+
+        let finalizer = pick(
+            &Finalization::ConfirmationHeight,
+            &rpc_client,
+            pow_confirmation_height,
+        );
+        assert_eq!(
+            finalizer.latest_finalized_block_height().await.unwrap(),
+            block_number - U64::from(pow_confirmation_height - 1)
         );
     }
 }

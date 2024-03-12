@@ -5,14 +5,17 @@ use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
-use crate::evm::ChainName;
+use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
+use connection_router_api::ChainName;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {
     pub name: ChainName,
     pub rpc_url: Url,
+    #[serde(default)]
+    pub finalization: Finalization,
 }
 
 with_prefix!(chain "chain_");
@@ -152,4 +155,21 @@ where
     validate_sui_worker_set_verifier_config::<D>(&configs)?;
 
     Ok(configs)
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{evm::finalizer::Finalization, handlers::config::Chain};
+
+    #[test]
+    fn finalizer_should_default_to_ethereum() {
+        let chain_config_toml = "
+        name = 'polygon'
+        rpc_url = 'http://127.0.0.1/'
+        ";
+
+        let chain_config: Chain = toml::from_str(&chain_config_toml).unwrap();
+        assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
+    }
 }
