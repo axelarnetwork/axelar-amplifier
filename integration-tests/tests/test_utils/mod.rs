@@ -613,8 +613,6 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         protocol.service_name.clone(),
         "doesn't matter".to_string().try_into().unwrap(),
         Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
-        10,
-        5,
         chain_name.clone(),
         protocol.rewards.contract_addr.clone(),
     );
@@ -627,16 +625,12 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     let multisig_prover = MultisigProverContract::instantiate_contract(
         &mut protocol.app,
-        Addr::unchecked("doesn't matter"),
         gateway.contract_addr.clone(),
         protocol.multisig.contract_addr.clone(),
         protocol.service_registry.contract_addr.clone(),
         voting_verifier.contract_addr.clone(),
-        Uint256::zero(),
-        Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
         protocol.service_name.to_string(),
         chain_name.to_string(),
-        0,
     );
 
     let response = multisig_prover.execute(

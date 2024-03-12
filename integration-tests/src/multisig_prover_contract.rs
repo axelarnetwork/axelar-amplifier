@@ -1,5 +1,5 @@
 use crate::contract::Contract;
-use axelar_wasm_std::MajorityThreshold;
+use axelar_wasm_std::Threshold;
 use cosmwasm_std::{Addr, Uint256};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use multisig::key::KeyType;
@@ -13,16 +13,12 @@ pub struct MultisigProverContract {
 impl MultisigProverContract {
     pub fn instantiate_contract(
         app: &mut App,
-        admin_address: Addr,
         gateway_address: Addr,
         multisig_address: Addr,
         service_registry_address: Addr,
         voting_verifier_address: Addr,
-        destination_chain_id: Uint256,
-        signing_threshold: MajorityThreshold,
         service_name: String,
         chain_name: String,
-        worker_set_diff_threshold: u32,
     ) -> Self {
         let code = ContractWrapper::new(
             multisig_prover::contract::execute,
@@ -37,16 +33,16 @@ impl MultisigProverContract {
                 code_id,
                 Addr::unchecked("anyone"),
                 &multisig_prover::msg::InstantiateMsg {
-                    admin_address: admin_address.to_string(),
+                    admin_address: Addr::unchecked("doesn't matter").to_string(),
                     gateway_address: gateway_address.to_string(),
                     multisig_address: multisig_address.to_string(),
                     service_registry_address: service_registry_address.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
-                    destination_chain_id,
-                    signing_threshold,
+                    destination_chain_id: Uint256::zero(),
+                    signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
                     service_name: service_name.to_string(),
                     chain_name: chain_name.to_string(),
-                    worker_set_diff_threshold,
+                    worker_set_diff_threshold: 0,
                     encoder: Encoder::Abi,
                     key_type: KeyType::Ecdsa,
                 },
