@@ -105,7 +105,11 @@ where
             .await
             .change_context(Error::JsonRPC)?;
 
-        Ok(block_number - self.confirmation_height + 1)
+        Ok(block_number
+            .checked_sub(self.confirmation_height)
+            .expect("arithmetic operation underflows")
+            .checked_add(U64::from(1))
+            .expect("arithmetic operation overflows"))
     }
 }
 

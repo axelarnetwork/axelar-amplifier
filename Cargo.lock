@@ -182,6 +182,7 @@ dependencies = [
  "mockall",
  "move-core-types",
  "multisig",
+ "num-traits",
  "prost 0.11.9",
  "rand",
  "random-string",

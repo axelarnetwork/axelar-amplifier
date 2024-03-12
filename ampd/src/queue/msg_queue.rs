@@ -9,7 +9,10 @@ pub struct MsgQueue {
 impl MsgQueue {
     pub fn push(&mut self, msg: Any, gas_cost: Gas) {
         self.msgs.push(msg);
-        self.gas_cost += gas_cost;
+        self.gas_cost = self
+            .gas_cost
+            .checked_add(gas_cost)
+            .expect("arithmetic operation overflows");
     }
 
     pub fn pop_all(&mut self) -> Vec<Any> {

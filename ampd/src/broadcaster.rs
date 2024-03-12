@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::ops::Mul;
 use std::thread;
 use std::time::Duration;
 
@@ -16,6 +17,7 @@ use error_stack::{FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
+use num_traits::cast;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tonic::Status;
@@ -165,14 +167,16 @@ where
             .change_context(Error::TxBuilding)?;
 
         self.estimate_gas(sim_tx).await.map(|gas| {
-            let gas_adj = (gas as f64 * self.config.gas_adjustment) as u64;
+            let gas_adj = gas as f64 * self.config.gas_adjustment;
 
             Fee::from_amount_and_gas(
                 Coin {
-                    amount: (gas_adj as f64 * self.config.gas_price.amount).ceil() as u128,
+                    amount: cast((gas_adj.mul(self.config.gas_price.amount)).ceil())
+                        .expect("couldn't cast from floating point to unsigned integer"),
                     denom: self.config.gas_price.denom.clone().into(),
                 },
-                gas_adj,
+                cast::<f64, u64>(gas_adj)
+                    .expect("couldn't cast from floating point to unsigned integer"),
             )
         })
     }
