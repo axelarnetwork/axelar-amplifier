@@ -9,7 +9,6 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, AppResponse, Executor};
 
-use cw_storage_plus::MultiIndex;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
@@ -19,7 +18,6 @@ use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use integration_tests::{connection_router_contract::ConnectionRouterContract, protocol::Protocol};
 
-use itertools::chain;
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
