@@ -34,7 +34,7 @@ where
     match finalizer_type {
         Finalization::RPCFinalizedBlock => Box::new(RPCBlockFinalizer::new(rpc_client)),
         Finalization::ConfirmationHeight => {
-            Box::new(ConfirmationFinalizer::new(rpc_client, confirmation_height))
+            Box::new(ConfirmationHeightFinalizer::new(rpc_client, confirmation_height))
         }
     }
 }
@@ -70,7 +70,7 @@ where
     }
 }
 
-pub struct ConfirmationFinalizer<'a, C>
+pub struct ConfirmationHeightFinalizer<'a, C>
 where
     C: EthereumClient,
 {
@@ -78,7 +78,7 @@ where
     confirmation_height: U64,
 }
 
-impl<'a, C> ConfirmationFinalizer<'a, C>
+impl<'a, C> ConfirmationHeightFinalizer<'a, C>
 where
     C: EthereumClient,
 {
@@ -86,7 +86,7 @@ where
     where
         H: Into<U64>,
     {
-        ConfirmationFinalizer {
+        ConfirmationHeightFinalizer {
             rpc_client,
             confirmation_height: confirmation_height.into(),
         }
@@ -94,7 +94,7 @@ where
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for ConfirmationFinalizer<'a, C>
+impl<'a, C> Finalizer for ConfirmationHeightFinalizer<'a, C>
 where
     C: EthereumClient + Send + Sync,
 {
@@ -111,7 +111,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::evm::finalizer::{pick, ConfirmationFinalizer, Finalization, Finalizer};
+    use crate::evm::finalizer::{pick, ConfirmationHeightFinalizer, Finalization, Finalizer};
     use crate::evm::json_rpc::MockEthereumClient;
     use ethers::{
         abi::Hash,
@@ -128,7 +128,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             block_number,
-            ConfirmationFinalizer::new(&rpc_client, 1)
+            ConfirmationHeightFinalizer::new(&rpc_client, 1)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -141,7 +141,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             block_number + 1,
-            ConfirmationFinalizer::new(&rpc_client, 0)
+            ConfirmationHeightFinalizer::new(&rpc_client, 0)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -154,7 +154,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             block_number - 1,
-            ConfirmationFinalizer::new(&rpc_client, 2)
+            ConfirmationHeightFinalizer::new(&rpc_client, 2)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -167,7 +167,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             U64::from(1),
-            ConfirmationFinalizer::new(&rpc_client, block_number)
+            ConfirmationHeightFinalizer::new(&rpc_client, block_number)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
