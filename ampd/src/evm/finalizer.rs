@@ -32,31 +32,31 @@ where
     H: Into<U64>,
 {
     match finalizer_type {
-        Finalization::RPCFinalizedBlock => Box::new(EthereumFinalizer::new(rpc_client)),
+        Finalization::RPCFinalizedBlock => Box::new(RPCBlockFinalizer::new(rpc_client)),
         Finalization::ConfirmationHeight => {
-            Box::new(PoWFinalizer::new(rpc_client, confirmation_height))
+            Box::new(ConfirmationFinalizer::new(rpc_client, confirmation_height))
         }
     }
 }
 
-pub struct EthereumFinalizer<'a, C>
+pub struct RPCBlockFinalizer<'a, C>
 where
     C: EthereumClient,
 {
     rpc_client: &'a C,
 }
 
-impl<'a, C> EthereumFinalizer<'a, C>
+impl<'a, C> RPCBlockFinalizer<'a, C>
 where
     C: EthereumClient,
 {
     pub fn new(rpc_client: &'a C) -> Self {
-        EthereumFinalizer { rpc_client }
+        RPCBlockFinalizer { rpc_client }
     }
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for EthereumFinalizer<'a, C>
+impl<'a, C> Finalizer for RPCBlockFinalizer<'a, C>
 where
     C: EthereumClient + Send + Sync,
 {
@@ -70,7 +70,7 @@ where
     }
 }
 
-pub struct PoWFinalizer<'a, C>
+pub struct ConfirmationFinalizer<'a, C>
 where
     C: EthereumClient,
 {
@@ -78,7 +78,7 @@ where
     confirmation_height: U64,
 }
 
-impl<'a, C> PoWFinalizer<'a, C>
+impl<'a, C> ConfirmationFinalizer<'a, C>
 where
     C: EthereumClient,
 {
@@ -86,7 +86,7 @@ where
     where
         H: Into<U64>,
     {
-        PoWFinalizer {
+        ConfirmationFinalizer {
             rpc_client,
             confirmation_height: confirmation_height.into(),
         }
@@ -94,7 +94,7 @@ where
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for PoWFinalizer<'a, C>
+impl<'a, C> Finalizer for ConfirmationFinalizer<'a, C>
 where
     C: EthereumClient + Send + Sync,
 {
@@ -111,7 +111,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::evm::finalizer::{pick, Finalization, Finalizer, PoWFinalizer};
+    use crate::evm::finalizer::{pick, ConfirmationFinalizer, Finalization, Finalizer};
     use crate::evm::json_rpc::MockEthereumClient;
     use ethers::{
         abi::Hash,
@@ -128,7 +128,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             block_number,
-            PoWFinalizer::new(&rpc_client, 1)
+            ConfirmationFinalizer::new(&rpc_client, 1)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -141,7 +141,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             block_number + 1,
-            PoWFinalizer::new(&rpc_client, 0)
+            ConfirmationFinalizer::new(&rpc_client, 0)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -154,7 +154,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             block_number - 1,
-            PoWFinalizer::new(&rpc_client, 2)
+            ConfirmationFinalizer::new(&rpc_client, 2)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
@@ -167,7 +167,7 @@ mod tests {
             .returning(move || Ok(block_number));
         assert_eq!(
             U64::from(1),
-            PoWFinalizer::new(&rpc_client, block_number)
+            ConfirmationFinalizer::new(&rpc_client, block_number)
                 .latest_finalized_block_height()
                 .await
                 .unwrap()
