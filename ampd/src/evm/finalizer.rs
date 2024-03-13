@@ -33,9 +33,10 @@ where
 {
     match finalizer_type {
         Finalization::RPCFinalizedBlock => Box::new(RPCBlockFinalizer::new(rpc_client)),
-        Finalization::ConfirmationHeight => {
-            Box::new(ConfirmationHeightFinalizer::new(rpc_client, confirmation_height))
-        }
+        Finalization::ConfirmationHeight => Box::new(ConfirmationHeightFinalizer::new(
+            rpc_client,
+            confirmation_height,
+        )),
     }
 }
 
