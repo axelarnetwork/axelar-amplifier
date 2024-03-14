@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
     Uint128,
 };
 
@@ -357,14 +357,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetActiveWorkers {
             service_name,
             chain_name,
-        } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
+        } => to_json_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
         QueryMsg::GetWorker {
             service_name,
             worker,
-        } => to_binary(&query::get_worker(deps, worker, service_name)?).map_err(|err| err.into()),
+        } => to_json_binary(&query::get_worker(deps, worker, service_name)?)
+            .map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
-            to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }
@@ -372,9 +373,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub mod query {
     use connection_router_api::ChainName;
 
-    use crate::state::{
-        ActiveWorker, AuthorizationState, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT,
-    };
+    use crate::state::{ActiveWorker, WORKERS, WORKERS_PER_CHAIN};
 
     use super::*;
 

@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
+    to_json_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg,
+    WasmQuery,
 };
 
 use axelar_wasm_std::{
@@ -91,7 +92,7 @@ pub fn verify_messages(
         .map(|message| message_status(deps.as_ref(), &message).map(|status| (status, message)))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
+    let response = Response::new().set_data(to_json_binary(&VerifyMessagesResponse {
         verification_statuses: messages
             .iter()
             .map(|(status, message)| (message.cc_id.to_owned(), status.to_owned()))
@@ -199,7 +200,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .iter()
         .map(|address| WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
-            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+            msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                 chain_name: config.source_chain.clone(),
                 event_id: poll_id
                     .to_string()
@@ -220,7 +221,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             }
             .into(),
         )
-        .set_data(to_binary(&EndPollResponse { poll_result })?))
+        .set_data(to_json_binary(&EndPollResponse { poll_result })?))
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
@@ -236,7 +237,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     let weighted_workers: Vec<ActiveWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
-            msg: to_binary(&active_workers_query)?,
+            msg: to_json_binary(&active_workers_query)?,
         }))?;
 
     let participants = weighted_workers
