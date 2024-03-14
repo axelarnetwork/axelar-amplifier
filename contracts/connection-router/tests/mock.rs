@@ -1,7 +1,9 @@
 use connection_router_api::error::Error;
 use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 
@@ -45,7 +47,7 @@ pub fn mock_gateway_query(deps: Deps, _env: Env, msg: MockGatewayQueryMsg) -> St
             }
         }
     }
-    to_binary(&msgs)
+    to_json_binary(&msgs)
 }
 
 pub fn get_gateway_messages(
