@@ -38,7 +38,7 @@ impl NonRecoverable {
         &self,
         msg: &[u8],
         pub_key: &PublicKey,
-        recovery_transform: impl FnOnce(u8) -> u8,
+        recovery_transform: impl FnOnce(k256::ecdsa::RecoveryId) -> u8,
     ) -> Result<Recoverable, ContractError> {
         let sig = k256::ecdsa::Signature::from_slice(self.0.as_ref()).map_err(|err| {
             ContractError::InvalidSignatureFormat {
@@ -50,8 +50,8 @@ impl NonRecoverable {
             .and_then(|k| k256::ecdsa::RecoveryId::trial_recovery_from_prehash(&k, msg, &sig))
             .map_err(|err| ContractError::InvalidSignatureFormat {
                 reason: err.to_string(),
-            })?
-            .to_byte();
+            })?;
+
         let mut recoverable = sig.to_vec();
         recoverable.push(recovery_transform(recovery_byte));
 

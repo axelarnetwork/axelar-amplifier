@@ -166,8 +166,9 @@ fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
     })
 }
 
-fn add27(recovery_byte: u8) -> u8 {
+fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
     recovery_byte
+        .to_byte()
         .checked_add(27)
         .expect("overflow when adding 27 to recovery byte")
 }
