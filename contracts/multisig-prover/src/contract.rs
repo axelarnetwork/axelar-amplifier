@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
 };
 
 use crate::{
@@ -84,24 +84,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
-        } => to_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps)?),
+        } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
+        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use anyhow::Error;
-    use axelar_wasm_std::Threshold;
-    use connection_router_api::CrossChainId;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
+
+    use axelar_wasm_std::Threshold;
+    use connection_router_api::CrossChainId;
     use multisig::{msg::Signer, worker_set::WorkerSet};
 
+    use crate::contract::execute::should_update_worker_set;
     use crate::{
         encoding::Encoder,
         msg::{GetProofResponse, ProofStatus},
@@ -111,8 +112,6 @@ mod tests {
             test_data::{self, TestOperator},
         },
     };
-
-    use crate::contract::execute::should_update_worker_set;
 
     use super::*;
 
