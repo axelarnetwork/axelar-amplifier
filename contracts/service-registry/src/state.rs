@@ -38,30 +38,38 @@ pub struct Worker {
 }
 
 #[cw_serde]
-pub struct WeightedWorker {
-    pub worker: Worker,
-    pub weight: nonempty::Uint256,
+pub struct ActiveWorker {
+    worker_info: Worker,
+    weight: nonempty::Uint256,
 }
 
+impl ActiveWorker {
+    /// If necessary criteria is met (sufficient bond, authorized, etc), returns Some(ActiveWorker).
+    /// Otherwise returns None
+    pub fn new(worker: Worker, min_bond: Uint128) -> Option<ActiveWorker> {
+        match worker.bonding_state {
+            BondingState::Bonded { amount }
+                if amount >= min_bond
+                    && worker.authorization_state == AuthorizationState::Authorized =>
+            {
+                Some(Self {
+                    worker_info: worker,
+                    weight: WORKER_WEIGHT,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// For now, all workers have equal weight, regardless of amount bonded
 pub const WORKER_WEIGHT: nonempty::Uint256 = nonempty::Uint256::one();
 
-impl TryFrom<Worker> for Participant {
-    type Error = ContractError;
-
-    // TODO: change this to accept WeightedWorker and just extract the weight
-    fn try_from(worker: Worker) -> Result<Participant, ContractError> {
-        match worker.bonding_state {
-            BondingState::Bonded { amount: _ } => Ok(Self {
-                address: worker.address,
-                // Weight is set to one to ensure all workers have same weight. In the future, it should be derived from amount bonded
-                // If the weight is changed to a non-constant value, the signing session completed event from multisig and the signature
-                // optimization during proof construction may require re-evaluation, so that relayers could take advantage of late
-                // signatures to get a more optimized version of the proof.
-                weight: Uint256::one()
-                    .try_into()
-                    .expect("violated invariant: weight must not be zero"),
-            }),
-            _ => Err(ContractError::InvalidBondingState(worker.bonding_state)),
+impl From<ActiveWorker> for Participant {
+    fn from(worker: ActiveWorker) -> Participant {
+        Self {
+            weight: worker.weight,
+            address: worker.worker_info.address,
         }
     }
 }

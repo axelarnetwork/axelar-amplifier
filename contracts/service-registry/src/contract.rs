@@ -373,7 +373,7 @@ pub mod query {
     use connection_router_api::ChainName;
 
     use crate::state::{
-        AuthorizationState, WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT,
+        ActiveWorker, AuthorizationState, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT,
     };
 
     use super::*;
@@ -382,7 +382,7 @@ pub mod query {
         deps: Deps,
         service_name: String,
         chain_name: ChainName,
-    ) -> Result<Vec<WeightedWorker>, ContractError> {
+    ) -> Result<Vec<ActiveWorker>, ContractError> {
         let service = SERVICES
             .may_load(deps.storage, &service_name)?
             .ok_or(ContractError::ServiceNotFound)?;
@@ -393,15 +393,7 @@ pub mod query {
             .map(|res| res.and_then(|(addr, _)| WORKERS.load(deps.storage, (&service_name, &addr))))
             .collect::<Result<Vec<Worker>, _>>()?
             .into_iter()
-            .filter(|worker| match worker.bonding_state {
-                BondingState::Bonded { amount } => amount >= service.min_worker_bond,
-                _ => false,
-            })
-            .filter(|worker| worker.authorization_state == AuthorizationState::Authorized)
-            .map(|worker| WeightedWorker {
-                worker,
-                weight: WORKER_WEIGHT, // all workers have an identical const weight for now
-            })
+            .filter_map(|worker| ActiveWorker::new(worker, service.min_worker_bond))
             .collect();
 
         if workers.len() < service.min_num_workers.into() {

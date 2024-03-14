@@ -79,7 +79,7 @@ mod test {
     };
     use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
     use service_registry::state::{
-        AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
+        ActiveWorker, AuthorizationState, BondingState, Worker, WORKER_WEIGHT,
     };
 
     use crate::{error::ContractError, events::TxEventConfirmation, msg::VerifyMessagesResponse};
@@ -91,6 +91,10 @@ mod test {
     const REWARDS_ADDRESS: &str = "rewards_address";
     const SERVICE_NAME: &str = "service_name";
     const POLL_BLOCK_EXPIRY: u64 = 100;
+
+    fn worker_bond() -> Uint128 {
+        Uint128::from(100u128)
+    }
 
     fn source_chain() -> ChainName {
         "source_chain".parse().unwrap()
@@ -108,7 +112,7 @@ mod test {
             Worker {
                 address: Addr::unchecked("addr1"),
                 bonding_state: BondingState::Bonded {
-                    amount: Uint128::from(100u128),
+                    amount: worker_bond(),
                 },
                 authorization_state: AuthorizationState::Authorized,
                 service_name: SERVICE_NAME.parse().unwrap(),
@@ -116,7 +120,7 @@ mod test {
             Worker {
                 address: Addr::unchecked("addr2"),
                 bonding_state: BondingState::Bonded {
-                    amount: Uint128::from(100u128),
+                    amount: worker_bond(),
                 },
                 authorization_state: AuthorizationState::Authorized,
                 service_name: SERVICE_NAME.parse().unwrap(),
@@ -147,11 +151,8 @@ mod test {
                 Ok(to_binary(
                     &workers()
                         .into_iter()
-                        .map(|w| WeightedWorker {
-                            worker: w,
-                            weight: WORKER_WEIGHT,
-                        })
-                        .collect::<Vec<WeightedWorker>>(),
+                        .map(|w| ActiveWorker::new(w, worker_bond()).unwrap())
+                        .collect::<Vec<ActiveWorker>>(),
                 )
                 .into())
                 .into()

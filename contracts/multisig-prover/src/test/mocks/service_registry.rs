@@ -6,7 +6,7 @@ use cw_multi_test::{App, Executor};
 use cw_storage_plus::Map;
 use service_registry::{
     msg::{InstantiateMsg, QueryMsg},
-    state::{AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT},
+    state::{ActiveWorker, AuthorizationState, BondingState, Worker, WORKER_WEIGHT},
 };
 
 use crate::test::test_data::TestOperator;
@@ -82,18 +82,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => {
             let workers = get_operators(deps)
                 .into_iter()
-                .map(|op| WeightedWorker {
-                    worker: Worker {
-                        address: op.address,
-                        bonding_state: BondingState::Bonded {
-                            amount: op.weight.try_into().unwrap(),
+                .map(|op| {
+                    ActiveWorker::new(
+                        Worker {
+                            address: op.address,
+                            bonding_state: BondingState::Bonded {
+                                amount: op.weight.try_into().unwrap(),
+                            },
+                            authorization_state: AuthorizationState::Authorized,
+                            service_name: service_name.clone(),
                         },
-                        authorization_state: AuthorizationState::Authorized,
-                        service_name: service_name.clone(),
-                    },
-                    weight: WORKER_WEIGHT,
+                        op.weight.try_into().unwrap(),
+                    )
+                    .unwrap()
                 })
-                .collect::<Vec<WeightedWorker>>();
+                .collect::<Vec<ActiveWorker>>();
 
             to_binary(&workers)
         }

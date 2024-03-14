@@ -11,7 +11,7 @@ use axelar_wasm_std::{
 };
 
 use connection_router_api::{ChainName, Message};
-use service_registry::{msg::QueryMsg, state::WeightedWorker};
+use service_registry::{msg::QueryMsg, state::ActiveWorker};
 
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
@@ -233,7 +233,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
         chain_name: chain.clone(),
     };
 
-    let weighted_workers: Vec<WeightedWorker> =
+    let weighted_workers: Vec<ActiveWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
             msg: to_binary(&active_workers_query)?,
@@ -241,9 +241,8 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
     let participants = weighted_workers
         .into_iter()
-        .map(|weighted_worker| weighted_worker.worker)
-        .map(service_registry::state::Worker::try_into)
-        .collect::<Result<Vec<snapshot::Participant>, _>>()?;
+        .map(service_registry::state::ActiveWorker::into)
+        .collect::<Vec<snapshot::Participant>>();
 
     Ok(snapshot::Snapshot::new(
         config.voting_threshold,
