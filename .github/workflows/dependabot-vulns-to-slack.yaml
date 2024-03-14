@@ -1,0 +1,19 @@
+name: Send vulnerabilities found by Dependabot to Slack
+
+on:
+  push:
+    paths:
+      - 'dependabot-vulns-to-slack.yaml'
+    branches:
+      - feat/connect-dependabot-to-slack
+
+
+jobs:
+  Notify-Vulnerabilites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Vulnerabilities
+        uses: kunalnagarco/action-cve@v1.7.15
+        with:
+          token: ${{ secrets.SLACK_PERSONAL_ACCESS_TOKEN }}
+          slack_webhook: ${{ secrets.SLACK_TEST_WEBHOOK }}
