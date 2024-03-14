@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Deps, QueryRequest, StdError, StdResult, Uint256, Uint64, WasmQuery,
+    to_json_binary, Deps, QueryRequest, StdError, StdResult, Uint256, Uint64, WasmQuery,
 };
 
 use itertools::Itertools;
@@ -29,7 +29,7 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
 
     let multisig: Multisig = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.multisig.to_string(),
-        msg: to_binary(&query_msg)?,
+        msg: to_json_binary(&query_msg)?,
     }))?;
 
     let status = match multisig.state {

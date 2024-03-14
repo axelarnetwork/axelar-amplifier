@@ -1,11 +1,12 @@
 use std::vec;
 
+use cosmwasm_std::{to_json_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
+use error_stack::report;
+use itertools::Itertools;
+
 use axelar_wasm_std::flagset::FlagSet;
 use connection_router_api::error::Error;
 use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
-use cosmwasm_std::{to_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
-use error_stack::report;
-use itertools::Itertools;
 
 use crate::events::{ChainFrozen, ChainRegistered, GatewayInfo, GatewayUpgraded, MessageRouted};
 use crate::state::{chain_endpoints, Store, CONFIG};
@@ -175,7 +176,7 @@ where
 
                 Ok(WasmMsg::Execute {
                     contract_addr: gateway.to_string(),
-                    msg: to_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
+                    msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
                         msgs.cloned().collect(),
                     ))
                     .expect("must serialize message"),
@@ -192,15 +193,17 @@ where
 
 #[cfg(test)]
 mod test {
+    use cosmwasm_std::Addr;
+    use mockall::predicate;
+    use rand::{Rng, RngCore};
+
     use axelar_wasm_std::flagset::FlagSet;
     use connection_router_api::error::Error;
     use connection_router_api::{
         ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message,
     };
     use cosmwasm_std::testing::mock_dependencies;
-    use cosmwasm_std::{Addr, Storage};
-    use mockall::predicate;
-    use rand::{Rng, RngCore};
+    use cosmwasm_std::Storage;
 
     use crate::state::chain_endpoints;
     use crate::{

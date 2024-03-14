@@ -59,7 +59,7 @@ pub fn start_signing_session(
     };
 
     Ok(Response::new()
-        .set_data(to_binary(&session_id)?)
+        .set_data(to_json_binary(&session_id)?)
         .add_event(event.into()))
 }
 
@@ -201,7 +201,7 @@ fn signing_response(
 ) -> Result<Response, ContractError> {
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
-        msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+        msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
             chain_name: session.chain_name,
             event_id: session
                 .id
