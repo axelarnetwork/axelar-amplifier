@@ -38,35 +38,16 @@ pub struct Worker {
 }
 
 #[cw_serde]
-pub struct ActiveWorker {
-    worker_info: Worker,
-    weight: nonempty::Uint256,
-}
-
-impl ActiveWorker {
-    /// If necessary criteria is met (sufficient bond, authorized, etc), returns Some(ActiveWorker).
-    /// Otherwise returns None
-    pub fn new(worker: Worker, min_bond: Uint128) -> Option<ActiveWorker> {
-        match worker.bonding_state {
-            BondingState::Bonded { amount }
-                if amount >= min_bond
-                    && worker.authorization_state == AuthorizationState::Authorized =>
-            {
-                Some(Self {
-                    worker_info: worker,
-                    weight: WORKER_WEIGHT,
-                })
-            }
-            _ => None,
-        }
-    }
+pub struct WeightedWorker {
+    pub worker_info: Worker,
+    pub weight: nonempty::Uint256,
 }
 
 /// For now, all workers have equal weight, regardless of amount bonded
 pub const WORKER_WEIGHT: nonempty::Uint256 = nonempty::Uint256::one();
 
-impl From<ActiveWorker> for Participant {
-    fn from(worker: ActiveWorker) -> Participant {
+impl From<WeightedWorker> for Participant {
+    fn from(worker: WeightedWorker) -> Participant {
         Self {
             weight: worker.weight,
             address: worker.worker_info.address,

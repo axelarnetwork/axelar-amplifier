@@ -7,7 +7,7 @@ use cosmwasm_std::{coins, Addr, BlockInfo, StdResult, Uint128};
 use cw_multi_test::App;
 use integration_tests::contract::Contract;
 use service_registry::msg::QueryMsg;
-use service_registry::state::{ActiveWorker, WORKER_WEIGHT};
+use service_registry::state::{WeightedWorker, WORKER_WEIGHT};
 use service_registry::{
     msg::ExecuteMsg,
     state::{AuthorizationState, BondingState, Worker},
@@ -219,7 +219,7 @@ fn register_chain_support() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -230,8 +230,8 @@ fn register_chain_support() {
         .unwrap();
     assert_eq!(
         workers,
-        vec![ActiveWorker::new(
-            Worker {
+        vec![WeightedWorker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -239,12 +239,11 @@ fn register_chain_support() {
                 authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             },
-            min_worker_bond
-        )
-        .unwrap()]
+            weight: WORKER_WEIGHT
+        }]
     );
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -331,7 +330,7 @@ fn register_and_deregister_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -422,7 +421,7 @@ fn register_and_deregister_support_for_multiple_chains() {
     assert!(res.is_ok());
 
     for chain in chains {
-        let workers: Vec<ActiveWorker> = service_registry
+        let workers: Vec<WeightedWorker> = service_registry
             .query(
                 &app,
                 &QueryMsg::GetActiveWorkers {
@@ -517,7 +516,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     // Verify that worker is not associated with the deregistered chain
     let deregistered_chain = chains[0].clone();
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -530,7 +529,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
 
     // Verify that worker is still associated with other chains
     for chain in chains.iter().skip(1) {
-        let workers: Vec<ActiveWorker> = service_registry
+        let workers: Vec<WeightedWorker> = service_registry
             .query(
                 &app,
                 &QueryMsg::GetActiveWorkers {
@@ -541,8 +540,8 @@ fn register_for_multiple_chains_deregister_for_first_one() {
             .unwrap();
         assert_eq!(
             workers,
-            vec![ActiveWorker::new(
-                Worker {
+            vec![WeightedWorker {
+                worker_info: Worker {
                     address: worker.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_worker_bond
@@ -550,9 +549,8 @@ fn register_for_multiple_chains_deregister_for_first_one() {
                     authorization_state: AuthorizationState::Authorized,
                     service_name: service_name.into()
                 },
-                min_worker_bond
-            )
-            .unwrap()]
+                weight: WORKER_WEIGHT
+            }]
         );
     }
 }
@@ -633,7 +631,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -644,8 +642,8 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
         .unwrap();
     assert_eq!(
         workers,
-        vec![ActiveWorker::new(
-            Worker {
+        vec![WeightedWorker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -653,9 +651,8 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
                 authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             },
-            min_worker_bond
-        )
-        .unwrap()]
+            weight: WORKER_WEIGHT
+        }]
     );
 }
 
@@ -744,7 +741,7 @@ fn register_deregister_register_support_for_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -755,8 +752,8 @@ fn register_deregister_register_support_for_single_chain() {
         .unwrap();
     assert_eq!(
         workers,
-        vec![ActiveWorker::new(
-            Worker {
+        vec![WeightedWorker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -764,9 +761,8 @@ fn register_deregister_register_support_for_single_chain() {
                 authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             },
-            min_worker_bond
-        )
-        .unwrap()]
+            weight: WORKER_WEIGHT
+        }]
     );
 }
 
@@ -834,7 +830,7 @@ fn deregister_previously_unsupported_single_chain() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -910,7 +906,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -969,7 +965,7 @@ fn deregister_from_unregistered_worker_single_chain() {
 
     test_utils::are_contract_err_strings_equal(err, ContractError::WorkerNotFound);
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -1083,7 +1079,7 @@ fn unbond_worker() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -1192,7 +1188,7 @@ fn bond_but_not_authorized() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -1266,7 +1262,7 @@ fn bond_but_not_enough() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -1340,7 +1336,7 @@ fn bond_before_authorize() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -1351,8 +1347,8 @@ fn bond_before_authorize() {
         .unwrap();
     assert_eq!(
         workers,
-        vec![ActiveWorker::new(
-            Worker {
+        vec![WeightedWorker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1360,9 +1356,8 @@ fn bond_before_authorize() {
                 authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             },
-            min_worker_bond
-        )
-        .unwrap()]
+            weight: WORKER_WEIGHT
+        }]
     );
 }
 
@@ -1446,7 +1441,7 @@ fn unbond_then_rebond() {
     );
     assert!(res.is_ok());
 
-    let workers: Vec<ActiveWorker> = service_registry
+    let workers: Vec<WeightedWorker> = service_registry
         .query(
             &app,
             &QueryMsg::GetActiveWorkers {
@@ -1457,8 +1452,8 @@ fn unbond_then_rebond() {
         .unwrap();
     assert_eq!(
         workers,
-        vec![ActiveWorker::new(
-            Worker {
+        vec![WeightedWorker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1466,9 +1461,8 @@ fn unbond_then_rebond() {
                 authorization_state: AuthorizationState::Authorized,
                 service_name: service_name.into()
             },
-            min_worker_bond
-        )
-        .unwrap()]
+            weight: WORKER_WEIGHT
+        }]
     );
 }
 
@@ -1661,7 +1655,7 @@ fn get_active_workers_should_not_return_less_than_min() {
 
     for worker in &workers {
         // should return err until all workers are registered
-        let res: StdResult<Vec<ActiveWorker>> = service_registry.query(
+        let res: StdResult<Vec<WeightedWorker>> = service_registry.query(
             &app,
             &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
@@ -1694,7 +1688,7 @@ fn get_active_workers_should_not_return_less_than_min() {
     }
 
     // all workers registered, should not return err now
-    let res: StdResult<Vec<ActiveWorker>> = service_registry.query(
+    let res: StdResult<Vec<WeightedWorker>> = service_registry.query(
         &app,
         &QueryMsg::GetActiveWorkers {
             service_name: service_name.into(),
@@ -1714,7 +1708,7 @@ fn get_active_workers_should_not_return_less_than_min() {
             },
         )
         .unwrap();
-    let res: StdResult<Vec<ActiveWorker>> = service_registry.query(
+    let res: StdResult<Vec<WeightedWorker>> = service_registry.query(
         &app,
         &QueryMsg::GetActiveWorkers {
             service_name: service_name.into(),

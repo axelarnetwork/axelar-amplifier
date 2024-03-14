@@ -1,6 +1,5 @@
 use cosmwasm_std::{
-    to_json_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg,
-    WasmQuery,
+    to_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
 use axelar_wasm_std::{
@@ -12,7 +11,7 @@ use axelar_wasm_std::{
 };
 
 use connection_router_api::{ChainName, Message};
-use service_registry::{msg::QueryMsg, state::ActiveWorker};
+use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
@@ -92,7 +91,7 @@ pub fn verify_messages(
         .map(|message| message_status(deps.as_ref(), &message).map(|status| (status, message)))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let response = Response::new().set_data(to_json_binary(&VerifyMessagesResponse {
+    let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
         verification_statuses: messages
             .iter()
             .map(|(status, message)| (message.cc_id.to_owned(), status.to_owned()))
@@ -200,7 +199,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .iter()
         .map(|address| WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
-            msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                 chain_name: config.source_chain.clone(),
                 event_id: poll_id
                     .to_string()
@@ -221,7 +220,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             }
             .into(),
         )
-        .set_data(to_json_binary(&EndPollResponse { poll_result })?))
+        .set_data(to_binary(&EndPollResponse { poll_result })?))
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
@@ -234,15 +233,15 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
         chain_name: chain.clone(),
     };
 
-    let weighted_workers: Vec<ActiveWorker> =
+    let workers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
-            msg: to_json_binary(&active_workers_query)?,
+            msg: to_binary(&active_workers_query)?,
         }))?;
 
-    let participants = weighted_workers
+    let participants = workers
         .into_iter()
-        .map(service_registry::state::ActiveWorker::into)
+        .map(service_registry::state::WeightedWorker::into)
         .collect::<Vec<snapshot::Participant>>();
 
     Ok(snapshot::Snapshot::new(
