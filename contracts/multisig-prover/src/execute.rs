@@ -18,11 +18,10 @@ use crate::{
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.admin != info.sender {
-        return Err(ContractError::Unauthorized);
+    match CONFIG.load(deps.storage)?.admin {
+        admin if admin == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
     }
-    Ok(())
 }
 
 pub fn construct_proof(
