@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
+    to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
     Response, Storage, SubMsg, WasmQuery,
 };
 
@@ -86,7 +86,7 @@ fn get_messages(
     let query = gateway_api::msg::QueryMsg::GetOutgoingMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     assert!(
@@ -113,7 +113,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     let weighted_workers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry.to_string(),
-            msg: to_binary(&active_workers_query)?,
+            msg: to_json_binary(&active_workers_query)?,
         }))?;
 
     let workers: Vec<Worker> = weighted_workers
@@ -138,7 +138,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
-            msg: to_binary(&pub_key_query)?,
+            msg: to_json_binary(&pub_key_query)?,
         }))?;
         pub_keys.push(pub_key);
     }
@@ -252,7 +252,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     if status != VerificationStatus::SucceededOnChain {
