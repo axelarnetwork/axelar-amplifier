@@ -1,11 +1,8 @@
 name: Send vulnerabilities found by Dependabot to Slack
 
 on:
-  push:
-    paths:
-      - '**.yaml'
-    branches:
-      - feat/connect-dependabot-to-slack
+  schedule:
+    - cron: '0 0 * * 0'
 
 
 jobs:
