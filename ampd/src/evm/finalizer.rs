@@ -179,7 +179,7 @@ mod tests {
         let mut rpc_client = MockEthereumClient::new();
         let mut block = Block::<Hash>::default();
         let block_number: U64 = 10.into();
-        block.number = Some(block_number.clone());
+        block.number = Some(block_number);
 
         rpc_client
             .expect_finalized_block()
