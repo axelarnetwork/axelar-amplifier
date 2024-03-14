@@ -188,8 +188,8 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weight: &Uint256) {
-        let mut binding = Uint256::zero();
-        let tally = self.0.get_mut(&vote.to_string()).unwrap_or(&mut binding);
+        let mut zero = Uint256::zero();
+        let tally = self.0.get_mut(&vote.to_string()).unwrap_or(&mut zero);
 
         *tally = tally.saturating_add(*weight);
     }

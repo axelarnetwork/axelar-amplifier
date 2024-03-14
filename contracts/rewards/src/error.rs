@@ -37,7 +37,7 @@ pub enum ContractError {
     #[error("specified block has already passed")]
     BlockHeightInPast,
 
-    #[error("{0}")]
+    #[error(transparent)]
     Overflow(#[from] OverflowError),
 
     #[error("rewards pool balance insufficient")]

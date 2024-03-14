@@ -57,10 +57,15 @@ where
             .checked_div(epoch_duration)
             .expect("invalid invariant: epoch duration is zero");
             Ok(Epoch {
-                epoch_num: last_updated_epoch.epoch_num.saturating_add(epochs_elapsed),
+                epoch_num: last_updated_epoch
+                    .epoch_num
+                    .checked_add(epochs_elapsed)
+                    .expect(
+                        "epoch number should be strictly smaller than the current block height",
+                    ),
                 block_height_started: last_updated_epoch
                     .block_height_started
-                    .saturating_add(epochs_elapsed.saturating_mul(epoch_duration)),
+                    .checked_add(epochs_elapsed.saturating_mul(epoch_duration)).expect("start of current epoch should be strictly smaller than the current block height"),
             })
         }
     }
@@ -207,7 +212,9 @@ where
         let cur_epoch = if should_end {
             Epoch {
                 block_height_started: block_height,
-                epoch_num: cur_epoch.epoch_num.saturating_add(1),
+                epoch_num: cur_epoch.epoch_num.checked_add(1).expect(
+                    "epoch number should be strictly smaller than the current block height",
+                ),
             }
         } else {
             cur_epoch
@@ -249,11 +256,14 @@ fn merge_rewards(
     rewards_2
         .into_iter()
         .try_fold(rewards_1, |mut rewards, (addr, amt)| {
-            let r = rewards.entry(addr).or_default();
-            *r = r
+            let r = rewards
+                .entry(addr.clone())
+                .or_default()
                 .checked_add(amt)
                 .map_err(Into::<ContractError>::into)
                 .map_err(Report::from)?;
+
+            rewards.insert(addr, r);
 
             Ok(rewards)
         })
