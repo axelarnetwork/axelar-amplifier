@@ -32,7 +32,7 @@ where
     H: Into<U64>,
 {
     match finalizer_type {
-        Finalization::RPCFinalizedBlock => Box::new(RPCBlockFinalizer::new(rpc_client)),
+        Finalization::RPCFinalizedBlock => Box::new(RPCFinalizer::new(rpc_client)),
         Finalization::ConfirmationHeight => Box::new(ConfirmationHeightFinalizer::new(
             rpc_client,
             confirmation_height,
@@ -40,24 +40,24 @@ where
     }
 }
 
-pub struct RPCBlockFinalizer<'a, C>
+pub struct RPCFinalizer<'a, C>
 where
     C: EthereumClient,
 {
     rpc_client: &'a C,
 }
 
-impl<'a, C> RPCBlockFinalizer<'a, C>
+impl<'a, C> RPCFinalizer<'a, C>
 where
     C: EthereumClient,
 {
     pub fn new(rpc_client: &'a C) -> Self {
-        RPCBlockFinalizer { rpc_client }
+        RPCFinalizer { rpc_client }
     }
 }
 
 #[async_trait]
-impl<'a, C> Finalizer for RPCBlockFinalizer<'a, C>
+impl<'a, C> Finalizer for RPCFinalizer<'a, C>
 where
     C: EthereumClient + Send + Sync,
 {
