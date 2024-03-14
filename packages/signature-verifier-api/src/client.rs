@@ -1,5 +1,7 @@
 use cosmwasm_schema::serde::de::DeserializeOwned;
-use cosmwasm_std::{to_binary, Addr, HexBinary, QuerierWrapper, QueryRequest, Uint64, WasmQuery};
+use cosmwasm_std::{
+    to_json_binary, Addr, HexBinary, QuerierWrapper, QueryRequest, Uint64, WasmQuery,
+};
 use error_stack::{Result, ResultExt};
 
 use crate::msg::QueryMsg;
@@ -14,7 +16,7 @@ impl SignatureVerifier<'_> {
         self.querier
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.address.to_string(),
-                msg: to_binary(msg).expect("msg should always be serializable"),
+                msg: to_json_binary(msg).expect("msg should always be serializable"),
             }))
             .change_context(Error::QuerySignatureVerifier)
     }

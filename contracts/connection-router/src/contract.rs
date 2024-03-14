@@ -1,7 +1,8 @@
-use connection_router_api::msg::{ExecuteMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+
+use connection_router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
@@ -107,7 +108,7 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
-        QueryMsg::GetChainInfo(chain) => to_binary(&query::get_chain_info(deps, chain)?),
+        QueryMsg::GetChainInfo(chain) => to_json_binary(&query::get_chain_info(deps, chain)?),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
