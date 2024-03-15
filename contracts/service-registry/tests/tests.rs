@@ -1493,7 +1493,7 @@ fn unbonding_period() {
             max_num_workers: Some(100),
             min_worker_bond,
             bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: unbonding_period_days.clone(),
+            unbonding_period_days,
             description: "Some service".into(),
         },
     );
@@ -1554,7 +1554,7 @@ fn unbonding_period() {
             service_name: service_name.into(),
         },
     );
-    assert!(!res.is_ok());
+    assert!(res.is_err());
     assert_eq!(
         res.unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
@@ -1612,7 +1612,7 @@ fn get_active_workers_should_not_return_less_than_min() {
         for worker in &workers {
             router
                 .bank
-                .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
+                .init_balance(storage, worker, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         }
     });

@@ -135,7 +135,7 @@ mod tests {
         );
 
         let serialized = to_json_binary(&snapshot).unwrap();
-        let deserialized: Snapshot = from_json(&serialized).unwrap();
+        let deserialized: Snapshot = from_json(serialized).unwrap();
 
         assert_eq!(snapshot, deserialized);
     }

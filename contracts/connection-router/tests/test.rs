@@ -77,7 +77,7 @@ fn generate_messages(
 ) -> Vec<Message> {
     let mut msgs = vec![];
     for x in 0..count {
-        *nonce = *nonce + 1;
+        *nonce += 1;
         let id = format!("tx_id:{}", nonce);
         msgs.push(Message {
             cc_id: CrossChainId {
@@ -172,7 +172,7 @@ fn multi_chain_route() {
     for d in &chains {
         let mut msgs = vec![];
         for s in &chains {
-            let mut sending = generate_messages(&s, &d, nonce, 50);
+            let mut sending = generate_messages(s, d, nonce, 50);
 
             all_msgs_by_src
                 .entry(s.chain_name.to_string())
