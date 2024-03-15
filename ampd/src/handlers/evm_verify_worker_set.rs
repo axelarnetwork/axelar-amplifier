@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
@@ -8,12 +9,10 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use async_trait::async_trait;
-use events::Error::EventTypeMismatch;
-use events_derive::try_from;
-
 use axelar_wasm_std::voting::{PollId, Vote};
 use connection_router_api::{ChainName, ID_SEPARATOR};
+use events::Error::EventTypeMismatch;
+use events_derive::try_from;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -217,12 +216,14 @@ mod tests {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use connection_router_api::ChainName;
+    use cosmwasm_std::HexBinary;
+    use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use tendermint::abci;
+    use tokio::{sync::watch, test as async_test};
 
     use axelar_wasm_std::operators::Operators;
-    use cosmwasm_std::HexBinary;
+    use connection_router_api::ChainName;
     use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
 
@@ -234,9 +235,6 @@ mod tests {
         types::{EVMAddress, Hash, TMAddress},
         PREFIX,
     };
-
-    use error_stack::{Report, Result};
-    use tokio::{sync::watch, test as async_test};
 
     #[test]
     fn should_deserialize_correct_event() {
@@ -349,9 +347,8 @@ mod tests {
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .into_iter()
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker.into_iter())
+            .chain(worker)
             .collect()
     }
 }
