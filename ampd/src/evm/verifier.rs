@@ -62,7 +62,7 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
     }
 }
 
-fn is_failed(tx_receipt: &TransactionReceipt) -> bool {
+fn has_failed(tx_receipt: &TransactionReceipt) -> bool {
     tx_receipt.status == Some(0u64.into())
 }
 
@@ -94,7 +94,7 @@ fn verify<'a, V>(
 where
     V: PartialEq<IAxelarGatewayEventsWithLog<'a>>,
 {
-    if is_failed(tx_receipt) {
+    if has_failed(tx_receipt) {
         return Vote::FailedOnChain;
     }
 
