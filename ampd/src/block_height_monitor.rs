@@ -114,16 +114,16 @@ mod tests {
         let monitor = BlockHeightMonitor::connect(mock_client)
             .await
             .unwrap()
-            .poll_interval(poll_interval.clone());
+            .poll_interval(poll_interval);
         let exit_token = token.clone();
 
         let latest_block_height = monitor.latest_block_height();
         let handle = tokio::spawn(async move { monitor.run(exit_token).await });
 
-        let mut prev_height = latest_block_height.borrow().clone();
+        let mut prev_height = *latest_block_height.borrow();
         for _ in 1..10 {
             time::sleep(poll_interval * 2).await;
-            let next_height = latest_block_height.borrow().clone();
+            let next_height = *latest_block_height.borrow();
             assert!(next_height > prev_height);
             prev_height = next_height;
         }

@@ -349,11 +349,11 @@ mod tests {
 
         let res = query_worker_set(&worker_set_1.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_1, from_json(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_1, from_json(res.unwrap()).unwrap());
 
         let res = query_worker_set(&worker_set_2.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_2, from_json(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_2, from_json(res.unwrap()).unwrap());
 
         for (key_type, _) in [
             (KeyType::Ecdsa, worker_set_1_id),
@@ -406,7 +406,7 @@ mod tests {
             assert_eq!(res.data, Some(to_json_binary(&session.id).unwrap()));
             assert_eq!(res.events.len(), 1);
 
-            let event = res.events.get(0).unwrap();
+            let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signing_started".to_string());
             assert_eq!(
                 get_event_attribute(event, "session_id").unwrap(),
@@ -460,7 +460,7 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, worker_set_id, chain_name.clone())
                 .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
@@ -474,7 +474,7 @@ mod tests {
             }
             .into();
 
-            let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
+            let res = do_sign(deps.as_mut(), mock_env(), session_id, &signer);
 
             assert!(res.is_ok());
 
@@ -498,7 +498,7 @@ mod tests {
 
             assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
 
-            let event = res.events.get(0).unwrap();
+            let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signature_submitted".to_string());
             assert_eq!(
                 get_event_attribute(event, "session_id").unwrap(),
@@ -526,7 +526,7 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
                 .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -580,7 +580,7 @@ mod tests {
         {
             do_start_signing_session(deps.as_mut(), PROVER, subkey, chain_name.clone()).unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -610,10 +610,7 @@ mod tests {
 
             assert_eq!(signatures.len(), 3);
             assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
-            assert!(!res
-                .events
-                .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted
+            assert!(!res.events.iter().any(|e| e.ty == *"signing_completed")); // event is not re-emitted
         }
     }
 
@@ -628,7 +625,7 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
                 .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -664,7 +661,7 @@ mod tests {
         .unwrap();
 
         let invalid_session_id = Uint64::zero();
-        let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
+        let signer = ecdsa_test_data::signers().first().unwrap().to_owned();
         let res = do_sign(deps.as_mut(), mock_env(), invalid_session_id, &signer);
 
         assert_eq!(
@@ -691,7 +688,7 @@ mod tests {
                 deps.as_mut(),
                 mock_env(),
                 session_id,
-                signers.get(0).unwrap(),
+                signers.first().unwrap(),
             )
             .unwrap();
 
@@ -731,7 +728,7 @@ mod tests {
                         .find(|signer| signer.0.address == worker_set_signer.address)
                         .unwrap();
 
-                    assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
+                    assert_eq!(signer.0.weight, worker_set_signer.weight);
                     assert_eq!(
                         signer.0.pub_key,
                         worker_set.signers.get(address).unwrap().pub_key

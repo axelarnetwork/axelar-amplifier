@@ -144,7 +144,7 @@ mod tests {
                 let hash = hasher.finalize();
 
                 let priv_key = ecdsa::SigningKey::from_bytes(&priv_key_bytes).unwrap();
-                let (signature, _) = priv_key.sign_prehash_recoverable(&hash.to_vec()).unwrap();
+                let (signature, _) = priv_key.sign_prehash_recoverable(&hash).unwrap();
 
                 Result::<_, Error>::Ok(signature.to_vec())
             })
