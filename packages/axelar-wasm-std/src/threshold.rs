@@ -1,5 +1,3 @@
-use std::ops::Div;
-
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Fraction, Uint64};
 use thiserror::Error;
@@ -129,7 +127,12 @@ impl TryFrom<Threshold> for MajorityThreshold {
     type Error = Error;
 
     fn try_from(value: Threshold) -> Result<Self, Error> {
-        if value.numerator() <= value.denominator().div(Uint64::from(2u64)) {
+        if value.numerator()
+            <= value
+                .denominator()
+                .checked_div(Uint64::from(2u64))
+                .expect("division by zero")
+        {
             Err(Error::NoMajority)
         } else {
             Ok(MajorityThreshold {

@@ -197,10 +197,10 @@ impl RewardsPool {
     }
 
     pub fn sub_reward(mut self, reward: Uint128) -> Result<Self, ContractError> {
-        if self.balance < reward {
-            return Err(ContractError::PoolBalanceInsufficient.into());
-        }
-        self.balance = self.balance.saturating_sub(reward);
+        self.balance = self
+            .balance
+            .checked_sub(reward)
+            .map_err(|_| ContractError::PoolBalanceInsufficient)?;
 
         Ok(self)
     }

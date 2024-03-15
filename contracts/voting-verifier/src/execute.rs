@@ -37,13 +37,9 @@ pub fn verify_worker_set(
     let config = CONFIG.load(deps.storage)?;
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.get_participants();
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry);
 
-    let poll_id = create_worker_set_poll(
-        deps.storage,
-        env.block.height,
-        config.block_expiry,
-        snapshot,
-    )?;
+    let poll_id = create_worker_set_poll(deps.storage, expires_at, snapshot)?;
 
     POLL_WORKER_SETS.save(
         deps.storage,
@@ -59,7 +55,7 @@ pub fn verify_worker_set(
                 source_chain: config.source_chain,
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
-                expires_at: env.block.height.saturating_add(config.block_expiry),
+                expires_at,
                 participants,
             },
         }
@@ -117,13 +113,9 @@ pub fn verify_messages(
 
     let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
     let participants = snapshot.get_participants();
-    let id = create_messages_poll(
-        deps.storage,
-        env.block.height,
-        config.block_expiry,
-        snapshot,
-        msgs_to_verify.len(),
-    )?;
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry);
+
+    let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
 
     for (idx, message) in msgs_to_verify.iter().enumerate() {
         POLL_MESSAGES.save(
@@ -146,7 +138,7 @@ pub fn verify_messages(
                 source_chain: config.source_chain,
                 source_gateway_address: config.source_gateway_address,
                 confirmation_height: config.confirmation_height,
-                expires_at: env.block.height.saturating_add(config.block_expiry),
+                expires_at,
                 participants,
             },
         }
@@ -254,13 +246,12 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
 fn create_worker_set_poll(
     store: &mut dyn Storage,
-    block_height: u64,
-    expiry: u64,
+    expires_at: u64,
     snapshot: snapshot::Snapshot,
 ) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
-    let poll = WeightedPoll::new(id, snapshot, block_height.saturating_add(expiry), 1);
+    let poll = WeightedPoll::new(id, snapshot, expires_at, 1);
     POLLS.save(store, id, &state::Poll::ConfirmWorkerSet(poll))?;
 
     Ok(id)
@@ -268,15 +259,18 @@ fn create_worker_set_poll(
 
 fn create_messages_poll(
     store: &mut dyn Storage,
-    block_height: u64,
-    expiry: u64,
+    expires_at: u64,
     snapshot: snapshot::Snapshot,
     poll_size: usize,
 ) -> Result<PollId, ContractError> {
     let id = POLL_ID.incr(store)?;
 
-    let poll = WeightedPoll::new(id, snapshot, block_height.saturating_add(expiry), poll_size);
+    let poll = WeightedPoll::new(id, snapshot, expires_at, poll_size);
     POLLS.save(store, id, &state::Poll::Messages(poll))?;
 
     Ok(id)
+}
+
+fn calculate_expiration(block_height: u64, block_expiry: u64) -> u64 {
+    block_height.saturating_add(block_expiry)
 }

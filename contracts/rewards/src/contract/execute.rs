@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
-use cosmwasm_std::{Addr, DepsMut, Uint128};
+use cosmwasm_std::{Addr, DepsMut, OverflowError, OverflowOperation, StdError, Uint128};
 use error_stack::{Report, Result};
 
 use crate::{
@@ -207,7 +207,15 @@ where
         // epochs 1-4, and so all events prior to the start of epoch 1 have an epoch number of 0)
         let should_end = cur_epoch
             .block_height_started
-            .saturating_add(u64::from(new_params.epoch_duration))
+            .checked_add(u64::from(new_params.epoch_duration))
+            .ok_or_else(|| {
+                StdError::overflow(OverflowError::new(
+                    OverflowOperation::Add,
+                    cur_epoch.block_height_started,
+                    new_params.epoch_duration,
+                ))
+            })
+            .map_err(ContractError::from)?
             < block_height;
         let cur_epoch = if should_end {
             Epoch {

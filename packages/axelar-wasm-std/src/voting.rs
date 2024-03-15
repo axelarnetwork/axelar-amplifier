@@ -23,8 +23,8 @@ use std::str::FromStr;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
+use num_traits::CheckedAdd;
 use num_traits::One;
-use num_traits::SaturatingAdd;
 use strum::EnumIter;
 use strum::EnumString;
 use strum::IntoEnumIterator;
@@ -109,9 +109,9 @@ impl Add for PollId {
     }
 }
 
-impl SaturatingAdd for PollId {
-    fn saturating_add(&self, other: &Self) -> Self {
-        Self(self.0.saturating_add(other.0))
+impl CheckedAdd for PollId {
+    fn checked_add(&self, other: &Self) -> Option<Self> {
+        Some(Self(self.0.checked_add(other.0).ok()?))
     }
 }
 
@@ -188,10 +188,15 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weight: &Uint256) {
-        let mut zero = Uint256::zero();
-        let tally = self.0.get_mut(&vote.to_string()).unwrap_or(&mut zero);
+        let key = vote.to_string();
 
-        *tally = tally.saturating_add(*weight);
+        let tally = self
+            .0
+            .get(&key)
+            .unwrap_or(&Uint256::zero())
+            .saturating_add(*weight);
+
+        self.0.insert(key, tally);
     }
 }
 
