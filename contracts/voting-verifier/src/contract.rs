@@ -230,7 +230,7 @@ mod test {
         };
 
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
-        let reply: VerifyMessagesResponse = from_json(&res.data.unwrap()).unwrap();
+        let reply: VerifyMessagesResponse = from_json(res.data.unwrap()).unwrap();
         assert_eq!(reply.verification_statuses.len(), 2);
         assert_eq!(
             reply.verification_statuses,
@@ -411,7 +411,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: Vec<(CrossChainId, VerificationStatus)> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -449,7 +449,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: Vec<(CrossChainId, VerificationStatus)> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -484,7 +484,7 @@ mod test {
 
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
 
-        let reply: VerifyMessagesResponse = from_json(&res.data.unwrap()).unwrap();
+        let reply: VerifyMessagesResponse = from_json(res.data.unwrap()).unwrap();
 
         assert_eq!(reply.verification_statuses.len(), messages.len());
         assert_eq!(
@@ -496,7 +496,7 @@ mod test {
         );
 
         let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -550,7 +550,7 @@ mod test {
         .unwrap();
 
         let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -591,7 +591,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: VerificationStatus = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -641,7 +641,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: VerificationStatus = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -694,7 +694,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: VerificationStatus = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -749,7 +749,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: VerificationStatus = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -796,7 +796,7 @@ mod test {
         assert!(res.is_ok());
 
         let res: VerificationStatus = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {

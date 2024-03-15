@@ -68,15 +68,13 @@ pub fn make_mock_voting_verifier(app: &mut App) -> Addr {
     );
     let code_id = app.store_code(Box::new(code));
 
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("voting_verifier"),
-            &MockVotingVerifierInstantiateMsg {},
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-    contract_address
+    app.instantiate_contract(
+        code_id,
+        Addr::unchecked("voting_verifier"),
+        &MockVotingVerifierInstantiateMsg {},
+        &[],
+        "Contract",
+        None,
+    )
+    .unwrap()
 }

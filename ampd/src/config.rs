@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 
 use crate::broadcaster;
 use crate::commands::ServiceRegistryConfig;
@@ -46,8 +47,9 @@ mod tests {
     use std::str::FromStr;
     use std::time::Duration;
 
-    use connection_router_api::ChainName;
     use cosmrs::AccountId;
+
+    use connection_router_api::ChainName;
 
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
