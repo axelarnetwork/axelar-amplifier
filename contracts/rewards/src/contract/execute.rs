@@ -369,7 +369,7 @@ mod test {
                         .unwrap();
                 }
             }
-            cur_height = cur_height + 1;
+            cur_height += 1;
         }
 
         let tally = contract
@@ -882,8 +882,8 @@ mod test {
         };
 
         for (worker, events_participated) in worker_participation_per_epoch.clone() {
-            for epoch in 0..epoch_count {
-                for event in &events_participated[epoch] {
+            for (epoch, events) in events_participated.iter().enumerate().take(epoch_count) {
+                for event in events {
                     let event_id = event.to_string() + &epoch.to_string() + "event";
                     let _ = contract.record_participation(
                         event_id.clone().try_into().unwrap(),
