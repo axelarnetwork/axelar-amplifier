@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    to_json_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg, WasmQuery,
+    to_json_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg,
+    WasmQuery,
 };
 
 use axelar_wasm_std::{
