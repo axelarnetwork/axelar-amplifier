@@ -41,6 +41,6 @@ mod tests {
         assert_eq!(counter.cur(&store), 0);
         assert_eq!(counter.incr(&mut store).unwrap(), 1);
         assert_eq!(counter.incr(&mut store).unwrap(), 2);
-        assert_eq!(counter.cur(&mut store), 2);
+        assert_eq!(counter.cur(&store), 2);
     }
 }
