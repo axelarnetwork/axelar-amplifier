@@ -42,6 +42,8 @@ pub enum Error {
     TxBuilding,
     #[error("failed to estimate gas")]
     GasEstimation,
+    #[error("failed to estimate fee")]
+    FeeEstimation,
     #[error("broadcast failed")]
     Broadcast,
     #[error("failed to confirm tx inclusion in block")]
@@ -169,16 +171,15 @@ where
         self.estimate_gas(sim_tx).await.map(|gas| {
             let gas_adj = gas as f64 * self.config.gas_adjustment;
 
-            Fee::from_amount_and_gas(
+            Ok(Fee::from_amount_and_gas(
                 Coin {
                     amount: cast((gas_adj.mul(self.config.gas_price.amount)).ceil())
-                        .expect("couldn't cast from floating point to unsigned integer"),
+                        .ok_or(Error::FeeEstimation)?,
                     denom: self.config.gas_price.denom.clone().into(),
                 },
-                cast::<f64, u64>(gas_adj)
-                    .expect("couldn't cast from floating point to unsigned integer"),
-            )
-        })
+                cast::<f64, u64>(gas_adj).ok_or(Error::FeeEstimation)?,
+            ))
+        })?
     }
 }
 
