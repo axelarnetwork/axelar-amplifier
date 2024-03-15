@@ -12,6 +12,7 @@ use crate::types::{BatchId, CommandBatch};
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
+    pub governance: Addr,
     pub gateway: Addr,
     pub multisig: Addr,
     pub service_registry: Addr,

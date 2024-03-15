@@ -241,22 +241,25 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 }
 
-pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
+pub fn confirm_worker_set(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
 
-    let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
-        new_operators: make_operators(worker_set.clone(), config.encoder),
-    };
+    if info.sender != config.governance {
+        let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
+            new_operators: make_operators(worker_set.clone(), config.encoder),
+        };
 
-    let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.voting_verifier.to_string(),
-        msg: to_json_binary(&query)?,
-    }))?;
+        let status: VerificationStatus =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: config.voting_verifier.to_string(),
+                msg: to_json_binary(&query)?,
+            }))?;
 
-    if status != VerificationStatus::SucceededOnChain {
-        return Err(ContractError::WorkerSetNotConfirmed);
+        if status != VerificationStatus::SucceededOnChain {
+            return Err(ContractError::WorkerSetNotConfirmed);
+        }
     }
 
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
