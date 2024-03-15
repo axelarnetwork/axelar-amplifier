@@ -124,12 +124,14 @@ fn ensure_parent_dirs_exist(path: impl AsRef<Path>) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use crate::state;
-    use ecdsa::signature::rand_core::OsRng;
     use std::panic::UnwindSafe;
     use std::path::{Path, PathBuf};
     use std::{fs, panic};
+
+    use ecdsa::signature::rand_core::OsRng;
     use tokio::sync::mpsc;
+
+    use crate::state;
 
     use super::{State, StateUpdater};
 
@@ -143,6 +145,7 @@ mod tests {
         assert!(result.is_ok())
     }
 
+    #[allow(clippy::field_reassign_with_default)] // State has private fields, so using the object initializer is not possible
     #[test]
     fn can_load_and_flush_state() {
         let path = PathBuf::from("./state_subfolder/can_load_and_flush_state.json");
