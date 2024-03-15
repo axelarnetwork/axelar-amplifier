@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_json_binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Storage, WasmMsg,
-    WasmQuery,
+    to_json_binary, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation,
+    QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
 use axelar_wasm_std::{
@@ -37,7 +37,7 @@ pub fn verify_worker_set(
     let config = CONFIG.load(deps.storage)?;
     let snapshot = take_snapshot(deps.as_ref(), &config.source_chain)?;
     let participants = snapshot.get_participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry);
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 
     let poll_id = create_worker_set_poll(deps.storage, expires_at, snapshot)?;
 
@@ -113,7 +113,7 @@ pub fn verify_messages(
 
     let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
     let participants = snapshot.get_participants();
-    let expires_at = calculate_expiration(env.block.height, config.block_expiry);
+    let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 
     let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
 
@@ -271,6 +271,9 @@ fn create_messages_poll(
     Ok(id)
 }
 
-fn calculate_expiration(block_height: u64, block_expiry: u64) -> u64 {
-    block_height.saturating_add(block_expiry)
+fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, ContractError> {
+    block_height
+        .checked_add(block_expiry)
+        .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
+        .map_err(ContractError::from)
 }

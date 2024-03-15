@@ -3,7 +3,7 @@ use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, StdError, Timestamp, Uint128, Uint256};
+use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -89,7 +89,9 @@ impl BondingState {
             | BondingState::Unbonding {
                 amount,
                 unbonded_at: _,
-            } => amount.checked_add(to_add).map_err(StdError::overflow)?,
+            } => amount
+                .checked_add(to_add)
+                .map_err(ContractError::Overflow)?,
             BondingState::Unbonded => to_add,
         };
         if amount.is_zero() {

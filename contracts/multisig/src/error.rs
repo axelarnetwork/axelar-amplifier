@@ -1,11 +1,14 @@
 use axelar_wasm_std_derive::IntoContractError;
-use cosmwasm_std::{StdError, Uint64};
+use cosmwasm_std::{OverflowError, StdError, Uint64};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
+
+    #[error(transparent)]
+    Overflow(#[from] OverflowError),
 
     #[error("no active worker set found for {worker_set_id:?}")]
     NoActiveWorkerSetFound { worker_set_id: String },
