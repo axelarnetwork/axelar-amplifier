@@ -1,4 +1,5 @@
 use axelar_wasm_std_derive::IntoContractError;
+use cosmwasm_std::OverflowError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -35,6 +36,9 @@ pub enum ContractError {
 
     #[error("specified block has already passed")]
     BlockHeightInPast,
+
+    #[error(transparent)]
+    Overflow(#[from] OverflowError),
 
     #[error("rewards pool balance insufficient")]
     PoolBalanceInsufficient,

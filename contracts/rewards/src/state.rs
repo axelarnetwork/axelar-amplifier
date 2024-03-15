@@ -117,7 +117,7 @@ impl EpochTally {
     pub fn record_participation(mut self, worker: Addr) -> Self {
         self.participation
             .entry(worker.to_string())
-            .and_modify(|count| *count += 1)
+            .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
         self
     }
@@ -197,10 +197,10 @@ impl RewardsPool {
     }
 
     pub fn sub_reward(mut self, reward: Uint128) -> Result<Self, ContractError> {
-        if self.balance < reward {
-            return Err(ContractError::PoolBalanceInsufficient.into());
-        }
-        self.balance -= reward;
+        self.balance = self
+            .balance
+            .checked_sub(reward)
+            .map_err(|_| ContractError::PoolBalanceInsufficient)?;
 
         Ok(self)
     }

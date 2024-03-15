@@ -35,7 +35,7 @@ cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
-num-traits = { version = "0.2.14", default-features = false }
+num-traits = { workspace = true }
 report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
