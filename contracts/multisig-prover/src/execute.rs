@@ -277,9 +277,14 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    signers_difference_count(&new_workers.signers, &cur_workers.signers).saturating_add(
-        signers_difference_count(&cur_workers.signers, &new_workers.signers),
-    ) > max_diff
+    signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+}
+
+fn signers_symetric_difference_count(
+    s1: &BTreeMap<String, Signer>,
+    s2: &BTreeMap<String, Signer>,
+) -> usize {
+    signers_difference_count(s1, s2).saturating_add(signers_difference_count(s2, s1))
 }
 
 fn signers_difference_count(s1: &BTreeMap<String, Signer>, s2: &BTreeMap<String, Signer>) -> usize {
