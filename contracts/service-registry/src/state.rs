@@ -89,7 +89,9 @@ impl BondingState {
             | BondingState::Unbonding {
                 amount,
                 unbonded_at: _,
-            } => amount + to_add,
+            } => amount
+                .checked_add(to_add)
+                .map_err(ContractError::Overflow)?,
             BondingState::Unbonded => to_add,
         };
         if amount.is_zero() {

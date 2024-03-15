@@ -1,9 +1,9 @@
 use aggregate_verifier::msg::ExecuteMsg;
 use axelar_wasm_std::VerificationStatus;
 use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
-use cosmwasm_std::from_binary;
+use cosmwasm_std::from_json;
 use cosmwasm_std::Addr;
-use cw_multi_test::{App, Executor};
+use cw_multi_test::App;
 use integration_tests::contract::Contract;
 
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
@@ -46,7 +46,7 @@ fn verify_messages_empty() {
             &ExecuteMsg::VerifyMessages { messages: vec![] },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_json(res.data.unwrap()).unwrap();
     assert_eq!(ret, vec![]);
 }
 
@@ -70,7 +70,7 @@ fn verify_messages_not_verified() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_json(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages
@@ -102,7 +102,7 @@ fn verify_messages_verified() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_json(res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages
@@ -135,17 +135,13 @@ fn verify_messages_mixed_status() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_json(res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages
             .iter()
             .map(|msg| {
-                if verified
-                    .iter()
-                    .find(|verified_msg| *verified_msg == msg)
-                    .is_some()
-                {
+                if verified.iter().any(|verified_msg| verified_msg == msg) {
                     (msg.cc_id.clone(), VerificationStatus::SucceededOnChain)
                 } else {
                     (msg.cc_id.clone(), VerificationStatus::None)

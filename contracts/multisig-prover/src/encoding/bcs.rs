@@ -1,5 +1,3 @@
-use std::convert::identity;
-
 use axelar_wasm_std::operators::Operators;
 use bcs::to_bytes;
 use cosmwasm_std::{HexBinary, Uint256};
@@ -165,7 +163,7 @@ pub fn encode_execute_data(
                     .to_recoverable(
                         command_batch.msg_digest().as_slice(),
                         &signer.pub_key,
-                        identity,
+                        |recovery_id| recovery_id.to_byte(),
                     )
                     .map(Signature::EcdsaRecoverable)
                     .ok();

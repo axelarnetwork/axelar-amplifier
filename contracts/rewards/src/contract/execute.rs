@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
-use cosmwasm_std::{Addr, DepsMut, Uint128};
-use error_stack::Result;
+use cosmwasm_std::{Addr, DepsMut, OverflowError, OverflowOperation, Uint128};
+use error_stack::{Report, Result};
 
 use crate::{
     error::ContractError,
@@ -52,12 +52,20 @@ where
         if cur_block_height < last_updated_epoch.block_height_started {
             Err(ContractError::BlockHeightInPast.into())
         } else {
-            let epochs_elapsed =
-                (cur_block_height - last_updated_epoch.block_height_started) / epoch_duration;
+            let epochs_elapsed = (cur_block_height
+                .saturating_sub(last_updated_epoch.block_height_started))
+            .checked_div(epoch_duration)
+            .expect("invalid invariant: epoch duration is zero");
             Ok(Epoch {
-                epoch_num: last_updated_epoch.epoch_num + epochs_elapsed,
-                block_height_started: last_updated_epoch.block_height_started
-                    + (epochs_elapsed * epoch_duration), // result is strictly less than cur_block_height, so multiplication is safe
+                epoch_num: last_updated_epoch
+                    .epoch_num
+                    .checked_add(epochs_elapsed)
+                    .expect(
+                        "epoch number should be strictly smaller than the current block height",
+                    ),
+                block_height_started: last_updated_epoch
+                    .block_height_started
+                    .checked_add(epochs_elapsed.saturating_mul(epoch_duration)).expect("start of current epoch should be strictly smaller than the current block height"),
             })
         }
     }
@@ -90,7 +98,7 @@ where
             .record_participation(worker)
             .then(|mut tally| {
                 if matches!(event, StorageState::New(_)) {
-                    tally.event_count += 1
+                    tally.event_count = tally.event_count.saturating_add(1)
                 }
                 self.store.save_epoch_tally(&tally)
             })
@@ -128,10 +136,10 @@ where
         let from = self
             .store
             .load_rewards_watermark(pool_id.clone())?
-            .map_or(0, |last_processed| last_processed + 1);
+            .map_or(0, |last_processed| last_processed.saturating_add(1));
 
         let to = std::cmp::min(
-            (from + epoch_process_limit).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
+            (from.saturating_add(epoch_process_limit)).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
             cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
         );
 
@@ -150,7 +158,7 @@ where
         from: u64,
         to: u64,
     ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let rewards = self.cumulate_rewards(&pool_id, from, to);
+        let rewards = self.cumulate_rewards(&pool_id, from, to)?;
         self.store
             .load_rewards_pool(pool_id.clone())?
             .sub_reward(rewards.values().sum())?
@@ -159,10 +167,15 @@ where
         Ok(rewards)
     }
 
-    fn cumulate_rewards(&mut self, pool_id: &PoolId, from: u64, to: u64) -> HashMap<Addr, Uint128> {
+    fn cumulate_rewards(
+        &mut self,
+        pool_id: &PoolId,
+        from: u64,
+        to: u64,
+    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
         self.iterate_epoch_tallies(pool_id, from, to)
             .map(|tally| tally.rewards_by_worker())
-            .fold(HashMap::new(), merge_rewards)
+            .try_fold(HashMap::new(), merge_rewards)
     }
 
     fn iterate_epoch_tallies<'a>(
@@ -192,12 +205,24 @@ where
         // (i.e. we are in epoch 0, which started at block 0 and epoch duration is 1000. At epoch 500, the params
         // are updated to shorten the epoch duration to 100 blocks. We set the epoch number to 1, to prevent skipping
         // epochs 1-4, and so all events prior to the start of epoch 1 have an epoch number of 0)
-        let should_end =
-            cur_epoch.block_height_started + u64::from(new_params.epoch_duration) < block_height;
+        let should_end = cur_epoch
+            .block_height_started
+            .checked_add(u64::from(new_params.epoch_duration))
+            .ok_or_else(|| {
+                OverflowError::new(
+                    OverflowOperation::Add,
+                    cur_epoch.block_height_started,
+                    new_params.epoch_duration,
+                )
+            })
+            .map_err(ContractError::from)?
+            < block_height;
         let cur_epoch = if should_end {
             Epoch {
                 block_height_started: block_height,
-                epoch_num: cur_epoch.epoch_num + 1,
+                epoch_num: cur_epoch.epoch_num.checked_add(1).expect(
+                    "epoch number should be strictly smaller than the current block height",
+                ),
             }
         } else {
             cur_epoch
@@ -215,7 +240,11 @@ where
         amount: nonempty::Uint128,
     ) -> Result<(), ContractError> {
         let mut pool = self.store.load_rewards_pool(pool_id)?;
-        pool.balance += Uint128::from(amount);
+        pool.balance = pool
+            .balance
+            .checked_add(Uint128::from(amount))
+            .map_err(Into::<ContractError>::into)
+            .map_err(Report::from)?;
 
         self.store.save_rewards_pool(&pool)?;
 
@@ -231,12 +260,20 @@ where
 fn merge_rewards(
     rewards_1: HashMap<Addr, Uint128>,
     rewards_2: HashMap<Addr, Uint128>,
-) -> HashMap<Addr, Uint128> {
+) -> Result<HashMap<Addr, Uint128>, ContractError> {
     rewards_2
         .into_iter()
-        .fold(rewards_1, |mut rewards, (addr, amt)| {
-            *rewards.entry(addr).or_default() += amt;
-            rewards
+        .try_fold(rewards_1, |mut rewards, (addr, amt)| {
+            let r = rewards
+                .entry(addr.clone())
+                .or_default()
+                .checked_add(amt)
+                .map_err(Into::<ContractError>::into)
+                .map_err(Report::from)?;
+
+            rewards.insert(addr, r);
+
+            Ok(rewards)
         })
 }
 
@@ -369,7 +406,7 @@ mod test {
                         .unwrap();
                 }
             }
-            cur_height = cur_height + 1;
+            cur_height += 1;
         }
 
         let tally = contract
@@ -882,8 +919,8 @@ mod test {
         };
 
         for (worker, events_participated) in worker_participation_per_epoch.clone() {
-            for epoch in 0..epoch_count {
-                for event in &events_participated[epoch] {
+            for (epoch, events) in events_participated.iter().enumerate().take(epoch_count) {
+                for event in events {
                     let event_id = event.to_string() + &epoch.to_string() + "event";
                     let _ = contract.record_participation(
                         event_id.clone().try_into().unwrap(),

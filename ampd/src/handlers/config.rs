@@ -169,7 +169,7 @@ mod tests {
         rpc_url = 'http://127.0.0.1/'
         ";
 
-        let chain_config: Chain = toml::from_str(&chain_config_toml).unwrap();
+        let chain_config: Chain = toml::from_str(chain_config_toml).unwrap();
         assert_eq!(chain_config.finalization, Finalization::RPCFinalizedBlock);
     }
 }

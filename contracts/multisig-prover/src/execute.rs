@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
-    SubMsg, WasmQuery,
+    to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
+    Response, Storage, SubMsg, WasmQuery,
 };
 
+use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
@@ -16,6 +19,13 @@ use crate::{
     state::{Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH},
     types::{BatchId, WorkersInfo},
 };
+
+pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.admin {
+        admin if admin == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
+    }
+}
 
 pub fn construct_proof(
     deps: DepsMut,
@@ -79,7 +89,7 @@ fn get_messages(
     let query = gateway_api::msg::QueryMsg::GetOutgoingMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     assert!(
@@ -106,7 +116,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     let weighted_workers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry.to_string(),
-            msg: to_binary(&active_workers_query)?,
+            msg: to_json_binary(&active_workers_query)?,
         }))?;
 
     let workers: Vec<Worker> = weighted_workers
@@ -131,7 +141,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
-            msg: to_binary(&pub_key_query)?,
+            msg: to_json_binary(&pub_key_query)?,
         }))?;
         pub_keys.push(pub_key);
     }
@@ -245,7 +255,7 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     if status != VerificationStatus::SucceededOnChain {
@@ -267,27 +277,18 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    let new_workers_signers = new_workers
-        .signers
-        .values()
-        .cloned()
-        .collect::<Vec<Signer>>();
+    signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+}
 
-    let cur_workers_signers = cur_workers
-        .signers
-        .values()
-        .cloned()
-        .collect::<Vec<Signer>>();
+fn signers_symetric_difference_count(
+    s1: &BTreeMap<String, Signer>,
+    s2: &BTreeMap<String, Signer>,
+) -> usize {
+    signers_difference_count(s1, s2).saturating_add(signers_difference_count(s2, s1))
+}
 
-    new_workers_signers
-        .iter()
-        .filter(|item| !cur_workers_signers.contains(item))
-        .count()
-        + cur_workers_signers
-            .iter()
-            .filter(|item| !new_workers_signers.contains(item))
-            .count()
-        > max_diff
+fn signers_difference_count(s1: &BTreeMap<String, Signer>, s2: &BTreeMap<String, Signer>) -> usize {
+    s1.values().filter(|v| !s2.values().contains(v)).count()
 }
 
 // Returns true if there is a different worker set pending for confirmation, false if there is no

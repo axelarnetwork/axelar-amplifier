@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Addr, Response, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, Response, WasmMsg};
 use error_stack::report;
 
 use crate::error::ContractError;
@@ -32,7 +32,7 @@ where
 
         Ok(Response::new().add_message(WasmMsg::Execute {
             contract_addr: self.config.router.to_string(),
-            msg: to_binary(&connection_router_api::msg::ExecuteMsg::RouteMessages(msgs))
+            msg: to_json_binary(&connection_router_api::msg::ExecuteMsg::RouteMessages(msgs))
                 .expect("must serialize route-messages message"),
             funds: vec![],
         }))
@@ -67,11 +67,12 @@ where
 
 #[cfg(test)]
 mod test {
+    use cosmwasm_std::{from_json, CosmosMsg};
+    use hex::decode;
+
     use connection_router_api::CrossChainId;
-    use cosmwasm_std::{from_binary, CosmosMsg};
 
     use crate::state::{Config, MockStore};
-    use hex::decode;
 
     use super::*;
 
@@ -165,7 +166,7 @@ mod test {
                     funds,
                 }) => {
                     if let Ok(connection_router_api::msg::ExecuteMsg::RouteMessages(msgs)) =
-                        from_binary(msg)
+                        from_json(msg)
                     {
                         return *contract_addr == Addr::unchecked("router")
                             && msgs.len() == 2

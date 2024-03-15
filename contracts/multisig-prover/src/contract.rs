@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
 };
 
 use crate::{
@@ -55,12 +55,15 @@ pub fn instantiate(
 pub fn execute(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
-        ExecuteMsg::UpdateWorkerSet {} => execute::update_worker_set(deps, env),
+        ExecuteMsg::UpdateWorkerSet {} => {
+            execute::require_admin(&deps, info)?;
+            execute::update_worker_set(deps, env)
+        }
         ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps),
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -84,24 +87,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
-        } => to_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps)?),
+        } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
+        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use anyhow::Error;
-    use axelar_wasm_std::Threshold;
-    use connection_router_api::CrossChainId;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         Addr, Fraction, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
+
+    use axelar_wasm_std::Threshold;
+    use connection_router_api::CrossChainId;
     use multisig::{msg::Signer, worker_set::WorkerSet};
 
+    use crate::contract::execute::should_update_worker_set;
     use crate::{
         encoding::Encoder,
         msg::{GetProofResponse, ProofStatus},
@@ -111,8 +115,6 @@ mod tests {
             test_data::{self, TestOperator},
         },
     };
-
-    use crate::contract::execute::should_update_worker_set;
 
     use super::*;
 
@@ -285,6 +287,25 @@ mod tests {
             test_operators_to_worker_set(test_data::operators(), test_case.app.block_info().height);
 
         assert_eq!(worker_set, expected_worker_set);
+    }
+
+    #[test]
+    fn test_update_worker_set_from_non_admin_should_fail() {
+        let mut test_case = setup_test_case();
+        let res = test_case.app.execute_contract(
+            Addr::unchecked("some random address"),
+            test_case.prover_address.clone(),
+            &ExecuteMsg::UpdateWorkerSet {},
+            &[],
+        );
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err()
+                .downcast::<axelar_wasm_std::ContractError>()
+                .unwrap()
+                .to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+        );
     }
 
     #[test]

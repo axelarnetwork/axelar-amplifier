@@ -1,23 +1,22 @@
-use crate::contract::Contract;
+use crate::{contract::Contract, protocol::Protocol};
 use axelar_wasm_std::Threshold;
 use cosmwasm_std::{Addr, Uint256};
-use cw_multi_test::{App, ContractWrapper, Executor};
+use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::encoding::Encoder;
 
 #[derive(Clone)]
 pub struct MultisigProverContract {
     pub contract_addr: Addr,
+    pub admin_addr: Addr,
 }
 
 impl MultisigProverContract {
     pub fn instantiate_contract(
-        app: &mut App,
+        protocol: &mut Protocol,
+        admin_address: Addr,
         gateway_address: Addr,
-        multisig_address: Addr,
-        service_registry_address: Addr,
         voting_verifier_address: Addr,
-        service_name: String,
         chain_name: String,
     ) -> Self {
         let code = ContractWrapper::new(
@@ -26,6 +25,7 @@ impl MultisigProverContract {
             multisig_prover::contract::query,
         )
         .with_reply(multisig_prover::contract::reply);
+        let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
 
         let contract_addr = app
@@ -33,14 +33,14 @@ impl MultisigProverContract {
                 code_id,
                 Addr::unchecked("anyone"),
                 &multisig_prover::msg::InstantiateMsg {
-                    admin_address: Addr::unchecked("doesn't matter").to_string(),
+                    admin_address: admin_address.to_string(),
                     gateway_address: gateway_address.to_string(),
-                    multisig_address: multisig_address.to_string(),
-                    service_registry_address: service_registry_address.to_string(),
+                    multisig_address: protocol.multisig.contract_addr.to_string(),
+                    service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
                     destination_chain_id: Uint256::zero(),
                     signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
-                    service_name: service_name.to_string(),
+                    service_name: protocol.service_name.to_string(),
                     chain_name: chain_name.to_string(),
                     worker_set_diff_threshold: 0,
                     encoder: Encoder::Abi,
@@ -52,7 +52,10 @@ impl MultisigProverContract {
             )
             .unwrap();
 
-        MultisigProverContract { contract_addr }
+        MultisigProverContract {
+            contract_addr,
+            admin_addr: admin_address,
+        }
     }
 }
 
