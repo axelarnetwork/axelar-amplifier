@@ -87,6 +87,7 @@ impl FromStr for PollId {
     }
 }
 
+// trait `Mul` is required by `One` trait
 impl Mul for PollId {
     type Output = Self;
 
@@ -95,12 +96,14 @@ impl Mul for PollId {
     }
 }
 
+// trait `One` is required by `counter::Counter`
 impl One for PollId {
     fn one() -> Self {
         PollId(Uint64::one())
     }
 }
 
+// trait `Add` is required by `CheckedAdd` trait
 impl Add for PollId {
     type Output = Self;
 
@@ -109,6 +112,7 @@ impl Add for PollId {
     }
 }
 
+// trait `CheckedAdd` is required by `counter::Counter`
 impl CheckedAdd for PollId {
     fn checked_add(&self, other: &Self) -> Option<Self> {
         Some(Self(self.0.checked_add(other.0).ok()?))

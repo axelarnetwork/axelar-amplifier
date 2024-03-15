@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
-use cosmwasm_std::{Addr, DepsMut, OverflowError, OverflowOperation, StdError, Uint128};
+use cosmwasm_std::{Addr, DepsMut, OverflowError, OverflowOperation, Uint128};
 use error_stack::{Report, Result};
 
 use crate::{
@@ -209,11 +209,11 @@ where
             .block_height_started
             .checked_add(u64::from(new_params.epoch_duration))
             .ok_or_else(|| {
-                StdError::overflow(OverflowError::new(
+                OverflowError::new(
                     OverflowOperation::Add,
                     cur_epoch.block_height_started,
                     new_params.epoch_duration,
-                ))
+                )
             })
             .map_err(ContractError::from)?
             < block_height;
