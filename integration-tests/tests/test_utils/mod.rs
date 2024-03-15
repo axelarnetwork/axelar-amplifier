@@ -1,14 +1,17 @@
+use cosmwasm_std::{
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
+};
+use cw_multi_test::{App, AppResponse, Executor};
+use k256::ecdsa;
+use sha3::{Digest, Keccak256};
+use tofn::ecdsa::KeyPair;
+
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
-use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
-};
-use cw_multi_test::{App, AppResponse, Executor};
-
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
@@ -17,10 +20,6 @@ use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use integration_tests::{connection_router_contract::ConnectionRouterContract, protocol::Protocol};
-
-use k256::ecdsa;
-use sha3::{Digest, Keccak256};
-
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -28,7 +27,6 @@ use multisig::{
 use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
-use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
@@ -84,8 +82,8 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 pub fn vote_success_for_all_messages(
     app: &mut App,
     voting_verifier: &VotingVerifierContract,
-    messages: &Vec<Message>,
-    workers: &Vec<Worker>,
+    messages: &[Message],
+    workers: &[Worker],
     poll_id: PollId,
 ) {
     for worker in workers {
@@ -208,7 +206,7 @@ pub fn get_messages_from_gateway(
     message_ids: &[CrossChainId],
 ) -> Vec<Message> {
     let query_response: Result<Vec<Message>, StdError> = gateway.query(
-        &app,
+        app,
         &gateway_api::msg::QueryMsg::GetOutgoingMessages {
             message_ids: message_ids.to_owned(),
         },
@@ -225,7 +223,7 @@ pub fn get_proof(
 ) -> multisig_prover::msg::GetProofResponse {
     let query_response: Result<multisig_prover::msg::GetProofResponse, StdError> = multisig_prover
         .query(
-            &app,
+            app,
             &multisig_prover::msg::QueryMsg::GetProof {
                 multisig_session_id: *multisig_session_id,
             },
@@ -240,7 +238,7 @@ pub fn get_worker_set(
     multisig_prover_contract: &MultisigProverContract,
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> =
-        multisig_prover_contract.query(&app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
+        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
     assert!(query_response.is_ok());
 
     query_response.unwrap()
@@ -391,7 +389,7 @@ pub fn register_workers(protocol: &mut Protocol, workers: &Vec<Worker>, min_work
         );
         assert!(response.is_ok());
 
-        let address_hash = Keccak256::digest(&worker.addr.as_bytes());
+        let address_hash = Keccak256::digest(worker.addr.as_bytes());
 
         let sig = tofn::ecdsa::sign(
             worker.key_pair.signing_key(),
@@ -511,7 +509,7 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
 
     WorkerSet::new(
         pubkeys_by_participant,
-        total_weight.mul_ceil((2u64, 3u64)).into(),
+        total_weight.mul_ceil((2u64, 3u64)),
         protocol.app.block_info().height,
     )
 }
@@ -699,10 +697,10 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
         },
     ];
     let min_worker_bond = Uint128::new(100);
-    register_service(&mut protocol, min_worker_bond.clone());
+    register_service(&mut protocol, min_worker_bond);
 
     register_workers(&mut protocol, &workers, min_worker_bond);
-    let chain1 = setup_chain(&mut protocol, chains.get(0).unwrap().clone());
+    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     (protocol, chain1, chain2, workers, min_worker_bond)
 }

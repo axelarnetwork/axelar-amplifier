@@ -1,9 +1,10 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
+
 use integration_tests::contract::Contract;
 use test_utils::Worker;
 
-mod test_utils;
+pub mod test_utils;
 
 #[test]
 fn worker_set_can_be_initialized_and_then_manually_updated() {

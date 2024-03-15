@@ -1,9 +1,10 @@
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::{HexBinary, Uint128};
+
+use connection_router_api::{CrossChainId, Message};
 
 use crate::test_utils::AXL_DENOMINATION;
 
-mod test_utils;
+pub mod test_utils;
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
 /// gateway, votes on the poll, routes the message to the outgoing gateway, triggers signing at the prover
 /// and signs via multisig. Also tests that rewards are distributed as expected for voting and signing.
