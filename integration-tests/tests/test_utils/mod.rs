@@ -9,7 +9,6 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, AppResponse, Executor};
 
-use integration_tests::connection_router_contract::ConnectionRouterContract;
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
@@ -17,6 +16,7 @@ use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
+use integration_tests::{connection_router_contract::ConnectionRouterContract, protocol::Protocol};
 
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
@@ -277,19 +277,6 @@ pub fn distribute_rewards(protocol: &mut Protocol, chain_name: &ChainName, contr
         },
     );
     assert!(response.is_ok());
-}
-
-pub struct Protocol {
-    pub genesis_address: Addr, // holds u128::max coins, can use to send coins to other addresses
-    pub governance_address: Addr,
-    pub connection_router: ConnectionRouterContract,
-    pub router_admin_address: Addr,
-    pub multisig: MultisigContract,
-    pub service_registry: ServiceRegistryContract,
-    pub service_name: nonempty::String,
-    pub rewards: RewardsContract,
-    pub rewards_params: rewards::msg::Params,
-    pub app: App,
 }
 
 pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
@@ -623,19 +610,18 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         voting_verifier.contract_addr.clone(),
     );
 
+    let multisig_prover_admin = Addr::unchecked(chain_name.to_string() + "prover_admin");
     let multisig_prover = MultisigProverContract::instantiate_contract(
-        &mut protocol.app,
+        protocol,
+        multisig_prover_admin.clone(),
         gateway.contract_addr.clone(),
-        protocol.multisig.contract_addr.clone(),
-        protocol.service_registry.contract_addr.clone(),
         voting_verifier.contract_addr.clone(),
-        protocol.service_name.to_string(),
         chain_name.to_string(),
     );
 
     let response = multisig_prover.execute(
         &mut protocol.app,
-        Addr::unchecked("doesn't matter"),
+        multisig_prover_admin,
         &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
     );
     assert!(response.is_ok());
