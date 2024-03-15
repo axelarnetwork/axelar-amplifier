@@ -8,7 +8,9 @@ use axelar_wasm_std::flagset::FlagSet;
 use connection_router_api::error::Error;
 use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
-use crate::events::{ChainFrozen, ChainRegistered, GatewayInfo, GatewayUpgraded, MessageRouted};
+use crate::events::{
+    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
+};
 use crate::state::{chain_endpoints, Store, CONFIG};
 
 use super::Contract;
@@ -79,7 +81,13 @@ pub fn freeze_chain(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
+    Ok(Response::new().add_event(
+        ChainFrozen {
+            name: chain,
+            direction,
+        }
+        .into(),
+    ))
 }
 
 #[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
@@ -95,7 +103,13 @@ pub fn unfreeze_chain(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
+    Ok(Response::new().add_event(
+        ChainUnfrozen {
+            name: chain,
+            direction,
+        }
+        .into(),
+    ))
 }
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {
@@ -205,6 +219,7 @@ mod test {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Storage;
 
+    use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::state::chain_endpoints;
     use crate::{
         contract::Contract,
@@ -682,6 +697,48 @@ mod test {
             chain.clone(),
             FlagSet::from(GatewayDirection::None),
         );
+    }
+
+    #[test]
+    fn freezing_unfreezing_chain_emits_correct_event() {
+        let mut deps = mock_dependencies();
+        let chain: ChainName = "ethereum".parse().unwrap();
+
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                chain.clone(),
+                &ChainEndpoint {
+                    name: chain.clone(),
+                    gateway: Gateway {
+                        address: Addr::unchecked("gateway"),
+                    },
+                    frozen_status: FlagSet::from(GatewayDirection::None),
+                },
+            )
+            .unwrap();
+
+        let res = freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_eq!(res.events.len(), 1);
+        assert!(res.events.contains(
+            &ChainFrozen {
+                name: chain.clone(),
+                direction: GatewayDirection::Incoming,
+            }
+            .into()
+        ));
+
+        let res = unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_eq!(res.events.len(), 1);
+        assert!(res.events.contains(
+            &ChainUnfrozen {
+                name: chain.clone(),
+                direction: GatewayDirection::Incoming,
+            }
+            .into()
+        ));
     }
 
     fn assert_chain_endpoint_frozen_status(

@@ -77,10 +77,12 @@ pub struct GatewayUnfrozen {
 
 pub struct ChainFrozen {
     pub name: ChainName,
+    pub direction: GatewayDirection,
 }
 
 pub struct ChainUnfrozen {
     pub name: ChainName,
+    pub direction: GatewayDirection,
 }
 
 pub struct MessageRouted {
