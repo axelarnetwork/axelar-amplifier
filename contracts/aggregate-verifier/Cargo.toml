@@ -53,3 +53,6 @@ voting-verifier = { workspace = true, features = ["library"] }
 [dev-dependencies]
 cw-multi-test = "0.15.1"
 integration-tests = { workspace = true }
+
+[lints]
+workspace = true

@@ -62,3 +62,6 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+
+[lints]
+workspace = true

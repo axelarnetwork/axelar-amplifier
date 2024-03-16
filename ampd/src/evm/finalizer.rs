@@ -106,7 +106,11 @@ where
             .await
             .change_context(Error::JsonRPC)?;
 
-        Ok(block_number - self.confirmation_height + 1)
+        // order of operations is important here when saturating, otherwise the finalization window could be cut short
+        // if we add 1 afterwards
+        Ok(block_number
+            .saturating_add(U64::from(1))
+            .saturating_sub(self.confirmation_height))
     }
 }
 

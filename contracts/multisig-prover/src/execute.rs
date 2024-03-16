@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
     Response, Storage, SubMsg, WasmQuery,
 };
 
+use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
@@ -269,27 +272,18 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    let new_workers_signers = new_workers
-        .signers
-        .values()
-        .cloned()
-        .collect::<Vec<Signer>>();
+    signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+}
 
-    let cur_workers_signers = cur_workers
-        .signers
-        .values()
-        .cloned()
-        .collect::<Vec<Signer>>();
+fn signers_symetric_difference_count(
+    s1: &BTreeMap<String, Signer>,
+    s2: &BTreeMap<String, Signer>,
+) -> usize {
+    signers_difference_count(s1, s2).saturating_add(signers_difference_count(s2, s1))
+}
 
-    new_workers_signers
-        .iter()
-        .filter(|item| !cur_workers_signers.contains(item))
-        .count()
-        + cur_workers_signers
-            .iter()
-            .filter(|item| !new_workers_signers.contains(item))
-            .count()
-        > max_diff
+fn signers_difference_count(s1: &BTreeMap<String, Signer>, s2: &BTreeMap<String, Signer>) -> usize {
+    s1.values().filter(|v| !s2.values().contains(v)).count()
 }
 
 // Returns true if there is a different worker set pending for confirmation, false if there is no

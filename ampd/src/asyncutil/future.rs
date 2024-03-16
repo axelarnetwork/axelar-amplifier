@@ -59,7 +59,7 @@ where
         cx: &mut Context<'_>,
         error: Err,
     ) -> Poll<Result<R, Err>> {
-        self.err_count += 1;
+        self.err_count = self.err_count.saturating_add(1);
 
         match self.policy {
             RetryPolicy::RepeatConstant {
