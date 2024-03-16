@@ -148,7 +148,7 @@ mod test {
                     &workers()
                         .into_iter()
                         .map(|w| WeightedWorker {
-                            worker: w,
+                            worker_info: w,
                             weight: WORKER_WEIGHT,
                         })
                         .collect::<Vec<WeightedWorker>>(),

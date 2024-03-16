@@ -83,7 +83,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let workers = get_operators(deps)
                 .into_iter()
                 .map(|op| WeightedWorker {
-                    worker: Worker {
+                    worker_info: Worker {
                         address: op.address,
                         bonding_state: BondingState::Bonded {
                             amount: op.weight.try_into().unwrap(),
