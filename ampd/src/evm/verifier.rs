@@ -1,9 +1,9 @@
 use axelar_wasm_std::voting::Vote;
-use cast::usize;
 use ethers::abi::{encode, Token};
 use ethers::contract::EthLogDecode;
 use ethers::prelude::abigen;
 use ethers::types::{Log, TransactionReceipt, H256};
+use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
@@ -70,9 +70,11 @@ fn get_event<'a>(
     tx_receipt: &'a TransactionReceipt,
     log_index: u32,
 ) -> Option<IAxelarGatewayEventsWithLog<'a>> {
+    let log_index: usize = cast(log_index).expect("log_index must be a valid usize");
+
     tx_receipt
         .logs
-        .get(usize(log_index))
+        .get(log_index)
         .filter(|log| log.address == *gateway_address)
         .and_then(
             |log| match IAxelarGatewayEvents::decode_log(&log.clone().into()) {
