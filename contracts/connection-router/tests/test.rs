@@ -6,7 +6,9 @@ use std::{collections::HashMap, vec};
 
 use connection_router_api::error::Error;
 use connection_router_api::msg::ExecuteMsg;
-use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
+use connection_router_api::{
+    ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+};
 use cosmwasm_std::Addr;
 use cw_multi_test::App;
 use integration_tests::contract::Contract;
@@ -524,7 +526,7 @@ fn chain_already_registered() {
 #[test]
 fn invalid_chain_name() {
     test_utils::are_contract_err_strings_equal(
-        ChainName::from_str("bad:").unwrap_err(),
+        ChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str()).unwrap_err(),
         Error::InvalidChainName,
     );
 

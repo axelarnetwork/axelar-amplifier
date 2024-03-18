@@ -4,7 +4,7 @@ use std::fs::File;
 use std::iter;
 
 use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
@@ -359,9 +359,7 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
         .map(|i| Message {
             cc_id: CrossChainId {
                 chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}{}", namespace, ID_SEPARATOR, i)
-                    .parse()
-                    .unwrap(),
+                id: format!("{:?}{}", namespace, i).parse().unwrap(),
             },
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),

@@ -1,5 +1,5 @@
 use axelar_wasm_std::nonempty;
-use connection_router_api::{Address, ChainName, CrossChainId, ID_SEPARATOR};
+use connection_router_api::{Address, ChainName, CrossChainId};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Result, ResultExt};
 use hex::{FromHex, ToHex};
@@ -7,6 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ContractError;
+use voting_verifier::events::TX_HASH_EVENT_INDEX_SEPARATOR;
 
 const ZEROX_PREFIX: &str = "0x";
 
@@ -29,7 +30,9 @@ impl CustomMsg for Message {}
 // here in order to match the message type defined in the nexus module. Changing nexus to use u32 instead is not worth the effort.
 fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), ContractError> {
     // expected format: <tx_id>:<index>
-    let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
+    let components = message_id
+        .split(TX_HASH_EVENT_INDEX_SEPARATOR)
+        .collect::<Vec<_>>();
 
     if components.len() != 2 {
         return Err(ContractError::InvalidMessageId(message_id.to_string()).into());

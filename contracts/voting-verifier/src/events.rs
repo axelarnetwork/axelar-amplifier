@@ -6,7 +6,9 @@ use cosmwasm_std::{Addr, Attribute, Event};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::{Address, ChainName, Message, ID_SEPARATOR};
+use connection_router_api::{Address, ChainName, Message};
+
+pub const TX_HASH_EVENT_INDEX_SEPARATOR: char = '-';
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -163,7 +165,9 @@ fn parse_message_id(
     message_id: &nonempty::String,
 ) -> Result<(nonempty::String, u32), ContractError> {
     // expected format: <tx_id>:<index>
-    let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
+    let components = message_id
+        .split(TX_HASH_EVENT_INDEX_SEPARATOR)
+        .collect::<Vec<_>>();
 
     if components.len() != 2 {
         return Err(ContractError::InvalidMessageID(message_id.to_string()));
@@ -175,6 +179,10 @@ fn parse_message_id(
             .parse()
             .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
     ))
+}
+
+pub fn construct_message_id(tx_hash: String, event_index: u32) -> String {
+    [tx_hash, event_index.to_string()].join(&TX_HASH_EVENT_INDEX_SEPARATOR.to_string())
 }
 
 pub struct Voted {
@@ -209,5 +217,20 @@ impl From<PollEnded> for Event {
                 "results",
                 serde_json::to_string(&other.results).expect("failed to serialize results"),
             )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use axelar_wasm_std::nonempty;
+
+    use crate::events::{construct_message_id, parse_message_id};
+
+    #[test]
+    fn should_be_able_to_parse_and_then_reconstruct_msg_id() {
+        let message_id: nonempty::String = "hash-1".try_into().unwrap();
+        let (hash, event_index) = parse_message_id(&message_id).unwrap();
+        let reconstructed = construct_message_id(hash.to_string(), event_index);
+        assert_eq!(message_id.to_string(), reconstructed);
     }
 }

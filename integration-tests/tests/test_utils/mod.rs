@@ -475,7 +475,7 @@ pub fn create_worker_set_poll(
         app,
         relayer_addr.clone(),
         &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
-            message_id: "ethereum:00".parse().unwrap(),
+            message_id: "ethereum-00".parse().unwrap(),
             new_operators: make_operators(worker_set.clone(), Encoder::Abi),
         },
     );
