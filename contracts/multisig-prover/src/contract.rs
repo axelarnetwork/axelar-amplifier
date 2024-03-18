@@ -66,7 +66,7 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::update_worker_set(deps, env)
         }
-        ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps, info),
+        ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps, info.sender),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
