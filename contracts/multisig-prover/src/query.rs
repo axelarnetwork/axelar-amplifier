@@ -72,7 +72,7 @@ fn optimize_signers(
             Uint256::zero(),
             |acc, (signer, signature)| match signature {
                 Some(sig) if *acc < quorum => {
-                    *acc += signer.weight;
+                    *acc = acc.saturating_add(signer.weight);
                     Some((signer, Some(sig)))
                 }
                 _ => Some((signer, None)),

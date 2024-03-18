@@ -1,4 +1,12 @@
 use cosmrs::{Any, Gas};
+use error_stack::Result;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("overflow in gas cost calculation")]
+    GasCostOverflow,
+}
 
 #[derive(Default)]
 pub struct MsgQueue {
@@ -7,9 +15,14 @@ pub struct MsgQueue {
 }
 
 impl MsgQueue {
-    pub fn push(&mut self, msg: Any, gas_cost: Gas) {
+    pub fn push(&mut self, msg: Any, gas_cost: Gas) -> Result<(), Error> {
         self.msgs.push(msg);
-        self.gas_cost += gas_cost;
+        self.gas_cost = self
+            .gas_cost
+            .checked_add(gas_cost)
+            .ok_or(Error::GasCostOverflow)?;
+
+        Ok(())
     }
 
     pub fn pop_all(&mut self) -> Vec<Any> {
@@ -40,7 +53,7 @@ mod test {
     fn msg_queue_push_should_work() {
         let mut queue = MsgQueue::default();
         for gas_cost in 1..5 {
-            queue.push(dummy_msg(), gas_cost);
+            queue.push(dummy_msg(), gas_cost).unwrap();
         }
 
         assert_eq!(queue.gas_cost(), 10);
@@ -51,7 +64,7 @@ mod test {
     fn msg_queue_pop_all_should_work() {
         let mut queue = MsgQueue::default();
         for gas_cost in 1..5 {
-            queue.push(dummy_msg(), gas_cost);
+            queue.push(dummy_msg(), gas_cost).unwrap();
         }
 
         assert_eq!(queue.pop_all().len(), 4);

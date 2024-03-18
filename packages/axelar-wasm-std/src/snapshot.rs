@@ -28,8 +28,7 @@ impl Snapshot {
         let participants: HashMap<String, Participant> = participants
             .into_iter()
             .map(|participant| {
-                let weight: &Uint256 = participant.weight.as_ref();
-                total_weight += weight;
+                total_weight = total_weight.saturating_add(participant.weight.into());
 
                 (participant.address.to_string(), participant)
             })

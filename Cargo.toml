@@ -3,7 +3,7 @@ members = ["ampd", "contracts/*", "integration-tests", "packages/*"]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.73.0"
+rust-version = "1.75.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 
 [workspace.dependencies]
 connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
@@ -21,6 +21,7 @@ itertools = "0.11.0"
 voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
 multisig = { version = "^0.1.0", path = "contracts/multisig" }
 multisig-prover = { version = "^0.1.0", path = "contracts/multisig-prover" }
+num-traits = { version = "0.2.14", default-features = false }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
 aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
@@ -34,6 +35,9 @@ serde_json = "1.0.89"
 schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^0.1.0", path = "packages/signature-verifier-api" }
+
+[workspace.lints.clippy]
+arithmetic_side_effects = "deny"
 
 [profile.release]
 opt-level = 3

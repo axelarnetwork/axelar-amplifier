@@ -32,7 +32,7 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: Hash,
-    pub event_index: u64,
+    pub event_index: u32,
     pub destination_address: String,
     pub destination_chain: connection_router_api::ChainName,
     pub source_address: EVMAddress,
