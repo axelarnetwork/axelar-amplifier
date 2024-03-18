@@ -157,6 +157,7 @@ dependencies = [
  "axelar-wasm-std",
  "base64 0.21.4",
  "bcs",
+ "cast",
  "clap",
  "config",
  "connection-router-api",
@@ -1219,6 +1220,12 @@ dependencies = [
  "serde_json",
  "thiserror",
 ]
+
+[[package]]
+name = "cast"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cbc"

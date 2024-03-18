@@ -34,7 +34,7 @@ pub struct Operators {
 #[derive(Deserialize, Debug)]
 pub struct WorkerSetConfirmation {
     pub tx_id: Hash,
-    pub event_index: u64,
+    pub event_index: u32,
     pub operators: Operators,
 }
 

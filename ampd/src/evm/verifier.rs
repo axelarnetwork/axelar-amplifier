@@ -1,4 +1,5 @@
 use axelar_wasm_std::voting::Vote;
+use cast::usize;
 use ethers::abi::{encode, Token};
 use ethers::contract::EthLogDecode;
 use ethers::prelude::abigen;
@@ -19,7 +20,6 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
         match event {
             IAxelarGatewayEvents::ContractCallFilter(event) => {
                 log.transaction_hash == Some(self.tx_id)
-                    && log.log_index == Some(self.event_index.into())
                     && event.sender == self.source_address
                     && self.destination_chain == event.destination_chain
                     && event.destination_contract_address == self.destination_address
@@ -49,7 +49,6 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
                     .unzip();
 
                 log.transaction_hash == Some(self.tx_id)
-                    && log.log_index == Some(self.event_index.into())
                     && event.new_operators_data
                         == encode(&[
                             Token::Array(operators),
@@ -69,12 +68,11 @@ fn has_failed(tx_receipt: &TransactionReceipt) -> bool {
 fn get_event<'a>(
     gateway_address: &EVMAddress,
     tx_receipt: &'a TransactionReceipt,
-    log_index: u64,
+    log_index: u32,
 ) -> Option<IAxelarGatewayEventsWithLog<'a>> {
     tx_receipt
         .logs
-        .iter()
-        .find(|log| log.log_index == Some(log_index.into()))
+        .get(usize(log_index))
         .filter(|log| log.address == *gateway_address)
         .and_then(
             |log| match IAxelarGatewayEvents::decode_log(&log.clone().into()) {
@@ -89,7 +87,7 @@ fn verify<'a, V>(
     tx_receipt: &'a TransactionReceipt,
     to_verify: V,
     expected_transaction_hash: H256,
-    expected_event_index: u64,
+    expected_event_index: u32,
 ) -> Vote
 where
     V: PartialEq<IAxelarGatewayEventsWithLog<'a>>,
@@ -302,7 +300,7 @@ mod tests {
     fn get_matching_worker_set_and_tx_receipt(
     ) -> (EVMAddress, TransactionReceipt, WorkerSetConfirmation) {
         let tx_id = Hash::random();
-        let log_index = 999;
+        let log_index = 1;
         let gateway_address = EVMAddress::random();
 
         let worker_set = WorkerSetConfirmation {
@@ -353,7 +351,7 @@ mod tests {
 
     fn get_matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
         let tx_id = Hash::random();
-        let log_index = 999;
+        let log_index = 1;
         let gateway_address = EVMAddress::random();
 
         let msg = Message {
