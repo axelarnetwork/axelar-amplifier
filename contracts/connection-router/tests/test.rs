@@ -1,12 +1,12 @@
-use std::{collections::HashMap, vec};
 use std::str::FromStr;
+use std::{collections::HashMap, vec};
 
 use cosmwasm_std::Addr;
 use cw_multi_test::App;
 
-use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
 use connection_router_api::error::Error;
 use connection_router_api::msg::ExecuteMsg;
+use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
 use integration_tests::contract::Contract;
 
 use crate::test_utils::ConnectionRouterContract;
