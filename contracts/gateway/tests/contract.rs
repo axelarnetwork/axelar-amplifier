@@ -3,17 +3,17 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use cosmwasm_std::{
-    Addr, ContractResult, DepsMut, from_json, QuerierResult, to_json_binary, WasmQuery,
-};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+use cosmwasm_std::{
+    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+};
 use itertools::Itertools;
 use serde::Serialize;
 
 use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router_api::{CrossChainId, ID_SEPARATOR, Message};
+use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
