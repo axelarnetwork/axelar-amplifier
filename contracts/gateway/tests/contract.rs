@@ -3,17 +3,17 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+use cosmwasm_std::{
+    Addr, ContractResult, DepsMut, from_json, QuerierResult, to_json_binary, WasmQuery,
+};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
-use cosmwasm_std::{
-    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
-};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 use itertools::Itertools;
 use serde::Serialize;
 
 use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
+use connection_router_api::{CrossChainId, ID_SEPARATOR, Message};
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
@@ -156,7 +156,7 @@ fn successful_route_outgoing() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(&router, &[]), // execute with router as sender
+                mock_info(router, &[]), // execute with router as sender
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -296,14 +296,12 @@ fn test_cases_for_correct_verifier() -> (
 
     // no messages
     test_cases.push(vec![]);
-    // // one message of each status
+    // one message of each status
     for msgs in all_messages.iter() {
-        test_cases.push(msgs.into_iter().cloned().take(1).collect::<Vec<_>>());
+        test_cases.push(msgs.iter().take(1).cloned().collect::<Vec<_>>());
     }
-    // // multiple messages with same status
-    for msgs in all_messages.iter() {
-        test_cases.push(msgs.into_iter().cloned().collect());
-    }
+    // multiple messages with same status
+    test_cases.append(&mut all_messages.clone());
     // multiple messages with multiple statuses
     test_cases.push(all_messages.into_iter().flatten().collect());
 
@@ -325,22 +323,18 @@ fn test_cases_for_duplicate_msgs() -> (
         .flatten()
         .collect::<Vec<_>>();
 
-    let mut test_cases = vec![];
-
-    // one duplicate
-    test_cases.push(duplicate_msgs(all_messages.clone(), 1));
-
-    // multiple duplicates
-    test_cases.push(duplicate_msgs(all_messages.clone(), 10));
-
-    // all duplicates
-    test_cases.push(
+    let test_cases = vec![
+        // one duplicate
+        duplicate_msgs(all_messages.clone(), 1),
+        // multiple duplicates
+        duplicate_msgs(all_messages.clone(), 10),
+        // all duplicates
         all_messages
             .clone()
             .into_iter()
             .chain(all_messages.clone())
             .collect::<Vec<_>>(),
-    );
+    ];
 
     (test_cases, handler)
 }
@@ -398,7 +392,7 @@ fn all_statuses() -> Vec<VerificationStatus> {
 
     assert_eq!(statuses.len(), status_count);
 
-    return statuses;
+    statuses
 }
 
 fn map_status_by_msg_id(

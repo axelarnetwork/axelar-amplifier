@@ -1,12 +1,12 @@
-use std::str::FromStr;
 use std::{collections::HashMap, vec};
+use std::str::FromStr;
 
 use cosmwasm_std::Addr;
 use cw_multi_test::App;
 
+use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
 use connection_router_api::error::Error;
 use connection_router_api::msg::ExecuteMsg;
-use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
 use integration_tests::contract::Contract;
 
 use crate::test_utils::ConnectionRouterContract;
@@ -400,12 +400,12 @@ fn upgrade_gateway_outgoing() {
         .unwrap();
 
     let outgoing_messages =
-        mock::get_gateway_messages(&mut config.app, new_gateway, &vec![message.clone()]);
+        mock::get_gateway_messages(&mut config.app, new_gateway, &[message.clone()]);
     assert_eq!(outgoing_messages.len(), 1);
     assert_eq!(message.clone(), outgoing_messages[0]);
 
     let outgoing_messages =
-        mock::get_gateway_messages(&mut config.app, polygon.gateway, &vec![message.clone()]);
+        mock::get_gateway_messages(&mut config.app, polygon.gateway, &[message.clone()]);
     assert_eq!(outgoing_messages.len(), 0);
 }
 
@@ -449,7 +449,7 @@ fn upgrade_gateway_incoming() {
     );
     assert!(res.is_ok());
 
-    let messages = mock::get_gateway_messages(&mut config.app, eth.gateway, &vec![message.clone()]);
+    let messages = mock::get_gateway_messages(&mut config.app, eth.gateway, &[message.clone()]);
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0], message.clone());
 }
@@ -617,11 +617,8 @@ fn freeze_incoming() {
     );
     assert!(res.is_ok());
 
-    let messages = mock::get_gateway_messages(
-        &mut config.app,
-        polygon.gateway.clone(),
-        &vec![message.clone()],
-    );
+    let messages =
+        mock::get_gateway_messages(&mut config.app, polygon.gateway.clone(), &[message.clone()]);
     assert_eq!(&messages[0], message);
 
     let res = config.connection_router.execute(
@@ -695,8 +692,7 @@ fn freeze_outgoing() {
         &ExecuteMsg::RouteMessages(vec![message.clone()]),
     );
     assert!(res.is_ok());
-    let messages =
-        mock::get_gateway_messages(&mut config.app, polygon.gateway, &vec![message.clone()]);
+    let messages = mock::get_gateway_messages(&mut config.app, polygon.gateway, &[message.clone()]);
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0], message.clone());
 }
@@ -783,7 +779,7 @@ fn freeze_chain() {
     let outgoing_messages = mock::get_gateway_messages(
         &mut config.app,
         polygon.gateway.clone(),
-        &vec![routed_msg.clone()],
+        &[routed_msg.clone()],
     );
     assert_eq!(1, outgoing_messages.len());
     assert_eq!(routed_msg.clone(), outgoing_messages[0]);
