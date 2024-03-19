@@ -390,7 +390,9 @@ fn all_statuses() -> Vec<VerificationStatus> {
             | VerificationStatus::FailedToVerify
             | VerificationStatus::InProgress
             | VerificationStatus::SucceededOnChain
-            | VerificationStatus::FailedOnChain => status_count.checked_add(1).unwrap(),
+            | VerificationStatus::FailedOnChain => {
+                status_count = status_count.checked_add(1).unwrap()
+            }
         };
     }
 
