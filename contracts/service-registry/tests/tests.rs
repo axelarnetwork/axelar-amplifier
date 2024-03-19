@@ -231,7 +231,7 @@ fn register_chain_support() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -541,7 +541,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
         assert_eq!(
             workers,
             vec![WeightedWorker {
-                worker: Worker {
+                worker_info: Worker {
                     address: worker.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_worker_bond
@@ -643,7 +643,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -753,7 +753,7 @@ fn register_deregister_register_support_for_single_chain() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1348,7 +1348,7 @@ fn bond_before_authorize() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1453,7 +1453,7 @@ fn unbond_then_rebond() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond

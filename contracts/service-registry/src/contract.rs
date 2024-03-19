@@ -373,9 +373,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub mod query {
     use connection_router_api::ChainName;
 
-    use crate::state::{
-        AuthorizationState, WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT,
-    };
+    use crate::state::{WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT};
 
     use super::*;
 
@@ -400,7 +398,7 @@ pub mod query {
             })
             .filter(|worker| worker.authorization_state == AuthorizationState::Authorized)
             .map(|worker| WeightedWorker {
-                worker,
+                worker_info: worker,
                 weight: WORKER_WEIGHT, // all workers have an identical const weight for now
             })
             .collect();

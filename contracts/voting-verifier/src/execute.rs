@@ -226,17 +226,16 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
         chain_name: chain.clone(),
     };
 
-    let weighted_workers: Vec<WeightedWorker> =
+    let workers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
             msg: to_json_binary(&active_workers_query)?,
         }))?;
 
-    let participants = weighted_workers
+    let participants = workers
         .into_iter()
-        .map(|weighted_worker| weighted_worker.worker)
-        .map(service_registry::state::Worker::try_into)
-        .collect::<Result<Vec<snapshot::Participant>, _>>()?;
+        .map(service_registry::state::WeightedWorker::into)
+        .collect::<Vec<snapshot::Participant>>();
 
     Ok(snapshot::Snapshot::new(
         config.voting_threshold,
