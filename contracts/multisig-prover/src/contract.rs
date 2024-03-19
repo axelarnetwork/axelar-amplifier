@@ -248,7 +248,7 @@ mod tests {
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
         let total_weight: Uint256 = operators
             .iter()
-            .fold(Uint256::zero(), |acc, x| acc + x.weight);
+            .fold(Uint256::zero(), |acc, x| acc.checked_add(x.weight).unwrap());
         let quorum = Uint256::try_from(total_weight.mul_ceil(test_data::threshold())).unwrap();
         WorkerSet {
             signers: operators

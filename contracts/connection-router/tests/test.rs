@@ -1,17 +1,18 @@
-pub mod mock;
-mod test_utils;
-
 use std::str::FromStr;
 use std::{collections::HashMap, vec};
+
+use cosmwasm_std::Addr;
+use cw_multi_test::App;
 
 use connection_router_api::error::Error;
 use connection_router_api::msg::ExecuteMsg;
 use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
-use cosmwasm_std::Addr;
-use cw_multi_test::App;
 use integration_tests::contract::Contract;
 
 use crate::test_utils::ConnectionRouterContract;
+
+pub mod mock;
+mod test_utils;
 
 struct TestConfig {
     app: App,
@@ -77,7 +78,7 @@ fn generate_messages(
 ) -> Vec<Message> {
     let mut msgs = vec![];
     for x in 0..count {
-        *nonce += 1;
+        *nonce = nonce.checked_add(1).unwrap();
         let id = format!("tx_id:{}", nonce);
         msgs.push(Message {
             cc_id: CrossChainId {

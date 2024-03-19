@@ -1,5 +1,6 @@
-use axelar_wasm_std::Participant;
 use cosmwasm_std::{Addr, HexBinary, Uint256};
+
+use axelar_wasm_std::Participant;
 
 use crate::{
     key::{KeyType, PublicKey},
@@ -133,7 +134,7 @@ pub fn build_worker_set(key_type: KeyType, signers: &[TestSigner]) -> WorkerSet 
     let participants = signers
         .iter()
         .map(|signer| {
-            total_weight += Uint256::one();
+            total_weight = total_weight.checked_add(Uint256::one()).unwrap();
             (
                 Participant {
                     address: signer.address.clone(),

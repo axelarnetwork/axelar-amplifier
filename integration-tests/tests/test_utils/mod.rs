@@ -1,14 +1,17 @@
+use cosmwasm_std::{
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
+};
+use cw_multi_test::{App, AppResponse, Executor};
+use k256::ecdsa;
+use sha3::{Digest, Keccak256};
+use tofn::ecdsa::KeyPair;
+
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
-use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
-};
-use cw_multi_test::{App, AppResponse, Executor};
-
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
@@ -17,10 +20,6 @@ use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use integration_tests::{connection_router_contract::ConnectionRouterContract, protocol::Protocol};
-
-use k256::ecdsa;
-use sha3::{Digest, Keccak256};
-
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -28,7 +27,6 @@ use multisig::{
 use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
-use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
@@ -249,7 +247,7 @@ pub fn get_worker_set(
 pub fn advance_height(app: &mut App, increment: u64) {
     let cur_block = app.block_info();
     app.set_block(BlockInfo {
-        height: cur_block.height + increment,
+        height: cur_block.height.checked_add(increment).unwrap(),
         ..cur_block
     });
 }

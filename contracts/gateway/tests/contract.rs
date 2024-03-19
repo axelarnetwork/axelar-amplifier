@@ -3,20 +3,20 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
-use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+#[cfg(not(feature = "generate_golden_files"))]
+use cosmwasm_std::Response;
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
-use gateway::contract::*;
-use gateway::msg::InstantiateMsg;
-use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
 use serde::Serialize;
 
-#[cfg(not(feature = "generate_golden_files"))]
-use cosmwasm_std::Response;
+use axelar_wasm_std::{ContractError, VerificationStatus};
+use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
+use gateway::contract::*;
+use gateway::msg::InstantiateMsg;
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
 #[test]
 fn instantiate_works() {
@@ -382,15 +382,15 @@ fn all_statuses() -> Vec<VerificationStatus> {
     ];
 
     // we need to make sure that if the variants change, the tests cover all of them
-    let mut status_count = 0;
+    let mut status_count: usize = 0;
     for status in &statuses {
         match status {
-            VerificationStatus::None => status_count += 1,
-            VerificationStatus::NotFound => status_count += 1,
-            VerificationStatus::FailedToVerify => status_count += 1,
-            VerificationStatus::InProgress => status_count += 1,
-            VerificationStatus::SucceededOnChain => status_count += 1,
-            VerificationStatus::FailedOnChain => status_count += 1,
+            VerificationStatus::None
+            | VerificationStatus::NotFound
+            | VerificationStatus::FailedToVerify
+            | VerificationStatus::InProgress
+            | VerificationStatus::SucceededOnChain
+            | VerificationStatus::FailedOnChain => status_count.checked_add(1).unwrap(),
         };
     }
 
