@@ -1,6 +1,7 @@
 use axelar_wasm_std::{nonempty, Threshold};
 use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Uint128, Uint64};
 
 use crate::state::PoolId;
 
@@ -60,4 +61,15 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    /// Gets the rewards pool details for the given `pool_id``
+    #[returns(RewardsPoolResponse)]
+    GetRewardsPool { pool_id: PoolId },
+}
+
+#[cw_serde]
+pub struct RewardsPoolResponse {
+    pub balance: Uint128,
+    pub epoch_duration: Uint64,
+    pub rewards_per_epoch: Uint128,
+}

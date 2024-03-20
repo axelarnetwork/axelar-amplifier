@@ -3,17 +3,20 @@ use itertools::Itertools;
 use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
+};
 use error_stack::ResultExt;
 
 use crate::{
     contract::execute::Contract,
     error::ContractError,
-    msg::{ExecuteMsg, InstantiateMsg},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{Config, Epoch, PoolId, StoredParams, CONFIG, PARAMS},
 };
 
 mod execute;
+mod query;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -117,6 +120,22 @@ pub fn execute(
             Contract::new(deps).update_params(params, env.block.height, info.sender)?;
 
             Ok(Response::new())
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(
+    deps: Deps,
+    env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::ContractError> {
+    match msg {
+        QueryMsg::GetRewardsPool { pool_id } => {
+            let pool = query::get_rewards_pool(deps.storage, pool_id, env.block.height)?;
+            to_json_binary(&pool)
+                .change_context(ContractError::SerializeResponse)
+                .map_err(axelar_wasm_std::ContractError::from)
         }
     }
 }

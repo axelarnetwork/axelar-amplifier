@@ -46,28 +46,7 @@ where
     /// in which the update occurs as the last checkpoint
     fn current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
         let stored_params = self.store.load_params();
-        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
-        let last_updated_epoch = stored_params.last_updated;
-
-        if cur_block_height < last_updated_epoch.block_height_started {
-            Err(ContractError::BlockHeightInPast.into())
-        } else {
-            let epochs_elapsed = (cur_block_height
-                .saturating_sub(last_updated_epoch.block_height_started))
-            .checked_div(epoch_duration)
-            .expect("invalid invariant: epoch duration is zero");
-            Ok(Epoch {
-                epoch_num: last_updated_epoch
-                    .epoch_num
-                    .checked_add(epochs_elapsed)
-                    .expect(
-                        "epoch number should be strictly smaller than the current block height",
-                    ),
-                block_height_started: last_updated_epoch
-                    .block_height_started
-                    .checked_add(epochs_elapsed.saturating_mul(epoch_duration)).expect("start of current epoch should be strictly smaller than the current block height"),
-            })
-        }
+        Epoch::current(&stored_params, cur_block_height)
     }
 
     fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {

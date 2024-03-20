@@ -54,4 +54,7 @@ pub enum ContractError {
 
     #[error("rewards amount is zero")]
     ZeroRewards,
+
+    #[error("failed to serialize the response")]
+    SerializeResponse,
 }
