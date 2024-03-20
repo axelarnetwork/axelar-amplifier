@@ -129,7 +129,7 @@ mod tests {
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint256, WasmMsg,
+        Addr, Empty, OwnedDeps, WasmMsg,
     };
 
     const INSTANTIATOR: &str = "inst";
