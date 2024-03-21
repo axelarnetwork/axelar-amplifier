@@ -43,6 +43,11 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
+pub enum MigrateMsg {
+    UpdateConfig { new_config: InstantiateMsg },
+}
+
+#[cw_serde]
 pub enum ProofStatus {
     Pending,
     Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway

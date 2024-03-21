@@ -7,8 +7,7 @@ use cosmwasm_std::{
 use crate::{
     error::ContractError,
     execute,
-    msg::ExecuteMsg,
-    msg::{InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
 };
@@ -22,6 +21,16 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let config = make_config(&deps, msg)?;
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
+}
+
+fn make_config(
+    deps: &DepsMut,
+    msg: InstantiateMsg,
+) -> Result<Config, axelar_wasm_std::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
     let governance = deps.api.addr_validate(&msg.governance_address)?;
     let gateway = deps.api.addr_validate(&msg.gateway_address)?;
@@ -29,7 +38,7 @@ pub fn instantiate(
     let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
     let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
 
-    let config = Config {
+    Ok(Config {
         admin,
         governance,
         gateway,
@@ -46,11 +55,7 @@ pub fn instantiate(
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
         encoder: msg.encoder,
         key_type: msg.key_type,
-    };
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::default())
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -92,6 +97,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
         QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
     }
+}
+
+#[cfg_attr(not(feature = "libary"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    match msg {
+        MigrateMsg::UpdateConfig { new_config } => {
+            let config = make_config(&deps, new_config)?;
+            CONFIG.save(deps.storage, &config)?;
+        }
+    }
+
+    Ok(Response::default())
 }
 
 #[cfg(test)]
