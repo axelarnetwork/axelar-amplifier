@@ -143,15 +143,15 @@ pub fn query(
 #[cfg(test)]
 mod tests {
     use connection_router_api::ChainName;
-    use cosmwasm_std::{coins, Addr, Binary, BlockInfo, Deps, Env, StdResult, Uint128};
+    use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
 
-    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg};
+    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPoolResponse};
     use crate::state::PoolId;
 
-    use super::{execute, instantiate};
+    use super::{execute, instantiate, query};
 
-    /// Tests that the contract entry points (instantiate and execute) work as expected.
+    /// Tests that the contract entry points (instantiate, query and execute) work as expected.
     /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.
     /// Adds rewards to the pool, updates the rewards params, records some participation
     /// events and then distributes the rewards.
@@ -169,17 +169,13 @@ mod tests {
                 .init_balance(storage, &user, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         });
-        let code = ContractWrapper::new(
-            execute,
-            instantiate,
-            |_deps: Deps, _env: Env, _msg: QueryMsg| -> StdResult<Binary> { todo!() },
-        );
+        let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
 
         let governance_address = Addr::unchecked("governance");
         let initial_params = Params {
             epoch_duration: 10u64.try_into().unwrap(),
-            rewards_per_epoch: Uint128::one().try_into().unwrap(),
+            rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
             participation_threshold: (1, 2).try_into().unwrap(),
         };
         let contract_address = app
@@ -189,11 +185,7 @@ mod tests {
                 &InstantiateMsg {
                     governance_address: governance_address.to_string(),
                     rewards_denom: AXL_DENOMINATION.to_string(),
-                    params: Params {
-                        epoch_duration: 10u64.try_into().unwrap(),
-                        rewards_per_epoch: Uint128::from(100u128).try_into().unwrap(),
-                        participation_threshold: (1, 2).try_into().unwrap(),
-                    },
+                    params: initial_params.clone(),
                 },
                 &[],
                 "Contract",
@@ -201,27 +193,31 @@ mod tests {
             )
             .unwrap();
 
+        let pool_id = PoolId {
+            chain_name: chain_name.clone(),
+            contract: worker_contract.clone(),
+        };
+
+        let rewards = 200;
         let res = app.execute_contract(
             user.clone(),
             contract_address.clone(),
             &ExecuteMsg::AddRewards {
-                pool_id: PoolId {
-                    chain_name: chain_name.clone(),
-                    contract: worker_contract.clone(),
-                },
+                pool_id: pool_id.clone(),
             },
-            &coins(200, AXL_DENOMINATION),
+            &coins(rewards, AXL_DENOMINATION),
         );
         assert!(res.is_ok());
 
+        let updated_params = Params {
+            rewards_per_epoch: Uint128::from(150u128).try_into().unwrap(),
+            ..initial_params
+        };
         let res = app.execute_contract(
             governance_address,
             contract_address.clone(),
             &ExecuteMsg::UpdateParams {
-                params: Params {
-                    rewards_per_epoch: Uint128::from(150u128).try_into().unwrap(),
-                    ..initial_params
-                },
+                params: updated_params.clone(),
             },
             &[],
         );
@@ -250,6 +246,23 @@ mod tests {
             &[],
         );
         assert!(res.is_ok());
+
+        // check the rewards pool
+        let res: RewardsPoolResponse = app
+            .wrap()
+            .query_wasm_smart(
+                contract_address.clone(),
+                &QueryMsg::GetRewardsPool { pool_id },
+            )
+            .unwrap();
+        assert_eq!(
+            res,
+            RewardsPoolResponse {
+                balance: rewards.into(),
+                epoch_duration: updated_params.epoch_duration.into(),
+                rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+            }
+        );
 
         // need to change the block height, so we can claim rewards
         let old_height = app.block_info().height;

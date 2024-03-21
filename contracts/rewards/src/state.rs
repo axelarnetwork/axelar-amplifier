@@ -399,8 +399,9 @@ pub(crate) fn load_rewards_pool(
     pool_id: PoolId,
 ) -> Result<RewardsPool, ContractError> {
     POOLS
-        .load(storage, pool_id)
-        .change_context(ContractError::LoadRewardsPool)
+        .may_load(storage, pool_id)
+        .change_context(ContractError::LoadRewardsPool)?
+        .ok_or(ContractError::RewardsPoolNotFound.into())
 }
 
 pub(crate) fn load_params(storage: &dyn Storage) -> StoredParams {
