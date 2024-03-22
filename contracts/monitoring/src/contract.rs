@@ -1,10 +1,10 @@
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Deps, DepsMut, Env, MessageInfo, Response};
-
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[allow(dead_code)]
 pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
@@ -15,6 +15,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[allow(dead_code)]
 pub fn execute(
     _deps: DepsMut,
     _env: Env,
@@ -25,10 +26,11 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    _deps: Deps,
-    _env: Env,
-    _msg: QueryMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
-    Ok(Response::new())
+#[allow(dead_code)]
+pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::GetChainActiveWorkerSet { chains: _ } => {
+            todo!()
+        }
+    }
 }
