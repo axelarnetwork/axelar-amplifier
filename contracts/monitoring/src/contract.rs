@@ -1,17 +1,23 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::{Config, CONFIG};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[allow(dead_code)]
 pub fn instantiate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    Ok(Response::new())
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            governance: deps.api.addr_validate(&msg.governance_account)?,
+        },
+    )?;
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

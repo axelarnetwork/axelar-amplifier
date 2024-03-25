@@ -3,7 +3,9 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use multisig::worker_set::WorkerSet;
 
 #[cw_serde]
-pub struct InstantiateMsg {}
+pub struct InstantiateMsg {
+    pub governance_account: String,
+}
 
 #[cw_serde]
 pub enum ExecuteMsg {}
