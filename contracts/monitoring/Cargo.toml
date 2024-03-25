@@ -3,7 +3,7 @@ name = "monitoring"
 version = "0.1.0"
 rust-version = { workspace = true }
 edition = "2021"
-description = "Contract to provide chains support and verifier statuses"
+description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.

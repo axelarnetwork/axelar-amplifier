@@ -29,7 +29,7 @@ pub fn execute(
 #[allow(dead_code)]
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetChainActiveWorkerSet { chains: _ } => {
+        QueryMsg::GetActiveVerifiersForChain { chain: _ } => {
             todo!()
         }
     }

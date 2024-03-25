@@ -11,6 +11,6 @@ pub enum ExecuteMsg {}
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<(ChainName, WorkerSet)>)]
-    GetChainActiveWorkerSet { chains: Vec<ChainName> },
+    #[returns(WorkerSet)]
+    GetActiveVerifiersForChain { chain: ChainName },
 }
