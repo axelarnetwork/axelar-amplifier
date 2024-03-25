@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, Order, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
+use cosmwasm_std::Addr;
+use cw_storage_plus::Item;
 
 #[cw_serde]
 pub struct Config {
