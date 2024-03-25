@@ -14,7 +14,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            governance: deps.api.addr_validate(&msg.governance_account)?,
+            governance: deps.api.addr_validate(&msg.governance_address)?,
         },
     )?;
     Ok(Response::default())

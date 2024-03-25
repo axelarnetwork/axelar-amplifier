@@ -4,7 +4,7 @@ use multisig::worker_set::WorkerSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    pub governance_account: String,
+    pub governance_address: String,
 }
 
 #[cw_serde]
