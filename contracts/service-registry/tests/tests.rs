@@ -231,7 +231,7 @@ fn register_chain_support() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -541,7 +541,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
         assert_eq!(
             workers,
             vec![WeightedWorker {
-                worker: Worker {
+                worker_info: Worker {
                     address: worker.clone(),
                     bonding_state: BondingState::Bonded {
                         amount: min_worker_bond
@@ -643,7 +643,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -753,7 +753,7 @@ fn register_deregister_register_support_for_single_chain() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1348,7 +1348,7 @@ fn bond_before_authorize() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1453,7 +1453,7 @@ fn unbond_then_rebond() {
     assert_eq!(
         workers,
         vec![WeightedWorker {
-            worker: Worker {
+            worker_info: Worker {
                 address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
@@ -1493,7 +1493,7 @@ fn unbonding_period() {
             max_num_workers: Some(100),
             min_worker_bond,
             bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: unbonding_period_days.clone(),
+            unbonding_period_days,
             description: "Some service".into(),
         },
     );
@@ -1554,7 +1554,7 @@ fn unbonding_period() {
             service_name: service_name.into(),
         },
     );
-    assert!(!res.is_ok());
+    assert!(res.is_err());
     assert_eq!(
         res.unwrap_err().to_string(),
         axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
@@ -1612,7 +1612,7 @@ fn get_active_workers_should_not_return_less_than_min() {
         for worker in &workers {
             router
                 .bank
-                .init_balance(storage, &worker, coins(100000, AXL_DENOMINATION))
+                .init_balance(storage, worker, coins(100000, AXL_DENOMINATION))
                 .unwrap()
         }
     });

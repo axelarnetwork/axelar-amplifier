@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use cw_multi_test::{App, Executor};
 use cw_storage_plus::Map;
@@ -83,7 +83,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let workers = get_operators(deps)
                 .into_iter()
                 .map(|op| WeightedWorker {
-                    worker: Worker {
+                    worker_info: Worker {
                         address: op.address,
                         bonding_state: BondingState::Bonded {
                             amount: op.weight.try_into().unwrap(),
@@ -95,7 +95,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 })
                 .collect::<Vec<WeightedWorker>>();
 
-            to_binary(&workers)
+            to_json_binary(&workers)
         }
         QueryMsg::GetService { .. } => todo!(),
         QueryMsg::GetWorker { .. } => todo!(),

@@ -1,7 +1,9 @@
 use connection_router_api::error::Error;
 use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 
@@ -38,20 +40,19 @@ pub fn mock_gateway_query(deps: Deps, _env: Env, msg: MockGatewayQueryMsg) -> St
     match msg {
         MockGatewayQueryMsg::GetOutgoingMessages { ids } => {
             for id in ids {
-                match MOCK_GATEWAY_MESSAGES.may_load(deps.storage, id)? {
-                    Some(m) => msgs.push(m),
-                    None => (),
+                if let Some(m) = MOCK_GATEWAY_MESSAGES.may_load(deps.storage, id)? {
+                    msgs.push(m)
                 }
             }
         }
     }
-    to_binary(&msgs)
+    to_json_binary(&msgs)
 }
 
 pub fn get_gateway_messages(
     app: &mut App,
     gateway_address: Addr,
-    msgs: &Vec<Message>,
+    msgs: &[Message],
 ) -> Vec<Message> {
     app.wrap()
         .query_wasm_smart(
@@ -71,19 +72,17 @@ pub fn make_mock_gateway(app: &mut App) -> Addr {
     );
     let code_id = app.store_code(Box::new(code));
 
-    let contract_address = app
-        .instantiate_contract(
-            code_id,
-            Addr::unchecked("sender"),
-            &connection_router::msg::InstantiateMsg {
-                admin_address: Addr::unchecked("admin").to_string(),
-                governance_address: Addr::unchecked("governance").to_string(),
-                nexus_gateway: Addr::unchecked("nexus_gateway").to_string(),
-            },
-            &[],
-            "Contract",
-            None,
-        )
-        .unwrap();
-    contract_address
+    app.instantiate_contract(
+        code_id,
+        Addr::unchecked("sender"),
+        &connection_router::msg::InstantiateMsg {
+            admin_address: Addr::unchecked("admin").to_string(),
+            governance_address: Addr::unchecked("governance").to_string(),
+            nexus_gateway: Addr::unchecked("nexus_gateway").to_string(),
+        },
+        &[],
+        "Contract",
+        None,
+    )
+    .unwrap()
 }

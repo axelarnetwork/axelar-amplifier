@@ -1,4 +1,4 @@
-FROM rust:1.74-bookworm as builder
+FROM rust:1.75-bookworm as builder
 RUN apt-get update && apt-get install -y clang protobuf-compiler
 
 WORKDIR /ampd

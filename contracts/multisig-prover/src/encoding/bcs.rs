@@ -1,18 +1,15 @@
-use std::convert::identity;
-
-use axelar_wasm_std::operators::Operators;
 use bcs::to_bytes;
 use cosmwasm_std::{HexBinary, Uint256};
-
-use crate::error::ContractError;
-
 use itertools::Itertools;
+use sha3::{Digest, Keccak256};
+
+use axelar_wasm_std::operators::Operators;
 use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
 
+use crate::error::ContractError;
 use crate::types::{CommandBatch, Operator};
 
 use super::Data;
-use sha3::{Digest, Keccak256};
 
 // TODO: all of the public functions in this file should be moved to a trait,
 // that has an abi and bcs implementation (and possibly others)
@@ -165,7 +162,7 @@ pub fn encode_execute_data(
                     .to_recoverable(
                         command_batch.msg_digest().as_slice(),
                         &signer.pub_key,
-                        identity,
+                        |recovery_id| recovery_id.to_byte(),
                     )
                     .map(Signature::EcdsaRecoverable)
                     .ok();
@@ -194,14 +191,13 @@ fn u256_to_u64(chain_id: Uint256) -> u64 {
 
 #[cfg(test)]
 mod test {
-
     use std::vec;
 
-    use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router_api::{CrossChainId, Message};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
 
+    use axelar_wasm_std::operators::Operators;
+    use connection_router_api::{CrossChainId, Message};
     use multisig::{
         key::{PublicKey, Signature},
         msg::Signer,
@@ -220,6 +216,7 @@ mod test {
     };
 
     use super::msg_digest;
+
     #[test]
     fn test_transfer_operatorship_params() {
         let worker_set = test_data::new_worker_set();
@@ -318,15 +315,9 @@ mod test {
 
         assert!(proof.is_ok());
         let proof = proof.unwrap();
-        let decoded_proof: Result<(Vec<Vec<u8>>, Vec<u128>, u128, Vec<Vec<u8>>), _> =
-            from_bytes(&proof);
+        let decoded_proof: Result<Proof, _> = from_bytes(&proof);
         assert!(decoded_proof.is_ok());
-        let (operators, weights, quorum_decoded, signatures): (
-            Vec<Vec<u8>>,
-            Vec<u128>,
-            u128,
-            Vec<Vec<u8>>,
-        ) = decoded_proof.unwrap();
+        let (operators, weights, quorum_decoded, signatures): Proof = decoded_proof.unwrap();
 
         assert_eq!(operators.len(), signers.len());
         assert_eq!(weights.len(), signers.len());
@@ -377,16 +368,11 @@ mod test {
 
     #[test]
     fn test_command_params() {
-        let res = command_params(
-            "Ethereum".into(),
-            "00".into(),
-            "01".repeat(32).into(),
-            &[2; 32],
-        );
+        let res = command_params("Ethereum".into(), "00".into(), "01".repeat(32), &[2; 32]);
         assert!(res.is_ok());
 
         let res = res.unwrap();
-        let params = from_bytes(&res.to_vec());
+        let params = from_bytes(&res);
         assert!(params.is_ok());
         let (source_chain, source_address, destination_address, payload_hash): (
             String,
@@ -409,7 +395,7 @@ mod test {
     #[test]
     fn test_invalid_destination_address() {
         let res = command_params("Ethereum".into(), "00".into(), "01".into(), &[2; 32]);
-        assert!(!res.is_ok());
+        assert!(res.is_err());
     }
 
     #[test]
@@ -428,15 +414,14 @@ mod test {
                 params: command_params(
                     source_chain.into(),
                     source_address.into(),
-                    destination_address.clone().into(),
+                    destination_address.clone(),
                     &payload_hash,
                 )
                 .unwrap(),
             }],
         };
         let encoded = encode(&data);
-        let decoded: Result<(u64, Vec<[u8; 32]>, Vec<String>, Vec<Vec<u8>>), _> =
-            from_bytes(&encoded.to_vec());
+        let decoded: Result<DecodedData, _> = from_bytes(&encoded);
         assert!(decoded.is_ok());
         let (chain_id, command_ids, command_types, params) = decoded.unwrap();
 
@@ -476,7 +461,7 @@ mod test {
     #[test]
     fn test_msg_to_sign() {
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
-        let _ = builder
+        builder
             .add_message(Message {
                 cc_id: "ethereum:foobar:1".parse().unwrap(),
                 destination_address: "0F".repeat(32).parse().unwrap(),
@@ -490,7 +475,7 @@ mod test {
         assert_eq!(msg.len(), 32);
 
         let mut builder = CommandBatchBuilder::new(1u128.into(), crate::encoding::Encoder::Bcs);
-        let _ = builder
+        builder
             .add_message(Message {
                 cc_id: "ethereum:foobar:2".parse().unwrap(),
                 destination_address: "0A".repeat(32).parse().unwrap(),
@@ -538,7 +523,7 @@ mod test {
         let command_batch = CommandBatch {
             message_ids: vec![],
             id: BatchId::new(
-                &vec![CrossChainId {
+                &[CrossChainId {
                     chain: "AXELAR".to_string().try_into().unwrap(),
                     id: "foobar".to_string().try_into().unwrap(),
                 }],
@@ -571,4 +556,7 @@ mod test {
         assert_eq!(encoded.len(), approval.to_vec().len());
         assert_eq!(encoded.to_vec(), approval.to_vec());
     }
+
+    type Proof = (Vec<Vec<u8>>, Vec<u128>, u128, Vec<Vec<u8>>);
+    type DecodedData = (u64, Vec<[u8; 32]>, Vec<String>, Vec<Vec<u8>>);
 }

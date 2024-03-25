@@ -1,0 +1,16 @@
+name: Send vulnerabilities found by Dependabot to Slack
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+
+
+jobs:
+  Notify-Vulnerabilites:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Vulnerabilities
+        uses: kunalnagarco/action-cve@v1.7.15
+        with:
+          token: ${{ secrets.SLACK_PERSONAL_ACCESS_TOKEN }}
+          slack_webhook: ${{ secrets.SLACK_CORE_WEBHOOK }}

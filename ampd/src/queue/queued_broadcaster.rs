@@ -22,6 +22,8 @@ pub enum Error {
     Broadcast,
     #[error("failed encoding message to Protobuf Any {0}")]
     Proto(String),
+    #[error("failed to queue message")]
+    Queue,
 }
 
 pub struct QueuedBroadcasterDriver {
@@ -120,13 +122,13 @@ where
                 Some(msg) => {
                   let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
 
-                  if fee.gas_limit + queue.gas_cost() >= self.batch_gas_limit {
+                  if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
                     broadcast_all(&mut queue, &mut broadcaster).await?;
                     interval.reset();
                   }
 
                   let message_type = msg.type_url.clone();
-                  queue.push(msg, fee.gas_limit);
+                  queue.push(msg, fee.gas_limit).change_context(Error::Queue)?;
                   info!(
                     message_type,
                     queue_size = queue.len(),

@@ -1,9 +1,10 @@
 use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
+
 use integration_tests::contract::Contract;
 use test_utils::Worker;
 
-mod test_utils;
+pub mod test_utils;
 
 #[test]
 fn worker_set_can_be_initialized_and_then_manually_updated() {
@@ -45,7 +46,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     let response = protocol
         .app
         .execute_contract(
-            Addr::unchecked("relayer"),
+            ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
             &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
             &[],
@@ -122,7 +123,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let response = protocol
         .app
         .execute_contract(
-            Addr::unchecked("relayer"),
+            ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
             &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
             &[],

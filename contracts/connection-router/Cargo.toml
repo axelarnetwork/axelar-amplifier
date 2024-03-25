@@ -58,3 +58,6 @@ cw-multi-test = "0.15.1"
 hex = { version = "0.4.3", default-features = false }
 integration-tests = { workspace = true }
 rand = "0.8.5"
+
+[lints]
+workspace = true

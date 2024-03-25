@@ -16,13 +16,14 @@
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::ops::AddAssign;
+use std::ops::Add;
 use std::ops::Mul;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
+use num_traits::CheckedAdd;
 use num_traits::One;
 use strum::EnumIter;
 use strum::EnumString;
@@ -86,23 +87,35 @@ impl FromStr for PollId {
     }
 }
 
+// trait `Mul` is required by `One` trait
 impl Mul for PollId {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Self(self.0 * rhs.0)
+        Self(self.0.mul(rhs.0))
     }
 }
 
+// trait `One` is required by `counter::Counter`
 impl One for PollId {
     fn one() -> Self {
         PollId(Uint64::one())
     }
 }
 
-impl AddAssign for PollId {
-    fn add_assign(&mut self, other: Self) {
-        self.0 += other.0;
+// trait `Add` is required by `CheckedAdd` trait
+impl Add for PollId {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0.add(other.0))
+    }
+}
+
+// trait `CheckedAdd` is required by `counter::Counter`
+impl CheckedAdd for PollId {
+    fn checked_add(&self, other: &Self) -> Option<Self> {
+        Some(Self(self.0.checked_add(other.0).ok()?))
     }
 }
 
@@ -179,10 +192,15 @@ impl Tallies {
     }
 
     pub fn tally(&mut self, vote: &Vote, weight: &Uint256) {
-        *self
+        let key = vote.to_string();
+
+        let tally = self
             .0
-            .get_mut(&vote.to_string())
-            .unwrap_or(&mut Uint256::zero()) += weight;
+            .get(&key)
+            .unwrap_or(&Uint256::zero())
+            .saturating_add(*weight);
+
+        self.0.insert(key, tally);
     }
 }
 

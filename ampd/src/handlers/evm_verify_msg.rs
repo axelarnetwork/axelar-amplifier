@@ -32,7 +32,7 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: Hash,
-    pub event_index: u64,
+    pub event_index: u32,
     pub destination_address: String,
     pub destination_chain: connection_router_api::ChainName,
     pub source_address: EVMAddress,
@@ -239,15 +239,16 @@ mod tests {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use connection_router_api::ChainName;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use tendermint::abci;
+    use tokio::sync::watch;
+    use tokio::test as async_test;
 
+    use connection_router_api::ChainName;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
-    use tokio::sync::watch;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::event_processor::EventHandler;
@@ -258,8 +259,6 @@ mod tests {
     use crate::PREFIX;
 
     use super::PollStartedEvent;
-
-    use tokio::test as async_test;
 
     fn get_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
         PollStarted::Messages {
@@ -421,9 +420,8 @@ mod tests {
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .into_iter()
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker.into_iter())
+            .chain(worker)
             .collect()
     }
 }
