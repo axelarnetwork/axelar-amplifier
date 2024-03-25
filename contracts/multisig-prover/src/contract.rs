@@ -187,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
         let instantiator = "instantiator";
         let admin = "admin";
@@ -242,10 +243,11 @@ mod tests {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
         let total_weight: Uint256 = operators
             .iter()
-            .fold(Uint256::zero(), |acc, x| acc.checked_add(x.weight).unwrap());
+            .fold(Uint256::zero(), |acc, x| acc + x.weight);
         let quorum = total_weight.mul_ceil(test_data::threshold());
         WorkerSet {
             signers: operators
