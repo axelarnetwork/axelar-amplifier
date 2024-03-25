@@ -1,12 +1,14 @@
 use aggregate_verifier::msg::ExecuteMsg;
 use axelar_wasm_std::VerificationStatus;
-use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::from_json;
 use cosmwasm_std::Addr;
 use cw_multi_test::App;
+
 use integration_tests::contract::Contract;
 
 use crate::mock::{make_mock_voting_verifier, mark_messages_as_verified};
+
 pub mod mock;
 mod test_utils;
 
@@ -14,7 +16,7 @@ fn generate_messages(count: usize) -> Vec<Message> {
     let mut msgs = vec![];
     for x in 0..count {
         let src_chain = "mock-chain";
-        let id = format!("tx_hash{}{}", ID_SEPARATOR, x);
+        let id = format!("tx_hash{}", x);
         msgs.push(Message {
             cc_id: CrossChainId {
                 chain: src_chain.parse().unwrap(),
@@ -70,7 +72,7 @@ fn verify_messages_not_verified() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_json(&res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_json(res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages

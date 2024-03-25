@@ -111,8 +111,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::from_str;
     use std::vec;
+
+    use cosmwasm_std::{
+        from_json,
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        Addr, Empty, OwnedDeps, WasmMsg,
+    };
+    use serde_json::from_str;
+
+    use connection_router_api::ChainName;
 
     use crate::{
         key::{KeyType, PublicKey, Signature},
@@ -125,12 +133,6 @@ mod tests {
     };
 
     use super::*;
-    use connection_router_api::ChainName;
-    use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint256, WasmMsg,
-    };
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";

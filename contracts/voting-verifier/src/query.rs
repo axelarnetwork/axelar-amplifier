@@ -87,6 +87,7 @@ mod tests {
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
+    use crate::events::TX_HASH_EVENT_INDEX_SEPARATOR;
     use crate::state::PollContent;
 
     use super::*;
@@ -197,11 +198,13 @@ mod tests {
     fn message(id: u64) -> Message {
         Message {
             cc_id: CrossChainId {
-                chain: "source_chain".parse().unwrap(),
-                id: format!("id:{id}").parse().unwrap(),
+                chain: "source-chain".parse().unwrap(),
+                id: format!("id{TX_HASH_EVENT_INDEX_SEPARATOR}{id}")
+                    .parse()
+                    .unwrap(),
             },
             source_address: format!("source_address{id}").parse().unwrap(),
-            destination_chain: format!("destination_chain{id}").parse().unwrap(),
+            destination_chain: format!("destination-chain{id}").parse().unwrap(),
             destination_address: format!("destination_address{id}").parse().unwrap(),
             payload_hash: [0; 32],
         }
