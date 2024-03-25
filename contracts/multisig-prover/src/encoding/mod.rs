@@ -186,7 +186,7 @@ mod test {
 
         assert_eq!(
             res.id,
-            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
+            HexBinary::from_hex("01d9a96970a852fe24dad94e05c4c8c5eab33d027cb7d381c2745c390d75e998")
                 .unwrap()
         );
         assert_eq!(res.ty, CommandType::ApproveContractCall);
@@ -200,7 +200,7 @@ mod test {
 
         assert_eq!(
             res.id,
-            HexBinary::from_hex("3ee2f8af2201994e3518c9ce6848774785c2eef3bdbf9f954899497616dd59af")
+            HexBinary::from_hex("01d9a96970a852fe24dad94e05c4c8c5eab33d027cb7d381c2745c390d75e998")
                 .unwrap()
         );
         assert_eq!(res.ty, CommandType::ApproveContractCall);

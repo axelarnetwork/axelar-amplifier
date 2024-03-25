@@ -1,12 +1,15 @@
 use std::vec::Vec;
 
+use axelar_wasm_std::hash::Hash;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, Event};
+use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::{Address, ChainName, Message, ID_SEPARATOR};
+use connection_router_api::{Address, ChainName, Message};
+
+pub const TX_HASH_EVENT_INDEX_SEPARATOR: char = '-';
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -163,18 +166,34 @@ fn parse_message_id(
     message_id: &nonempty::String,
 ) -> Result<(nonempty::String, u32), ContractError> {
     // expected format: <tx_id>:<index>
-    let components = message_id.split(ID_SEPARATOR).collect::<Vec<_>>();
+    let components = message_id
+        .split(TX_HASH_EVENT_INDEX_SEPARATOR)
+        .collect::<Vec<_>>();
 
     if components.len() != 2 {
         return Err(ContractError::InvalidMessageID(message_id.to_string()));
     }
 
+    let event_index = components[1];
+    if event_index != "0" && event_index.starts_with('0') {
+        return Err(ContractError::InvalidMessageID(message_id.to_string()));
+    }
+
     Ok((
         components[0].try_into()?,
-        components[1]
+        event_index
             .parse()
             .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
     ))
+}
+
+pub fn construct_message_id(tx_hash: Hash, event_index: u32) -> String {
+    format!(
+        "{}{}{}",
+        HexBinary::from(tx_hash),
+        TX_HASH_EVENT_INDEX_SEPARATOR,
+        event_index
+    )
 }
 
 pub struct Voted {
@@ -209,5 +228,77 @@ impl From<PollEnded> for Event {
                 "results",
                 serde_json::to_string(&other.results).expect("failed to serialize results"),
             )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use axelar_wasm_std::nonempty;
+    use cosmwasm_std::HexBinary;
+
+    use crate::events::{construct_message_id, parse_message_id, TX_HASH_EVENT_INDEX_SEPARATOR};
+
+    #[test]
+    fn should_be_able_to_parse_and_then_reconstruct_msg_id() {
+        let message_id: nonempty::String = format!(
+            "{}{}{}",
+            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af",
+            TX_HASH_EVENT_INDEX_SEPARATOR,
+            1
+        )
+        .try_into()
+        .unwrap();
+        let (hash, event_index) = parse_message_id(&message_id).unwrap();
+        let reconstructed = construct_message_id(
+            HexBinary::from_hex(&hash)
+                .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap(),
+            event_index,
+        );
+        assert_eq!(message_id.to_string(), reconstructed);
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_without_event_index() {
+        let message_id: nonempty::String =
+            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af"
+                .try_into()
+                .unwrap();
+        let res = parse_message_id(&message_id);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_with_wrong_seperator() {
+        let message_id: nonempty::String = format!(
+            "{}{}{}",
+            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af", "+", 1
+        )
+        .try_into()
+        .unwrap();
+        let res = parse_message_id(&message_id);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn should_not_parse_msg_id_with_non_integer_event_index() {
+        let message_id: nonempty::String =
+            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af-foobar"
+                .try_into()
+                .unwrap();
+        let res = parse_message_id(&message_id);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn should_not_parse_event_index_with_leading_zeroes() {
+        let message_id: nonempty::String =
+            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af-01"
+                .try_into()
+                .unwrap();
+        let res = parse_message_id(&message_id);
+        assert!(res.is_err());
     }
 }

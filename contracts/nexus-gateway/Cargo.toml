@@ -26,6 +26,7 @@ report = { workspace = true }
 schemars = "0.8.15"
 serde = { version = "1.0.188", features = ["derive"] }
 thiserror = { workspace = true }
+voting-verifier = { workspace = true, features = ["library"] }
 
 [lints]
 workspace = true

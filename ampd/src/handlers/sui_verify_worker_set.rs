@@ -12,9 +12,9 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::ID_SEPARATOR;
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
+use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -33,7 +33,7 @@ pub struct Operators {
 #[derive(Deserialize, Debug)]
 pub struct WorkerSetConfirmation {
     pub tx_id: TransactionDigest,
-    pub event_index: u64,
+    pub event_index: u32,
     pub operators: Operators,
 }
 
@@ -145,10 +145,7 @@ where
         let vote = info_span!(
             "verify a new worker set for Sui",
             poll_id = poll_id.to_string(),
-            id = format!(
-                "0x{:x}{}{}",
-                worker_set.tx_id, ID_SEPARATOR, worker_set.event_index
-            )
+            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {
