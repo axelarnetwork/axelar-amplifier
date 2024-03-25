@@ -16,6 +16,8 @@ pub fn rewards_pool(
     let stored_params = state::load_params(storage);
     let cur_epoch = Epoch::current(&stored_params, block_height)?;
 
+    // the params could have been updated since the tally was created. Therefore we use the params from the
+    // active tally if it exists, otherwise we use the latest stored params.
     let params = match state::load_epoch_tally(storage, pool_id.clone(), cur_epoch.epoch_num)? {
         Some(epoch_tally) => epoch_tally.params,
         None => stored_params.params,
