@@ -145,7 +145,7 @@ where
         let vote = info_span!(
             "verify a new worker set for Sui",
             poll_id = poll_id.to_string(),
-            id = construct_message_id(worker_set.tx_id.to_string(), worker_set.event_index)
+            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {

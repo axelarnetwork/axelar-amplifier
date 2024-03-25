@@ -188,7 +188,7 @@ where
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = construct_message_id(worker_set.tx_id.to_string(), worker_set.event_index)
+            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");

@@ -195,7 +195,7 @@ where
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
-            .map(|message| construct_message_id(message.tx_id.to_string(), message.event_index))
+            .map(|message| construct_message_id(message.tx_id.into(), message.event_index))
             .collect::<Vec<_>>();
         let votes = info_span!(
             "verify messages from an EVM chain",
