@@ -183,6 +183,7 @@ mod test {
             .collect()
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn mock_env_expired() -> Env {
         let mut env = mock_env();
         env.block.height += POLL_BLOCK_EXPIRY;

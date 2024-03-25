@@ -69,6 +69,7 @@ fn register_chain(config: &mut TestConfig, chain: &Chain) {
         .unwrap();
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn generate_messages(
     src_chain: &Chain,
     dest_chain: &Chain,
