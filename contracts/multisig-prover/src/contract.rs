@@ -187,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
         let instantiator = "instantiator";
         let admin = "admin";
@@ -242,6 +243,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
         let total_weight: Uint256 = operators
             .iter()
