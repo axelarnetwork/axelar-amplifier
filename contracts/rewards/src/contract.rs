@@ -131,8 +131,8 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
-        QueryMsg::GetRewardsPool { pool_id } => {
-            let pool = query::get_rewards_pool(deps.storage, pool_id, env.block.height)?;
+        QueryMsg::RewardsPool { pool_id } => {
+            let pool = query::rewards_pool(deps.storage, pool_id, env.block.height)?;
             to_json_binary(&pool)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::ContractError::from)
@@ -146,7 +146,7 @@ mod tests {
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
 
-    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPoolResponse};
+    use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPool};
     use crate::state::PoolId;
 
     use super::{execute, instantiate, query};
@@ -248,19 +248,17 @@ mod tests {
         assert!(res.is_ok());
 
         // check the rewards pool
-        let res: RewardsPoolResponse = app
+        let res: RewardsPool = app
             .wrap()
-            .query_wasm_smart(
-                contract_address.clone(),
-                &QueryMsg::GetRewardsPool { pool_id },
-            )
+            .query_wasm_smart(contract_address.clone(), &QueryMsg::RewardsPool { pool_id })
             .unwrap();
         assert_eq!(
             res,
-            RewardsPoolResponse {
+            RewardsPool {
                 balance: rewards.into(),
                 epoch_duration: updated_params.epoch_duration.into(),
                 rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+                last_distribution_epoch: None
             }
         );
 

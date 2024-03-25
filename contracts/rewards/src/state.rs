@@ -408,6 +408,15 @@ pub(crate) fn load_params(storage: &dyn Storage) -> StoredParams {
     PARAMS.load(storage).expect("params should exist")
 }
 
+pub(crate) fn load_rewards_watermark(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<Option<u64>, ContractError> {
+    WATERMARKS
+        .may_load(storage, pool_id)
+        .change_context(ContractError::LoadRewardsWatermark)
+}
+
 pub(crate) fn load_epoch_tally(
     storage: &dyn Storage,
     pool_id: PoolId,

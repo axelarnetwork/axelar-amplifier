@@ -63,13 +63,14 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Gets the rewards pool details for the given `pool_id``
-    #[returns(RewardsPoolResponse)]
-    GetRewardsPool { pool_id: PoolId },
+    #[returns(RewardsPool)]
+    RewardsPool { pool_id: PoolId },
 }
 
 #[cw_serde]
-pub struct RewardsPoolResponse {
+pub struct RewardsPool {
     pub balance: Uint128,
     pub epoch_duration: Uint64,
     pub rewards_per_epoch: Uint128,
+    pub last_distribution_epoch: Option<Uint64>,
 }

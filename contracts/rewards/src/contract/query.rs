@@ -1,30 +1,34 @@
-use cosmwasm_std::Storage;
+use cosmwasm_std::{Storage, Uint64};
 use error_stack::Result;
 
 use crate::{
     error::ContractError,
-    msg::RewardsPoolResponse,
+    msg,
     state::{self, Epoch, PoolId},
 };
 
-pub fn get_rewards_pool(
+pub fn rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
     block_height: u64,
-) -> Result<RewardsPoolResponse, ContractError> {
+) -> Result<msg::RewardsPool, ContractError> {
     let pool = state::load_rewards_pool(storage, pool_id.clone())?;
     let stored_params = state::load_params(storage);
     let cur_epoch = Epoch::current(&stored_params, block_height)?;
 
-    let params = match state::load_epoch_tally(storage, pool_id, cur_epoch.epoch_num)? {
+    let params = match state::load_epoch_tally(storage, pool_id.clone(), cur_epoch.epoch_num)? {
         Some(epoch_tally) => epoch_tally.params,
         None => stored_params.params,
     };
 
-    Ok(RewardsPoolResponse {
+    let last_distribution_epoch =
+        state::load_rewards_watermark(storage, pool_id)?.map(Uint64::from);
+
+    Ok(msg::RewardsPool {
         balance: pool.balance,
         epoch_duration: params.epoch_duration.into(),
         rewards_per_epoch: params.rewards_per_epoch.into(),
+        last_distribution_epoch,
     })
 }
 
@@ -80,13 +84,43 @@ mod tests {
 
         let block_height = 1000;
 
-        let res = get_rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
+        let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
         assert_eq!(
             res,
-            RewardsPoolResponse {
+            msg::RewardsPool {
                 balance,
                 epoch_duration: stored_params.params.epoch_duration.into(),
                 rewards_per_epoch: stored_params.params.rewards_per_epoch.into(),
+                last_distribution_epoch: None,
+            }
+        );
+    }
+
+    // Should get rewards pool details with watermark
+    #[test]
+    fn should_get_rewards_pool_with_watermark() {
+        let mut deps = mock_dependencies();
+        let balance = Uint128::from(1000u128);
+        let (stored_params, pool_id) = setup(deps.as_mut().storage, balance.clone());
+
+        let block_height = 1000;
+        let last_distribution_epoch = 5u64;
+
+        let mut store = RewardsStore {
+            storage: deps.as_mut().storage,
+        };
+        store
+            .save_rewards_watermark(pool_id.clone(), last_distribution_epoch)
+            .unwrap();
+
+        let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
+        assert_eq!(
+            res,
+            msg::RewardsPool {
+                balance,
+                epoch_duration: stored_params.params.epoch_duration.into(),
+                rewards_per_epoch: stored_params.params.rewards_per_epoch.into(),
+                last_distribution_epoch: Some(last_distribution_epoch.into()),
             }
         );
     }
@@ -119,14 +153,14 @@ mod tests {
             .unwrap();
 
         let cur_block_height = 1000;
-        let res =
-            get_rewards_pool(deps.as_mut().storage, pool_id.clone(), cur_block_height).unwrap();
+        let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), cur_block_height).unwrap();
         assert_eq!(
             res,
-            RewardsPoolResponse {
+            msg::RewardsPool {
                 balance,
                 epoch_duration: stored_params.params.epoch_duration.into(),
                 rewards_per_epoch: stored_params.params.rewards_per_epoch.into(),
+                last_distribution_epoch: None,
             }
         );
     }
@@ -157,13 +191,14 @@ mod tests {
             ))
             .unwrap();
 
-        let res = get_rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
+        let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
         assert_eq!(
             res,
-            RewardsPoolResponse {
+            msg::RewardsPool {
                 balance,
                 epoch_duration: tally_params.epoch_duration.into(),
                 rewards_per_epoch: tally_params.rewards_per_epoch.into(),
+                last_distribution_epoch: None,
             }
         );
     }
@@ -177,7 +212,7 @@ mod tests {
         };
         let block_height = 1000;
 
-        let res = get_rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height);
+        let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height);
         assert_eq!(
             res.unwrap_err().current_context(),
             &ContractError::RewardsPoolNotFound
