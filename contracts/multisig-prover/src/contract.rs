@@ -105,12 +105,13 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg {
-        MigrateMsg::UpdateConfig { new_config } => {
-            let config = make_config(&deps, new_config)?;
-            CONFIG.save(deps.storage, &config)?;
-        }
-    }
+    let old_config = CONFIG.load(deps.storage)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let new_config = Config {
+        governance,
+        ..old_config
+    };
+    CONFIG.save(deps.storage, &new_config)?;
 
     Ok(Response::default())
 }

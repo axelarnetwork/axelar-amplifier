@@ -43,8 +43,8 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub enum MigrateMsg {
-    UpdateConfig { new_config: InstantiateMsg },
+pub struct MigrateMsg {
+    pub governance_address: String,
 }
 
 #[cw_serde]
