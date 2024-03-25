@@ -77,12 +77,16 @@ mod test {
     use axelar_wasm_std::{
         nonempty, operators::Operators, voting::Vote, Threshold, VerificationStatus,
     };
-    use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
+    use connection_router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
     };
 
-    use crate::{error::ContractError, events::TxEventConfirmation, msg::VerifyMessagesResponse};
+    use crate::{
+        error::ContractError,
+        events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
+        msg::VerifyMessagesResponse,
+    };
 
     use super::*;
 
@@ -93,7 +97,7 @@ mod test {
     const POLL_BLOCK_EXPIRY: u64 = 100;
 
     fn source_chain() -> ChainName {
-        "source_chain".parse().unwrap()
+        "source-chain".parse().unwrap()
     }
 
     fn assert_contract_err_strings_equal(
@@ -163,7 +167,7 @@ mod test {
     }
 
     fn message_id(id: &str, index: u64) -> nonempty::String {
-        format!("{}{}{}", id, ID_SEPARATOR, index)
+        format!("{}{}{}", id, TX_HASH_EVENT_INDEX_SEPARATOR, index)
             .try_into()
             .unwrap()
     }
@@ -173,10 +177,10 @@ mod test {
             .map(|i| Message {
                 cc_id: CrossChainId {
                     chain: source_chain(),
-                    id: format!("id:{i}").parse().unwrap(),
+                    id: message_id("id", i),
                 },
                 source_address: format!("source_address{i}").parse().unwrap(),
-                destination_chain: format!("destination_chain{i}").parse().unwrap(),
+                destination_chain: format!("destination-chain{i}").parse().unwrap(),
                 destination_address: format!("destination_address{i}").parse().unwrap(),
                 payload_hash: [0; 32],
             })
@@ -199,20 +203,20 @@ mod test {
                 Message {
                     cc_id: CrossChainId {
                         chain: source_chain(),
-                        id: "id:1".parse().unwrap(),
+                        id: message_id("id", 1),
                     },
                     source_address: "source_address1".parse().unwrap(),
-                    destination_chain: "destination_chain1".parse().unwrap(),
+                    destination_chain: "destination-chain1".parse().unwrap(),
                     destination_address: "destination_address1".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
                 Message {
                     cc_id: CrossChainId {
-                        chain: "other_chain".parse().unwrap(),
-                        id: "id:2".parse().unwrap(),
+                        chain: "other-chain".parse().unwrap(),
+                        id: message_id("id", 2),
                     },
                     source_address: "source_address2".parse().unwrap(),
-                    destination_chain: "destination_chain2".parse().unwrap(),
+                    destination_chain: "destination-chain2".parse().unwrap(),
                     destination_address: "destination_address2".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
@@ -238,14 +242,14 @@ mod test {
             vec![
                 (
                     CrossChainId {
-                        id: "id:0".parse().unwrap(),
+                        id: message_id("id", 0),
                         chain: source_chain()
                     },
                     VerificationStatus::None
                 ),
                 (
                     CrossChainId {
-                        id: "id:1".parse().unwrap(),
+                        id: message_id("id", 1),
                         chain: source_chain()
                     },
                     VerificationStatus::None
