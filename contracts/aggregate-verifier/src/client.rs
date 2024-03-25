@@ -90,7 +90,7 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::VerificationStatus;
-    use connection_router_api::CrossChainId;
+    use connection_router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
     use cosmwasm_std::testing::MockQuerier;
     use std::str::FromStr;
 
@@ -120,7 +120,12 @@ mod tests {
     fn verifier_returns_error_on_return_type_mismatch() {
         let mut querier = MockQuerier::default();
         querier.update_wasm(|_| {
-            Ok(to_json_binary(&CrossChainId::from_str("eth:0x1234").unwrap()).into()).into()
+            Ok(to_json_binary(
+                &CrossChainId::from_str(format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str())
+                    .unwrap(),
+            )
+            .into())
+            .into()
         });
 
         let verifier = Verifier {

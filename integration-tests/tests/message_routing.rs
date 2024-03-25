@@ -15,7 +15,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     let msgs = vec![Message {
         cc_id: CrossChainId {
             chain: chain1.chain_name.clone(),
-            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924:3"
+            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
                 .to_string()
                 .try_into()
                 .unwrap(),
