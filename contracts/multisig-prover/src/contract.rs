@@ -211,6 +211,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
         let instantiator = "instantiator";
         let admin = "admin";
@@ -228,9 +229,9 @@ mod tests {
         .try_into()
         .unwrap();
         let service_name = "service_name";
-        for encoding in vec![Encoder::Abi, Encoder::Bcs] {
+        for encoding in [Encoder::Abi, Encoder::Bcs] {
             let mut deps = mock_dependencies();
-            let info = mock_info(&instantiator, &[]);
+            let info = mock_info(instantiator, &[]);
             let env = mock_env();
 
             let msg = InstantiateMsg {
@@ -245,7 +246,7 @@ mod tests {
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
                 worker_set_diff_threshold: 0,
-                encoder: encoding.clone(),
+                encoder: encoding,
                 key_type: multisig::key::KeyType::Ecdsa,
             };
 
@@ -262,20 +263,18 @@ mod tests {
             assert_eq!(config.multisig, multisig_address);
             assert_eq!(config.service_registry, service_registry_address);
             assert_eq!(config.destination_chain_id, destination_chain_id);
-            assert_eq!(
-                config.signing_threshold,
-                signing_threshold.try_into().unwrap()
-            );
+            assert_eq!(config.signing_threshold, signing_threshold);
             assert_eq!(config.service_name, service_name);
             assert_eq!(config.encoder, encoding)
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
         let total_weight: Uint256 = operators
             .iter()
             .fold(Uint256::zero(), |acc, x| acc + x.weight);
-        let quorum = Uint256::try_from(total_weight.mul_ceil(test_data::threshold())).unwrap();
+        let quorum = total_weight.mul_ceil(test_data::threshold());
         WorkerSet {
             signers: operators
                 .into_iter()
@@ -474,7 +473,7 @@ mod tests {
         let total_weight: Uint256 = new_worker_set
             .iter()
             .fold(Uint256::zero(), |acc, x| acc + x.weight);
-        let quorum = Uint256::try_from(total_weight.mul_ceil(test_data::threshold())).unwrap();
+        let quorum = total_weight.mul_ceil(test_data::threshold());
         mocks::voting_verifier::confirm_worker_set(
             &mut test_case.app,
             test_case.voting_verifier_address.clone(),
@@ -578,7 +577,7 @@ mod tests {
         let total_weight: Uint256 = new_worker_set
             .iter()
             .fold(Uint256::zero(), |acc, x| acc + x.weight);
-        let quorum = Uint256::try_from(total_weight.mul_ceil(test_data::threshold())).unwrap();
+        let quorum = total_weight.mul_ceil(test_data::threshold());
         mocks::voting_verifier::confirm_worker_set(
             &mut test_case.app,
             test_case.voting_verifier_address.clone(),

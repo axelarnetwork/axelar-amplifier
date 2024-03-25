@@ -128,6 +128,7 @@ pub mod ed25519_test_data {
     }
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 pub fn build_worker_set(key_type: KeyType, signers: &[TestSigner]) -> WorkerSet {
     let mut total_weight = Uint256::zero();
     let participants = signers

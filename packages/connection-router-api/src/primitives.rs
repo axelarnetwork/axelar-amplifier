@@ -16,7 +16,7 @@ use valuable::Valuable;
 
 use crate::error::*;
 
-pub const ID_SEPARATOR: char = ':';
+pub const CHAIN_NAME_DELIMITER: char = '_';
 
 #[cw_serde]
 pub struct Message {
@@ -103,7 +103,7 @@ impl FromStr for CrossChainId {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split_once(ID_SEPARATOR);
+        let parts = s.split_once(CHAIN_NAME_DELIMITER);
         let (chain, id) = parts
             .map(|(chain, id)| {
                 (
@@ -122,7 +122,7 @@ impl FromStr for CrossChainId {
 
 impl fmt::Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, ID_SEPARATOR, *self.id)
+        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
     }
 }
 
@@ -162,7 +162,7 @@ impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(ID_SEPARATOR) || s.is_empty() {
+        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
             return Err(Error::InvalidChainName);
         }
 
@@ -287,7 +287,7 @@ mod tests {
     // will cause this test to fail, indicating that a migration is needed.
     fn test_message_struct_unchanged() {
         let expected_message_hash =
-            "9f9b9c55ccf5ce5a82f66385cae9e84e402a272fece5a2e22a199dbefc91d8bf";
+            "e8052da3a89c90468cc6e4e242a827f8579fb0ea8e298b1650d73a0f7e81abc3";
 
         let msg = dummy_message();
 
@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_message_hash =
-            "0135c407f6a58fdcfb879f8d9eae19f870a89f8619537dcde265b4599361a7b6";
+            "d30a374a795454706b43259998aafa741267ecbc8b6d5771be8d7b8c9a9db263";
 
         let msg = dummy_message();
 
@@ -318,7 +318,7 @@ mod tests {
 
         // name contains id separator
         assert_eq!(
-            format!("chain {ID_SEPARATOR}")
+            format!("chain {CHAIN_NAME_DELIMITER}")
                 .parse::<ChainName>()
                 .unwrap_err(),
             Error::InvalidChainName
@@ -356,7 +356,7 @@ mod tests {
 
         assert_eq!(
             "chain name is invalid",
-            serde_json::from_str::<ChainName>(format!("\"chain{ID_SEPARATOR}\"").as_str())
+            serde_json::from_str::<ChainName>(format!("\"chain{CHAIN_NAME_DELIMITER}\"").as_str())
                 .unwrap_err()
                 .to_string()
         );
@@ -377,11 +377,11 @@ mod tests {
     fn dummy_message() -> Message {
         Message {
             cc_id: CrossChainId {
-                id: "hash:index".parse().unwrap(),
+                id: "hash-index".parse().unwrap(),
                 chain: "chain".parse().unwrap(),
             },
             source_address: "source_address".parse().unwrap(),
-            destination_chain: "destination_chain".parse().unwrap(),
+            destination_chain: "destination-chain".parse().unwrap(),
             destination_address: "destination_address".parse().unwrap(),
             payload_hash: [1; 32],
         }
