@@ -94,7 +94,7 @@ fn process_rewards_for_epochs(
     to: u64,
 ) -> Result<HashMap<Addr, Uint128>, ContractError> {
     let rewards = cumulate_rewards(storage, &pool_id, from, to)?;
-    state::load_rewards_pool(storage, pool_id.clone())?
+    state::load_rewards_pool_or_new(storage, pool_id.clone())?
         .sub_reward(rewards.values().sum())?
         .then(|pool| state::save_rewards_pool(storage, &pool))?;
 
@@ -175,7 +175,7 @@ pub(crate) fn add_rewards(
     pool_id: PoolId,
     amount: nonempty::Uint128,
 ) -> Result<(), ContractError> {
-    let mut pool = state::load_rewards_pool(storage, pool_id)?;
+    let mut pool = state::load_rewards_pool_or_new(storage, pool_id)?;
     pool.balance = pool
         .balance
         .checked_add(Uint128::from(amount))
@@ -755,7 +755,8 @@ mod test {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("some contract"),
         };
-        let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
+        let pool =
+            state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
         assert!(pool.balance.is_zero());
 
         let initial_amount = Uint128::from(100u128);
@@ -766,7 +767,8 @@ mod test {
         )
         .unwrap();
 
-        let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
+        let pool =
+            state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
         assert_eq!(pool.balance, initial_amount);
 
         let added_amount = Uint128::from(500u128);
@@ -777,7 +779,7 @@ mod test {
         )
         .unwrap();
 
-        let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id).unwrap();
+        let pool = state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
         assert_eq!(pool.balance, initial_amount + added_amount);
     }
 
@@ -820,7 +822,8 @@ mod test {
                 contract: worker_contract.clone(),
             };
 
-            let pool = state::load_rewards_pool(mock_deps.as_ref().storage, pool_id).unwrap();
+            let pool =
+                state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
             assert_eq!(
                 pool.balance,
                 cosmwasm_std::Uint128::from(rewards.iter().sum::<u128>())
@@ -1216,24 +1219,24 @@ mod test {
         let mut deps = mock_dependencies();
         let storage = deps.as_mut().storage;
 
-        state::save_params(storage, &params_store);
+        state::save_params(storage, &params_store).unwrap();
 
         events_store.iter().for_each(|event| {
-            state::save_event(storage, event);
+            state::save_event(storage, event).unwrap();
         });
 
         tally_store.iter().for_each(|tally| {
-            state::save_epoch_tally(storage, tally);
+            state::save_epoch_tally(storage, tally).unwrap();
         });
 
         rewards_store.iter().for_each(|pool| {
-            state::save_rewards_pool(storage, pool);
+            state::save_rewards_pool(storage, pool).unwrap();
         });
 
         watermark_store
             .into_iter()
             .for_each(|(pool_id, epoch_num)| {
-                state::save_rewards_watermark(storage, pool_id, epoch_num);
+                state::save_rewards_watermark(storage, pool_id, epoch_num).unwrap();
             });
 
         let config = Config {
@@ -1241,7 +1244,7 @@ mod test {
             rewards_denom: "AXL".to_string(),
         };
 
-        CONFIG.save(storage, &config);
+        CONFIG.save(storage, &config).unwrap();
 
         (deps, config)
     }

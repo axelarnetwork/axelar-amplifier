@@ -31,6 +31,15 @@ pub struct PoolId {
     pub contract: Addr,
 }
 
+impl PoolId {
+    pub fn new(chain_name: ChainName, contract: Addr) -> Self {
+        PoolId {
+            chain_name,
+            contract,
+        }
+    }
+}
+
 impl PrimaryKey<'_> for PoolId {
     type Prefix = ChainName;
     type SubPrefix = ();
@@ -217,13 +226,9 @@ pub struct RewardsPool {
 }
 
 impl RewardsPool {
-    #[allow(dead_code)]
-    pub fn new(chain_name: ChainName, contract: Addr) -> Self {
+    pub fn new(id: PoolId) -> Self {
         RewardsPool {
-            id: PoolId {
-                chain_name,
-                contract,
-            },
+            id,
             balance: Uint128::zero(),
         }
     }
@@ -293,28 +298,28 @@ pub(crate) fn load_epoch_tally(
         .change_context(ContractError::LoadEpochTally)
 }
 
-pub(crate) fn load_rewards_pool_or_default(
+pub(crate) fn may_load_rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
-) -> Result<RewardsPool, ContractError> {
+) -> Result<Option<RewardsPool>, ContractError> {
     POOLS
         .may_load(storage, pool_id.clone())
         .change_context(ContractError::LoadRewardsPool)
-        .map(|pool| {
-            pool.unwrap_or(RewardsPool {
-                id: pool_id,
-                balance: Uint128::zero(),
-            })
-        })
+}
+
+pub(crate) fn load_rewards_pool_or_new(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<RewardsPool, ContractError> {
+    may_load_rewards_pool(storage, pool_id.clone())
+        .map(|pool| pool.unwrap_or(RewardsPool::new(pool_id)))
 }
 
 pub(crate) fn load_rewards_pool(
     storage: &dyn Storage,
     pool_id: PoolId,
 ) -> Result<RewardsPool, ContractError> {
-    POOLS
-        .may_load(storage, pool_id)
-        .change_context(ContractError::LoadRewardsPool)?
+    may_load_rewards_pool(storage, pool_id.clone())?
         .ok_or(ContractError::RewardsPoolNotFound.into())
 }
 
@@ -698,16 +703,20 @@ mod test {
         let mut mock_deps = mock_dependencies();
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
-        let pool = RewardsPool::new(chain_name.clone(), Addr::unchecked("some contract"));
+        let pool = RewardsPool::new(PoolId::new(
+            chain_name.clone(),
+            Addr::unchecked("some contract"),
+        ));
         let res = save_rewards_pool(mock_deps.as_mut().storage, &pool);
         assert!(res.is_ok());
 
-        let loaded = load_rewards_pool(mock_deps.as_ref().storage, pool.id.clone());
+        let loaded = load_rewards_pool_or_new(mock_deps.as_ref().storage, pool.id.clone());
 
         assert!(loaded.is_ok());
         assert_eq!(loaded.unwrap(), pool);
 
-        let loaded = load_rewards_pool(
+        // return new pool when pool is not found
+        let loaded = load_rewards_pool_or_new(
             mock_deps.as_ref().storage,
             PoolId {
                 chain_name: chain_name.clone(),
