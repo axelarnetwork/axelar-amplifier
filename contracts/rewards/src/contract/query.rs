@@ -13,14 +13,14 @@ pub fn rewards_pool(
     block_height: u64,
 ) -> Result<msg::RewardsPool, ContractError> {
     let pool = state::load_rewards_pool(storage, pool_id.clone())?;
-    let stored_params = state::load_params(storage);
-    let cur_epoch = Epoch::current(&stored_params, block_height)?;
+    let current_params = state::load_params(storage);
+    let cur_epoch = Epoch::current(&current_params, block_height)?;
 
     // the params could have been updated since the tally was created. Therefore we use the params from the
     // active tally if it exists, otherwise we use the latest stored params.
     let params = match state::load_epoch_tally(storage, pool_id.clone(), cur_epoch.epoch_num)? {
         Some(epoch_tally) => epoch_tally.params,
-        None => stored_params.params,
+        None => current_params.params,
     };
 
     let last_distribution_epoch =
@@ -40,12 +40,12 @@ mod tests {
 
     use crate::{
         msg::Params,
-        state::{EpochTally, RewardsPool, RewardsStore, Store, StoredParams},
+        state::{EpochTally, ParamsSnapshot, RewardsPool, RewardsStore, Store},
     };
 
     use super::*;
 
-    fn setup(storage: &mut dyn Storage, initial_balance: Uint128) -> (StoredParams, PoolId) {
+    fn setup(storage: &mut dyn Storage, initial_balance: Uint128) -> (ParamsSnapshot, PoolId) {
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("contract"),
@@ -61,9 +61,9 @@ mod tests {
             rewards_per_epoch: Uint128::from(1000u128).try_into().unwrap(),
             participation_threshold: (1, 2).try_into().unwrap(),
         };
-        let stored_params = StoredParams {
+        let params_snapshot = ParamsSnapshot {
             params: params.clone(),
-            last_updated: epoch.clone(),
+            created_at: epoch.clone(),
         };
         let rewards_pool = RewardsPool {
             id: pool_id.clone(),
@@ -71,10 +71,10 @@ mod tests {
         };
 
         let mut store = RewardsStore { storage };
-        store.save_params(&stored_params).unwrap();
+        store.save_params(&params_snapshot).unwrap();
         store.save_rewards_pool(&rewards_pool).unwrap();
 
-        (stored_params, pool_id)
+        (params_snapshot, pool_id)
     }
 
     // Should get rewards pool details, when no tally is found then details are loaded from the stored params
@@ -82,7 +82,7 @@ mod tests {
     fn should_get_rewards_pool_with_no_tally() {
         let mut deps = mock_dependencies();
         let balance = Uint128::from(1000u128);
-        let (stored_params, pool_id) = setup(deps.as_mut().storage, balance.clone());
+        let (current_params, pool_id) = setup(deps.as_mut().storage, balance);
 
         let block_height = 1000;
 
@@ -91,8 +91,8 @@ mod tests {
             res,
             msg::RewardsPool {
                 balance,
-                epoch_duration: stored_params.params.epoch_duration.into(),
-                rewards_per_epoch: stored_params.params.rewards_per_epoch.into(),
+                epoch_duration: current_params.params.epoch_duration.into(),
+                rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
                 last_distribution_epoch: None,
             }
         );
@@ -103,7 +103,7 @@ mod tests {
     fn should_get_rewards_pool_with_watermark() {
         let mut deps = mock_dependencies();
         let balance = Uint128::from(1000u128);
-        let (stored_params, pool_id) = setup(deps.as_mut().storage, balance.clone());
+        let (current_params, pool_id) = setup(deps.as_mut().storage, balance);
 
         let block_height = 1000;
         let last_distribution_epoch = 5u64;
@@ -120,8 +120,8 @@ mod tests {
             res,
             msg::RewardsPool {
                 balance,
-                epoch_duration: stored_params.params.epoch_duration.into(),
-                rewards_per_epoch: stored_params.params.rewards_per_epoch.into(),
+                epoch_duration: current_params.params.epoch_duration.into(),
+                rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
                 last_distribution_epoch: Some(last_distribution_epoch.into()),
             }
         );
@@ -133,7 +133,7 @@ mod tests {
     fn should_get_rewards_pool_ignoring_old_tallies_details() {
         let mut deps = mock_dependencies();
         let balance = Uint128::from(1000u128);
-        let (stored_params, pool_id) = setup(deps.as_mut().storage, balance.clone());
+        let (current_params, pool_id) = setup(deps.as_mut().storage, balance);
 
         let old_block_height = 0;
 
@@ -149,7 +149,7 @@ mod tests {
         store
             .save_epoch_tally(&EpochTally::new(
                 pool_id.clone(),
-                Epoch::current(&stored_params, old_block_height).unwrap(),
+                Epoch::current(&current_params, old_block_height).unwrap(),
                 tally_params.clone(),
             ))
             .unwrap();
@@ -160,8 +160,8 @@ mod tests {
             res,
             msg::RewardsPool {
                 balance,
-                epoch_duration: stored_params.params.epoch_duration.into(),
-                rewards_per_epoch: stored_params.params.rewards_per_epoch.into(),
+                epoch_duration: current_params.params.epoch_duration.into(),
+                rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
                 last_distribution_epoch: None,
             }
         );
@@ -172,7 +172,7 @@ mod tests {
     fn should_get_rewards_pool_with_tally_for_current_epoch() {
         let mut deps = mock_dependencies();
         let balance = Uint128::from(1000u128);
-        let (stored_params, pool_id) = setup(deps.as_mut().storage, balance.clone());
+        let (current_params, pool_id) = setup(deps.as_mut().storage, balance);
 
         let block_height = 1000;
 
@@ -188,7 +188,7 @@ mod tests {
         store
             .save_epoch_tally(&EpochTally::new(
                 pool_id.clone(),
-                Epoch::current(&stored_params, block_height).unwrap(),
+                Epoch::current(&current_params, block_height).unwrap(),
                 tally_params.clone(),
             ))
             .unwrap();

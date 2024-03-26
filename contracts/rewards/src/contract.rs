@@ -12,7 +12,7 @@ use crate::{
     contract::execute::Contract,
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{Config, Epoch, PoolId, StoredParams, CONFIG, PARAMS},
+    state::{Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS},
 };
 
 mod execute;
@@ -37,9 +37,9 @@ pub fn instantiate(
 
     PARAMS.save(
         deps.storage,
-        &StoredParams {
+        &ParamsSnapshot {
             params: msg.params,
-            last_updated: Epoch {
+            created_at: Epoch {
                 epoch_num: 0,
                 block_height_started: env.block.height,
             },
