@@ -4,6 +4,7 @@ use cw_multi_test::{next_block, App, AppBuilder, Contract, ContractWrapper, Exec
 use super::{mocks, test_data};
 
 pub const INSTANTIATOR: &str = "instantiator";
+pub const GOVERNANCE: &str = "governance";
 pub const RELAYER: &str = "relayer";
 
 pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
@@ -11,6 +12,7 @@ pub const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 pub struct TestCaseConfig {
     pub app: App,
     pub admin: Addr,
+    pub governance: Addr,
     pub prover_address: Addr,
     pub service_registry_address: Addr,
     pub voting_verifier_address: Addr,
@@ -158,6 +160,7 @@ fn instantiate_prover(
     let code_id = app.store_code(contract_prover());
     let msg = crate::msg::InstantiateMsg {
         admin_address: INSTANTIATOR.to_string(),
+        governance_address: GOVERNANCE.to_string(),
         gateway_address,
         multisig_address,
         service_registry_address,
@@ -209,6 +212,7 @@ pub fn setup_test_case() -> TestCaseConfig {
     TestCaseConfig {
         app,
         admin: Addr::unchecked(INSTANTIATOR),
+        governance: Addr::unchecked(GOVERNANCE),
         prover_address,
         service_registry_address,
         voting_verifier_address,
