@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("error loading rewards pool")]
     LoadRewardsPool,
 
+    #[error("rewards pool not found")]
+    RewardsPoolNotFound,
+
     #[error("error loading rewards watermark")]
     LoadRewardsWatermark,
 
@@ -54,4 +57,7 @@ pub enum ContractError {
 
     #[error("rewards amount is zero")]
     ZeroRewards,
+
+    #[error("failed to serialize the response")]
+    SerializeResponse,
 }
