@@ -7,7 +7,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use error_stack::{Result, ResultExt};
-use mockall::automock;
 
 use crate::{error::ContractError, msg::Params};
 
@@ -239,38 +238,6 @@ impl RewardsPool {
     }
 }
 
-#[automock]
-pub trait Store {
-    fn load_params(&self) -> ParamsSnapshot;
-
-    fn load_rewards_watermark(&self, pool_id: PoolId) -> Result<Option<u64>, ContractError>;
-
-    fn load_event(&self, event_id: String, pool_id: PoolId)
-        -> Result<Option<Event>, ContractError>;
-
-    fn load_epoch_tally(
-        &self,
-        pool_id: PoolId,
-        epoch_num: u64,
-    ) -> Result<Option<EpochTally>, ContractError>;
-
-    fn load_rewards_pool(&self, pool_id: PoolId) -> Result<RewardsPool, ContractError>;
-
-    fn save_params(&mut self, params: &ParamsSnapshot) -> Result<(), ContractError>;
-
-    fn save_rewards_watermark(
-        &mut self,
-        pool_id: PoolId,
-        epoch_num: u64,
-    ) -> Result<(), ContractError>;
-
-    fn save_event(&mut self, event: &Event) -> Result<(), ContractError>;
-
-    fn save_epoch_tally(&mut self, tally: &EpochTally) -> Result<(), ContractError>;
-
-    fn save_rewards_pool(&mut self, pool: &RewardsPool) -> Result<(), ContractError>;
-}
-
 /// Current rewards parameters, along with when the params were updated
 pub const PARAMS: Item<ParamsSnapshot> = Item::new("params");
 
@@ -289,93 +256,118 @@ const WATERMARKS: Map<PoolId, u64> = Map::new("rewards_watermarks");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub struct RewardsStore<'a> {
-    pub storage: &'a mut dyn Storage,
+pub(crate) fn load_config(storage: &dyn Storage) -> Config {
+    CONFIG.load(storage).expect("couldn't load config")
 }
 
-impl Store for RewardsStore<'_> {
-    fn load_params(&self) -> ParamsSnapshot {
-        load_params(self.storage)
-    }
+pub(crate) fn load_params(storage: &dyn Storage) -> ParamsSnapshot {
+    PARAMS.load(storage).expect("params should exist")
+}
 
-    fn load_rewards_watermark(&self, pool_id: PoolId) -> Result<Option<u64>, ContractError> {
-        WATERMARKS
-            .may_load(self.storage, pool_id)
-            .change_context(ContractError::LoadRewardsWatermark)
-    }
+pub(crate) fn load_rewards_watermark(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<Option<u64>, ContractError> {
+    WATERMARKS
+        .may_load(storage, pool_id)
+        .change_context(ContractError::LoadRewardsWatermark)
+}
 
-    fn load_event(
-        &self,
-        event_id: String,
-        pool_id: PoolId,
-    ) -> Result<Option<Event>, ContractError> {
-        EVENTS
-            .may_load(self.storage, (event_id, pool_id))
-            .change_context(ContractError::LoadEvent)
-    }
+pub(crate) fn load_event(
+    storage: &dyn Storage,
+    event_id: String,
+    pool_id: PoolId,
+) -> Result<Option<Event>, ContractError> {
+    EVENTS
+        .may_load(storage, (event_id, pool_id))
+        .change_context(ContractError::LoadEvent)
+}
 
-    fn load_epoch_tally(
-        &self,
-        pool_id: PoolId,
-        epoch_num: u64,
-    ) -> Result<Option<EpochTally>, ContractError> {
-        load_epoch_tally(self.storage, pool_id, epoch_num)
-    }
+pub(crate) fn load_epoch_tally(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+    epoch_num: u64,
+) -> Result<Option<EpochTally>, ContractError> {
+    TALLIES
+        .may_load(storage, TallyId { pool_id, epoch_num })
+        .change_context(ContractError::LoadEpochTally)
+}
 
-    fn load_rewards_pool(&self, pool_id: PoolId) -> Result<RewardsPool, ContractError> {
-        POOLS
-            .may_load(self.storage, pool_id.clone())
-            .change_context(ContractError::LoadRewardsPool)
-            .map(|pool| {
-                pool.unwrap_or(RewardsPool {
-                    id: pool_id,
-                    balance: Uint128::zero(),
-                })
+pub(crate) fn load_rewards_pool_or_default(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<RewardsPool, ContractError> {
+    POOLS
+        .may_load(storage, pool_id.clone())
+        .change_context(ContractError::LoadRewardsPool)
+        .map(|pool| {
+            pool.unwrap_or(RewardsPool {
+                id: pool_id,
+                balance: Uint128::zero(),
             })
-    }
+        })
+}
 
-    fn save_params(&mut self, params: &ParamsSnapshot) -> Result<(), ContractError> {
-        PARAMS
-            .save(self.storage, params)
-            .change_context(ContractError::SaveParams)
-    }
+pub(crate) fn load_rewards_pool(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<RewardsPool, ContractError> {
+    POOLS
+        .may_load(storage, pool_id)
+        .change_context(ContractError::LoadRewardsPool)?
+        .ok_or(ContractError::RewardsPoolNotFound.into())
+}
 
-    fn save_rewards_watermark(
-        &mut self,
-        pool_id: PoolId,
-        epoch_num: u64,
-    ) -> Result<(), ContractError> {
-        WATERMARKS
-            .save(self.storage, pool_id, &epoch_num)
-            .change_context(ContractError::SaveRewardsWatermark)
-    }
+pub(crate) fn save_params(
+    storage: &mut dyn Storage,
+    params: &ParamsSnapshot,
+) -> Result<(), ContractError> {
+    PARAMS
+        .save(storage, params)
+        .change_context(ContractError::SaveParams)
+}
 
-    fn save_event(&mut self, event: &Event) -> Result<(), ContractError> {
-        EVENTS
-            .save(
-                self.storage,
-                (event.event_id.clone().into(), event.pool_id.clone()),
-                event,
-            )
-            .change_context(ContractError::SaveEvent)
-    }
+pub(crate) fn save_rewards_watermark(
+    storage: &mut dyn Storage,
+    pool_id: PoolId,
+    epoch_num: u64,
+) -> Result<(), ContractError> {
+    WATERMARKS
+        .save(storage, pool_id, &epoch_num)
+        .change_context(ContractError::SaveRewardsWatermark)
+}
 
-    fn save_epoch_tally(&mut self, tally: &EpochTally) -> Result<(), ContractError> {
-        let tally_id = TallyId {
-            pool_id: tally.pool_id.clone(),
-            epoch_num: tally.epoch.epoch_num,
-        };
+pub(crate) fn save_event(storage: &mut dyn Storage, event: &Event) -> Result<(), ContractError> {
+    EVENTS
+        .save(
+            storage,
+            (event.event_id.clone().into(), event.pool_id.clone()),
+            event,
+        )
+        .change_context(ContractError::SaveEvent)
+}
 
-        TALLIES
-            .save(self.storage, tally_id, tally)
-            .change_context(ContractError::SaveEpochTally)
-    }
+pub(crate) fn save_epoch_tally(
+    storage: &mut dyn Storage,
+    tally: &EpochTally,
+) -> Result<(), ContractError> {
+    let tally_id = TallyId {
+        pool_id: tally.pool_id.clone(),
+        epoch_num: tally.epoch.epoch_num,
+    };
 
-    fn save_rewards_pool(&mut self, pool: &RewardsPool) -> Result<(), ContractError> {
-        POOLS
-            .save(self.storage, pool.id.clone(), pool)
-            .change_context(ContractError::SaveRewardsPool)
-    }
+    TALLIES
+        .save(storage, tally_id, tally)
+        .change_context(ContractError::SaveEpochTally)
+}
+
+pub(crate) fn save_rewards_pool(
+    storage: &mut dyn Storage,
+    pool: &RewardsPool,
+) -> Result<(), ContractError> {
+    POOLS
+        .save(storage, pool.id.clone(), pool)
+        .change_context(ContractError::SaveRewardsPool)
 }
 
 pub(crate) enum StorageState<T> {
@@ -394,42 +386,9 @@ impl<T> Deref for StorageState<T> {
     }
 }
 
-pub(crate) fn load_rewards_pool(
-    storage: &dyn Storage,
-    pool_id: PoolId,
-) -> Result<RewardsPool, ContractError> {
-    POOLS
-        .may_load(storage, pool_id)
-        .change_context(ContractError::LoadRewardsPool)?
-        .ok_or(ContractError::RewardsPoolNotFound.into())
-}
-
-pub(crate) fn load_params(storage: &dyn Storage) -> ParamsSnapshot {
-    PARAMS.load(storage).expect("params should exist")
-}
-
-pub(crate) fn load_rewards_watermark(
-    storage: &dyn Storage,
-    pool_id: PoolId,
-) -> Result<Option<u64>, ContractError> {
-    WATERMARKS
-        .may_load(storage, pool_id)
-        .change_context(ContractError::LoadRewardsWatermark)
-}
-
-pub(crate) fn load_epoch_tally(
-    storage: &dyn Storage,
-    pool_id: PoolId,
-    epoch_num: u64,
-) -> Result<Option<EpochTally>, ContractError> {
-    TALLIES
-        .may_load(storage, TallyId { pool_id, epoch_num })
-        .change_context(ContractError::LoadEpochTally)
-}
-
 #[cfg(test)]
 mod test {
-    use super::{Epoch, EpochTally, Event, PoolId, RewardsPool, RewardsStore, Store};
+    use super::*;
     use crate::error::ContractError;
     use crate::{msg::Params, state::ParamsSnapshot};
     use connection_router_api::ChainName;
@@ -522,9 +481,6 @@ mod test {
     #[test]
     fn save_and_load_params() {
         let mut mock_deps = mock_dependencies();
-        let mut store = RewardsStore {
-            storage: &mut mock_deps.storage,
-        };
         let params = ParamsSnapshot {
             params: Params {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
@@ -537,8 +493,8 @@ mod test {
             },
         };
         // save an initial params, then load it
-        assert!(store.save_params(&params).is_ok());
-        let loaded = store.load_params();
+        assert!(save_params(mock_deps.as_mut().storage, &params).is_ok());
+        let loaded = load_params(mock_deps.as_ref().storage);
         assert_eq!(loaded, params);
 
         // now store a new params, and check that it was updated
@@ -552,17 +508,14 @@ mod test {
                 block_height_started: 101,
             },
         };
-        assert!(store.save_params(&new_params).is_ok());
-        let loaded = store.load_params();
+        assert!(save_params(mock_deps.as_mut().storage, &new_params).is_ok());
+        let loaded = load_params(mock_deps.as_mut().storage);
         assert_eq!(loaded, new_params);
     }
 
     #[test]
     fn save_and_load_rewards_watermark() {
         let mut mock_deps = mock_dependencies();
-        let mut store = RewardsStore {
-            storage: &mut mock_deps.storage,
-        };
         let epoch = Epoch {
             epoch_num: 10,
             block_height_started: 1000,
@@ -573,24 +526,29 @@ mod test {
         };
 
         // should be empty at first
-        let loaded = store.load_rewards_watermark(pool_id.clone());
+        let loaded = load_rewards_watermark(mock_deps.as_ref().storage, pool_id.clone());
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
         // save the first watermark
-        let res = store.save_rewards_watermark(pool_id.clone(), epoch.epoch_num);
+        let res =
+            save_rewards_watermark(mock_deps.as_mut().storage, pool_id.clone(), epoch.epoch_num);
         assert!(res.is_ok());
 
-        let loaded = store.load_rewards_watermark(pool_id.clone());
+        let loaded = load_rewards_watermark(mock_deps.as_ref().storage, pool_id.clone());
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num);
 
         // now store a new watermark, should overwrite
-        let res = store.save_rewards_watermark(pool_id.clone(), epoch.epoch_num + 1);
+        let res = save_rewards_watermark(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            epoch.epoch_num + 1,
+        );
         assert!(res.is_ok());
 
-        let loaded = store.load_rewards_watermark(pool_id);
+        let loaded = load_rewards_watermark(mock_deps.as_ref().storage, pool_id);
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num + 1);
@@ -601,15 +559,19 @@ mod test {
             contract: Addr::unchecked("some other contract"),
         };
         // should be empty at first
-        let loaded = store.load_rewards_watermark(diff_pool_id.clone());
+        let loaded = load_rewards_watermark(mock_deps.as_ref().storage, diff_pool_id.clone());
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
         // save the first watermark for this contract
-        let res = store.save_rewards_watermark(diff_pool_id.clone(), epoch.epoch_num + 7);
+        let res = save_rewards_watermark(
+            mock_deps.as_mut().storage,
+            diff_pool_id.clone(),
+            epoch.epoch_num + 7,
+        );
         assert!(res.is_ok());
 
-        let loaded = store.load_rewards_watermark(diff_pool_id.clone());
+        let loaded = load_rewards_watermark(mock_deps.as_ref().storage, diff_pool_id.clone());
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), epoch.epoch_num + 7);
@@ -618,9 +580,6 @@ mod test {
     #[test]
     fn save_and_load_event() {
         let mut mock_deps = mock_dependencies();
-        let mut store = RewardsStore {
-            storage: &mut mock_deps.storage,
-        };
 
         let event = Event {
             pool_id: PoolId {
@@ -631,11 +590,15 @@ mod test {
             epoch_num: 2,
         };
 
-        let res = store.save_event(&event);
+        let res = save_event(mock_deps.as_mut().storage, &event);
         assert!(res.is_ok());
 
         // check that we load the event that we just saved
-        let loaded = store.load_event(event.event_id.clone().into(), event.pool_id.clone());
+        let loaded = load_event(
+            mock_deps.as_ref().storage,
+            event.event_id.clone().into(),
+            event.pool_id.clone(),
+        );
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), event);
@@ -645,17 +608,29 @@ mod test {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("different contract"),
         };
-        let loaded = store.load_event("some other event".into(), diff_pool_id.clone());
+        let loaded = load_event(
+            mock_deps.as_ref().storage,
+            "some other event".into(),
+            diff_pool_id.clone(),
+        );
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
         // same event id but different contract address, should still return none
-        let loaded = store.load_event(event.event_id.clone().into(), diff_pool_id);
+        let loaded = load_event(
+            mock_deps.as_ref().storage,
+            event.event_id.clone().into(),
+            diff_pool_id,
+        );
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
         // different event id, but same contract address, should still return none
-        let loaded = store.load_event("some other event".into(), event.pool_id);
+        let loaded = load_event(
+            mock_deps.as_ref().storage,
+            "some other event".into(),
+            event.pool_id,
+        );
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
     }
@@ -663,9 +638,6 @@ mod test {
     #[test]
     fn save_and_load_epoch_tally() {
         let mut mock_deps = mock_dependencies();
-        let mut store = RewardsStore {
-            storage: &mut mock_deps.storage,
-        };
 
         let epoch_num = 10;
         let rewards_rate = Uint128::from(100u128).try_into().unwrap();
@@ -689,17 +661,18 @@ mod test {
 
         tally = tally.record_participation(Addr::unchecked("worker"));
 
-        let res = store.save_epoch_tally(&tally);
+        let res = save_epoch_tally(mock_deps.as_mut().storage, &tally);
         assert!(res.is_ok());
 
         // check that we load the tally that we just saved
-        let loaded = store.load_epoch_tally(pool_id.clone(), epoch_num);
+        let loaded = load_epoch_tally(mock_deps.as_ref().storage, pool_id.clone(), epoch_num);
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().is_some());
         assert_eq!(loaded.unwrap().unwrap(), tally);
 
         // different contract but same epoch should return none
-        let loaded = store.load_epoch_tally(
+        let loaded = load_epoch_tally(
+            mock_deps.as_ref().storage,
             PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
                 contract: Addr::unchecked("different contract"),
@@ -710,12 +683,12 @@ mod test {
         assert!(loaded.unwrap().is_none());
 
         // different epoch but same contract should return none
-        let loaded = store.load_epoch_tally(pool_id.clone(), epoch_num + 1);
+        let loaded = load_epoch_tally(mock_deps.as_ref().storage, pool_id.clone(), epoch_num + 1);
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
 
         // different epoch and different contract should return none
-        let loaded = store.load_epoch_tally(pool_id.clone(), epoch_num + 1);
+        let loaded = load_epoch_tally(mock_deps.as_ref().storage, pool_id.clone(), epoch_num + 1);
         assert!(loaded.is_ok());
         assert!(loaded.unwrap().is_none());
     }
@@ -723,24 +696,24 @@ mod test {
     #[test]
     fn save_and_load_rewards_pool() {
         let mut mock_deps = mock_dependencies();
-        let mut store = RewardsStore {
-            storage: &mut mock_deps.storage,
-        };
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
         let pool = RewardsPool::new(chain_name.clone(), Addr::unchecked("some contract"));
-        let res = store.save_rewards_pool(&pool);
+        let res = save_rewards_pool(mock_deps.as_mut().storage, &pool);
         assert!(res.is_ok());
 
-        let loaded = store.load_rewards_pool(pool.id.clone());
+        let loaded = load_rewards_pool(mock_deps.as_ref().storage, pool.id.clone());
 
         assert!(loaded.is_ok());
         assert_eq!(loaded.unwrap(), pool);
 
-        let loaded = store.load_rewards_pool(PoolId {
-            chain_name: chain_name.clone(),
-            contract: Addr::unchecked("a different contract"),
-        });
+        let loaded = load_rewards_pool(
+            mock_deps.as_ref().storage,
+            PoolId {
+                chain_name: chain_name.clone(),
+                contract: Addr::unchecked("a different contract"),
+            },
+        );
         assert!(loaded.is_ok());
         assert!(loaded.as_ref().unwrap().balance.is_zero());
     }

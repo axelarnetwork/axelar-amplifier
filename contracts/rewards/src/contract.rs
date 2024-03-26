@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -9,7 +7,6 @@ use cosmwasm_std::{
 use error_stack::ResultExt;
 
 use crate::{
-    contract::execute::Contract,
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS},
