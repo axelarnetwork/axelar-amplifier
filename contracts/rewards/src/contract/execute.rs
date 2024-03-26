@@ -8,8 +8,8 @@ use crate::{
     error::ContractError,
     msg::Params,
     state::{
-        Config, Epoch, EpochTally, Event, PoolId, RewardsStore, StorageState, Store, StoredParams,
-        CONFIG,
+        Config, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsStore, StorageState,
+        Store, CONFIG,
     },
 };
 
@@ -45,29 +45,8 @@ where
     /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
     /// in which the update occurs as the last checkpoint
     fn current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
-        let stored_params = self.store.load_params();
-        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
-        let last_updated_epoch = stored_params.last_updated;
-
-        if cur_block_height < last_updated_epoch.block_height_started {
-            Err(ContractError::BlockHeightInPast.into())
-        } else {
-            let epochs_elapsed = (cur_block_height
-                .saturating_sub(last_updated_epoch.block_height_started))
-            .checked_div(epoch_duration)
-            .expect("invalid invariant: epoch duration is zero");
-            Ok(Epoch {
-                epoch_num: last_updated_epoch
-                    .epoch_num
-                    .checked_add(epochs_elapsed)
-                    .expect(
-                        "epoch number should be strictly smaller than the current block height",
-                    ),
-                block_height_started: last_updated_epoch
-                    .block_height_started
-                    .checked_add(epochs_elapsed.saturating_mul(epoch_duration)).expect("start of current epoch should be strictly smaller than the current block height"),
-            })
-        }
+        let current_params = self.store.load_params();
+        Epoch::current(&current_params, cur_block_height)
     }
 
     fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {
@@ -227,9 +206,9 @@ where
         } else {
             cur_epoch
         };
-        self.store.save_params(&StoredParams {
+        self.store.save_params(&ParamsSnapshot {
             params: new_params,
-            last_updated: cur_epoch,
+            created_at: cur_epoch,
         })?;
         Ok(())
     }
@@ -292,7 +271,7 @@ mod test {
         error::ContractError,
         msg::Params,
         state::{
-            self, Config, Epoch, EpochTally, Event, PoolId, RewardsPool, Store, StoredParams,
+            self, Config, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsPool, Store,
             TallyId,
         },
     };
@@ -604,7 +583,7 @@ mod test {
         );
 
         // last updated should be the current epoch
-        assert_eq!(stored.last_updated, cur_epoch);
+        assert_eq!(stored.created_at, cur_epoch);
     }
 
     /// Test that rewards parameters cannot be updated by an address other than governance
@@ -1201,7 +1180,7 @@ mod test {
     }
 
     fn create_contract(
-        params_store: Arc<RwLock<StoredParams>>,
+        params_store: Arc<RwLock<ParamsSnapshot>>,
         events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
         tally_store: Arc<RwLock<HashMap<TallyId, EpochTally>>>,
         rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
@@ -1289,7 +1268,7 @@ mod test {
     }
 
     fn setup_with_stores(
-        params_store: Arc<RwLock<StoredParams>>,
+        params_store: Arc<RwLock<ParamsSnapshot>>,
         events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
         tally_store: Arc<RwLock<HashMap<TallyId, EpochTally>>>,
         rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
@@ -1319,21 +1298,21 @@ mod test {
             block_height_started,
         };
 
-        let stored_params = StoredParams {
+        let params_snapshot = ParamsSnapshot {
             params: Params {
                 participation_threshold: participation_threshold.try_into().unwrap(),
                 epoch_duration: epoch_duration.try_into().unwrap(),
                 rewards_per_epoch,
             },
-            last_updated: current_epoch.clone(),
+            created_at: current_epoch.clone(),
         };
-        let stored_params = Arc::new(RwLock::new(stored_params));
+        let params_snapshot = Arc::new(RwLock::new(params_snapshot));
         let rewards_store = Arc::new(RwLock::new(HashMap::new()));
         let events_store = Arc::new(RwLock::new(HashMap::new()));
         let tally_store = Arc::new(RwLock::new(HashMap::new()));
         let watermark_store = Arc::new(RwLock::new(HashMap::new()));
         setup_with_stores(
-            stored_params,
+            params_snapshot,
             events_store,
             tally_store,
             rewards_store,

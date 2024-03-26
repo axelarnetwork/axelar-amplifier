@@ -18,10 +18,10 @@ pub struct Config {
 }
 
 #[cw_serde]
-pub struct StoredParams {
+pub struct ParamsSnapshot {
     pub params: Params,
     /// epoch in which the params were updated
-    pub last_updated: Epoch,
+    pub created_at: Epoch,
 }
 
 /// PoolId a unique identifier for a rewards pool
@@ -178,6 +178,39 @@ pub struct Epoch {
     pub block_height_started: u64,
 }
 
+impl Epoch {
+    /// Returns the current epoch. The current epoch is computed dynamically based on the current
+    /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
+    /// in which the update occurs as the last checkpoint
+    pub fn current(
+        current_params: &ParamsSnapshot,
+        cur_block_height: u64,
+    ) -> Result<Epoch, ContractError> {
+        let epoch_duration: u64 = current_params.params.epoch_duration.into();
+        let last_updated_epoch = &current_params.created_at;
+
+        if cur_block_height < last_updated_epoch.block_height_started {
+            Err(ContractError::BlockHeightInPast.into())
+        } else {
+            let epochs_elapsed = (cur_block_height
+                .saturating_sub(last_updated_epoch.block_height_started))
+            .checked_div(epoch_duration)
+            .expect("invalid invariant: epoch duration is zero");
+            Ok(Epoch {
+                epoch_num: last_updated_epoch
+                    .epoch_num
+                    .checked_add(epochs_elapsed)
+                    .expect(
+                        "epoch number should be strictly smaller than the current block height",
+                    ),
+                block_height_started: last_updated_epoch
+                    .block_height_started
+                    .checked_add(epochs_elapsed.saturating_mul(epoch_duration)).expect("start of current epoch should be strictly smaller than the current block height"),
+            })
+        }
+    }
+}
+
 #[cw_serde]
 pub struct RewardsPool {
     pub id: PoolId,
@@ -208,7 +241,7 @@ impl RewardsPool {
 
 #[automock]
 pub trait Store {
-    fn load_params(&self) -> StoredParams;
+    fn load_params(&self) -> ParamsSnapshot;
 
     fn load_rewards_watermark(&self, pool_id: PoolId) -> Result<Option<u64>, ContractError>;
 
@@ -223,7 +256,7 @@ pub trait Store {
 
     fn load_rewards_pool(&self, pool_id: PoolId) -> Result<RewardsPool, ContractError>;
 
-    fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError>;
+    fn save_params(&mut self, params: &ParamsSnapshot) -> Result<(), ContractError>;
 
     fn save_rewards_watermark(
         &mut self,
@@ -239,7 +272,7 @@ pub trait Store {
 }
 
 /// Current rewards parameters, along with when the params were updated
-pub const PARAMS: Item<StoredParams> = Item::new("params");
+pub const PARAMS: Item<ParamsSnapshot> = Item::new("params");
 
 /// Maps a (pool id, epoch number) pair to a tally for that epoch and rewards pool
 const TALLIES: Map<TallyId, EpochTally> = Map::new("tallies");
@@ -261,8 +294,8 @@ pub struct RewardsStore<'a> {
 }
 
 impl Store for RewardsStore<'_> {
-    fn load_params(&self) -> StoredParams {
-        PARAMS.load(self.storage).expect("params should exist")
+    fn load_params(&self) -> ParamsSnapshot {
+        load_params(self.storage)
     }
 
     fn load_rewards_watermark(&self, pool_id: PoolId) -> Result<Option<u64>, ContractError> {
@@ -286,9 +319,7 @@ impl Store for RewardsStore<'_> {
         pool_id: PoolId,
         epoch_num: u64,
     ) -> Result<Option<EpochTally>, ContractError> {
-        TALLIES
-            .may_load(self.storage, TallyId { pool_id, epoch_num })
-            .change_context(ContractError::LoadEpochTally)
+        load_epoch_tally(self.storage, pool_id, epoch_num)
     }
 
     fn load_rewards_pool(&self, pool_id: PoolId) -> Result<RewardsPool, ContractError> {
@@ -303,7 +334,7 @@ impl Store for RewardsStore<'_> {
             })
     }
 
-    fn save_params(&mut self, params: &StoredParams) -> Result<(), ContractError> {
+    fn save_params(&mut self, params: &ParamsSnapshot) -> Result<(), ContractError> {
         PARAMS
             .save(self.storage, params)
             .change_context(ContractError::SaveParams)
@@ -363,11 +394,44 @@ impl<T> Deref for StorageState<T> {
     }
 }
 
+pub(crate) fn load_rewards_pool(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<RewardsPool, ContractError> {
+    POOLS
+        .may_load(storage, pool_id)
+        .change_context(ContractError::LoadRewardsPool)?
+        .ok_or(ContractError::RewardsPoolNotFound.into())
+}
+
+pub(crate) fn load_params(storage: &dyn Storage) -> ParamsSnapshot {
+    PARAMS.load(storage).expect("params should exist")
+}
+
+pub(crate) fn load_rewards_watermark(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+) -> Result<Option<u64>, ContractError> {
+    WATERMARKS
+        .may_load(storage, pool_id)
+        .change_context(ContractError::LoadRewardsWatermark)
+}
+
+pub(crate) fn load_epoch_tally(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+    epoch_num: u64,
+) -> Result<Option<EpochTally>, ContractError> {
+    TALLIES
+        .may_load(storage, TallyId { pool_id, epoch_num })
+        .change_context(ContractError::LoadEpochTally)
+}
+
 #[cfg(test)]
 mod test {
     use super::{Epoch, EpochTally, Event, PoolId, RewardsPool, RewardsStore, Store};
     use crate::error::ContractError;
-    use crate::{msg::Params, state::StoredParams};
+    use crate::{msg::Params, state::ParamsSnapshot};
     use connection_router_api::ChainName;
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use std::collections::HashMap;
@@ -461,13 +525,13 @@ mod test {
         let mut store = RewardsStore {
             storage: &mut mock_deps.storage,
         };
-        let params = StoredParams {
+        let params = ParamsSnapshot {
             params: Params {
                 participation_threshold: (Uint64::new(1), Uint64::new(2)).try_into().unwrap(),
                 epoch_duration: 100u64.try_into().unwrap(),
                 rewards_per_epoch: Uint128::from(1000u128).try_into().unwrap(),
             },
-            last_updated: Epoch {
+            created_at: Epoch {
                 epoch_num: 1,
                 block_height_started: 1,
             },
@@ -478,12 +542,12 @@ mod test {
         assert_eq!(loaded, params);
 
         // now store a new params, and check that it was updated
-        let new_params = StoredParams {
+        let new_params = ParamsSnapshot {
             params: Params {
                 epoch_duration: 200u64.try_into().unwrap(),
                 ..params.params
             },
-            last_updated: Epoch {
+            created_at: Epoch {
                 epoch_num: 2,
                 block_height_started: 101,
             },
