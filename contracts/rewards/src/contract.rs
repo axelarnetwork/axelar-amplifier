@@ -258,6 +258,7 @@ mod tests {
                 balance: rewards.into(),
                 epoch_duration: updated_params.epoch_duration.into(),
                 rewards_per_epoch: updated_params.rewards_per_epoch.into(),
+                current_epoch_num: 0u64.into(),
                 last_distribution_epoch: None
             }
         );

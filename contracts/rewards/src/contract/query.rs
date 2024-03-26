@@ -30,6 +30,7 @@ pub fn rewards_pool(
         balance: pool.balance,
         epoch_duration: params.epoch_duration.into(),
         rewards_per_epoch: params.rewards_per_epoch.into(),
+        current_epoch_num: cur_epoch.epoch_num.into(),
         last_distribution_epoch,
     })
 }
@@ -93,6 +94,10 @@ mod tests {
                 balance,
                 epoch_duration: current_params.params.epoch_duration.into(),
                 rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
+                current_epoch_num: Epoch::current(&current_params, block_height)
+                    .unwrap()
+                    .epoch_num
+                    .into(),
                 last_distribution_epoch: None,
             }
         );
@@ -122,6 +127,10 @@ mod tests {
                 balance,
                 epoch_duration: current_params.params.epoch_duration.into(),
                 rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
+                current_epoch_num: Epoch::current(&current_params, block_height)
+                    .unwrap()
+                    .epoch_num
+                    .into(),
                 last_distribution_epoch: Some(last_distribution_epoch.into()),
             }
         );
@@ -162,6 +171,10 @@ mod tests {
                 balance,
                 epoch_duration: current_params.params.epoch_duration.into(),
                 rewards_per_epoch: current_params.params.rewards_per_epoch.into(),
+                current_epoch_num: Epoch::current(&current_params, cur_block_height)
+                    .unwrap()
+                    .epoch_num
+                    .into(),
                 last_distribution_epoch: None,
             }
         );
@@ -200,6 +213,10 @@ mod tests {
                 balance,
                 epoch_duration: tally_params.epoch_duration.into(),
                 rewards_per_epoch: tally_params.rewards_per_epoch.into(),
+                current_epoch_num: Epoch::current(&current_params, block_height)
+                    .unwrap()
+                    .epoch_num
+                    .into(),
                 last_distribution_epoch: None,
             }
         );

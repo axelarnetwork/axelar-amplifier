@@ -72,5 +72,6 @@ pub struct RewardsPool {
     pub balance: Uint128,
     pub epoch_duration: Uint64,
     pub rewards_per_epoch: Uint128,
+    pub current_epoch_num: Uint64,
     pub last_distribution_epoch: Option<Uint64>,
 }
