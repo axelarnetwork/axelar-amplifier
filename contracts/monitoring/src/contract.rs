@@ -58,3 +58,29 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+
+    use super::*;
+
+    #[test]
+    #[allow(clippy::arithmetic_side_effects)]
+    fn test_instantiation() {
+        let governance = "governance_for_monitoring";
+        let mut deps = mock_dependencies();
+        let info = mock_info("instantiator", &[]);
+        let env = mock_env();
+
+        let msg = InstantiateMsg {
+            governance_address: governance.to_string(),
+        };
+
+        let res = instantiate(deps.as_mut(), env, info, msg);
+        assert!(res.is_ok());
+
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        assert_eq!(config.governance, governance);
+    }
+}
