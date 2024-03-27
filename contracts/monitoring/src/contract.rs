@@ -4,6 +4,8 @@ use crate::state::{Config, CONFIG};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
+use crate::execute;
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -21,14 +23,30 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-#[allow(dead_code)]
 pub fn execute(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
-    _msg: ExecuteMsg,
+    info: MessageInfo,
+    msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    Ok(Response::new())
+    match msg {
+        ExecuteMsg::RegisterChainContracts {
+            chain_name,
+            verifier_contract,
+            gateway_contract,
+            prover_contract,
+        } => {
+            execute::check_governance(&deps, info)?;
+            execute::register_chain_contracts(
+                deps,
+                chain_name,
+                verifier_contract,
+                gateway_contract,
+                prover_contract,
+            )
+        }
+    }
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
