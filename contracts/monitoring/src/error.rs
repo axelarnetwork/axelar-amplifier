@@ -9,4 +9,7 @@ pub enum ContractError {
 
     #[error("unauthorized")]
     Unauthorized,
+
+    #[error("no provers registered for chain")]
+    NoProversRegisteredForChain,
 }

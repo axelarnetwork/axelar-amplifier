@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 use connection_router_api::ChainName;
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, CONTRACTS_PER_CHAIN};
+use crate::state::{CONFIG, PROVERS_PER_CHAIN};
 
 pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -13,17 +13,16 @@ pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Contrac
     Ok(())
 }
 
-pub fn register_chain_contracts(
+pub fn add_chain_prover(
     deps: DepsMut,
     chain_name: ChainName,
-    verifier_contract: Addr,
-    gateway_contract: Addr,
-    prover_contract: Addr,
+    new_prover_addr: Addr,
 ) -> Result<Response, ContractError> {
-    CONTRACTS_PER_CHAIN.save(
-        deps.storage,
-        chain_name.clone(),
-        &(verifier_contract, gateway_contract, prover_contract),
-    )?;
+    let existing_provers = PROVERS_PER_CHAIN.may_load(deps.storage, chain_name.clone())?;
+    let mut provers = existing_provers.unwrap_or_else(Vec::new);
+
+    provers.push(new_prover_addr.clone());
+
+    PROVERS_PER_CHAIN.save(deps.storage, chain_name.clone(), &(provers))?;
     Ok(Response::new())
 }

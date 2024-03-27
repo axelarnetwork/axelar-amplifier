@@ -9,5 +9,5 @@ pub struct Config {
 }
 pub const CONFIG: Item<Config> = Item::new("config");
 
-// maps chain_name -> (verifier_address, gateway_address, prover_address)
-pub const CONTRACTS_PER_CHAIN: Map<ChainName, (Addr, Addr, Addr)> = Map::new("contracts_per_chain");
+// maps chain_name -> (vector of prover_addresses)
+pub const PROVERS_PER_CHAIN: Map<ChainName, Vec<Addr>> = Map::new("provers_per_chain");
