@@ -48,4 +48,10 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(ChainEndpoint)]
     GetChainInfo(ChainName),
+
+    #[returns(Vec<ChainEndpoint>)]
+    Chains {
+        start_after: Option<ChainName>,
+        limit: Option<u32>,
+    },
 }

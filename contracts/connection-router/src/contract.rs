@@ -109,6 +109,9 @@ pub fn query(
 ) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
         QueryMsg::GetChainInfo(chain) => to_json_binary(&query::get_chain_info(deps, chain)?),
+        QueryMsg::Chains { start_after, limit } => {
+            to_json_binary(&query::get_chains(deps, start_after, limit)?)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
