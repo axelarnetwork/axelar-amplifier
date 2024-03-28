@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -7,12 +5,12 @@ use cosmwasm_std::{
     to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
 };
 use error_stack::ResultExt;
+use itertools::Itertools;
 
 use crate::{
-    contract::execute::Contract,
     error::ContractError,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
-    state::{Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS},
+    state::{self, Config, Epoch, ParamsSnapshot, PoolId, CONFIG, PARAMS},
 };
 
 mod execute;
@@ -67,8 +65,13 @@ pub fn execute(
                 chain_name,
                 contract: info.sender.clone(),
             };
-            Contract::new(deps)
-                .record_participation(event_id, worker_address, pool_id, env.block.height)
+            execute::record_participation(
+                deps.storage,
+                event_id,
+                worker_address,
+                pool_id,
+                env.block.height,
+            )
                 .map_err(axelar_wasm_std::ContractError::from)?;
 
             Ok(Response::new())
@@ -76,16 +79,16 @@ pub fn execute(
         ExecuteMsg::AddRewards { pool_id } => {
             deps.api.addr_validate(pool_id.contract.as_str())?;
 
-            let mut contract = Contract::new(deps);
             let amount = info
                 .funds
                 .iter()
-                .find(|coin| coin.denom == contract.config.rewards_denom)
+                .find(|coin| coin.denom == state::load_config(deps.storage).rewards_denom)
                 .filter(|_| info.funds.len() == 1) // filter here to make sure expected denom is the only one attached to this message, and other funds aren't silently swallowed
                 .ok_or(ContractError::WrongDenom)?
                 .amount;
 
-            contract.add_rewards(
+            execute::add_rewards(
+                deps.storage,
                 pool_id,
                 nonempty::Uint128::try_from(amount).change_context(ContractError::ZeroRewards)?,
             )?;
@@ -98,10 +101,9 @@ pub fn execute(
         } => {
             deps.api.addr_validate(pool_id.contract.as_str())?;
 
-            let mut contract = Contract::new(deps);
-            let rewards = contract
-                .distribute_rewards(pool_id, env.block.height, epoch_count)
-                .map_err(axelar_wasm_std::ContractError::from)?;
+            let rewards =
+                execute::distribute_rewards(deps.storage, pool_id, env.block.height, epoch_count)
+                    .map_err(axelar_wasm_std::ContractError::from)?;
 
             let msgs = rewards
                 .into_iter()
@@ -109,7 +111,7 @@ pub fn execute(
                 .map(|(addr, amount)| BankMsg::Send {
                     to_address: addr.into(),
                     amount: vec![Coin {
-                        denom: contract.config.rewards_denom.clone(),
+                        denom: state::load_config(deps.storage).rewards_denom.clone(),
                         amount,
                     }],
                 });
@@ -117,7 +119,7 @@ pub fn execute(
             Ok(Response::new().add_messages(msgs))
         }
         ExecuteMsg::UpdateParams { params } => {
-            Contract::new(deps).update_params(params, env.block.height, info.sender)?;
+            execute::update_params(deps.storage, params, env.block.height, info.sender)?;
 
             Ok(Response::new())
         }

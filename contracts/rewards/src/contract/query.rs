@@ -41,7 +41,7 @@ mod tests {
 
     use crate::{
         msg::Params,
-        state::{EpochTally, ParamsSnapshot, RewardsPool, RewardsStore, Store},
+        state::{EpochTally, ParamsSnapshot, RewardsPool},
     };
 
     use super::*;
@@ -71,9 +71,8 @@ mod tests {
             balance: initial_balance,
         };
 
-        let mut store = RewardsStore { storage };
-        store.save_params(&params_snapshot).unwrap();
-        store.save_rewards_pool(&rewards_pool).unwrap();
+        state::save_params(storage, &params_snapshot).unwrap();
+        state::save_rewards_pool(storage, &rewards_pool).unwrap();
 
         (params_snapshot, pool_id)
     }
@@ -113,11 +112,11 @@ mod tests {
         let block_height = 1000;
         let last_distribution_epoch = 5u64;
 
-        let mut store = RewardsStore {
-            storage: deps.as_mut().storage,
-        };
-        store
-            .save_rewards_watermark(pool_id.clone(), last_distribution_epoch)
+        state::save_rewards_watermark(
+            deps.as_mut().storage,
+            pool_id.clone(),
+            last_distribution_epoch,
+        )
             .unwrap();
 
         let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
@@ -152,15 +151,14 @@ mod tests {
             participation_threshold: (2, 3).try_into().unwrap(),
         };
 
-        let mut store = RewardsStore {
-            storage: deps.as_mut().storage,
-        };
-        store
-            .save_epoch_tally(&EpochTally::new(
+        state::save_epoch_tally(
+            deps.as_mut().storage,
+            &EpochTally::new(
                 pool_id.clone(),
                 Epoch::current(&current_params, old_block_height).unwrap(),
                 tally_params.clone(),
-            ))
+            ),
+        )
             .unwrap();
 
         let cur_block_height = 1000;
@@ -195,15 +193,14 @@ mod tests {
             participation_threshold: (2, 3).try_into().unwrap(),
         };
 
-        let mut store = RewardsStore {
-            storage: deps.as_mut().storage,
-        };
-        store
-            .save_epoch_tally(&EpochTally::new(
+        state::save_epoch_tally(
+            deps.as_mut().storage,
+            &EpochTally::new(
                 pool_id.clone(),
                 Epoch::current(&current_params, block_height).unwrap(),
                 tally_params.clone(),
-            ))
+            ),
+        )
             .unwrap();
 
         let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
