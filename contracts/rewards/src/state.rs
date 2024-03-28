@@ -202,8 +202,8 @@ impl Epoch {
         } else {
             let epochs_elapsed = (cur_block_height
                 .saturating_sub(last_updated_epoch.block_height_started))
-                .checked_div(epoch_duration)
-                .expect("invalid invariant: epoch duration is zero");
+            .checked_div(epoch_duration)
+            .expect("invalid invariant: epoch duration is zero");
             Ok(Epoch {
                 epoch_num: last_updated_epoch
                     .epoch_num

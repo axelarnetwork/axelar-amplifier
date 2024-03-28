@@ -117,7 +117,7 @@ mod tests {
             pool_id.clone(),
             last_distribution_epoch,
         )
-            .unwrap();
+        .unwrap();
 
         let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
         assert_eq!(
@@ -159,7 +159,7 @@ mod tests {
                 tally_params.clone(),
             ),
         )
-            .unwrap();
+        .unwrap();
 
         let cur_block_height = 1000;
         let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), cur_block_height).unwrap();
@@ -201,7 +201,7 @@ mod tests {
                 tally_params.clone(),
             ),
         )
-            .unwrap();
+        .unwrap();
 
         let res = rewards_pool(deps.as_mut().storage, pool_id.clone(), block_height).unwrap();
         assert_eq!(

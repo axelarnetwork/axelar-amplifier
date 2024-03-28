@@ -344,7 +344,7 @@ mod test {
                         pool_id.clone(),
                         cur_height,
                     )
-                        .unwrap();
+                    .unwrap();
                 }
             }
             cur_height += 1;
@@ -395,14 +395,14 @@ mod test {
                 pool_id.clone(),
                 height_at_epoch_end + i as u64,
             )
-                .unwrap();
+            .unwrap();
         }
 
         let cur_epoch = Epoch::current(
             &state::load_params(mock_deps.as_ref().storage),
             height_at_epoch_end,
         )
-            .unwrap();
+        .unwrap();
         assert_ne!(starting_epoch_num + 1, cur_epoch.epoch_num);
 
         let tally = state::load_epoch_tally(
@@ -410,7 +410,7 @@ mod test {
             pool_id.clone(),
             starting_epoch_num,
         )
-            .unwrap();
+        .unwrap();
         assert!(tally.is_some());
 
         let tally = tally.unwrap();
@@ -478,7 +478,7 @@ mod test {
                     worker_contract.clone(),
                     block_height_started,
                 )
-                    .unwrap();
+                .unwrap();
             }
         }
         for (worker, (worker_contract, events_participated)) in simulated_participation {
@@ -487,7 +487,7 @@ mod test {
                 worker_contract.clone(),
                 cur_epoch_num,
             )
-                .unwrap();
+            .unwrap();
 
             assert!(tally.is_some());
             let tally = tally.unwrap();
@@ -538,7 +538,7 @@ mod test {
             cur_height,
             config.governance.clone(),
         )
-            .unwrap();
+        .unwrap();
         let stored = state::load_params(mock_deps.as_ref().storage);
         assert_eq!(stored.params, new_params);
 
@@ -614,7 +614,7 @@ mod test {
             cur_height,
             config.governance.clone(),
         )
-            .unwrap();
+        .unwrap();
 
         let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
@@ -627,7 +627,7 @@ mod test {
             &updated_params_snapshot,
             cur_height + initial_epoch_duration,
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(epoch, epoch_prior_to_update);
 
         // check that we can correctly compute the start of the next epoch
@@ -674,7 +674,7 @@ mod test {
             cur_height,
             config.governance.clone(),
         )
-            .unwrap();
+        .unwrap();
 
         let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
@@ -726,7 +726,7 @@ mod test {
             cur_height,
             config.governance.clone(),
         )
-            .unwrap();
+        .unwrap();
 
         let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
@@ -765,7 +765,7 @@ mod test {
             pool_id.clone(),
             initial_amount.try_into().unwrap(),
         )
-            .unwrap();
+        .unwrap();
 
         let pool =
             state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
@@ -777,7 +777,7 @@ mod test {
             pool_id.clone(),
             added_amount.try_into().unwrap(),
         )
-            .unwrap();
+        .unwrap();
 
         let pool = state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
         assert_eq!(pool.balance, initial_amount + added_amount);
@@ -812,7 +812,7 @@ mod test {
                     pool_id.clone(),
                     cosmwasm_std::Uint128::from(*amount).try_into().unwrap(),
                 )
-                    .unwrap();
+                .unwrap();
             }
         }
 
@@ -916,7 +916,7 @@ mod test {
             block_height_started + epoch_duration * (epoch_count + 2) as u64,
             None,
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(rewards_claimed.len(), worker_participation_per_epoch.len());
         for (worker, rewards) in expected_rewards_per_worker {
@@ -977,7 +977,7 @@ mod test {
             cur_height,
             Some(epochs_to_process),
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&worker));
         assert_eq!(
@@ -992,7 +992,7 @@ mod test {
             cur_height,
             None,
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&worker));
         assert_eq!(
@@ -1048,7 +1048,7 @@ mod test {
             block_height_started,
             None,
         )
-            .unwrap_err();
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // next epoch, but still too early to claim rewards
@@ -1058,7 +1058,7 @@ mod test {
             block_height_started + epoch_duration,
             None,
         )
-            .unwrap_err();
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // can claim now, two epochs after participation
@@ -1068,7 +1068,7 @@ mod test {
             block_height_started + epoch_duration * 2,
             None,
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
 
         // should error if we try again
@@ -1078,7 +1078,7 @@ mod test {
             block_height_started + epoch_duration * 2,
             None,
         )
-            .unwrap_err();
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 
@@ -1127,7 +1127,7 @@ mod test {
             block_height_started + epoch_duration * 2,
             None,
         )
-            .unwrap_err();
+        .unwrap_err();
         assert_eq!(
             err.current_context(),
             &ContractError::PoolBalanceInsufficient
@@ -1193,7 +1193,7 @@ mod test {
             block_height_started + epoch_duration * 2,
             None,
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
 
         // try to claim again, shouldn't get an error
@@ -1203,7 +1203,7 @@ mod test {
             block_height_started + epoch_duration * 2,
             None,
         )
-            .unwrap_err();
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 

@@ -72,7 +72,7 @@ pub fn execute(
                 pool_id,
                 env.block.height,
             )
-                .map_err(axelar_wasm_std::ContractError::from)?;
+            .map_err(axelar_wasm_std::ContractError::from)?;
 
             Ok(Response::new())
         }
