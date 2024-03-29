@@ -1,255 +1,190 @@
 use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, FnExt};
-use cosmwasm_std::{Addr, DepsMut, OverflowError, OverflowOperation, Uint128};
+use cosmwasm_std::{Addr, OverflowError, OverflowOperation, Storage, Uint128};
 use error_stack::{Report, Result};
 
 use crate::{
     error::ContractError,
     msg::Params,
-    state::{
-        Config, Epoch, EpochTally, Event, PoolId, RewardsStore, StorageState, Store, StoredParams,
-        CONFIG,
-    },
+    state::{self, Config, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, StorageState},
 };
 
 const DEFAULT_EPOCHS_TO_PROCESS: u64 = 10;
 const EPOCH_PAYOUT_DELAY: u64 = 2;
 
-pub struct Contract<S>
-where
-    S: Store,
-{
-    pub store: S,
-    pub config: Config,
+fn require_governance(config: Config, sender: Addr) -> Result<(), ContractError> {
+    if config.governance != sender {
+        return Err(ContractError::Unauthorized.into());
+    }
+    Ok(())
 }
 
-impl<'a> Contract<RewardsStore<'a>> {
-    pub fn new(deps: DepsMut) -> Contract<RewardsStore> {
-        let config = CONFIG.load(deps.storage).expect("couldn't load config");
-        Contract {
-            store: RewardsStore {
-                storage: deps.storage,
-            },
-            config,
-        }
-    }
-}
+pub(crate) fn record_participation(
+    storage: &mut dyn Storage,
+    event_id: nonempty::String,
+    worker: Addr,
+    pool_id: PoolId,
+    block_height: u64,
+) -> Result<(), ContractError> {
+    let current_params = state::load_params(storage);
+    let cur_epoch = Epoch::current(&current_params, block_height)?;
 
-#[allow(dead_code)]
-impl<S> Contract<S>
-where
-    S: Store,
-{
-    /// Returns the current epoch. The current epoch is computed dynamically based on the current
-    /// block height and the epoch duration. If the epoch duration is updated, we store the epoch
-    /// in which the update occurs as the last checkpoint
-    fn current_epoch(&self, cur_block_height: u64) -> Result<Epoch, ContractError> {
-        let stored_params = self.store.load_params();
-        let epoch_duration: u64 = stored_params.params.epoch_duration.into();
-        let last_updated_epoch = stored_params.last_updated;
+    let event = load_or_store_event(storage, event_id, pool_id.clone(), cur_epoch.epoch_num)?;
 
-        if cur_block_height < last_updated_epoch.block_height_started {
-            Err(ContractError::BlockHeightInPast.into())
-        } else {
-            let epochs_elapsed = (cur_block_height
-                .saturating_sub(last_updated_epoch.block_height_started))
-            .checked_div(epoch_duration)
-            .expect("invalid invariant: epoch duration is zero");
-            Ok(Epoch {
-                epoch_num: last_updated_epoch
-                    .epoch_num
-                    .checked_add(epochs_elapsed)
-                    .expect(
-                        "epoch number should be strictly smaller than the current block height",
-                    ),
-                block_height_started: last_updated_epoch
-                    .block_height_started
-                    .checked_add(epochs_elapsed.saturating_mul(epoch_duration)).expect("start of current epoch should be strictly smaller than the current block height"),
-            })
-        }
-    }
-
-    fn require_governance(&self, sender: Addr) -> Result<(), ContractError> {
-        if self.config.governance != sender {
-            return Err(ContractError::Unauthorized.into());
-        }
-        Ok(())
-    }
-
-    pub fn record_participation(
-        &mut self,
-        event_id: nonempty::String,
-        worker: Addr,
-        pool_id: PoolId,
-        block_height: u64,
-    ) -> Result<(), ContractError> {
-        let cur_epoch = self.current_epoch(block_height)?;
-
-        let event = self.load_or_store_event(event_id, pool_id.clone(), cur_epoch.epoch_num)?;
-
-        self.store
-            .load_epoch_tally(pool_id.clone(), event.epoch_num)?
-            .unwrap_or(EpochTally::new(
-                pool_id,
-                cur_epoch,
-                self.store.load_params().params,
-            ))
-            .record_participation(worker)
-            .then(|mut tally| {
-                if matches!(event, StorageState::New(_)) {
-                    tally.event_count = tally.event_count.saturating_add(1)
-                }
-                self.store.save_epoch_tally(&tally)
-            })
-    }
-
-    fn load_or_store_event(
-        &mut self,
-        event_id: nonempty::String,
-        pool_id: PoolId,
-        cur_epoch_num: u64,
-    ) -> Result<StorageState<Event>, ContractError> {
-        let event = self
-            .store
-            .load_event(event_id.to_string(), pool_id.clone())?;
-
-        match event {
-            None => {
-                let event = Event::new(event_id, pool_id, cur_epoch_num);
-                self.store.save_event(&event)?;
-                Ok(StorageState::New(event))
+    state::load_epoch_tally(storage, pool_id.clone(), event.epoch_num)?
+        .unwrap_or(EpochTally::new(pool_id, cur_epoch, current_params.params))
+        .record_participation(worker)
+        .then(|mut tally| {
+            if matches!(event, StorageState::New(_)) {
+                tally.event_count = tally.event_count.saturating_add(1)
             }
-            Some(event) => Ok(StorageState::Existing(event)),
-        }
-    }
-
-    pub fn distribute_rewards(
-        &mut self,
-        pool_id: PoolId,
-        cur_block_height: u64,
-        epoch_process_limit: Option<u64>,
-    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
-        let cur_epoch = self.current_epoch(cur_block_height)?;
-
-        let from = self
-            .store
-            .load_rewards_watermark(pool_id.clone())?
-            .map_or(0, |last_processed| last_processed.saturating_add(1));
-
-        let to = std::cmp::min(
-            (from.saturating_add(epoch_process_limit)).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
-            cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
-        );
-
-        if to < from || cur_epoch.epoch_num < EPOCH_PAYOUT_DELAY {
-            return Err(ContractError::NoRewardsToDistribute.into());
-        }
-
-        let rewards = self.process_rewards_for_epochs(pool_id.clone(), from, to)?;
-        self.store.save_rewards_watermark(pool_id, to)?;
-        Ok(rewards)
-    }
-
-    fn process_rewards_for_epochs(
-        &mut self,
-        pool_id: PoolId,
-        from: u64,
-        to: u64,
-    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        let rewards = self.cumulate_rewards(&pool_id, from, to)?;
-        self.store
-            .load_rewards_pool(pool_id.clone())?
-            .sub_reward(rewards.values().sum())?
-            .then(|pool| self.store.save_rewards_pool(&pool))?;
-
-        Ok(rewards)
-    }
-
-    fn cumulate_rewards(
-        &mut self,
-        pool_id: &PoolId,
-        from: u64,
-        to: u64,
-    ) -> Result<HashMap<Addr, Uint128>, ContractError> {
-        self.iterate_epoch_tallies(pool_id, from, to)
-            .map(|tally| tally.rewards_by_worker())
-            .try_fold(HashMap::new(), merge_rewards)
-    }
-
-    fn iterate_epoch_tallies<'a>(
-        &'a mut self,
-        pool_id: &'a PoolId,
-        from: u64,
-        to: u64,
-    ) -> impl Iterator<Item = EpochTally> + 'a {
-        (from..=to).filter_map(|epoch_num| {
-            self.store
-                .load_epoch_tally(pool_id.clone(), epoch_num)
-                .unwrap_or_default()
+            state::save_epoch_tally(storage, &tally)
         })
+}
+
+fn load_or_store_event(
+    storage: &mut dyn Storage,
+    event_id: nonempty::String,
+    pool_id: PoolId,
+    cur_epoch_num: u64,
+) -> Result<StorageState<Event>, ContractError> {
+    let event = state::load_event(storage, event_id.to_string(), pool_id.clone())?;
+
+    match event {
+        None => {
+            let event = Event::new(event_id, pool_id, cur_epoch_num);
+            state::save_event(storage, &event)?;
+            Ok(StorageState::New(event))
+        }
+        Some(event) => Ok(StorageState::Existing(event)),
+    }
+}
+
+pub(crate) fn distribute_rewards(
+    storage: &mut dyn Storage,
+    pool_id: PoolId,
+    cur_block_height: u64,
+    epoch_process_limit: Option<u64>,
+) -> Result<HashMap<Addr, Uint128>, ContractError> {
+    let epoch_process_limit = epoch_process_limit.unwrap_or(DEFAULT_EPOCHS_TO_PROCESS);
+    let cur_epoch = Epoch::current(&state::load_params(storage), cur_block_height)?;
+
+    let from = state::load_rewards_watermark(storage, pool_id.clone())?
+        .map_or(0, |last_processed| last_processed.saturating_add(1));
+
+    let to = std::cmp::min(
+        (from.saturating_add(epoch_process_limit)).saturating_sub(1), // for process limit =1 "from" and "to" must be equal
+        cur_epoch.epoch_num.saturating_sub(EPOCH_PAYOUT_DELAY),
+    );
+
+    if to < from || cur_epoch.epoch_num < EPOCH_PAYOUT_DELAY {
+        return Err(ContractError::NoRewardsToDistribute.into());
     }
 
-    pub fn update_params(
-        &mut self,
-        new_params: Params,
-        block_height: u64,
-        sender: Addr,
-    ) -> Result<(), ContractError> {
-        self.require_governance(sender)?;
-        let cur_epoch = self.current_epoch(block_height)?;
-        // If the param update reduces the epoch duration such that the current epoch immediately ends,
-        // start a new epoch at this block, incrementing the current epoch number by 1.
-        // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
-        // (i.e. we are in epoch 0, which started at block 0 and epoch duration is 1000. At epoch 500, the params
-        // are updated to shorten the epoch duration to 100 blocks. We set the epoch number to 1, to prevent skipping
-        // epochs 1-4, and so all events prior to the start of epoch 1 have an epoch number of 0)
-        let should_end = cur_epoch
-            .block_height_started
-            .checked_add(u64::from(new_params.epoch_duration))
-            .ok_or_else(|| {
-                OverflowError::new(
-                    OverflowOperation::Add,
-                    cur_epoch.block_height_started,
-                    new_params.epoch_duration,
-                )
-            })
-            .map_err(ContractError::from)?
-            < block_height;
-        let cur_epoch = if should_end {
-            Epoch {
-                block_height_started: block_height,
-                epoch_num: cur_epoch.epoch_num.checked_add(1).expect(
-                    "epoch number should be strictly smaller than the current block height",
-                ),
-            }
-        } else {
-            cur_epoch
-        };
-        self.store.save_params(&StoredParams {
+    let rewards = process_rewards_for_epochs(storage, pool_id.clone(), from, to)?;
+    state::save_rewards_watermark(storage, pool_id, to)?;
+    Ok(rewards)
+}
+
+fn process_rewards_for_epochs(
+    storage: &mut dyn Storage,
+    pool_id: PoolId,
+    from: u64,
+    to: u64,
+) -> Result<HashMap<Addr, Uint128>, ContractError> {
+    let rewards = cumulate_rewards(storage, &pool_id, from, to)?;
+    state::load_rewards_pool_or_new(storage, pool_id.clone())?
+        .sub_reward(rewards.values().sum())?
+        .then(|pool| state::save_rewards_pool(storage, &pool))?;
+
+    Ok(rewards)
+}
+
+fn cumulate_rewards(
+    storage: &mut dyn Storage,
+    pool_id: &PoolId,
+    from: u64,
+    to: u64,
+) -> Result<HashMap<Addr, Uint128>, ContractError> {
+    iterate_epoch_tallies(storage, pool_id, from, to)
+        .map(|tally| tally.rewards_by_worker())
+        .try_fold(HashMap::new(), merge_rewards)
+}
+
+fn iterate_epoch_tallies<'a>(
+    storage: &'a mut dyn Storage,
+    pool_id: &'a PoolId,
+    from: u64,
+    to: u64,
+) -> impl Iterator<Item = EpochTally> + 'a {
+    (from..=to).filter_map(|epoch_num| {
+        state::load_epoch_tally(storage, pool_id.clone(), epoch_num).unwrap_or_default()
+    })
+}
+
+pub(crate) fn update_params(
+    storage: &mut dyn Storage,
+    new_params: Params,
+    block_height: u64,
+    sender: Addr,
+) -> Result<(), ContractError> {
+    require_governance(state::load_config(storage), sender)?;
+    let cur_epoch = Epoch::current(&state::load_params(storage), block_height)?;
+    // If the param update reduces the epoch duration such that the current epoch immediately ends,
+    // start a new epoch at this block, incrementing the current epoch number by 1.
+    // This prevents us from jumping forward an arbitrary number of epochs, and maintains consistency for past events.
+    // (i.e. we are in epoch 0, which started at block 0 and epoch duration is 1000. At epoch 500, the params
+    // are updated to shorten the epoch duration to 100 blocks. We set the epoch number to 1, to prevent skipping
+    // epochs 1-4, and so all events prior to the start of epoch 1 have an epoch number of 0)
+    let should_end = cur_epoch
+        .block_height_started
+        .checked_add(u64::from(new_params.epoch_duration))
+        .ok_or_else(|| {
+            OverflowError::new(
+                OverflowOperation::Add,
+                cur_epoch.block_height_started,
+                new_params.epoch_duration,
+            )
+        })
+        .map_err(ContractError::from)?
+        < block_height;
+    let cur_epoch = if should_end {
+        Epoch {
+            block_height_started: block_height,
+            epoch_num: cur_epoch
+                .epoch_num
+                .checked_add(1)
+                .expect("epoch number should be strictly smaller than the current block height"),
+        }
+    } else {
+        cur_epoch
+    };
+    state::save_params(
+        storage,
+        &ParamsSnapshot {
             params: new_params,
-            last_updated: cur_epoch,
-        })?;
-        Ok(())
-    }
+            created_at: cur_epoch,
+        },
+    )?;
+    Ok(())
+}
 
-    pub fn add_rewards(
-        &mut self,
-        pool_id: PoolId,
-        amount: nonempty::Uint128,
-    ) -> Result<(), ContractError> {
-        let mut pool = self.store.load_rewards_pool(pool_id)?;
-        pool.balance = pool
-            .balance
-            .checked_add(Uint128::from(amount))
-            .map_err(Into::<ContractError>::into)
-            .map_err(Report::from)?;
+pub(crate) fn add_rewards(
+    storage: &mut dyn Storage,
+    pool_id: PoolId,
+    amount: nonempty::Uint128,
+) -> Result<(), ContractError> {
+    let mut pool = state::load_rewards_pool_or_new(storage, pool_id)?;
+    pool.balance = pool
+        .balance
+        .checked_add(Uint128::from(amount))
+        .map_err(Into::<ContractError>::into)
+        .map_err(Report::from)?;
 
-        self.store.save_rewards_pool(&pool)?;
+    state::save_rewards_pool(storage, &pool)?;
 
-        Ok(())
-    }
+    Ok(())
 }
 
 /// Merges rewards_2 into rewards_1. For each (address, amount) pair in rewards_2,
@@ -279,25 +214,24 @@ fn merge_rewards(
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::HashMap,
-        sync::{Arc, RwLock},
-    };
+    use super::*;
+
+    use std::collections::HashMap;
 
     use axelar_wasm_std::nonempty;
     use connection_router_api::ChainName;
-    use cosmwasm_std::{Addr, Uint128, Uint64};
+    use cosmwasm_std::{
+        testing::{mock_dependencies, MockApi, MockQuerier, MockStorage},
+        Addr, OwnedDeps, Uint128, Uint64,
+    };
 
     use crate::{
         error::ContractError,
         msg::Params,
         state::{
-            self, Config, Epoch, EpochTally, Event, PoolId, RewardsPool, Store, StoredParams,
-            TallyId,
+            self, Config, Epoch, EpochTally, Event, ParamsSnapshot, PoolId, RewardsPool, CONFIG,
         },
     };
-
-    use super::Contract;
 
     /// Tests that the current epoch is computed correctly when the expected epoch is the same as the stored epoch
     #[test]
@@ -305,18 +239,19 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
-        let new_epoch = contract.current_epoch(block_height_started).unwrap();
+        let (mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let current_params = state::load_params(mock_deps.as_ref().storage);
+
+        let new_epoch = Epoch::current(&current_params, block_height_started).unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
 
-        let new_epoch = contract.current_epoch(block_height_started + 1).unwrap();
+        let new_epoch = Epoch::current(&current_params, block_height_started + 1).unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
 
-        let new_epoch = contract
-            .current_epoch(block_height_started + epoch_duration - 1)
-            .unwrap();
+        let new_epoch =
+            Epoch::current(&current_params, block_height_started + epoch_duration - 1).unwrap();
         assert_eq!(new_epoch.epoch_num, cur_epoch_num);
         assert_eq!(new_epoch.block_height_started, block_height_started);
     }
@@ -328,11 +263,11 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
-        assert!(contract.current_epoch(block_height_started - 1).is_err());
-        assert!(contract
-            .current_epoch(block_height_started - epoch_duration)
-            .is_err());
+        let (mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let current_params = state::load_params(mock_deps.as_ref().storage);
+
+        assert!(Epoch::current(&current_params, block_height_started - 1).is_err());
+        assert!(Epoch::current(&current_params, block_height_started - epoch_duration).is_err());
     }
 
     /// Tests that the current epoch is computed correctly when the expected epoch is different from the stored epoch
@@ -341,7 +276,7 @@ mod test {
         let cur_epoch_num = 1u64;
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
-        let contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let (mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         // elements are (height, expected epoch number, expected epoch start)
         let test_cases = vec![
@@ -368,7 +303,8 @@ mod test {
         ];
 
         for (height, expected_epoch_num, expected_block_start) in test_cases {
-            let new_epoch = contract.current_epoch(height).unwrap();
+            let new_epoch =
+                Epoch::current(&state::load_params(mock_deps.as_ref().storage), height).unwrap();
 
             assert_eq!(new_epoch.epoch_num, expected_epoch_num);
             assert_eq!(new_epoch.block_height_started, expected_block_start);
@@ -382,7 +318,7 @@ mod test {
         let epoch_block_start = 250u64;
         let epoch_duration = 100u64;
 
-        let mut contract = setup(cur_epoch_num, epoch_block_start, epoch_duration);
+        let (mut mock_deps, _) = setup(cur_epoch_num, epoch_block_start, epoch_duration);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
@@ -401,18 +337,21 @@ mod test {
                 // simulates a worker participating in only part_count events
                 if i < *part_count {
                     let event_id = i.to_string().try_into().unwrap();
-                    contract
-                        .record_participation(event_id, worker.clone(), pool_id.clone(), cur_height)
-                        .unwrap();
+                    record_participation(
+                        mock_deps.as_mut().storage,
+                        event_id,
+                        worker.clone(),
+                        pool_id.clone(),
+                        cur_height,
+                    )
+                    .unwrap();
                 }
             }
             cur_height += 1;
         }
 
-        let tally = contract
-            .store
-            .load_epoch_tally(pool_id, cur_epoch_num)
-            .unwrap();
+        let tally =
+            state::load_epoch_tally(mock_deps.as_ref().storage, pool_id, cur_epoch_num).unwrap();
         assert!(tally.is_some());
 
         let tally = tally.unwrap();
@@ -433,7 +372,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let mut contract = setup(starting_epoch_num, block_height_started, epoch_duration);
+        let (mut mock_deps, _) = setup(starting_epoch_num, block_height_started, epoch_duration);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
@@ -449,23 +388,29 @@ mod test {
         let height_at_epoch_end = block_height_started + epoch_duration - 1;
         // workers participate in consecutive blocks
         for (i, workers) in workers.iter().enumerate() {
-            contract
-                .record_participation(
-                    "some event".to_string().try_into().unwrap(),
-                    workers.clone(),
-                    pool_id.clone(),
-                    height_at_epoch_end + i as u64,
-                )
-                .unwrap();
+            record_participation(
+                mock_deps.as_mut().storage,
+                "some event".to_string().try_into().unwrap(),
+                workers.clone(),
+                pool_id.clone(),
+                height_at_epoch_end + i as u64,
+            )
+            .unwrap();
         }
 
-        let cur_epoch = contract.current_epoch(height_at_epoch_end).unwrap();
+        let cur_epoch = Epoch::current(
+            &state::load_params(mock_deps.as_ref().storage),
+            height_at_epoch_end,
+        )
+        .unwrap();
         assert_ne!(starting_epoch_num + 1, cur_epoch.epoch_num);
 
-        let tally = contract
-            .store
-            .load_epoch_tally(pool_id.clone(), starting_epoch_num)
-            .unwrap();
+        let tally = state::load_epoch_tally(
+            mock_deps.as_ref().storage,
+            pool_id.clone(),
+            starting_epoch_num,
+        )
+        .unwrap();
         assert!(tally.is_some());
 
         let tally = tally.unwrap();
@@ -476,10 +421,9 @@ mod test {
             assert_eq!(tally.participation.get(&w.to_string()), Some(&1));
         }
 
-        let tally = contract
-            .store
-            .load_epoch_tally(pool_id, starting_epoch_num + 1)
-            .unwrap();
+        let tally =
+            state::load_epoch_tally(mock_deps.as_ref().storage, pool_id, starting_epoch_num + 1)
+                .unwrap();
         assert!(tally.is_none());
     }
 
@@ -490,7 +434,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
@@ -527,21 +471,23 @@ mod test {
         for (worker, (worker_contract, events_participated)) in &simulated_participation {
             for i in 0..*events_participated {
                 let event_id = i.to_string().try_into().unwrap();
-                contract
-                    .record_participation(
-                        event_id,
-                        worker.clone(),
-                        worker_contract.clone(),
-                        block_height_started,
-                    )
-                    .unwrap();
+                record_participation(
+                    mock_deps.as_mut().storage,
+                    event_id,
+                    worker.clone(),
+                    worker_contract.clone(),
+                    block_height_started,
+                )
+                .unwrap();
             }
         }
         for (worker, (worker_contract, events_participated)) in simulated_participation {
-            let tally = contract
-                .store
-                .load_epoch_tally(worker_contract.clone(), cur_epoch_num)
-                .unwrap();
+            let tally = state::load_epoch_tally(
+                mock_deps.as_ref().storage,
+                worker_contract.clone(),
+                cur_epoch_num,
+            )
+            .unwrap();
 
             assert!(tally.is_some());
             let tally = tally.unwrap();
@@ -557,13 +503,13 @@ mod test {
     /// Test that rewards parameters are updated correctly. In this test we don't change the epoch duration, so
     /// that computation of the current epoch is unaffected.
     #[test]
-    fn update_params() {
+    fn successfully_update_params() {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_rewards_per_epoch = 100u128;
         let initial_participation_threshold = (1, 2);
         let epoch_duration = 100u64;
-        let mut contract = setup_with_params(
+        let (mut mock_deps, config) = setup_with_params(
             initial_epoch_num,
             initial_epoch_start,
             epoch_duration,
@@ -583,20 +529,22 @@ mod test {
         };
 
         // the epoch shouldn't change when the params are updated, since we are not changing the epoch duration
-        let expected_epoch = contract.current_epoch(cur_height).unwrap();
+        let expected_epoch =
+            Epoch::current(&state::load_params(mock_deps.as_ref().storage), cur_height).unwrap();
 
-        contract
-            .update_params(
-                new_params.clone(),
-                cur_height,
-                contract.config.governance.clone(),
-            )
-            .unwrap();
-        let stored = contract.store.load_params();
+        update_params(
+            mock_deps.as_mut().storage,
+            new_params.clone(),
+            cur_height,
+            config.governance.clone(),
+        )
+        .unwrap();
+        let stored = state::load_params(mock_deps.as_ref().storage);
         assert_eq!(stored.params, new_params);
 
         // current epoch shouldn't have changed
-        let cur_epoch = contract.current_epoch(cur_height).unwrap();
+        let cur_epoch =
+            Epoch::current(&state::load_params(mock_deps.as_ref().storage), cur_height).unwrap();
         assert_eq!(expected_epoch.epoch_num, cur_epoch.epoch_num);
         assert_eq!(
             expected_epoch.block_height_started,
@@ -604,7 +552,7 @@ mod test {
         );
 
         // last updated should be the current epoch
-        assert_eq!(stored.last_updated, cur_epoch);
+        assert_eq!(stored.created_at, cur_epoch);
     }
 
     /// Test that rewards parameters cannot be updated by an address other than governance
@@ -613,7 +561,7 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let epoch_duration = 100u64;
-        let mut contract = setup(initial_epoch_num, initial_epoch_start, epoch_duration);
+        let (mut mock_deps, _) = setup(initial_epoch_num, initial_epoch_start, epoch_duration);
 
         let new_params = Params {
             rewards_per_epoch: cosmwasm_std::Uint128::from(100u128).try_into().unwrap(),
@@ -621,7 +569,8 @@ mod test {
             epoch_duration: epoch_duration.try_into().unwrap(),
         };
 
-        let res = contract.update_params(
+        let res = update_params(
+            mock_deps.as_mut().storage,
             new_params.clone(),
             initial_epoch_start,
             Addr::unchecked("some non governance address"),
@@ -639,7 +588,7 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
-        let mut contract = setup(
+        let (mut mock_deps, config) = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
@@ -650,36 +599,40 @@ mod test {
         let cur_height = initial_epoch_start + initial_epoch_duration * epochs_elapsed + 10; // add 10 here just to be a little past the epoch boundary
 
         // epoch shouldn't change if we are extending the duration
-        let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
+        let initial_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let epoch_prior_to_update = Epoch::current(&initial_params_snapshot, cur_height).unwrap();
 
         let new_epoch_duration = initial_epoch_duration * 2;
         let new_params = Params {
             epoch_duration: (new_epoch_duration).try_into().unwrap(),
-            ..contract.store.load_params().params // keep everything besides epoch duration the same
+            ..initial_params_snapshot.params // keep everything besides epoch duration the same
         };
 
-        contract
-            .update_params(
-                new_params.clone(),
-                cur_height,
-                contract.config.governance.clone(),
-            )
-            .unwrap();
+        update_params(
+            mock_deps.as_mut().storage,
+            new_params.clone(),
+            cur_height,
+            config.governance.clone(),
+        )
+        .unwrap();
+
+        let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
         // current epoch shouldn't change
-        let epoch = contract.current_epoch(cur_height).unwrap();
+        let epoch = Epoch::current(&updated_params_snapshot, cur_height).unwrap();
         assert_eq!(epoch, epoch_prior_to_update);
 
         // we increased the epoch duration, so adding the initial epoch duration should leave us in the same epoch
-        let epoch = contract
-            .current_epoch(cur_height + initial_epoch_duration)
-            .unwrap();
+        let epoch = Epoch::current(
+            &updated_params_snapshot,
+            cur_height + initial_epoch_duration,
+        )
+        .unwrap();
         assert_eq!(epoch, epoch_prior_to_update);
 
         // check that we can correctly compute the start of the next epoch
-        let next_epoch = contract
-            .current_epoch(cur_height + new_epoch_duration)
-            .unwrap();
+        let next_epoch =
+            Epoch::current(&updated_params_snapshot, cur_height + new_epoch_duration).unwrap();
         assert_eq!(next_epoch.epoch_num, epoch_prior_to_update.epoch_num + 1);
         assert_eq!(
             next_epoch.block_height_started,
@@ -694,7 +647,7 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 256u64;
         let initial_epoch_duration = 100u64;
-        let mut contract = setup(
+        let (mut mock_deps, config) = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
@@ -705,30 +658,33 @@ mod test {
         let cur_height = initial_epoch_start + initial_epoch_duration * epochs_elapsed;
 
         let new_epoch_duration = initial_epoch_duration / 2;
-        let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
+
+        let initial_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let epoch_prior_to_update = Epoch::current(&initial_params_snapshot, cur_height).unwrap();
         // we are shortening the epoch, but not so much it causes the epoch number to change. We want to remain in the same epoch
         assert!(cur_height - epoch_prior_to_update.block_height_started < new_epoch_duration);
 
         let new_params = Params {
             epoch_duration: new_epoch_duration.try_into().unwrap(),
-            ..contract.store.load_params().params
+            ..initial_params_snapshot.params
         };
-        contract
-            .update_params(
-                new_params.clone(),
-                cur_height,
-                contract.config.governance.clone(),
-            )
-            .unwrap();
+        update_params(
+            mock_deps.as_mut().storage,
+            new_params.clone(),
+            cur_height,
+            config.governance.clone(),
+        )
+        .unwrap();
+
+        let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
         // current epoch shouldn't have changed
-        let epoch = contract.current_epoch(cur_height).unwrap();
+        let epoch = Epoch::current(&updated_params_snapshot, cur_height).unwrap();
         assert_eq!(epoch_prior_to_update, epoch);
 
         // adding the new epoch duration should increase the epoch number by 1
-        let epoch = contract
-            .current_epoch(cur_height + new_epoch_duration)
-            .unwrap();
+        let epoch =
+            Epoch::current(&updated_params_snapshot, cur_height + new_epoch_duration).unwrap();
         assert_eq!(epoch.epoch_num, epoch_prior_to_update.epoch_num + 1);
         assert_eq!(
             epoch.block_height_started,
@@ -743,7 +699,7 @@ mod test {
         let initial_epoch_num = 1u64;
         let initial_epoch_start = 250u64;
         let initial_epoch_duration = 100u64;
-        let mut contract = setup(
+        let (mut mock_deps, config) = setup(
             initial_epoch_num,
             initial_epoch_start,
             initial_epoch_duration,
@@ -756,29 +712,32 @@ mod test {
         // simulate progressing far enough into the epoch such that shortening the epoch duration would change the epoch
         let cur_height =
             initial_epoch_start + initial_epoch_duration * epochs_elapsed + new_epoch_duration * 2;
-        let epoch_prior_to_update = contract.current_epoch(cur_height).unwrap();
+
+        let initial_params_snapshot = state::load_params(mock_deps.as_ref().storage);
+        let epoch_prior_to_update = Epoch::current(&initial_params_snapshot, cur_height).unwrap();
 
         let new_params = Params {
             epoch_duration: 10.try_into().unwrap(),
-            ..contract.store.load_params().params
+            ..initial_params_snapshot.params
         };
-        contract
-            .update_params(
-                new_params.clone(),
-                cur_height,
-                contract.config.governance.clone(),
-            )
-            .unwrap();
+        update_params(
+            mock_deps.as_mut().storage,
+            new_params.clone(),
+            cur_height,
+            config.governance.clone(),
+        )
+        .unwrap();
+
+        let updated_params_snapshot = state::load_params(mock_deps.as_ref().storage);
 
         // should be in new epoch now
-        let epoch = contract.current_epoch(cur_height).unwrap();
+        let epoch = Epoch::current(&updated_params_snapshot, cur_height).unwrap();
         assert_eq!(epoch.epoch_num, epoch_prior_to_update.epoch_num + 1);
         assert_eq!(epoch.block_height_started, cur_height);
 
         // moving forward the new epoch duration # of blocks should increment the epoch
-        let epoch = contract
-            .current_epoch(cur_height + new_epoch_duration)
-            .unwrap();
+        let epoch =
+            Epoch::current(&updated_params_snapshot, cur_height + new_epoch_duration).unwrap();
         assert_eq!(epoch.epoch_num, epoch_prior_to_update.epoch_num + 2);
         assert_eq!(epoch.block_height_started, cur_height + new_epoch_duration);
     }
@@ -790,29 +749,37 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
             contract: Addr::unchecked("some contract"),
         };
-        let pool = contract.store.load_rewards_pool(pool_id.clone()).unwrap();
+        let pool =
+            state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
         assert!(pool.balance.is_zero());
 
         let initial_amount = Uint128::from(100u128);
-        contract
-            .add_rewards(pool_id.clone(), initial_amount.try_into().unwrap())
-            .unwrap();
+        add_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            initial_amount.try_into().unwrap(),
+        )
+        .unwrap();
 
-        let pool = contract.store.load_rewards_pool(pool_id.clone()).unwrap();
+        let pool =
+            state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id.clone()).unwrap();
         assert_eq!(pool.balance, initial_amount);
 
         let added_amount = Uint128::from(500u128);
-        contract
-            .add_rewards(pool_id.clone(), added_amount.try_into().unwrap())
-            .unwrap();
+        add_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            added_amount.try_into().unwrap(),
+        )
+        .unwrap();
 
-        let pool = contract.store.load_rewards_pool(pool_id).unwrap();
+        let pool = state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
         assert_eq!(pool.balance, initial_amount + added_amount);
     }
 
@@ -823,7 +790,7 @@ mod test {
         let block_height_started = 250u64;
         let epoch_duration = 100u64;
 
-        let mut contract = setup(cur_epoch_num, block_height_started, epoch_duration);
+        let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
         // a vector of (worker contract, rewards amounts) pairs
         let test_data = vec![
             (Addr::unchecked("contract_1"), vec![100, 200, 50]),
@@ -840,12 +807,12 @@ mod test {
             };
 
             for amount in rewards {
-                contract
-                    .add_rewards(
-                        pool_id.clone(),
-                        cosmwasm_std::Uint128::from(*amount).try_into().unwrap(),
-                    )
-                    .unwrap();
+                add_rewards(
+                    mock_deps.as_mut().storage,
+                    pool_id.clone(),
+                    cosmwasm_std::Uint128::from(*amount).try_into().unwrap(),
+                )
+                .unwrap();
             }
         }
 
@@ -855,7 +822,8 @@ mod test {
                 contract: worker_contract.clone(),
             };
 
-            let pool = contract.store.load_rewards_pool(pool_id).unwrap();
+            let pool =
+                state::load_rewards_pool_or_new(mock_deps.as_ref().storage, pool_id).unwrap();
             assert_eq!(
                 pool.balance,
                 cosmwasm_std::Uint128::from(rewards.iter().sum::<u128>())
@@ -865,14 +833,14 @@ mod test {
 
     /// Tests that rewards are distributed correctly based on participation
     #[test]
-    fn distribute_rewards() {
+    fn successfully_distribute_rewards() {
         let cur_epoch_num = 0u64;
         let block_height_started = 0u64;
         let epoch_duration = 1000u64;
         let rewards_per_epoch = 100u128;
         let participation_threshold = (2, 3);
 
-        let mut contract = setup_with_params(
+        let (mut mock_deps, _) = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -922,7 +890,8 @@ mod test {
             for (epoch, events) in events_participated.iter().enumerate().take(epoch_count) {
                 for event in events {
                     let event_id = event.to_string() + &epoch.to_string() + "event";
-                    let _ = contract.record_participation(
+                    let _ = record_participation(
+                        mock_deps.as_mut().storage,
                         event_id.clone().try_into().unwrap(),
                         worker.clone(),
                         pool_id.clone(),
@@ -935,18 +904,19 @@ mod test {
         // we add 2 epochs worth of rewards. There were 2 epochs of participation, but only 2 epochs where rewards should be given out
         // These tests we are accounting correctly, and only removing from the pool when we actually give out rewards
         let rewards_added = 2 * rewards_per_epoch;
-        let _ = contract.add_rewards(
+        let _ = add_rewards(
+            mock_deps.as_mut().storage,
             pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let rewards_claimed = contract
-            .distribute_rewards(
-                pool_id,
-                block_height_started + epoch_duration * (epoch_count + 2) as u64,
-                None,
-            )
-            .unwrap();
+        let rewards_claimed = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id,
+            block_height_started + epoch_duration * (epoch_count + 2) as u64,
+            None,
+        )
+        .unwrap();
 
         assert_eq!(rewards_claimed.len(), worker_participation_per_epoch.len());
         for (worker, rewards) in expected_rewards_per_worker {
@@ -964,7 +934,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (1, 2);
 
-        let mut contract = setup_with_params(
+        let (mut mock_deps, _) = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -979,7 +949,8 @@ mod test {
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
             let event_id = height.to_string() + "event";
-            let _ = contract.record_participation(
+            let _ = record_participation(
+                mock_deps.as_mut().storage,
                 event_id.try_into().unwrap(),
                 worker.clone(),
                 pool_id.clone(),
@@ -988,7 +959,8 @@ mod test {
         }
 
         let rewards_added = 1000u128;
-        let _ = contract.add_rewards(
+        let _ = add_rewards(
+            mock_deps.as_mut().storage,
             pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
@@ -999,9 +971,13 @@ mod test {
 
         // distribute 5 epochs worth of rewards
         let epochs_to_process = 5;
-        let rewards_claimed = contract
-            .distribute_rewards(pool_id.clone(), cur_height, Some(epochs_to_process))
-            .unwrap();
+        let rewards_claimed = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            cur_height,
+            Some(epochs_to_process),
+        )
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&worker));
         assert_eq!(
@@ -1010,9 +986,13 @@ mod test {
         );
 
         // distribute the remaining epochs worth of rewards
-        let rewards_claimed = contract
-            .distribute_rewards(pool_id.clone(), cur_height, None)
-            .unwrap();
+        let rewards_claimed = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            cur_height,
+            None,
+        )
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
         assert!(rewards_claimed.contains_key(&worker));
         assert_eq!(
@@ -1033,7 +1013,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
 
-        let mut contract = setup_with_params(
+        let (mut mock_deps, _) = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1046,7 +1026,8 @@ mod test {
             contract: Addr::unchecked("worker_contract"),
         };
 
-        let _ = contract.record_participation(
+        let _ = record_participation(
+            mock_deps.as_mut().storage,
             "event".try_into().unwrap(),
             worker.clone(),
             pool_id.clone(),
@@ -1054,37 +1035,50 @@ mod test {
         );
 
         let rewards_added = 1000u128;
-        let _ = contract.add_rewards(
+        let _ = add_rewards(
+            mock_deps.as_mut().storage,
             pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
         // too early, still in the same epoch
-        let err = contract
-            .distribute_rewards(pool_id.clone(), block_height_started, None)
-            .unwrap_err();
+        let err = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            block_height_started,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // next epoch, but still too early to claim rewards
-        let err = contract
-            .distribute_rewards(pool_id.clone(), block_height_started + epoch_duration, None)
-            .unwrap_err();
+        let err = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            block_height_started + epoch_duration,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
 
         // can claim now, two epochs after participation
-        let rewards_claimed = contract
-            .distribute_rewards(
-                pool_id.clone(),
-                block_height_started + epoch_duration * 2,
-                None,
-            )
-            .unwrap();
+        let rewards_claimed = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            block_height_started + epoch_duration * 2,
+            None,
+        )
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
 
         // should error if we try again
-        let err = contract
-            .distribute_rewards(pool_id, block_height_started + epoch_duration * 2, None)
-            .unwrap_err();
+        let err = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id,
+            block_height_started + epoch_duration * 2,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 
@@ -1098,7 +1092,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
 
-        let mut contract = setup_with_params(
+        let (mut mock_deps, _) = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1111,7 +1105,8 @@ mod test {
             contract: Addr::unchecked("worker_contract"),
         };
 
-        let _ = contract.record_participation(
+        let _ = record_participation(
+            mock_deps.as_mut().storage,
             "event".try_into().unwrap(),
             worker.clone(),
             pool_id.clone(),
@@ -1120,31 +1115,37 @@ mod test {
 
         // rewards per epoch is 100, we only add 10
         let rewards_added = 10u128;
-        let _ = contract.add_rewards(
+        let _ = add_rewards(
+            mock_deps.as_mut().storage,
             pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let err = contract
-            .distribute_rewards(
-                pool_id.clone(),
-                block_height_started + epoch_duration * 2,
-                None,
-            )
-            .unwrap_err();
+        let err = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            block_height_started + epoch_duration * 2,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(
             err.current_context(),
             &ContractError::PoolBalanceInsufficient
         );
         // add some more rewards
         let rewards_added = 90u128;
-        let _ = contract.add_rewards(
+        let _ = add_rewards(
+            mock_deps.as_mut().storage,
             pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let result =
-            contract.distribute_rewards(pool_id, block_height_started + epoch_duration * 2, None);
+        let result = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id,
+            block_height_started + epoch_duration * 2,
+            None,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 1);
     }
@@ -1158,7 +1159,7 @@ mod test {
         let rewards_per_epoch = 100u128;
         let participation_threshold = (8, 10);
 
-        let mut contract = setup_with_params(
+        let (mut mock_deps, _) = setup_with_params(
             cur_epoch_num,
             block_height_started,
             epoch_duration,
@@ -1171,7 +1172,8 @@ mod test {
             contract: Addr::unchecked("worker_contract"),
         };
 
-        let _ = contract.record_participation(
+        let _ = record_participation(
+            mock_deps.as_mut().storage,
             "event".try_into().unwrap(),
             worker.clone(),
             pool_id.clone(),
@@ -1179,123 +1181,82 @@ mod test {
         );
 
         let rewards_added = 1000u128;
-        let _ = contract.add_rewards(
+        let _ = add_rewards(
+            mock_deps.as_mut().storage,
             pool_id.clone(),
             Uint128::from(rewards_added).try_into().unwrap(),
         );
 
-        let rewards_claimed = contract
-            .distribute_rewards(
-                pool_id.clone(),
-                block_height_started + epoch_duration * 2,
-                None,
-            )
-            .unwrap();
+        let rewards_claimed = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id.clone(),
+            block_height_started + epoch_duration * 2,
+            None,
+        )
+        .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
 
         // try to claim again, shouldn't get an error
-        let err = contract
-            .distribute_rewards(pool_id, block_height_started + epoch_duration * 2, None)
-            .unwrap_err();
+        let err = distribute_rewards(
+            mock_deps.as_mut().storage,
+            pool_id,
+            block_height_started + epoch_duration * 2,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(err.current_context(), &ContractError::NoRewardsToDistribute);
     }
 
-    fn create_contract(
-        params_store: Arc<RwLock<StoredParams>>,
-        events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
-        tally_store: Arc<RwLock<HashMap<TallyId, EpochTally>>>,
-        rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
-        watermark_store: Arc<RwLock<HashMap<PoolId, u64>>>,
-    ) -> Contract<state::MockStore> {
-        let mut store = state::MockStore::new();
-        let params_store_cloned = params_store.clone();
-        store
-            .expect_load_params()
-            .returning(move || params_store_cloned.read().unwrap().clone());
-        store.expect_save_params().returning(move |new_params| {
-            let mut params_store = params_store.write().unwrap();
-            *params_store = new_params.clone();
-            Ok(())
-        });
-        let events_store_cloned = events_store.clone();
-        store.expect_load_event().returning(move |id, pool_id| {
-            let events_store = events_store_cloned.read().unwrap();
-            Ok(events_store.get(&(id, pool_id)).cloned())
-        });
-        store.expect_save_event().returning(move |event| {
-            let mut events_store = events_store.write().unwrap();
-            events_store.insert(
-                (event.event_id.clone().into(), event.pool_id.clone()),
-                event.clone(),
-            );
-            Ok(())
-        });
-        let tally_store_cloned = tally_store.clone();
-        store
-            .expect_load_epoch_tally()
-            .returning(move |pool_id, epoch_num| {
-                let tally_store = tally_store_cloned.read().unwrap();
-                let tally_id = TallyId {
-                    pool_id: pool_id.clone(),
-                    epoch_num,
-                };
-                Ok(tally_store.get(&tally_id).cloned())
-            });
-        store.expect_save_epoch_tally().returning(move |tally| {
-            let mut tally_store = tally_store.write().unwrap();
-            let tally_id = TallyId {
-                pool_id: tally.pool_id.clone(),
-                epoch_num: tally.epoch.epoch_num,
-            };
-            tally_store.insert(tally_id, tally.clone());
-            Ok(())
+    type MockDeps = OwnedDeps<MockStorage, MockApi, MockQuerier>;
+
+    fn set_initial_storage(
+        params_store: ParamsSnapshot,
+        events_store: Vec<Event>,
+        tally_store: Vec<EpochTally>,
+        rewards_store: Vec<RewardsPool>,
+        watermark_store: HashMap<PoolId, u64>,
+    ) -> (MockDeps, Config) {
+        let mut deps = mock_dependencies();
+        let storage = deps.as_mut().storage;
+
+        state::save_params(storage, &params_store).unwrap();
+
+        events_store.iter().for_each(|event| {
+            state::save_event(storage, event).unwrap();
         });
 
-        let rewards_store_cloned = rewards_store.clone();
-        store.expect_load_rewards_pool().returning(move |pool_id| {
-            let rewards_store = rewards_store_cloned.read().unwrap();
-            Ok(rewards_store.get(&pool_id).cloned().unwrap_or(RewardsPool {
-                id: pool_id,
-                balance: Uint128::zero(),
-            }))
-        });
-        store.expect_save_rewards_pool().returning(move |pool| {
-            let mut rewards_store = rewards_store.write().unwrap();
-            rewards_store.insert(pool.id.clone(), pool.clone());
-            Ok(())
+        tally_store.iter().for_each(|tally| {
+            state::save_epoch_tally(storage, tally).unwrap();
         });
 
-        let watermark_store_cloned = watermark_store.clone();
-        store
-            .expect_load_rewards_watermark()
-            .returning(move |contract| {
-                let watermark_store = watermark_store_cloned.read().unwrap();
-                Ok(watermark_store.get(&contract).cloned())
+        rewards_store.iter().for_each(|pool| {
+            state::save_rewards_pool(storage, pool).unwrap();
+        });
+
+        watermark_store
+            .into_iter()
+            .for_each(|(pool_id, epoch_num)| {
+                state::save_rewards_watermark(storage, pool_id, epoch_num).unwrap();
             });
-        store
-            .expect_save_rewards_watermark()
-            .returning(move |pool_id, epoch_num| {
-                let mut watermark_store = watermark_store.write().unwrap();
-                watermark_store.insert(pool_id, epoch_num);
-                Ok(())
-            });
-        Contract {
-            store,
-            config: Config {
-                governance: Addr::unchecked("governance"),
-                rewards_denom: "AXL".to_string(),
-            },
-        }
+
+        let config = Config {
+            governance: Addr::unchecked("governance"),
+            rewards_denom: "AXL".to_string(),
+        };
+
+        CONFIG.save(storage, &config).unwrap();
+
+        (deps, config)
     }
 
     fn setup_with_stores(
-        params_store: Arc<RwLock<StoredParams>>,
-        events_store: Arc<RwLock<HashMap<(String, PoolId), Event>>>,
-        tally_store: Arc<RwLock<HashMap<TallyId, EpochTally>>>,
-        rewards_store: Arc<RwLock<HashMap<PoolId, RewardsPool>>>,
-        watermark_store: Arc<RwLock<HashMap<PoolId, u64>>>,
-    ) -> Contract<state::MockStore> {
-        create_contract(
+        params_store: ParamsSnapshot,
+        events_store: Vec<Event>,
+        tally_store: Vec<EpochTally>,
+        rewards_store: Vec<RewardsPool>,
+        watermark_store: HashMap<PoolId, u64>,
+    ) -> (MockDeps, Config) {
+        set_initial_storage(
             params_store,
             events_store,
             tally_store,
@@ -1310,7 +1271,7 @@ mod test {
         epoch_duration: u64,
         rewards_per_epoch: u128,
         participation_threshold: (u64, u64),
-    ) -> Contract<state::MockStore> {
+    ) -> (MockDeps, Config) {
         let rewards_per_epoch: nonempty::Uint128 = cosmwasm_std::Uint128::from(rewards_per_epoch)
             .try_into()
             .unwrap();
@@ -1319,21 +1280,21 @@ mod test {
             block_height_started,
         };
 
-        let stored_params = StoredParams {
+        let params_snapshot = ParamsSnapshot {
             params: Params {
                 participation_threshold: participation_threshold.try_into().unwrap(),
                 epoch_duration: epoch_duration.try_into().unwrap(),
                 rewards_per_epoch,
             },
-            last_updated: current_epoch.clone(),
+            created_at: current_epoch.clone(),
         };
-        let stored_params = Arc::new(RwLock::new(stored_params));
-        let rewards_store = Arc::new(RwLock::new(HashMap::new()));
-        let events_store = Arc::new(RwLock::new(HashMap::new()));
-        let tally_store = Arc::new(RwLock::new(HashMap::new()));
-        let watermark_store = Arc::new(RwLock::new(HashMap::new()));
+
+        let rewards_store = Vec::new();
+        let events_store = Vec::new();
+        let tally_store = Vec::new();
+        let watermark_store = HashMap::new();
         setup_with_stores(
-            stored_params,
+            params_snapshot,
             events_store,
             tally_store,
             rewards_store,
@@ -1345,7 +1306,7 @@ mod test {
         cur_epoch_num: u64,
         block_height_started: u64,
         epoch_duration: u64,
-    ) -> Contract<state::MockStore> {
+    ) -> (MockDeps, Config) {
         let participation_threshold = (1, 2);
         let rewards_per_epoch = 100u128;
         setup_with_params(
