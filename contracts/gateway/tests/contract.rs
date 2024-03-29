@@ -142,14 +142,15 @@ fn successful_route_outgoing() {
         };
 
         // check no messages are outgoing
-        iter::repeat(query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap())
-            .take(2)
-            .for_each(|response| {
-                assert_eq!(
-                    response,
-                    to_json_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
-                )
-            });
+        let query_response = query(deps.as_ref(), mock_env(), query_msg.clone());
+        if msgs.len() == 0 {
+            assert_eq!(
+                query_response.unwrap(),
+                to_json_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
+            )
+        } else {
+            assert!(query_response.is_err());
+        }
 
         // check routing of outgoing messages is idempotent
         let response = iter::repeat(
