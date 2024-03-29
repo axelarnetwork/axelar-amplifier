@@ -34,6 +34,7 @@ impl MultisigProverContract {
                 Addr::unchecked("anyone"),
                 &multisig_prover::msg::InstantiateMsg {
                     admin_address: admin_address.to_string(),
+                    governance_address: protocol.governance_address.to_string(),
                     gateway_address: gateway_address.to_string(),
                     multisig_address: protocol.multisig.contract_addr.to_string(),
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),

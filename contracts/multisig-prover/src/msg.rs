@@ -9,6 +9,7 @@ use crate::encoding::{Data, Encoder};
 #[cw_serde]
 pub struct InstantiateMsg {
     pub admin_address: String,
+    pub governance_address: String,
     pub gateway_address: String,
     pub multisig_address: String,
     pub service_registry_address: String,
@@ -39,6 +40,11 @@ pub enum QueryMsg {
 
     #[returns(multisig::worker_set::WorkerSet)]
     GetWorkerSet,
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub governance_address: String,
 }
 
 #[cw_serde]
