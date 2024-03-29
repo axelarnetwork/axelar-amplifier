@@ -239,11 +239,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 }
 
-pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
-
+fn ensure_worker_set_verification(
+    worker_set: &WorkerSet,
+    config: &Config,
+    deps: &DepsMut,
+) -> Result<(), ContractError> {
     let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
         new_operators: make_operators(worker_set.clone(), config.encoder),
     };
@@ -254,7 +254,19 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     }))?;
 
     if status != VerificationStatus::SucceededOnChain {
-        return Err(ContractError::WorkerSetNotConfirmed);
+        Err(ContractError::WorkerSetNotConfirmed)
+    } else {
+        Ok(())
+    }
+}
+
+pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
+
+    if sender != config.governance {
+        ensure_worker_set_verification(&worker_set, &config, &deps)?;
     }
 
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
