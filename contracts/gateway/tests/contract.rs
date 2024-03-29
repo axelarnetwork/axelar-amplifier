@@ -143,7 +143,7 @@ fn successful_route_outgoing() {
 
         // check no messages are outgoing
         let query_response = query(deps.as_ref(), mock_env(), query_msg.clone());
-        if msgs.len() == 0 {
+        if msgs.is_empty(){
             assert_eq!(
                 query_response.unwrap(),
                 to_json_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
