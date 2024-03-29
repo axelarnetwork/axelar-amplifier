@@ -432,6 +432,7 @@ mod tests {
     fn mock_config() -> Config {
         Config {
             admin: Addr::unchecked("doesn't matter"),
+            governance: Addr::unchecked("doesn't matter"),
             gateway: Addr::unchecked("doesn't matter"),
             multisig: Addr::unchecked("doesn't matter"),
             service_registry: Addr::unchecked("doesn't matter"),
