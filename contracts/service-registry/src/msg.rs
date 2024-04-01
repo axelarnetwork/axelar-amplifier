@@ -59,7 +59,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<crate::state::Worker>)]
+    #[returns(Vec<crate::state::WeightedWorker>)]
     GetActiveWorkers {
         service_name: String,
         chain_name: ChainName,

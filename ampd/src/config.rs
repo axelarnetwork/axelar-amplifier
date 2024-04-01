@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 
 use crate::broadcaster;
 use crate::commands::ServiceRegistryConfig;
@@ -48,7 +49,9 @@ mod tests {
 
     use cosmrs::AccountId;
 
-    use crate::evm::ChainName;
+    use connection_router_api::ChainName;
+
+    use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
     use crate::handlers::config::Config as HandlerConfig;
     use crate::types::TMAddress;
@@ -261,7 +264,8 @@ mod tests {
             handlers: vec![
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
-                        name: ChainName::Ethereum,
+                        name: ChainName::from_str("Ethereum").unwrap(),
+                        finalization: Finalization::RPCFinalizedBlock,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),
@@ -274,7 +278,8 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     chain: Chain {
-                        name: ChainName::Other("Fantom".to_string()),
+                        name: ChainName::from_str("Fantom").unwrap(),
+                        finalization: Finalization::ConfirmationHeight,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),

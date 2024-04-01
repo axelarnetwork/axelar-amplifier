@@ -28,8 +28,7 @@ impl Snapshot {
         let participants: HashMap<String, Participant> = participants
             .into_iter()
             .map(|participant| {
-                let weight: &Uint256 = participant.weight.as_ref();
-                total_weight += weight;
+                total_weight = total_weight.saturating_add(participant.weight.into());
 
                 (participant.address.to_string(), participant)
             })
@@ -66,7 +65,7 @@ impl Snapshot {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{from_binary, to_binary, Uint64};
+    use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
     use crate::Threshold;
 
@@ -134,8 +133,8 @@ mod tests {
             default_participants(),
         );
 
-        let serialized = to_binary(&snapshot).unwrap();
-        let deserialized: Snapshot = from_binary(&serialized).unwrap();
+        let serialized = to_json_binary(&snapshot).unwrap();
+        let deserialized: Snapshot = from_json(serialized).unwrap();
 
         assert_eq!(snapshot, deserialized);
     }

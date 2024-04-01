@@ -99,7 +99,7 @@ pub fn verify_message(
     transaction_block: &SuiTransactionBlockResponse,
     message: &Message,
 ) -> Vote {
-    match find_event(transaction_block, message.event_index) {
+    match find_event(transaction_block, message.event_index as u64) {
         Some(event)
             if transaction_block.digest == message.tx_id
                 && event.type_ == EventType::ContractCall.struct_tag(gateway_address)
@@ -116,7 +116,7 @@ pub fn verify_worker_set(
     transaction_block: &SuiTransactionBlockResponse,
     worker_set: &WorkerSetConfirmation,
 ) -> Vote {
-    match find_event(transaction_block, worker_set.event_index) {
+    match find_event(transaction_block, worker_set.event_index as u64) {
         Some(event)
             if transaction_block.digest == worker_set.tx_id
                 && event.type_
@@ -165,7 +165,7 @@ mod tests {
     fn should_not_verify_msg_if_event_index_does_not_match() {
         let (gateway_address, tx_receipt, mut msg) = get_matching_msg_and_tx_block();
 
-        msg.event_index = rand::random::<u64>();
+        msg.event_index = rand::random::<u32>();
         assert_eq!(
             verify_message(&gateway_address, &tx_receipt, &msg),
             Vote::NotFound
@@ -240,7 +240,7 @@ mod tests {
 
         let msg = Message {
             tx_id: TransactionDigest::random(),
-            event_index: rand::random::<u64>(),
+            event_index: rand::random::<u32>(),
             source_address: SuiAddress::random_for_testing_only(),
             destination_chain: rand_chain_name(),
             destination_address: format!("0x{:x}", EVMAddress::random()).parse().unwrap(),
@@ -260,7 +260,7 @@ mod tests {
         let event = SuiEvent {
             id: EventID {
                 tx_digest: msg.tx_id,
-                event_seq: msg.event_index,
+                event_seq: msg.event_index as u64,
             },
             package_id: gateway_address.into(),
             transaction_module: "gateway".parse().unwrap(),
@@ -294,7 +294,7 @@ mod tests {
 
         let worker_set_confirmation = WorkerSetConfirmation {
             tx_id: TransactionDigest::random(),
-            event_index: rand::random::<u64>(),
+            event_index: rand::random::<u32>(),
             operators: Operators {
                 weights_by_addresses: vec![
                     (
@@ -374,7 +374,7 @@ mod tests {
         let event = SuiEvent {
             id: EventID {
                 tx_digest: worker_set_confirmation.tx_id,
-                event_seq: worker_set_confirmation.event_index,
+                event_seq: worker_set_confirmation.event_index as u64,
             },
             package_id: gateway_address.into(),
             transaction_module: "gateway".parse().unwrap(),

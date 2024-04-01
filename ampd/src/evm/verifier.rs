@@ -2,7 +2,8 @@ use axelar_wasm_std::voting::Vote;
 use ethers::abi::{encode, Token};
 use ethers::contract::EthLogDecode;
 use ethers::prelude::abigen;
-use ethers::types::{Log, TransactionReceipt};
+use ethers::types::{Log, TransactionReceipt, H256};
+use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
@@ -12,31 +13,30 @@ abigen!(IAxelarGateway, "src/evm/abi/IAxelarGateway.json");
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarGatewayEvents);
 
-impl PartialEq<&Message> for IAxelarGatewayEventsWithLog<'_> {
-    fn eq(&self, msg: &&Message) -> bool {
-        let IAxelarGatewayEventsWithLog(log, event) = self;
+impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
+    fn eq(&self, other: &IAxelarGatewayEventsWithLog<'_>) -> bool {
+        let IAxelarGatewayEventsWithLog(log, event) = other;
 
         match event {
             IAxelarGatewayEvents::ContractCallFilter(event) => {
-                log.transaction_hash == Some(msg.tx_id)
-                    && log.log_index == Some(msg.event_index.into())
-                    && event.sender == msg.source_address
-                    && msg.destination_chain == event.destination_chain
-                    && event.destination_contract_address == msg.destination_address
-                    && event.payload_hash == msg.payload_hash.as_bytes()
+                log.transaction_hash == Some(self.tx_id)
+                    && event.sender == self.source_address
+                    && self.destination_chain == event.destination_chain
+                    && event.destination_contract_address == self.destination_address
+                    && event.payload_hash == self.payload_hash.as_bytes()
             }
             _ => false,
         }
     }
 }
 
-impl PartialEq<&WorkerSetConfirmation> for IAxelarGatewayEventsWithLog<'_> {
-    fn eq(&self, worker_set: &&WorkerSetConfirmation) -> bool {
-        let IAxelarGatewayEventsWithLog(log, event) = self;
+impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
+    fn eq(&self, other: &IAxelarGatewayEventsWithLog<'_>) -> bool {
+        let IAxelarGatewayEventsWithLog(log, event) = other;
 
         match event {
             IAxelarGatewayEvents::OperatorshipTransferredFilter(event) => {
-                let (operators, weights): (Vec<_>, Vec<_>) = worker_set
+                let (operators, weights): (Vec<_>, Vec<_>) = self
                     .operators
                     .weights_by_addresses
                     .iter()
@@ -48,13 +48,12 @@ impl PartialEq<&WorkerSetConfirmation> for IAxelarGatewayEventsWithLog<'_> {
                     })
                     .unzip();
 
-                log.transaction_hash == Some(worker_set.tx_id)
-                    && log.log_index == Some(worker_set.event_index.into())
+                log.transaction_hash == Some(self.tx_id)
                     && event.new_operators_data
                         == encode(&[
                             Token::Array(operators),
                             Token::Array(weights),
-                            Token::Uint(worker_set.operators.threshold.as_ref().to_owned()),
+                            Token::Uint(self.operators.threshold.as_ref().to_owned()),
                         ])
             }
             _ => false,
@@ -62,15 +61,20 @@ impl PartialEq<&WorkerSetConfirmation> for IAxelarGatewayEventsWithLog<'_> {
     }
 }
 
+fn has_failed(tx_receipt: &TransactionReceipt) -> bool {
+    tx_receipt.status == Some(0u64.into())
+}
+
 fn get_event<'a>(
     gateway_address: &EVMAddress,
     tx_receipt: &'a TransactionReceipt,
-    log_index: u64,
+    log_index: u32,
 ) -> Option<IAxelarGatewayEventsWithLog<'a>> {
+    let log_index: usize = cast(log_index).expect("log_index must be a valid usize");
+
     tx_receipt
         .logs
-        .iter()
-        .find(|log| log.log_index == Some(log_index.into()))
+        .get(log_index)
         .filter(|log| log.address == *gateway_address)
         .and_then(
             |log| match IAxelarGatewayEvents::decode_log(&log.clone().into()) {
@@ -80,17 +84,36 @@ fn get_event<'a>(
         )
 }
 
+fn verify<'a, V>(
+    gateway_address: &EVMAddress,
+    tx_receipt: &'a TransactionReceipt,
+    to_verify: V,
+    expected_transaction_hash: H256,
+    expected_event_index: u32,
+) -> Vote
+where
+    V: PartialEq<IAxelarGatewayEventsWithLog<'a>>,
+{
+    if has_failed(tx_receipt) {
+        return Vote::FailedOnChain;
+    }
+
+    match get_event(gateway_address, tx_receipt, expected_event_index) {
+        Some(event)
+            if tx_receipt.transaction_hash == expected_transaction_hash && to_verify == event =>
+        {
+            Vote::SucceededOnChain
+        }
+        _ => Vote::NotFound,
+    }
+}
+
 pub fn verify_message(
     gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
     msg: &Message,
 ) -> Vote {
-    match get_event(gateway_address, tx_receipt, msg.event_index) {
-        Some(event) if tx_receipt.transaction_hash == msg.tx_id && event == msg => {
-            Vote::SucceededOnChain
-        }
-        _ => Vote::NotFound,
-    }
+    verify(gateway_address, tx_receipt, msg, msg.tx_id, msg.event_index)
 }
 
 pub fn verify_worker_set(
@@ -98,12 +121,13 @@ pub fn verify_worker_set(
     tx_receipt: &TransactionReceipt,
     worker_set: &WorkerSetConfirmation,
 ) -> Vote {
-    match get_event(gateway_address, tx_receipt, worker_set.event_index) {
-        Some(event) if tx_receipt.transaction_hash == worker_set.tx_id && event == worker_set => {
-            Vote::SucceededOnChain
-        }
-        _ => Vote::NotFound,
-    }
+    verify(
+        gateway_address,
+        tx_receipt,
+        worker_set,
+        worker_set.tx_id,
+        worker_set.event_index,
+    )
 }
 
 #[cfg(test)]
@@ -130,6 +154,18 @@ mod tests {
         assert_eq!(
             verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
             Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_not_verify_worker_set_if_tx_failed() {
+        let (gateway_address, mut tx_receipt, worker_set) =
+            get_matching_worker_set_and_tx_receipt();
+
+        tx_receipt.status = Some(0u64.into());
+        assert_eq!(
+            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            Vote::FailedOnChain
         );
     }
 
@@ -200,6 +236,17 @@ mod tests {
     }
 
     #[test]
+    fn should_not_verify_msg_if_tx_failed() {
+        let (gateway_address, mut tx_receipt, msg) = get_matching_msg_and_tx_receipt();
+
+        tx_receipt.status = Some(0u64.into());
+        assert_eq!(
+            verify_message(&gateway_address, &tx_receipt, &msg),
+            Vote::FailedOnChain
+        );
+    }
+
+    #[test]
     fn should_not_verify_msg_if_gateway_address_does_not_match() {
         let (_, tx_receipt, msg) = get_matching_msg_and_tx_receipt();
 
@@ -255,7 +302,7 @@ mod tests {
     fn get_matching_worker_set_and_tx_receipt(
     ) -> (EVMAddress, TransactionReceipt, WorkerSetConfirmation) {
         let tx_id = Hash::random();
-        let log_index = 999;
+        let log_index = 1;
         let gateway_address = EVMAddress::random();
 
         let worker_set = WorkerSetConfirmation {
@@ -296,6 +343,7 @@ mod tests {
         };
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_id,
+            status: Some(1u64.into()),
             logs: vec![Log::default(), log, Log::default()],
             ..Default::default()
         };
@@ -305,7 +353,7 @@ mod tests {
 
     fn get_matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {
         let tx_id = Hash::random();
-        let log_index = 999;
+        let log_index = 1;
         let gateway_address = EVMAddress::random();
 
         let msg = Message {
@@ -334,6 +382,7 @@ mod tests {
         };
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_id,
+            status: Some(1u64.into()),
             logs: vec![Log::default(), log, Log::default()],
             ..Default::default()
         };

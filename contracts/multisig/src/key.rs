@@ -38,7 +38,7 @@ impl NonRecoverable {
         &self,
         msg: &[u8],
         pub_key: &PublicKey,
-        recovery_transform: impl FnOnce(u8) -> u8,
+        recovery_transform: impl FnOnce(k256::ecdsa::RecoveryId) -> u8,
     ) -> Result<Recoverable, ContractError> {
         let sig = k256::ecdsa::Signature::from_slice(self.0.as_ref()).map_err(|err| {
             ContractError::InvalidSignatureFormat {
@@ -50,8 +50,8 @@ impl NonRecoverable {
             .and_then(|k| k256::ecdsa::RecoveryId::trial_recovery_from_prehash(&k, msg, &sig))
             .map_err(|err| ContractError::InvalidSignatureFormat {
                 reason: err.to_string(),
-            })?
-            .to_byte();
+            })?;
+
         let mut recoverable = sig.to_vec();
         recoverable.push(recovery_transform(recovery_byte));
 
@@ -180,7 +180,7 @@ impl Signature {
         }
 
         let res = match self.key_type() {
-            KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self, pub_key.as_ref()),
+            KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
             KeyType::Ed25519 => ed25519_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
         }?;
 
@@ -395,7 +395,7 @@ mod ecdsa_tests {
             .unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert!(result.is_ok(), "{:?}", result)
     }
 
@@ -409,7 +409,7 @@ mod ecdsa_tests {
         let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert_eq!(
             result.unwrap_err(),
             ContractError::SignatureVerificationFailed {
@@ -428,7 +428,7 @@ mod ecdsa_tests {
         let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert_eq!(
             result.unwrap_err(),
             ContractError::SignatureVerificationFailed {
@@ -449,7 +449,7 @@ mod ecdsa_tests {
             .unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert_eq!(
             result.unwrap_err(),
             ContractError::SignatureVerificationFailed {
@@ -535,7 +535,7 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert!(result.is_ok(), "{:?}", result)
     }
 
@@ -550,7 +550,7 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert_eq!(
             result.unwrap_err(),
             ContractError::SignatureVerificationFailed {
@@ -569,7 +569,7 @@ mod ed25519_tests {
             Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key = PublicKey::Ed25519(invalid_pub_key);
-        let result = signature.verify(&message, &public_key);
+        let result = signature.verify(message, &public_key);
         assert_eq!(
             result.unwrap_err(),
             ContractError::SignatureVerificationFailed {

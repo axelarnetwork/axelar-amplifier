@@ -210,6 +210,7 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
+                        chain.finalization,
                         json_rpc::Client::new_http(
                             &chain.rpc_url,
                             reqwest::ClientBuilder::new()
@@ -233,6 +234,7 @@ where
                         worker.clone(),
                         cosmwasm_contract,
                         chain.name,
+                        chain.finalization,
                         json_rpc::Client::new_http(
                             &chain.rpc_url,
                             reqwest::ClientBuilder::new()

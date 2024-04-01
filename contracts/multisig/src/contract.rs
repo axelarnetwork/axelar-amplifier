@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
     Uint64,
 };
 
@@ -92,14 +92,16 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetMultisig { session_id } => to_binary(&query::get_multisig(deps, session_id)?),
+        QueryMsg::GetMultisig { session_id } => {
+            to_json_binary(&query::get_multisig(deps, session_id)?)
+        }
         QueryMsg::GetWorkerSet { worker_set_id } => {
-            to_binary(&query::get_worker_set(deps, worker_set_id)?)
+            to_json_binary(&query::get_worker_set(deps, worker_set_id)?)
         }
         QueryMsg::GetPublicKey {
             worker_address,
             key_type,
-        } => to_binary(&query::get_public_key(
+        } => to_json_binary(&query::get_public_key(
             deps,
             deps.api.addr_validate(&worker_address)?,
             key_type,
@@ -109,8 +111,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::from_str;
     use std::vec;
+
+    use cosmwasm_std::{
+        from_json,
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        Addr, Empty, OwnedDeps, WasmMsg,
+    };
+    use serde_json::from_str;
+
+    use connection_router_api::ChainName;
 
     use crate::{
         key::{KeyType, PublicKey, Signature},
@@ -123,12 +133,6 @@ mod tests {
     };
 
     use super::*;
-    use connection_router_api::ChainName;
-    use cosmwasm_std::{
-        from_binary,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint256, WasmMsg,
-    };
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
@@ -347,11 +351,11 @@ mod tests {
 
         let res = query_worker_set(&worker_set_1.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_1, from_binary(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_1, from_json(res.unwrap()).unwrap());
 
         let res = query_worker_set(&worker_set_2.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_2, from_binary(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_2, from_json(res.unwrap()).unwrap());
 
         for (key_type, _) in [
             (KeyType::Ecdsa, worker_set_1_id),
@@ -401,10 +405,10 @@ mod tests {
             assert_eq!(session.state, MultisigState::Pending);
 
             let res = res.unwrap();
-            assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
+            assert_eq!(res.data, Some(to_json_binary(&session.id).unwrap()));
             assert_eq!(res.events.len(), 1);
 
-            let event = res.events.get(0).unwrap();
+            let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signing_started".to_string());
             assert_eq!(
                 get_event_attribute(event, "session_id").unwrap(),
@@ -458,11 +462,11 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, worker_set_id, chain_name.clone())
                 .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
-                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
@@ -472,7 +476,7 @@ mod tests {
             }
             .into();
 
-            let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
+            let res = do_sign(deps.as_mut(), mock_env(), session_id, &signer);
 
             assert!(res.is_ok());
 
@@ -496,7 +500,7 @@ mod tests {
 
             assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
 
-            let event = res.events.get(0).unwrap();
+            let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signature_submitted".to_string());
             assert_eq!(
                 get_event_attribute(event, "session_id").unwrap(),
@@ -524,7 +528,7 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
                 .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -578,7 +582,7 @@ mod tests {
         {
             do_start_signing_session(deps.as_mut(), PROVER, subkey, chain_name.clone()).unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -590,7 +594,7 @@ mod tests {
 
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
-                msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
@@ -608,10 +612,7 @@ mod tests {
 
             assert_eq!(signatures.len(), 3);
             assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
-            assert!(!res
-                .events
-                .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted
+            assert!(!res.events.iter().any(|e| e.ty == *"signing_completed")); // event is not re-emitted
         }
     }
 
@@ -626,7 +627,7 @@ mod tests {
             do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
                 .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -662,7 +663,7 @@ mod tests {
         .unwrap();
 
         let invalid_session_id = Uint64::zero();
-        let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
+        let signer = ecdsa_test_data::signers().first().unwrap().to_owned();
         let res = do_sign(deps.as_mut(), mock_env(), invalid_session_id, &signer);
 
         assert_eq!(
@@ -689,7 +690,7 @@ mod tests {
                 deps.as_mut(),
                 mock_env(),
                 session_id,
-                signers.get(0).unwrap(),
+                signers.first().unwrap(),
             )
             .unwrap();
 
@@ -702,7 +703,7 @@ mod tests {
             let res = query(deps.as_ref(), mock_env(), msg);
             assert!(res.is_ok());
 
-            let query_res: Multisig = from_binary(&res.unwrap()).unwrap();
+            let query_res: Multisig = from_json(&res.unwrap()).unwrap();
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
@@ -729,7 +730,7 @@ mod tests {
                         .find(|signer| signer.0.address == worker_set_signer.address)
                         .unwrap();
 
-                    assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
+                    assert_eq!(signer.0.weight, worker_set_signer.weight);
                     assert_eq!(
                         signer.0.pub_key,
                         worker_set.signers.get(address).unwrap().pub_key
@@ -800,7 +801,7 @@ mod tests {
             for (addr, _, _) in &expected_pub_keys {
                 let res = query_registered_public_key(deps.as_ref(), addr.clone(), key_type);
                 assert!(res.is_ok());
-                ret_pub_keys.push(from_binary(&res.unwrap()).unwrap());
+                ret_pub_keys.push(from_json(&res.unwrap()).unwrap());
             }
             assert_eq!(
                 expected_pub_keys
@@ -855,7 +856,7 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(
             PublicKey::try_from((KeyType::Ecdsa, new_pub_key.clone())).unwrap(),
-            from_binary::<PublicKey>(&res.unwrap()).unwrap()
+            from_json::<PublicKey>(&res.unwrap()).unwrap()
         );
 
         // Register an ED25519 key, it should not affect our ECDSA key
@@ -876,14 +877,14 @@ mod tests {
         assert!(res.is_ok());
         assert_eq!(
             PublicKey::try_from((KeyType::Ed25519, ed25519_pub_key)).unwrap(),
-            from_binary::<PublicKey>(&res.unwrap()).unwrap()
+            from_json::<PublicKey>(&res.unwrap()).unwrap()
         );
 
         let res = query_registered_public_key(deps.as_ref(), pub_keys[0].0.clone(), KeyType::Ecdsa);
         assert!(res.is_ok());
         assert_eq!(
             PublicKey::try_from((KeyType::Ecdsa, new_pub_key)).unwrap(),
-            from_binary::<PublicKey>(&res.unwrap()).unwrap()
+            from_json::<PublicKey>(&res.unwrap()).unwrap()
         );
     }
 

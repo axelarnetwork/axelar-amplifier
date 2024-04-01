@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std_derive::IntoContractError;
-use cosmwasm_std::StdError;
+use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 use crate::state::BondingState;
@@ -9,6 +9,9 @@ use crate::state::BondingState;
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
+
+    #[error(transparent)]
+    Overflow(#[from] OverflowError),
 
     #[error(transparent)]
     NonEmpty(#[from] nonempty::Error),
@@ -27,4 +30,6 @@ pub enum ContractError {
     WorkerNotFound,
     #[error("invalid bonding state `{0:?}` for this operation")]
     InvalidBondingState(BondingState),
+    #[error("not enough workers")]
+    NotEnoughWorkers,
 }

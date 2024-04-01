@@ -16,8 +16,9 @@ broadcast_interval = '5s'
 [[handlers]]
 type = 'EvmMsgVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-chain_name = 'Ethereum'
+chain_name = 'ethereum'
 chain_rpc_url = 'http://127.0.0.1/'
+chain_finalization = 'RPCFinalizedBlock'
 
 [handlers.rpc_timeout]
 secs = 3
@@ -26,8 +27,9 @@ nanos = 0
 [[handlers]]
 type = 'EvmWorkerSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
-chain_name = 'Fantom'
+chain_name = 'fantom'
 chain_rpc_url = 'http://127.0.0.1/'
+chain_finalization = 'ConfirmationHeight'
 
 [handlers.rpc_timeout]
 secs = 3

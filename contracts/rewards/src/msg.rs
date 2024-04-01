@@ -1,6 +1,7 @@
 use axelar_wasm_std::{nonempty, Threshold};
 use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Uint128, Uint64};
 
 use crate::state::PoolId;
 
@@ -29,7 +30,7 @@ pub struct Params {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Log a specific worker as participating in a specific event
+    /// Log a specific worker as participating in a specific event. Worker weights are ignored
     ///
     /// TODO: For batched voting, treating the entire batch as a single event can be problematic.
     /// A worker may vote correctly for 9 out of 10 messages in a batch, but the worker's participation
@@ -46,7 +47,7 @@ pub enum ExecuteMsg {
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
     DistributeRewards {
         pool_id: PoolId,
-        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest.
+        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest. If not specified, distribute rewards for 10 epochs.
         epoch_count: Option<u64>,
     },
 
@@ -60,4 +61,17 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    /// Gets the rewards pool details for the given `pool_id``
+    #[returns(RewardsPool)]
+    RewardsPool { pool_id: PoolId },
+}
+
+#[cw_serde]
+pub struct RewardsPool {
+    pub balance: Uint128,
+    pub epoch_duration: Uint64,
+    pub rewards_per_epoch: Uint128,
+    pub current_epoch_num: Uint64,
+    pub last_distribution_epoch: Option<Uint64>,
+}

@@ -1,13 +1,16 @@
 use std::vec;
 
-use axelar_wasm_std::flagset::FlagSet;
-use connection_router_api::error::Error;
-use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
-use cosmwasm_std::{to_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
 use error_stack::report;
 use itertools::Itertools;
 
-use crate::events::{ChainFrozen, ChainRegistered, GatewayInfo, GatewayUpgraded, MessageRouted};
+use axelar_wasm_std::flagset::FlagSet;
+use connection_router_api::error::Error;
+use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
+
+use crate::events::{
+    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
+};
 use crate::state::{chain_endpoints, Store, CONFIG};
 
 use super::Contract;
@@ -78,9 +81,16 @@ pub fn freeze_chain(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
+    Ok(Response::new().add_event(
+        ChainFrozen {
+            name: chain,
+            direction,
+        }
+        .into(),
+    ))
 }
 
+#[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
 pub fn unfreeze_chain(
     deps: DepsMut,
     chain: ChainName,
@@ -93,7 +103,13 @@ pub fn unfreeze_chain(
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
+    Ok(Response::new().add_event(
+        ChainUnfrozen {
+            name: chain,
+            direction,
+        }
+        .into(),
+    ))
 }
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {
@@ -174,7 +190,7 @@ where
 
                 Ok(WasmMsg::Execute {
                     contract_addr: gateway.to_string(),
-                    msg: to_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
+                    msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
                         msgs.cloned().collect(),
                     ))
                     .expect("must serialize message"),
@@ -191,32 +207,39 @@ where
 
 #[cfg(test)]
 mod test {
+    use cosmwasm_std::Addr;
+    use mockall::predicate;
+    use rand::{Rng, RngCore};
+
     use axelar_wasm_std::flagset::FlagSet;
     use connection_router_api::error::Error;
     use connection_router_api::{
         ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message,
     };
-    use cosmwasm_std::Addr;
-    use mockall::predicate;
-    use rand::{Rng, RngCore};
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Storage;
 
+    use crate::events::{ChainFrozen, ChainUnfrozen};
+    use crate::state::chain_endpoints;
     use crate::{
         contract::Contract,
         state::{Config, MockStore, ID_SEPARATOR},
     };
 
+    use super::{freeze_chain, unfreeze_chain};
+
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let tx_id = hex::encode(&bytes);
+        let tx_id = hex::encode(bytes);
 
         let mut bytes = [0; 20];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let source_address = format!("0x{}", hex::encode(&bytes)).try_into().unwrap();
+        let source_address = format!("0x{}", hex::encode(bytes)).try_into().unwrap();
 
         let mut bytes = [0; 20];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let destination_address = format!("0x{}", hex::encode(&bytes)).try_into().unwrap();
+        let destination_address = format!("0x{}", hex::encode(bytes)).try_into().unwrap();
 
         let mut payload_hash = [0; 32];
         rand::thread_rng().fill_bytes(&mut payload_hash);
@@ -596,5 +619,137 @@ mod test {
                 )]
             )
             .is_ok_and(|res| { res.messages.len() == 1 }));
+    }
+
+    #[test]
+    fn multiple_freeze_unfreeze_causes_no_arithmetic_side_effect() {
+        let mut deps = mock_dependencies();
+        let chain: ChainName = "ethereum".parse().unwrap();
+
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                chain.clone(),
+                &ChainEndpoint {
+                    name: chain.clone(),
+                    gateway: Gateway {
+                        address: Addr::unchecked("gateway"),
+                    },
+                    frozen_status: FlagSet::from(GatewayDirection::None),
+                },
+            )
+            .unwrap();
+
+        // freezing twice produces same result
+        freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+        freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::Incoming),
+        );
+
+        freeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+        freeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::Bidirectional),
+        );
+
+        // unfreezing twice produces same result
+        unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Outgoing).unwrap();
+        unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Outgoing).unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::Incoming),
+        );
+
+        unfreeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+        unfreeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::None),
+        );
+    }
+
+    #[test]
+    fn freezing_unfreezing_chain_emits_correct_event() {
+        let mut deps = mock_dependencies();
+        let chain: ChainName = "ethereum".parse().unwrap();
+
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                chain.clone(),
+                &ChainEndpoint {
+                    name: chain.clone(),
+                    gateway: Gateway {
+                        address: Addr::unchecked("gateway"),
+                    },
+                    frozen_status: FlagSet::from(GatewayDirection::None),
+                },
+            )
+            .unwrap();
+
+        let res = freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_eq!(res.events.len(), 1);
+        assert!(res.events.contains(
+            &ChainFrozen {
+                name: chain.clone(),
+                direction: GatewayDirection::Incoming,
+            }
+            .into()
+        ));
+
+        let res = unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_eq!(res.events.len(), 1);
+        assert!(res.events.contains(
+            &ChainUnfrozen {
+                name: chain.clone(),
+                direction: GatewayDirection::Incoming,
+            }
+            .into()
+        ));
+    }
+
+    fn assert_chain_endpoint_frozen_status(
+        storage: &dyn Storage,
+        chain: ChainName,
+        expected: FlagSet<GatewayDirection>,
+    ) {
+        let status = chain_endpoints()
+            .load(storage, chain.clone())
+            .unwrap()
+            .frozen_status;
+        assert_eq!(status, expected);
     }
 }

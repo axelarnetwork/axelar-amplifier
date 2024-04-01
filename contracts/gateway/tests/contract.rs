@@ -4,19 +4,19 @@ use std::fs::File;
 use std::iter;
 
 use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router_api::{CrossChainId, Message, ID_SEPARATOR};
+use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+#[cfg(not(feature = "generate_golden_files"))]
+use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
-use gateway::contract::*;
-use gateway::msg::InstantiateMsg;
-use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use itertools::Itertools;
 use serde::Serialize;
 
-#[cfg(not(feature = "generate_golden_files"))]
-use cosmwasm_std::Response;
+use gateway::contract::*;
+use gateway::msg::InstantiateMsg;
+use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
 #[test]
 fn instantiate_works() {
@@ -145,7 +145,10 @@ fn successful_route_outgoing() {
         iter::repeat(query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap())
             .take(2)
             .for_each(|response| {
-                assert_eq!(response, to_binary::<Vec<CrossChainId>>(&vec![]).unwrap())
+                assert_eq!(
+                    response,
+                    to_json_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
+                )
             });
 
         // check routing of outgoing messages is idempotent
@@ -153,7 +156,7 @@ fn successful_route_outgoing() {
             execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(&router, &[]), // execute with router as sender
+                mock_info(router, &[]), // execute with router as sender
                 ExecuteMsg::RouteMessages(msgs.clone()),
             )
             .unwrap(),
@@ -169,7 +172,7 @@ fn successful_route_outgoing() {
         // check all outgoing messages are stored because the router (sender) is implicitly trusted
         iter::repeat(query(deps.as_ref(), mock_env().clone(), query_msg).unwrap())
             .take(2)
-            .for_each(|response| assert_eq!(response, to_binary(&msgs).unwrap()));
+            .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
     let golden_file = "tests/test_route_outgoing.json";
@@ -293,14 +296,12 @@ fn test_cases_for_correct_verifier() -> (
 
     // no messages
     test_cases.push(vec![]);
-    // // one message of each status
+    // one message of each status
     for msgs in all_messages.iter() {
-        test_cases.push(msgs.into_iter().cloned().take(1).collect::<Vec<_>>());
+        test_cases.push(msgs.iter().take(1).cloned().collect::<Vec<_>>());
     }
-    // // multiple messages with same status
-    for msgs in all_messages.iter() {
-        test_cases.push(msgs.into_iter().cloned().collect());
-    }
+    // multiple messages with same status
+    test_cases.append(&mut all_messages.clone());
     // multiple messages with multiple statuses
     test_cases.push(all_messages.into_iter().flatten().collect());
 
@@ -322,22 +323,18 @@ fn test_cases_for_duplicate_msgs() -> (
         .flatten()
         .collect::<Vec<_>>();
 
-    let mut test_cases = vec![];
-
-    // one duplicate
-    test_cases.push(duplicate_msgs(all_messages.clone(), 1));
-
-    // multiple duplicates
-    test_cases.push(duplicate_msgs(all_messages.clone(), 10));
-
-    // all duplicates
-    test_cases.push(
+    let test_cases = vec![
+        // one duplicate
+        duplicate_msgs(all_messages.clone(), 1),
+        // multiple duplicates
+        duplicate_msgs(all_messages.clone(), 10),
+        // all duplicates
         all_messages
             .clone()
             .into_iter()
             .chain(all_messages.clone())
             .collect::<Vec<_>>(),
-    );
+    ];
 
     (test_cases, handler)
 }
@@ -356,9 +353,7 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
         .map(|i| Message {
             cc_id: CrossChainId {
                 chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}{}", namespace, ID_SEPARATOR, i)
-                    .parse()
-                    .unwrap(),
+                id: format!("{:?}{}", namespace, i).parse().unwrap(),
             },
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
@@ -368,6 +363,7 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
         .collect()
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn all_statuses() -> Vec<VerificationStatus> {
     let statuses = vec![
         VerificationStatus::None,
@@ -379,21 +375,21 @@ fn all_statuses() -> Vec<VerificationStatus> {
     ];
 
     // we need to make sure that if the variants change, the tests cover all of them
-    let mut status_count = 0;
+    let mut status_count: usize = 0;
     for status in &statuses {
         match status {
-            VerificationStatus::None => status_count += 1,
-            VerificationStatus::NotFound => status_count += 1,
-            VerificationStatus::FailedToVerify => status_count += 1,
-            VerificationStatus::InProgress => status_count += 1,
-            VerificationStatus::SucceededOnChain => status_count += 1,
-            VerificationStatus::FailedOnChain => status_count += 1,
+            VerificationStatus::None
+            | VerificationStatus::NotFound
+            | VerificationStatus::FailedToVerify
+            | VerificationStatus::InProgress
+            | VerificationStatus::SucceededOnChain
+            | VerificationStatus::FailedOnChain => status_count += 1,
         };
     }
 
     assert_eq!(statuses.len(), status_count);
 
-    return statuses;
+    statuses
 }
 
 fn map_status_by_msg_id(
@@ -426,8 +422,8 @@ fn update_query_handler<U: Serialize>(
 ) {
     let handler = move |msg: &WasmQuery| match msg {
         WasmQuery::Smart { msg, .. } => {
-            let result = handler(from_binary(msg).expect("should not fail to deserialize"))
-                .map(|response| to_binary(&response).expect("should not fail to serialize"));
+            let result = handler(from_json(msg).expect("should not fail to deserialize"))
+                .map(|response| to_json_binary(&response).expect("should not fail to serialize"));
 
             QuerierResult::Ok(ContractResult::from(result))
         }

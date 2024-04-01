@@ -1,7 +1,7 @@
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use connection_router_api::{CrossChainId, Message};
-use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, WasmMsg, WasmQuery};
+use cosmwasm_std::{to_json_binary, Addr, QuerierWrapper, QueryRequest, WasmMsg, WasmQuery};
 use error_stack::{Result, ResultExt};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ impl Verifier<'_> {
     fn execute(&self, msg: &crate::msg::ExecuteMsg) -> WasmMsg {
         WasmMsg::Execute {
             contract_addr: self.address.to_string(),
-            msg: to_binary(msg).expect("msg should always be serializable"),
+            msg: to_json_binary(msg).expect("msg should always be serializable"),
             funds: vec![],
         }
     }
@@ -24,7 +24,7 @@ impl Verifier<'_> {
         self.querier
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.address.to_string(),
-                msg: to_binary(&msg).expect("msg should always be serializable"),
+                msg: to_json_binary(&msg).expect("msg should always be serializable"),
             }))
             .change_context(Error::QueryVerifier)
     }
@@ -90,7 +90,7 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::VerificationStatus;
-    use connection_router_api::CrossChainId;
+    use connection_router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
     use cosmwasm_std::testing::MockQuerier;
     use std::str::FromStr;
 
@@ -120,7 +120,12 @@ mod tests {
     fn verifier_returns_error_on_return_type_mismatch() {
         let mut querier = MockQuerier::default();
         querier.update_wasm(|_| {
-            Ok(to_binary(&CrossChainId::from_str("eth:0x1234").unwrap()).into()).into()
+            Ok(to_json_binary(
+                &CrossChainId::from_str(format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str())
+                    .unwrap(),
+            )
+            .into())
+            .into()
         });
 
         let verifier = Verifier {

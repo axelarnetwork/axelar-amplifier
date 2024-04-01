@@ -3,7 +3,7 @@ use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Timestamp, Uint128, Uint256};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -13,7 +13,7 @@ pub struct Config {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-use axelar_wasm_std::snapshot::Participant;
+use axelar_wasm_std::{nonempty, snapshot::Participant};
 
 use crate::ContractError;
 
@@ -37,22 +37,20 @@ pub struct Worker {
     pub service_name: String,
 }
 
-impl TryFrom<Worker> for Participant {
-    type Error = ContractError;
+#[cw_serde]
+pub struct WeightedWorker {
+    pub worker_info: Worker,
+    pub weight: nonempty::Uint256,
+}
 
-    fn try_from(worker: Worker) -> Result<Participant, ContractError> {
-        match worker.bonding_state {
-            BondingState::Bonded { amount: _ } => Ok(Self {
-                address: worker.address,
-                // Weight is set to one to ensure all workers have same weight. In the future, it should be derived from amount bonded
-                // If the weight is changed to a non-constant value, the signing session completed event from multisig and the signature
-                // optimization during proof construction may require re-evaluation, so that relayers could take advantage of late
-                // signatures to get a more optimized version of the proof.
-                weight: Uint256::one()
-                    .try_into()
-                    .expect("violated invariant: weight must not be zero"),
-            }),
-            _ => Err(ContractError::InvalidBondingState(worker.bonding_state)),
+/// For now, all workers have equal weight, regardless of amount bonded
+pub const WORKER_WEIGHT: nonempty::Uint256 = nonempty::Uint256::one();
+
+impl From<WeightedWorker> for Participant {
+    fn from(worker: WeightedWorker) -> Participant {
+        Self {
+            weight: worker.weight,
+            address: worker.worker_info.address,
         }
     }
 }
@@ -80,7 +78,9 @@ impl BondingState {
             | BondingState::Unbonding {
                 amount,
                 unbonded_at: _,
-            } => amount + to_add,
+            } => amount
+                .checked_add(to_add)
+                .map_err(ContractError::Overflow)?,
             BondingState::Unbonded => to_add,
         };
         if amount.is_zero() {

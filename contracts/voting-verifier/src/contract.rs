@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
@@ -58,10 +58,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         QueryMsg::GetMessagesStatus { messages } => {
-            to_binary(&query::messages_status(deps, &messages)?)
+            to_json_binary(&query::messages_status(deps, &messages)?)
         }
         QueryMsg::GetWorkerSetStatus { new_operators } => {
-            to_binary(&query::worker_set_status(deps, &new_operators)?)
+            to_json_binary(&query::worker_set_status(deps, &new_operators)?)
         }
     }
 }
@@ -69,7 +69,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
@@ -77,10 +77,16 @@ mod test {
     use axelar_wasm_std::{
         nonempty, operators::Operators, voting::Vote, Threshold, VerificationStatus,
     };
-    use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
-    use service_registry::state::{AuthorizationState, BondingState, Worker};
+    use connection_router_api::{ChainName, CrossChainId, Message};
+    use service_registry::state::{
+        AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
+    };
 
-    use crate::{error::ContractError, events::TxEventConfirmation, msg::VerifyMessagesResponse};
+    use crate::{
+        error::ContractError,
+        events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
+        msg::VerifyMessagesResponse,
+    };
 
     use super::*;
 
@@ -91,7 +97,7 @@ mod test {
     const POLL_BLOCK_EXPIRY: u64 = 100;
 
     fn source_chain() -> ChainName {
-        "source_chain".parse().unwrap()
+        "source-chain".parse().unwrap()
     }
 
     fn assert_contract_err_strings_equal(
@@ -142,7 +148,17 @@ mod test {
 
         deps.querier.update_wasm(|wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
-                Ok(to_binary(&workers()).into()).into()
+                Ok(to_json_binary(
+                    &workers()
+                        .into_iter()
+                        .map(|w| WeightedWorker {
+                            worker_info: w,
+                            weight: WORKER_WEIGHT,
+                        })
+                        .collect::<Vec<WeightedWorker>>(),
+                )
+                .into())
+                .into()
             }
             _ => panic!("no mock for this query"),
         });
@@ -151,7 +167,7 @@ mod test {
     }
 
     fn message_id(id: &str, index: u64) -> nonempty::String {
-        format!("{}{}{}", id, ID_SEPARATOR, index)
+        format!("{}{}{}", id, TX_HASH_EVENT_INDEX_SEPARATOR, index)
             .try_into()
             .unwrap()
     }
@@ -161,16 +177,17 @@ mod test {
             .map(|i| Message {
                 cc_id: CrossChainId {
                     chain: source_chain(),
-                    id: format!("id:{i}").parse().unwrap(),
+                    id: message_id("id", i),
                 },
                 source_address: format!("source_address{i}").parse().unwrap(),
-                destination_chain: format!("destination_chain{i}").parse().unwrap(),
+                destination_chain: format!("destination-chain{i}").parse().unwrap(),
                 destination_address: format!("destination_address{i}").parse().unwrap(),
                 payload_hash: [0; 32],
             })
             .collect()
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn mock_env_expired() -> Env {
         let mut env = mock_env();
         env.block.height += POLL_BLOCK_EXPIRY;
@@ -186,20 +203,20 @@ mod test {
                 Message {
                     cc_id: CrossChainId {
                         chain: source_chain(),
-                        id: "id:1".parse().unwrap(),
+                        id: message_id("id", 1),
                     },
                     source_address: "source_address1".parse().unwrap(),
-                    destination_chain: "destination_chain1".parse().unwrap(),
+                    destination_chain: "destination-chain1".parse().unwrap(),
                     destination_address: "destination_address1".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
                 Message {
                     cc_id: CrossChainId {
-                        chain: "other_chain".parse().unwrap(),
-                        id: "id:2".parse().unwrap(),
+                        chain: "other-chain".parse().unwrap(),
+                        id: message_id("id", 2),
                     },
                     source_address: "source_address2".parse().unwrap(),
-                    destination_chain: "destination_chain2".parse().unwrap(),
+                    destination_chain: "destination-chain2".parse().unwrap(),
                     destination_address: "destination_address2".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
@@ -218,21 +235,21 @@ mod test {
         };
 
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
-        let reply: VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+        let reply: VerifyMessagesResponse = from_json(res.data.unwrap()).unwrap();
         assert_eq!(reply.verification_statuses.len(), 2);
         assert_eq!(
             reply.verification_statuses,
             vec![
                 (
                     CrossChainId {
-                        id: "id:0".parse().unwrap(),
+                        id: message_id("id", 0),
                         chain: source_chain()
                     },
                     VerificationStatus::None
                 ),
                 (
                     CrossChainId {
-                        id: "id:1".parse().unwrap(),
+                        id: message_id("id", 1),
                         chain: source_chain()
                     },
                     VerificationStatus::None
@@ -398,8 +415,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
-            &query(
+        let res: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -436,8 +453,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
-            &query(
+        let res: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -472,7 +489,7 @@ mod test {
 
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
 
-        let reply: VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
+        let reply: VerifyMessagesResponse = from_json(res.data.unwrap()).unwrap();
 
         assert_eq!(reply.verification_statuses.len(), messages.len());
         assert_eq!(
@@ -483,8 +500,8 @@ mod test {
                 .collect::<Vec<(_, _)>>()
         );
 
-        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
-            &query(
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -537,8 +554,8 @@ mod test {
         )
         .unwrap();
 
-        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
-            &query(
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -578,8 +595,8 @@ mod test {
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -628,8 +645,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -681,8 +698,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -736,8 +753,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -783,8 +800,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {

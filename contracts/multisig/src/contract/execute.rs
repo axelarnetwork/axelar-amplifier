@@ -1,5 +1,5 @@
 use connection_router_api::ChainName;
-use cosmwasm_std::WasmMsg;
+use cosmwasm_std::{OverflowError, OverflowOperation, WasmMsg};
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
@@ -29,12 +29,24 @@ pub fn start_signing_session(
     let session_id = SIGNING_SESSION_COUNTER.update(
         deps.storage,
         |mut counter| -> Result<Uint64, ContractError> {
-            counter += Uint64::one();
+            counter = counter
+                .checked_add(Uint64::one())
+                .map_err(ContractError::Overflow)?;
             Ok(counter)
         },
     )?;
 
-    let expires_at = env.block.height + config.block_expiry;
+    let expires_at = env
+        .block
+        .height
+        .checked_add(config.block_expiry)
+        .ok_or_else(|| {
+            OverflowError::new(
+                OverflowOperation::Add,
+                env.block.height,
+                config.block_expiry,
+            )
+        })?;
 
     let signing_session = SigningSession::new(
         session_id,
@@ -57,7 +69,7 @@ pub fn start_signing_session(
     };
 
     Ok(Response::new()
-        .set_data(to_binary(&session_id)?)
+        .set_data(to_json_binary(&session_id)?)
         .add_event(event.into()))
 }
 
@@ -199,7 +211,7 @@ fn signing_response(
 ) -> Result<Response, ContractError> {
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
-        msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+        msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
             chain_name: session.chain_name,
             event_id: session
                 .id

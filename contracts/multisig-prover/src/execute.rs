@@ -1,13 +1,16 @@
+use std::collections::BTreeMap;
+
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, DepsMut, Env, QuerierWrapper, QueryRequest, Response, Storage,
-    SubMsg, WasmQuery,
+    to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
+    Response, Storage, SubMsg, WasmQuery,
 };
 
+use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, VerificationStatus};
 use connection_router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::Worker;
+use service_registry::state::WeightedWorker;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
@@ -17,9 +20,15 @@ use crate::{
     types::{BatchId, WorkersInfo},
 };
 
+pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.admin {
+        admin if admin == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
+    }
+}
+
 pub fn construct_proof(
     deps: DepsMut,
-    env: Env,
     message_ids: Vec<CrossChainId>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -35,20 +44,7 @@ pub fn construct_proof(
     let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
         Some(batch) => batch,
         None => {
-            let new_worker_set = get_next_worker_set(&deps, &env, &config)?;
             let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-
-            if let Some(new_worker_set) = new_worker_set {
-                match save_next_worker_set(deps.storage, &new_worker_set) {
-                    Ok(()) => {
-                        builder.add_new_worker_set(new_worker_set)?;
-                    }
-                    Err(ContractError::WorkerSetConfirmationInProgress) => {}
-                    Err(other_error) => {
-                        return Err(other_error);
-                    }
-                }
-            }
 
             for msg in messages {
                 builder.add_message(msg)?;
@@ -64,7 +60,12 @@ pub fn construct_proof(
     // keep track of the batch id to use during submessage reply
     REPLY_BATCH.save(deps.storage, &command_batch.id)?;
 
-    let worker_set_id = CURRENT_WORKER_SET.load(deps.storage)?.id();
+    let worker_set_id = match CURRENT_WORKER_SET.may_load(deps.storage)? {
+        Some(worker_set) => worker_set.id(),
+        None => {
+            return Err(ContractError::NoWorkerSet);
+        }
+    };
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
         worker_set_id,
         msg: command_batch.msg_digest(),
@@ -88,7 +89,7 @@ fn get_messages(
     let query = gateway_api::msg::QueryMsg::GetOutgoingMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     assert!(
@@ -112,29 +113,30 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
         chain_name: config.chain_name.clone(),
     };
 
-    let workers: Vec<Worker> = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.service_registry.to_string(),
-        msg: to_binary(&active_workers_query)?,
-    }))?;
+    let workers: Vec<WeightedWorker> =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.service_registry.to_string(),
+            msg: to_json_binary(&active_workers_query)?,
+        }))?;
 
     let participants = workers
         .clone()
         .into_iter()
-        .map(service_registry::state::Worker::try_into)
-        .collect::<Result<Vec<snapshot::Participant>, _>>()?;
+        .map(service_registry::state::WeightedWorker::into)
+        .collect::<Vec<snapshot::Participant>>();
 
     let snapshot =
         snapshot::Snapshot::new(config.signing_threshold, participants.clone().try_into()?);
 
     let mut pub_keys = vec![];
-    for worker in &workers {
+    for participant in &participants {
         let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
-            worker_address: worker.address.to_string(),
+            worker_address: participant.address.to_string(),
             key_type: config.key_type,
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
-            msg: to_binary(&pub_key_query)?,
+            msg: to_json_binary(&pub_key_query)?,
         }))?;
         pub_keys.push(pub_key);
     }
@@ -237,22 +239,34 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 }
 
-pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
-
+fn ensure_worker_set_verification(
+    worker_set: &WorkerSet,
+    config: &Config,
+    deps: &DepsMut,
+) -> Result<(), ContractError> {
     let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
         new_operators: make_operators(worker_set.clone(), config.encoder),
     };
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     if status != VerificationStatus::SucceededOnChain {
-        return Err(ContractError::WorkerSetNotConfirmed);
+        Err(ContractError::WorkerSetNotConfirmed)
+    } else {
+        Ok(())
+    }
+}
+
+pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
+
+    if sender != config.governance {
+        ensure_worker_set_verification(&worker_set, &config, &deps)?;
     }
 
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
@@ -270,27 +284,18 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    let new_workers_signers = new_workers
-        .signers
-        .values()
-        .cloned()
-        .collect::<Vec<Signer>>();
+    signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+}
 
-    let cur_workers_signers = cur_workers
-        .signers
-        .values()
-        .cloned()
-        .collect::<Vec<Signer>>();
+fn signers_symetric_difference_count(
+    s1: &BTreeMap<String, Signer>,
+    s2: &BTreeMap<String, Signer>,
+) -> usize {
+    signers_difference_count(s1, s2).saturating_add(signers_difference_count(s2, s1))
+}
 
-    new_workers_signers
-        .iter()
-        .filter(|item| !cur_workers_signers.contains(item))
-        .count()
-        + cur_workers_signers
-            .iter()
-            .filter(|item| !new_workers_signers.contains(item))
-            .count()
-        > max_diff
+fn signers_difference_count(s1: &BTreeMap<String, Signer>, s2: &BTreeMap<String, Signer>) -> usize {
+    s1.values().filter(|v| !s2.values().contains(v)).count()
 }
 
 // Returns true if there is a different worker set pending for confirmation, false if there is no
