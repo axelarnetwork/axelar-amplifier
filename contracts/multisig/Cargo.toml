@@ -61,8 +61,8 @@ signature-verifier-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
 curve25519-dalek = "4.1.1"
+cw-multi-test = "0.15.1"
 
 [lints]
 workspace = true
