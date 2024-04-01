@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     // Can only be called by governance
-    AddChainProver {
+    RegisterProverContract {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },

@@ -7,7 +7,9 @@ use cw_storage_plus::{Item, Map};
 pub struct Config {
     pub governance: Addr,
 }
+
 pub const CONFIG: Item<Config> = Item::new("config");
 
-// maps chain_name -> (vector of prover_addresses)
-pub const PROVERS_PER_CHAIN: Map<ChainName, Vec<Addr>> = Map::new("provers_per_chain");
+type ProverAddresses = Vec<Addr>;
+// maps chain name to prover addresses
+pub const PROVERS_PER_CHAIN: Map<ChainName, ProverAddresses> = Map::new("provers_per_chain");

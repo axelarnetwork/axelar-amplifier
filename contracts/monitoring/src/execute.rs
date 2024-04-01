@@ -13,7 +13,7 @@ pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Contrac
     Ok(())
 }
 
-pub fn add_chain_prover(
+pub fn register_prover(
     deps: DepsMut,
     chain_name: ChainName,
     new_prover_addr: Addr,

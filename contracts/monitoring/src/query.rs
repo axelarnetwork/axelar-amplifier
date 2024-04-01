@@ -11,8 +11,8 @@ pub fn chains_active_worker_sets(
     todo!()
 }
 
-pub fn get_chain_provers(deps: Deps, chain_name: ChainName) -> Result<Vec<Addr>, ContractError> {
+pub fn provers(deps: Deps, chain_name: ChainName) -> Result<Vec<Addr>, ContractError> {
     PROVERS_PER_CHAIN
-        .may_load(deps.storage, chain_name.clone())?
+        .may_load(deps.storage, chain_name)?
         .ok_or(ContractError::NoProversRegisteredForChain)
 }

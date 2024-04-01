@@ -30,12 +30,12 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
-        ExecuteMsg::AddChainProver {
+        ExecuteMsg::RegisterProverContract {
             chain_name,
             new_prover_addr,
         } => {
             execute::check_governance(&deps, info)?;
-            execute::add_chain_prover(deps, chain_name, new_prover_addr)
+            execute::register_prover(deps, chain_name, new_prover_addr)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_prover_from_goverance() {
+    fn add_prover_from_goverance_succeeds() {
         let governance = "governance_for_monitoring";
         let mut deps = mock_dependencies();
         let info = mock_info("instantiator", &[]);
@@ -101,17 +101,17 @@ mod tests {
 
         let eth_prover = Addr::unchecked("eth_prover");
         let eth: ChainName = "Ethereum".to_string().try_into().unwrap();
-        let msg = ExecuteMsg::AddChainProver {
+        let msg = ExecuteMsg::RegisterProverContract {
             chain_name: eth.clone(),
             new_prover_addr: eth_prover.clone(),
         };
         let _res = execute(deps.as_mut(), mock_env(), mock_info(governance, &[]), msg).unwrap();
-        let chain_provers = query::get_chain_provers(deps.as_ref(), eth.clone()).unwrap();
+        let chain_provers = query::provers(deps.as_ref(), eth.clone()).unwrap();
         assert_eq!(chain_provers, vec![eth_prover]);
     }
 
     #[test]
-    fn test_add_prover_from_random_address() {
+    fn add_prover_from_random_address_fails() {
         let governance = "governance_for_monitoring";
         let mut deps = mock_dependencies();
         let info = mock_info("instantiator", &[]);
@@ -128,7 +128,7 @@ mod tests {
 
         let eth_prover = Addr::unchecked("eth_prover");
         let eth: ChainName = "Ethereum".to_string().try_into().unwrap();
-        let msg = ExecuteMsg::AddChainProver {
+        let msg = ExecuteMsg::RegisterProverContract {
             chain_name: eth.clone(),
             new_prover_addr: eth_prover.clone(),
         };
