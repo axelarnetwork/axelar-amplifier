@@ -596,18 +596,10 @@ pub struct Chain {
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
-        &mut protocol.app,
-        protocol
-            .service_registry
-            .contract_addr
-            .to_string()
-            .try_into()
-            .unwrap(),
-        protocol.service_name.clone(),
+        protocol,
         "doesn't matter".to_string().try_into().unwrap(),
         Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
         chain_name.clone(),
-        protocol.rewards.contract_addr.clone(),
     );
 
     let gateway = GatewayContract::instantiate_contract(
