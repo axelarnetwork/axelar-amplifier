@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +13,7 @@ use crate::url::Url;
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    pub health_check_bind_addr: SocketAddr,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub event_buffer_cap: usize,
@@ -34,6 +37,7 @@ impl Default for Config {
             event_buffer_cap: 100000,
             event_stream_timeout: Duration::from_secs(15),
             service_registry: ServiceRegistryConfig::default(),
+            health_check_bind_addr: SocketAddr::from_str("0.0.0.0:3000").unwrap(),
         }
     }
 }

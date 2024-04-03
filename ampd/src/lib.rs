@@ -38,6 +38,7 @@ mod event_processor;
 mod event_sub;
 mod evm;
 mod handlers;
+mod health_check;
 mod json_rpc;
 mod queue;
 pub mod state;
@@ -71,6 +72,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         event_buffer_cap,
         event_stream_timeout,
         service_registry: _service_registry,
+        health_check_bind_addr,
     } = cfg;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
@@ -122,6 +124,10 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         .build()
         .change_context(Error::Broadcaster)?;
 
+    let health_check_server = health_check::Server::new(health_check_bind_addr)
+        .await
+        .change_context(Error::HealthCheckServerError)?;
+
     App::new(
         tm_client,
         broadcaster,
@@ -130,6 +136,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         broadcast,
         event_buffer_cap,
         block_height_monitor,
+        health_check_server,
     )
     .configure_handlers(worker, handlers, event_stream_timeout)
     .await
@@ -163,6 +170,7 @@ where
     state_updater: StateUpdater,
     ecdsa_client: SharableEcdsaClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+    health_check_server: health_check::Server,
     token: CancellationToken,
 }
 
@@ -178,6 +186,7 @@ where
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+        health_check_server: health_check::Server,
     ) -> Self {
         let token = CancellationToken::new();
 
@@ -203,6 +212,7 @@ where
             state_updater,
             ecdsa_client,
             block_height_monitor,
+            health_check_server,
             token,
         }
     }
@@ -375,6 +385,7 @@ where
             broadcaster,
             state_updater,
             block_height_monitor,
+            health_check_server,
             token,
             ..
         } = self;
@@ -406,6 +417,11 @@ where
                 event_publisher
                     .run(token)
                     .change_context(Error::EventPublisher)
+            }))
+            .add_task(CancellableTask::create(|token| {
+                health_check_server
+                    .run(token)
+                    .change_context(Error::HealthCheckServerError)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
@@ -457,4 +473,6 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
+    #[error("Health check server error")]
+    HealthCheckServerError,
 }
