@@ -115,8 +115,9 @@ pub fn execute(
 
 pub mod execute {
     use connection_router_api::ChainName;
+    use std::collections::HashSet;
 
-    use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
+    use crate::state::{AuthorizationState, CHAINS_PER_WORKER, WORKERS, WORKERS_PER_CHAIN};
 
     use super::*;
 
@@ -257,6 +258,12 @@ pub mod execute {
 
         for chain in chains {
             WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
+
+            let existing_chains =
+                CHAINS_PER_WORKER.may_load(deps.storage, (&service_name, &info.sender))?;
+            let mut chains_names = existing_chains.unwrap_or_else(HashSet::new);
+            chains_names.insert(chain.clone());
+            CHAINS_PER_WORKER.save(deps.storage, (&service_name, &info.sender), &(chains_names))?;
         }
 
         Ok(Response::new())
@@ -359,6 +366,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             chain_name,
         } => to_json_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
+        QueryMsg::GetRegisteredWorkerChains {
+            service_name,
+            worker_address,
+        } => to_json_binary(&query::get_worker_chains(
+            deps,
+            service_name,
+            worker_address,
+        )?)
+        .map_err(|err| err.into()),
         QueryMsg::GetWorker {
             service_name,
             worker,
@@ -372,8 +388,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 
 pub mod query {
     use connection_router_api::ChainName;
+    use std::collections::HashSet;
 
-    use crate::state::{WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT};
+    use crate::state::{
+        WeightedWorker, CHAINS_PER_WORKER, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT,
+    };
 
     use super::*;
 
@@ -408,6 +427,16 @@ pub mod query {
         } else {
             Ok(workers)
         }
+    }
+
+    pub fn get_worker_chains(
+        deps: Deps,
+        service_name: String,
+        worker_address: Addr,
+    ) -> Result<HashSet<ChainName>, ContractError> {
+        CHAINS_PER_WORKER
+            .may_load(deps.storage, (&service_name, &worker_address))?
+            .ok_or(ContractError::WorkerNotFound)
     }
 
     pub fn get_worker(

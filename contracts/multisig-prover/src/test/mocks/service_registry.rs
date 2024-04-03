@@ -97,6 +97,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             to_json_binary(&workers)
         }
+        QueryMsg::GetRegisteredWorkerChains { .. } => todo!(),
         QueryMsg::GetService { .. } => todo!(),
         QueryMsg::GetWorker { .. } => todo!(),
     }

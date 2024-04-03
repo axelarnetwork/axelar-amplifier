@@ -2,6 +2,7 @@ use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
@@ -134,6 +135,10 @@ pub enum AuthorizationState {
 pub const SERVICES: Map<&str, Service> = Map::new("services");
 // maps (service_name, chain_name, worker_address) -> ()
 pub const WORKERS_PER_CHAIN: Map<(&str, &ChainName, &Addr), ()> = Map::new("workers_per_chain");
+type ChainNames = HashSet<ChainName>;
+// maps (service_name, worker_address) -> List of ChainNames
+pub const CHAINS_PER_WORKER: Map<(&str, &Addr), ChainNames> = Map::new("chains_per_worker");
+
 // maps (service_name, worker_address) -> Worker
 pub const WORKERS: Map<(&str, &Addr), Worker> = Map::new("workers");
 

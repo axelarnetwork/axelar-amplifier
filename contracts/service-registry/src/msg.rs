@@ -1,6 +1,7 @@
 use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
+use std::collections::HashSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -63,6 +64,12 @@ pub enum QueryMsg {
     GetActiveWorkers {
         service_name: String,
         chain_name: ChainName,
+    },
+
+    #[returns(HashSet<ChainName>)]
+    GetRegisteredWorkerChains {
+        service_name: String,
+        worker_address: Addr,
     },
 
     #[returns(crate::state::Service)]
