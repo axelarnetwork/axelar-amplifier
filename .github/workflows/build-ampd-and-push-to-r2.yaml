@@ -58,4 +58,4 @@ jobs:
           r2-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_CF }}
           r2-bucket: ${{ secrets.R2_BUCKET }}
           source-dir: ${{ steps.compile-contracts.outputs.wasm-directory }}
-          destination-dir: ./pre-releases/ampd/
+          destination-dir: ./pre-releases/ampd/contracts/
