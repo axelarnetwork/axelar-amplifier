@@ -1,6 +1,7 @@
 use error_stack::{Result, ResultExt};
 use std::net::SocketAddr;
 use thiserror::Error;
+use tracing::info;
 
 use axum::{http::StatusCode, routing::get, Json, Router};
 use serde::{Deserialize, Serialize};
@@ -35,10 +36,15 @@ impl Server {
             .local_addr()
             .map_err(|e| HealthCheckError::Error(e.to_string()))?)
     }
-
     pub async fn run(self, cancel: CancellationToken) -> Result<(), HealthCheckError> {
-        tracing_subscriber::fmt::init();
         let app = Router::new().route("/status", get(status));
+        let bind_address = self
+            .listener
+            .local_addr()
+            .change_context(HealthCheckError::Error(
+                "Failed getting local address".to_string(),
+            ))?;
+        info!("Starting health check server at: {}", bind_address);
         axum::serve(self.listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
             .await
