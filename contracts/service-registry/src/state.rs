@@ -131,16 +131,16 @@ pub enum AuthorizationState {
     Authorized,
 }
 
-// maps service_name -> Service
-pub const SERVICES: Map<&str, Service> = Map::new("services");
-// maps (service_name, chain_name, worker_address) -> ()
-pub const WORKERS_PER_CHAIN: Map<(&str, &ChainName, &Addr), ()> = Map::new("workers_per_chain");
 type ChainNames = HashSet<ChainName>;
-// maps (service_name, worker_address) -> List of ChainNames
-pub const CHAINS_PER_WORKER: Map<(&str, &Addr), ChainNames> = Map::new("chains_per_worker");
+type ServiceName = str;
+type WorkerAddress = Addr;
 
-// maps (service_name, worker_address) -> Worker
-pub const WORKERS: Map<(&str, &Addr), Worker> = Map::new("workers");
+pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
+pub const WORKERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &WorkerAddress), ()> =
+    Map::new("workers_per_chain");
+pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
+    Map::new("chains_per_worker");
+pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
 
 #[cfg(test)]
 mod tests {

@@ -247,7 +247,7 @@ fn register_chain_support() {
     let worker_chains: HashSet<ChainName> = service_registry
         .query(
             &app,
-            &QueryMsg::GetRegisteredWorkerChains {
+            &QueryMsg::GetRegisteredChainsForWorker {
                 service_name: service_name.into(),
                 worker_address: worker.clone(),
             },

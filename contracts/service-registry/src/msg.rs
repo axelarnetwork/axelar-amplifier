@@ -67,7 +67,7 @@ pub enum QueryMsg {
     },
 
     #[returns(HashSet<ChainName>)]
-    GetRegisteredWorkerChains {
+    GetRegisteredChainsForWorker {
         service_name: String,
         worker_address: Addr,
     },

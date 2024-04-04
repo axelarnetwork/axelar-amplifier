@@ -256,15 +256,19 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
+        let mut worker_current_chains = CHAINS_PER_WORKER
+            .may_load(deps.storage, (&service_name, &info.sender))?
+            .unwrap_or_else(HashSet::new);
+
         for chain in chains {
             WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
-
-            let existing_chains =
-                CHAINS_PER_WORKER.may_load(deps.storage, (&service_name, &info.sender))?;
-            let mut chains_names = existing_chains.unwrap_or_else(HashSet::new);
-            chains_names.insert(chain.clone());
-            CHAINS_PER_WORKER.save(deps.storage, (&service_name, &info.sender), &(chains_names))?;
+            worker_current_chains.insert(chain.clone());
         }
+        CHAINS_PER_WORKER.save(
+            deps.storage,
+            (&service_name, &info.sender),
+            &(worker_current_chains),
+        )?;
 
         Ok(Response::new())
     }
@@ -366,10 +370,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             chain_name,
         } => to_json_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
-        QueryMsg::GetRegisteredWorkerChains {
+        QueryMsg::GetRegisteredChainsForWorker {
             service_name,
             worker_address,
-        } => to_json_binary(&query::get_worker_chains(
+        } => to_json_binary(&query::chains_per_worker(
             deps,
             service_name,
             worker_address,
@@ -429,7 +433,7 @@ pub mod query {
         }
     }
 
-    pub fn get_worker_chains(
+    pub fn chains_per_worker(
         deps: Deps,
         service_name: String,
         worker_address: Addr,
