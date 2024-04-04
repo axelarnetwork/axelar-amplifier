@@ -1,20 +1,16 @@
 name: Upload ampd contracts to Cloudflare R2 bucket
 
-#on:
-#  push:
-#    branches:
-#      - main
-#  workflow_dispatch:
-#    inputs:
-#      branch:
-#        description: Github branch to checkout for compilation
-#        required: true
-#        default: main
-#        type: string
 on:
   push:
     branches:
-      - feat/add-compiled-contracts-to-CF
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Github branch to checkout for compilation
+        required: true
+        default: main
+        type: string
 
 
 jobs:
@@ -36,13 +32,13 @@ jobs:
           fi
           echo "branch=$branch" >> $GITHUB_OUTPUT
 
-      #TODO: bring back ref: ${{ steps.get-branch-name.outputs.branch }}
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: "0"
           path: axelar-amplifier
           submodules: recursive
+          ref: ${{ steps.get-branch-name.outputs.branch }}
 
       - name: Compile amplifier contracts
         id: compile-contracts
@@ -54,9 +50,6 @@ jobs:
           mkdir -p ./artifacts/$commit_hash/
           sudo mv axelar-amplifier/artifacts/*.wasm ./artifacts/$commit_hash/
           echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
-
-      - name: List contents of root directory
-        run: ls -la
 
       - uses: ryand56/r2-upload-action@latest
         with:
