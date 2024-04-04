@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_json_binary, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation,
+    to_json_binary, Addr, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
@@ -8,7 +8,7 @@ use axelar_wasm_std::{
     operators::Operators,
     snapshot,
     voting::{PollId, Vote, WeightedPoll},
-    VerificationStatus,
+    MajorityThreshold, VerificationStatus,
 };
 
 use connection_router_api::{ChainName, Message};
@@ -22,6 +22,27 @@ use crate::query::worker_set_status;
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 use crate::{error::ContractError, query::message_status};
+
+// TODO: this type of function exists in many contracts. Would be better to implement this
+// in one place, and then just include it
+pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.governance != sender {
+        return Err(ContractError::Unauthorized);
+    }
+    Ok(())
+}
+
+pub fn update_voting_threshold(
+    deps: DepsMut,
+    new_voting_threshold: MajorityThreshold,
+) -> Result<Response, ContractError> {
+    CONFIG.update(deps.storage, |mut config| -> Result<_, ContractError> {
+        config.voting_threshold = new_voting_threshold;
+        Ok(config)
+    })?;
+    Ok(Response::new())
+}
 
 pub fn verify_worker_set(
     deps: DepsMut,
@@ -275,4 +296,52 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
         .checked_add(block_expiry)
         .ok_or_else(|| OverflowError::new(OverflowOperation::Add, block_height, block_expiry))
         .map_err(ContractError::from)
+}
+
+#[cfg(test)]
+mod test {
+    use axelar_wasm_std::{MajorityThreshold, Threshold};
+    use cosmwasm_std::{testing::mock_dependencies, Addr};
+
+    use crate::state::{Config, CONFIG};
+
+    use super::require_governance;
+
+    fn mock_config(governance: Addr, voting_threshold: MajorityThreshold) -> Config {
+        Config {
+            governance,
+            service_registry_contract: Addr::unchecked("doesn't matter"),
+            service_name: "validators".to_string().try_into().unwrap(),
+            source_gateway_address: "0x89e51fA8CA5D66cd220bAed62ED01e8951aa7c40"
+                .to_string()
+                .try_into()
+                .unwrap(),
+            voting_threshold,
+            source_chain: "ethereum".to_string().try_into().unwrap(),
+            block_expiry: 10,
+            confirmation_height: 2,
+            rewards_contract: Addr::unchecked("rewards"),
+        }
+    }
+
+    #[test]
+    fn require_governance_should_reject_non_governance() {
+        let mut deps = mock_dependencies();
+        let governance = Addr::unchecked("governance");
+        CONFIG
+            .save(
+                deps.as_mut().storage,
+                &mock_config(
+                    governance.clone(),
+                    Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
+                ),
+            )
+            .unwrap();
+
+        let res = require_governance(&deps.as_mut(), Addr::unchecked("random"));
+        assert!(res.is_err());
+
+        let res = require_governance(&deps.as_mut(), governance);
+        assert!(res.is_ok());
+    }
 }

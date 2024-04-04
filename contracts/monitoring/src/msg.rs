@@ -1,5 +1,6 @@
 use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Addr;
 use multisig::worker_set::WorkerSet;
 
 #[cw_serde]
@@ -8,7 +9,13 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-pub enum ExecuteMsg {}
+pub enum ExecuteMsg {
+    // Can only be called by governance
+    RegisterProverContract {
+        chain_name: ChainName,
+        new_prover_addr: Addr,
+    },
+}
 
 #[cw_serde]
 #[derive(QueryResponses)]

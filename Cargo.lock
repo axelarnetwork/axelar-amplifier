@@ -4347,6 +4347,7 @@ dependencies = [
  "integration-tests",
  "multisig",
  "report",
+ "thiserror",
 ]
 
 [[package]]
