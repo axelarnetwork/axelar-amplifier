@@ -244,7 +244,7 @@ fn validate_and_normalize_public_key(
         .as_ref()
         .into()),
         // TODO: verify encoding scheme is standard
-        // Function `from_bytes()` will internally decompress into an EdwardsPoint which can only represent a valid point in the curve
+        // Function `from_bytes()` will internally decompress into an EdwardsPoint which can only represent a valid point on the curve
         // See https://docs.rs/curve25519-dalek/latest/curve25519_dalek/edwards/index.html#validity-checking
         KeyType::Ed25519 => Ok(ed25519_dalek::VerifyingKey::from_bytes(
             pub_key
@@ -376,7 +376,7 @@ mod ecdsa_tests {
     }
 
     #[test]
-    fn validate_ecdsa_public_key_not_in_curve() {
+    fn validate_ecdsa_public_key_not_on_curve() {
         // Valid compressed point format, which should produce an invalid point when decompressed
         let invalid_compressed_point = EncodedPoint::from_bytes([
             3, 132, 180, 161, 194, 115, 211, 43, 90, 122, 205, 26, 76, 14, 117, 209, 243, 206, 192,
