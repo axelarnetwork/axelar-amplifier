@@ -384,9 +384,9 @@ mod ecdsa_tests {
         ])
         .unwrap();
 
-        assert!(Into::<bool>::into(
-            AffinePoint::from_encoded_point(&invalid_compressed_point).is_none()
-        ));
+        // Assert that the point is invalid according to the crate we are using for ed25519. Both assert statements must match,
+        // otherwise `validate_and_normalize_public_key` is not doing the same internally as the crate
+        assert!(AffinePoint::try_from(&invalid_compressed_point).is_err());
 
         let result = validate_and_normalize_public_key(
             KeyType::Ecdsa,
