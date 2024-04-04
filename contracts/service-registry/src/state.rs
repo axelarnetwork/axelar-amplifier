@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Response, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -142,9 +142,62 @@ pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
     Map::new("chains_per_worker");
 pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
 
+pub fn register_chain_support_utility(
+    storage: &mut dyn Storage,
+    service_name: String,
+    chains: Vec<ChainName>,
+    caller: WorkerAddress,
+) -> Result<Response, ContractError> {
+    let mut worker_current_chains = CHAINS_PER_WORKER
+        .may_load(storage, (&service_name, &caller))?
+        .unwrap_or_else(HashSet::new);
+
+    for chain in chains {
+        WORKERS_PER_CHAIN.save(storage, (&service_name, &chain, &caller), &())?;
+        worker_current_chains.insert(chain.clone());
+    }
+
+    CHAINS_PER_WORKER.save(storage, (&service_name, &caller), &(worker_current_chains))?;
+
+    Ok(Response::new())
+}
+
+pub fn may_load_chains_per_worker(
+    storage: &dyn Storage,
+    service_name: String,
+    worker_address: WorkerAddress,
+) -> Result<HashSet<ChainName>, ContractError> {
+    CHAINS_PER_WORKER
+        .may_load(storage, (&service_name, &worker_address))?
+        .ok_or(ContractError::WorkerNotFound)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cosmwasm_std::testing::mock_dependencies;
+    use std::{str::FromStr, vec};
+
+    #[test]
+    fn get_registered_worker_chain_success() {
+        let mut deps = mock_dependencies();
+
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chains = vec![chain_name.clone()];
+        assert!(register_chain_support_utility(
+            deps.as_mut().storage,
+            service_name.into(),
+            chains,
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+        assert!(worker_chains.contains(&chain_name));
+    }
 
     #[test]
     fn test_bonded_add_bond() {

@@ -1,6 +1,5 @@
 mod test_utils;
 
-use std::collections::HashSet;
 use std::{str::FromStr, vec};
 
 use connection_router_api::ChainName;
@@ -243,17 +242,6 @@ fn register_chain_support() {
             weight: WORKER_WEIGHT
         }]
     );
-
-    let worker_chains: HashSet<ChainName> = service_registry
-        .query(
-            &app,
-            &QueryMsg::GetRegisteredChainsForWorker {
-                service_name: service_name.into(),
-                worker_address: worker.clone(),
-            },
-        )
-        .unwrap();
-    assert!(worker_chains.contains(&chain_name));
 
     let workers: Vec<WeightedWorker> = service_registry
         .query(
