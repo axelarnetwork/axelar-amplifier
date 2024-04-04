@@ -13,8 +13,6 @@ name: Upload ampd contracts to Cloudflare R2 bucket
 #        type: string
 on:
   push:
-    paths:
-      - '**.yml'
     branches:
       - feat/add-compiled-contracts-to-CF
 
