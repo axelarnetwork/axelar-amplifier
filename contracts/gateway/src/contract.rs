@@ -1,3 +1,4 @@
+use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
@@ -52,6 +53,8 @@ pub enum Error {
     InvalidAddress,
     #[error("failed to query message status")]
     MessageStatus,
+    #[error("message with ID {0} not found")]
+    MessageNotFound(CrossChainId),
 }
 
 mod internal {
