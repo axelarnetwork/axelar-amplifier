@@ -377,7 +377,7 @@ mod ecdsa_tests {
 
     #[test]
     fn validate_ecdsa_public_key_not_on_curve() {
-        // Valid compressed point format, which should produce an invalid point when decompressed
+        // the compressed format is not validated and should produce an invalid point when decompressed
         let invalid_compressed_point = EncodedPoint::from_bytes([
             3, 132, 180, 161, 194, 115, 211, 43, 90, 122, 205, 26, 76, 14, 117, 209, 243, 206, 192,
             34, 107, 93, 142, 13, 50, 95, 115, 188, 140, 82, 194, 140, 235,
@@ -542,7 +542,7 @@ mod ed25519_tests {
 
     #[test]
     fn validate_ed25519_public_key_not_in_curve() {
-        // Valid compressed point format, which should produce an invalid point when decompressed
+        // the compressed format is not validated and should produce an invalid point when decompressed
         let invalid_compressed_point = CompressedEdwardsY([
             42, 20, 146, 53, 38, 178, 23, 135, 135, 22, 77, 119, 129, 45, 141, 139, 212, 122, 180,
             97, 171, 0, 127, 226, 248, 13, 108, 227, 223, 188, 26, 121,
