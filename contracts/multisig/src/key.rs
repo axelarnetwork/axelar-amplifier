@@ -321,7 +321,7 @@ impl From<PublicKey> for HexBinary {
 #[cfg(test)]
 mod ecdsa_tests {
     use cosmwasm_std::HexBinary;
-    use k256::{elliptic_curve::sec1::FromEncodedPoint, AffinePoint, EncodedPoint};
+    use k256::{AffinePoint, EncodedPoint};
 
     use crate::{
         key::{validate_and_normalize_public_key, Signature},
