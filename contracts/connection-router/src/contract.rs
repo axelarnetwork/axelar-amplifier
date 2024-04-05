@@ -115,13 +115,15 @@ pub fn query(
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, str::FromStr};
 
     use crate::state::CONFIG;
 
     use super::*;
 
-    use connection_router_api::{error::Error, ChainName, CrossChainId, Message};
+    use connection_router_api::{
+        error::Error, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+    };
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
@@ -130,6 +132,7 @@ mod test {
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
     const NEXUS_GATEWAY_ADDRESS: &str = "nexus_gateway";
+    const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -339,5 +342,1032 @@ mod test {
                 );
             }
         }
+    }
+
+    #[test]
+    fn authorization() {
+        let mut deps = setup();
+        let chain = make_chain("ethereum");
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::RegisterChain {
+                chain: chain.chain_name.clone(),
+                gateway_address: chain.gateway.to_string().try_into().unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::RegisterChain {
+                chain: chain.chain_name.clone(),
+                gateway_address: chain.gateway.to_string().try_into().unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterChain {
+                chain: chain.chain_name.clone(),
+                gateway_address: chain.gateway.to_string().try_into().unwrap(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.clone(),
+                direction: GatewayDirection::None,
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.clone(),
+                direction: GatewayDirection::None,
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: chain.chain_name.clone(),
+                direction: GatewayDirection::None,
+            },
+        );
+        assert!(res.is_ok());
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::UpgradeGateway {
+                chain: chain.chain_name.clone(),
+                contract_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UpgradeGateway {
+                chain: chain.chain_name.clone(),
+                contract_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::Unauthorized);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::UpgradeGateway {
+                chain: chain.chain_name.clone(),
+                contract_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn upgrade_gateway_outgoing() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+        let new_gateway = Addr::unchecked("new_gateway");
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::UpgradeGateway {
+                chain: polygon.chain_name.clone(),
+                contract_address: new_gateway.to_string().try_into().unwrap(),
+            },
+        )
+        .unwrap();
+
+        let messages = &generate_messages(&eth, &polygon, &mut 0, 1);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_messages_in_cosmos_msg(
+            new_gateway.to_string(),
+            messages.clone(),
+            res.messages[0].msg.clone(),
+        );
+    }
+
+    #[test]
+    fn upgrade_gateway_incoming() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+        let new_gateway = Addr::unchecked("new_gateway");
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::UpgradeGateway {
+                chain: polygon.chain_name.clone(),
+                contract_address: new_gateway.to_string().try_into().unwrap(),
+            },
+        )
+        .unwrap();
+
+        let messages = &generate_messages(&polygon, &eth, &mut 0, 1);
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::GatewayNotRegistered);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(new_gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_messages_in_cosmos_msg(
+            eth.gateway.to_string(),
+            messages.clone(),
+            res.messages[0].msg.clone(),
+        );
+    }
+
+    #[test]
+    fn register_chain_test() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        let message = &generate_messages(&eth, &polygon, &mut 0, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::GatewayNotRegistered);
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn chain_already_registered() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        register_chain(deps.as_mut(), &eth);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterChain {
+                chain: eth.chain_name,
+                gateway_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::ChainAlreadyExists);
+
+        // case insensitive
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterChain {
+                chain: ChainName::from_str("ETHEREUM").unwrap(),
+                gateway_address: Addr::unchecked("new gateway")
+                    .to_string()
+                    .try_into()
+                    .unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::ChainAlreadyExists);
+    }
+
+    #[test]
+    fn invalid_chain_name() {
+        assert_contract_err_strings_equal(
+            ChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str()).unwrap_err(),
+            Error::InvalidChainName,
+        );
+
+        assert_contract_err_strings_equal(
+            ChainName::from_str("").unwrap_err(),
+            Error::InvalidChainName,
+        );
+    }
+
+    #[test]
+    fn gateway_already_registered() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterChain {
+                chain: polygon.chain_name.clone(),
+                gateway_address: eth.gateway.to_string().try_into().unwrap(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, Error::GatewayAlreadyRegistered);
+
+        register_chain(deps.as_mut(), &polygon);
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::UpgradeGateway {
+                chain: eth.chain_name,
+                contract_address: polygon.gateway.to_string().try_into().unwrap(),
+            },
+        )
+        .unwrap_err();
+
+        assert_contract_err_strings_equal(err, Error::GatewayAlreadyRegistered);
+    }
+
+    #[test]
+    fn freeze_incoming() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        )
+        .unwrap();
+
+        // can't route from frozen incoming gateway
+        let message = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        let messages = &generate_messages(&eth, &polygon, &mut 0, 1);
+        // can still route to chain
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_messages_in_cosmos_msg(
+            polygon.gateway.to_string(),
+            messages.clone(),
+            res.messages[0].msg.clone(),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        );
+        assert!(res.is_ok());
+
+        let message = &generate_messages(&polygon, &eth, &mut 0, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn freeze_outgoing() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        // freeze outgoing
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        );
+        assert!(res.is_ok());
+
+        // can still send to the chain, messages will queue up
+        let messages = &generate_messages(&eth, &polygon, &mut 0, 1);
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(messages.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_messages_in_cosmos_msg(
+            polygon.gateway.to_string(),
+            messages.clone(),
+            res.messages[0].msg.clone(),
+        );
+    }
+
+    #[test]
+    fn freeze_chain() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let nonce = &mut 0;
+
+        // route a message first
+        let routed_msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![routed_msg.clone()]),
+        )
+        .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        let msg = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![msg.clone()]),
+        )
+        .unwrap_err();
+        // can't route to frozen chain
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        // can't route from frozen chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        // unfreeze and test that everything works correctly
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        )
+        .unwrap();
+
+        // can route to the chain now
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+
+        // can route from the chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn unfreeze_incoming() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        let nonce = &mut 0;
+
+        // unfreeze incoming
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        )
+        .unwrap();
+
+        // can route from the chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        // can't route to the chain
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+    }
+
+    #[test]
+    fn unfreeze_outgoing() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        let nonce = &mut 0;
+
+        // unfreeze outgoing
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        )
+        .unwrap();
+
+        // can't route from frozen chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        // can route to the chain now
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn freeze_incoming_then_outgoing() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        )
+        .unwrap();
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        )
+        .unwrap();
+
+        let nonce = &mut 0;
+        // can't route to frozen chain
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        // can't route from frozen chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+    }
+
+    #[test]
+    fn freeze_outgoing_then_incoming() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        )
+        .unwrap();
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        )
+        .unwrap();
+
+        let nonce = &mut 0;
+        // can't route to frozen chain
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        // can't route from frozen chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+    }
+
+    #[test]
+    fn unfreeze_incoming_then_outgoing() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        // unfreeze incoming
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        )
+        .unwrap();
+
+        // unfreeze outgoing
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        )
+        .unwrap();
+
+        // can route to the chain now
+        let nonce = &mut 0;
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+
+        // can route from the chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn unfreeze_outgoing_then_incoming() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        // unfreeze outgoing
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Outgoing,
+            },
+        )
+        .unwrap();
+
+        // unfreeze incoming
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Incoming,
+            },
+        )
+        .unwrap();
+
+        // can route to the chain now
+        let nonce = &mut 0;
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+
+        // can route from the chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn unfreeze_nothing() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::FreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::Bidirectional,
+            },
+        );
+        assert!(res.is_ok());
+
+        // unfreeze nothing
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(ADMIN_ADDRESS, &[]),
+            ExecuteMsg::UnfreezeChain {
+                chain: polygon.chain_name.clone(),
+                direction: GatewayDirection::None,
+            },
+        )
+        .unwrap();
+
+        let nonce = &mut 0;
+        let message = &generate_messages(&eth, &polygon, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(eth.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
+
+        // can't route from frozen chain
+        let message = &generate_messages(&polygon, &eth, nonce, 1)[0];
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(polygon.gateway.as_str(), &[]),
+            ExecuteMsg::RouteMessages(vec![message.clone()]),
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            Error::ChainFrozen {
+                chain: polygon.chain_name.clone(),
+            },
+        );
     }
 }
