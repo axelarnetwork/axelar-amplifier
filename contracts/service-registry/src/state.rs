@@ -142,7 +142,7 @@ pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
     Map::new("chains_per_worker");
 pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
 
-pub fn register_chain_support(
+pub fn register_chains_support(
     storage: &mut dyn Storage,
     service_name: String,
     chains: Vec<ChainName>,
@@ -178,14 +178,13 @@ mod tests {
     use std::{str::FromStr, vec};
 
     #[test]
-    fn get_registered_worker_chain_success() {
+    fn register_single_worker_chain_single_call_success() {
         let mut deps = mock_dependencies();
-
         let worker = Addr::unchecked("worker");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
-        assert!(register_chain_support(
+        assert!(register_chains_support(
             deps.as_mut().storage,
             service_name.into(),
             chains,
@@ -196,6 +195,76 @@ mod tests {
         let worker_chains =
             may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
         assert!(worker_chains.contains(&chain_name));
+    }
+
+    #[test]
+    fn register_multiple_worker_chains_single_call_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_names = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("cosmos").unwrap(),
+        ];
+
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chain_names.clone(),
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+
+        for chain_name in chain_names {
+            assert!(worker_chains.contains(&chain_name));
+        }
+    }
+
+    #[test]
+    fn register_multiple_worker_chains_multiple_calls_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+
+        let first_chain_name = ChainName::from_str("ethereum").unwrap();
+        let first_chains_vector = vec![first_chain_name.clone()];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            first_chains_vector,
+            worker.clone()
+        )
+        .is_ok());
+
+        let second_chain_name = ChainName::from_str("cosmos").unwrap();
+        let second_chains_vector = vec![second_chain_name.clone()];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            second_chains_vector,
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+
+        assert!(worker_chains.contains(&first_chain_name));
+        assert!(worker_chains.contains(&second_chain_name));
+    }
+
+    #[test]
+    fn get_unregistered_worker_chains_fails() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+
+        let err = may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker)
+            .unwrap_err();
+        assert!(matches!(err, ContractError::WorkerNotFound));
     }
 
     #[test]
