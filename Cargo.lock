@@ -674,6 +674,7 @@ dependencies = [
  "hex",
  "num-traits",
  "rand",
+ "regex",
  "report",
  "schemars",
  "serde",

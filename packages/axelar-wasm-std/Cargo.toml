@@ -37,6 +37,7 @@ error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
 num-traits = { workspace = true }
 report = { workspace = true }
+regex = "1.10.0"
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"
