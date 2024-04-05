@@ -1,13 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response,
     StdResult,
 };
+use cw2::set_contract_version;
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, MigrateMsg};
 use crate::state::{Config, CONFIG};
 use crate::{execute, query};
+use crate::migrations;
+
+// version info for migration
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -16,6 +22,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = Config {
         governance: deps.api.addr_validate(&msg.governance_address)?,
         service_name: msg.service_name,
@@ -77,11 +85,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    _: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    Ok(Response::new())
+    migrations::v0_2_0::migrate(deps, msg.governance_address)
+        .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg(test)]

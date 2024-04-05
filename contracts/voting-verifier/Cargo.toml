@@ -40,6 +40,7 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
+cw2 = { workspace = true }
 either = "1.8.1"
 error-stack = { workspace = true }
 report = { workspace = true }

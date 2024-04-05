@@ -87,3 +87,8 @@ pub struct VerifyMessagesResponse {
 pub struct EndPollResponse {
     pub poll_result: PollState,
 }
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub governance_address: String,
+}
