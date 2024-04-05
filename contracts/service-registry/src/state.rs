@@ -142,24 +142,23 @@ pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
     Map::new("chains_per_worker");
 pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
 
-pub fn register_chain_support_utility(
+pub fn register_chain_support(
     storage: &mut dyn Storage,
     service_name: String,
     chains: Vec<ChainName>,
-    caller: WorkerAddress,
-) -> Result<Response, ContractError> {
-    let mut worker_current_chains = CHAINS_PER_WORKER
-        .may_load(storage, (&service_name, &caller))?
-        .unwrap_or_else(HashSet::new);
+    worker: WorkerAddress,
+) -> Result<(), ContractError> {
+    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
+        let mut current_chains = current_chains.unwrap_or_default();
+        current_chains.extend(chains.iter().cloned());
+        Ok::<HashSet<ChainName>, ContractError>(current_chains)
+    })?;
 
-    for chain in chains {
-        WORKERS_PER_CHAIN.save(storage, (&service_name, &chain, &caller), &())?;
-        worker_current_chains.insert(chain.clone());
+    for chain in chains.iter() {
+        WORKERS_PER_CHAIN.save(storage, (&service_name, chain, &worker), &())?;
     }
 
-    CHAINS_PER_WORKER.save(storage, (&service_name, &caller), &(worker_current_chains))?;
-
-    Ok(Response::new())
+    Ok(())
 }
 
 pub fn may_load_chains_per_worker(
@@ -186,7 +185,7 @@ mod tests {
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
-        assert!(register_chain_support_utility(
+        assert!(register_chain_support(
             deps.as_mut().storage,
             service_name.into(),
             chains,

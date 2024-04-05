@@ -224,7 +224,7 @@ fn register_chain_support() {
             &app,
             &QueryMsg::GetActiveWorkers {
                 service_name: service_name.into(),
-                chain_name: chain_name.clone(),
+                chain_name,
             },
         )
         .unwrap();
@@ -232,7 +232,7 @@ fn register_chain_support() {
         workers,
         vec![WeightedWorker {
             worker_info: Worker {
-                address: worker.clone(),
+                address: worker,
                 bonding_state: BondingState::Bonded {
                     amount: min_worker_bond
                 },

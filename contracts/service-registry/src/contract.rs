@@ -116,9 +116,7 @@ pub fn execute(
 pub mod execute {
     use connection_router_api::ChainName;
 
-    use crate::state::{
-        register_chain_support_utility, AuthorizationState, WORKERS, WORKERS_PER_CHAIN,
-    };
+    use crate::state::{register_chain_support, AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
 
     use super::*;
 
@@ -257,7 +255,9 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
-        register_chain_support_utility(deps.storage, service_name.clone(), chains, info.sender)
+        let _res = register_chain_support(deps.storage, service_name.clone(), chains, info.sender);
+
+        Ok(Response::new())
     }
 
     pub fn deregister_chains_support(
