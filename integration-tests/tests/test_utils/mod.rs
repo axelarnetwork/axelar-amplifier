@@ -673,6 +673,16 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    let response = protocol.monitoring.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &monitoring::msg::ExecuteMsg::RegisterProverContract {
+            chain_name: chain_name.clone(),
+            new_prover_addr: multisig_prover.contract_addr.clone(),
+        },
+    );
+    assert!(response.is_ok());
+
     Chain {
         gateway,
         voting_verifier,

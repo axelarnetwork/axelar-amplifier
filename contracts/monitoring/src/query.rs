@@ -38,10 +38,10 @@ pub fn check_worker_is_active(
                     .values()
                     .any(|signer| signer.address == worker)
                 {
-                    return Ok(false);
+                    return Ok(true);
                 }
             }
         }
     }
-    Ok(true)
+    Ok(false)
 }
