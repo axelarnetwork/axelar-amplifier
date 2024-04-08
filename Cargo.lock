@@ -4346,6 +4346,7 @@ dependencies = [
  "error-stack",
  "integration-tests",
  "multisig",
+ "multisig-prover",
  "report",
  "thiserror",
 ]

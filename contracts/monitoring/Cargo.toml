@@ -42,6 +42,7 @@ cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
+multisig-prover = { workspace = true }
 report = { workspace = true }
 thiserror = { workspace = true }
 
