@@ -44,6 +44,7 @@ error-stack = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 multisig-prover = { workspace = true }
 report = { workspace = true }
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]

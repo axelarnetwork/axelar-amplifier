@@ -4348,6 +4348,7 @@ dependencies = [
  "multisig",
  "multisig-prover",
  "report",
+ "serde",
  "thiserror",
 ]
 

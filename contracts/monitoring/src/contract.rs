@@ -2,9 +2,9 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
-use crate::execute;
+use crate::{execute, query};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -43,11 +43,15 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[allow(dead_code)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetActiveVerifiersForChain { chain: _ } => {
             todo!()
         }
+        QueryMsg::CheckWorkerIsActiveForChains {
+            chain_names,
+            worker,
+        } => to_json_binary(&query::check_worker_is_active(deps, chain_names, worker)?),
     }
 }
 

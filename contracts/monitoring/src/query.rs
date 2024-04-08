@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::state::PROVERS_PER_CHAIN;
 use connection_router_api::ChainName;
-use cosmwasm_std::{to_json_binary, Addr, Deps, QueryRequest, WasmQuery};
+use cosmwasm_std::{to_json_binary, Addr, Deps, QueryRequest, StdResult, WasmQuery};
 use multisig::worker_set::WorkerSet;
 use multisig_prover::msg::QueryMsg::GetWorkerSet;
 use std::collections::HashSet;
@@ -23,7 +23,7 @@ pub fn check_worker_is_active(
     deps: Deps,
     chain_names: HashSet<ChainName>,
     worker: Addr,
-) -> Result<bool, ContractError> {
+) -> StdResult<bool> {
     for chain_name in chain_names {
         if let Ok(prover_addresses) = PROVERS_PER_CHAIN.load(deps.storage, chain_name) {
             for prover_address in prover_addresses {
