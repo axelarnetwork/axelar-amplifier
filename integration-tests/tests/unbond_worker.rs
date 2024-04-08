@@ -5,7 +5,7 @@ use std::collections::HashSet;
 pub mod test_utils;
 
 #[test]
-fn worker_should_be_in_active_workerset_of_supported_chain() {
+fn worker_should_be_in_active_workerset_of_supported_chains() {
     let (protocol, ethereum, polygon, initial_workers, _) = test_utils::setup_test_case();
 
     let mut chain_names_set = HashSet::new();
