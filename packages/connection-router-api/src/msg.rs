@@ -49,6 +49,10 @@ pub enum QueryMsg {
     #[returns(ChainEndpoint)]
     GetChainInfo(ChainName),
 
+    // Returns a list of chains registered with the router
+    // The list is paginated by:
+    // - start_after: indicate the chain after, which the next page of results should start.
+    // - limit: limit the number of chains returned. Default is 10, max is 50.
     #[returns(Vec<ChainEndpoint>)]
     Chains {
         start_after: Option<ChainName>,

@@ -18,7 +18,7 @@ pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, Err
         .ok_or(Error::ChainNotFound.into())
 }
 
-pub fn get_chains(
+pub fn chains(
     deps: Deps,
     start_after: Option<ChainName>,
     limit: Option<u32>,
@@ -105,19 +105,24 @@ mod test {
         }
 
         // no pagination
-        let result = super::get_chains(deps.as_ref(), None, None).unwrap();
+        let result = super::chains(deps.as_ref(), None, None).unwrap();
         assert_eq!(result.len(), 4);
         assert_eq!(result, endpoints);
 
         // with limit
-        let result = super::get_chains(deps.as_ref(), None, Some(2)).unwrap();
+        let result = super::chains(deps.as_ref(), None, Some(2)).unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result, vec![endpoints[0].clone(), endpoints[1].clone()]);
 
         // with page
         let result =
-            super::get_chains(deps.as_ref(), Some("c-chain".parse().unwrap()), Some(2)).unwrap();
+            super::chains(deps.as_ref(), Some("c-chain".parse().unwrap()), Some(2)).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result, vec![endpoints[3].clone()]);
+
+        // start after last chain
+        let result =
+            super::chains(deps.as_ref(), Some("d-chain".parse().unwrap()), Some(2)).unwrap();
+        assert_eq!(result.len(), 0);
     }
 }
