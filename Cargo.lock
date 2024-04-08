@@ -3922,6 +3922,7 @@ dependencies = [
  "itertools 0.11.0",
  "k256",
  "mockall",
+ "monitoring",
  "multisig",
  "multisig-prover",
  "report",

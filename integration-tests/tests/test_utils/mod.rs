@@ -11,6 +11,7 @@ use cw_multi_test::{App, AppResponse, Executor};
 
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::monitoring_contract::MonitoringContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
@@ -295,6 +296,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
+    let monitoring = MonitoringContract::instantiate_contract(&mut app, governance_address.clone());
+
     let connection_router = ConnectionRouterContract::instantiate_contract(
         &mut app,
         router_admin_address.clone(),
@@ -327,6 +330,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     Protocol {
         genesis_address: genesis,
         governance_address,
+        monitoring,
         connection_router,
         router_admin_address,
         multisig,
