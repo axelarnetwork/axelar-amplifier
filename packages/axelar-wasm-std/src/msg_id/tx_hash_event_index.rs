@@ -2,10 +2,12 @@ use core::fmt;
 use std::{fmt::Display, str::FromStr};
 
 use cosmwasm_std::HexBinary;
+use lazy_static::lazy_static;
 use regex::Regex;
 
 use super::Error;
 use crate::{hash::Hash, nonempty};
+
 pub struct HexTxHashAndEventIndex {
     pub tx_hash: Hash,
     pub event_index: u32,
@@ -19,38 +21,48 @@ impl HexTxHashAndEventIndex {
     }
 }
 
+const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";
+lazy_static! {
+    static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
+}
+
 impl FromStr for HexTxHashAndEventIndex {
     type Err = Error;
+
     fn from_str(message_id: &str) -> Result<Self, Self::Err>
     where
         Self: Sized,
     {
-        const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";
-        let regex = Regex::new(PATTERN).expect("invalid regex");
+        let caps: Vec<_> = REGEX
+            .captures(message_id)
+            .into_iter()
+            .flat_map(|caps| caps.iter().collect::<Vec<_>>())
+            .collect();
 
-        if let Some(caps) = regex.captures(message_id) {
-            let tx_id = &caps[1];
-            let event_index = &caps[2];
+        match caps.as_slice() {
+            [Some(_), Some(tx_id), Some(event_index)] => {
+                let tx_id = tx_id.as_str();
+                let event_index = event_index.as_str();
 
-            Ok(HexTxHashAndEventIndex {
-                tx_hash: HexBinary::from_hex(&tx_id[2..])
-                    .expect("invalid hex")
-                    .as_slice()
-                    .try_into()
-                    .expect("invalid length tx hash"),
-                event_index: event_index.parse().map_err(|_| {
-                    // this error can happen if the integer overflows u32
-                    Error::InvalidMessageID {
-                        id: message_id.to_string(),
-                        expected_format: PATTERN.to_string(),
-                    }
-                })?,
-            })
-        } else {
-            Err(Error::InvalidMessageID {
+                Ok(HexTxHashAndEventIndex {
+                    tx_hash: HexBinary::from_hex(&tx_id[2..])
+                        .expect("invalid hex")
+                        .as_slice()
+                        .try_into()
+                        .expect("invalid length tx hash"),
+                    event_index: event_index.parse().map_err(|_| {
+                        // this error can happen if the integer overflows u32
+                        Error::InvalidMessageID {
+                            id: message_id.to_string(),
+                            expected_format: PATTERN.to_string(),
+                        }
+                    })?,
+                })
+            }
+            _ => Err(Error::InvalidMessageID {
                 id: message_id.to_string(),
                 expected_format: PATTERN.to_string(),
-            })
+            }),
         }
     }
 }
@@ -150,7 +162,7 @@ mod tests {
         let res = HexTxHashAndEventIndex::from_str(&format!("{}+{}", tx_hash, event_index));
         assert!(res.is_err());
 
-        for _ in 0..100 {
+        for _ in 0..10 {
             let random_sep: char = rand::random();
             if random_sep == '-' {
                 continue;

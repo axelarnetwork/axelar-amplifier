@@ -672,6 +672,7 @@ dependencies = [
  "error-stack",
  "flagset",
  "hex",
+ "lazy_static",
  "num-traits",
  "rand",
  "regex",
