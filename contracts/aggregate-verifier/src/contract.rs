@@ -99,11 +99,13 @@ pub fn reply(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetMessagesStatus { messages } => {
-            let verifier = CONFIG.load(deps.storage)?.verifier;
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: verifier.to_string(),
-                msg: to_json_binary(&voting_msg::QueryMsg::GetMessagesStatus { messages })?,
-            }))
+            let res: Vec<(CrossChainId, VerificationStatus)> =
+                deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: CONFIG.load(deps.storage)?.verifier.to_string(),
+                    msg: to_json_binary(&voting_msg::QueryMsg::GetMessagesStatus { messages })?,
+                }))?;
+
+            to_json_binary(&res)
         }
     }
 }

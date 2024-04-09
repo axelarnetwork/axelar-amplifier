@@ -58,7 +58,7 @@ pub enum Error {
 }
 
 mod internal {
-    use aggregate_verifier::client::Verifier;
+    use client::Client;
     use connection_router_api::client::Router;
     use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
@@ -100,9 +100,8 @@ mod internal {
         msg: ExecuteMsg,
     ) -> Result<Response, Error> {
         let config = state::load_config(deps.storage).change_context(Error::ConfigMissing)?;
-        let verifier = Verifier {
-            address: config.verifier,
-            querier: deps.querier,
+        let verifier = aggregate_verifier::Client {
+            client: Client::new(deps.querier, config.verifier),
         };
 
         let router = Router {
