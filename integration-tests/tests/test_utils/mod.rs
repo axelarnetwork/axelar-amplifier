@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router_api::{ChainName, CrossChainId, Message};
+use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
 };
@@ -72,13 +72,72 @@ pub fn verify_messages(
     (poll_id, expiry)
 }
 
-pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]) {
-    let response = gateway.execute(
+fn route(
+    app: &mut App,
+    gateway: &GatewayContract,
+    msgs: &[Message],
+) -> error_stack::Result<AppResponse, axelar_wasm_std::ContractError> {
+    gateway.execute(
         app,
         Addr::unchecked("relayer"),
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
-    );
+    )
+}
+
+pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]) {
+    let response = route(app, gateway, msgs);
     assert!(response.is_ok());
+}
+
+pub fn route_messages_frozen_chain(
+    app: &mut App,
+    gateway: &GatewayContract,
+    chain_name: &ChainName,
+    msgs: &[Message],
+) {
+    let response = route(app, gateway, msgs);
+    assert_contract_err_strings_equal(
+        response.unwrap_err(),
+        connection_router_api::error::Error::ChainFrozen {
+            chain: chain_name.clone(),
+        },
+    );
+}
+
+pub fn freeze_chain(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    chain_name: &ChainName,
+    direction: GatewayDirection,
+    admin: &Addr,
+) {
+    let response = router.execute(
+        app,
+        admin.clone(),
+        &connection_router_api::msg::ExecuteMsg::FreezeChain {
+            chain: chain_name.clone(),
+            direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
+}
+
+pub fn unfreeze_chain(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    chain_name: &ChainName,
+    direction: GatewayDirection,
+    admin: &Addr,
+) {
+    let response = router.execute(
+        app,
+        admin.clone(),
+        &connection_router_api::msg::ExecuteMsg::UnfreezeChain {
+            chain: chain_name.clone(),
+            direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
 }
 
 pub fn vote_success_for_all_messages(
@@ -703,4 +762,11 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
     let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     (protocol, chain1, chain2, workers, min_worker_bond)
+}
+
+pub fn assert_contract_err_strings_equal(
+    actual: impl Into<axelar_wasm_std::ContractError>,
+    expected: impl Into<axelar_wasm_std::ContractError>,
+) {
+    assert_eq!(actual.into().to_string(), expected.into().to_string());
 }
