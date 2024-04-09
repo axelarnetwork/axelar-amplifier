@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router_api::{ChainName, CrossChainId, GatewayDirection, Message};
+use connection_router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
 };
@@ -72,36 +72,13 @@ pub fn verify_messages(
     (poll_id, expiry)
 }
 
-fn route(
-    app: &mut App,
-    gateway: &GatewayContract,
-    msgs: &[Message],
-) -> error_stack::Result<AppResponse, axelar_wasm_std::ContractError> {
-    gateway.execute(
+pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]) {
+    let response = gateway.execute(
         app,
         Addr::unchecked("relayer"),
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
-    )
-}
-
-pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]) {
-    let response = route(app, gateway, msgs);
-    assert!(response.is_ok());
-}
-
-pub fn route_messages_frozen_chain(
-    app: &mut App,
-    gateway: &GatewayContract,
-    chain_name: &ChainName,
-    msgs: &[Message],
-) {
-    let response = route(app, gateway, msgs);
-    assert_contract_err_strings_equal(
-        response.unwrap_err(),
-        connection_router_api::error::Error::ChainFrozen {
-            chain: chain_name.clone(),
-        },
     );
+    assert!(response.is_ok());
 }
 
 pub fn freeze_chain(
@@ -135,6 +112,24 @@ pub fn unfreeze_chain(
         &connection_router_api::msg::ExecuteMsg::UnfreezeChain {
             chain: chain_name.clone(),
             direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
+}
+
+pub fn upgrade_gateway(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    governance: &Addr,
+    chain_name: &ChainName,
+    contract_address: Address,
+) {
+    let response = router.execute(
+        app,
+        governance.clone(),
+        &connection_router_api::msg::ExecuteMsg::UpgradeGateway {
+            chain: chain_name.clone(),
+            contract_address,
         },
     );
     assert!(response.is_ok(), "{:?}", response);

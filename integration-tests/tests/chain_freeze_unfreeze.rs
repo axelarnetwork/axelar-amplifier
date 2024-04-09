@@ -1,6 +1,7 @@
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{Addr, HexBinary};
 
 use connection_router_api::{CrossChainId, Message};
+use integration_tests::contract::Contract;
 
 pub mod test_utils;
 
@@ -56,22 +57,27 @@ fn chain_can_be_freezed_unfreezed() {
 
     test_utils::freeze_chain(
         &mut protocol.app,
-        &mut protocol.connection_router,
+        &protocol.connection_router,
         &chain1.chain_name,
         connection_router_api::GatewayDirection::Bidirectional,
         &protocol.router_admin_address,
     );
 
-    test_utils::route_messages_frozen_chain(
+    let response = chain1.gateway.execute(
         &mut protocol.app,
-        &chain1.gateway,
-        &chain1.chain_name,
-        &msgs,
+        Addr::unchecked("relayer"),
+        &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+    );
+    test_utils::assert_contract_err_strings_equal(
+        response.unwrap_err(),
+        connection_router_api::error::Error::ChainFrozen {
+            chain: chain1.chain_name.clone(),
+        },
     );
 
     test_utils::unfreeze_chain(
         &mut protocol.app,
-        &mut protocol.connection_router,
+        &protocol.connection_router,
         &chain1.chain_name,
         connection_router_api::GatewayDirection::Bidirectional,
         &protocol.router_admin_address,
