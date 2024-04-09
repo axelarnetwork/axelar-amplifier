@@ -24,7 +24,6 @@ multisig = { version = "^0.1.0", path = "contracts/multisig" }
 multisig-prover = { version = "^0.1.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
-aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
 gateway = { version = "^0.1.0", path = "contracts/gateway" }
 gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
 connection-router-api = { version = "^0.1.0", path = "packages/connection-router-api" }

@@ -74,30 +74,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aggregate-verifier"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "cw-utils 1.0.1",
- "error-stack",
- "integration-tests",
- "itertools 0.11.0",
- "report",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "voting-verifier",
-]
-
-[[package]]
 name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3340,7 +3316,6 @@ dependencies = [
 name = "gateway"
 version = "0.1.0"
 dependencies = [
- "aggregate-verifier",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "connection-router-api",
@@ -3906,7 +3881,6 @@ dependencies = [
 name = "integration-tests"
 version = "0.1.0"
 dependencies = [
- "aggregate-verifier",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "connection-router",

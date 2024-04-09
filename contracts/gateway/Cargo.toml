@@ -35,7 +35,6 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 connection-router-api = { workspace = true }
