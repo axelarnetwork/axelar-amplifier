@@ -88,5 +88,6 @@ fn chain_can_be_freezed_unfreezed() {
         test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
+    // can route again
     test_utils::route_messages(&mut protocol.app, &chain1.gateway, &msgs);
 }
