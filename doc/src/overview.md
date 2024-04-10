@@ -187,12 +187,12 @@ messages from the gateway, and interacts with the multisig contract to conduct t
 ### Multisig Contract
 
 [`multisig`](contracts/multisig.md) is responsible for signing arbitrary blobs of data. Contracts register with the
-multisig contract to generate a key id, and then use that key id to initiate signing sessions. Off chain workers
+multisig contract to generate a key id, and then use that key id to initiate signing sessions. Off chain verifiers
 associated with the key id sign messages when new signing sessions are created.
 
 ### Service Registry
 
-[`service-registry`](contracts/service_registry.md) is responsible for tracking workers associated with specific
-services. Two example services are voting and signing. Workers must be authorized to join a service via governance
-vote. Once authorized, workers must also bond a sufficient amount of stake before becoming active in the service.
+[`service-registry`](contracts/service_registry.md) is responsible for tracking verifiers associated with specific
+services. Two example services are voting and signing. Verifiers must be authorized to join a service via governance
+vote. Once authorized, verifiers must also bond a sufficient amount of stake before becoming active in the service.
 Services query the service registry to create weighted snapshots of the active worker set.

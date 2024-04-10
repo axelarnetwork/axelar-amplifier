@@ -1,17 +1,14 @@
-use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
-};
-use cw_multi_test::{App, AppResponse, Executor};
-use k256::ecdsa;
-use sha3::{Digest, Keccak256};
-use tofn::ecdsa::KeyPair;
-
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
+use cosmwasm_std::{
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
+};
+use cw_multi_test::{App, AppResponse, Executor};
+
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
 use integration_tests::multisig_contract::MultisigContract;
@@ -20,6 +17,10 @@ use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use integration_tests::{connection_router_contract::ConnectionRouterContract, protocol::Protocol};
+
+use k256::ecdsa;
+use sha3::{Digest, Keccak256};
+
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -27,6 +28,7 @@ use multisig::{
 use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
+use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
@@ -146,14 +148,17 @@ pub fn construct_proof_and_sign(
     sign_proof(protocol, workers, response.unwrap())
 }
 
+pub fn get_multisig_session_id(response: AppResponse) -> Uint64 {
+    get_event_attribute(&response.events, "wasm-signing_started", "session_id")
+        .map(|attr| attr.value.as_str().try_into().unwrap())
+        .expect("couldn't get session_id")
+}
+
 pub fn sign_proof(protocol: &mut Protocol, workers: &Vec<Worker>, response: AppResponse) -> Uint64 {
     let msg_to_sign = get_event_attribute(&response.events, "wasm-signing_started", "msg")
         .map(|attr| attr.value.clone())
         .expect("couldn't find message to sign");
-    let session_id: Uint64 =
-        get_event_attribute(&response.events, "wasm-signing_started", "session_id")
-            .map(|attr| attr.value.as_str().try_into().unwrap())
-            .expect("couldn't get session_id");
+    let session_id = get_multisig_session_id(response);
 
     for worker in workers {
         let signature = tofn::ecdsa::sign(
@@ -244,6 +249,7 @@ pub fn get_worker_set(
     query_response.unwrap()
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 pub fn advance_height(app: &mut App, increment: u64) {
     let cur_block = app.block_info();
     app.set_block(BlockInfo {
@@ -475,7 +481,9 @@ pub fn create_worker_set_poll(
         app,
         relayer_addr.clone(),
         &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
-            message_id: "ethereum:00".parse().unwrap(),
+            message_id: "7477095de32cfca1522076e3581501ddc249c5796622d1194f0b7ef891769bdb-0"
+                .parse()
+                .unwrap(),
             new_operators: make_operators(worker_set.clone(), Encoder::Abi),
         },
     );
@@ -588,18 +596,10 @@ pub struct Chain {
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
-        &mut protocol.app,
-        protocol
-            .service_registry
-            .contract_addr
-            .to_string()
-            .try_into()
-            .unwrap(),
-        protocol.service_name.clone(),
+        protocol,
         "doesn't matter".to_string().try_into().unwrap(),
         Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
         chain_name.clone(),
-        protocol.rewards.contract_addr.clone(),
     );
 
     let gateway = GatewayContract::instantiate_contract(

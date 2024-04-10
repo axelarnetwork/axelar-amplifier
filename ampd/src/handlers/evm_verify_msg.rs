@@ -12,9 +12,10 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::{ChainName, ID_SEPARATOR};
+use connection_router_api::ChainName;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
+use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -194,12 +195,7 @@ where
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
-            .map(|message| {
-                format!(
-                    "0x{:x}{}{}",
-                    message.tx_id, ID_SEPARATOR, message.event_index
-                )
-            })
+            .map(|message| construct_message_id(message.tx_id.into(), message.event_index))
             .collect::<Vec<_>>();
         let votes = info_span!(
             "verify messages from an EVM chain",

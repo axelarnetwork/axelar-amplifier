@@ -10,9 +10,10 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::{ChainName, ID_SEPARATOR};
+use connection_router_api::ChainName;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
+use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -187,10 +188,7 @@ where
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = format!(
-                "0x{:x}{}{}",
-                worker_set.tx_id, ID_SEPARATOR, worker_set.event_index
-            )
+            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");

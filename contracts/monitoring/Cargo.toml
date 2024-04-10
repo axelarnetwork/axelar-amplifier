@@ -1,9 +1,9 @@
 [package]
-name = "multisig"
+name = "monitoring"
 version = "0.1.0"
 rust-version = { workspace = true }
 edition = "2021"
-description = "Multisig contract"
+description = "Amplifier info aggregation for external use, alongside contract management, instantiation and migration"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
@@ -16,19 +16,14 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "multisig-schema"
+name = "monitoring-schema"
 path = "src/bin/schema.rs"
 
 [features]
-default = ["secp256k1", "ed25519"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-# use this feature to enable secp256k1 for signature verification
-secp256k1 = []
-# use this feature to enable ed25519 for signature verification
-ed25519 = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -41,28 +36,18 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 connection-router-api = { workspace = true }
-cosmwasm-crypto = "1.2.7"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
-ed25519-dalek = { version = "2.1.1", default-features = false }
-enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
-getrandom = { version = "0.2", default-features = false, features = ["custom"] }
-k256 = { version = "0.13.1", features = ["ecdsa"] }
+multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
-rewards = { workspace = true, features = ["library"] }
-schemars = "0.8.10"
-serde = { version = "1.0.145", default-features = false, features = ["derive"] }
-serde_json = "1.0.89"
-sha3 = { workspace = true }
-signature-verifier-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-curve25519-dalek = "4.1.1"
 cw-multi-test = "0.15.1"
+integration-tests = { workspace = true }
 
 [lints]
 workspace = true

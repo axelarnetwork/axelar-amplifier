@@ -7,8 +7,7 @@ use cosmwasm_std::{
 use crate::{
     error::ContractError,
     execute,
-    msg::ExecuteMsg,
-    msg::{InstantiateMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
 };
@@ -22,14 +21,26 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let config = make_config(&deps, msg)?;
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
+}
+
+fn make_config(
+    deps: &DepsMut,
+    msg: InstantiateMsg,
+) -> Result<Config, axelar_wasm_std::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
     let gateway = deps.api.addr_validate(&msg.gateway_address)?;
     let multisig = deps.api.addr_validate(&msg.multisig_address)?;
     let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
     let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
 
-    let config = Config {
+    Ok(Config {
         admin,
+        governance,
         gateway,
         multisig,
         service_registry,
@@ -44,11 +55,7 @@ pub fn instantiate(
         worker_set_diff_threshold: msg.worker_set_diff_threshold,
         encoder: msg.encoder,
         key_type: msg.key_type,
-    };
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::default())
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -64,7 +71,7 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::update_worker_set(deps, env)
         }
-        ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps),
+        ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps, info.sender),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -90,6 +97,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
         QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
     }
+}
+
+#[cfg_attr(not(feature = "libary"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    let old_config = CONFIG.load(deps.storage)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let new_config = Config {
+        governance,
+        ..old_config
+    };
+    CONFIG.save(deps.storage, &new_config)?;
+
+    Ok(Response::default())
 }
 
 #[cfg(test)]
@@ -131,14 +155,14 @@ mod tests {
         )
     }
 
-    fn confirm_worker_set(test_case: &mut TestCaseConfig) -> Result<AppResponse, Error> {
+    fn confirm_worker_set(
+        test_case: &mut TestCaseConfig,
+        sender: Addr,
+    ) -> Result<AppResponse, Error> {
         let msg = ExecuteMsg::ConfirmWorkerSet {};
-        test_case.app.execute_contract(
-            test_case.admin.clone(),
-            test_case.prover_address.clone(),
-            &msg,
-            &[],
-        )
+        test_case
+            .app
+            .execute_contract(sender, test_case.prover_address.clone(), &msg, &[])
     }
 
     fn execute_construct_proof(
@@ -187,9 +211,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
         let instantiator = "instantiator";
         let admin = "admin";
+        let governance = "governance";
         let gateway_address = "gateway_address";
         let multisig_address = "multisig_address";
         let service_registry_address = "service_registry_address";
@@ -210,6 +236,7 @@ mod tests {
 
             let msg = InstantiateMsg {
                 admin_address: admin.to_string(),
+                governance_address: governance.to_string(),
                 gateway_address: gateway_address.to_string(),
                 multisig_address: multisig_address.to_string(),
                 voting_verifier_address: voting_verifier_address.to_string(),
@@ -242,6 +269,7 @@ mod tests {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
         let total_weight: Uint256 = operators
             .iter()
@@ -453,7 +481,7 @@ mod tests {
             quorum,
         );
 
-        let res = confirm_worker_set(&mut test_case);
+        let res = confirm_worker_set(&mut test_case, Addr::unchecked("relayer"));
         assert!(res.is_ok());
 
         let worker_set = query_get_worker_set(&mut test_case);
@@ -485,7 +513,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let res = confirm_worker_set(&mut test_case);
+        let res = confirm_worker_set(&mut test_case, Addr::unchecked("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err()
@@ -494,6 +522,39 @@ mod tests {
                 .to_string(),
             axelar_wasm_std::ContractError::from(ContractError::WorkerSetNotConfirmed).to_string()
         );
+    }
+
+    #[test]
+    fn test_governance_should_confirm_worker_set_without_verification() {
+        let mut test_case = setup_test_case();
+        let res = execute_update_worker_set(&mut test_case);
+
+        assert!(res.is_ok());
+
+        let mut new_worker_set = test_data::operators();
+        new_worker_set.pop();
+        mocks::service_registry::set_active_workers(
+            &mut test_case.app,
+            test_case.service_registry_address.clone(),
+            new_worker_set.clone(),
+        );
+        let res = execute_update_worker_set(&mut test_case);
+
+        assert!(res.is_ok());
+
+        let governance = test_case.governance.clone();
+        let res = confirm_worker_set(&mut test_case, governance);
+        assert!(res.is_ok());
+
+        let worker_set = query_get_worker_set(&mut test_case);
+        assert!(worker_set.is_ok());
+
+        let worker_set = worker_set.unwrap();
+
+        let expected_worker_set =
+            test_operators_to_worker_set(new_worker_set, test_case.app.block_info().height);
+
+        assert_eq!(worker_set, expected_worker_set);
     }
 
     #[test]
@@ -526,7 +587,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let res = confirm_worker_set(&mut test_case);
+        let res = confirm_worker_set(&mut test_case, Addr::unchecked("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err()

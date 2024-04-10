@@ -16,6 +16,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     let config = Config {
+        governance: deps.api.addr_validate(&msg.governance_address)?,
         service_name: msg.service_name,
         service_registry_contract: deps.api.addr_validate(&msg.service_registry_address)?,
         source_gateway_address: msg.source_gateway_address,
@@ -46,6 +47,12 @@ pub fn execute(
             message_id,
             new_operators,
         } => execute::verify_worker_set(deps, env, message_id, new_operators),
+        ExecuteMsg::UpdateVotingThreshold {
+            new_voting_threshold,
+        } => {
+            execute::require_governance(&deps, info.sender)?;
+            execute::update_voting_threshold(deps, new_voting_threshold)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -63,26 +70,33 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetWorkerSetStatus { new_operators } => {
             to_json_binary(&query::worker_set_status(deps, &new_operators)?)
         }
+        QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
 }
 
 #[cfg(test)]
 mod test {
+
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint128, Uint64, WasmQuery,
+        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
 
     use axelar_wasm_std::{
-        nonempty, operators::Operators, voting::Vote, Threshold, VerificationStatus,
+        nonempty, operators::Operators, voting::Vote, MajorityThreshold, Threshold,
+        VerificationStatus,
     };
-    use connection_router_api::{ChainName, CrossChainId, Message, ID_SEPARATOR};
+    use connection_router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
     };
 
-    use crate::{error::ContractError, events::TxEventConfirmation, msg::VerifyMessagesResponse};
+    use crate::{
+        error::ContractError,
+        events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
+        msg::VerifyMessagesResponse,
+    };
 
     use super::*;
 
@@ -91,9 +105,18 @@ mod test {
     const REWARDS_ADDRESS: &str = "rewards_address";
     const SERVICE_NAME: &str = "service_name";
     const POLL_BLOCK_EXPIRY: u64 = 100;
+    const GOVERNANCE: &str = "governance";
 
     fn source_chain() -> ChainName {
-        "source_chain".parse().unwrap()
+        "source-chain".parse().unwrap()
+    }
+
+    fn governance() -> Addr {
+        Addr::unchecked(GOVERNANCE)
+    }
+
+    fn initial_voting_threshold() -> MajorityThreshold {
+        Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
     }
 
     fn assert_contract_err_strings_equal(
@@ -103,38 +126,30 @@ mod test {
         assert_eq!(actual.into().to_string(), expected.into().to_string());
     }
 
-    fn workers() -> Vec<Worker> {
-        vec![
-            Worker {
-                address: Addr::unchecked("addr1"),
+    fn workers(num_workers: usize) -> Vec<Worker> {
+        let mut workers = vec![];
+        for i in 0..num_workers {
+            workers.push(Worker {
+                address: Addr::unchecked(format!("addr{}", i)),
                 bonding_state: BondingState::Bonded {
                     amount: Uint128::from(100u128),
                 },
                 authorization_state: AuthorizationState::Authorized,
                 service_name: SERVICE_NAME.parse().unwrap(),
-            },
-            Worker {
-                address: Addr::unchecked("addr2"),
-                bonding_state: BondingState::Bonded {
-                    amount: Uint128::from(100u128),
-                },
-                authorization_state: AuthorizationState::Authorized,
-                service_name: SERVICE_NAME.parse().unwrap(),
-            },
-        ]
+            })
+        }
+        workers
     }
 
-    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+    fn setup(workers: Vec<Worker>) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
 
         let config = Config {
+            governance: governance(),
             service_name: SERVICE_NAME.parse().unwrap(),
             service_registry_contract: Addr::unchecked(SERVICE_REGISTRY_ADDRESS),
             source_gateway_address: "source_gateway_address".parse().unwrap(),
-            voting_threshold: Threshold::try_from((2u64, 3u64))
-                .unwrap()
-                .try_into()
-                .unwrap(),
+            voting_threshold: initial_voting_threshold(),
             block_expiry: POLL_BLOCK_EXPIRY,
             confirmation_height: 100,
             source_chain: source_chain(),
@@ -142,10 +157,11 @@ mod test {
         };
         CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
-        deps.querier.update_wasm(|wq| match wq {
+        deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
                 Ok(to_json_binary(
-                    &workers()
+                    &workers
+                        .clone()
                         .into_iter()
                         .map(|w| WeightedWorker {
                             worker_info: w,
@@ -163,7 +179,7 @@ mod test {
     }
 
     fn message_id(id: &str, index: u64) -> nonempty::String {
-        format!("{}{}{}", id, ID_SEPARATOR, index)
+        format!("{}{}{}", id, TX_HASH_EVENT_INDEX_SEPARATOR, index)
             .try_into()
             .unwrap()
     }
@@ -173,16 +189,17 @@ mod test {
             .map(|i| Message {
                 cc_id: CrossChainId {
                     chain: source_chain(),
-                    id: format!("id:{i}").parse().unwrap(),
+                    id: message_id("id", i),
                 },
                 source_address: format!("source_address{i}").parse().unwrap(),
-                destination_chain: format!("destination_chain{i}").parse().unwrap(),
+                destination_chain: format!("destination-chain{i}").parse().unwrap(),
                 destination_address: format!("destination_address{i}").parse().unwrap(),
                 payload_hash: [0; 32],
             })
             .collect()
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn mock_env_expired() -> Env {
         let mut env = mock_env();
         env.block.height += POLL_BLOCK_EXPIRY;
@@ -191,27 +208,28 @@ mod test {
 
     #[test]
     fn should_fail_if_messages_are_not_from_same_source() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let msg = ExecuteMsg::VerifyMessages {
             messages: vec![
                 Message {
                     cc_id: CrossChainId {
                         chain: source_chain(),
-                        id: "id:1".parse().unwrap(),
+                        id: message_id("id", 1),
                     },
                     source_address: "source_address1".parse().unwrap(),
-                    destination_chain: "destination_chain1".parse().unwrap(),
+                    destination_chain: "destination-chain1".parse().unwrap(),
                     destination_address: "destination_address1".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
                 Message {
                     cc_id: CrossChainId {
-                        chain: "other_chain".parse().unwrap(),
-                        id: "id:2".parse().unwrap(),
+                        chain: "other-chain".parse().unwrap(),
+                        id: message_id("id", 2),
                     },
                     source_address: "source_address2".parse().unwrap(),
-                    destination_chain: "destination_chain2".parse().unwrap(),
+                    destination_chain: "destination-chain2".parse().unwrap(),
                     destination_address: "destination_address2".parse().unwrap(),
                     payload_hash: [0; 32],
                 },
@@ -223,7 +241,8 @@ mod test {
 
     #[test]
     fn should_verify_messages_if_not_verified() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let msg = ExecuteMsg::VerifyMessages {
             messages: messages(2),
@@ -237,14 +256,14 @@ mod test {
             vec![
                 (
                     CrossChainId {
-                        id: "id:0".parse().unwrap(),
+                        id: message_id("id", 0),
                         chain: source_chain()
                     },
                     VerificationStatus::None
                 ),
                 (
                     CrossChainId {
-                        id: "id:1".parse().unwrap(),
+                        id: message_id("id", 1),
                         chain: source_chain()
                     },
                     VerificationStatus::None
@@ -255,7 +274,8 @@ mod test {
 
     #[test]
     fn should_not_verify_messages_if_in_progress() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
         let messages_in_progress = 3;
         let new_messages = 2;
 
@@ -302,7 +322,8 @@ mod test {
 
     #[test]
     fn should_retry_if_message_not_verified() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let msg = ExecuteMsg::VerifyMessages {
             messages: messages(1),
@@ -351,7 +372,8 @@ mod test {
 
     #[test]
     fn should_retry_if_status_not_final() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let messages = messages(4);
 
@@ -371,7 +393,7 @@ mod test {
 
         // 2. Workers cast votes, but only reach consensus on the first three messages
 
-        workers().iter().enumerate().for_each(|(i, worker)| {
+        workers.iter().enumerate().for_each(|(i, worker)| {
             let msg = ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
                 votes: vec![
@@ -475,7 +497,8 @@ mod test {
 
     #[test]
     fn should_query_message_statuses() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let messages = messages(10);
         let msg = ExecuteMsg::VerifyMessages {
@@ -527,7 +550,7 @@ mod test {
                 .collect::<Vec<_>>(),
         };
 
-        workers().iter().for_each(|worker| {
+        workers.iter().for_each(|worker| {
             execute(
                 deps.as_mut(),
                 mock_env(),
@@ -580,7 +603,8 @@ mod test {
 
     #[test]
     fn should_start_worker_set_confirmation() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let msg = ExecuteMsg::VerifyWorkerSet {
@@ -606,7 +630,8 @@ mod test {
 
     #[test]
     fn should_confirm_worker_set() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let msg = ExecuteMsg::VerifyWorkerSet {
@@ -620,7 +645,7 @@ mod test {
             poll_id: 1u64.into(),
             votes: vec![Vote::SucceededOnChain],
         };
-        for worker in workers() {
+        for worker in workers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -656,7 +681,8 @@ mod test {
 
     #[test]
     fn should_not_confirm_worker_set() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let res = execute(
@@ -670,7 +696,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        for worker in workers() {
+        for worker in workers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -709,9 +735,8 @@ mod test {
 
     #[test]
     fn should_confirm_worker_set_after_failed() {
-        let mut deps = setup();
-
-        let workers = workers();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let res = execute(
@@ -811,7 +836,8 @@ mod test {
 
     #[test]
     fn should_not_confirm_twice() {
-        let mut deps = setup();
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let res = execute(
@@ -824,8 +850,7 @@ mod test {
             },
         );
         assert!(res.is_ok());
-
-        for worker in workers() {
+        for worker in workers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -860,5 +885,212 @@ mod test {
         )
         .unwrap_err();
         assert_contract_err_strings_equal(err, ContractError::WorkerSetAlreadyConfirmed);
+    }
+
+    #[test]
+    fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
+
+        let new_voting_threshold: MajorityThreshold = Threshold::try_from((
+            initial_voting_threshold().numerator().u64() + 1,
+            initial_voting_threshold().denominator().u64() + 1,
+        ))
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE, &[]),
+            ExecuteMsg::UpdateVotingThreshold {
+                new_voting_threshold,
+            },
+        )
+        .unwrap();
+
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCurrentThreshold).unwrap();
+
+        let threshold: MajorityThreshold = from_json(res).unwrap();
+        assert_eq!(threshold, new_voting_threshold);
+    }
+
+    #[test]
+    fn threshold_changes_should_not_affect_existing_polls() {
+        let workers = workers(10);
+        let initial_threshold = initial_voting_threshold();
+        let majority = (workers.len() as u64 * initial_threshold.numerator().u64())
+            .div_ceil(initial_threshold.denominator().u64());
+
+        let mut deps = setup(workers.clone());
+
+        let messages = messages(1);
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyMessages {
+                messages: messages.clone(),
+            },
+        )
+        .unwrap();
+
+        // simulate a majority of workers voting for succeeded on chain
+        workers.iter().enumerate().for_each(|(i, worker)| {
+            if i >= majority as usize {
+                return;
+            }
+            let msg = ExecuteMsg::Vote {
+                poll_id: 1u64.into(),
+                votes: vec![Vote::SucceededOnChain],
+            };
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                msg,
+            );
+            assert!(res.is_ok());
+        });
+
+        // increase the threshold. Not enough workers voted to meet the new majority,
+        // but threshold changes should not affect existing polls
+        let new_voting_threshold: MajorityThreshold =
+            Threshold::try_from((majority + 1, workers.len() as u64))
+                .unwrap()
+                .try_into()
+                .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE, &[]),
+            ExecuteMsg::UpdateVotingThreshold {
+                new_voting_threshold,
+            },
+        )
+        .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        )
+        .unwrap();
+
+        let res: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetMessagesStatus {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            vec![(
+                messages[0].cc_id.clone(),
+                VerificationStatus::SucceededOnChain
+            )]
+        );
+    }
+
+    #[test]
+    fn threshold_changes_should_affect_new_polls() {
+        let workers = workers(10);
+        let initial_threshold = initial_voting_threshold();
+        let old_majority = (workers.len() as u64 * initial_threshold.numerator().u64())
+            .div_ceil(initial_threshold.denominator().u64());
+
+        let mut deps = setup(workers.clone());
+
+        // increase the threshold prior to starting a poll
+        let new_voting_threshold: MajorityThreshold =
+            Threshold::try_from((old_majority + 1, workers.len() as u64))
+                .unwrap()
+                .try_into()
+                .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE, &[]),
+            ExecuteMsg::UpdateVotingThreshold {
+                new_voting_threshold,
+            },
+        )
+        .unwrap();
+
+        let messages = messages(1);
+
+        // start the poll, should just the new threshold
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyMessages {
+                messages: messages.clone(),
+            },
+        )
+        .unwrap();
+
+        // simulate old_majority of workers voting succeeded on chain,
+        // which is one less than the updated majority. The messages
+        // should not receive enough votes to be considered verified
+        workers.iter().enumerate().for_each(|(i, worker)| {
+            if i >= old_majority as usize {
+                return;
+            }
+            let msg = ExecuteMsg::Vote {
+                poll_id: 1u64.into(),
+                votes: vec![Vote::SucceededOnChain],
+            };
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.address.as_str(), &[]),
+                msg,
+            );
+            assert!(res.is_ok());
+        });
+
+        execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::EndPoll {
+                poll_id: 1u64.into(),
+            },
+        )
+        .unwrap();
+
+        let res: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetMessagesStatus {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            res,
+            vec![(
+                messages[0].cc_id.clone(),
+                VerificationStatus::FailedToVerify
+            )]
+        );
     }
 }

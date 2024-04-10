@@ -4332,6 +4332,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "monitoring"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "connection-router-api",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "integration-tests",
+ "multisig",
+ "report",
+ "thiserror",
+]
+
+[[package]]
 name = "move-abigen"
 version = "0.1.0"
 source = "git+https://github.com/mystenlabs/sui?tag=mainnet-v1.14.2#299cbeafbb6aa5601e08f00ac24bd647c61a63e2"
@@ -4811,6 +4830,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cosmwasm-storage",
+ "curve25519-dalek 4.1.1",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "ed25519-dalek",
@@ -5035,6 +5055,7 @@ dependencies = [
  "schemars",
  "serde",
  "thiserror",
+ "voting-verifier",
 ]
 
 [[package]]
