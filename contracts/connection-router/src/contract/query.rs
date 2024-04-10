@@ -8,7 +8,6 @@ use error_stack::{Result, ResultExt};
 use crate::state::chain_endpoints;
 
 // Pagination limits
-const MAX_LIMIT: u32 = u32::MAX;
 const DEFAULT_LIMIT: u32 = u32::MAX;
 
 pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, Error> {
@@ -23,7 +22,7 @@ pub fn chains(
     start_after: Option<ChainName>,
     limit: Option<u32>,
 ) -> Result<Vec<ChainEndpoint>, Error> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive);
 
     chain_endpoints()
@@ -120,9 +119,14 @@ mod test {
         assert_eq!(result.len(), 1);
         assert_eq!(result, vec![endpoints[3].clone()]);
 
-        // start after last chain
+        // start after the last chain
         let result =
             super::chains(deps.as_ref(), Some("d-chain".parse().unwrap()), Some(2)).unwrap();
+        assert_eq!(result.len(), 0);
+
+        // with a key out of the scope
+        let result =
+            super::chains(deps.as_ref(), Some("e-chain".parse().unwrap()), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
     }
 }

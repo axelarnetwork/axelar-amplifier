@@ -52,7 +52,7 @@ pub enum QueryMsg {
     // Returns a list of chains registered with the router
     // The list is paginated by:
     // - start_after: the chain name to start after, which the next page of results should start.
-    // - limit: limit the number of chains returned. Default limt and max number is u32::MAX.
+    // - limit: limit the number of chains returned, default is u32::MAX.
     #[returns(Vec<ChainEndpoint>)]
     Chains {
         start_after: Option<ChainName>,
