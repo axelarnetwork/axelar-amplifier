@@ -48,7 +48,7 @@ fn verify_messages_empty() {
             &ExecuteMsg::VerifyMessages { messages: vec![] },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(ret, vec![]);
 }
 
@@ -72,7 +72,7 @@ fn verify_messages_not_verified() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages
@@ -104,7 +104,7 @@ fn verify_messages_verified() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages
@@ -137,7 +137,7 @@ fn verify_messages_mixed_status() {
             },
         )
         .unwrap();
-    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(res.data.unwrap()).unwrap();
+    let ret: Vec<(CrossChainId, VerificationStatus)> = from_binary(&res.data.unwrap()).unwrap();
     assert_eq!(
         ret,
         messages

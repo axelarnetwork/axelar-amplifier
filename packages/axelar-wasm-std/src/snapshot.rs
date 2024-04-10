@@ -134,7 +134,7 @@ mod tests {
         );
 
         let serialized = to_binary(&snapshot).unwrap();
-        let deserialized: Snapshot = from_binary(serialized).unwrap();
+        let deserialized: Snapshot = from_binary(&serialized).unwrap();
 
         assert_eq!(snapshot, deserialized);
     }
