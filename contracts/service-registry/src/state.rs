@@ -2,8 +2,9 @@ use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
-use cosmwasm_std::{Addr, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 
 #[cw_serde]
@@ -25,6 +26,8 @@ pub struct Service {
     pub max_num_workers: Option<u16>,
     pub min_worker_bond: Uint128,
     pub bond_denom: String,
+    // should be set to a duration longer than the voting period for governance proposals,
+    // otherwise a verifier could bail before they get penalized
     pub unbonding_period_days: u16,
     pub description: String,
 }
@@ -128,16 +131,141 @@ pub enum AuthorizationState {
     Authorized,
 }
 
-// maps service_name -> Service
-pub const SERVICES: Map<&str, Service> = Map::new("services");
-// maps (service_name, chain_name, worker_address) -> ()
-pub const WORKERS_PER_CHAIN: Map<(&str, &ChainName, &Addr), ()> = Map::new("workers_per_chain");
-// maps (service_name, worker_address) -> Worker
-pub const WORKERS: Map<(&str, &Addr), Worker> = Map::new("workers");
+type ChainNames = HashSet<ChainName>;
+type ServiceName = str;
+type WorkerAddress = Addr;
+
+pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
+pub const WORKERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &WorkerAddress), ()> =
+    Map::new("workers_per_chain");
+pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
+    Map::new("chains_per_worker");
+pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
+
+pub fn register_chains_support(
+    storage: &mut dyn Storage,
+    service_name: String,
+    chains: Vec<ChainName>,
+    worker: WorkerAddress,
+) -> Result<(), ContractError> {
+    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
+        let mut current_chains = current_chains.unwrap_or_default();
+        current_chains.extend(chains.iter().cloned());
+        Ok::<HashSet<ChainName>, ContractError>(current_chains)
+    })?;
+
+    for chain in chains.iter() {
+        WORKERS_PER_CHAIN.save(storage, (&service_name, chain, &worker), &())?;
+    }
+
+    Ok(())
+}
+
+pub fn may_load_chains_per_worker(
+    storage: &dyn Storage,
+    service_name: String,
+    worker_address: WorkerAddress,
+) -> Result<HashSet<ChainName>, ContractError> {
+    CHAINS_PER_WORKER
+        .may_load(storage, (&service_name, &worker_address))?
+        .ok_or(ContractError::WorkerNotFound)
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cosmwasm_std::testing::mock_dependencies;
+    use std::{str::FromStr, vec};
+
+    #[test]
+    fn register_single_worker_chain_single_call_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chains = vec![chain_name.clone()];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chains,
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+        assert!(worker_chains.contains(&chain_name));
+    }
+
+    #[test]
+    fn register_multiple_worker_chains_single_call_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_names = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("cosmos").unwrap(),
+        ];
+
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chain_names.clone(),
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+
+        for chain_name in chain_names {
+            assert!(worker_chains.contains(&chain_name));
+        }
+    }
+
+    #[test]
+    fn register_multiple_worker_chains_multiple_calls_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+
+        let first_chain_name = ChainName::from_str("ethereum").unwrap();
+        let first_chains_vector = vec![first_chain_name.clone()];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            first_chains_vector,
+            worker.clone()
+        )
+        .is_ok());
+
+        let second_chain_name = ChainName::from_str("cosmos").unwrap();
+        let second_chains_vector = vec![second_chain_name.clone()];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            second_chains_vector,
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+
+        assert!(worker_chains.contains(&first_chain_name));
+        assert!(worker_chains.contains(&second_chain_name));
+    }
+
+    #[test]
+    fn get_unregistered_worker_chains_fails() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+
+        let err = may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker)
+            .unwrap_err();
+        assert!(matches!(err, ContractError::WorkerNotFound));
+    }
 
     #[test]
     fn test_bonded_add_bond() {

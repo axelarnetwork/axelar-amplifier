@@ -235,7 +235,6 @@ fn validate_and_normalize_public_key(
     key_type: KeyType,
     pub_key: HexBinary,
 ) -> Result<HexBinary, ContractError> {
-    // TODO: ensure proper validation, since external crates may only check format.
     match key_type {
         KeyType::Ecdsa => Ok(k256::PublicKey::from_sec1_bytes(
             check_ecdsa_format(pub_key)?.as_slice(),
@@ -245,6 +244,8 @@ fn validate_and_normalize_public_key(
         .as_ref()
         .into()),
         // TODO: verify encoding scheme is standard
+        // Function `from_bytes()` will internally decompress into an EdwardsPoint which can only represent a valid point on the curve
+        // See https://docs.rs/curve25519-dalek/latest/curve25519_dalek/edwards/index.html#validity-checking
         KeyType::Ed25519 => Ok(ed25519_dalek::VerifyingKey::from_bytes(
             pub_key
                 .as_slice()
@@ -320,8 +321,14 @@ impl From<PublicKey> for HexBinary {
 #[cfg(test)]
 mod ecdsa_tests {
     use cosmwasm_std::HexBinary;
+    use k256::{AffinePoint, EncodedPoint};
 
-    use crate::{key::Signature, test::common::ecdsa_test_data, types::MsgToSign, ContractError};
+    use crate::{
+        key::{validate_and_normalize_public_key, Signature},
+        test::common::ecdsa_test_data,
+        types::MsgToSign,
+        ContractError,
+    };
 
     use super::{KeyType, PublicKey};
 
@@ -366,6 +373,26 @@ mod ecdsa_tests {
             PublicKey::try_from((KeyType::Ecdsa, uncompressed_pub_key.clone())).unwrap_err(),
             ContractError::InvalidPublicKey
         );
+    }
+
+    #[test]
+    fn validate_ecdsa_public_key_not_on_curve() {
+        // the compressed format is not validated and should produce an invalid point when decompressed
+        let invalid_compressed_point = EncodedPoint::from_bytes([
+            3, 132, 180, 161, 194, 115, 211, 43, 90, 122, 205, 26, 76, 14, 117, 209, 243, 206, 192,
+            34, 107, 93, 142, 13, 50, 95, 115, 188, 140, 82, 194, 140, 235,
+        ])
+        .unwrap();
+
+        // Assert that the point is invalid according to the crate we are using for ed25519. Both assert statements must match,
+        // otherwise `validate_and_normalize_public_key` is not doing the same internally as the crate
+        assert!(AffinePoint::try_from(&invalid_compressed_point).is_err());
+
+        let result = validate_and_normalize_public_key(
+            KeyType::Ecdsa,
+            HexBinary::from(invalid_compressed_point.as_bytes()),
+        );
+        assert_eq!(result.unwrap_err(), ContractError::InvalidPublicKey);
     }
 
     #[test]
@@ -462,8 +489,14 @@ mod ecdsa_tests {
 #[cfg(test)]
 mod ed25519_tests {
     use cosmwasm_std::HexBinary;
+    use curve25519_dalek::edwards::CompressedEdwardsY;
 
-    use crate::{key::Signature, test::common::ed25519_test_data, types::MsgToSign, ContractError};
+    use crate::{
+        key::{validate_and_normalize_public_key, Signature},
+        test::common::ed25519_test_data,
+        types::MsgToSign,
+        ContractError,
+    };
 
     use super::{KeyType, PublicKey};
 
@@ -499,12 +532,29 @@ mod ed25519_tests {
     }
 
     #[test]
-    fn test_try_from_hexbinary_to_eccdsa_public_key_fails() {
+    fn test_try_from_hexbinary_to_ed25519_public_key_fails() {
         let hex = HexBinary::from_hex("049b").unwrap();
         assert_eq!(
             PublicKey::try_from((KeyType::Ed25519, hex.clone())).unwrap_err(),
             ContractError::InvalidPublicKey
         );
+    }
+
+    #[test]
+    fn validate_ed25519_public_key_not_in_curve() {
+        // the compressed format is not validated and should produce an invalid point when decompressed
+        let invalid_compressed_point = CompressedEdwardsY([
+            42, 20, 146, 53, 38, 178, 23, 135, 135, 22, 77, 119, 129, 45, 141, 139, 212, 122, 180,
+            97, 171, 0, 127, 226, 248, 13, 108, 227, 223, 188, 26, 121,
+        ]);
+
+        assert!(invalid_compressed_point.decompress().is_none());
+
+        let result = validate_and_normalize_public_key(
+            KeyType::Ed25519,
+            HexBinary::from(invalid_compressed_point.as_bytes()),
+        );
+        assert_eq!(result.unwrap_err(), ContractError::InvalidPublicKey);
     }
 
     #[test]

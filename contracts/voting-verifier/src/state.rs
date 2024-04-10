@@ -16,6 +16,7 @@ use crate::error::ContractError;
 
 #[cw_serde]
 pub struct Config {
+    pub governance: Addr,
     pub service_registry_contract: Addr,
     pub service_name: nonempty::String,
     pub source_gateway_address: nonempty::String,

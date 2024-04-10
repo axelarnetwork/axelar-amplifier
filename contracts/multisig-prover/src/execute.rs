@@ -161,6 +161,10 @@ fn get_next_worker_set(
     env: &Env,
     config: &Config,
 ) -> Result<Option<WorkerSet>, ContractError> {
+    // if there's already a pending worker set update, just return it
+    if let Some(pending_worker_set) = NEXT_WORKER_SET.may_load(deps.storage)? {
+        return Ok(Some(pending_worker_set));
+    }
     let cur_worker_set = CURRENT_WORKER_SET.may_load(deps.storage)?;
     let new_worker_set = make_worker_set(deps, env, config)?;
 
@@ -239,11 +243,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
     }
 }
 
-pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
-
+fn ensure_worker_set_verification(
+    worker_set: &WorkerSet,
+    config: &Config,
+    deps: &DepsMut,
+) -> Result<(), ContractError> {
     let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
         new_operators: make_operators(worker_set.clone(), config.encoder),
     };
@@ -254,7 +258,19 @@ pub fn confirm_worker_set(deps: DepsMut) -> Result<Response, ContractError> {
     }))?;
 
     if status != VerificationStatus::SucceededOnChain {
-        return Err(ContractError::WorkerSetNotConfirmed);
+        Err(ContractError::WorkerSetNotConfirmed)
+    } else {
+        Ok(())
+    }
+}
+
+pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    let worker_set = NEXT_WORKER_SET.load(deps.storage)?;
+
+    if sender != config.governance {
+        ensure_worker_set_verification(&worker_set, &config, &deps)?;
     }
 
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
@@ -287,12 +303,10 @@ fn signers_difference_count(s1: &BTreeMap<String, Signer>, s2: &BTreeMap<String,
 }
 
 // Returns true if there is a different worker set pending for confirmation, false if there is no
-// worker set pending or if the pending set is the same. We can't use direct comparison
-// because the created_at might be different, so we compare only the signers and threshold.
+// worker set pending or if the pending set is the same
 fn different_set_in_progress(storage: &dyn Storage, new_worker_set: &WorkerSet) -> bool {
     if let Ok(Some(next_worker_set)) = NEXT_WORKER_SET.may_load(storage) {
-        return next_worker_set.signers != new_worker_set.signers
-            || next_worker_set.threshold != new_worker_set.threshold;
+        return next_worker_set != *new_worker_set;
     }
 
     false
@@ -300,12 +314,21 @@ fn different_set_in_progress(storage: &dyn Storage, new_worker_set: &WorkerSet) 
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::mock_dependencies;
+    use axelar_wasm_std::Threshold;
+    use connection_router_api::ChainName;
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env},
+        Addr, Uint256,
+    };
 
-    use crate::{execute::should_update_worker_set, state::NEXT_WORKER_SET, test::test_data};
+    use crate::{
+        execute::should_update_worker_set,
+        state::{Config, NEXT_WORKER_SET},
+        test::test_data,
+    };
     use std::collections::BTreeMap;
 
-    use super::different_set_in_progress;
+    use super::{different_set_in_progress, get_next_worker_set};
 
     #[test]
     fn should_update_worker_set_no_change() {
@@ -361,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn test_same_set_pending_confirmation() {
+    fn test_same_set_different_nonce() {
         let mut deps = mock_dependencies();
         let mut new_worker_set = test_data::new_worker_set();
 
@@ -371,7 +394,7 @@ mod tests {
 
         new_worker_set.created_at += 1;
 
-        assert!(!different_set_in_progress(
+        assert!(different_set_in_progress(
             deps.as_ref().storage,
             &new_worker_set
         ));
@@ -392,5 +415,35 @@ mod tests {
             deps.as_ref().storage,
             &new_worker_set
         ));
+    }
+
+    #[test]
+    fn get_next_worker_set_should_return_pending() {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let new_worker_set = test_data::new_worker_set();
+        NEXT_WORKER_SET
+            .save(deps.as_mut().storage, &new_worker_set)
+            .unwrap();
+        let ret_worker_set = get_next_worker_set(&deps.as_mut(), &env, &mock_config());
+        assert_eq!(ret_worker_set.unwrap().unwrap(), new_worker_set);
+    }
+
+    fn mock_config() -> Config {
+        Config {
+            admin: Addr::unchecked("doesn't matter"),
+            governance: Addr::unchecked("doesn't matter"),
+            gateway: Addr::unchecked("doesn't matter"),
+            multisig: Addr::unchecked("doesn't matter"),
+            service_registry: Addr::unchecked("doesn't matter"),
+            voting_verifier: Addr::unchecked("doesn't matter"),
+            destination_chain_id: Uint256::one(),
+            signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
+            service_name: "validators".to_string(),
+            chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),
+            worker_set_diff_threshold: 0,
+            encoder: crate::encoding::Encoder::Abi,
+            key_type: multisig::key::KeyType::Ecdsa,
+        }
     }
 }

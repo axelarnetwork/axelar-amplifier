@@ -39,6 +39,9 @@ pub enum ContractError {
 
     #[error("worker set already confirmed")]
     WorkerSetAlreadyConfirmed,
+
+    #[error("unauthorized")]
+    Unauthorized,
 }
 
 impl From<ContractError> for StdError {
