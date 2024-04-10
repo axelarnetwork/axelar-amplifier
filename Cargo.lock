@@ -4808,6 +4808,7 @@ dependencies = [
  "ed25519-dalek",
  "enum-display-derive",
  "error-stack",
+ "getrandom",
  "k256",
  "report",
  "rewards",
