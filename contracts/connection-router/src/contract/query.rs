@@ -8,8 +8,8 @@ use error_stack::{Result, ResultExt};
 use crate::state::chain_endpoints;
 
 // Pagination limits
-const MAX_LIMIT: u32 = 50;
-const DEFAULT_LIMIT: u32 = 10;
+const MAX_LIMIT: u32 = u32::MAX;
+const DEFAULT_LIMIT: u32 = u32::MAX;
 
 pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, Error> {
     chain_endpoints()
