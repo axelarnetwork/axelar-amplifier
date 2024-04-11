@@ -37,7 +37,7 @@ impl Default for Config {
             event_buffer_cap: 100000,
             event_stream_timeout: Duration::from_secs(15),
             service_registry: ServiceRegistryConfig::default(),
-            health_check_bind_addr: SocketAddr::from_str("0.0.0.0:3000").unwrap(),
+            health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000);
         }
     }
 }
