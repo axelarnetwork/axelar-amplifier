@@ -100,9 +100,7 @@ mod internal {
         msg: ExecuteMsg,
     ) -> Result<Response, Error> {
         let config = state::load_config(deps.storage).change_context(Error::ConfigMissing)?;
-        let verifier = aggregate_verifier::Client {
-            client: Client::new(deps.querier, config.verifier),
-        };
+        let verifier = Client::new(deps.querier, config.verifier).into();
 
         let router = Router {
             address: config.router,

@@ -13,8 +13,14 @@ pub enum Error {
     QueryVerifier,
 }
 
+impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+        Client { client }
+    }
+}
+
 pub struct Client<'a> {
-    pub client: client::Client<'a, ExecuteMsg, QueryMsg>,
+    client: client::Client<'a, ExecuteMsg, QueryMsg>,
 }
 
 impl<'a> Client<'a> {
@@ -109,9 +115,8 @@ mod tests {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        let client = Client {
-            client: client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)),
-        };
+        let client: Client =
+            client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
         assert!(client.query_messages_status(vec![]).unwrap().is_empty());
     }
@@ -168,9 +173,8 @@ mod tests {
             _ => panic!("unexpected query: {:?}", msg),
         });
 
-        let client = Client {
-            client: client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)),
-        };
+        let client: Client =
+            client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
         assert!(
             client
