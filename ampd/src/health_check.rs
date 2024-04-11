@@ -29,7 +29,7 @@ impl Server {
         })
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn listening_addr(&self) -> Result<SocketAddr, HealthCheckError> {
         Ok(self
             .listener
