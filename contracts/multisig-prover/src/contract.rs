@@ -35,6 +35,7 @@ fn make_config(
     let governance = deps.api.addr_validate(&msg.governance_address)?;
     let gateway = deps.api.addr_validate(&msg.gateway_address)?;
     let multisig = deps.api.addr_validate(&msg.multisig_address)?;
+    let monitoring = deps.api.addr_validate(&msg.monitoring_address)?;
     let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
     let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
 
@@ -43,6 +44,7 @@ fn make_config(
         governance,
         gateway,
         multisig,
+        monitoring,
         service_registry,
         voting_verifier,
         destination_chain_id: msg.destination_chain_id,
@@ -105,7 +107,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-#[cfg_attr(not(feature = "libary"), entry_point)]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
@@ -237,6 +239,7 @@ mod tests {
         let governance = "governance";
         let gateway_address = "gateway_address";
         let multisig_address = "multisig_address";
+        let monitoring_address = "monitoring_address";
         let service_registry_address = "service_registry_address";
         let voting_verifier_address = "voting_verifier";
         let destination_chain_id = Uint256::one();
@@ -258,6 +261,7 @@ mod tests {
                 governance_address: governance.to_string(),
                 gateway_address: gateway_address.to_string(),
                 multisig_address: multisig_address.to_string(),
+                monitoring_address: monitoring_address.to_string(),
                 voting_verifier_address: voting_verifier_address.to_string(),
                 service_registry_address: service_registry_address.to_string(),
                 destination_chain_id,
