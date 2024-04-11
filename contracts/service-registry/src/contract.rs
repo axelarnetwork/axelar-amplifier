@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
     Uint128,
 };
 
@@ -356,15 +356,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetActiveWorkers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::get_active_workers(deps, service_name, chain_name)?)
+        } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
         QueryMsg::GetWorker {
             service_name,
             worker,
-        } => to_json_binary(&query::get_worker(deps, worker, service_name)?)
-            .map_err(|err| err.into()),
+        } => to_binary(&query::get_worker(deps, worker, service_name)?).map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
-            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+            to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }

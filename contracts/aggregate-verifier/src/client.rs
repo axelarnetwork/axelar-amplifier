@@ -1,61 +1,60 @@
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use connection_router_api::{CrossChainId, Message};
-use cosmwasm_std::{to_json_binary, Addr, QuerierWrapper, QueryRequest, WasmMsg, WasmQuery};
+use cosmwasm_std::WasmMsg;
 use error_stack::{Result, ResultExt};
-use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 
-pub struct Verifier<'a> {
-    pub querier: QuerierWrapper<'a>,
-    pub address: Addr,
+use crate::msg::{ExecuteMsg, QueryMsg};
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("could not query the verifier contract")]
+    QueryVerifier,
 }
 
-impl Verifier<'_> {
-    fn execute(&self, msg: &crate::msg::ExecuteMsg) -> WasmMsg {
-        WasmMsg::Execute {
-            contract_addr: self.address.to_string(),
-            msg: to_json_binary(msg).expect("msg should always be serializable"),
-            funds: vec![],
-        }
+impl<'a> From<client::Client<'a, ExecuteMsg, QueryMsg>> for Client<'a> {
+    fn from(client: client::Client<'a, ExecuteMsg, QueryMsg>) -> Self {
+        Client { client }
+    }
+}
+
+pub struct Client<'a> {
+    client: client::Client<'a, ExecuteMsg, QueryMsg>,
+}
+
+impl<'a> Client<'a> {
+    pub fn verify_messages(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
+        ignore_empty(msgs).map(|msgs| {
+            self.client
+                .execute(&ExecuteMsg::VerifyMessages { messages: msgs })
+        })
     }
 
-    fn query<U: DeserializeOwned + 'static>(&self, msg: &crate::msg::QueryMsg) -> Result<U, Error> {
-        self.querier
-            .query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: self.address.to_string(),
-                msg: to_json_binary(&msg).expect("msg should always be serializable"),
-            }))
-            .change_context(Error::QueryVerifier)
-    }
-
-    pub fn verify(&self, msgs: Vec<Message>) -> Option<WasmMsg> {
-        ignore_empty(msgs)
-            .map(|msgs| self.execute(&crate::msg::ExecuteMsg::VerifyMessages { messages: msgs }))
-    }
-
-    pub fn messages_with_status(
+    pub fn messages_status(
         &self,
         msgs: Vec<Message>,
     ) -> Result<impl Iterator<Item = (Message, VerificationStatus)>, Error> {
         ignore_empty(msgs.clone())
-            .try_map(|msgs| self.query_message_status(msgs))?
+            .try_map(|msgs| self.query_messages_status(msgs))?
             .map(|status_by_id| ids_to_msgs(status_by_id, msgs))
             .into_iter()
             .flatten()
             .then(Ok)
     }
 
-    fn query_message_status(
+    fn query_messages_status(
         &self,
         msgs: Vec<Message>,
     ) -> Result<HashMap<CrossChainId, VerificationStatus>, Error> {
-        self.query::<Vec<(CrossChainId, VerificationStatus)>>(
-            &crate::msg::QueryMsg::GetMessagesStatus { messages: msgs },
-        )?
-        .into_iter()
-        .collect::<HashMap<_, _>>()
-        .then(Ok)
+        self.client
+            .query::<Vec<(CrossChainId, VerificationStatus)>>(&QueryMsg::GetMessagesStatus {
+                messages: msgs,
+            })
+            .change_context(Error::QueryVerifier)?
+            .into_iter()
+            .collect::<HashMap<_, _>>()
+            .then(Ok)
     }
 }
 
@@ -81,65 +80,118 @@ fn ids_to_msgs(
     })
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("could not query the verifier contract")]
-    QueryVerifier,
-}
-
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
+    use cosmwasm_std::{from_binary, to_binary, Addr, DepsMut, QuerierWrapper, WasmQuery};
+    use std::str::FromStr;
+
     use axelar_wasm_std::VerificationStatus;
     use connection_router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
-    use cosmwasm_std::testing::MockQuerier;
-    use std::str::FromStr;
+
+    use crate::contract::{instantiate, query};
+    use crate::msg::InstantiateMsg;
 
     use super::*;
 
     #[test]
-    fn verifier_returns_error_when_query_fails() {
-        let querier = MockQuerier::default();
-        let verifier = Verifier {
-            address: Addr::unchecked("not a contract"),
-            querier: QuerierWrapper::new(&querier),
-        };
+    fn query_messages_status_returns_empty_statuses() {
+        let addr = "aggregate-verifier";
 
-        let result = verifier.query::<Vec<(CrossChainId, VerificationStatus)>>(
-            &crate::msg::QueryMsg::GetMessagesStatus { messages: vec![] },
-        );
-
-        assert!(matches!(
-            result.unwrap_err().current_context(),
-            Error::QueryVerifier
-        ))
-    }
-
-    // due to contract updates or misconfigured verifier contract address the verifier might respond,
-    // but deliver an unexpected data type. This tests that the client returns an error in such cases.
-    #[test]
-    fn verifier_returns_error_on_return_type_mismatch() {
         let mut querier = MockQuerier::default();
-        querier.update_wasm(|_| {
-            Ok(to_json_binary(
-                &CrossChainId::from_str(format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str())
-                    .unwrap(),
-            )
-            .into())
-            .into()
+        querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+                let mut deps = mock_dependencies();
+                instantiate_contract(deps.as_mut(), Addr::unchecked("verifier"));
+
+                deps.querier.update_wasm(|_| {
+                    let res: Vec<(CrossChainId, VerificationStatus)> = vec![];
+                    Ok(to_binary(&res).into()).into()
+                });
+
+                let msg = from_binary::<QueryMsg>(msg).unwrap();
+                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+            }
+            _ => panic!("unexpected query: {:?}", msg),
         });
 
-        let verifier = Verifier {
-            address: Addr::unchecked("not a contract"),
-            querier: QuerierWrapper::new(&querier),
+        let client: Client =
+            client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
+
+        assert!(client.query_messages_status(vec![]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn query_messages_status_returns_some_statuses() {
+        let addr = "aggregate-verifier";
+        let msg_1 = Message {
+            cc_id: CrossChainId::from_str(format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str())
+                .unwrap(),
+            source_address: "0x1234".parse().unwrap(),
+            destination_address: "0x5678".parse().unwrap(),
+            destination_chain: "eth".parse().unwrap(),
+            payload_hash: [0; 32],
+        };
+        let msg_2 = Message {
+            cc_id: CrossChainId::from_str(format!("eth{}0x4321", CHAIN_NAME_DELIMITER).as_str())
+                .unwrap(),
+            source_address: "0x4321".parse().unwrap(),
+            destination_address: "0x8765".parse().unwrap(),
+            destination_chain: "eth".parse().unwrap(),
+            payload_hash: [0; 32],
         };
 
-        let result = verifier.query::<Vec<(CrossChainId, VerificationStatus)>>(
-            &crate::msg::QueryMsg::GetMessagesStatus { messages: vec![] },
-        );
+        let mut querier = MockQuerier::default();
+        querier.update_wasm(move |msg| match msg {
+            WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
+                let mut deps = mock_dependencies();
+                instantiate_contract(deps.as_mut(), Addr::unchecked("verifier"));
 
-        assert!(matches!(
-            result.unwrap_err().current_context(),
-            Error::QueryVerifier
-        ))
+                deps.querier.update_wasm(|_| {
+                    let res: Vec<(CrossChainId, VerificationStatus)> = vec![
+                        (
+                            CrossChainId::from_str(
+                                format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str(),
+                            )
+                            .unwrap(),
+                            VerificationStatus::SucceededOnChain,
+                        ),
+                        (
+                            CrossChainId::from_str(
+                                format!("eth{}0x4321", CHAIN_NAME_DELIMITER).as_str(),
+                            )
+                            .unwrap(),
+                            VerificationStatus::FailedOnChain,
+                        ),
+                    ];
+                    Ok(to_binary(&res).into()).into()
+                });
+
+                let msg = from_binary::<QueryMsg>(msg).unwrap();
+                Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
+            }
+            _ => panic!("unexpected query: {:?}", msg),
+        });
+
+        let client: Client =
+            client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
+
+        assert!(
+            client
+                .query_messages_status(vec![msg_1, msg_2])
+                .unwrap()
+                .len()
+                == 2
+        );
+    }
+
+    fn instantiate_contract(deps: DepsMut, verifier: Addr) {
+        let env = mock_env();
+        let info = mock_info("deployer", &[]);
+        let msg = InstantiateMsg {
+            verifier_address: verifier.into_string(),
+        };
+
+        instantiate(deps, env, info, msg).unwrap();
     }
 }
