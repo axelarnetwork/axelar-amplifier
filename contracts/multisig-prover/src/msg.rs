@@ -32,7 +32,7 @@ pub enum ExecuteMsg {
     },
     UpdateWorkerSet,
     ConfirmWorkerSet,
-    // Updates the signing threshold. The currently in use threshold does not change.
+    // Updates the signing threshold. The threshold currently in use does not change.
     // The worker set must be updated and confirmed for the change to take effect.
     // Callable only by governance.
     UpdateSigningThreshold {
