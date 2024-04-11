@@ -38,6 +38,7 @@ axelar-wasm-std-derive = { workspace = true }
 connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
+client = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 report = { workspace = true }

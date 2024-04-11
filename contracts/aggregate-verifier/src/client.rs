@@ -95,7 +95,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn query_messages_status_returns_empty_statuses() {
+    fn messages_status_returns_empty_statuses() {
         let addr = "aggregate-verifier";
 
         let mut querier = MockQuerier::default();
@@ -118,11 +118,14 @@ mod tests {
         let client: Client =
             client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
-        assert!(client.query_messages_status(vec![]).unwrap().is_empty());
+        assert_eq!(
+            client.messages_status(vec![]).unwrap().into_iter().count(),
+            0
+        );
     }
 
     #[test]
-    fn query_messages_status_returns_some_statuses() {
+    fn messages_status_returns_some_statuses() {
         let addr = "aggregate-verifier";
         let msg_1 = Message {
             cc_id: CrossChainId::from_str(format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str())
@@ -176,12 +179,13 @@ mod tests {
         let client: Client =
             client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
-        assert!(
+        assert_eq!(
             client
-                .query_messages_status(vec![msg_1, msg_2])
+                .messages_status(vec![msg_1, msg_2])
                 .unwrap()
-                .len()
-                == 2
+                .into_iter()
+                .count(),
+            2
         );
     }
 

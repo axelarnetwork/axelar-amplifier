@@ -1,10 +1,10 @@
 use axelar_wasm_std::VerificationStatus;
+use client::Client;
 use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Reply, Response,
-    StdResult, WasmQuery,
+    from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
 };
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
@@ -96,16 +96,18 @@ pub fn reply(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
         QueryMsg::GetMessagesStatus { messages } => {
-            let res: Vec<(CrossChainId, VerificationStatus)> =
-                deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: CONFIG.load(deps.storage)?.verifier.to_string(),
-                    msg: to_binary(&voting_msg::QueryMsg::GetMessagesStatus { messages })?,
-                }))?;
+            let voting_verifier: voting_verifier::Client =
+                Client::new(deps.querier, CONFIG.load(deps.storage)?.verifier).into();
 
-            to_binary(&res)
+            to_binary(&voting_verifier.messages_status(messages)?)
         }
     }
+    .map_err(Into::into)
 }
