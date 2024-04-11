@@ -7,6 +7,9 @@ use axum::{http::StatusCode, routing::get, Json, Router};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
+#[cfg(test)]
+use std::net::SocketAddr;
+
 pub struct Server {
     listener: tokio::net::TcpListener,
 }
@@ -67,14 +70,14 @@ struct Status {
 #[cfg(test)]
 mod tests {
 
-    use std::{str::FromStr, time::Duration};
-
     use super::*;
+    use std::str::FromStr;
+    use std::time::Duration;
     use tokio::test as async_test;
 
     #[async_test]
     async fn server_lifecycle() {
-        let server = Server::new(SocketAddr::from_str("127.0.0.1:0").unwrap())
+        let server = Server::new(SocketAddrV4::from_str("127.0.0.1:0").unwrap())
             .await
             .unwrap();
         let listening_addr = server.listening_addr().unwrap();
