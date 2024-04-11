@@ -109,7 +109,7 @@ mod tests {
                     Ok(to_binary(&res).into()).into()
                 });
 
-                let msg = from_binary::<QueryMsg>(&msg).unwrap();
+                let msg = from_binary::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),
@@ -167,7 +167,7 @@ mod tests {
                     Ok(to_binary(&res).into()).into()
                 });
 
-                let msg = from_binary::<QueryMsg>(&msg).unwrap();
+                let msg = from_binary::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),
