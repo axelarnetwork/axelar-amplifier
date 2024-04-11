@@ -206,6 +206,16 @@ mod test {
         env
     }
 
+    fn map_to_statuses(
+        messages: Vec<Message>,
+        status: VerificationStatus,
+    ) -> Vec<(CrossChainId, VerificationStatus)> {
+        messages
+            .iter()
+            .map(|message| (message.cc_id.clone(), status))
+            .collect::<Vec<(_, _)>>()
+    }
+
     #[test]
     fn should_fail_if_messages_are_not_from_same_source() {
         let workers = workers(2);
@@ -276,15 +286,16 @@ mod test {
     fn should_not_verify_messages_if_in_progress() {
         let workers = workers(2);
         let mut deps = setup(workers.clone());
+        let messages_count = 5;
         let messages_in_progress = 3;
-        let new_messages = 2;
+        let messages = messages(messages_count as u64);
 
         execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyMessages {
-                messages: messages(messages_in_progress),
+                messages: messages[0..messages_in_progress].to_vec(), // verify a subset of the messages
             },
         )
         .unwrap();
@@ -294,12 +305,12 @@ mod test {
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyMessages {
-                messages: messages(messages_in_progress + new_messages), // creates the same messages + some new ones
+                messages: messages.clone(), // verify all messages including the ones from previous execution
             },
         )
         .unwrap();
 
-        let messages: Vec<TxEventConfirmation> = serde_json::from_str(
+        let actual: Vec<TxEventConfirmation> = serde_json::from_str(
             &res.events
                 .into_iter()
                 .find(|event| event.ty == "messages_poll_started")
@@ -317,16 +328,24 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(messages.len() as u64, new_messages);
+        // messages starting after the ones already in progress
+        let expected = messages[messages_in_progress..]
+            .to_vec()
+            .into_iter()
+            .map(|e| e.try_into().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn should_retry_if_message_not_verified() {
         let workers = workers(2);
         let mut deps = setup(workers.clone());
+        let messages = messages(5);
 
         let msg = ExecuteMsg::VerifyMessages {
-            messages: messages(1),
+            messages: messages.clone(),
         };
         execute(
             deps.as_mut(),
@@ -346,10 +365,27 @@ mod test {
         )
         .unwrap();
 
+        // confirm it was not verified
+        let status: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetMessagesStatus {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            status,
+            map_to_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+        );
+
         // retries same message
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
 
-        let messages: Vec<TxEventConfirmation> = serde_json::from_str(
+        let actual: Vec<TxEventConfirmation> = serde_json::from_str(
             &res.events
                 .into_iter()
                 .find(|event| event.ty == "messages_poll_started")
@@ -367,7 +403,12 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(messages.len() as u64, 1);
+        let expected = messages
+            .into_iter()
+            .map(|e| e.try_into().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -496,27 +537,46 @@ mod test {
     }
 
     #[test]
-    fn should_query_message_statuses() {
+    fn should_query_status_none_when_not_verified() {
+        let workers = workers(2);
+        let deps = setup(workers.clone());
+
+        let messages = messages(10);
+
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetMessagesStatus {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            statuses,
+            map_to_statuses(messages, VerificationStatus::None)
+        );
+    }
+
+    #[test]
+    fn should_query_status_in_progress_when_no_consensus_and_poll_not_ended() {
         let workers = workers(2);
         let mut deps = setup(workers.clone());
 
         let messages = messages(10);
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: messages.clone(),
-        };
 
-        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
-
-        let reply: VerifyMessagesResponse = from_json(res.data.unwrap()).unwrap();
-
-        assert_eq!(reply.verification_statuses.len(), messages.len());
-        assert_eq!(
-            reply.verification_statuses,
-            messages
-                .iter()
-                .map(|message| (message.cc_id.clone(), VerificationStatus::None))
-                .collect::<Vec<(_, _)>>()
-        );
+        // starts verification process
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyMessages {
+                messages: messages.clone(),
+            },
+        )
+        .unwrap();
 
         let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
             query(
@@ -531,44 +591,36 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            messages
-                .iter()
-                .map(|message| (message.cc_id.clone(), VerificationStatus::InProgress))
-                .collect::<Vec<(_, _)>>()
+            map_to_statuses(messages.clone(), VerificationStatus::InProgress)
         );
+    }
 
-        let msg = ExecuteMsg::Vote {
-            poll_id: Uint64::one().into(),
-            votes: (0..messages.len())
-                .map(|i| {
-                    if i % 2 == 0 {
-                        Vote::SucceededOnChain
-                    } else {
-                        Vote::NotFound
-                    }
-                })
-                .collect::<Vec<_>>(),
-        };
+    #[test]
+    fn should_query_status_failed_to_verify_when_no_consensus_and_poll_ended() {
+        let workers = workers(2);
+        let mut deps = setup(workers.clone());
 
-        workers.iter().for_each(|worker| {
-            execute(
-                deps.as_mut(),
-                mock_env(),
-                mock_info(worker.address.as_str(), &[]),
-                msg.clone(),
-            )
-            .unwrap();
-        });
+        let messages = messages(10);
 
-        let msg = ExecuteMsg::EndPoll {
-            poll_id: Uint64::one().into(),
-        };
+        // starts verification process
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            ExecuteMsg::VerifyMessages {
+                messages: messages.clone(),
+            },
+        )
+        .unwrap();
 
+        // end poll
         execute(
             deps.as_mut(),
             mock_env_expired(),
             mock_info(SENDER, &[]),
-            msg,
+            ExecuteMsg::EndPoll {
+                poll_id: Uint64::one().into(),
+            },
         )
         .unwrap();
 
@@ -583,22 +635,75 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-
         assert_eq!(
             statuses,
-            messages
-                .iter()
-                .enumerate()
-                .map(|(i, message)| (
-                    message.cc_id.clone(),
-                    if i % 2 == 0 {
-                        VerificationStatus::SucceededOnChain
-                    } else {
-                        VerificationStatus::NotFound
-                    }
-                ))
-                .collect::<Vec<(_, _)>>()
+            map_to_statuses(messages.clone(), VerificationStatus::FailedToVerify)
         );
+    }
+
+    #[test]
+    fn should_query_status_according_to_vote() {
+        for (consensus_vote, expected_status) in [
+            (Vote::SucceededOnChain, VerificationStatus::SucceededOnChain),
+            (Vote::FailedOnChain, VerificationStatus::FailedOnChain),
+            (Vote::NotFound, VerificationStatus::NotFound),
+        ] {
+            let workers = workers(2);
+            let mut deps = setup(workers.clone());
+
+            let messages = messages(10);
+
+            // starts verification process
+            execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(SENDER, &[]),
+                ExecuteMsg::VerifyMessages {
+                    messages: messages.clone(),
+                },
+            )
+            .unwrap();
+
+            // all workers vote
+            let vote_msg = ExecuteMsg::Vote {
+                poll_id: Uint64::one().into(),
+                votes: vec![consensus_vote; messages.len()],
+            };
+            workers.iter().for_each(|worker| {
+                execute(
+                    deps.as_mut(),
+                    mock_env(),
+                    mock_info(worker.address.as_str(), &[]),
+                    vote_msg.clone(),
+                )
+                .unwrap();
+            });
+
+            // end poll
+            execute(
+                deps.as_mut(),
+                mock_env_expired(),
+                mock_info(SENDER, &[]),
+                ExecuteMsg::EndPoll {
+                    poll_id: Uint64::one().into(),
+                },
+            )
+            .unwrap();
+
+            // check status corresponds to votes
+            let statuses: Vec<(CrossChainId, VerificationStatus)> = from_json(
+                query(
+                    deps.as_ref(),
+                    mock_env(),
+                    QueryMsg::GetMessagesStatus {
+                        messages: messages.clone(),
+                    },
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(statuses, map_to_statuses(messages.clone(), expected_status));
+        }
     }
 
     #[test]
