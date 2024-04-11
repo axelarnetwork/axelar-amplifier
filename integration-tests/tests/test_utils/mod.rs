@@ -11,6 +11,7 @@ use cw_multi_test::{App, AppResponse, Executor};
 
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::monitoring_contract::MonitoringContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
@@ -375,6 +376,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         SIGNATURE_BLOCK_EXPIRY,
     );
 
+    let monitoring = MonitoringContract::instantiate_contract(&mut app, governance_address.clone());
+
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
 
@@ -384,6 +387,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         connection_router,
         router_admin_address,
         multisig,
+        monitoring,
         service_registry,
         service_name,
         rewards,

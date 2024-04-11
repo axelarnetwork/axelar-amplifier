@@ -38,6 +38,7 @@ error-stack = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
+monitoring = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
 report = { workspace = true }
