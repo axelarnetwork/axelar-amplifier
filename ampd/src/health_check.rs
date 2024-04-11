@@ -1,5 +1,5 @@
 use error_stack::{Result, ResultExt};
-use std::net::SocketAddr;
+use std::net::SocketAddrV4;
 use thiserror::Error;
 use tracing::info;
 
@@ -18,7 +18,7 @@ pub enum HealthCheckError {
 }
 
 impl Server {
-    pub async fn new(bind_addr: SocketAddr) -> Result<Self, HealthCheckError> {
+    pub async fn new(bind_addr: SocketAddrV4) -> Result<Self, HealthCheckError> {
         Ok(Self {
             listener: tokio::net::TcpListener::bind(bind_addr)
                 .await
