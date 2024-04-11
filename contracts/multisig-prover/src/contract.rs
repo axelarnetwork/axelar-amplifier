@@ -127,7 +127,7 @@ mod tests {
     use anyhow::Error;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        Addr, Fraction, Uint256, Uint64,
+        Addr, Fraction, Uint128, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
 
@@ -716,8 +716,8 @@ mod tests {
             test_case,
             governance.clone(),
             Threshold::try_from((
-                Uint64::try_from(new_threshold).unwrap(),
-                Uint64::try_from(total_weight).unwrap(),
+                Uint64::try_from(Uint128::try_from(new_threshold).unwrap()).unwrap(),
+                Uint64::try_from(Uint128::try_from(total_weight).unwrap()).unwrap(),
             ))
             .unwrap()
             .try_into()
