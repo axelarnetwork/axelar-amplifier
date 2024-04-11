@@ -17,6 +17,7 @@ on:
           - rewards
           - service-registry
           - voting-verifier
+          - monitoring
       dry-run:
         description: Dry run
         type: boolean
@@ -48,6 +49,7 @@ jobs:
             ["rewards"]="rewards,/(major-rewards)|(major-contracts)/,/(minor-rewards)|(minor-contracts)/,contracts/rewards packages"
             ["service-registry"]="service-registry,/(major-service-registry)|(major-contracts)/,/(minor-service-registry)|(minor-contracts)/,contracts/service-registry packages"
             ["voting-verifier"]="voting-verifier,/(major-voting-verifier)|(major-contracts)/,/(minor-voting-verifier)|(minor-contracts)/,contracts/voting-verifier packages"
+            ["monitoring"]="monitoring,/(major-monitoring)|(major-contracts)/,/(minor-monitoring)|(minor-contracts)/,contracts/monitoring packages"
           )
 
           if [[ -n "${binaries_data[$binary]}" ]]; then

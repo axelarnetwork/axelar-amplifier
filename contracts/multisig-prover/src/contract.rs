@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
 };
 
 use crate::{
@@ -100,8 +100,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
-        } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
+        } => to_binary(&query::get_proof(deps, multisig_session_id)?),
+        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps)?),
     }
 }
 

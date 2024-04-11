@@ -1,6 +1,6 @@
 use std::vec;
 
-use cosmwasm_std::{to_json_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
+use cosmwasm_std::{to_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
 use error_stack::report;
 use itertools::Itertools;
 
@@ -190,7 +190,7 @@ where
 
                 Ok(WasmMsg::Execute {
                     contract_addr: gateway.to_string(),
-                    msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
+                    msg: to_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
                         msgs.cloned().collect(),
                     ))
                     .expect("must serialize message"),

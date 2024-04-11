@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
     Uint128,
 };
 
@@ -114,9 +114,9 @@ pub fn execute(
 }
 
 pub mod execute {
-    use connection_router_api::ChainName;
-
+    use crate::state;
     use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
+    use connection_router_api::ChainName;
 
     use super::*;
 
@@ -255,9 +255,8 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
-        for chain in chains {
-            WORKERS_PER_CHAIN.save(deps.storage, (&service_name, &chain, &info.sender), &())?;
-        }
+        let _res =
+            state::register_chains_support(deps.storage, service_name.clone(), chains, info.sender);
 
         Ok(Response::new())
     }
@@ -357,15 +356,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetActiveWorkers {
             service_name,
             chain_name,
-        } => to_json_binary(&query::get_active_workers(deps, service_name, chain_name)?)
+        } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
         QueryMsg::GetWorker {
             service_name,
             worker,
-        } => to_json_binary(&query::get_worker(deps, worker, service_name)?)
-            .map_err(|err| err.into()),
+        } => to_binary(&query::get_worker(deps, worker, service_name)?).map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
-            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+            to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }

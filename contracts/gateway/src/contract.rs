@@ -1,3 +1,4 @@
+use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
@@ -52,12 +53,14 @@ pub enum Error {
     InvalidAddress,
     #[error("failed to query message status")]
     MessageStatus,
+    #[error("message with ID {0} not found")]
+    MessageNotFound(CrossChainId),
 }
 
 mod internal {
-    use aggregate_verifier::client::Verifier;
+    use client::Client;
     use connection_router_api::client::Router;
-    use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
     use gateway_api::msg::{ExecuteMsg, QueryMsg};
 
@@ -97,10 +100,7 @@ mod internal {
         msg: ExecuteMsg,
     ) -> Result<Response, Error> {
         let config = state::load_config(deps.storage).change_context(Error::ConfigMissing)?;
-        let verifier = Verifier {
-            address: config.verifier,
-            querier: deps.querier,
-        };
+        let verifier = Client::new(deps.querier, config.verifier).into();
 
         let router = Router {
             address: config.router,
@@ -122,7 +122,7 @@ mod internal {
         match msg {
             QueryMsg::GetOutgoingMessages { message_ids } => {
                 let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
-                to_json_binary(&msgs).change_context(Error::SerializeResponse)
+                to_binary(&msgs).change_context(Error::SerializeResponse)
             }
         }
     }

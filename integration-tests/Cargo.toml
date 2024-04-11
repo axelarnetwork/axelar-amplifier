@@ -29,32 +29,23 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
-axelar-wasm-std-derive = { workspace = true }
 connection-router = { workspace = true }
 connection-router-api = { workspace = true }
-cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-cosmwasm-storage = { workspace = true }
 cw-multi-test = "0.15.1"
-cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
-itertools = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
-mockall = "0.11.3"
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }
-schemars = "0.8.10"
-serde = { version = "1.0.145", default-features = false, features = ["derive"] }
-serde_json = "1.0.89"
+serde = { workspace = true }
+serde_json = { workspace = true }
 service-registry = { workspace = true }
 sha3 = { workspace = true }
-thiserror = { workspace = true }
 tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
 voting-verifier = { workspace = true }
 
