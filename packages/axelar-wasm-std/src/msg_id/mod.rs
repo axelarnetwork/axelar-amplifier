@@ -1,14 +1,21 @@
 use std::{fmt::Display, str::FromStr};
 
 use cosmwasm_schema::cw_serde;
+use error_stack::Report;
 
 use self::tx_hash_event_index::HexTxHashAndEventIndex;
 
 pub mod tx_hash_event_index;
 
+#[derive(thiserror::Error)]
 #[cw_serde]
 pub enum Error {
+    #[error("invalid message id '{id}', expected format: {expected_format}")]
     InvalidMessageID { id: String, expected_format: String },
+    #[error("event index in message id '{0}' is larger than u32 max value")]
+    EventIndexOverflow(String),
+    #[error("invalid transaction hash in message id '{0}'")]
+    InvalidTxHash(String),
 }
 
 /// Any message id format must implement this trait.
@@ -30,7 +37,7 @@ pub enum MessageIdFormat {
 }
 
 // function the router calls to verify msg ids
-pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), Error> {
+pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), Report<Error>> {
     match format {
         MessageIdFormat::HexTxHashAndEventIndex => {
             HexTxHashAndEventIndex::from_str(message_id).map(|_| ())

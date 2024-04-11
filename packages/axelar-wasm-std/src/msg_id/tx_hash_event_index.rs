@@ -2,6 +2,7 @@ use core::fmt;
 use std::{fmt::Display, str::FromStr};
 
 use cosmwasm_std::HexBinary;
+use error_stack::{Report, ResultExt};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -27,43 +28,30 @@ lazy_static! {
 }
 
 impl FromStr for HexTxHashAndEventIndex {
-    type Err = Error;
+    type Err = Report<Error>;
 
     fn from_str(message_id: &str) -> Result<Self, Self::Err>
     where
         Self: Sized,
     {
-        let caps: Vec<_> = REGEX
+        // the PATTERN has exactly two capture groups, so the groups can be extracted safely
+        let (_, [tx_id, event_index]) = REGEX
             .captures(message_id)
-            .into_iter()
-            .flat_map(|caps| caps.iter().collect::<Vec<_>>())
-            .collect();
-
-        match caps.as_slice() {
-            [Some(_), Some(tx_id), Some(event_index)] => {
-                let tx_id = tx_id.as_str();
-                let event_index = event_index.as_str();
-
-                Ok(HexTxHashAndEventIndex {
-                    tx_hash: HexBinary::from_hex(&tx_id[2..])
-                        .expect("invalid hex")
-                        .as_slice()
-                        .try_into()
-                        .expect("invalid length tx hash"),
-                    event_index: event_index.parse().map_err(|_| {
-                        // this error can happen if the integer overflows u32
-                        Error::InvalidMessageID {
-                            id: message_id.to_string(),
-                            expected_format: PATTERN.to_string(),
-                        }
-                    })?,
-                })
-            }
-            _ => Err(Error::InvalidMessageID {
+            .ok_or(Error::InvalidMessageID {
                 id: message_id.to_string(),
                 expected_format: PATTERN.to_string(),
-            }),
-        }
+            })?
+            .extract();
+        Ok(HexTxHashAndEventIndex {
+            tx_hash: HexBinary::from_hex(&tx_id[2..])
+                .change_context(Error::InvalidTxHash(message_id.to_string()))?
+                .as_slice()
+                .try_into()
+                .map_err(|_| Error::InvalidTxHash(message_id.to_string()))?,
+            event_index: event_index
+                .parse()
+                .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
+        })
     }
 }
 
