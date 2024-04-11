@@ -239,7 +239,7 @@ mod test {
     async fn should_broadcast_when_broadcast_interval_has_been_reached() {
         let tx_count = 9;
         let batch_gas_limit = 100;
-        let broadcast_interval = Duration::from_secs(1);
+        let broadcast_interval = Duration::from_millis(100);
         let gas_limit = 10;
 
         let mut broadcaster = MockBroadcaster::new();
@@ -372,7 +372,7 @@ mod test {
             assert!(client.run().await.is_ok());
         });
 
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(100)).await;
         driver.force_broadcast().await.unwrap();
         drop(tx);
 

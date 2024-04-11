@@ -77,7 +77,7 @@ fn ids_to_msgs(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
-    use cosmwasm_std::{from_json, to_json_binary, Addr, DepsMut, QuerierWrapper, WasmQuery};
+    use cosmwasm_std::{from_binary, to_binary, Addr, DepsMut, QuerierWrapper, WasmQuery};
     use std::str::FromStr;
 
     use axelar_wasm_std::VerificationStatus;
@@ -100,10 +100,10 @@ mod tests {
 
                 deps.querier.update_wasm(|_| {
                     let res: Vec<(CrossChainId, VerificationStatus)> = vec![];
-                    Ok(to_json_binary(&res).into()).into()
+                    Ok(to_binary(&res).into()).into()
                 });
 
-                let msg = from_json::<QueryMsg>(msg.as_slice()).unwrap();
+                let msg = from_binary::<QueryMsg>(&msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),
@@ -159,10 +159,10 @@ mod tests {
                             VerificationStatus::FailedOnChain,
                         ),
                     ];
-                    Ok(to_json_binary(&res).into()).into()
+                    Ok(to_binary(&res).into()).into()
                 });
 
-                let msg = from_json::<QueryMsg>(msg.as_slice()).unwrap();
+                let msg = from_binary::<QueryMsg>(&msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),

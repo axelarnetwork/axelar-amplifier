@@ -411,7 +411,7 @@ mod tests {
         let event_publisher = EventPublisher::new(mock_client, block_count * event_count_per_block);
         let mut client = event_publisher
             .start_from(block_height)
-            .poll_interval(Duration::new(0, 1e8 as u32));
+            .poll_interval(Duration::new(0, 1e7 as u32));
         let mut stream = client.subscribe();
 
         let child_token = token.child_token();
