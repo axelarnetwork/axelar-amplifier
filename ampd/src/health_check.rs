@@ -44,7 +44,7 @@ impl Server {
     }
 
     #[cfg(test)]
-    pub fn listening_addr(&self) -> Result<SocketAddr, HealthCheckError> {
+    fn listening_addr(&self) -> Result<SocketAddr, HealthCheckError> {
         Ok(self
             .listener
             .local_addr()
