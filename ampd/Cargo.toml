@@ -38,7 +38,7 @@ prost = "0.11.9"
 report = { workspace = true }
 reqwest = { version = "0.11.24", default-features = false }
 serde = { version = "1.0.147", features = ["derive"] }
-serde_json = "1.0.89"
+serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry = { workspace = true }
 sha3 = { workspace = true }
@@ -49,7 +49,7 @@ sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils
 # The fix for the issue is at https://github.com/axelarnetwork/tendermint-rs/commit/e97033e20e660a7e707ea86db174ec047bbba50d.
 tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
 tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x", features = [
-  "http-client",
+    "http-client",
 ] }
 thiserror = { workspace = true }
 tokio = { version = "1.22.0", features = ["signal"] }

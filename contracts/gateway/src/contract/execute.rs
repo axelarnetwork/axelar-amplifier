@@ -1,4 +1,3 @@
-use aggregate_verifier::client::Verifier;
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use connection_router_api::client::Router;
 use connection_router_api::Message;
@@ -10,14 +9,17 @@ use crate::contract::Error;
 use crate::events::GatewayEvent;
 use crate::state;
 
-pub fn verify_messages(verifier: &Verifier, msgs: Vec<Message>) -> Result<Response, Error> {
+pub fn verify_messages(
+    verifier: &aggregate_verifier::Client,
+    msgs: Vec<Message>,
+) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {
         verify(verifier, msgs_by_status)
     })
 }
 
 pub(crate) fn route_incoming_messages(
-    verifier: &Verifier,
+    verifier: &aggregate_verifier::Client,
     router: &Router,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -45,12 +47,12 @@ pub(crate) fn route_outgoing_messages(
 }
 
 fn apply(
-    verifier: &Verifier,
+    verifier: &aggregate_verifier::Client,
     msgs: Vec<Message>,
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
-        .then(|msgs| verifier.messages_with_status(msgs))
+        .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
         .then(group_by_status)
         .then(action)
@@ -86,7 +88,7 @@ fn group_by_status(
 }
 
 fn verify(
-    verifier: &Verifier,
+    verifier: &aggregate_verifier::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
 ) -> (Option<WasmMsg>, Vec<Event>) {
     msgs_by_status
@@ -98,7 +100,7 @@ fn verify(
             )
         })
         .then(flat_unzip)
-        .then(|(msgs, events)| (verifier.verify(msgs), events))
+        .then(|(msgs, events)| (verifier.verify_messages(msgs), events))
 }
 
 fn route(

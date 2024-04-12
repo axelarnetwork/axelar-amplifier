@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router_api::{ChainName, CrossChainId, Message};
+use connection_router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
 };
@@ -11,6 +11,7 @@ use cw_multi_test::{App, AppResponse, Executor};
 
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::monitoring_contract::MonitoringContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
@@ -79,6 +80,60 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
+}
+
+pub fn freeze_chain(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    chain_name: &ChainName,
+    direction: GatewayDirection,
+    admin: &Addr,
+) {
+    let response = router.execute(
+        app,
+        admin.clone(),
+        &connection_router_api::msg::ExecuteMsg::FreezeChain {
+            chain: chain_name.clone(),
+            direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
+}
+
+pub fn unfreeze_chain(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    chain_name: &ChainName,
+    direction: GatewayDirection,
+    admin: &Addr,
+) {
+    let response = router.execute(
+        app,
+        admin.clone(),
+        &connection_router_api::msg::ExecuteMsg::UnfreezeChain {
+            chain: chain_name.clone(),
+            direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
+}
+
+pub fn upgrade_gateway(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    governance: &Addr,
+    chain_name: &ChainName,
+    contract_address: Address,
+) {
+    let response = router.execute(
+        app,
+        governance.clone(),
+        &connection_router_api::msg::ExecuteMsg::UpgradeGateway {
+            chain: chain_name.clone(),
+            contract_address,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
 }
 
 pub fn vote_success_for_all_messages(
@@ -321,6 +376,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         SIGNATURE_BLOCK_EXPIRY,
     );
 
+    let monitoring = MonitoringContract::instantiate_contract(&mut app, governance_address.clone());
+
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
 
@@ -330,6 +387,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         connection_router,
         router_admin_address,
         multisig,
+        monitoring,
         service_registry,
         service_name,
         rewards,
@@ -596,18 +654,10 @@ pub struct Chain {
 
 pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
-        &mut protocol.app,
-        protocol
-            .service_registry
-            .contract_addr
-            .to_string()
-            .try_into()
-            .unwrap(),
-        protocol.service_name.clone(),
+        protocol,
         "doesn't matter".to_string().try_into().unwrap(),
         Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
         chain_name.clone(),
-        protocol.rewards.contract_addr.clone(),
     );
 
     let gateway = GatewayContract::instantiate_contract(
@@ -711,4 +761,11 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
     let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     (protocol, chain1, chain2, workers, min_worker_bond)
+}
+
+pub fn assert_contract_err_strings_equal(
+    actual: impl Into<axelar_wasm_std::ContractError>,
+    expected: impl Into<axelar_wasm_std::ContractError>,
+) {
+    assert_eq!(actual.into().to_string(), expected.into().to_string());
 }

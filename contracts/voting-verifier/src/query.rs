@@ -1,13 +1,17 @@
 use axelar_wasm_std::{
     operators::Operators,
     voting::{PollStatus, Vote},
-    VerificationStatus,
+    MajorityThreshold, VerificationStatus,
 };
 use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::Deps;
 
-use crate::error::ContractError;
 use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::{error::ContractError, state::CONFIG};
+
+pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
+    Ok(CONFIG.load(deps.storage)?.voting_threshold)
+}
 
 pub fn messages_status(
     deps: Deps,

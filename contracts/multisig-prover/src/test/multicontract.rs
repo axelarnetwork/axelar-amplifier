@@ -163,6 +163,7 @@ fn instantiate_prover(
         governance_address: GOVERNANCE.to_string(),
         gateway_address,
         multisig_address,
+        monitoring_address: Addr::unchecked("monitoring").to_string(),
         service_registry_address,
         voting_verifier_address,
         destination_chain_id: test_data::destination_chain_id(),

@@ -3,8 +3,9 @@ use cosmwasm_std::Addr;
 use cw_multi_test::App;
 
 use crate::{
-    connection_router_contract::ConnectionRouterContract, multisig_contract::MultisigContract,
-    rewards_contract::RewardsContract, service_registry_contract::ServiceRegistryContract,
+    connection_router_contract::ConnectionRouterContract, monitoring_contract::MonitoringContract,
+    multisig_contract::MultisigContract, rewards_contract::RewardsContract,
+    service_registry_contract::ServiceRegistryContract,
 };
 
 pub struct Protocol {
@@ -13,6 +14,7 @@ pub struct Protocol {
     pub connection_router: ConnectionRouterContract,
     pub router_admin_address: Addr,
     pub multisig: MultisigContract,
+    pub monitoring: MonitoringContract,
     pub service_registry: ServiceRegistryContract,
     pub service_name: nonempty::String,
     pub rewards: RewardsContract,
