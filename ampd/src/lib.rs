@@ -126,7 +126,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
 
     let health_check_server = health_check::Server::new(health_check_bind_addr)
         .await
-        .change_context(Error::HealthCheckServerError)?;
+        .change_context(Error::HealthCheckError)?;
 
     App::new(
         tm_client,
@@ -421,7 +421,7 @@ where
             .add_task(CancellableTask::create(|token| {
                 health_check_server
                     .run(token)
-                    .change_context(Error::HealthCheckServerError)
+                    .change_context(Error::HealthCheckError)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
@@ -473,6 +473,6 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("Health check server error")]
-    HealthCheckServerError,
+    #[error("Health check system error")]
+    HealthCheckError,
 }

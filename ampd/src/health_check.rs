@@ -1,5 +1,5 @@
-use error_stack::{Result, ResultExt};
-use std::{fmt::Display, net::SocketAddrV4};
+use error_stack::Result;
+use std::{io, net::SocketAddrV4};
 use thiserror::Error;
 use tracing::info;
 
@@ -12,20 +12,9 @@ pub struct Server {
 }
 
 #[derive(Error, Debug)]
-pub struct HealthCheckError {
-    msg: String,
-}
-
-impl HealthCheckError {
-    pub fn new(msg: String) -> Self {
-        Self { msg }
-    }
-}
-
-impl Display for HealthCheckError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.msg)
-    }
+pub enum HealthCheckError {
+    #[error("Health check HTTP server problem: {0}")]
+    HTTPServerIO(#[from] io::Error),
 }
 
 impl Server {
@@ -33,26 +22,20 @@ impl Server {
         Ok(Self {
             listener: tokio::net::TcpListener::bind(bind_addr)
                 .await
-                .change_context(HealthCheckError::new(format!(
-                    "Failed binding to addr: {}",
-                    bind_addr
-                )))?,
+                .map_err(HealthCheckError::from)?,
         })
     }
 
     pub async fn run(self, cancel: CancellationToken) -> Result<(), HealthCheckError> {
         let app = Router::new().route("/status", get(status));
-        let bind_address = self
-            .listener
-            .local_addr()
-            .change_context(HealthCheckError::new(
-                "Failed getting local address".to_string(),
-            ))?;
+        let bind_address = self.listener.local_addr().map_err(HealthCheckError::from)?;
+
         info!("Starting health check server at: {}", bind_address);
-        axum::serve(self.listener, app)
+
+        Ok(axum::serve(self.listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
             .await
-            .change_context(HealthCheckError::new("Failed executing server".to_string()))
+            .map_err(HealthCheckError::from)?)
     }
 }
 
