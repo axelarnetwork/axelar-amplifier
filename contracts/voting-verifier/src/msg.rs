@@ -79,11 +79,6 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct VerifyMessagesResponse {
-    pub verification_statuses: Vec<(CrossChainId, VerificationStatus)>,
-}
-
-#[cw_serde]
 pub struct EndPollResponse {
     pub poll_result: PollState,
 }

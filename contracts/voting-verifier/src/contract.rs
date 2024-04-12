@@ -95,7 +95,6 @@ mod test {
     use crate::{
         error::ContractError,
         events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
-        msg::VerifyMessagesResponse,
     };
 
     use super::*;
