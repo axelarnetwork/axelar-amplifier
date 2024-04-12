@@ -7,9 +7,6 @@ use axum::{http::StatusCode, routing::get, Json, Router};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-#[cfg(test)]
-use std::net::SocketAddr;
-
 pub struct Server {
     listener: tokio::net::TcpListener,
 }
@@ -43,13 +40,6 @@ impl Server {
         })
     }
 
-    #[cfg(test)]
-    fn listening_addr(&self) -> Result<SocketAddr, HealthCheckError> {
-        Ok(self
-            .listener
-            .local_addr()
-            .map_err(|e| HealthCheckError::new(e.to_string()))?)
-    }
     pub async fn run(self, cancel: CancellationToken) -> Result<(), HealthCheckError> {
         let app = Router::new().route("/status", get(status));
         let bind_address = self
@@ -80,9 +70,17 @@ struct Status {
 mod tests {
 
     use super::*;
+    use std::io;
+    use std::net::SocketAddr;
     use std::str::FromStr;
     use std::time::Duration;
     use tokio::test as async_test;
+
+    impl Server {
+        fn listening_addr(&self) -> io::Result<SocketAddr> {
+            self.listener.local_addr()
+        }
+    }
 
     #[async_test]
     async fn server_lifecycle() {
