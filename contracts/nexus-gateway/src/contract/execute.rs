@@ -2,7 +2,7 @@ use cosmwasm_std::{to_binary, Addr, Response, WasmMsg};
 use error_stack::report;
 
 use crate::error::ContractError;
-use crate::nexus;
+use crate::nexus::{self};
 use crate::state::Store;
 
 use super::Contract;
@@ -24,8 +24,8 @@ where
 
         let msgs: Vec<_> = msgs
             .into_iter()
-            .map(connection_router_api::Message::from)
-            .collect();
+            .map(connection_router_api::Message::try_from)
+            .collect::<Result<Vec<connection_router_api::Message>>>()?;
         if msgs.is_empty() {
             return Ok(Response::default());
         }
@@ -134,7 +134,7 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-                source_tx_id: vec![0x2f, 0xe4].try_into().unwrap(),
+                source_tx_id: vec![0x2f; 32].try_into().unwrap(),
                 source_tx_index: 100,
             },
             nexus::Message {
@@ -148,7 +148,7 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-                source_tx_id: vec![0x23, 0xf4].try_into().unwrap(),
+                source_tx_id: vec![0x23; 32].try_into().unwrap(),
                 source_tx_index: 1000,
             },
         ];

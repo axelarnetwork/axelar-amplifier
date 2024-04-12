@@ -22,7 +22,7 @@ impl HexTxHashAndEventIndex {
     }
 }
 
-const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";
+pub const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";
 lazy_static! {
     static ref REGEX: Regex = Regex::new(PATTERN).expect("invalid regex");
 }
