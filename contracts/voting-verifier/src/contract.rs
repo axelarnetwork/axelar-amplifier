@@ -206,7 +206,7 @@ mod test {
         env
     }
 
-    fn map_to_statuses(
+    fn msg_ids_and_statuses(
         messages: Vec<Message>,
         status: VerificationStatus,
     ) -> Vec<(CrossChainId, VerificationStatus)> {
@@ -379,7 +379,7 @@ mod test {
         .unwrap();
         assert_eq!(
             status,
-            map_to_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+            msg_ids_and_statuses(messages.clone(), VerificationStatus::FailedToVerify)
         );
 
         // retries same message
@@ -556,7 +556,7 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            map_to_statuses(messages, VerificationStatus::None)
+            msg_ids_and_statuses(messages, VerificationStatus::None)
         );
     }
 
@@ -591,7 +591,7 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            map_to_statuses(messages.clone(), VerificationStatus::InProgress)
+            msg_ids_and_statuses(messages.clone(), VerificationStatus::InProgress)
         );
     }
 
@@ -637,7 +637,7 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            map_to_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+            msg_ids_and_statuses(messages.clone(), VerificationStatus::FailedToVerify)
         );
     }
 
@@ -702,7 +702,10 @@ mod test {
                 .unwrap(),
             )
             .unwrap();
-            assert_eq!(statuses, map_to_statuses(messages.clone(), expected_status));
+            assert_eq!(
+                statuses,
+                msg_ids_and_statuses(messages.clone(), expected_status)
+            );
         }
     }
 
