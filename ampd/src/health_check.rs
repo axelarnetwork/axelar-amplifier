@@ -1,5 +1,5 @@
 use error_stack::{Result, ResultExt};
-use std::net::SocketAddrV4;
+use std::{fmt::Display, net::SocketAddrV4};
 use thiserror::Error;
 use tracing::info;
 
@@ -15,9 +15,20 @@ pub struct Server {
 }
 
 #[derive(Error, Debug)]
-pub enum HealthCheckError {
-    #[error("Health check server error: {0}")]
-    Error(String),
+pub struct HealthCheckError {
+    msg: String,
+}
+
+impl HealthCheckError {
+    pub fn new(msg: String) -> Self {
+        Self { msg }
+    }
+}
+
+impl Display for HealthCheckError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.msg)
+    }
 }
 
 impl Server {
@@ -25,7 +36,7 @@ impl Server {
         Ok(Self {
             listener: tokio::net::TcpListener::bind(bind_addr)
                 .await
-                .change_context(HealthCheckError::Error(format!(
+                .change_context(HealthCheckError::new(format!(
                     "Failed binding to addr: {}",
                     bind_addr
                 )))?,
@@ -37,23 +48,21 @@ impl Server {
         Ok(self
             .listener
             .local_addr()
-            .map_err(|e| HealthCheckError::Error(e.to_string()))?)
+            .map_err(|e| HealthCheckError::new(e.to_string()))?)
     }
     pub async fn run(self, cancel: CancellationToken) -> Result<(), HealthCheckError> {
         let app = Router::new().route("/status", get(status));
         let bind_address = self
             .listener
             .local_addr()
-            .change_context(HealthCheckError::Error(
+            .change_context(HealthCheckError::new(
                 "Failed getting local address".to_string(),
             ))?;
         info!("Starting health check server at: {}", bind_address);
         axum::serve(self.listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
             .await
-            .change_context(HealthCheckError::Error(
-                "Failed executing server".to_string(),
-            ))
+            .change_context(HealthCheckError::new("Failed executing server".to_string()))
     }
 }
 
