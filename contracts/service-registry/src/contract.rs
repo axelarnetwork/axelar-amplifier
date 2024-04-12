@@ -94,6 +94,22 @@ pub fn execute(
                 AuthorizationState::NotAuthorized,
             )
         }
+        ExecuteMsg::JailWorkers {
+            workers,
+            service_name,
+        } => {
+            execute::require_governance(&deps, info)?;
+            let workers = workers
+                .into_iter()
+                .map(|worker| deps.api.addr_validate(&worker))
+                .collect::<Result<Vec<_>, _>>()?;
+            execute::update_worker_authorization_status(
+                deps,
+                workers,
+                service_name,
+                AuthorizationState::Jailed,
+            )
+        }
         ExecuteMsg::RegisterChainSupport {
             service_name,
             chains,
@@ -296,6 +312,10 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
+        if worker.is_jailed() {
+            return Err(ContractError::WorkerJailed);
+        }
+
         let can_unbond = true; // TODO: actually query the service to determine this value
 
         let bonding_state = worker.bonding_state.unbond(can_unbond, env.block.time)?;
@@ -325,6 +345,10 @@ pub mod execute {
         let worker = WORKERS
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
+
+        if worker.is_jailed() {
+            return Err(ContractError::WorkerJailed);
+        }
 
         let (bonding_state, released_bond) = worker
             .bonding_state

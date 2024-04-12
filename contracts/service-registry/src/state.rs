@@ -40,6 +40,12 @@ pub struct Worker {
     pub service_name: String,
 }
 
+impl Worker {
+    pub fn is_jailed(&self) -> bool {
+        matches!(self.authorization_state, AuthorizationState::Jailed)
+    }
+}
+
 #[cw_serde]
 pub struct WeightedWorker {
     pub worker_info: Worker,
@@ -129,6 +135,7 @@ impl BondingState {
 pub enum AuthorizationState {
     NotAuthorized,
     Authorized,
+    Jailed,
 }
 
 type ChainNames = HashSet<ChainName>;
