@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
-use axelar_wasm_std::{snapshot, VerificationStatus};
+use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use connection_router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedWorker;
 
@@ -23,6 +23,13 @@ use crate::{
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     match CONFIG.load(deps.storage)?.admin {
         admin if admin == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
+    }
+}
+
+pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.governance {
+        governance if governance == info.sender => Ok(()),
         _ => Err(ContractError::Unauthorized),
     }
 }
@@ -288,7 +295,8 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+    new_workers.threshold != cur_workers.threshold
+        || signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
 }
 
 fn signers_symetric_difference_count(
@@ -310,6 +318,20 @@ fn different_set_in_progress(storage: &dyn Storage, new_worker_set: &WorkerSet) 
     }
 
     false
+}
+
+pub fn update_signing_threshold(
+    deps: DepsMut,
+    new_signing_threshold: MajorityThreshold,
+) -> Result<Response, ContractError> {
+    CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<Config, ContractError> {
+            config.signing_threshold = new_signing_threshold;
+            Ok(config)
+        },
+    )?;
+    Ok(Response::new())
 }
 
 #[cfg(test)]
@@ -435,6 +457,7 @@ mod tests {
             governance: Addr::unchecked("doesn't matter"),
             gateway: Addr::unchecked("doesn't matter"),
             multisig: Addr::unchecked("doesn't matter"),
+            monitoring: Addr::unchecked("doesn't matter"),
             service_registry: Addr::unchecked("doesn't matter"),
             voting_verifier: Addr::unchecked("doesn't matter"),
             destination_chain_id: Uint256::one(),

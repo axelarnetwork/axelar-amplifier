@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub governance_address: String,
     pub gateway_address: String,
     pub multisig_address: String,
+    pub monitoring_address: String,
     pub service_registry_address: String,
     pub voting_verifier_address: String,
     pub destination_chain_id: Uint256,
@@ -27,9 +28,17 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     // Start building a proof that includes specified messages
     // Queries the gateway for actual message contents
-    ConstructProof { message_ids: Vec<CrossChainId> },
+    ConstructProof {
+        message_ids: Vec<CrossChainId>,
+    },
     UpdateWorkerSet,
     ConfirmWorkerSet,
+    // Updates the signing threshold. The threshold currently in use does not change.
+    // The worker set must be updated and confirmed for the change to take effect.
+    // Callable only by governance.
+    UpdateSigningThreshold {
+        new_signing_threshold: MajorityThreshold,
+    },
 }
 
 #[cw_serde]
