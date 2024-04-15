@@ -25,5 +25,8 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(WorkerSet)]
-    GetActiveVerifiersForChain { chain: ChainName },
+    GetActiveWorkerSet {
+        chain_name: ChainName,
+        prover_address: Addr,
+    },
 }

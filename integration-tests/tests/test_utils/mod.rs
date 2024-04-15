@@ -293,12 +293,30 @@ pub fn get_proof(
     query_response.unwrap()
 }
 
-pub fn get_worker_set(
+pub fn get_worker_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> =
         multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
+}
+
+pub fn get_worker_set_from_monitoring(
+    app: &mut App,
+    monitoring_contract: &MonitoringContract,
+    chain_name: ChainName,
+    prover_address: Addr,
+) -> WorkerSet {
+    let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
+        app,
+        &monitoring::msg::QueryMsg::GetActiveWorkerSet {
+            chain_name,
+            prover_address,
+        },
+    );
     assert!(query_response.is_ok());
 
     query_response.unwrap()

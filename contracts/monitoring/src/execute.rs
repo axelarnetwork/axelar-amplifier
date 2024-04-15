@@ -4,7 +4,7 @@ use connection_router_api::ChainName;
 use multisig::worker_set::WorkerSet;
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, PROVERS_PER_CHAIN, ACTIVE_WORKERSET_FOR_CHAIN};
+use crate::state::{ACTIVE_WORKERSET_FOR_CHAIN, CONFIG, PROVERS_PER_CHAIN};
 
 pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -30,9 +30,14 @@ pub fn register_prover(
 
 pub fn register_active_worker_set(
     deps: DepsMut,
+    info: MessageInfo,
     chain_name: ChainName,
     next_worker_set: WorkerSet,
 ) -> Result<Response, ContractError> {
-    ACTIVE_WORKERSET_FOR_CHAIN.save(deps.storage, chain_name.clone(), &(next_worker_set))?;
+    ACTIVE_WORKERSET_FOR_CHAIN.save(
+        deps.storage,
+        (info.sender, chain_name.clone()),
+        &(next_worker_set),
+    )?;
     Ok(Response::new())
 }

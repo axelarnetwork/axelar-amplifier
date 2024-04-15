@@ -2,9 +2,10 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::execute;
+use crate::query;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -36,24 +37,30 @@ pub fn execute(
         } => {
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
-        },
+        }
         ExecuteMsg::RegisterActiveWorkerSet {
             chain_name,
             next_worker_set,
         } => {
-            execute::register_active_worker_set(deps, chain_name, next_worker_set)
-        },
+            // TODO: add check_prover to make sure prover is part of the system
+            execute::register_active_worker_set(deps, info, chain_name, next_worker_set)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 #[allow(dead_code)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetActiveVerifiersForChain { chain: _ } => {
-            todo!()
-        }
+        QueryMsg::GetActiveWorkerSet {
+            chain_name,
+            prover_address,
+        } => to_binary(&query::get_active_worker_set(
+            deps,
+            chain_name,
+            prover_address,
+        )?),
     }
 }
 
@@ -64,6 +71,7 @@ mod tests {
     use connection_router_api::ChainName;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::Addr;
+    use multisig::worker_set::WorkerSet;
 
     use super::*;
 
@@ -90,7 +98,7 @@ mod tests {
     }
 
     #[test]
-    fn add_prover_from_goverance_succeeds() {
+    fn add_prover_from_governance_succeeds() {
         let governance = "governance_for_monitoring";
         let mut deps = mock_dependencies();
         let info = mock_info("instantiator", &[]);
