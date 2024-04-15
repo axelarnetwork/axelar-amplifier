@@ -1,8 +1,11 @@
 use axelar_wasm_std::{
-    operators::Operators, voting::PollId, MajorityThreshold, VerificationStatus,
+    nonempty,
+    operators::Operators,
+    voting::{PollId, Vote},
+    MajorityThreshold, VerificationStatus,
 };
 use connection_router_api::{CrossChainId, Message};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
 
 use crate::msg::{ExecuteMsg, Poll, QueryMsg};
@@ -26,6 +29,36 @@ pub struct Client<'a> {
 }
 
 impl<'a> Client<'a> {
+    pub fn verify_messages(&self, messages: Vec<Message>) -> WasmMsg {
+        self.client
+            .execute(&ExecuteMsg::VerifyMessages { messages })
+    }
+
+    pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::Vote { poll_id, votes })
+    }
+
+    pub fn end_poll(&self, poll_id: PollId) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::EndPoll { poll_id })
+    }
+
+    pub fn verify_worker_set(
+        &self,
+        message_id: nonempty::String,
+        new_operators: Operators,
+    ) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::VerifyWorkerSet {
+            message_id,
+            new_operators,
+        })
+    }
+
+    pub fn update_voting_threshold(&self, new_voting_threshold: MajorityThreshold) -> WasmMsg {
+        self.client.execute(&ExecuteMsg::UpdateVotingThreshold {
+            new_voting_threshold,
+        })
+    }
+
     pub fn poll(&self, poll_id: PollId) -> Result<Poll> {
         self.client
             .query(&QueryMsg::GetPoll { poll_id })
