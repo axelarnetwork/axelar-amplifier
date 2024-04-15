@@ -71,6 +71,7 @@ impl From<connection_router_api::Message> for Message {
 impl TryFrom<Message> for connection_router_api::Message {
     type Error = Report<ContractError>;
     fn try_from(msg: Message) -> Result<Self, ContractError> {
+        // this string is just used in error messages
         let msg_id = format!(
             "{}-{}",
             msg.source_tx_id.as_ref().encode_hex::<String>(),
