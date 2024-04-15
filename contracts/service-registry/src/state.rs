@@ -41,8 +41,69 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn is_jailed(&self) -> bool {
-        matches!(self.authorization_state, AuthorizationState::Jailed)
+    pub fn add_bond(&self, to_add: Uint128) -> Result<BondingState, ContractError> {
+        let amount = match self.bonding_state {
+            BondingState::Bonded { amount }
+            | BondingState::RequestedUnbonding { amount }
+            | BondingState::Unbonding {
+                amount,
+                unbonded_at: _,
+            } => amount
+                .checked_add(to_add)
+                .map_err(ContractError::Overflow)?,
+            BondingState::Unbonded => to_add,
+        };
+        if amount.is_zero() {
+            Err(ContractError::InvalidBondingState(
+                self.bonding_state.clone(),
+            ))
+        } else {
+            Ok(BondingState::Bonded { amount })
+        }
+    }
+
+    pub fn unbond(&self, can_unbond: bool, time: Timestamp) -> Result<BondingState, ContractError> {
+        if self.authorization_state == AuthorizationState::Jailed {
+            return Err(ContractError::WorkerJailed);
+        }
+
+        match self.bonding_state {
+            BondingState::Bonded { amount } | BondingState::RequestedUnbonding { amount } => {
+                if can_unbond {
+                    Ok(BondingState::Unbonding {
+                        unbonded_at: time,
+                        amount,
+                    })
+                } else {
+                    Ok(BondingState::RequestedUnbonding { amount })
+                }
+            }
+            _ => Err(ContractError::InvalidBondingState(
+                self.bonding_state.clone(),
+            )),
+        }
+    }
+
+    pub fn claim_stake(
+        &self,
+        time: Timestamp,
+        unbonding_period_days: u64,
+    ) -> Result<(BondingState, Uint128), ContractError> {
+        if self.authorization_state == AuthorizationState::Jailed {
+            return Err(ContractError::WorkerJailed);
+        }
+
+        match self.bonding_state {
+            BondingState::Unbonding {
+                amount,
+                unbonded_at,
+            } if unbonded_at.plus_days(unbonding_period_days) <= time => {
+                Ok((BondingState::Unbonded, amount))
+            }
+            _ => Err(ContractError::InvalidBondingState(
+                self.bonding_state.clone(),
+            )),
+        }
     }
 }
 
@@ -77,58 +138,6 @@ pub enum BondingState {
         unbonded_at: Timestamp,
     },
     Unbonded,
-}
-
-impl BondingState {
-    pub fn add_bond(self, to_add: Uint128) -> Result<Self, ContractError> {
-        let amount = match self {
-            BondingState::Bonded { amount }
-            | BondingState::RequestedUnbonding { amount }
-            | BondingState::Unbonding {
-                amount,
-                unbonded_at: _,
-            } => amount
-                .checked_add(to_add)
-                .map_err(ContractError::Overflow)?,
-            BondingState::Unbonded => to_add,
-        };
-        if amount.is_zero() {
-            Err(ContractError::InvalidBondingState(self))
-        } else {
-            Ok(BondingState::Bonded { amount })
-        }
-    }
-
-    pub fn unbond(self, can_unbond: bool, time: Timestamp) -> Result<Self, ContractError> {
-        match self {
-            BondingState::Bonded { amount } | BondingState::RequestedUnbonding { amount } => {
-                if can_unbond {
-                    Ok(BondingState::Unbonding {
-                        unbonded_at: time,
-                        amount,
-                    })
-                } else {
-                    Ok(BondingState::RequestedUnbonding { amount })
-                }
-            }
-            _ => Err(ContractError::InvalidBondingState(self)),
-        }
-    }
-    pub fn claim_stake(
-        self,
-        time: Timestamp,
-        unbonding_period_days: u64,
-    ) -> Result<(Self, Uint128), ContractError> {
-        match self {
-            BondingState::Unbonding {
-                amount,
-                unbonded_at,
-            } if unbonded_at.plus_days(unbonding_period_days) <= time => {
-                Ok((BondingState::Unbonded, amount))
-            }
-            _ => Err(ContractError::InvalidBondingState(self)),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -276,10 +285,16 @@ mod tests {
 
     #[test]
     fn test_bonded_add_bond() {
-        let state = BondingState::Bonded {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Bonded {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.add_bond(Uint128::from(200u32));
+
+        let res = worker.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -291,10 +306,16 @@ mod tests {
 
     #[test]
     fn test_requested_unbonding_add_bond() {
-        let state = BondingState::RequestedUnbonding {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::RequestedUnbonding {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.add_bond(Uint128::from(200u32));
+
+        let res = worker.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -306,11 +327,17 @@ mod tests {
 
     #[test]
     fn test_unbonding_add_bond() {
-        let state = BondingState::Unbonding {
-            amount: Uint128::from(100u32),
-            unbonded_at: Timestamp::from_nanos(0),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonding {
+                amount: Uint128::from(100u32),
+                unbonded_at: Timestamp::from_nanos(0),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.add_bond(Uint128::from(200u32));
+
+        let res = worker.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -322,8 +349,14 @@ mod tests {
 
     #[test]
     fn test_unbonded_add_bond() {
-        let state = BondingState::Unbonded;
-        let res = state.add_bond(Uint128::from(200u32));
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonded,
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
+        };
+
+        let res = worker.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -335,19 +368,34 @@ mod tests {
 
     #[test]
     fn test_zero_bond() {
-        let state = BondingState::Unbonded;
-        let res = state.clone().add_bond(Uint128::from(0u32));
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonded,
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
+        };
+
+        let res = worker.add_bond(Uint128::from(0u32));
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), ContractError::InvalidBondingState(state));
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(worker.bonding_state)
+        );
     }
 
     #[test]
     fn test_bonded_unbond() {
-        let state = BondingState::Bonded {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Bonded {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
+
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = state.unbond(true, unbonded_at);
+        let res = worker.unbond(true, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -360,11 +408,17 @@ mod tests {
 
     #[test]
     fn test_bonded_unbond_cant_unbond() {
-        let state = BondingState::Bonded {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Bonded {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
+
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = state.unbond(false, unbonded_at);
+        let res = worker.unbond(false, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -376,11 +430,17 @@ mod tests {
 
     #[test]
     fn test_requested_unbonding_unbond() {
-        let state = BondingState::RequestedUnbonding {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::RequestedUnbonding {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
+
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = state.unbond(true, unbonded_at);
+        let res = worker.unbond(true, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -393,11 +453,17 @@ mod tests {
 
     #[test]
     fn test_requested_unbonding_cant_unbond() {
-        let state = BondingState::RequestedUnbonding {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::RequestedUnbonding {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
+
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = state.unbond(false, unbonded_at);
+        let res = worker.unbond(false, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -410,93 +476,127 @@ mod tests {
     #[test]
     fn test_unbonding_unbond() {
         let unbonded_at = Timestamp::from_nanos(0);
-        let state = BondingState::Unbonding {
-            amount: Uint128::from(100u32),
-            unbonded_at,
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonding {
+                amount: Uint128::from(100u32),
+                unbonded_at,
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.clone().unbond(true, Timestamp::from_nanos(2));
+
+        let res = worker.unbond(true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
-        let res = state.clone().unbond(false, Timestamp::from_nanos(2));
+        let res = worker.unbond(false, Timestamp::from_nanos(2));
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), ContractError::InvalidBondingState(state));
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
+        );
     }
 
     #[test]
     fn test_unbonded_unbond() {
-        let state = BondingState::Unbonded;
-        let res = state.clone().unbond(true, Timestamp::from_nanos(2));
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonded,
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
+        };
+
+        let res = worker.unbond(true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
-        let res = state.clone().unbond(false, Timestamp::from_nanos(2));
+
+        let res = worker.unbond(false, Timestamp::from_nanos(2));
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), ContractError::InvalidBondingState(state));
+        assert_eq!(
+            res.unwrap_err(),
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
+        );
     }
 
     #[test]
     fn test_bonded_claim_stake() {
-        let state = BondingState::Bonded {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Bonded {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
-        let res = state
-            .clone()
-            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
     }
 
     #[test]
     fn test_requested_unbonding_claim_stake() {
-        let state = BondingState::RequestedUnbonding {
-            amount: Uint128::from(100u32),
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::RequestedUnbonding {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
-        let res = state
-            .clone()
-            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
     }
 
     #[test]
     fn test_unbonding_claim_stake() {
         let unbonded_at = Timestamp::from_nanos(0);
-        let state = BondingState::Unbonding {
-            amount: Uint128::from(100u32),
-            unbonded_at,
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonding {
+                amount: Uint128::from(100u32),
+                unbonded_at,
+            },
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
         };
-        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
-        let res = state
-            .clone()
-            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap(),
@@ -506,20 +606,58 @@ mod tests {
 
     #[test]
     fn test_unbonded_claim_stake() {
-        let state = BondingState::Unbonded;
-        let res = state.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonded,
+            authorization_state: AuthorizationState::Authorized,
+            service_name: "validators".to_string(),
+        };
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
-        let res = state
-            .clone()
-            .claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+
+        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
-            ContractError::InvalidBondingState(state.clone())
+            ContractError::InvalidBondingState(worker.bonding_state.clone())
         );
+    }
+
+    #[test]
+    fn jailed_worker_cannot_unbond() {
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Bonded {
+                amount: Uint128::from(100u32),
+            },
+            authorization_state: AuthorizationState::Jailed,
+            service_name: "validators".to_string(),
+        };
+
+        let res = worker.unbond(true, Timestamp::from_nanos(0));
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::WorkerJailed);
+    }
+
+    #[test]
+    fn jailed_worker_cannot_claim_stake() {
+        let worker = Worker {
+            address: Addr::unchecked("worker"),
+            bonding_state: BondingState::Unbonding {
+                amount: Uint128::from(100u32),
+                unbonded_at: Timestamp::from_nanos(0),
+            },
+            authorization_state: AuthorizationState::Jailed,
+            service_name: "validators".to_string(),
+        };
+
+        let res = worker.claim_stake(Timestamp::from_nanos(1), 0);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), ContractError::WorkerJailed);
     }
 }

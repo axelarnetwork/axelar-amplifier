@@ -241,7 +241,7 @@ pub mod execute {
             |sw| -> Result<Worker, ContractError> {
                 match sw {
                     Some(worker) => Ok(Worker {
-                        bonding_state: worker.bonding_state.add_bond(bond)?,
+                        bonding_state: worker.add_bond(bond)?,
                         ..worker
                     }),
                     None => Ok(Worker {
@@ -312,13 +312,9 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
-        if worker.is_jailed() {
-            return Err(ContractError::WorkerJailed);
-        }
-
         let can_unbond = true; // TODO: actually query the service to determine this value
 
-        let bonding_state = worker.bonding_state.unbond(can_unbond, env.block.time)?;
+        let bonding_state = worker.unbond(can_unbond, env.block.time)?;
 
         WORKERS.save(
             deps.storage,
@@ -346,13 +342,8 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
-        if worker.is_jailed() {
-            return Err(ContractError::WorkerJailed);
-        }
-
-        let (bonding_state, released_bond) = worker
-            .bonding_state
-            .claim_stake(env.block.time, service.unbonding_period_days as u64)?;
+        let (bonding_state, released_bond) =
+            worker.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
 
         WORKERS.save(
             deps.storage,
