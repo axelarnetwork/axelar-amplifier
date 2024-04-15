@@ -53,7 +53,7 @@ impl<'a> Client<'a> {
 
     pub fn current_threshold(&self) -> Result<MajorityThreshold> {
         self.client
-            .query(&&QueryMsg::GetCurrentThreshold)
+            .query(&QueryMsg::GetCurrentThreshold)
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 }

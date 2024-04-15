@@ -118,10 +118,7 @@ mod tests {
         let client: Client =
             client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
-        assert_eq!(
-            client.messages_status(vec![]).unwrap().into_iter().count(),
-            0
-        );
+        assert_eq!(client.messages_status(vec![]).unwrap().count(), 0);
     }
 
     #[test]
@@ -180,11 +177,7 @@ mod tests {
             client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
         assert_eq!(
-            client
-                .messages_status(vec![msg_1, msg_2])
-                .unwrap()
-                .into_iter()
-                .count(),
+            client.messages_status(vec![msg_1, msg_2]).unwrap().count(),
             2
         );
     }
