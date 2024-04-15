@@ -36,7 +36,13 @@ pub fn execute(
         } => {
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
-        }
+        },
+        ExecuteMsg::RegisterActiveWorkerSet {
+            chain_name,
+            next_worker_set,
+        } => {
+            execute::register_active_worker_set(deps, chain_name, next_worker_set)
+        },
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }

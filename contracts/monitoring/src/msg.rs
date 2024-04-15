@@ -15,6 +15,10 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
+    RegisterActiveWorkerSet {
+        chain_name: ChainName,
+        next_worker_set: WorkerSet,
+    },
 }
 
 #[cw_serde]
