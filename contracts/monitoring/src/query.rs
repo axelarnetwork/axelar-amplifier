@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::state::{ACTIVE_WORKERSET_FOR_CHAIN, PROVERS_PER_CHAIN};
+use crate::state::{ACTIVE_WORKERSET_FOR_PROVER, PROVERS_PER_CHAIN};
 use connection_router_api::ChainName;
 use cosmwasm_std::{Addr, Deps, StdResult};
 use multisig::worker_set::WorkerSet;
@@ -12,8 +12,7 @@ pub fn provers(deps: Deps, chain_name: ChainName) -> Result<Vec<Addr>, ContractE
 
 pub fn get_active_worker_set(
     deps: Deps,
-    chain_name: ChainName,
     prover_address: Addr,
 ) -> StdResult<WorkerSet> {
-    ACTIVE_WORKERSET_FOR_CHAIN.load(deps.storage, (prover_address.clone(), chain_name.clone()))
+    ACTIVE_WORKERSET_FOR_PROVER.load(deps.storage, prover_address.clone())
 }

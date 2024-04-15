@@ -307,13 +307,11 @@ pub fn get_worker_set_from_prover(
 pub fn get_worker_set_from_monitoring(
     app: &mut App,
     monitoring_contract: &MonitoringContract,
-    chain_name: ChainName,
     prover_address: Addr,
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
         app,
         &monitoring::msg::QueryMsg::GetActiveWorkerSet {
-            chain_name,
             prover_address,
         },
     );

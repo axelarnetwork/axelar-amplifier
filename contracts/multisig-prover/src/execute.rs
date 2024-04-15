@@ -294,7 +294,6 @@ pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, Contr
     response = response.add_message(wasm_execute(
         config.monitoring,
         &monitoring::msg::ExecuteMsg::RegisterActiveWorkerSet {
-            chain_name: config.chain_name.clone(),
             next_worker_set: worker_set,
         },
         vec![],

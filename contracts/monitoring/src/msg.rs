@@ -16,7 +16,6 @@ pub enum ExecuteMsg {
         new_prover_addr: Addr,
     },
     RegisterActiveWorkerSet {
-        chain_name: ChainName,
         next_worker_set: WorkerSet,
     },
 }
@@ -26,7 +25,6 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(WorkerSet)]
     GetActiveWorkerSet {
-        chain_name: ChainName,
         prover_address: Addr,
     },
 }

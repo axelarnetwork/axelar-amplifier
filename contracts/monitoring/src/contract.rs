@@ -39,11 +39,10 @@ pub fn execute(
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
         ExecuteMsg::RegisterActiveWorkerSet {
-            chain_name,
             next_worker_set,
         } => {
             // TODO: add check_prover to make sure prover is part of the system
-            execute::register_active_worker_set(deps, info, chain_name, next_worker_set)
+            execute::register_active_worker_set(deps, info, next_worker_set)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -54,11 +53,9 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetActiveWorkerSet {
-            chain_name,
             prover_address,
         } => to_binary(&query::get_active_worker_set(
             deps,
-            chain_name,
             prover_address,
         )?),
     }

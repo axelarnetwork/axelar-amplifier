@@ -16,5 +16,5 @@ type ProverAddresses = Vec<ProverAddress>;
 // maps chain name to prover addresses
 pub const PROVERS_PER_CHAIN: Map<ChainName, ProverAddresses> = Map::new("provers_per_chain");
 
-pub const ACTIVE_WORKERSET_FOR_CHAIN: Map<(ProverAddress, ChainName), WorkerSet> =
-    Map::new("active_chain_workerset");
+pub const ACTIVE_WORKERSET_FOR_PROVER: Map<ProverAddress, WorkerSet> =
+    Map::new("active_prover_workerset");

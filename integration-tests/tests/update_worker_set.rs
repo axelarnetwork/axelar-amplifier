@@ -376,7 +376,6 @@ fn register_active_workerset_with_monitoring_success() {
     let new_worker_set = test_utils::get_worker_set_from_monitoring(
         &mut protocol.app,
         &protocol.monitoring,
-        ethereum.chain_name,
         ethereum.multisig_prover.contract_addr,
     );
 
