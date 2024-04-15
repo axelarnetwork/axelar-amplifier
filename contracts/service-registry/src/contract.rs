@@ -240,10 +240,7 @@ pub mod execute {
             (&service_name.clone(), &info.sender.clone()),
             |sw| -> Result<Worker, ContractError> {
                 match sw {
-                    Some(worker) => Ok(Worker {
-                        bonding_state: worker.add_bond(bond)?,
-                        ..worker
-                    }),
+                    Some(worker) => Ok(worker.add_bond(bond)?),
                     None => Ok(Worker {
                         address: info.sender,
                         bonding_state: BondingState::Bonded { amount: bond },
@@ -314,16 +311,9 @@ pub mod execute {
 
         let can_unbond = true; // TODO: actually query the service to determine this value
 
-        let bonding_state = worker.unbond(can_unbond, env.block.time)?;
+        let worker = worker.unbond(can_unbond, env.block.time)?;
 
-        WORKERS.save(
-            deps.storage,
-            (&service_name, &info.sender),
-            &Worker {
-                bonding_state,
-                ..worker
-            },
-        )?;
+        WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
 
         Ok(Response::new())
     }
@@ -342,17 +332,10 @@ pub mod execute {
             .may_load(deps.storage, (&service_name, &info.sender))?
             .ok_or(ContractError::WorkerNotFound)?;
 
-        let (bonding_state, released_bond) =
+        let (worker, released_bond) =
             worker.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
 
-        WORKERS.save(
-            deps.storage,
-            (&service_name, &info.sender),
-            &Worker {
-                bonding_state,
-                ..worker
-            },
-        )?;
+        WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
 
         Ok(Response::new().add_message(BankMsg::Send {
             to_address: info.sender.into(),
