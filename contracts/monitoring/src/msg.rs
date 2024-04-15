@@ -24,7 +24,5 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(WorkerSet)]
-    GetActiveWorkerSet {
-        prover_address: Addr,
-    },
+    GetActiveWorkerSet { prover_address: Addr },
 }

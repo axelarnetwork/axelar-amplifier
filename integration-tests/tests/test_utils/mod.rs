@@ -1,7 +1,7 @@
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
-    Participant, Threshold,
+    MajorityThreshold, Participant, Threshold,
 };
 use connection_router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::{
@@ -311,9 +311,7 @@ pub fn get_worker_set_from_monitoring(
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
         app,
-        &monitoring::msg::QueryMsg::GetActiveWorkerSet {
-            prover_address,
-        },
+        &monitoring::msg::QueryMsg::GetActiveWorkerSet { prover_address },
     );
     assert!(query_response.is_ok());
 

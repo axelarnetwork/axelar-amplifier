@@ -99,8 +99,9 @@ fn get_messages(
         msg: to_binary(&query)?,
     }))?;
 
-    assert!(
-        messages.len() == length,
+    assert_eq!(
+        messages.len(),
+        length,
         "violated invariant: returned gateway messages count mismatch"
     );
 

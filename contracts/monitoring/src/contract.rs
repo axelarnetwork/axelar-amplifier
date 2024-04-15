@@ -38,9 +38,7 @@ pub fn execute(
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::RegisterActiveWorkerSet {
-            next_worker_set,
-        } => {
+        ExecuteMsg::RegisterActiveWorkerSet { next_worker_set } => {
             // TODO: add check_prover to make sure prover is part of the system
             execute::register_active_worker_set(deps, info, next_worker_set)
         }
@@ -52,12 +50,9 @@ pub fn execute(
 #[allow(dead_code)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetActiveWorkerSet {
-            prover_address,
-        } => to_binary(&query::get_active_worker_set(
-            deps,
-            prover_address,
-        )?),
+        QueryMsg::GetActiveWorkerSet { prover_address } => {
+            to_binary(&query::get_active_worker_set(deps, prover_address)?)
+        }
     }
 }
 

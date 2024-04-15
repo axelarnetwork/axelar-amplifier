@@ -33,10 +33,6 @@ pub fn register_active_worker_set(
     info: MessageInfo,
     next_worker_set: WorkerSet,
 ) -> Result<Response, ContractError> {
-    ACTIVE_WORKERSET_FOR_PROVER.save(
-        deps.storage,
-        info.sender,
-        &(next_worker_set),
-    )?;
+    ACTIVE_WORKERSET_FOR_PROVER.save(deps.storage, info.sender, &(next_worker_set))?;
     Ok(Response::new())
 }
