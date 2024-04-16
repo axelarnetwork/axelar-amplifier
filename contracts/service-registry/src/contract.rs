@@ -361,7 +361,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetWorker {
             service_name,
             worker,
-        } => to_binary(&query::get_worker(deps, worker, service_name)?).map_err(|err| err.into()),
+        } => to_binary(&query::get_worker(deps, service_name, worker)?).map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
             to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
         }
