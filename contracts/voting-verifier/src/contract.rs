@@ -947,8 +947,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // try again, should fail
-        let err = execute(
+        // try again, should return empty response
+        let res = execute(
             deps.as_mut(),
             mock_env_expired(),
             mock_info(SENDER, &[]),
@@ -957,8 +957,8 @@ mod test {
                 new_operators: operators.clone(),
             },
         )
-        .unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::WorkerSetAlreadyConfirmed);
+        .unwrap();
+        assert_eq!(res, Response::new());
     }
 
     #[test]
