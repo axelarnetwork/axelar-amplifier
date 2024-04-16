@@ -32,7 +32,7 @@ impl Server {
         let app = Router::new().route("/status", get(status));
         let bind_address = self.listener.local_addr().change_context(Error::Start)?;
 
-        info!("Starting health check server at: {}", bind_address);
+        info!(address = bind_address.to_string(), "starting health check server");
 
         Ok(axum::serve(self.listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
