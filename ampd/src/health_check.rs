@@ -7,16 +7,16 @@ use axum::{http::StatusCode, routing::get, Json, Router};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-pub struct Server {
-    listener: tokio::net::TcpListener,
-}
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed to start the health check server")]
     Start,
     #[error("health check server failed unexpectedly")]
     WhileRunning,
+}
+
+pub struct Server {
+    listener: tokio::net::TcpListener,
 }
 
 impl Server {
