@@ -124,9 +124,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         .build()
         .change_context(Error::Broadcaster)?;
 
-    let health_check_server = health_check::Server::new(health_check_bind_addr)
-        .await
-        .change_context(Error::HealthCheck)?;
+    let health_check_server = health_check::Server::new(health_check_bind_addr);
 
     App::new(
         tm_client,

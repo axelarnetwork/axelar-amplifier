@@ -16,28 +16,26 @@ pub enum Error {
 }
 
 pub struct Server {
-    listener: tokio::net::TcpListener,
+    bind_address: SocketAddrV4,
 }
 
 impl Server {
-    pub async fn new(bind_addr: SocketAddrV4) -> Result<Self, Error> {
-        Ok(Self {
-            listener: tokio::net::TcpListener::bind(bind_addr)
-                .await
-                .change_context(Error::Start)?,
-        })
+    pub fn new(bind_address: SocketAddrV4) -> Self {
+        Self { bind_address }
     }
 
     pub async fn run(self, cancel: CancellationToken) -> Result<(), Error> {
-        let app = Router::new().route("/status", get(status));
-        let bind_address = self.listener.local_addr().change_context(Error::Start)?;
+        let listener = tokio::net::TcpListener::bind(self.bind_address)
+            .await
+            .change_context(Error::Start)?;
 
         info!(
-            address = bind_address.to_string(),
+            address = self.bind_address.to_string(),
             "starting health check server"
         );
 
-        Ok(axum::serve(self.listener, app)
+        let app = Router::new().route("/status", get(status));
+        Ok(axum::serve(listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
             .await
             .change_context(Error::WhileRunning)?)
@@ -58,30 +56,21 @@ struct Status {
 mod tests {
 
     use super::*;
-    use std::io;
-    use std::net::SocketAddr;
-    use std::str::FromStr;
+    use std::net::{SocketAddr, TcpListener};
     use std::time::Duration;
     use tokio::test as async_test;
 
-    impl Server {
-        fn listening_addr(&self) -> io::Result<SocketAddr> {
-            self.listener.local_addr()
-        }
-    }
-
     #[async_test]
     async fn server_lifecycle() {
-        let server = Server::new(SocketAddrV4::from_str("127.0.0.1:0").unwrap())
-            .await
-            .unwrap();
-        let listening_addr = server.listening_addr().unwrap();
+        let bind_address = test_bind_addr();
+
+        let server = Server::new(bind_address);
 
         let cancel = CancellationToken::new();
 
         tokio::spawn(server.run(cancel.clone()));
 
-        let url = format!("http://{}/status", listening_addr);
+        let url = format!("http://{}/status", bind_address);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -99,5 +88,14 @@ mod tests {
             Ok(_) => panic!("health check server should be closed by now"),
             Err(error) => assert!(error.is_connect()),
         };
+    }
+
+    fn test_bind_addr() -> SocketAddrV4 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+
+        match listener.local_addr().unwrap() {
+            SocketAddr::V4(addr) => addr,
+            SocketAddr::V6(_) => panic!("unexpected address"),
+        }
     }
 }
