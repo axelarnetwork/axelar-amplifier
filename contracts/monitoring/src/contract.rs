@@ -1,6 +1,6 @@
-use cosmwasm_std::entry_point;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::execute;
@@ -62,7 +62,6 @@ mod tests {
     use connection_router_api::ChainName;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::Addr;
-    use workers_to_worker_set;
 
     use super::*;
 

@@ -1,6 +1,5 @@
-use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
-use cosmwasm_std::{Addr, Uint128, Uint256, Uint64};
-use cw_multi_test::{AppResponse, Executor};
+use cosmwasm_std::Addr;
+use cw_multi_test::Executor;
 
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
@@ -438,37 +437,37 @@ fn governance_should_confirm_new_worker_set_without_verification() {
 //
 //     let number = Uint64::try_from(initial_threshold).unwrap();
 
-    // let total_weight = worker_set
-    //     .signers
-    //     .iter()
-    //     .fold(Uint256::zero(), |acc, signer| {
-    //         acc.checked_add(signer.1.weight).unwrap()
-    //     });
-    // let new_threshold = initial_threshold.checked_add(Uint256::one()).unwrap();
-    // assert_ne!(initial_threshold, new_threshold);
-    //
-    // let new_signing_threshold = Threshold::try_from((
-    //     Uint64::try_from(Uint128::try_from(new_threshold).unwrap()).unwrap(),
-    //     Uint64::try_from(Uint128::try_from(total_weight).unwrap()).unwrap(),
-    // )).unwrap().try_into().unwrap();
-    //
-    // let response = ethereum.multisig_prover.execute(
-    //     &mut protocol.app,
-    //     protocol.governance_address.clone(),
-    //     &ExecuteMsg::UpdateSigningThreshold {
-    //         new_signing_threshold,
-    //     },
-    // );
-    // assert!(response.is_ok());
-    //
-    // test_utils::confirm_worker_set(
-    //     &mut protocol.app,
-    //     protocol.governance_address.clone(),
-    //     &ethereum.multisig_prover,
-    // );
-    //
-    // let new_worker_set =
-    //     test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
-    //
-    // assert_eq!(new_worker_set.threshold, new_threshold);
+// let total_weight = worker_set
+//     .signers
+//     .iter()
+//     .fold(Uint256::zero(), |acc, signer| {
+//         acc.checked_add(signer.1.weight).unwrap()
+//     });
+// let new_threshold = initial_threshold.checked_add(Uint256::one()).unwrap();
+// assert_ne!(initial_threshold, new_threshold);
+//
+// let new_signing_threshold = Threshold::try_from((
+//     Uint64::try_from(Uint128::try_from(new_threshold).unwrap()).unwrap(),
+//     Uint64::try_from(Uint128::try_from(total_weight).unwrap()).unwrap(),
+// )).unwrap().try_into().unwrap();
+//
+// let response = ethereum.multisig_prover.execute(
+//     &mut protocol.app,
+//     protocol.governance_address.clone(),
+//     &ExecuteMsg::UpdateSigningThreshold {
+//         new_signing_threshold,
+//     },
+// );
+// assert!(response.is_ok());
+//
+// test_utils::confirm_worker_set(
+//     &mut protocol.app,
+//     protocol.governance_address.clone(),
+//     &ethereum.multisig_prover,
+// );
+//
+// let new_worker_set =
+//     test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+//
+// assert_eq!(new_worker_set.threshold, new_threshold);
 // }

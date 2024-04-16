@@ -1,10 +1,12 @@
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
-    MajorityThreshold, Participant, Threshold,
+    Participant, Threshold,
 };
 use connection_router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
-use cosmwasm_std::{coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64, entry_point};
+use cosmwasm_std::{
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
+};
 use cw_multi_test::{App, AppResponse, Executor};
 
 use integration_tests::contract::Contract;
