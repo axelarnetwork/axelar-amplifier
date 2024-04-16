@@ -52,7 +52,7 @@ pub fn verify_worker_set(
 ) -> Result<Response, ContractError> {
     let status = worker_set_status(deps.as_ref(), &new_operators)?;
     if status.is_confirmed() {
-        return Err(ContractError::WorkerSetAlreadyConfirmed);
+        return Ok(Response::new());
     }
 
     let config = CONFIG.load(deps.storage)?;
