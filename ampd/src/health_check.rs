@@ -12,9 +12,11 @@ pub struct Server {
 }
 
 #[derive(Error, Debug)]
-pub enum HealthCheckError {
-    #[error("Health check HTTP server problem: {0}")]
-    HTTPServerIO(#[from] io::Error),
+pub enum Error {
+    #[error("failed to start the health check server")]
+    Start,
+    #[error("health check server failed unexpectedly")]
+    WhileRunning
 }
 
 impl Server {
@@ -28,14 +30,14 @@ impl Server {
 
     pub async fn run(self, cancel: CancellationToken) -> Result<(), HealthCheckError> {
         let app = Router::new().route("/status", get(status));
-        let bind_address = self.listener.local_addr().map_err(HealthCheckError::from)?;
+        let bind_address = self.listener.local_addr().change_context(Error::Start)?;
 
         info!("Starting health check server at: {}", bind_address);
 
         Ok(axum::serve(self.listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
             .await
-            .map_err(HealthCheckError::from)?)
+            .change_context(Error::WhileRunning)?)
     }
 }
 

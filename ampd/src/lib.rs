@@ -473,6 +473,6 @@ pub enum Error {
     BlockHeightMonitor,
     #[error("invalid finalizer type for chain {0}")]
     InvalidFinalizerType(ChainName),
-    #[error("Health check system error")]
-    HealthCheckError,
+    #[error("health check is not working")]
+    HealthCheck,
 }
