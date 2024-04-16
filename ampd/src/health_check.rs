@@ -1,5 +1,5 @@
-use error_stack::Result;
-use std::{io, net::SocketAddrV4};
+use error_stack::{Result, ResultExt};
+use std::net::SocketAddrV4;
 use thiserror::Error;
 use tracing::info;
 
@@ -16,23 +16,26 @@ pub enum Error {
     #[error("failed to start the health check server")]
     Start,
     #[error("health check server failed unexpectedly")]
-    WhileRunning
+    WhileRunning,
 }
 
 impl Server {
-    pub async fn new(bind_addr: SocketAddrV4) -> Result<Self, HealthCheckError> {
+    pub async fn new(bind_addr: SocketAddrV4) -> Result<Self, Error> {
         Ok(Self {
             listener: tokio::net::TcpListener::bind(bind_addr)
                 .await
-                .map_err(HealthCheckError::from)?,
+                .change_context(Error::Start)?,
         })
     }
 
-    pub async fn run(self, cancel: CancellationToken) -> Result<(), HealthCheckError> {
+    pub async fn run(self, cancel: CancellationToken) -> Result<(), Error> {
         let app = Router::new().route("/status", get(status));
         let bind_address = self.listener.local_addr().change_context(Error::Start)?;
 
-        info!(address = bind_address.to_string(), "starting health check server");
+        info!(
+            address = bind_address.to_string(),
+            "starting health check server"
+        );
 
         Ok(axum::serve(self.listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })

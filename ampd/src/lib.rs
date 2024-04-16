@@ -126,7 +126,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
 
     let health_check_server = health_check::Server::new(health_check_bind_addr)
         .await
-        .change_context(Error::HealthCheckError)?;
+        .change_context(Error::HealthCheck)?;
 
     App::new(
         tm_client,
@@ -421,7 +421,7 @@ where
             .add_task(CancellableTask::create(|token| {
                 health_check_server
                     .run(token)
-                    .change_context(Error::HealthCheckError)
+                    .change_context(Error::HealthCheck)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
