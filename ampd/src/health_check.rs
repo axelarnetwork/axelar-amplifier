@@ -35,10 +35,10 @@ impl Server {
         );
 
         let app = Router::new().route("/status", get(status));
-        Ok(axum::serve(listener, app)
+        axum::serve(listener, app)
             .with_graceful_shutdown(async move { cancel.cancelled().await })
             .await
-            .change_context(Error::WhileRunning)?)
+            .change_context(Error::WhileRunning)
     }
 }
 
