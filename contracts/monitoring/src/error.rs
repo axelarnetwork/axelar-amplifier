@@ -1,6 +1,6 @@
 use axelar_wasm_std_derive::IntoContractError;
 use connection_router_api::ChainName;
-use cosmwasm_std::{Addr, StdError};
+use cosmwasm_std::StdError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -14,6 +14,6 @@ pub enum ContractError {
     #[error("no provers registered for chain {0}")]
     NoProversRegisteredForChain(ChainName),
 
-    #[error("no active worker set registered for chain {0} and prover {1} combination")]
-    NoActiveWorkerSetRegistered(ChainName, Addr),
+    #[error("no active worker set registered")]
+    NoActiveWorkerSetRegistered,
 }
