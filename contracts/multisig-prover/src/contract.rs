@@ -668,23 +668,23 @@ mod tests {
         assert_eq!(worker_set.threshold, initial_threshold);
     }
 
-    // #[test]
-    // fn update_signing_threshold_should_change_future_threshold() {
-    //     let mut test_case = setup_test_case();
-    //     execute_update_worker_set(&mut test_case).unwrap();
-    //
-    //     let (initial_threshold, new_threshold) =
-    //         update_signing_threshold_increase_by_one(&mut test_case);
-    //     assert_ne!(initial_threshold, new_threshold);
-    //
-    //     execute_update_worker_set(&mut test_case).unwrap();
-    //
-    //     let governance = test_case.governance.clone();
-    //     confirm_worker_set(&mut test_case, governance).unwrap();
-    //
-    //     let worker_set = query_get_worker_set(&mut test_case).unwrap();
-    //     assert_eq!(worker_set.threshold, new_threshold);
-    // }
+    #[test]
+    fn update_signing_threshold_should_change_future_threshold() {
+        let mut test_case = setup_test_case();
+        execute_update_worker_set(&mut test_case).unwrap();
+
+        let (initial_threshold, new_threshold) =
+            update_signing_threshold_increase_by_one(&mut test_case);
+        assert_ne!(initial_threshold, new_threshold);
+
+        execute_update_worker_set(&mut test_case).unwrap();
+
+        let governance = test_case.governance.clone();
+        confirm_worker_set(&mut test_case, governance).unwrap();
+
+        let worker_set = query_get_worker_set(&mut test_case).unwrap();
+        assert_eq!(worker_set.threshold, new_threshold);
+    }
 
     // #[test]
     // fn should_confirm_new_threshold_via_voting_verifier() {
