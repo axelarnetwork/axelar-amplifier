@@ -2,7 +2,7 @@ use cosmwasm_std::{to_binary, Addr, Response, WasmMsg};
 use error_stack::report;
 
 use crate::error::ContractError;
-use crate::nexus::{self};
+use crate::nexus;
 use crate::state::Store;
 
 use super::Contract;
@@ -25,7 +25,7 @@ where
         let msgs: Vec<_> = msgs
             .into_iter()
             .map(connection_router_api::Message::try_from)
-            .collect::<Result<Vec<connection_router_api::Message>>>()?;
+            .collect::<Result<Vec<_>>>()?;
         if msgs.is_empty() {
             return Ok(Response::default());
         }

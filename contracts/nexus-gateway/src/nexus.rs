@@ -70,29 +70,21 @@ impl From<connection_router_api::Message> for Message {
 
 impl TryFrom<Message> for connection_router_api::Message {
     type Error = Report<ContractError>;
+
     fn try_from(msg: Message) -> Result<Self, ContractError> {
-        // this string is just used in error messages
-        let msg_id = format!(
-            "{}-{}",
-            msg.source_tx_id.as_ref().encode_hex::<String>(),
-            msg.source_tx_index
-        );
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: <[u8; 32]>::try_from(msg.source_tx_id.as_ref().as_slice()).map_err(|_| {
+                ContractError::InvalidSourceTxId(msg.source_tx_id.as_ref().encode_hex::<String>())
+            })?,
+            event_index: u32::try_from(msg.source_tx_index)
+                .map_err(|_| ContractError::InvalidEventIndex(msg.source_tx_index))?,
+        };
+
         Ok(Self {
             cc_id: CrossChainId {
                 chain: msg.source_chain,
-                id: HexTxHashAndEventIndex {
-                    tx_hash: <[u8; 32]>::try_from(msg.source_tx_id.as_ref().as_slice())
-                        .map_err(|_| axelar_wasm_std::msg_id::Error::InvalidTxHash(msg_id.clone()))
-                        .change_context(ContractError::InvalidMessageId(msg_id.clone()))?,
-                    event_index: u32::try_from(msg.source_tx_index)
-                        .map_err(|_| {
-                            axelar_wasm_std::msg_id::Error::EventIndexOverflow(msg_id.clone())
-                        })
-                        .change_context(ContractError::InvalidMessageId(msg_id))?,
-                }
-                .to_string()
-                .try_into()
-                .expect("must serialize message id to non-empty string"),
+                id: nonempty::String::try_from(msg_id.to_string())
+                    .change_context(ContractError::InvalidMessageId(msg_id.to_string()))?,
             },
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
