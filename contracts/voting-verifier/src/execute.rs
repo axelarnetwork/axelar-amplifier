@@ -17,7 +17,6 @@ use service_registry::{msg::QueryMsg, state::WeightedWorker};
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
-use crate::msg::EndPollResponse;
 use crate::query::worker_set_status;
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
@@ -218,16 +217,13 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             funds: vec![],
         });
 
-    Ok(Response::new()
-        .add_messages(rewards_msgs)
-        .add_event(
-            PollEnded {
-                poll_id: poll_result.poll_id,
-                results: poll_result.results.clone(),
-            }
-            .into(),
-        )
-        .set_data(to_binary(&EndPollResponse { poll_result })?))
+    Ok(Response::new().add_messages(rewards_msgs).add_event(
+        PollEnded {
+            poll_id: poll_result.poll_id,
+            results: poll_result.results.clone(),
+        }
+        .into(),
+    ))
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
