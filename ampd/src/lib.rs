@@ -176,6 +176,7 @@ impl<T> App<T>
 where
     T: Broadcaster + Send + Sync + 'static,
 {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: T,
