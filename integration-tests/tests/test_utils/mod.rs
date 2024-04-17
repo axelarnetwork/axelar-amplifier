@@ -697,6 +697,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &connection_router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
             gateway_address: gateway.contract_addr.to_string().try_into().unwrap(),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         },
     );
     assert!(response.is_ok());

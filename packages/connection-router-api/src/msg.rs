@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::primitives::*;
@@ -12,6 +13,7 @@ pub enum ExecuteMsg {
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,
+        msg_id_format: MessageIdFormat,
     },
     // Changes the gateway address associated with a particular chain
     UpgradeGateway {

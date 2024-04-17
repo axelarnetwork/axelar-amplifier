@@ -1,7 +1,8 @@
 use std::vec;
 
+use axelar_wasm_std::msg_id::{self, MessageIdFormat};
 use cosmwasm_std::{to_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
-use error_stack::report;
+use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
 use axelar_wasm_std::flagset::FlagSet;
@@ -15,7 +16,12 @@ use crate::state::{chain_endpoints, Store, CONFIG};
 
 use super::Contract;
 
-pub fn register_chain(deps: DepsMut, name: ChainName, gateway: Addr) -> Result<Response, Error> {
+pub fn register_chain(
+    deps: DepsMut,
+    name: ChainName,
+    gateway: Addr,
+    msg_id_format: MessageIdFormat,
+) -> Result<Response, Error> {
     if find_chain_for_gateway(&deps, &gateway)?.is_some() {
         return Err(Error::GatewayAlreadyRegistered);
     }
@@ -27,6 +33,7 @@ pub fn register_chain(deps: DepsMut, name: ChainName, gateway: Addr) -> Result<R
                 address: gateway.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format,
         }),
     })?;
     Ok(Response::new().add_event(ChainRegistered { name, gateway }.into()))
@@ -137,9 +144,16 @@ where
         sender: &Addr,
         msgs: Vec<Message>,
     ) -> error_stack::Result<Vec<Message>, Error> {
+        let verify_msg_ids = |msgs: &Vec<Message>, expected_format| {
+            msgs.iter()
+                .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.id, expected_format))
+                .change_context(Error::InvalidMessageId)
+        };
+
         // if sender is the nexus gateway, we cannot validate the source chain
         // because the source chain is registered in the core nexus module
         if sender == self.config.nexus_gateway {
+            verify_msg_ids(&msgs, &MessageIdFormat::HexTxHashAndEventIndex)?;
             return Ok(msgs);
         }
 
@@ -156,6 +170,8 @@ where
         if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
             return Err(report!(Error::WrongSourceChain));
         }
+
+        verify_msg_ids(&msgs, &source_chain.msg_id_format)?;
 
         Ok(msgs)
     }
@@ -207,6 +223,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use cosmwasm_std::Addr;
     use mockall::predicate;
     use rand::{Rng, RngCore};
@@ -223,7 +240,7 @@ mod test {
     use crate::state::chain_endpoints;
     use crate::{
         contract::Contract,
-        state::{Config, MockStore, ID_SEPARATOR},
+        state::{Config, MockStore},
     };
 
     use super::{freeze_chain, unfreeze_chain};
@@ -231,7 +248,12 @@ mod test {
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let tx_id = hex::encode(bytes);
+
+        let id = HexTxHashAndEventIndex {
+            tx_hash: bytes,
+            event_index: rand::thread_rng().gen::<u32>(),
+        }
+        .to_string();
 
         let mut bytes = [0; 20];
         rand::thread_rng().fill_bytes(&mut bytes);
@@ -247,14 +269,7 @@ mod test {
         Message {
             cc_id: CrossChainId {
                 chain: source_chain,
-                id: format!(
-                    "{}{}{}",
-                    tx_id,
-                    ID_SEPARATOR,
-                    rand::thread_rng().gen::<u32>()
-                )
-                .try_into()
-                .unwrap(),
+                id: id.parse().unwrap(),
             },
             source_address,
             destination_chain,
@@ -314,6 +329,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::Incoming),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_gateway()
@@ -351,6 +367,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_gateway()
@@ -389,6 +406,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_gateway()
@@ -401,6 +419,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::Bidirectional),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_chain_name()
@@ -415,6 +434,69 @@ mod test {
             .is_err_and(move |err| {
                 matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == destination_chain)
             }));
+    }
+
+    #[test]
+    fn route_messages_from_non_nexus_with_invalid_message_id() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let source_chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(source_chain_endpoint)));
+
+        let contract = Contract::new(store);
+
+        let mut msg = rand_message(source_chain, destination_chain.clone());
+        msg.cc_id.id = "foobar".try_into().unwrap();
+        assert!(contract
+            .route_messages(sender, vec![msg])
+            .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+    }
+
+    #[test]
+    fn route_messages_from_nexus_with_invalid_message_id() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = config.nexus_gateway.clone();
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+
+        let contract = Contract::new(store);
+
+        let mut msg = rand_message(source_chain, destination_chain.clone());
+        msg.cc_id.id = "foobar".try_into().unwrap();
+        assert!(contract
+            .route_messages(sender, vec![msg])
+            .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
     #[test]
@@ -439,6 +521,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_gateway()
@@ -451,6 +534,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_chain_name()
@@ -463,6 +547,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_chain_name()
@@ -507,6 +592,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_chain_name()
@@ -519,6 +605,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_chain_name()
@@ -596,6 +683,7 @@ mod test {
                 address: sender.clone(),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         store
             .expect_load_chain_by_gateway()
@@ -636,6 +724,7 @@ mod test {
                         address: Addr::unchecked("gateway"),
                     },
                     frozen_status: FlagSet::from(GatewayDirection::None),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 },
             )
             .unwrap();
@@ -714,6 +803,7 @@ mod test {
                         address: Addr::unchecked("gateway"),
                     },
                     frozen_status: FlagSet::from(GatewayDirection::None),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 },
             )
             .unwrap();
