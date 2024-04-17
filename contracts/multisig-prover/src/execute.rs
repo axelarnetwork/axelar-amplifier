@@ -301,12 +301,6 @@ pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, Contr
     )?);
 
     Ok(response)
-
-    // Ok(Response::new().add_message(wasm_execute(
-    //     config.multisig,
-    //     &multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set },
-    //     vec![],
-    // )?))
 }
 
 pub fn should_update_worker_set(

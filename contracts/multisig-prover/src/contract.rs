@@ -686,29 +686,29 @@ mod tests {
         assert_eq!(worker_set.threshold, new_threshold);
     }
 
-    // #[test]
-    // fn should_confirm_new_threshold_via_voting_verifier() {
-    //     let mut test_case = setup_test_case();
-    //     execute_update_worker_set(&mut test_case).unwrap();
-    //
-    //     let (initial_threshold, new_threshold) =
-    //         update_signing_threshold_increase_by_one(&mut test_case);
-    //     assert_ne!(initial_threshold, new_threshold);
-    //
-    //     execute_update_worker_set(&mut test_case).unwrap();
-    //
-    //     mocks::voting_verifier::confirm_worker_set(
-    //         &mut test_case.app,
-    //         test_case.voting_verifier_address.clone(),
-    //         test_data::operators(),
-    //         new_threshold,
-    //     );
-    //     let res = confirm_worker_set(&mut test_case, Addr::unchecked("relayer"));
-    //     assert!(res.is_ok());
-    //
-    //     let worker_set = query_get_worker_set(&mut test_case).unwrap();
-    //     assert_eq!(worker_set.threshold, new_threshold);
-    // }
+    #[test]
+    fn should_confirm_new_threshold_via_voting_verifier() {
+        let mut test_case = setup_test_case();
+        execute_update_worker_set(&mut test_case).unwrap();
+
+        let (initial_threshold, new_threshold) =
+            update_signing_threshold_increase_by_one(&mut test_case);
+        assert_ne!(initial_threshold, new_threshold);
+
+        execute_update_worker_set(&mut test_case).unwrap();
+
+        mocks::voting_verifier::confirm_worker_set(
+            &mut test_case.app,
+            test_case.voting_verifier_address.clone(),
+            test_data::operators(),
+            new_threshold,
+        );
+        let res = confirm_worker_set(&mut test_case, Addr::unchecked("relayer"));
+        assert!(res.is_ok());
+
+        let worker_set = query_get_worker_set(&mut test_case).unwrap();
+        assert_eq!(worker_set.threshold, new_threshold);
+    }
 
     #[test]
     fn should_update_worker_set_no_change() {
