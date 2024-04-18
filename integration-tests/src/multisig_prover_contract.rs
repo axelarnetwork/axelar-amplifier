@@ -1,6 +1,6 @@
 use crate::{contract::Contract, protocol::Protocol};
-use axelar_wasm_std::{nonempty, Threshold};
-use cosmwasm_std::{Addr, Uint256, Uint64};
+use axelar_wasm_std::Threshold;
+use cosmwasm_std::{Addr, Uint256};
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::encoding::Encoder;
@@ -28,13 +28,6 @@ impl MultisigProverContract {
         let app = &mut protocol.app;
         let code_id = app.store_code(Box::new(code));
 
-        let numerator: nonempty::Uint64 = Uint64::from(2u8).try_into().unwrap();
-        let denominator: nonempty::Uint64 = Uint64::from(3u8).try_into().unwrap();
-        let signing_threshold = Threshold::try_from((numerator, denominator))
-            .unwrap()
-            .try_into()
-            .unwrap();
-
         let contract_addr = app
             .instantiate_contract(
                 code_id,
@@ -48,7 +41,10 @@ impl MultisigProverContract {
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
                     destination_chain_id: Uint256::zero(),
-                    signing_threshold,
+                    signing_threshold: Threshold::try_from((2u64, 3u64))
+                        .unwrap()
+                        .try_into()
+                        .unwrap(),
                     service_name: protocol.service_name.to_string(),
                     chain_name: chain_name.to_string(),
                     worker_set_diff_threshold: 0,

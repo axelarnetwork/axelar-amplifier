@@ -28,7 +28,7 @@ pub fn register_prover(
     Ok(Response::new())
 }
 
-pub fn register_active_worker_set(
+pub fn set_active_worker_set(
     deps: DepsMut,
     info: MessageInfo,
     next_worker_set: WorkerSet,

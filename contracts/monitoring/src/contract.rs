@@ -38,9 +38,8 @@ pub fn execute(
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::RegisterActiveWorkerSet { next_worker_set } => {
-            // TODO: add check_prover to make sure prover is part of the system
-            execute::register_active_worker_set(deps, info, next_worker_set)
+        ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
+            execute::set_active_worker_set(deps, info, next_worker_set)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -50,9 +49,8 @@ pub fn execute(
 #[allow(dead_code)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::GetActiveWorkerSet { prover_address } => {
-            to_binary(&query::get_active_worker_set(deps, prover_address)?)
-                .map_err(|err| err.into())
+        QueryMsg::GetActiveWorkerSet { chain_name } => {
+            to_binary(&query::get_active_worker_set(deps, chain_name)?).map_err(|err| err.into())
         }
     }
 }
@@ -206,24 +204,40 @@ mod tests {
         let governance = "governance_for_monitoring";
         let mut test_setup = setup(governance);
 
-        let new_worker = create_worker(1, Addr::unchecked("worker1"), vec![test_setup.chain_name]);
+        let new_worker = create_worker(
+            1,
+            Addr::unchecked("worker1"),
+            vec![test_setup.chain_name.clone()],
+        );
         let new_worker_set =
             create_worker_set_from_workers(&vec![new_worker], test_setup.env.block.height);
 
-        let _res = execute(
+        let res = execute(
+            test_setup.deps.as_mut(),
+            test_setup.env.clone(),
+            mock_info(governance, &[]),
+            ExecuteMsg::RegisterProverContract {
+                chain_name: test_setup.chain_name.clone(),
+                new_prover_addr: test_setup.prover.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
             mock_info(test_setup.prover.as_ref(), &[]),
-            ExecuteMsg::RegisterActiveWorkerSet {
+            ExecuteMsg::SetActiveVerifiers {
                 next_worker_set: new_worker_set.clone(),
             },
         );
+        assert!(res.is_ok());
 
         let eth_active_worker_set =
-            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.prover.clone())
+            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
-        assert_eq!(eth_active_worker_set, new_worker_set);
+        assert_eq!(eth_active_worker_set, Some(new_worker_set));
     }
 
     #[test]
@@ -242,12 +256,9 @@ mod tests {
         );
 
         let query_result =
-            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.prover.clone());
+            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+                .unwrap();
 
-        assert_eq!(
-            query_result.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::NoActiveWorkerSetRegistered)
-                .to_string()
-        );
+        assert_eq!(query_result, None);
     }
 }

@@ -15,7 +15,7 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
-    RegisterActiveWorkerSet {
+    SetActiveVerifiers {
         next_worker_set: WorkerSet,
     },
 }
@@ -24,5 +24,5 @@ pub enum ExecuteMsg {
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(WorkerSet)]
-    GetActiveWorkerSet { prover_address: Addr },
+    GetActiveWorkerSet { chain_name: ChainName },
 }

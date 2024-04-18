@@ -22,6 +22,7 @@ use integration_tests::{connection_router_contract::ConnectionRouterContract, pr
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
+use monitoring::msg::ExecuteMsg as MonitoringExecuteMsg;
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -307,11 +308,11 @@ pub fn get_worker_set_from_prover(
 pub fn get_worker_set_from_monitoring(
     app: &mut App,
     monitoring_contract: &MonitoringContract,
-    prover_address: Addr,
+    chain_name: ChainName,
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
         app,
-        &monitoring::msg::QueryMsg::GetActiveWorkerSet { prover_address },
+        &monitoring::msg::QueryMsg::GetActiveWorkerSet { chain_name },
     );
     assert!(query_response.is_ok());
 
@@ -738,6 +739,16 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             },
         },
         &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.monitoring.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &MonitoringExecuteMsg::RegisterProverContract {
+            chain_name: chain_name.clone(),
+            new_prover_addr: multisig_prover.contract_addr.clone(),
+        },
     );
     assert!(response.is_ok());
 

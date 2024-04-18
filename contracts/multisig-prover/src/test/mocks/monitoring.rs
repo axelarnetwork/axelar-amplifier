@@ -16,7 +16,7 @@ pub fn instantiate(
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RegisterActiveWorkerSet { next_worker_set: WorkerSet },
+    SetActiveVerifiers { next_worker_set: WorkerSet },
 }
 
 pub fn execute(
@@ -26,7 +26,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::RegisterActiveWorkerSet { next_worker_set } => {
+        ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
             register_active_worker_set(deps, info.sender, next_worker_set);
             Ok(Response::new())
         }
