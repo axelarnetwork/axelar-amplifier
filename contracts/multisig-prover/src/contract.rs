@@ -70,7 +70,8 @@ pub fn execute(
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::UpdateWorkerSet {} => {
-            execute::require_admin(&deps, info)?;
+            execute::require_admin(&deps, info.clone())
+                .or_else(|_| execute::require_governance(&deps, info))?;
             execute::update_worker_set(deps, env)
         }
         ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps, info.sender),
@@ -338,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_worker_set_from_non_admin_should_fail() {
+    fn test_update_worker_set_from_non_admin_or_governance_should_fail() {
         let mut test_case = setup_test_case();
         let res = test_case.app.execute_contract(
             Addr::unchecked("some random address"),
@@ -354,6 +355,30 @@ mod tests {
                 .to_string(),
             axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
         );
+    }
+
+    #[test]
+    fn test_update_worker_set_from_governance_should_succeed() {
+        let mut test_case = setup_test_case();
+        let res = test_case.app.execute_contract(
+            test_case.governance.clone(),
+            test_case.prover_address.clone(),
+            &ExecuteMsg::UpdateWorkerSet {},
+            &[],
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_update_worker_set_from_admin_should_succeed() {
+        let mut test_case = setup_test_case();
+        let res = test_case.app.execute_contract(
+            test_case.governance.clone(),
+            test_case.prover_address.clone(),
+            &ExecuteMsg::UpdateWorkerSet {},
+            &[],
+        );
+        assert!(res.is_ok());
     }
 
     #[test]
