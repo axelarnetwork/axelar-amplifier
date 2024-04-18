@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     nonempty,
     operators::Operators,
-    voting::{PollId, PollState, Vote},
+    voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
 use connection_router_api::{ChainName, CrossChainId, Message};
@@ -76,14 +76,4 @@ pub enum QueryMsg {
 
     #[returns(MajorityThreshold)]
     GetCurrentThreshold,
-}
-
-#[cw_serde]
-pub struct VerifyMessagesResponse {
-    pub verification_statuses: Vec<(CrossChainId, VerificationStatus)>,
-}
-
-#[cw_serde]
-pub struct EndPollResponse {
-    pub poll_result: PollState,
 }
