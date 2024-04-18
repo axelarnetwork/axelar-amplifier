@@ -4460,6 +4460,7 @@ dependencies = [
  "multisig",
  "report",
  "thiserror",
+ "tofn",
 ]
 
 [[package]]

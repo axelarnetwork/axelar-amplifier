@@ -15,11 +15,14 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
+    SetActiveVerifiers {
+        next_worker_set: WorkerSet,
+    },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(WorkerSet)]
-    GetActiveVerifiersForChain { chain: ChainName },
+    GetActiveVerifiers { chain_name: ChainName },
 }
