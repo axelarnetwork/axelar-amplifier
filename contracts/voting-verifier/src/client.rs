@@ -14,7 +14,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed quering the voting verifier contract at {0}")]
+    #[error("failed to query the voting verifier contract at {0}")]
     QueryVotingVerifier(Addr),
 }
 
@@ -93,8 +93,11 @@ impl<'a> Client<'a> {
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::{operators::Operators, Threshold, VerificationStatus};
-    use connection_router_api::{Message, CHAIN_NAME_DELIMITER};
+    use axelar_wasm_std::{
+        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, operators::Operators, Threshold,
+        VerificationStatus,
+    };
+    use connection_router_api::{CrossChainId, Message};
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
@@ -113,20 +116,32 @@ mod test {
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 
         let msg_1 = Message {
-            cc_id: format!("eth{}0x1234", CHAIN_NAME_DELIMITER)
-                .as_str()
+            cc_id: CrossChainId {
+                chain: "eth".parse().unwrap(),
+                id: HexTxHashAndEventIndex {
+                    tx_hash: [0; 32],
+                    event_index: 0,
+                }
+                .to_string()
                 .parse()
                 .unwrap(),
+            },
             source_address: "0x1234".parse().unwrap(),
             destination_address: "0x5678".parse().unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: [0; 32],
         };
         let msg_2 = Message {
-            cc_id: format!("eth{}0x4321", CHAIN_NAME_DELIMITER)
-                .as_str()
+            cc_id: CrossChainId {
+                chain: "eth".parse().unwrap(),
+                id: HexTxHashAndEventIndex {
+                    tx_hash: [1; 32],
+                    event_index: 0,
+                }
+                .to_string()
                 .parse()
                 .unwrap(),
+            },
             source_address: "0x4321".parse().unwrap(),
             destination_address: "0x8765".parse().unwrap(),
             destination_chain: "eth".parse().unwrap(),
