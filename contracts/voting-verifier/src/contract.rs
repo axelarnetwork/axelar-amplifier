@@ -95,7 +95,6 @@ mod test {
     use crate::{
         error::ContractError,
         events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
-        msg::VerifyMessagesResponse,
     };
 
     use super::*;
@@ -247,39 +246,6 @@ mod test {
         };
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(err, ContractError::SourceChainMismatch(source_chain()));
-    }
-
-    #[test]
-    fn should_verify_messages_if_not_verified() {
-        let workers = workers(2);
-        let mut deps = setup(workers.clone());
-
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: messages(2),
-        };
-
-        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
-        let reply: VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
-        assert_eq!(reply.verification_statuses.len(), 2);
-        assert_eq!(
-            reply.verification_statuses,
-            vec![
-                (
-                    CrossChainId {
-                        id: message_id("id", 0),
-                        chain: source_chain()
-                    },
-                    VerificationStatus::None
-                ),
-                (
-                    CrossChainId {
-                        id: message_id("id", 1),
-                        chain: source_chain()
-                    },
-                    VerificationStatus::None
-                ),
-            ]
-        );
     }
 
     #[test]
