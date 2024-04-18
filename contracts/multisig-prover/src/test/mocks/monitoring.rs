@@ -1,6 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
-use cw_storage_plus::Map;
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 
 use monitoring::msg::QueryMsg;
 use multisig::worker_set::WorkerSet;
@@ -19,32 +18,20 @@ pub enum ExecuteMsg {
     SetActiveVerifiers { next_worker_set: WorkerSet },
 }
 
+#[allow(unused_variables)]
 pub fn execute(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, StdError> {
     match msg {
-        ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
-            register_active_worker_set(deps, info.sender, next_worker_set);
-            Ok(Response::new())
-        }
+        ExecuteMsg::SetActiveVerifiers { next_worker_set } => Ok(Response::new()),
     }
-}
-
-type ProverAddress = Addr;
-const ACTIVE_WORKERSET_FOR_PROVER: Map<ProverAddress, WorkerSet> =
-    Map::new("active_prover_workerset");
-
-fn register_active_worker_set(deps: DepsMut, caller_address: Addr, worker_set: WorkerSet) {
-    ACTIVE_WORKERSET_FOR_PROVER
-        .save(deps.storage, caller_address, &(worker_set))
-        .expect("Saving Active WorkerSet with Monitoring Failed");
 }
 
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetActiveWorkerSet { .. } => todo!(),
+        QueryMsg::GetActiveVerifiers { .. } => todo!(),
     }
 }

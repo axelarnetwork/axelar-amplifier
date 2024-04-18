@@ -312,7 +312,7 @@ pub fn get_worker_set_from_monitoring(
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
         app,
-        &monitoring::msg::QueryMsg::GetActiveWorkerSet { chain_name },
+        &monitoring::msg::QueryMsg::GetActiveVerifiers { chain_name },
     );
     assert!(query_response.is_ok());
 

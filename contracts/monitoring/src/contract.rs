@@ -49,7 +49,7 @@ pub fn execute(
 #[allow(dead_code)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::GetActiveWorkerSet { chain_name } => {
+        QueryMsg::GetActiveVerifiers { chain_name } => {
             to_binary(&query::get_active_worker_set(deps, chain_name)?).map_err(|err| err.into())
         }
     }
