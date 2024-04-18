@@ -152,7 +152,7 @@ mod test {
     use cosmwasm_std::{
         coins, from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        BlockInfo, Empty, OwnedDeps,
+        Empty, OwnedDeps, StdResult,
     };
 
     use crate::state::{WeightedWorker, WORKER_WEIGHT};
@@ -174,7 +174,8 @@ mod test {
             InstantiateMsg {
                 governance_account: GOVERNANCE_ADDRESS.to_string(),
             },
-        );
+        )
+        .unwrap();
 
         deps
     }
@@ -1618,6 +1619,8 @@ mod test {
         );
     }
 
+    // TODO: split to integration test
+
     // #[test]
     // fn unbonding_period() {
     //     let mut deps = setup();
@@ -1756,287 +1759,262 @@ mod test {
     //     );
     // }
 
-    // #[test]
-    // fn get_active_workers_should_not_return_less_than_min() {
-    //     let workers = vec![Addr::unchecked("worker1"), Addr::unchecked("worker2")];
-    //     let min_num_workers = workers.len() as u16;
+    #[test]
+    fn get_active_workers_should_not_return_less_than_min() {
+        let mut deps = setup();
 
-    //     let mut app = App::new(|router, _, storage| {
-    //         for worker in &workers {
-    //             router
-    //                 .bank
-    //                 .init_balance(storage, worker, coins(100000, AXL_DENOMINATION))
-    //                 .unwrap()
-    //         }
-    //     });
+        let workers = vec![Addr::unchecked("worker1"), Addr::unchecked("worker2")];
+        let min_num_workers = workers.len() as u16;
 
-    //     let governance = Addr::unchecked("gov");
-    //     let service_registry =
-    //         test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
+        let service_name = "validators";
+        let min_worker_bond = Uint128::new(100);
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                service_contract: Addr::unchecked("nowhere"),
+                min_num_workers,
+                max_num_workers: Some(100),
+                min_worker_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        )
+        .unwrap();
 
-    //     let service_name = "validators";
-    //     let min_worker_bond = Uint128::new(100);
-    //     let _ = service_registry
-    //         .execute(
-    //             &mut app,
-    //             governance.clone(),
-    //             ExecuteMsg::RegisterService {
-    //                 service_name: service_name.into(),
-    //                 service_contract: Addr::unchecked("nowhere"),
-    //                 min_num_workers,
-    //                 max_num_workers: Some(100),
-    //                 min_worker_bond,
-    //                 bond_denom: AXL_DENOMINATION.into(),
-    //                 unbonding_period_days: 10,
-    //                 description: "Some service".into(),
-    //             },
-    //         )
-    //         .unwrap();
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeWorkers {
+                workers: workers.iter().map(|w| w.into()).collect(),
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap();
 
-    //     let _ = service_registry
-    //         .execute(
-    //             &mut app,
-    //             governance,
-    //             ExecuteMsg::AuthorizeWorkers {
-    //                 workers: workers.iter().map(|w| w.into()).collect(),
-    //                 service_name: service_name.into(),
-    //             },
-    //         )
-    //         .unwrap();
+        let chain_name = ChainName::from_str("ethereum").unwrap();
 
-    //     let chain_name = ChainName::from_str("ethereum").unwrap();
+        for worker in &workers {
+            // should return err until all workers are registered
+            let res = query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveWorkers {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            );
+            assert!(res.is_err());
 
-    //     for worker in &workers {
-    //         // should return err until all workers are registered
-    //         let res: StdResult<Vec<WeightedWorker>> = service_registry.query(
-    //             &app,
-    //             QueryMsg::GetActiveWorkers {
-    //                 service_name: service_name.into(),
-    //                 chain_name: chain_name.clone(),
-    //             },
-    //         );
-    //         assert!(res.is_err());
+            let _ = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(
+                    worker.as_str(),
+                    &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+                ),
+                ExecuteMsg::BondWorker {
+                    service_name: service_name.into(),
+                },
+            )
+            .unwrap();
 
-    //         let _ = service_registry
-    //             .execute_with_funds(
-    //                 &mut app,
-    //                 worker.clone(),
-    //                 ExecuteMsg::BondWorker {
-    //                     service_name: service_name.into(),
-    //                 },
-    //                 &coins(min_worker_bond.u128(), AXL_DENOMINATION),
-    //             )
-    //             .unwrap();
+            let _ = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(worker.as_str(), &[]),
+                ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.into(),
+                    chains: vec![chain_name.clone()],
+                },
+            )
+            .unwrap();
+        }
 
-    //         let _ = service_registry
-    //             .execute(
-    //                 &mut app,
-    //                 worker.clone(),
-    //                 ExecuteMsg::RegisterChainSupport {
-    //                     service_name: service_name.into(),
-    //                     chains: vec![chain_name.clone()],
-    //                 },
-    //             )
-    //             .unwrap();
-    //     }
+        // all workers registered, should not return err now
+        let res: StdResult<Vec<WeightedWorker>> = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveWorkers {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            )
+            .unwrap(),
+        );
+        assert!(res.is_ok());
 
-    //     // all workers registered, should not return err now
-    //     let res: StdResult<Vec<WeightedWorker>> = service_registry.query(
-    //         &app,
-    //         QueryMsg::GetActiveWorkers {
-    //             service_name: service_name.into(),
-    //             chain_name: chain_name.clone(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
+        // remove one, should return err again
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(workers[0].as_str(), &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap();
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetActiveWorkers {
+                service_name: service_name.into(),
+                chain_name: chain_name.clone(),
+            },
+        );
+        assert!(res.is_err());
+    }
 
-    //     // remove one, should return err again
-    //     let _ = service_registry
-    //         .execute(
-    //             &mut app,
-    //             workers[0].clone(),
-    //             ExecuteMsg::DeregisterChainSupport {
-    //                 service_name: service_name.into(),
-    //                 chains: vec![chain_name.clone()],
-    //             },
-    //         )
-    //         .unwrap();
-    //     let res: StdResult<Vec<WeightedWorker>> = service_registry.query(
-    //         &app,
-    //         QueryMsg::GetActiveWorkers {
-    //             service_name: service_name.into(),
-    //             chain_name: chain_name.clone(),
-    //         },
-    //     );
-    //     assert!(res.is_err());
-    // }
+    #[test]
+    fn jail_worker() {
+        let mut deps = setup();
 
-    // #[test]
-    // fn jail_worker() {
-    //     let faucet = Addr::unchecked("faucet");
-    //     // init app with faucet balance
-    //     let mut app = App::new(|router, _, storage| {
-    //         router
-    //             .bank
-    //             .init_balance(storage, &faucet, coins(100000, AXL_DENOMINATION))
-    //             .unwrap()
-    //     });
+        // register a service
+        let service_name = "validators";
+        let min_worker_bond = Uint128::new(100);
+        let unbonding_period_days = 10;
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                service_contract: Addr::unchecked("service contract"),
+                min_num_workers: 0,
+                max_num_workers: Some(100),
+                min_worker_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
 
-    //     // init service registry contract
-    //     let governance = Addr::unchecked("gov");
-    //     let service_registry =
-    //         test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
+        // given a bonded worker
+        let worker1 = Addr::unchecked("worker-1");
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                worker1.as_str(),
+                &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondWorker {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
 
-    //     // register a service
-    //     let service_name = "validators";
-    //     let min_worker_bond = Uint128::new(100);
-    //     let unbonding_period_days = 10;
-    //     let res = execute(
-    //         deps.as_mut(),
-    //         mock_env(),
-    //         mock_info(GOVERNANCE_ADDRESS, &[]),
-    //         ExecuteMsg::RegisterService {
-    //             service_name: service_name.into(),
-    //             service_contract: Addr::unchecked("service contract"),
-    //             min_num_workers: 0,
-    //             max_num_workers: Some(100),
-    //             min_worker_bond,
-    //             bond_denom: AXL_DENOMINATION.into(),
-    //             unbonding_period_days,
-    //             description: "Some service".into(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
+        // when worker is jailed
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::JailWorkers {
+                workers: vec![worker1.clone().into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
 
-    //     // given a bonded worker
-    //     let worker1 = Addr::unchecked("worker-1");
-    //     // fund worker
-    //     let msg: cosmwasm_std::CosmosMsg = BankMsg::Send {
-    //         to_address: worker1.clone().into(),
-    //         amount: coins(min_worker_bond.u128(), AXL_DENOMINATION),
-    //     }
-    //     .into();
-    //     app.execute(faucet.clone(), msg.clone()).unwrap();
-    //     let res = execute(
-    //         deps.as_mut(),
-    //         mock_env(),
-    //         mock_info(
-    //             worker1.clone(),
-    //             &coins(
-    //                 &coins(min_worker_bond.u128(), AXL_DENOMINATION).u128(),
-    //                 AXL_DENOMINATION,
-    //             ),
-    //         ),
-    //         ExecuteMsg::BondWorker {
-    //             service_name: service_name.into(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
+        // worker cannot unbond
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(worker1.as_str(), &[]),
+            ExecuteMsg::UnbondWorker {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::WorkerJailed);
 
-    //     // when worker is jailed
-    //     let res = execute(
-    //         deps.as_mut(),
-    //         mock_env(),
-    //         mock_info(GOVERNANCE_ADDRESS, &[]),
-    //         ExecuteMsg::JailWorkers {
-    //             workers: vec![worker1.clone().into()],
-    //             service_name: service_name.into(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
+        // given a worker passed unbonding period
+        let worker2 = Addr::unchecked("worker-2");
 
-    //     // worker cannot unbond
-    //     let err = service_registry
-    //         .execute(
-    //             &mut app,
-    //             worker1.clone(),
-    //             ExecuteMsg::UnbondWorker {
-    //                 service_name: service_name.into(),
-    //             },
-    //         )
-    //         .unwrap_err();
-    //     assert_contract_err_strings_equal(err, ContractError::WorkerJailed);
+        // bond worker
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                worker2.as_str(),
+                &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondWorker {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
 
-    //     // given a worker passed unbonding period
-    //     let worker2 = Addr::unchecked("worker-2");
-    //     // fund worker
-    //     let msg: cosmwasm_std::CosmosMsg = BankMsg::Send {
-    //         to_address: worker2.clone().into(),
-    //         amount: coins(min_worker_bond.u128(), AXL_DENOMINATION),
-    //     }
-    //     .into();
-    //     app.execute(faucet.clone(), msg.clone()).unwrap();
-    //     // bond worker
-    //     let res = execute(
-    //         deps.as_mut(),
-    //         mock_env(),
-    //         mock_info(
-    //             worker2.clone(),
-    //             &coins(min_worker_bond.u128(), AXL_DENOMINATION),
-    //         ),
-    //         ExecuteMsg::BondWorker {
-    //             service_name: service_name.into(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
-    //     // unbond worker
-    //     let res = execute(
-    //         deps.as_mut(),
-    //         mock_env(),
-    //         mock_info(worker2.clone(), &[]),
-    //         ExecuteMsg::UnbondWorker {
-    //             service_name: service_name.into(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
-    //     let worker: Worker = query(
-    //         deps.as_ref(),
-    //         mock_env(),
-    //         QueryMsg::GetWorker {
-    //             service_name: service_name.into(),
-    //             worker: worker2.to_string(),
-    //         },
-    //     )
-    //     .unwrap();
+        let mut unbond_request_env = mock_env();
+        unbond_request_env.block.time = unbond_request_env.block.time.plus_days(1);
 
-    //     let block = app.block_info();
-    //     assert_eq!(
-    //         worker.bonding_state,
-    //         BondingState::Unbonding {
-    //             amount: min_worker_bond,
-    //             unbonded_at: block.time,
-    //         }
-    //     );
+        // unbond worker
+        let res = execute(
+            deps.as_mut(),
+            unbond_request_env.clone(),
+            mock_info(worker2.as_str(), &[]),
+            ExecuteMsg::UnbondWorker {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        let worker: Worker = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetWorker {
+                    service_name: service_name.into(),
+                    worker: worker2.to_string(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
 
-    //     // when worker is jailed
-    //     let res = execute(
-    //         deps.as_mut(),
-    //         mock_env(),
-    //         mock_info(GOVERNANCE_ADDRESS, &[]),
-    //         ExecuteMsg::JailWorkers {
-    //             workers: vec![worker2.clone().into()],
-    //             service_name: service_name.into(),
-    //         },
-    //     );
-    //     assert!(res.is_ok());
+        assert_eq!(
+            worker.bonding_state,
+            BondingState::Unbonding {
+                amount: min_worker_bond,
+                unbonded_at: unbond_request_env.block.time,
+            }
+        );
 
-    //     // and unbonding period has passed
-    //     app.set_block(BlockInfo {
-    //         height: block.height + 1,
-    //         time: block.time.plus_days((unbonding_period_days + 1).into()),
-    //         ..block
-    //     });
+        // when worker is jailed
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::JailWorkers {
+                workers: vec![worker2.clone().into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
 
-    //     // worker cannot claim stake
-    //     let err = service_registry
-    //         .execute(
-    //             &mut app,
-    //             worker2.clone(),
-    //             ExecuteMsg::ClaimStake {
-    //                 service_name: service_name.into(),
-    //             },
-    //         )
-    //         .unwrap_err();
-    //     assert_contract_err_strings_equal(err, ContractError::WorkerJailed);
-    // }
+        // and unbonding period has passed
+        let mut after_unbond_period_env = mock_env();
+        after_unbond_period_env.block.time = unbond_request_env
+            .block
+            .time
+            .plus_days((unbonding_period_days + 1).into());
+
+        // worker cannot claim stake
+        let err = execute(
+            deps.as_mut(),
+            after_unbond_period_env,
+            mock_info(worker2.as_str(), &[]),
+            ExecuteMsg::ClaimStake {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::WorkerJailed);
+    }
 }
