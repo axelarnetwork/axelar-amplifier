@@ -12,9 +12,8 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 type ProverAddress = Addr;
-type ProverAddresses = Vec<ProverAddress>;
 
-pub const PROVERS_PER_CHAIN: Map<ChainName, ProverAddresses> = Map::new("provers_per_chain");
+pub const PROVER_PER_CHAIN: Map<ChainName, ProverAddress> = Map::new("prover_per_chain");
 
 pub const ACTIVE_WORKERSET_FOR_PROVER: Map<ProverAddress, WorkerSet> =
     Map::new("active_prover_workerset");

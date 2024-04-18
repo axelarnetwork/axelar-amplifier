@@ -176,7 +176,7 @@ mod tests {
 
         let chain_provers =
             query::provers(test_setup.deps.as_ref(), test_setup.chain_name.clone()).unwrap();
-        assert_eq!(chain_provers, vec![test_setup.prover]);
+        assert_eq!(chain_provers, test_setup.prover);
     }
 
     #[test]
