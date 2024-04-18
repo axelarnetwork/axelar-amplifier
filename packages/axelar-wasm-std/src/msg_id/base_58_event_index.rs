@@ -75,13 +75,16 @@ mod tests {
 
     use super::*;
 
-    fn random_tx_digest() -> String {
-        let mut bytes = vec![];
-        for _ in 0..32 {
-            let byte: u8 = rand::random();
-            bytes.push(byte)
+    fn random_bytes() -> [u8; 32] {
+        let mut bytes = [0; 32];
+        for i in 0..32 {
+            bytes[i] = rand::random();
         }
-        bs58::encode(bytes).into_string()
+        bytes
+    }
+
+    fn random_tx_digest() -> String {
+        bs58::encode(random_bytes()).into_string()
     }
 
     fn random_event_index() -> u32 {
@@ -275,5 +278,32 @@ mod tests {
         let tx_digest = random_tx_digest();
         let res = Base58TxDigestAndEventIndex::from_str(&format!("{}-{}", tx_digest, event_index));
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn trimming_leading_ones_should_change_bytes() {
+        for _ in 0..100 {
+            let mut bytes = random_bytes();
+
+            // set a random (non-zero) number of leading bytes to 0
+            let leading_zeroes = rand::random::<usize>() % bytes.len() + 1;
+            for i in 0..leading_zeroes {
+                bytes[i] = 0;
+            }
+
+            let b58 = bs58::encode(&bytes).into_string();
+
+            // verify the base58 has the expected number of leading 1's
+            for i in 0..leading_zeroes {
+                assert_eq!(&b58[i..i + 1], "1");
+            }
+
+            // trim a random (non-zero) number of leading 1's
+            let trim = rand::random::<usize>() % leading_zeroes + 1;
+
+            // converting back to bytes should yield a different result
+            let decoded = bs58::decode(&b58[trim..]).into_vec().unwrap();
+            assert_ne!(bytes.to_vec(), decoded);
+        }
     }
 }
