@@ -254,12 +254,13 @@ where
                         ),
                         stream_timeout,
                     ),
-                handlers::config::Config::XRPLMultisigSigner { cosmwasm_contract } => self
+                handlers::config::Config::XRPLMultisigSigner { multisig_contract, multisig_prover_contract } => self
                     .create_handler_task(
                         "xrpl-multisig-signer",
                         handlers::xrpl_multisig::Handler::new(
                             worker.clone(),
-                            cosmwasm_contract,
+                            multisig_contract,
+                            multisig_prover_contract,
                             self.broadcaster.client(),
                             self.ecdsa_client.clone(),
                             self.block_height_monitor.latest_block_height(),

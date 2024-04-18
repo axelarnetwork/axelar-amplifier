@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
-pub struct TransactionId(String);
+pub struct TransactionId(pub String);
 
 impl TransactionId {
     pub fn as_str(&self) -> &str {

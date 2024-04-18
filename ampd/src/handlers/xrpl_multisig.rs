@@ -26,10 +26,10 @@ use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 
 #[derive(Debug, Deserialize)]
-#[try_from("wasm-signing_started")]
+#[try_from("wasm-xrpl_signing_started")]
 struct XRPLSigningStartedEvent {
     #[serde(rename = "_contract_address")]
-    multisig_address: TMAddress,
+    multisig_prover_address: TMAddress,
     session_id: u64,
     #[serde(deserialize_with = "deserialize_public_keys")]
     pub_keys: HashMap<TMAddress, PublicKey>,
@@ -72,6 +72,7 @@ where
     B: BroadcasterClient,
 {
     worker: TMAddress,
+    multisig_prover: TMAddress,
     multisig: TMAddress,
     broadcaster: B,
     signer: SharableEcdsaClient,
@@ -85,6 +86,7 @@ where
     pub fn new(
         worker: TMAddress,
         multisig: TMAddress,
+        multisig_prover: TMAddress,
         broadcaster: B,
         signer: SharableEcdsaClient,
         latest_block_height: Receiver<u64>,
@@ -92,6 +94,7 @@ where
         Self {
             worker,
             multisig,
+            multisig_prover,
             broadcaster,
             signer,
             latest_block_height,
@@ -132,7 +135,7 @@ where
 
     async fn handle(&self, event: &events::Event) -> error_stack::Result<(), Error> {
         let XRPLSigningStartedEvent {
-            multisig_address,
+            multisig_prover_address,
             session_id,
             pub_keys,
             unsigned_tx,
@@ -144,7 +147,7 @@ where
             result => result.change_context(DeserializeEvent)?,
         };
 
-        if self.multisig != multisig_address {
+        if self.multisig_prover != multisig_prover_address {
             return Ok(());
         }
 
@@ -286,6 +289,7 @@ mod test {
     fn get_handler(
         worker: TMAddress,
         multisig: TMAddress,
+        multisig_prover: TMAddress,
         signer: SharableEcdsaClient,
         latest_block_height: u64,
     ) -> Handler<QueuedBroadcasterClient> {
@@ -299,7 +303,7 @@ mod test {
 
         let (_tx, rx) = watch::channel(latest_block_height);
 
-        Handler::new(worker, multisig, broadcaster.client(), signer, rx)
+        Handler::new(worker, multisig, multisig_prover, broadcaster.client(), signer, rx)
     }
 
     #[test]
@@ -367,6 +371,7 @@ mod test {
         let handler = get_handler(
             rand_account(),
             rand_account(),
+            rand_account(),
             SharableEcdsaClient::new(client),
             100u64,
         );
@@ -384,6 +389,7 @@ mod test {
         let handler = get_handler(
             rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            rand_account(),
             SharableEcdsaClient::new(client),
             100u64,
         );
@@ -404,6 +410,7 @@ mod test {
         let handler = get_handler(
             worker,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            rand_account(),
             SharableEcdsaClient::new(client),
             99u64,
         );
@@ -427,6 +434,7 @@ mod test {
         let handler = get_handler(
             worker,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
+            rand_account(),
             SharableEcdsaClient::new(client),
             101u64,
         );

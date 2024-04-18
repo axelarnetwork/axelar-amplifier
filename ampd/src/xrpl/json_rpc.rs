@@ -11,18 +11,16 @@ pub trait XRPLClient {
     async fn fetch_tx(
         &self,
         tx_id: &TransactionId,
-    ) -> Result<TxResponse>;
+    ) -> Result<Option<TxResponse>>;
 }
 
 #[async_trait]
-impl XRPLClient for Client
-{
-    async fn fetch_tx(
-        &self,
-        tx_id: &TransactionId,
-    ) -> Result<TxResponse> {
+impl XRPLClient for Client {
+    async fn fetch_tx(&self, tx_id: &TransactionId) -> Result<Option<TxResponse>> {
         let req = TxRequest::new(tx_id.as_str());
-
-        Ok(self.call(req).await?)
+        self.call(req).await.map(Some).or_else(|err| match err {
+            error::Error::Api(reason) if reason == "txnNotFound" => Ok(None),
+            _ => Err(err.into()),
+        })
     }
 }

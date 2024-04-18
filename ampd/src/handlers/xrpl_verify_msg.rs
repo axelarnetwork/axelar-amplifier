@@ -110,7 +110,6 @@ where
             messages,
             participants,
             expires_at,
-            ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(());
@@ -145,15 +144,13 @@ where
             }
         }
 
-        let votes = messages
+        let votes: Vec<_> = messages
             .iter()
-            .map(|msg| {
-                tx_responses
-                    .get(&msg.tx_id)
-                    .map_or(Vote::NotFound, |tx_response| {
-                        verify_message(&source_gateway_address, &tx_response.tx, msg)
-                    })
-            })
+            .map(|msg| tx_responses
+                .get(&msg.tx_id)
+                .and_then(|tx_response| tx_response.as_ref().map(|tx| verify_message(&source_gateway_address, &tx.tx, msg)))
+                .unwrap_or(Vote::NotFound)
+            )
             .collect();
 
         self.broadcast_votes(poll_id, votes).await
