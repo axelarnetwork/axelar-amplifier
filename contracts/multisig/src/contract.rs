@@ -103,7 +103,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deps.api.addr_validate(&worker_address)?,
             key_type,
         )?),
-        QueryMsg::GetNextSessionId => to_binary(&query::get_next_session_id(deps)?),
     }
 }
 

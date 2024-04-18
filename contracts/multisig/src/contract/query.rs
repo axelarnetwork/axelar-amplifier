@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use crate::{
     key::{KeyType, PublicKey},
     state::{load_pub_key, load_session_signatures},
@@ -35,8 +33,4 @@ pub fn get_worker_set(deps: Deps, worker_set_id: String) -> StdResult<WorkerSet>
 pub fn get_public_key(deps: Deps, worker: Addr, key_type: KeyType) -> StdResult<PublicKey> {
     let raw = load_pub_key(deps.storage, worker, key_type)?;
     Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
-}
-
-pub fn get_next_session_id(deps: Deps) -> StdResult<Uint64> {
-    Ok(SIGNING_SESSION_COUNTER.load(deps.storage)?.add(Uint64::one()))
 }

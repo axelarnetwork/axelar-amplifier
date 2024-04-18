@@ -67,9 +67,6 @@ pub enum QueryMsg {
         worker_address: String,
         key_type: KeyType,
     },
-
-    #[returns(Uint64)]
-    GetNextSessionId,
 }
 
 #[cw_serde]

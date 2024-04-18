@@ -89,7 +89,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             worker_address,
             key_type,
         )),
-        QueryMsg::GetNextSessionId => unimplemented!(),
     }
 }
 
