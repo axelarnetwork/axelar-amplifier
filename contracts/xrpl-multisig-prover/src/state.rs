@@ -19,6 +19,7 @@ pub struct Config {
     pub ticket_count_threshold: u32,
     pub key_type: multisig::key::KeyType,
     pub governance_address: Addr,
+    pub relayer_address: Addr,
     pub xrp_denom: String,
 }
 
@@ -43,7 +44,7 @@ pub const AVAILABLE_TICKETS: Item<Vec<u32>> = Item::new("available_tickets");
 pub const TRANSACTION_INFO: Map<&TxHash, TransactionInfo> = Map::new("transaction_info");
 pub const LATEST_SEQUENTIAL_TX_HASH: Item<TxHash> = Item::new("latest_sequential_tx_hash");
 
-pub const TOKENS: Map<&String, XRPLToken> = Map::new("tokens");
+pub const TOKENS: Map<&String, (XRPLToken, u8)> = Map::new("tokens");
 
 pub const CURRENT_WORKER_SET: Item<WorkerSet> = Item::new("current_worker_set");
 pub const NEXT_WORKER_SET: Map<&TxHash, WorkerSet> = Map::new("next_worker_set");

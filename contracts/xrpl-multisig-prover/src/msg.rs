@@ -1,6 +1,6 @@
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint64, Addr};
+use cosmwasm_std::{HexBinary, Uint64};
 use axelar_wasm_std::VerificationStatus;
 use multisig::key::{PublicKey, Signature};
 
@@ -17,6 +17,9 @@ pub enum QueryMsg {
 
     #[returns(multisig::worker_set::WorkerSet)]
     GetWorkerSet,
+
+    #[returns(Option<u64>)]
+    GetMultisigSessionId { message_id: CrossChainId },
 }
 
 #[cw_serde]
@@ -28,11 +31,12 @@ pub enum GetProofResponse {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RegisterToken { denom: String, token: XRPLToken },
-    ConstructProof { message_id: CrossChainId },
+    RegisterToken { denom: String, token: XRPLToken, decimals: u8 },
+    // TODO: remove coin parameter
+    ConstructProof { message_id: CrossChainId, coin: cosmwasm_std::Coin },
     UpdateTxStatus {
         multisig_session_id: Uint64,
-        signers: Vec<Addr>,
+        signer_public_keys: Vec<PublicKey>,
         message_id: CrossChainId,
         message_status: VerificationStatus,
     },

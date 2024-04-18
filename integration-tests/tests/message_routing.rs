@@ -1,6 +1,7 @@
 use axelar_wasm_std::VerificationStatus;
 use connection_router::state::{Address, CrossChainId, Message};
 use cosmwasm_std::{HexBinary, Uint128, Coin};
+use multisig::key::KeyType;
 
 use crate::test_utils::ETH_DENOMINATION;
 
@@ -148,7 +149,7 @@ fn xrpl_ticket_create_can_be_proven() {
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "8c23c331f52ed2856308fea85be7583f8ff726ad87b0dbbcbe5e371563b7c02d:0"
+            id: "9c2f220fe5ee650b3cd10b0a72af1206b3912afce8376214234354180198c5d5:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -174,7 +175,7 @@ fn xrpl_ticket_create_can_be_proven() {
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover_address,
-        workers.iter().map(|w| w.addr.clone()).collect(),
+        workers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
         session_id,
         proof_msgs[0].cc_id.clone(),
         VerificationStatus::SucceededOnChain
@@ -269,7 +270,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         destination_address: Address::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".to_string()).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "21b61845c5a4e3b00e60f21c0fde6c0208eff28c9e57709306f47672bf8f984d:0"
+            id: "c5c80adaff8703e589988f68587535d5c5cac5a7d7b99f0507aee3de40201137:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -295,7 +296,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover_address,
-        workers.iter().map(|w| w.addr.clone()).collect(),
+        workers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
         session_id,
         proof_msgs[0].cc_id.clone(),
         VerificationStatus::SucceededOnChain

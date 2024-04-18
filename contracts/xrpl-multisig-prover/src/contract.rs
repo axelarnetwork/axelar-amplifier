@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use voting_verifier::events::parse_message_id;
 
-use multisig::types::MultisigState;
+use multisig::{key::PublicKey, types::MultisigState};
 
 use crate::{
     error::ContractError,
@@ -40,6 +40,7 @@ pub struct InstantiateMsg {
     pub next_sequence_number: u32,
     pub last_assigned_ticket_number: u32,
     pub governance_address: String,
+    pub relayer_address: String, // TODO: REMOVE
     pub xrp_denom: String,
 }
 
@@ -55,6 +56,7 @@ pub fn instantiate(
     let voting_verifier_address = deps.api.addr_validate(&msg.voting_verifier_address)?;
     let service_registry_address = deps.api.addr_validate(&msg.service_registry_address)?;
     let governance_address = deps.api.addr_validate(&msg.governance_address)?;
+    let relayer_address = deps.api.addr_validate(&msg.relayer_address)?;
 
     if msg.signing_threshold.numerator() > u32::MAX.into() || msg.signing_threshold.denominator() == Uint64::zero() {
         return Err(ContractError::InvalidSigningThreshold.into());
@@ -73,6 +75,7 @@ pub fn instantiate(
         ticket_count_threshold: msg.ticket_count_threshold,
         key_type: multisig::key::KeyType::Ecdsa,
         governance_address,
+        relayer_address,
         xrp_denom: msg.xrp_denom,
     };
 
@@ -105,15 +108,23 @@ pub fn require_governance(governance: &Addr, sender: &Addr) -> Result<(), Contra
     Ok(())
 }
 
+pub fn require_permissioned_relayer(relayer: &Addr, sender: &Addr) -> Result<(), ContractError> {
+    if relayer != sender {
+        return Err(ContractError::Unauthorized);
+    }
+    Ok(())
+}
+
 fn register_token(
     storage: &mut dyn Storage,
     config: &Config,
     sender: &Addr,
     denom: String,
     token: &XRPLToken,
+    decimals: u8,
 ) -> Result<Response, ContractError> {
     require_governance(&config.governance_address, sender)?;
-    TOKENS.save(storage, &denom, token)?;
+    TOKENS.save(storage, &denom, &(token.clone(), decimals))?;
     Ok(Response::default())
 }
 
@@ -128,20 +139,22 @@ pub fn execute(
     let querier = Querier::new(deps.querier, config.clone());
 
     let res = match msg {
-        ExecuteMsg::RegisterToken { denom, token } => {
-            register_token(deps.storage, &config, &info.sender, denom, &token)
+        ExecuteMsg::RegisterToken { denom, token , decimals } => {
+            register_token(deps.storage, &config, &info.sender, denom, &token, decimals)
         },
-        ExecuteMsg::ConstructProof { message_id } => {
-            construct_payment_proof(deps.storage, &querier, info, env.contract.address, env.block.height, &config, message_id)
+        // TODO: coin should be info.funds
+        ExecuteMsg::ConstructProof { message_id, coin } => {
+            require_permissioned_relayer(&config.relayer_address, &info.sender)?;
+            construct_payment_proof(deps.storage, &querier, env.contract.address, env.block.height, &config, message_id, &coin)
         },
         ExecuteMsg::UpdateWorkerSet {} => {
             construct_signer_list_set_proof(deps.storage, &querier, env, &config)
         },
-        ExecuteMsg::UpdateTxStatus { multisig_session_id, signers, message_id, message_status } => {
-            update_tx_status(deps.storage, &querier, &multisig_session_id, &signers, &message_id, message_status, config.axelar_multisig_address, config.xrpl_multisig_address)
+        ExecuteMsg::UpdateTxStatus { multisig_session_id, signer_public_keys, message_id, message_status } => {
+            update_tx_status(deps.storage, &querier, &multisig_session_id, &signer_public_keys, &message_id, message_status, config.axelar_multisig_address, config.xrpl_multisig_address)
         },
         ExecuteMsg::TicketCreate {} => {
-            construct_ticket_create_proof(deps.storage, &querier, env.contract.address, &config)
+            construct_ticket_create_proof(deps.storage, env.contract.address, &config)
         },
     }?;
 
@@ -151,54 +164,47 @@ pub fn execute(
 fn construct_payment_proof(
     storage: &mut dyn Storage,
     querier: &Querier,
-    info: MessageInfo,
     self_address: Addr,
     block_height: u64,
     config: &Config,
     message_id: CrossChainId,
+    coin: &cosmwasm_std::Coin,
 ) -> Result<Response, ContractError> {
-    if info.funds.len() != 1 {
+    // if info.funds.len() != 1 {
+    if coin.amount == cosmwasm_std::Uint128::zero() {
         return Err(ContractError::InvalidPaymentAmount);
     }
 
-    // Protect against double signing the same message ID
+    // Prevent creating a duplicate signing session before the previous one expires
     match MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, &message_id)? {
         Some(multisig_session_id) => {
             let multisig_session = querier.get_multisig_session(&Uint64::from(multisig_session_id))?;
-            if let MultisigState::Completed { .. } = multisig_session.state {
-                return Err(ContractError::PaymentAlreadySigned);
-            }
-
-            if multisig_session.expires_at <= block_height {
-                return Err(ContractError::PaymentAlreadyHasActiveSigningSession);
+            if multisig_session.state == MultisigState::Pending && multisig_session.expires_at <= block_height {
+                return Err(ContractError::PaymentAlreadyHasActiveSigningSession(multisig_session_id));
             }
         },
         None => (),
     };
 
-    let mut funds = info.funds;
-    let coin = funds.remove(0);
     let message = querier.get_message(&message_id)?;
     let xrpl_payment_amount = if coin.denom == config.xrp_denom {
-        // TODO: handle decimal precision conversion
         let drops = u64::try_from(coin.amount.u128()).map_err(|_| ContractError::InvalidAmount { reason: "overflow".to_string() })?;
         XRPLPaymentAmount::Drops(drops)
     } else {
-        let xrpl_token = TOKENS.load(storage, &coin.denom)?;
+        let (xrpl_token, decimals) = TOKENS.load(storage, &coin.denom)?;
+        // TODO: handle decimal precision conversion between CosmWasm Coin and XRPLToken
         XRPLPaymentAmount::Token(
             xrpl_token,
-            coin.amount.try_into()?,
+            canonicalize_coin_amount(coin.amount, decimals)?,
         )
     };
 
-    let multisig_session_id = querier.get_next_multisig_session_id()?;
     let tx_hash = xrpl_multisig::issue_payment(
         storage,
         config,
         message.destination_address.to_string().try_into()?,
         &xrpl_payment_amount,
         &message_id,
-        &multisig_session_id,
     )?;
 
     REPLY_MESSAGE_ID.save(storage, &message_id)?;
@@ -254,12 +260,10 @@ fn construct_signer_list_set_proof(
         return Err(ContractError::WorkerSetUnchanged.into())
     }
 
-    let multisig_session_id = querier.get_next_multisig_session_id()?;
     let tx_hash = xrpl_multisig::issue_signer_list_set(
         storage,
         config,
         cur_worker_set,
-        multisig_session_id,
     )?;
 
     NEXT_WORKER_SET.save(storage, &tx_hash, &new_worker_set)?;
@@ -276,7 +280,6 @@ fn construct_signer_list_set_proof(
 
 fn construct_ticket_create_proof(
     storage: &mut dyn Storage,
-    querier: &Querier,
     self_address: Addr,
     config: &Config,
 ) -> Result<Response, ContractError> {
@@ -285,12 +288,10 @@ fn construct_ticket_create_proof(
         return Err(ContractError::TicketCountThresholdNotReached.into());
     }
 
-    let multisig_session_id = querier.get_next_multisig_session_id()?;
     let tx_hash = xrpl_multisig::issue_ticket_create(
         storage,
         config,
         ticket_count,
-        multisig_session_id,
     )?;
 
     let response = start_signing_session(
@@ -307,7 +308,7 @@ fn update_tx_status(
     storage: &mut dyn Storage,
     querier: &Querier,
     multisig_session_id: &Uint64,
-    signers: &Vec<Addr>,
+    signer_public_keys: &Vec<PublicKey>,
     message_id: &CrossChainId,
     status: VerificationStatus,
     axelar_multisig_address: impl Into<String>,
@@ -332,11 +333,11 @@ fn update_tx_status(
 
     let xrpl_signers: Vec<XRPLSigner> = multisig_session.signers
         .iter()
-        .filter(|(signer, _)| signers.contains(&signer.address))
+        .filter(|(signer, _)| signer_public_keys.contains(&signer.pub_key))
         .filter_map(|(signer, signature)| signature.as_ref().map(|signature| XRPLSigner::try_from((signer.clone(), signature.clone()))))
         .collect::<Result<Vec<_>, ContractError>>()?;
 
-    if xrpl_signers.len() != signers.len() {
+    if xrpl_signers.len() != signer_public_keys.len() {
         return Err(ContractError::SignatureNotFound);
     }
 
@@ -344,7 +345,7 @@ fn update_tx_status(
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
     let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
 
-    if parse_message_id(&message_id.id).map_err(|e| ContractError::InvalidMessageID(message_id.id.to_string()))?.0.to_string() != tx_hash.to_string() {
+    if parse_message_id(&message_id.id).map_err(|_| ContractError::InvalidMessageID(message_id.id.to_string()))?.0.to_string() != tx_hash.to_string() {
         return Err(ContractError::InvalidMessageID(message_id.id.to_string()));
     }
 
@@ -386,5 +387,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             signature
         } => to_json_binary(&query::verify_message(deps.storage, &multisig_session_id, &public_key, &signature)?),
         QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps.storage)?),
+        QueryMsg::GetMultisigSessionId { message_id } => to_json_binary(&query::get_multisig_session_id(deps.storage, &message_id)?), // TODO: rename
     }
 }

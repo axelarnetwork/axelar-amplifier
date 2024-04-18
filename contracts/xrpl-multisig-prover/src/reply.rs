@@ -2,8 +2,7 @@ use cosmwasm_std::{from_json, Attribute, DepsMut, HexBinary, Reply, Response, Ui
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
-    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO},
-    xrpl_serialize::XRPLSerialize
+    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO}, types::XRPLUnsignedTx, xrpl_serialize::XRPLSerialize
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -22,20 +21,20 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 &tx_hash,
             )?;
 
+            let tx_info = TRANSACTION_INFO.load(deps.storage, &tx_hash)?;
+
             match REPLY_MESSAGE_ID.may_load(deps.storage)? {
                 Some(message_id) => {
                     MESSAGE_ID_TO_MULTISIG_SESSION_ID.save(
                         deps.storage,
                         &message_id,
                         &multisig_session_id.u64(),
-                    )?
+                    )?;
+                    REPLY_MESSAGE_ID.remove(deps.storage);
                 },
+                None if matches!(tx_info.unsigned_contents, XRPLUnsignedTx::Payment(_)) => panic!("No reply message ID found for Payment"),
                 None => (),
             }
-
-            REPLY_MESSAGE_ID.remove(deps.storage);
-
-            let tx_info = TRANSACTION_INFO.load(deps.storage, &tx_hash)?;
 
             let res = reply.result.unwrap();
 

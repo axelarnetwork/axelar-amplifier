@@ -1,8 +1,6 @@
 use axelar_wasm_std::nonempty;
 use connection_router::state::CrossChainId;
-use cosmwasm_std::{wasm_execute, HexBinary, Storage, Uint64, WasmMsg};
-use hex::ToHex;
-use k256::{ecdsa, schnorr::signature::SignatureEncoding};
+use cosmwasm_std::{wasm_execute, HexBinary, Storage, WasmMsg};
 use sha2::{Sha512, Digest, Sha256};
 
 use crate::{
@@ -43,8 +41,7 @@ pub fn issue_payment(
     config: &Config,
     destination: nonempty::String,
     amount: &XRPLPaymentAmount,
-    message_id: &CrossChainId,
-    multisig_session_id: &Uint64,
+    message_id: &CrossChainId
 ) -> Result<TxHash, ContractError> {
     let ticket_number = assign_ticket_number(storage, message_id)?;
 
@@ -52,7 +49,6 @@ pub fn issue_payment(
         account: config.xrpl_multisig_address.as_str().try_into()?,
         fee: config.xrpl_fee,
         sequence: XRPLSequence::Ticket(ticket_number),
-        multisig_session_id: multisig_session_id.clone(),
         amount: amount.clone(),
         destination: XRPLAccountId::try_from(destination.as_str())?
     };
@@ -67,8 +63,7 @@ pub fn issue_payment(
 pub fn issue_ticket_create(
     storage: &mut dyn Storage,
     config: &Config,
-    ticket_count: u32,
-    multisig_session_id: Uint64
+    ticket_count: u32
 ) -> Result<TxHash, ContractError> {
     let sequence_number = get_next_sequence_number(storage)?;
 
@@ -77,7 +72,6 @@ pub fn issue_ticket_create(
         fee: config.xrpl_fee,
         sequence: XRPLSequence::Plain(sequence_number.clone()),
         ticket_count,
-        multisig_session_id,
     };
 
     issue_tx(
@@ -90,8 +84,7 @@ pub fn issue_ticket_create(
 pub fn issue_signer_list_set(
     storage: &mut dyn Storage,
     config: &Config,
-    workers: WorkerSet,
-    multisig_session_id: Uint64
+    workers: WorkerSet
 ) -> Result<TxHash, ContractError> {
     let sequence_number = get_next_sequence_number(storage)?;
 
@@ -101,7 +94,6 @@ pub fn issue_signer_list_set(
         sequence: XRPLSequence::Plain(sequence_number.clone()),
         signer_quorum: workers.quorum,
         signer_entries: workers.signers.into_iter().map(|worker| XRPLSignerEntry::from(worker)).collect(),
-        multisig_session_id,
     };
 
     issue_tx(
@@ -181,7 +173,7 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId
     if let Some(ticket_number) = MESSAGE_ID_TO_TICKET.may_load(storage, &message_id)? {
         let confirmed_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, &ticket_number)?;
         // as long as it has not already been consumed
-        if confirmed_tx_hash.is_none() 
+        if confirmed_tx_hash.is_none()
         // or if it has been consumed by the same message.
         || TRANSACTION_INFO.load(storage, &confirmed_tx_hash.unwrap())?.original_message_id.as_ref() == Some(message_id) {
             return Ok(ticket_number);
@@ -197,6 +189,7 @@ pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId
 pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractError> {
     let last_assigned_ticket_number: u32 = LAST_ASSIGNED_TICKET_NUMBER.load(storage)?;
 
+    // TODO: handle no available tickets
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
 
     if available_tickets.len() == 0 {

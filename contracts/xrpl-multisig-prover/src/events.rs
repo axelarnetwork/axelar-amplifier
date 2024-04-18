@@ -6,8 +6,6 @@ use multisig::key::PublicKey;
 use serde_json::to_string;
 
 use crate::types::TxHash;
-
-
 pub enum Event {
     ProofUnderConstruction {
         tx_hash: TxHash,

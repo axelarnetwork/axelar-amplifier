@@ -1,7 +1,7 @@
 use axelar_wasm_std::VerificationStatus;
 use connection_router::state::CrossChainId;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128, Uint64};
+use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
@@ -138,7 +138,7 @@ impl Into<u32> for XRPLSequence {
 pub struct XRPLSignerEntry {
     pub account: XRPLAccountId,
     pub signer_weight: u16,
-}    
+}
 
 impl From<AxelarSigner> for XRPLSignerEntry {
     fn from(signer: AxelarSigner) -> Self {
@@ -207,7 +207,6 @@ pub struct XRPLPaymentTx {
     pub sequence: XRPLSequence,
     pub amount: XRPLPaymentAmount,
     pub destination: XRPLAccountId,
-    pub multisig_session_id: Uint64
 }
 
 #[cw_serde]
@@ -217,7 +216,6 @@ pub struct XRPLSignerListSetTx {
     pub sequence: XRPLSequence,
     pub signer_quorum: u32,
     pub signer_entries: Vec<XRPLSignerEntry>,
-    pub multisig_session_id: Uint64
 }
 
 #[cw_serde]
@@ -226,7 +224,6 @@ pub struct XRPLTicketCreateTx {
     pub fee: u64,
     pub sequence: XRPLSequence,
     pub ticket_count: u32,
-    pub multisig_session_id: Uint64
 }
 
 #[cw_serde]
@@ -382,20 +379,14 @@ impl XRPLTokenAmount {
     }
 }
 
-impl TryFrom<Uint128> for XRPLTokenAmount {
-    type Error = ContractError;
-
-    fn try_from(amount: Uint128) -> Result<XRPLTokenAmount, ContractError> {
-        let (mantissa, exponent) = canonicalize_mantissa(amount)?;
-        Ok(XRPLTokenAmount::new(mantissa, exponent))
-    }
+pub fn canonicalize_coin_amount(amount: Uint128, decimals: u8) -> Result<XRPLTokenAmount, ContractError>{
+    let (mantissa, exponent) = canonicalize_mantissa(amount, -1 * i64::from(decimals))?;
+    Ok(XRPLTokenAmount::new(mantissa, exponent))
 }
 
 // always called when XRPLTokenAmount instantiated
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
-pub fn canonicalize_mantissa(mut mantissa: Uint128) -> Result<(u64, i64), ContractError> {
-    let mut exponent = 0i64;
-
+pub fn canonicalize_mantissa(mut mantissa: Uint128, mut exponent: i64) -> Result<(u64, i64), ContractError> {
     let ten = Uint128::from(10u128);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {

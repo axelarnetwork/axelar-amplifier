@@ -98,11 +98,8 @@ pub enum ContractError {
     #[error("invalid message destination address")]
     InvalidMessageDestinationAddress,
 
-    #[error("payment already has active signing session")]
-    PaymentAlreadyHasActiveSigningSession,
-
-    #[error("payment already signed")]
-    PaymentAlreadySigned,
+    #[error("payment already has active signing session with ID {0}")]
+    PaymentAlreadyHasActiveSigningSession(u64),
 
     #[error("invalid token denomination")]
     InvalidTokenDenom,

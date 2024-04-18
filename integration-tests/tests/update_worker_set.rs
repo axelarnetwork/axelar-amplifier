@@ -2,6 +2,7 @@ use connection_router::{state::{Address, CrossChainId}, Message};
 use cosmwasm_std::{Addr, HexBinary};
 use axelar_wasm_std::VerificationStatus;
 use cw_multi_test::Executor;
+use multisig::key::KeyType;
 use test_utils::Worker;
 
 mod test_utils;
@@ -198,7 +199,7 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "f6471a07847f853d13601496cb643c6f111856ab336b204deefde520657900fb:0"
+            id: "fbf428da41656ca3aef36287bfcb6d8491daa76f20c201c4a60172450ab517f9:0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -225,7 +226,7 @@ fn xrpl_worker_set_can_be_initialized_and_then_manually_updated() {
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
         &xrpl.multisig_prover_address,
-        initial_workers.iter().map(|w| w.addr.clone()).collect(),
+        initial_workers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
         session_id,
         proof_msgs[0].cc_id.clone(),
         VerificationStatus::SucceededOnChain

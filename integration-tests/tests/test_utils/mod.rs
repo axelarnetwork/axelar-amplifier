@@ -250,8 +250,10 @@ pub fn construct_xrpl_payment_proof_and_sign(
         multisig_prover_address.clone(),
         &xrpl_multisig_prover::msg::ExecuteMsg::ConstructProof {
             message_id: message.cc_id.clone(),
+            coin: coins.to_vec().get(0).unwrap().clone(), // TODO: remove
         },
-        coins,
+        &[]
+        // coins,
     );
     assert!(response.is_ok());
     let response = response.unwrap();
@@ -397,7 +399,7 @@ pub fn get_xrpl_proof(
 pub fn xrpl_update_tx_status(
     app: &mut App,
     multisig_prover_address: &Addr,
-    signers: Vec<Addr>,
+    signer_public_keys: Vec<PublicKey>,
     multisig_session_id: Uint64,
     message_id: CrossChainId,
     message_status: VerificationStatus,
@@ -409,7 +411,7 @@ pub fn xrpl_update_tx_status(
             message_status,
             multisig_session_id,
             message_id,
-            signers,
+            signer_public_keys,
         },
         &[],
     );
@@ -983,6 +985,7 @@ pub fn register_token(
     multisig_prover_address: Addr,
     denom: String,
     token: XRPLToken,
+    decimals: u8,
 ) {
     let response = protocol.app.execute_contract(
         protocol.governance_address.clone(),
@@ -990,6 +993,7 @@ pub fn register_token(
         &xrpl_multisig_prover::msg::ExecuteMsg::RegisterToken {
             denom,
             token,
+            decimals,
         },
         &[],
     );
@@ -1043,6 +1047,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
                 (44218195..44218200).collect::<Vec<_>>()
             ].concat(),
             governance_address: protocol.governance_address.to_string(),
+            relayer_address: Addr::unchecked("relayer").to_string(),
             xrp_denom: "uxrp".to_string(),
         },
     );
@@ -1055,6 +1060,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> Chain {
             issuer: xrpl_multisig_address.as_str().try_into().unwrap(),
             currency: "ETH".to_string().try_into().unwrap(),
         },
+        18u8,
     );
 
     let response = protocol.app.execute_contract(
