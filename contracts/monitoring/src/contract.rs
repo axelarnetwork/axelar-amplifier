@@ -52,6 +52,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetActiveVerifiers { chain_name } => {
             to_binary(&query::get_active_worker_set(deps, chain_name)?).map_err(|err| err.into())
         }
+        QueryMsg::CheckWorkerCanUnbond {
+            worker_address,
+            chains,
+        } => to_binary(&query::check_worker_can_unbond(
+            deps,
+            worker_address,
+            chains,
+        )?)
+        .map_err(|err| err.into()),
     }
 }
 

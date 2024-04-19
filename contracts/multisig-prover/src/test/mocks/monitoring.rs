@@ -33,5 +33,6 @@ pub fn execute(
 pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetActiveVerifiers { .. } => todo!(),
+        QueryMsg::CheckWorkerCanUnbond { .. } => todo!(),
     }
 }
