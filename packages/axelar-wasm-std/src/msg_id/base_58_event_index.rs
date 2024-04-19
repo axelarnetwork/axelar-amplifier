@@ -77,8 +77,8 @@ mod tests {
 
     fn random_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
-        for i in 0..32 {
-            bytes[i] = rand::random();
+        for b in &mut bytes {
+            *b = rand::random();
         }
         bytes
     }
@@ -287,15 +287,15 @@ mod tests {
 
             // set a random (non-zero) number of leading bytes to 0
             let leading_zeroes = rand::random::<usize>() % bytes.len() + 1;
-            for i in 0..leading_zeroes {
-                bytes[i] = 0;
+            for b in bytes.iter_mut().take(leading_zeroes) {
+                *b = 0;
             }
 
             let b58 = bs58::encode(&bytes).into_string();
 
             // verify the base58 has the expected number of leading 1's
-            for i in 0..leading_zeroes {
-                assert_eq!(&b58[i..i + 1], "1");
+            for c in b58.chars().take(leading_zeroes) {
+                assert_eq!(c, '1');
             }
 
             // trim a random (non-zero) number of leading 1's
