@@ -12,7 +12,7 @@ use connection_router_api::{ChainName, CrossChainId, Message};
 pub struct InstantiateMsg {
     /// Address that can call all messages of unrestricted, admin and governance permission level, like UpdateVotingThreshold.
     /// It can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
-    /// On mainnet, it should match the address of the Cosmos governance module.
+    /// On mainnet it should match the address of the Cosmos governance module.
     pub governance_address: nonempty::String,
     /// Service registry contract address on axelar.
     pub service_registry_address: nonempty::String,
