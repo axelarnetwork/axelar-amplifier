@@ -28,7 +28,7 @@ fn register_service() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: "validators".into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond: Uint128::zero(),
@@ -45,7 +45,7 @@ fn register_service() {
             Addr::unchecked("some other account"),
             &ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                service_contract: Addr::unchecked("nowhere"),
+                monitoring_contract: Addr::unchecked("nowhere"),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond: Uint128::zero(),
@@ -71,7 +71,7 @@ fn authorize_worker() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond: Uint128::zero(),
@@ -125,7 +125,7 @@ fn bond_worker() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -177,7 +177,7 @@ fn register_chain_support() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -277,7 +277,7 @@ fn register_and_deregister_support_for_single_chain() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -363,7 +363,7 @@ fn register_and_deregister_support_for_multiple_chains() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -456,7 +456,7 @@ fn register_for_multiple_chains_deregister_for_first_one() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -577,7 +577,7 @@ fn register_support_for_a_chain_deregister_support_for_another_chain() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -678,7 +678,7 @@ fn register_deregister_register_support_for_single_chain() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -788,7 +788,7 @@ fn deregister_previously_unsupported_single_chain() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -864,7 +864,7 @@ fn register_and_deregister_support_for_single_chain_unbonded() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -940,7 +940,7 @@ fn deregister_from_unregistered_worker_single_chain() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1028,7 +1028,7 @@ fn unbond_worker() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1111,7 +1111,7 @@ fn bond_wrong_denom() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1156,7 +1156,7 @@ fn bond_but_not_authorized() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1220,7 +1220,7 @@ fn bond_but_not_enough() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1294,7 +1294,7 @@ fn bond_before_authorize() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1381,7 +1381,7 @@ fn unbond_then_rebond() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1488,7 +1488,7 @@ fn unbonding_period() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,
@@ -1629,7 +1629,7 @@ fn get_active_workers_should_not_return_less_than_min() {
             governance.clone(),
             &ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                service_contract: Addr::unchecked("nowhere"),
+                monitoring_contract: Addr::unchecked("nowhere"),
                 min_num_workers,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1743,7 +1743,7 @@ fn jail_worker() {
         governance.clone(),
         &ExecuteMsg::RegisterService {
             service_name: service_name.into(),
-            service_contract: Addr::unchecked("service contract"),
+            monitoring_contract: Addr::unchecked("service contract"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,

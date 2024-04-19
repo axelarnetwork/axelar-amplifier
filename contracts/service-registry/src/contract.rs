@@ -41,7 +41,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::RegisterService {
             service_name,
-            service_contract,
+            monitoring_contract,
             min_num_workers,
             max_num_workers,
             min_worker_bond,
@@ -53,7 +53,7 @@ pub fn execute(
             execute::register_service(
                 deps,
                 service_name,
-                service_contract,
+                monitoring_contract,
                 min_num_workers,
                 max_num_workers,
                 min_worker_bond,
@@ -148,7 +148,7 @@ pub mod execute {
     pub fn register_service(
         deps: DepsMut,
         service_name: String,
-        service_contract: Addr,
+        monitoring_contract: Addr,
         min_num_workers: u16,
         max_num_workers: Option<u16>,
         min_worker_bond: Uint128,
@@ -165,7 +165,7 @@ pub mod execute {
                 match service {
                     None => Ok(Service {
                         name: service_name,
-                        service_contract,
+                        monitoring_contract,
                         min_num_workers,
                         max_num_workers,
                         min_worker_bond,

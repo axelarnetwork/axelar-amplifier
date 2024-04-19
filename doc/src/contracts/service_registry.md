@@ -24,7 +24,7 @@ pub enum ExecuteMsg {
     // Can only be called by governance account
     RegisterService {
         service_name: String,
-        service_contract: Addr,
+        monitoring_contract: Addr,
         min_num_workers: u16,
         max_num_workers: Option<u16>,
         min_worker_bond: Uint128,

@@ -249,7 +249,7 @@ pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
         protocol.governance_address.clone(),
         &ExecuteMsg::RegisterService {
             service_name: protocol.service_name.to_string(),
-            service_contract: Addr::unchecked("nowhere"),
+            monitoring_contract: Addr::unchecked("nowhere"),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,

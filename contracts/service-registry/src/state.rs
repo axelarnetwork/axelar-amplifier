@@ -21,7 +21,7 @@ use crate::ContractError;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
     pub name: String,
-    pub service_contract: Addr,
+    pub monitoring_contract: Addr,
     pub min_num_workers: u16,
     pub max_num_workers: Option<u16>,
     pub min_worker_bond: Uint128,
