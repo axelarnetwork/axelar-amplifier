@@ -135,6 +135,15 @@ pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Error
     Ok(())
 }
 
+fn verify_msg_ids(
+    msgs: &[Message],
+    expected_format: &MessageIdFormat,
+) -> Result<(), error_stack::Report<Error>> {
+    msgs.iter()
+        .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.id, expected_format))
+        .change_context(Error::InvalidMessageId)
+}
+
 impl<S> Contract<S>
 where
     S: Store,
@@ -144,14 +153,10 @@ where
         sender: &Addr,
         msgs: Vec<Message>,
     ) -> error_stack::Result<Vec<Message>, Error> {
-        let verify_msg_ids = |msgs: &Vec<Message>, expected_format| {
-            msgs.iter()
-                .try_for_each(|msg| msg_id::verify_msg_id(&msg.cc_id.id, expected_format))
-                .change_context(Error::InvalidMessageId)
-        };
-
-        // if sender is the nexus gateway, we cannot validate the source chain
-        // because the source chain is registered in the core nexus module
+        // If sender is the nexus gateway, we cannot validate the source chain
+        // because the source chain is registered in the core nexus module.
+        // All messages received from the nexus gateway must adhere to the
+        // HexTxHashAndEventIndex message ID format.
         if sender == self.config.nexus_gateway {
             verify_msg_ids(&msgs, &MessageIdFormat::HexTxHashAndEventIndex)?;
             return Ok(msgs);
@@ -494,6 +499,50 @@ mod test {
 
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = "foobar".try_into().unwrap();
+        assert!(contract
+            .route_messages(sender, vec![msg])
+            .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
+    }
+
+    #[test]
+    fn route_messages_from_non_nexus_with_incorrect_message_id_format() {
+        let config = Config {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            nexus_gateway: Addr::unchecked("nexus_gateway"),
+        };
+        let sender = Addr::unchecked("sender");
+        let source_chain: ChainName = "ethereum".parse().unwrap();
+        let destination_chain: ChainName = "bitcoin".parse().unwrap();
+
+        let mut store = MockStore::new();
+        store
+            .expect_load_config()
+            .returning(move || Ok(config.clone()));
+        let source_chain_endpoint = ChainEndpoint {
+            name: source_chain.clone(),
+            gateway: Gateway {
+                address: sender.clone(),
+            },
+            frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::Base58TxDigestAndEventIndex,
+        };
+        store
+            .expect_load_chain_by_gateway()
+            .once()
+            .with(predicate::eq(sender.clone()))
+            .return_once(|_| Ok(Some(source_chain_endpoint)));
+
+        let contract = Contract::new(store);
+
+        let mut msg = rand_message(source_chain, destination_chain.clone());
+        msg.cc_id.id = HexTxHashAndEventIndex {
+            tx_hash: [0; 32],
+            event_index: 0,
+        }
+        .to_string()
+        .try_into()
+        .unwrap();
         assert!(contract
             .route_messages(sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
