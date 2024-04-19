@@ -3,8 +3,8 @@ mod test_utils;
 use std::{str::FromStr, vec};
 
 use connection_router_api::ChainName;
-use cosmwasm_std::{coins, Addr, BlockInfo, StdResult, Uint128};
-use cw_multi_test::App;
+use cosmwasm_std::{coins, Addr, BankMsg, BlockInfo, StdResult, Uint128};
+use cw_multi_test::{App, Executor};
 use integration_tests::contract::Contract;
 use service_registry::msg::QueryMsg;
 use service_registry::state::{WeightedWorker, WORKER_WEIGHT};
@@ -1716,4 +1716,160 @@ fn get_active_workers_should_not_return_less_than_min() {
         },
     );
     assert!(res.is_err());
+}
+
+#[test]
+fn jail_worker() {
+    let faucet = Addr::unchecked("faucet");
+    // init app with faucet balance
+    let mut app = App::new(|router, _, storage| {
+        router
+            .bank
+            .init_balance(storage, &faucet, coins(100000, AXL_DENOMINATION))
+            .unwrap()
+    });
+
+    // init service registry contract
+    let governance = Addr::unchecked("gov");
+    let service_registry =
+        test_utils::ServiceRegistryContract::instantiate_contract(&mut app, governance.clone());
+
+    // register a service
+    let service_name = "validators";
+    let min_worker_bond = Uint128::new(100);
+    let unbonding_period_days = 10;
+    let res = service_registry.execute(
+        &mut app,
+        governance.clone(),
+        &ExecuteMsg::RegisterService {
+            service_name: service_name.into(),
+            service_contract: Addr::unchecked("service contract"),
+            min_num_workers: 0,
+            max_num_workers: Some(100),
+            min_worker_bond,
+            bond_denom: AXL_DENOMINATION.into(),
+            unbonding_period_days,
+            description: "Some service".into(),
+        },
+    );
+    assert!(res.is_ok());
+
+    // given a bonded worker
+    let worker1 = Addr::unchecked("worker-1");
+    // fund worker
+    let msg: cosmwasm_std::CosmosMsg = BankMsg::Send {
+        to_address: worker1.clone().into(),
+        amount: coins(min_worker_bond.u128(), AXL_DENOMINATION),
+    }
+    .into();
+    app.execute(faucet.clone(), msg.clone()).unwrap();
+    let res = service_registry.execute_with_funds(
+        &mut app,
+        worker1.clone(),
+        &ExecuteMsg::BondWorker {
+            service_name: service_name.into(),
+        },
+        &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+    );
+    assert!(res.is_ok());
+
+    // when worker is jailed
+    let res = service_registry.execute(
+        &mut app,
+        governance.clone(),
+        &ExecuteMsg::JailWorkers {
+            workers: vec![worker1.clone().into()],
+            service_name: service_name.into(),
+        },
+    );
+    assert!(res.is_ok());
+
+    // worker cannot unbond
+    let err = service_registry
+        .execute(
+            &mut app,
+            worker1.clone(),
+            &ExecuteMsg::UnbondWorker {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+    test_utils::are_contract_err_strings_equal(err, ContractError::WorkerJailed);
+
+    // given a worker passed unbonding period
+    let worker2 = Addr::unchecked("worker-2");
+    // fund worker
+    let msg: cosmwasm_std::CosmosMsg = BankMsg::Send {
+        to_address: worker2.clone().into(),
+        amount: coins(min_worker_bond.u128(), AXL_DENOMINATION),
+    }
+    .into();
+    app.execute(faucet.clone(), msg.clone()).unwrap();
+    // bond worker
+    let res = service_registry.execute_with_funds(
+        &mut app,
+        worker2.clone(),
+        &ExecuteMsg::BondWorker {
+            service_name: service_name.into(),
+        },
+        &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+    );
+    assert!(res.is_ok());
+    // unbond worker
+    let res = service_registry.execute(
+        &mut app,
+        worker2.clone(),
+        &ExecuteMsg::UnbondWorker {
+            service_name: service_name.into(),
+        },
+    );
+    assert!(res.is_ok());
+    let worker: Worker = service_registry
+        .query(
+            &app,
+            &QueryMsg::GetWorker {
+                service_name: service_name.into(),
+                worker: worker2.to_string(),
+            },
+        )
+        .unwrap();
+
+    let block = app.block_info();
+    assert_eq!(
+        worker.bonding_state,
+        BondingState::Unbonding {
+            amount: min_worker_bond,
+            unbonded_at: block.time,
+        }
+    );
+
+    // when worker is jailed
+    let res = service_registry.execute(
+        &mut app,
+        governance,
+        &ExecuteMsg::JailWorkers {
+            workers: vec![worker2.clone().into()],
+            service_name: service_name.into(),
+        },
+    );
+    assert!(res.is_ok());
+
+    // and unbonding period has passed
+    app.set_block(BlockInfo {
+        height: block.height + 1,
+        time: block.time.plus_days((unbonding_period_days + 1).into()),
+        ..block
+    });
+
+    // worker cannot claim stake
+    let err = service_registry
+        .execute(
+            &mut app,
+            worker2.clone(),
+            &ExecuteMsg::ClaimStake {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+    test_utils::are_contract_err_strings_equal(err, ContractError::WorkerJailed);
 }

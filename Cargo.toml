@@ -7,9 +7,8 @@ rust-version = "1.75.0" # be sure there is an optimizer release supporting this 
 
 [workspace.dependencies]
 connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
-cosmwasm-std = "1.5.3"
-cosmwasm-schema = "1.3.3"
-cosmwasm-storage = "1.3.3"
+cosmwasm-std = "1.3.4"
+cosmwasm-schema = "1.3.4"
 cw-storage-plus = "1.1.0"
 error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
@@ -30,6 +29,7 @@ gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
 
 connection-router-api = { version = "^0.1.0", path = "packages/connection-router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
+client = { version = "^0.1.0", path = "packages/client" }
 rewards = { version = "^0.1.0", path = "contracts/rewards" }
 thiserror = "1.0.47"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }

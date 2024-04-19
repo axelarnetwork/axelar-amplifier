@@ -13,6 +13,7 @@ pub mod flagset;
 mod fn_ext;
 pub mod hash;
 pub mod hex;
+pub mod msg_id;
 pub mod nonempty;
 pub mod operators;
 pub mod snapshot;

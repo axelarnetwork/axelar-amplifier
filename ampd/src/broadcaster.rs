@@ -272,6 +272,7 @@ mod tests {
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use ecdsa::SigningKey;
     use rand::rngs::OsRng;
+    use std::time::Duration;
     use tokio::test;
     use tonic::Status;
 
@@ -449,7 +450,11 @@ mod tests {
             acc_number: 0,
             acc_sequence: 0,
             pub_key: (key_id.to_string(), pub_key),
-            config: Config::default(),
+            config: Config {
+                broadcast_interval: Duration::from_secs(0),
+                tx_fetch_interval: Duration::from_secs(0),
+                ..Config::default()
+            },
         };
         let msgs = vec![dummy_msg()];
 
