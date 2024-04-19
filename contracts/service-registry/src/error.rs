@@ -32,4 +32,6 @@ pub enum ContractError {
     InvalidBondingState(BondingState),
     #[error("not enough workers")]
     NotEnoughWorkers,
+    #[error("worker is jailed")]
+    WorkerJailed,
 }

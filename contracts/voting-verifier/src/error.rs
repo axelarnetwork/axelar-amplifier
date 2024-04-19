@@ -37,9 +37,6 @@ pub enum ContractError {
     #[error(transparent)]
     VoteError(#[from] voting::Error),
 
-    #[error("worker set already confirmed")]
-    WorkerSetAlreadyConfirmed,
-
     #[error("unauthorized")]
     Unauthorized,
 }

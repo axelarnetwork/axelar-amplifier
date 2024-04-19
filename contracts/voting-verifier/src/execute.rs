@@ -17,7 +17,6 @@ use service_registry::{msg::QueryMsg, state::WeightedWorker};
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
-use crate::msg::{EndPollResponse, VerifyMessagesResponse};
 use crate::query::worker_set_status;
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
@@ -52,7 +51,7 @@ pub fn verify_worker_set(
 ) -> Result<Response, ContractError> {
     let status = worker_set_status(deps.as_ref(), &new_operators)?;
     if status.is_confirmed() {
-        return Err(ContractError::WorkerSetAlreadyConfirmed);
+        return Ok(Response::new());
     }
 
     let config = CONFIG.load(deps.storage)?;
@@ -109,13 +108,6 @@ pub fn verify_messages(
         .map(|message| message_status(deps.as_ref(), &message).map(|status| (status, message)))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let response = Response::new().set_data(to_binary(&VerifyMessagesResponse {
-        verification_statuses: messages
-            .iter()
-            .map(|(status, message)| (message.cc_id.to_owned(), status.to_owned()))
-            .collect(),
-    })?);
-
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
         .filter_map(|(status, message)| match status {
@@ -129,7 +121,7 @@ pub fn verify_messages(
         .collect();
 
     if msgs_to_verify.is_empty() {
-        return Ok(response);
+        return Ok(Response::new());
     }
 
     let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
@@ -151,7 +143,7 @@ pub fn verify_messages(
         .map(TryInto::try_into)
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
-    Ok(response.add_event(
+    Ok(Response::new().add_event(
         PollStarted::Messages {
             messages,
             metadata: PollMetadata {
@@ -225,16 +217,13 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             funds: vec![],
         });
 
-    Ok(Response::new()
-        .add_messages(rewards_msgs)
-        .add_event(
-            PollEnded {
-                poll_id: poll_result.poll_id,
-                results: poll_result.results.clone(),
-            }
-            .into(),
-        )
-        .set_data(to_binary(&EndPollResponse { poll_result })?))
+    Ok(Response::new().add_messages(rewards_msgs).add_event(
+        PollEnded {
+            poll_id: poll_result.poll_id,
+            results: poll_result.results.clone(),
+        }
+        .into(),
+    ))
 }
 
 fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, ContractError> {
