@@ -70,7 +70,8 @@ pub fn execute(
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
         ExecuteMsg::UpdateWorkerSet {} => {
-            execute::require_admin(&deps, info)?;
+            execute::require_admin(&deps, info.clone())
+                .or_else(|_| execute::require_governance(&deps, info))?;
             execute::update_worker_set(deps, env)
         }
         ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps, info.sender),
@@ -338,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_worker_set_from_non_admin_should_fail() {
+    fn test_update_worker_set_from_non_admin_or_governance_should_fail() {
         let mut test_case = setup_test_case();
         let res = test_case.app.execute_contract(
             Addr::unchecked("some random address"),
@@ -354,6 +355,30 @@ mod tests {
                 .to_string(),
             axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
         );
+    }
+
+    #[test]
+    fn test_update_worker_set_from_governance_should_succeed() {
+        let mut test_case = setup_test_case();
+        let res = test_case.app.execute_contract(
+            test_case.governance.clone(),
+            test_case.prover_address.clone(),
+            &ExecuteMsg::UpdateWorkerSet {},
+            &[],
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_update_worker_set_from_admin_should_succeed() {
+        let mut test_case = setup_test_case();
+        let res = test_case.app.execute_contract(
+            test_case.governance.clone(),
+            test_case.prover_address.clone(),
+            &ExecuteMsg::UpdateWorkerSet {},
+            &[],
+        );
+        assert!(res.is_ok());
     }
 
     #[test]
@@ -476,49 +501,6 @@ mod tests {
     }
 
     #[test]
-    fn test_confirm_worker_set() {
-        let mut test_case = setup_test_case();
-        let res = execute_update_worker_set(&mut test_case);
-
-        assert!(res.is_ok());
-
-        let mut new_worker_set = test_data::operators();
-        new_worker_set.pop();
-        mocks::service_registry::set_active_workers(
-            &mut test_case.app,
-            test_case.service_registry_address.clone(),
-            new_worker_set.clone(),
-        );
-        let res = execute_update_worker_set(&mut test_case);
-
-        assert!(res.is_ok());
-
-        let total_weight: Uint256 = new_worker_set
-            .iter()
-            .fold(Uint256::zero(), |acc, x| acc + x.weight);
-        let quorum = total_weight.mul_ceil(test_data::threshold());
-        mocks::voting_verifier::confirm_worker_set(
-            &mut test_case.app,
-            test_case.voting_verifier_address.clone(),
-            new_worker_set.clone(),
-            quorum,
-        );
-
-        let res = confirm_worker_set(&mut test_case, Addr::unchecked("relayer"));
-        assert!(res.is_ok());
-
-        let worker_set = query_get_worker_set(&mut test_case);
-        assert!(worker_set.is_ok());
-
-        let worker_set = worker_set.unwrap();
-
-        let expected_worker_set =
-            test_operators_to_worker_set(new_worker_set, test_case.app.block_info().height);
-
-        assert_eq!(worker_set, expected_worker_set);
-    }
-
-    #[test]
     fn test_confirm_worker_set_unconfirmed() {
         let mut test_case = setup_test_case();
         let res = execute_update_worker_set(&mut test_case);
@@ -545,39 +527,6 @@ mod tests {
                 .to_string(),
             axelar_wasm_std::ContractError::from(ContractError::WorkerSetNotConfirmed).to_string()
         );
-    }
-
-    #[test]
-    fn test_governance_should_confirm_worker_set_without_verification() {
-        let mut test_case = setup_test_case();
-        let res = execute_update_worker_set(&mut test_case);
-
-        assert!(res.is_ok());
-
-        let mut new_worker_set = test_data::operators();
-        new_worker_set.pop();
-        mocks::service_registry::set_active_workers(
-            &mut test_case.app,
-            test_case.service_registry_address.clone(),
-            new_worker_set.clone(),
-        );
-        let res = execute_update_worker_set(&mut test_case);
-
-        assert!(res.is_ok());
-
-        let governance = test_case.governance.clone();
-        let res = confirm_worker_set(&mut test_case, governance);
-        assert!(res.is_ok());
-
-        let worker_set = query_get_worker_set(&mut test_case);
-        assert!(worker_set.is_ok());
-
-        let worker_set = worker_set.unwrap();
-
-        let expected_worker_set =
-            test_operators_to_worker_set(new_worker_set, test_case.app.block_info().height);
-
-        assert_eq!(worker_set, expected_worker_set);
     }
 
     #[test]

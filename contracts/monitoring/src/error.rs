@@ -13,4 +13,7 @@ pub enum ContractError {
 
     #[error("no provers registered for chain {0}")]
     NoProversRegisteredForChain(ChainName),
+
+    #[error("no active worker set registered")]
+    NoActiveWorkerSetRegistered,
 }
