@@ -84,7 +84,7 @@ mod test {
     #[test]
     fn should_not_verify_invalid_msg_id() {
         let msg_id = "foobar";
-        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+        assert!(verify_msg_id(msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
     }
 
     #[test]
