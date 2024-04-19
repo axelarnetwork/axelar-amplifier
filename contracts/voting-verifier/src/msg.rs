@@ -10,17 +10,25 @@ use connection_router_api::{ChainName, CrossChainId, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// Address that can call all messages of unrestricted, admin and governance permission level, like UpdateVotingThreshold.
+    /// It can execute messages that bypasses verification checks to rescue the contract if it got into an otherwise unrecoverable state due to external forces.
+    /// On mainnet, it should match the address of the Cosmos governance module.
     pub governance_address: nonempty::String,
-
-    // params to query service_registry
+    /// Service registry contract address on axelar.
     pub service_registry_address: nonempty::String,
+    /// Name of service in the service registry for which verifiers are registered.
     pub service_name: nonempty::String,
-
+    /// Axelar's gateway contract address on the source chain
     pub source_gateway_address: nonempty::String,
+    /// Threshold of weighted votes required for voting to be considered complete
     pub voting_threshold: MajorityThreshold,
+    /// The number of blocks after which a poll expires
     pub block_expiry: u64,
+    /// The numer of blocks to wait for voting confirmation
     pub confirmation_height: u64,
+    /// Name of the source chain
     pub source_chain: ChainName,
+    /// Rewards contract address on axelar.
     pub rewards_address: String,
 }
 
