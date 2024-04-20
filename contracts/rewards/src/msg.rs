@@ -1,5 +1,9 @@
 use axelar_wasm_std::{nonempty, Threshold};
+use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Uint128, Uint64};
+
+use crate::state::PoolId;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -26,7 +30,7 @@ pub struct Params {
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Log a specific worker as participating in a specific event
+    /// Log a specific worker as participating in a specific event. Worker weights are ignored
     ///
     /// TODO: For batched voting, treating the entire batch as a single event can be problematic.
     /// A worker may vote correctly for 9 out of 10 messages in a batch, but the worker's participation
@@ -35,24 +39,21 @@ pub enum ExecuteMsg {
     /// A possible solution to this is to add a weight to each event, where the voting verifier specifies the number
     /// of messages in a batch as well as the number of messages a particular worker actually participated in.
     RecordParticipation {
+        chain_name: ChainName,
         event_id: nonempty::String,
         worker_address: String,
     },
 
     /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
     DistributeRewards {
-        /// Address of contract for which to process rewards. For example, address of a voting verifier instance.
-        contract_address: String,
-        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest.
+        pool_id: PoolId,
+        /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest. If not specified, distribute rewards for 10 epochs.
         epoch_count: Option<u64>,
     },
 
     /// Start a new reward pool for the given contract if none exists. Otherwise, add tokens to an existing reward pool.
     /// Any attached funds with a denom matching the rewards denom are added to the pool.
-    AddRewards {
-        /// Address of contract for which to reward participation. For example, address of a voting verifier instance.
-        contract_address: String,
-    },
+    AddRewards { pool_id: PoolId },
 
     /// Overwrites the currently stored params. Callable only by governance.
     UpdateParams { params: Params },
@@ -60,4 +61,17 @@ pub enum ExecuteMsg {
 
 #[cw_serde]
 #[derive(QueryResponses)]
-pub enum QueryMsg {}
+pub enum QueryMsg {
+    /// Gets the rewards pool details for the given `pool_id``
+    #[returns(RewardsPool)]
+    RewardsPool { pool_id: PoolId },
+}
+
+#[cw_serde]
+pub struct RewardsPool {
+    pub balance: Uint128,
+    pub epoch_duration: Uint64,
+    pub rewards_per_epoch: Uint128,
+    pub current_epoch_num: Uint64,
+    pub last_distribution_epoch: Option<Uint64>,
+}

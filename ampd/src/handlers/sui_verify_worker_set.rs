@@ -2,19 +2,19 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmwasm_std::HexBinary;
+use cosmwasm_std::Uint128;
 use error_stack::ResultExt;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
+use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::ID_SEPARATOR;
-use cosmwasm_std::HexBinary;
-use cosmwasm_std::Uint128;
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
-use valuable::Valuable;
+use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -33,15 +33,13 @@ pub struct Operators {
 #[derive(Deserialize, Debug)]
 pub struct WorkerSetConfirmation {
     pub tx_id: TransactionDigest,
-    pub event_index: u64,
+    pub event_index: u32,
     pub operators: Operators,
 }
 
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-worker_set_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     poll_id: PollId,
     source_gateway_address: SuiAddress,
     worker_set: WorkerSetConfirmation,
@@ -110,8 +108,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> error_stack::Result<(), Error> {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_gateway_address,
             worker_set,
@@ -124,10 +125,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if !participants.contains(&self.worker) {
             return Ok(());
@@ -148,10 +145,7 @@ where
         let vote = info_span!(
             "verify a new worker set for Sui",
             poll_id = poll_id.to_string(),
-            id = format!(
-                "0x{:x}{}{}",
-                worker_set.tx_id, ID_SEPARATOR, worker_set.event_index
-            )
+            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {
@@ -174,30 +168,28 @@ where
 mod tests {
     use std::convert::TryInto;
 
-    use axelar_wasm_std::operators::Operators;
     use cosmwasm_std::HexBinary;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
-    use events::Event;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
+    use tokio::test as async_test;
+
+    use axelar_wasm_std::operators::Operators;
+    use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
 
-    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
     use crate::{handlers::tests::get_event, types::TMAddress};
 
-    use tokio::test as async_test;
+    use super::PollStartedEvent;
 
     #[test]
     fn should_deserialize_worker_set_poll_started_event() {
-        let participants = (0..5)
-            .into_iter()
-            .map(|_| TMAddress::random(PREFIX))
-            .collect();
+        let participants = (0..5).map(|_| TMAddress::random(PREFIX)).collect();
 
         let event: Result<PollStartedEvent, events::Error> = get_event(
             worker_set_poll_started_event(participants, 100),

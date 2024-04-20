@@ -14,6 +14,12 @@ pub enum ContractError {
     #[error("invalid message id {0}")]
     InvalidMessageId(String),
 
+    #[error("invalid source tx id {0}")]
+    InvalidSourceTxId(String),
+
+    #[error("invalid event index {0}")]
+    InvalidEventIndex(u64),
+
     #[error("invalid payload hash {0}")]
     InvalidMessagePayloadHash(HexBinary),
 

@@ -1,48 +1,21 @@
 use std::str::FromStr;
 
 #[cfg(not(feature = "library"))]
-use axelar_wasm_std::{Threshold, VerificationStatus};
-use connection_router::{state::{Address, ChainName, CrossChainId}, Message};
-use cosmwasm_schema::cw_serde;
+use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
+use connection_router_api::{Address, ChainName, CrossChainId, Message};
 use cosmwasm_std::{
-    entry_point, Storage, wasm_execute, SubMsg, Reply,
-    DepsMut, Env, MessageInfo, Response, Fraction, Uint64, to_json_binary, Deps, StdResult, Binary, Addr, HexBinary,
+    entry_point, to_json_binary, wasm_execute, Addr, Binary, Deps, DepsMut, Env, Fraction, HexBinary, MessageInfo, Reply, Response, StdResult, Storage, SubMsg, Uint64
 };
+// TODO: create custom message ID format
 use voting_verifier::events::parse_message_id;
 
 use multisig::{key::PublicKey, types::MultisigState};
 
 use crate::{
-    error::ContractError,
-    state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MULTISIG_SESSION_ID_TO_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO, REPLY_MESSAGE_ID, MESSAGE_ID_TO_MULTISIG_SESSION_ID},
-    msg::{ExecuteMsg, QueryMsg},
-    reply,
-    types::*,
-    xrpl_multisig, axelar_workers, querier::{Querier, XRPL_CHAIN_NAME}, query,
-    xrpl_serialize::XRPLSerialize,
+    axelar_workers, error::ContractError, msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg}, querier::{Querier, XRPL_CHAIN_NAME}, query, reply, state::{Config, AVAILABLE_TICKETS, CONFIG, CURRENT_WORKER_SET, LAST_ASSIGNED_TICKET_NUMBER, MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_ID_TO_TX_HASH, NEXT_SEQUENCE_NUMBER, NEXT_WORKER_SET, REPLY_MESSAGE_ID, REPLY_TX_HASH, TOKENS, TRANSACTION_INFO}, types::*, xrpl_multisig, xrpl_serialize::XRPLSerialize
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
-
-#[cw_serde]
-pub struct InstantiateMsg {
-    pub axelar_multisig_address: String,
-    pub gateway_address: String,
-    pub signing_threshold: Threshold,
-    pub xrpl_multisig_address: String,
-    pub voting_verifier_address: String,
-    pub service_registry_address: String,
-    pub service_name: String,
-    pub worker_set_diff_threshold: u32,
-    pub xrpl_fee: u64,
-    pub ticket_count_threshold: u32,
-    pub available_tickets: Vec<u32>,
-    pub next_sequence_number: u32,
-    pub last_assigned_ticket_number: u32,
-    pub governance_address: String,
-    pub relayer_address: String, // TODO: REMOVE
-    pub xrp_denom: String,
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -51,34 +24,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let axelar_multisig_address = deps.api.addr_validate(&msg.axelar_multisig_address)?;
-    let gateway_address = deps.api.addr_validate(&msg.gateway_address)?;
-    let voting_verifier_address = deps.api.addr_validate(&msg.voting_verifier_address)?;
-    let service_registry_address = deps.api.addr_validate(&msg.service_registry_address)?;
-    let governance_address = deps.api.addr_validate(&msg.governance_address)?;
-    let relayer_address = deps.api.addr_validate(&msg.relayer_address)?;
-
-    if msg.signing_threshold.numerator() > u32::MAX.into() || msg.signing_threshold.denominator() == Uint64::zero() {
-        return Err(ContractError::InvalidSigningThreshold.into());
-    }
-
-    let config = Config {
-        axelar_multisig_address,
-        gateway_address,
-        xrpl_multisig_address: msg.xrpl_multisig_address,
-        signing_threshold: msg.signing_threshold,
-        voting_verifier_address,
-        service_registry_address,
-        service_name: msg.service_name,
-        worker_set_diff_threshold: msg.worker_set_diff_threshold,
-        xrpl_fee: msg.xrpl_fee,
-        ticket_count_threshold: msg.ticket_count_threshold,
-        key_type: multisig::key::KeyType::Ecdsa,
-        governance_address,
-        relayer_address,
-        xrp_denom: msg.xrp_denom,
-    };
-
+    let config = make_config(&deps, msg.clone())?;
     CONFIG.save(deps.storage, &config)?;
 
     NEXT_SEQUENCE_NUMBER.save(deps.storage, &msg.next_sequence_number)?;
@@ -88,44 +34,98 @@ pub fn instantiate(
     let querier = Querier::new(deps.querier, config.clone());
     let new_worker_set = axelar_workers::get_active_worker_set(&querier, msg.signing_threshold, env.block.height)?;
 
-    CURRENT_WORKER_SET.save(deps.storage, &new_worker_set)?;
+    CURRENT_WORKER_SET.save(deps.storage, &new_worker_set.clone())?;
 
-    let msg = wasm_execute(
-        config.axelar_multisig_address,
-        &multisig::msg::ExecuteMsg::RegisterWorkerSet {
-            worker_set: new_worker_set.into(),
-        },
-        vec![],
-    )?;
-
-    Ok(Response::new().add_message(msg))
+    Ok(Response::new()
+        .add_message(wasm_execute(
+            config.axelar_multisig,
+            &multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                worker_set: new_worker_set.into(),
+            },
+            vec![],
+        )?))
 }
 
-pub fn require_governance(governance: &Addr, sender: &Addr) -> Result<(), ContractError> {
-    if governance != sender {
-        return Err(ContractError::Unauthorized);
+fn make_config(
+    deps: &DepsMut,
+    msg: InstantiateMsg,
+) -> Result<Config, axelar_wasm_std::ContractError> {
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let relayer = deps.api.addr_validate(&msg.relayer_address)?;
+    let axelar_multisig = deps.api.addr_validate(&msg.axelar_multisig_address)?;
+    let monitoring = deps.api.addr_validate(&msg.monitoring_address)?;
+    let gateway = deps.api.addr_validate(&msg.gateway_address)?;
+    let voting_verifier = deps.api.addr_validate(&msg.voting_verifier_address)?;
+    let service_registry = deps.api.addr_validate(&msg.service_registry_address)?;
+
+    if msg.signing_threshold.numerator() > u32::MAX.into() || msg.signing_threshold.denominator() == Uint64::zero() {
+        return Err(ContractError::InvalidSigningThreshold.into());
     }
-    Ok(())
+
+    Ok(Config {
+        admin,
+        governance,
+        relayer,
+        axelar_multisig,
+        monitoring,
+        gateway,
+        xrpl_multisig: msg.xrpl_multisig_address,
+        signing_threshold: msg.signing_threshold,
+        voting_verifier,
+        service_registry,
+        service_name: msg.service_name,
+        worker_set_diff_threshold: msg.worker_set_diff_threshold,
+        xrpl_fee: msg.xrpl_fee,
+        ticket_count_threshold: msg.ticket_count_threshold,
+        key_type: multisig::key::KeyType::Ecdsa,
+        xrp_denom: msg.xrp_denom,
+    })
 }
 
-pub fn require_permissioned_relayer(relayer: &Addr, sender: &Addr) -> Result<(), ContractError> {
-    if relayer != sender {
-        return Err(ContractError::Unauthorized);
+pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.admin {
+        admin if admin == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
     }
-    Ok(())
+}
+
+pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.governance {
+        governance if governance == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
+    }
+}
+
+pub fn require_permissioned_relayer(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.relayer {
+        governance if governance == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
+    }
 }
 
 fn register_token(
     storage: &mut dyn Storage,
-    config: &Config,
-    sender: &Addr,
     denom: String,
     token: &XRPLToken,
     decimals: u8,
 ) -> Result<Response, ContractError> {
-    require_governance(&config.governance_address, sender)?;
     TOKENS.save(storage, &denom, &(token.clone(), decimals))?;
     Ok(Response::default())
+}
+
+pub fn update_signing_threshold(
+    deps: DepsMut,
+    new_signing_threshold: MajorityThreshold,
+) -> Result<Response, ContractError> {
+    CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<Config, ContractError> {
+            config.signing_threshold = new_signing_threshold;
+            Ok(config)
+        },
+    )?;
+    Ok(Response::new())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -140,22 +140,32 @@ pub fn execute(
 
     let res = match msg {
         ExecuteMsg::RegisterToken { denom, token , decimals } => {
-            register_token(deps.storage, &config, &info.sender, denom, &token, decimals)
+            require_admin(&deps, info.clone())
+                .or_else(|_| require_governance(&deps, info.clone()))?;
+            register_token(deps.storage, denom, &token, decimals)
         },
         // TODO: coin should be info.funds
         ExecuteMsg::ConstructProof { message_id, coin } => {
-            require_permissioned_relayer(&config.relayer_address, &info.sender)?;
+            require_permissioned_relayer(&deps, info)?;
             construct_payment_proof(deps.storage, &querier, env.contract.address, env.block.height, &config, message_id, &coin)
         },
         ExecuteMsg::UpdateWorkerSet {} => {
+            require_admin(&deps, info.clone())
+                .or_else(|_| require_governance(&deps, info))?;
             construct_signer_list_set_proof(deps.storage, &querier, env, &config)
         },
         ExecuteMsg::UpdateTxStatus { multisig_session_id, signer_public_keys, message_id, message_status } => {
-            update_tx_status(deps.storage, &querier, &multisig_session_id, &signer_public_keys, &message_id, message_status, config.axelar_multisig_address, config.xrpl_multisig_address)
+            update_tx_status(deps.storage, &querier, &multisig_session_id, &signer_public_keys, &message_id, message_status, config.axelar_multisig, config.xrpl_multisig)
         },
         ExecuteMsg::TicketCreate {} => {
             construct_ticket_create_proof(deps.storage, env.contract.address, &config)
         },
+        ExecuteMsg::UpdateSigningThreshold {
+            new_signing_threshold,
+        } => {
+            require_governance(&deps, info)?;
+            update_signing_threshold(deps, new_signing_threshold)
+        }
     }?;
 
     Ok(res)
@@ -225,9 +235,15 @@ pub fn start_signing_session(
     _self_address: Addr,
 ) -> Result<Response, ContractError> {
     REPLY_TX_HASH.save(storage, &tx_hash)?;
-    let cur_worker_set: multisig::worker_set::WorkerSet = CURRENT_WORKER_SET.load(storage)?.into();
+    let cur_worker_set_id = match CURRENT_WORKER_SET.may_load(storage)? {
+        Some(worker_set) => Into::<multisig::worker_set::WorkerSet>::into(worker_set).id(),
+        None => {
+            return Err(ContractError::NoWorkerSet);
+        }
+    };
+
     let start_sig_msg: multisig::msg::ExecuteMsg = multisig::msg::ExecuteMsg::StartSigningSession {
-        worker_set_id: cur_worker_set.id(),
+        worker_set_id: cur_worker_set_id,
         chain_name: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
         msg: tx_hash.into(),
         // TODO: implement sig_verifier
@@ -235,7 +251,7 @@ pub fn start_signing_session(
         sig_verifier: None,
     };
 
-    let wasm_msg = wasm_execute(&config.axelar_multisig_address, &start_sig_msg, vec![])?;
+    let wasm_msg = wasm_execute(&config.axelar_multisig, &start_sig_msg, vec![])?;
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
 }
@@ -253,8 +269,8 @@ fn construct_signer_list_set_proof(
     let new_worker_set = axelar_workers::get_active_worker_set(querier, config.signing_threshold, env.block.height)?;
     let cur_worker_set = CURRENT_WORKER_SET.load(storage)?;
     if !axelar_workers::should_update_worker_set(
-        &new_worker_set,
-        &cur_worker_set,
+        &new_worker_set.clone().into(),
+        &cur_worker_set.clone().into(),
         config.worker_set_diff_threshold as usize,
     ) {
         return Err(ContractError::WorkerSetUnchanged.into())
@@ -389,4 +405,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps.storage)?),
         QueryMsg::GetMultisigSessionId { message_id } => to_json_binary(&query::get_multisig_session_id(deps.storage, &message_id)?), // TODO: rename
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    let old_config = CONFIG.load(deps.storage)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let new_config = Config {
+        governance,
+        ..old_config
+    };
+    CONFIG.save(deps.storage, &new_config)?;
+
+    Ok(Response::default())
 }

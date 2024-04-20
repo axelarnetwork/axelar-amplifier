@@ -28,8 +28,6 @@ use crate::tofnd::MessageDigest;
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-xrpl_signing_started")]
 struct XRPLSigningStartedEvent {
-    #[serde(rename = "_contract_address")]
-    multisig_prover_address: TMAddress,
     session_id: u64,
     #[serde(deserialize_with = "deserialize_public_keys")]
     pub_keys: HashMap<TMAddress, PublicKey>,
@@ -134,8 +132,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> error_stack::Result<(), Error> {
+        if !event.is_from_contract(self.multisig_prover.as_ref()) {
+            return Ok(());
+        }
+
         let XRPLSigningStartedEvent {
-            multisig_prover_address,
             session_id,
             pub_keys,
             unsigned_tx,
@@ -146,10 +147,6 @@ where
             }
             result => result.change_context(DeserializeEvent)?,
         };
-
-        if self.multisig_prover != multisig_prover_address {
-            return Ok(());
-        }
 
         info!(
             session_id = session_id,
@@ -180,6 +177,8 @@ where
                     .await
                     .change_context(Error::Sign)?;
 
+                println!("signature: {:?}", signature);
+
                 info!(signature = encode(&signature), "ready to submit signature");
 
                 self.broadcast_signature(session_id, signature).await?;
@@ -202,21 +201,17 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use connection_router::state::ChainName;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::{AccountId, Gas};
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
-    use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
-    use rand::Rng;
     use tendermint::abci;
     use tokio::sync::watch;
 
-    use multisig::events::Event::SigningStarted;
+    use xrpl_multisig_prover::events::Event::XRPLSigningStarted;
     use multisig::key::PublicKey;
-    use multisig::types::MsgToSign;
 
     use crate::broadcaster::MockBroadcaster;
     use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};
@@ -226,7 +221,7 @@ mod test {
 
     use super::*;
 
-    const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
+    const MULTISIG_PROVER_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 
     fn rand_account() -> TMAddress {
         types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
@@ -241,19 +236,9 @@ mod test {
         ))
     }
 
-    fn rand_message() -> HexBinary {
+    fn rand_unsigned_tx() -> HexBinary {
         let digest: [u8; 32] = rand::random();
         HexBinary::from(digest.as_slice())
-    }
-
-    fn rand_chain_name() -> ChainName {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect::<String>()
-            .try_into()
-            .unwrap()
     }
 
     fn signing_started_event() -> events::Event {
@@ -261,18 +246,17 @@ mod test {
             .map(|_| (rand_account().to_string(), rand_public_key()))
             .collect::<HashMap<String, PublicKey>>();
 
-        let poll_started = SigningStarted {
+        let poll_started = XRPLSigningStarted {
             session_id: Uint64::one(),
             worker_set_id: "worker_set_id".to_string(),
             pub_keys,
-            msg: MsgToSign::unchecked(rand_message()),
-            chain_name: rand_chain_name(),
+            unsigned_tx: rand_unsigned_tx(),
             expires_at: 100u64,
         };
 
         let mut event: cosmwasm_std::Event = poll_started.into();
         event.ty = format!("wasm-{}", event.ty);
-        event = event.add_attribute("_contract_address", MULTISIG_ADDRESS);
+        event = event.add_attribute("_contract_address", MULTISIG_PROVER_ADDRESS);
 
         events::Event::try_from(abci::Event::new(
             event.ty,
@@ -362,7 +346,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_not_handle_event_if_multisig_address_does_not_match() {
+    async fn should_not_handle_event_if_multisig_prover_address_does_not_match() {
         let mut client = MockEcdsaClient::new();
         client
             .expect_sign()
@@ -388,8 +372,8 @@ mod test {
 
         let handler = get_handler(
             rand_account(),
-            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             rand_account(),
+            TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             100u64,
         );
@@ -409,8 +393,8 @@ mod test {
         let worker = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = get_handler(
             worker,
-            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             rand_account(),
+            TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             99u64,
         );
@@ -433,8 +417,8 @@ mod test {
         let worker = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = get_handler(
             worker,
-            TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             rand_account(),
+            TMAddress::from(MULTISIG_PROVER_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             101u64,
         );

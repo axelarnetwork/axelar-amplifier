@@ -53,9 +53,9 @@ pub fn execute(
         } => {
             execute::require_authorized_caller(&deps, info.sender)?;
 
-            let _sig_verifier = sig_verifier
+            let sig_verifier = sig_verifier
                 .map(|addr| deps.api.addr_validate(&addr))
-                .transpose()?; // TODO: handle callback
+                .transpose()?;
             execute::start_signing_session(
                 deps,
                 env,
@@ -63,6 +63,7 @@ pub fn execute(
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
                 chain_name,
+                sig_verifier,
             )
         }
         ExecuteMsg::SubmitSignature {
@@ -110,6 +111,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 mod tests {
     use std::vec;
 
+    use cosmwasm_std::{
+        from_binary,
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        Addr, Empty, OwnedDeps, WasmMsg,
+    };
+    use serde_json::from_str;
+
+    use connection_router_api::ChainName;
+
     use crate::{
         key::{KeyType, PublicKey, Signature},
         msg::Multisig,
@@ -121,13 +131,6 @@ mod tests {
     };
 
     use super::*;
-    use cosmwasm_std::{
-        from_binary,
-        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, OwnedDeps, Uint256, WasmMsg,
-    };
-
-    use serde_json::from_str;
 
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
@@ -183,6 +186,7 @@ mod tests {
         deps: DepsMut,
         sender: &str,
         worker_set_id: &str,
+        chain_name: ChainName,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(sender, &[]);
         let env = mock_env();
@@ -191,7 +195,7 @@ mod tests {
         let msg = ExecuteMsg::StartSigningSession {
             worker_set_id: worker_set_id.to_string(),
             msg: message.clone(),
-            chain_name: "Ethereum".to_string().try_into().unwrap(),
+            chain_name,
             sig_verifier: None,
         };
         execute(deps, env, info, msg)
@@ -369,7 +373,12 @@ mod tests {
             .into_iter()
             .enumerate()
         {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, &subkey);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &subkey,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert!(res.is_ok());
 
@@ -397,7 +406,7 @@ mod tests {
             assert_eq!(res.data, Some(to_binary(&session.id).unwrap()));
             assert_eq!(res.events.len(), 1);
 
-            let event = res.events.get(0).unwrap();
+            let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signing_started".to_string());
             assert_eq!(
                 get_event_attribute(event, "session_id").unwrap(),
@@ -423,7 +432,12 @@ mod tests {
         let sender = "someone else";
 
         for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
-            let res = do_start_signing_session(deps.as_mut(), sender, &worker_set_id);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                sender,
+                &worker_set_id,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert_eq!(
                 res.unwrap_err().to_string(),
@@ -438,16 +452,20 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+
         for (key_type, worker_set_id, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, worker_set_id).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, worker_set_id, chain_name.clone())
+                .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
 
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
                 })
@@ -456,7 +474,7 @@ mod tests {
             }
             .into();
 
-            let res = do_sign(deps.as_mut(), mock_env(), Uint64::from(session_id), &signer);
+            let res = do_sign(deps.as_mut(), mock_env(), session_id, &signer);
 
             assert!(res.is_ok());
 
@@ -480,7 +498,7 @@ mod tests {
 
             assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
 
-            let event = res.events.get(0).unwrap();
+            let event = res.events.first().unwrap();
             assert_eq!(event.ty, "signature_submitted".to_string());
             assert_eq!(
                 get_event_attribute(event, "session_id").unwrap(),
@@ -505,9 +523,10 @@ mod tests {
         for (key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
+                .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -554,12 +573,14 @@ mod tests {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, chain_name.clone()).unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -572,6 +593,7 @@ mod tests {
             let expected_rewards_msg = WasmMsg::Execute {
                 contract_addr: REWARDS_CONTRACT.to_string(),
                 msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+                    chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
                     worker_address: signer.address.clone().into(),
                 })
@@ -588,10 +610,7 @@ mod tests {
 
             assert_eq!(signatures.len(), 3);
             assert!(res.messages.iter().any(|m| m.msg == expected_rewards_msg));
-            assert!(!res
-                .events
-                .iter()
-                .any(|e| e.ty == "signing_completed".to_string())); // event is not re-emitted
+            assert!(!res.events.iter().any(|e| e.ty == *"signing_completed")); // event is not re-emitted
         }
     }
 
@@ -603,9 +622,10 @@ mod tests {
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
+                .unwrap();
 
-            let signer = signers.get(0).unwrap().to_owned();
+            let signer = signers.first().unwrap().to_owned();
             do_sign(deps.as_mut(), mock_env(), session_id, &signer).unwrap();
 
             // second signature
@@ -621,7 +641,7 @@ mod tests {
             assert_eq!(
                 res.unwrap_err().to_string(),
                 axelar_wasm_std::ContractError::from(ContractError::SigningSessionClosed {
-                    session_id: session_id
+                    session_id
                 })
                 .to_string()
             )
@@ -632,10 +652,16 @@ mod tests {
     fn submit_signature_wrong_session_id() {
         let (mut deps, ecdsa_subkey, _) = setup();
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
-        do_start_signing_session(deps.as_mut(), PROVER, &ecdsa_subkey).unwrap();
+        do_start_signing_session(
+            deps.as_mut(),
+            PROVER,
+            &ecdsa_subkey,
+            "mock-chain".parse().unwrap(),
+        )
+        .unwrap();
 
         let invalid_session_id = Uint64::zero();
-        let signer = ecdsa_test_data::signers().get(0).unwrap().to_owned();
+        let signer = ecdsa_test_data::signers().first().unwrap().to_owned();
         let res = do_sign(deps.as_mut(), mock_env(), invalid_session_id, &signer);
 
         assert_eq!(
@@ -655,13 +681,14 @@ mod tests {
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, subkey).unwrap();
+            do_start_signing_session(deps.as_mut(), PROVER, subkey, "mock-chain".parse().unwrap())
+                .unwrap();
 
             do_sign(
                 deps.as_mut(),
                 mock_env(),
                 session_id,
-                signers.get(0).unwrap(),
+                signers.first().unwrap(),
             )
             .unwrap();
 
@@ -701,7 +728,7 @@ mod tests {
                         .find(|signer| signer.0.address == worker_set_signer.address)
                         .unwrap();
 
-                    assert_eq!(signer.0.weight, Uint256::from(worker_set_signer.weight));
+                    assert_eq!(signer.0.weight, worker_set_signer.weight);
                     assert_eq!(
                         signer.0.pub_key,
                         worker_set.signers.get(address).unwrap().pub_key
@@ -942,7 +969,12 @@ mod tests {
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
         for worker_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, &worker_set_id);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &worker_set_id,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert!(res.is_ok());
         }
@@ -950,7 +982,12 @@ mod tests {
         // unauthorize
         do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
         for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
-            let res = do_start_signing_session(deps.as_mut(), PROVER, &worker_set_id);
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &worker_set_id,
+                "mock-chain".parse().unwrap(),
+            );
 
             assert_eq!(
                 res.unwrap_err().to_string(),

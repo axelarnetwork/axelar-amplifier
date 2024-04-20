@@ -1,8 +1,7 @@
 use axelar_wasm_std::{nonempty, voting};
 use axelar_wasm_std_derive::IntoContractError;
-use connection_router;
-use connection_router::state::ChainName;
-use cosmwasm_std::StdError;
+use connection_router_api::ChainName;
+use cosmwasm_std::{OverflowError, StdError};
 use service_registry;
 use thiserror::Error;
 
@@ -12,7 +11,10 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error(transparent)]
-    RouterError(#[from] connection_router::ContractError),
+    Overflow(#[from] OverflowError),
+
+    #[error(transparent)]
+    RouterError(#[from] connection_router_api::error::Error),
 
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),
@@ -35,8 +37,8 @@ pub enum ContractError {
     #[error(transparent)]
     VoteError(#[from] voting::Error),
 
-    #[error("worker set already confirmed")]
-    WorkerSetAlreadyConfirmed,
+    #[error("unauthorized")]
+    Unauthorized,
 }
 
 impl From<ContractError> for StdError {

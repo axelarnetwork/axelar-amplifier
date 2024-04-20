@@ -6,9 +6,9 @@ edition = "2021"
 description = "Gateway contract"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,6 +24,8 @@ path = "src/bin/schema.rs"
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
+# generate golden files for the tests
+generate_golden_files = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \
@@ -36,19 +38,21 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
-connection-router = { workspace = true, features = ["library"] }
+client = { workspace = true }
+connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
+gateway-api = { workspace = true }
 itertools = { workspace = true }
-mockall = "0.11.3"
 report = { workspace = true }
-schemars = "0.8.10"
-serde = { version = "1.0.145", default-features = false, features = ["derive"] }
-serde_json = "1.0.89"
+serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
+
+[lints]
+workspace = true

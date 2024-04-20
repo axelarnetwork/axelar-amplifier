@@ -88,7 +88,7 @@ runs:
           Please check the tags and use the patch commit as the base for the
           new release.
 
-          Retreive the latest patch commit from the tag:
+          Retrieve the latest patch commit from the tag:
           git tag --list ${{inputs.binary-to-release}}-v*
 
           Checkout the tag:

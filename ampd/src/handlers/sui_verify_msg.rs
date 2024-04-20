@@ -6,12 +6,12 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
+use tokio::sync::watch::Receiver;
+use tracing::info;
 
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
-use tokio::sync::watch::Receiver;
-use tracing::info;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -25,9 +25,9 @@ type Result<T> = error_stack::Result<T, Error>;
 #[derive(Deserialize, Debug)]
 pub struct Message {
     pub tx_id: TransactionDigest,
-    pub event_index: u64,
+    pub event_index: u32,
     pub destination_address: String,
-    pub destination_chain: connection_router::state::ChainName,
+    pub destination_chain: connection_router_api::ChainName,
     pub source_address: SuiAddress,
     pub payload_hash: Hash,
 }
@@ -35,8 +35,6 @@ pub struct Message {
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     poll_id: PollId,
     source_gateway_address: SuiAddress,
     messages: Vec<Message>,
@@ -102,8 +100,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> Result<()> {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_gateway_address,
             messages,
@@ -116,10 +117,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if !participants.contains(&self.worker) {
             return Ok(());
@@ -164,19 +161,21 @@ mod tests {
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
-    use events::Event;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;
+
+    use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
-    use super::PollStartedEvent;
     use crate::event_processor::EventHandler;
     use crate::handlers::{errors::Error, tests::get_event};
     use crate::queue::queued_broadcaster;
     use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
+
+    use super::PollStartedEvent;
 
     const PREFIX: &str = "axelar";
 
@@ -384,9 +383,8 @@ mod tests {
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .into_iter()
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker.into_iter())
+            .chain(worker)
             .collect()
     }
 }

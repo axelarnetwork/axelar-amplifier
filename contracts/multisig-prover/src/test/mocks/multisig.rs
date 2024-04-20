@@ -4,6 +4,7 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, Executor};
 use cw_storage_plus::Map;
+
 use multisig::key::{KeyType, KeyTyped, PublicKey};
 use multisig::{
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
@@ -68,7 +69,7 @@ pub fn register_pub_keys(app: &mut App, multisig_address: Addr, workers: Vec<Tes
             worker.address,
             multisig_address.clone(),
             &ExecuteMsg::RegisterPublicKey {
-                public_key: worker.pub_key.into(),
+                public_key: worker.pub_key,
                 signed_sender_address: HexBinary::from_hex("00").unwrap(),
             },
             &[],
@@ -110,7 +111,7 @@ mod query {
                 (
                     Signer {
                         address: op.address,
-                        weight: op.weight.into(),
+                        weight: op.weight,
                         pub_key: op.pub_key,
                     },
                     op.signature,
@@ -132,8 +133,6 @@ mod query {
         worker: String,
         key_type: KeyType,
     ) -> PublicKey {
-        PUB_KEYS
-            .load(deps.storage, (worker, key_type.clone()))
-            .unwrap()
+        PUB_KEYS.load(deps.storage, (worker, key_type)).unwrap()
     }
 }

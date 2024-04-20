@@ -1,4 +1,4 @@
-use connection_router::state::ChainName;
+use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 
@@ -23,11 +23,12 @@ pub enum ExecuteMsg {
         worker_set_id: String,
         msg: HexBinary,
         chain_name: ChainName,
-        /* Address of a contract responsible for signature verification.
-        The multisig contract verifies each submitted signature by default.
-        But some chains need custom verification beyond this, so the verification can be optionally overridden.
-        If a callback address is provided, signature verification is handled by the contract at that address
-        instead of the multisig contract. TODO: define interface for callback */
+        /// Address of a contract responsible for signature verification.
+        /// The multisig contract verifies each submitted signature by default.
+        /// But some chains need custom verification beyond this, so the verification can be optionally overridden.
+        /// If a callback address is provided, signature verification is handled by the contract at that address
+        /// instead of the multisig contract. Signature verifier contracts must implement interface defined in
+        /// [signature_verifier_api::msg]
         sig_verifier: Option<String>,
     },
     SubmitSignature {
@@ -43,11 +44,11 @@ pub enum ExecuteMsg {
         to sign their own address using the private key */
         signed_sender_address: HexBinary,
     },
-    // Authorizes a contract to call StartSigningSession.
+    // Authorizes a contract to call StartSigningSession. Callable only by governance
     AuthorizeCaller {
         contract_address: Addr,
     },
-    // Unauthorizes a contract so it can no longer call StartSigningSession.
+    // Unauthorizes a contract, so it can no longer call StartSigningSession. Callable only by governance
     UnauthorizeCaller {
         contract_address: Addr,
     },

@@ -33,10 +33,12 @@ cosmwasm-schema = { workspace = true }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 cw-storage-plus = { workspace = true }
-connection-router = { workspace = true, features = ["library"] }
+connection-router-api = { workspace = true }
 service-registry = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 gateway = { workspace = true }
+gateway-api = { workspace = true }
+monitoring = { workspace = true }
 thiserror = { workspace = true }
 error-stack = { workspace = true }
 report = { workspace = true }
@@ -50,6 +52,7 @@ hex = { version = "0.4.3", default-features = false, features = [] }
 voting-verifier = { workspace = true, features = ["library"] }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 ascii = { version = "1.1.0", features = ["serde"] }
+itertools = "0.11.0"
 
 [dev-dependencies]
 anyhow = "1.0"

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use connection_router_api::{ChainName, CrossChainId, Message};
 #[cfg(not(feature = "library"))]
 use cosmwasm_schema::serde::{de::DeserializeOwned, Serialize};
 use cosmwasm_std::{
@@ -13,8 +14,7 @@ use crate::{
     state::Config,
 };
 
-use connection_router::state::{Message, CrossChainId, ChainName};
-use service_registry::state::Worker;
+use service_registry::state::WeightedWorker;
 
 pub const XRPL_CHAIN_NAME: &str = "XRPL";
 
@@ -39,8 +39,8 @@ impl<'a> Querier<'a> {
         }
     }
 
-    pub fn get_active_workers(&self) -> Result<Vec<Worker>, ContractError> {
-        query(self.querier, self.config.service_registry_address.to_string(),
+    pub fn get_active_workers(&self) -> Result<Vec<WeightedWorker>, ContractError> {
+        query(self.querier, self.config.service_registry.to_string(),
             &service_registry::msg::QueryMsg::GetActiveWorkers {
                 service_name: self.config.service_name.clone(),
                 chain_name: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
@@ -49,7 +49,7 @@ impl<'a> Querier<'a> {
     }
 
     pub fn get_public_key(&self, worker_address: &String) -> Result<PublicKey, ContractError> {
-        query(self.querier, self.config.axelar_multisig_address.to_string(),
+        query(self.querier, self.config.axelar_multisig.to_string(),
             &multisig::msg::QueryMsg::GetPublicKey {
                 worker_address: worker_address.clone(),
                 key_type: self.config.key_type,
@@ -58,8 +58,8 @@ impl<'a> Querier<'a> {
     }
 
     pub fn get_message(&self, message_id: &CrossChainId) -> Result<Message, ContractError> {
-        let messages: Vec<Message> = query(self.querier, self.config.gateway_address.to_string(),
-            &gateway::msg::QueryMsg::GetMessages {
+        let messages: Vec<Message> = query(self.querier, self.config.gateway.to_string(),
+            &gateway_api::msg::QueryMsg::GetOutgoingMessages {
                 message_ids: vec![message_id.clone()],
             }
         )?;
@@ -67,7 +67,7 @@ impl<'a> Querier<'a> {
     }
 
     pub fn get_message_status(&self, message: Message) -> Result<VerificationStatus, ContractError> {
-        let statuses: Vec<(CrossChainId, VerificationStatus)> = query(self.querier, self.config.voting_verifier_address.to_string(),
+        let statuses: Vec<(CrossChainId, VerificationStatus)> = query(self.querier, self.config.voting_verifier.to_string(),
             &voting_verifier::msg::QueryMsg::GetMessagesStatus {
                 messages: vec![message],
             }
@@ -79,6 +79,6 @@ impl<'a> Querier<'a> {
         let query_msg = multisig::msg::QueryMsg::GetMultisig {
             session_id: multisig_session_id.clone(),
         };
-        query(self.querier, self.config.axelar_multisig_address.to_string(), &query_msg)
+        query(self.querier, self.config.axelar_multisig.to_string(), &query_msg)
     }
 }

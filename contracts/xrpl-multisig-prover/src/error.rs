@@ -105,7 +105,10 @@ pub enum ContractError {
     InvalidTokenDenom,
 
     #[error("no available tickets")]
-    NoAvailableTickets
+    NoAvailableTickets,
+
+    #[error("no worker set stored")]
+    NoWorkerSet,
 }
 
 impl From<ContractError> for StdError {

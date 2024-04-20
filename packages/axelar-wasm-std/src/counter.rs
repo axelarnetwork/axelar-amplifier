@@ -1,16 +1,16 @@
-use std::ops::AddAssign;
-
-use cosmwasm_std::{StdResult, Storage};
+use cosmwasm_std::{OverflowError, OverflowOperation, StdError, StdResult, Storage};
 use cw_storage_plus::Item;
-use num_traits::One;
+use num_traits::{CheckedAdd, One};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub struct Counter<'a, T: AddAssign + Copy + Default> {
+pub struct Counter<'a, T: Copy + Default> {
     item: Item<'a, T>,
 }
 
-impl<'a, T: AddAssign + Copy + Default + One + Serialize + DeserializeOwned> Counter<'a, T> {
+impl<'a, T: Copy + Default + One + CheckedAdd + Serialize + ToString + DeserializeOwned>
+    Counter<'a, T>
+{
     pub const fn new(name: &'a str) -> Self {
         Counter {
             item: Item::new(name),
@@ -23,7 +23,9 @@ impl<'a, T: AddAssign + Copy + Default + One + Serialize + DeserializeOwned> Cou
 
     pub fn incr(&self, store: &mut dyn Storage) -> StdResult<T> {
         let mut value = self.cur(store);
-        value += T::one();
+        value = value.checked_add(&T::one()).ok_or_else(|| {
+            StdError::overflow(OverflowError::new(OverflowOperation::Add, value, 1))
+        })?;
         self.item.save(store, &value)?;
         Ok(value)
     }
@@ -43,6 +45,6 @@ mod tests {
         assert_eq!(counter.cur(&store), 0);
         assert_eq!(counter.incr(&mut store).unwrap(), 1);
         assert_eq!(counter.incr(&mut store).unwrap(), 2);
-        assert_eq!(counter.cur(&mut store), 2);
+        assert_eq!(counter.cur(&store), 2);
     }
 }

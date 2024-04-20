@@ -12,7 +12,7 @@ name: Basic
 jobs:
   test:
     name: Test Suite
-    runs-on: ubuntu-8-core-32-gb
+    runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
@@ -20,14 +20,16 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.76.0
+          toolchain: 1.75.0
           override: true
 
       - name: Install protoc
         uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
 
@@ -42,7 +44,7 @@ jobs:
 
   cosmwasm-compilation:
     name: Cosmwasm Compilation
-    runs-on: ubuntu-8-core-32-gb
+    runs-on: blacksmith-32vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
@@ -50,12 +52,12 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.76.0
+          toolchain: 1.75.0
           target: wasm32-unknown-unknown
           override: true
 
       - name: Cache build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
 
@@ -78,7 +80,7 @@ jobs:
 
   lints:
     name: Lints
-    runs-on: ubuntu-8-core-32-gb
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
 
@@ -86,7 +88,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.76.0
+          toolchain: 1.75.0
           override: true
           components: rustfmt, clippy
 
@@ -96,7 +98,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
 
@@ -121,7 +123,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings -A deprecated
+          args: --all-targets -- -D warnings -A deprecated
 
       - name: Check Diff
         # fails if any changes not committed

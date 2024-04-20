@@ -10,12 +10,13 @@ use axelar_wasm_std::{
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };
-use connection_router::state::{ChainName, Message};
+use connection_router_api::{ChainName, Message};
 
 use crate::error::ContractError;
 
 #[cw_serde]
 pub struct Config {
+    pub governance: Addr,
     pub service_registry_contract: Addr,
     pub service_name: nonempty::String,
     pub source_gateway_address: nonempty::String,

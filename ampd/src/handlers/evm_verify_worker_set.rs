@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
@@ -8,17 +9,17 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use async_trait::async_trait;
+use axelar_wasm_std::voting::{PollId, Vote};
+use connection_router_api::ChainName;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-
-use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router::state::ID_SEPARATOR;
+use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
+use crate::evm::finalizer::Finalization;
 use crate::evm::verifier::verify_worker_set;
-use crate::evm::{finalizer, json_rpc::EthereumClient, ChainName};
+use crate::evm::{finalizer, json_rpc::EthereumClient};
 use crate::handlers::errors::Error;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress, U256};
@@ -34,18 +35,16 @@ pub struct Operators {
 #[derive(Deserialize, Debug)]
 pub struct WorkerSetConfirmation {
     pub tx_id: Hash,
-    pub event_index: u64,
+    pub event_index: u32,
     pub operators: Operators,
 }
 
 #[derive(Deserialize, Debug)]
 #[try_from("wasm-worker_set_poll_started")]
 struct PollStartedEvent {
-    #[serde(rename = "_contract_address")]
-    contract_address: TMAddress,
     worker_set: WorkerSetConfirmation,
     poll_id: PollId,
-    source_chain: connection_router::state::ChainName,
+    source_chain: connection_router_api::ChainName,
     source_gateway_address: EVMAddress,
     expires_at: u64,
     confirmation_height: u64,
@@ -60,6 +59,7 @@ where
     worker: TMAddress,
     voting_verifier: TMAddress,
     chain: ChainName,
+    finalizer_type: Finalization,
     rpc_client: C,
     broadcast_client: B,
     latest_block_height: Receiver<u64>,
@@ -74,6 +74,7 @@ where
         worker: TMAddress,
         voting_verifier: TMAddress,
         chain: ChainName,
+        finalizer_type: Finalization,
         rpc_client: C,
         broadcast_client: B,
         latest_block_height: Receiver<u64>,
@@ -82,6 +83,7 @@ where
             worker,
             voting_verifier,
             chain,
+            finalizer_type,
             rpc_client,
             broadcast_client,
             latest_block_height,
@@ -94,7 +96,7 @@ where
         confirmation_height: u64,
     ) -> Result<Option<TransactionReceipt>> {
         let latest_finalized_block_height =
-            finalizer::pick(&self.chain, &self.rpc_client, confirmation_height)
+            finalizer::pick(&self.finalizer_type, &self.rpc_client, confirmation_height)
                 .latest_finalized_block_height()
                 .await
                 .change_context(Error::Finalizer)?;
@@ -146,8 +148,11 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> Result<()> {
+        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+            return Ok(());
+        }
+
         let PollStartedEvent {
-            contract_address,
             poll_id,
             source_chain,
             source_gateway_address,
@@ -161,10 +166,6 @@ where
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
-
-        if self.voting_verifier != contract_address {
-            return Ok(());
-        }
 
         if self.chain != source_chain {
             return Ok(());
@@ -187,10 +188,7 @@ where
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = format!(
-                "0x{:x}{}{}",
-                worker_set.tx_id, ID_SEPARATOR, worker_set.event_index
-            )
+            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
@@ -212,29 +210,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
+    use std::{convert::TryInto, str::FromStr};
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
+    use cosmwasm_std::HexBinary;
+    use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use tendermint::abci;
+    use tokio::{sync::watch, test as async_test};
 
     use axelar_wasm_std::operators::Operators;
-    use cosmwasm_std::HexBinary;
+    use connection_router_api::ChainName;
     use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
 
     use crate::{
         event_processor::EventHandler,
-        evm::{json_rpc::MockEthereumClient, ChainName},
+        evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
         handlers::evm_verify_worker_set::PollStartedEvent,
         queue::queued_broadcaster::MockBroadcasterClient,
         types::{EVMAddress, Hash, TMAddress},
         PREFIX,
     };
-
-    use error_stack::{Report, Result};
-    use tokio::{sync::watch, test as async_test};
 
     #[test]
     fn should_deserialize_correct_event() {
@@ -271,7 +269,8 @@ mod tests {
         let handler = super::Handler::new(
             worker,
             voting_verifier,
-            ChainName::Ethereum,
+            ChainName::from_str("ethereum").unwrap(),
+            Finalization::RPCFinalizedBlock,
             rpc_client,
             broadcast_client,
             rx,
@@ -346,9 +345,8 @@ mod tests {
 
     fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
-            .into_iter()
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker.into_iter())
+            .chain(worker)
             .collect()
     }
 }

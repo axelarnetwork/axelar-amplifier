@@ -1,13 +1,13 @@
 use std::collections::hash_map::RandomState;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use itertools::Itertools;
 
-use axelar_wasm_std::{Threshold, nonempty};
+use axelar_wasm_std::{nonempty, MajorityThreshold};
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint256, Addr, Fraction};
-use multisig::key::KeyType;
-use service_registry::state::Worker;
-use multisig::key::PublicKey;
+use cosmwasm_std::{Addr, Fraction, HexBinary, Uint256};
+use service_registry::state::WeightedWorker;
+use multisig::{key::{PublicKey, KeyType}, msg::Signer};
 
 use crate::querier::Querier;
 use crate::error::ContractError;
@@ -95,10 +95,10 @@ fn convert_or_scale_weights(weights: Vec<Uint256>) -> Vec<u16> {
 
 pub fn get_active_worker_set(
     querier: &Querier,
-    signing_threshold: Threshold,
+    signing_threshold: MajorityThreshold,
     block_height: u64,
 ) -> Result<WorkerSet, ContractError> {
-    let workers: Vec<Worker> = querier.get_active_workers()?;
+    let workers: Vec<WeightedWorker> = querier.get_active_workers()?;
 
     let participants: Vec<Participant> = workers
         .into_iter()
@@ -139,13 +139,23 @@ pub fn get_active_worker_set(
 }
 
 pub fn should_update_worker_set(
-    new_workers: &WorkerSet,
-    cur_workers: &WorkerSet,
+    new_workers: &multisig::worker_set::WorkerSet,
+    cur_workers: &multisig::worker_set::WorkerSet,
     max_diff: usize,
 ) -> bool {
-    new_workers.signers.difference(&cur_workers.signers).count()
-        + cur_workers.signers.difference(&new_workers.signers).count()
-        > max_diff
+    new_workers.threshold != cur_workers.threshold
+        || signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+}
+
+fn signers_symetric_difference_count(
+    s1: &BTreeMap<String, Signer>,
+    s2: &BTreeMap<String, Signer>,
+) -> usize {
+    signers_difference_count(s1, s2).saturating_add(signers_difference_count(s2, s1))
+}
+
+fn signers_difference_count(s1: &BTreeMap<String, Signer>, s2: &BTreeMap<String, Signer>) -> usize {
+    s1.values().filter(|v| !s2.values().contains(v)).count()
 }
 
 #[cfg(test)]

@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 connection-router-api ={ workspace = true }
 cosmwasm-schema = { workspace = true }
+
+[lints]
+workspace = true

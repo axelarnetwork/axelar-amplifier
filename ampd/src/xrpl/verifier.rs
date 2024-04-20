@@ -1,12 +1,8 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use crate::types::Hash;
 use serde::Serialize;
-use connection_router::state::ChainName;
-use k256::sha2::Sha256;
-use serde_json::to_string;
-use sha3::Digest;
+use connection_router_api::ChainName;
 use xrpl_http_client::{Amount, ResultCategory};
 use xrpl_http_client::{Memo, Transaction::Payment, Transaction};
 use axelar_wasm_std::voting::Vote;
@@ -106,7 +102,7 @@ mod test {
     use ethers::types::TxHash;
     use xrpl_http_client::{Amount, Memo};
     use crate::handlers::xrpl_verify_msg::Message;
-    use connection_router::state::ChainName;
+    use connection_router_api::ChainName;
 
     #[test]
     fn test_verify_memos() {

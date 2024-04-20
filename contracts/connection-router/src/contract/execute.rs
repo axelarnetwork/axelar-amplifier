@@ -5,26 +5,22 @@ use error_stack::report;
 use itertools::Itertools;
 
 use axelar_wasm_std::flagset::FlagSet;
+use connection_router_api::error::Error;
+use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
-use crate::events::{ChainFrozen, ChainRegistered, GatewayInfo, GatewayUpgraded, MessageRouted};
-use crate::msg::ExecuteMsg;
-use crate::state::{
-    chain_endpoints, ChainEndpoint, ChainName, Gateway, GatewayDirection, Message, Store, CONFIG,
+use crate::events::{
+    ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
-use crate::ContractError;
+use crate::state::{chain_endpoints, Store, CONFIG};
 
 use super::Contract;
 
-pub fn register_chain(
-    deps: DepsMut,
-    name: ChainName,
-    gateway: Addr,
-) -> Result<Response, ContractError> {
+pub fn register_chain(deps: DepsMut, name: ChainName, gateway: Addr) -> Result<Response, Error> {
     if find_chain_for_gateway(&deps, &gateway)?.is_some() {
-        return Err(ContractError::GatewayAlreadyRegistered);
+        return Err(Error::GatewayAlreadyRegistered);
     }
     chain_endpoints().update(deps.storage, name.clone(), |chain| match chain {
-        Some(_) => Err(ContractError::ChainAlreadyExists),
+        Some(_) => Err(Error::ChainAlreadyExists),
         None => Ok(ChainEndpoint {
             name: name.clone(),
             gateway: Gateway {
@@ -51,12 +47,12 @@ pub fn upgrade_gateway(
     deps: DepsMut,
     chain: ChainName,
     contract_address: Addr,
-) -> Result<Response, ContractError> {
+) -> Result<Response, Error> {
     if find_chain_for_gateway(&deps, &contract_address)?.is_some() {
-        return Err(ContractError::GatewayAlreadyRegistered);
+        return Err(Error::GatewayAlreadyRegistered);
     }
     chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
-        None => Err(ContractError::ChainNotFound),
+        None => Err(Error::ChainNotFound),
         Some(mut chain) => {
             chain.gateway.address = contract_address.clone();
             Ok(chain)
@@ -77,44 +73,57 @@ pub fn freeze_chain(
     deps: DepsMut,
     chain: ChainName,
     direction: GatewayDirection,
-) -> Result<Response, ContractError> {
+) -> Result<Response, Error> {
     chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
-        None => Err(ContractError::ChainNotFound),
+        None => Err(Error::ChainNotFound),
         Some(mut chain) => {
             *chain.frozen_status |= direction;
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
+    Ok(Response::new().add_event(
+        ChainFrozen {
+            name: chain,
+            direction,
+        }
+        .into(),
+    ))
 }
 
+#[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
 pub fn unfreeze_chain(
     deps: DepsMut,
     chain: ChainName,
     direction: GatewayDirection,
-) -> Result<Response, ContractError> {
+) -> Result<Response, Error> {
     chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
-        None => Err(ContractError::ChainNotFound),
+        None => Err(Error::ChainNotFound),
         Some(mut chain) => {
             *chain.frozen_status -= direction;
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(ChainFrozen { name: chain }.into()))
+    Ok(Response::new().add_event(
+        ChainUnfrozen {
+            name: chain,
+            direction,
+        }
+        .into(),
+    ))
 }
 
-pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {
     let config = CONFIG.load(deps.storage)?;
     if config.admin != info.sender {
-        return Err(ContractError::Unauthorized);
+        return Err(Error::Unauthorized);
     }
     Ok(())
 }
 
-pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {
     let config = CONFIG.load(deps.storage)?;
     if config.governance != info.sender {
-        return Err(ContractError::Unauthorized);
+        return Err(Error::Unauthorized);
     }
     Ok(())
 }
@@ -127,7 +136,7 @@ where
         &self,
         sender: &Addr,
         msgs: Vec<Message>,
-    ) -> error_stack::Result<Vec<Message>, ContractError> {
+    ) -> error_stack::Result<Vec<Message>, Error> {
         // if sender is the nexus gateway, we cannot validate the source chain
         // because the source chain is registered in the core nexus module
         if sender == self.config.nexus_gateway {
@@ -137,15 +146,15 @@ where
         let source_chain = self
             .store
             .load_chain_by_gateway(sender)?
-            .ok_or(ContractError::GatewayNotRegistered)?;
+            .ok_or(Error::GatewayNotRegistered)?;
         if source_chain.incoming_frozen() {
-            return Err(report!(ContractError::ChainFrozen {
+            return Err(report!(Error::ChainFrozen {
                 chain: source_chain.name,
             }));
         }
 
         if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
-            return Err(report!(ContractError::WrongSourceChain));
+            return Err(report!(Error::WrongSourceChain));
         }
 
         Ok(msgs)
@@ -155,7 +164,7 @@ where
         self,
         sender: Addr,
         msgs: Vec<Message>,
-    ) -> error_stack::Result<Response, ContractError> {
+    ) -> error_stack::Result<Response, Error> {
         let msgs = self.validate_msgs(&sender, msgs)?;
 
         let wasm_msgs = msgs
@@ -165,7 +174,7 @@ where
             .map(|(destination_chain, msgs)| {
                 let gateway = match self.store.load_chain_by_chain_name(&destination_chain)? {
                     Some(destination_chain) if destination_chain.outgoing_frozen() => {
-                        return Err(report!(ContractError::ChainFrozen {
+                        return Err(report!(Error::ChainFrozen {
                             chain: destination_chain.name,
                         }));
                     }
@@ -176,14 +185,15 @@ where
                     None if sender != self.config.nexus_gateway => {
                         self.config.nexus_gateway.clone()
                     }
-                    _ => return Err(report!(ContractError::ChainNotFound)),
+                    _ => return Err(report!(Error::ChainNotFound)),
                 };
 
                 Ok(WasmMsg::Execute {
                     contract_addr: gateway.to_string(),
-                    // TODO: this happens to work because the router and the gateways have the same definition of RouteMessages
-                    msg: to_binary(&ExecuteMsg::RouteMessages(msgs.cloned().collect()))
-                        .expect("must serialize message"),
+                    msg: to_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
+                        msgs.cloned().collect(),
+                    ))
+                    .expect("must serialize message"),
                     funds: vec![],
                 })
             })
@@ -197,32 +207,39 @@ where
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::Addr;
     use mockall::predicate;
     use rand::{Rng, RngCore};
 
+    use axelar_wasm_std::flagset::FlagSet;
+    use connection_router_api::error::Error;
+    use connection_router_api::{
+        ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message,
+    };
+    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::Storage;
+
+    use crate::events::{ChainFrozen, ChainUnfrozen};
+    use crate::state::chain_endpoints;
     use crate::{
         contract::Contract,
-        state::{
-            ChainEndpoint, ChainName, Config, CrossChainId, Gateway, GatewayDirection, MockStore,
-            ID_SEPARATOR,
-        },
-        ContractError, Message,
+        state::{Config, MockStore, ID_SEPARATOR},
     };
+
+    use super::{freeze_chain, unfreeze_chain};
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let tx_id = hex::encode(&bytes);
+        let tx_id = hex::encode(bytes);
 
         let mut bytes = [0; 20];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let source_address = format!("0x{}", hex::encode(&bytes)).try_into().unwrap();
+        let source_address = format!("0x{}", hex::encode(bytes)).try_into().unwrap();
 
         let mut bytes = [0; 20];
         rand::thread_rng().fill_bytes(&mut bytes);
-        let destination_address = format!("0x{}", hex::encode(&bytes)).try_into().unwrap();
+        let destination_address = format!("0x{}", hex::encode(bytes)).try_into().unwrap();
 
         let mut payload_hash = [0; 32];
         rand::thread_rng().fill_bytes(&mut payload_hash);
@@ -272,7 +289,7 @@ mod test {
         assert!(contract
             .route_messages(sender, vec![rand_message(source_chain, destination_chain)])
             .is_err_and(move |err| {
-                matches!(err.current_context(), ContractError::GatewayNotRegistered)
+                matches!(err.current_context(), Error::GatewayNotRegistered)
             }));
     }
 
@@ -309,7 +326,7 @@ mod test {
         assert!(contract
             .route_messages(sender, vec![rand_message(source_chain.clone(), destination_chain)])
             .is_err_and(move |err| {
-                matches!(err.current_context(), ContractError::ChainFrozen { chain } if *chain == source_chain)
+                matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == source_chain)
             }));
     }
 
@@ -348,9 +365,7 @@ mod test {
                 sender,
                 vec![rand_message("polygon".parse().unwrap(), destination_chain)]
             )
-            .is_err_and(|err| {
-                matches!(err.current_context(), ContractError::WrongSourceChain)
-            }));
+            .is_err_and(|err| { matches!(err.current_context(), Error::WrongSourceChain) }));
     }
 
     #[test]
@@ -398,7 +413,7 @@ mod test {
         assert!(contract
             .route_messages(sender, vec![rand_message(source_chain, destination_chain.clone())])
             .is_err_and(move |err| {
-                matches!(err.current_context(), ContractError::ChainFrozen { chain } if *chain == destination_chain)
+                matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == destination_chain)
             }));
     }
 
@@ -557,7 +572,7 @@ mod test {
                     destination_chain.clone()
                 )]
             )
-            .is_err_and(|err| { matches!(err.current_context(), ContractError::ChainNotFound) }));
+            .is_err_and(|err| { matches!(err.current_context(), Error::ChainNotFound) }));
     }
 
     #[test]
@@ -604,5 +619,137 @@ mod test {
                 )]
             )
             .is_ok_and(|res| { res.messages.len() == 1 }));
+    }
+
+    #[test]
+    fn multiple_freeze_unfreeze_causes_no_arithmetic_side_effect() {
+        let mut deps = mock_dependencies();
+        let chain: ChainName = "ethereum".parse().unwrap();
+
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                chain.clone(),
+                &ChainEndpoint {
+                    name: chain.clone(),
+                    gateway: Gateway {
+                        address: Addr::unchecked("gateway"),
+                    },
+                    frozen_status: FlagSet::from(GatewayDirection::None),
+                },
+            )
+            .unwrap();
+
+        // freezing twice produces same result
+        freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+        freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::Incoming),
+        );
+
+        freeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+        freeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::Bidirectional),
+        );
+
+        // unfreezing twice produces same result
+        unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Outgoing).unwrap();
+        unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Outgoing).unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::Incoming),
+        );
+
+        unfreeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+        unfreeze_chain(
+            deps.as_mut(),
+            chain.clone(),
+            GatewayDirection::Bidirectional,
+        )
+        .unwrap();
+
+        assert_chain_endpoint_frozen_status(
+            deps.as_mut().storage,
+            chain.clone(),
+            FlagSet::from(GatewayDirection::None),
+        );
+    }
+
+    #[test]
+    fn freezing_unfreezing_chain_emits_correct_event() {
+        let mut deps = mock_dependencies();
+        let chain: ChainName = "ethereum".parse().unwrap();
+
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                chain.clone(),
+                &ChainEndpoint {
+                    name: chain.clone(),
+                    gateway: Gateway {
+                        address: Addr::unchecked("gateway"),
+                    },
+                    frozen_status: FlagSet::from(GatewayDirection::None),
+                },
+            )
+            .unwrap();
+
+        let res = freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_eq!(res.events.len(), 1);
+        assert!(res.events.contains(
+            &ChainFrozen {
+                name: chain.clone(),
+                direction: GatewayDirection::Incoming,
+            }
+            .into()
+        ));
+
+        let res = unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+
+        assert_eq!(res.events.len(), 1);
+        assert!(res.events.contains(
+            &ChainUnfrozen {
+                name: chain.clone(),
+                direction: GatewayDirection::Incoming,
+            }
+            .into()
+        ));
+    }
+
+    fn assert_chain_endpoint_frozen_status(
+        storage: &dyn Storage,
+        chain: ChainName,
+        expected: FlagSet<GatewayDirection>,
+    ) {
+        let status = chain_endpoints()
+            .load(storage, chain.clone())
+            .unwrap()
+            .frozen_status;
+        assert_eq!(status, expected);
     }
 }

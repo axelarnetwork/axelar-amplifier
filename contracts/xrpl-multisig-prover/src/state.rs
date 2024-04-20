@@ -1,5 +1,5 @@
-use axelar_wasm_std::Threshold;
-use connection_router::state::CrossChainId;
+use axelar_wasm_std::MajorityThreshold;
+use connection_router_api::CrossChainId;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use cosmwasm_schema::cw_serde;
@@ -7,19 +7,21 @@ use crate::{types::{TransactionInfo, TxHash, XRPLToken}, axelar_workers::WorkerS
 
 #[cw_serde]
 pub struct Config {
-    pub axelar_multisig_address: Addr,
-    pub gateway_address: Addr,
-    pub signing_threshold: Threshold,
-    pub xrpl_multisig_address: String,
-    pub voting_verifier_address: Addr,
-    pub service_registry_address: Addr,
+    pub admin: Addr,
+    pub governance: Addr,
+    pub relayer: Addr,
+    pub axelar_multisig: Addr,
+    pub monitoring: Addr,
+    pub gateway: Addr,
+    pub signing_threshold: MajorityThreshold,
+    pub xrpl_multisig: String,
+    pub voting_verifier: Addr,
+    pub service_registry: Addr,
     pub service_name: String,
     pub worker_set_diff_threshold: u32,
     pub xrpl_fee: u64,
     pub ticket_count_threshold: u32,
     pub key_type: multisig::key::KeyType,
-    pub governance_address: Addr,
-    pub relayer_address: Addr,
     pub xrp_denom: String,
 }
 

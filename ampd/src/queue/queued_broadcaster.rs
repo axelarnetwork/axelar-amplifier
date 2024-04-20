@@ -22,6 +22,8 @@ pub enum Error {
     Broadcast,
     #[error("failed encoding message to Protobuf Any {0}")]
     Proto(String),
+    #[error("failed to queue message")]
+    Queue,
 }
 
 pub struct QueuedBroadcasterDriver {
@@ -120,13 +122,13 @@ where
                 Some(msg) => {
                   let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
 
-                  if fee.gas_limit + queue.gas_cost() >= self.batch_gas_limit {
-                    interval.reset();
+                  if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
                     broadcast_all(&mut queue, &mut broadcaster).await?;
+                    interval.reset();
                   }
 
                   let message_type = msg.type_url.clone();
-                  queue.push(msg, fee.gas_limit);
+                  queue.push(msg, fee.gas_limit).change_context(Error::Queue)?;
                   info!(
                     message_type,
                     queue_size = queue.len(),
@@ -135,10 +137,13 @@ where
                   );
                 }
               },
-              _ = interval.tick() => broadcast_all(&mut queue, &mut broadcaster).await?,
-              _ = self.broadcast_rx.recv() => {
-                interval.reset();
+              _ = interval.tick() => {
                 broadcast_all(&mut queue, &mut broadcaster).await?;
+                interval.reset();
+              },
+              _ = self.broadcast_rx.recv() => {
+                broadcast_all(&mut queue, &mut broadcaster).await?;
+                interval.reset();
               },
             }
         }
@@ -234,7 +239,7 @@ mod test {
     async fn should_broadcast_when_broadcast_interval_has_been_reached() {
         let tx_count = 9;
         let batch_gas_limit = 100;
-        let broadcast_interval = Duration::from_secs(1);
+        let broadcast_interval = Duration::from_millis(100);
         let gas_limit = 10;
 
         let mut broadcaster = MockBroadcaster::new();
@@ -367,7 +372,7 @@ mod test {
             assert!(client.run().await.is_ok());
         });
 
-        sleep(Duration::from_secs(1)).await;
+        sleep(Duration::from_millis(100)).await;
         driver.force_broadcast().await.unwrap();
         drop(tx);
 

@@ -1,5 +1,5 @@
 use axelar_wasm_std::VerificationStatus;
-use connection_router::state::CrossChainId;
+use connection_router_api::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};

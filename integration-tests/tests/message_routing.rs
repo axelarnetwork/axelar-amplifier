@@ -1,11 +1,13 @@
 use axelar_wasm_std::VerificationStatus;
-use connection_router::state::{Address, CrossChainId, Message};
-use cosmwasm_std::{HexBinary, Uint128, Coin};
+use connection_router_api::{Address, CrossChainId, Message};
+use cosmwasm_std::{Addr, Coin, HexBinary, Uint128};
 use multisig::key::KeyType;
+use integration_tests::contract::Contract;
 
-use crate::test_utils::ETH_DENOMINATION;
+use crate::test_utils::{ETH_DENOMINATION, AXL_DENOMINATION};
 
-mod test_utils;
+pub mod test_utils;
+
 /// Tests that a single message can be routed fully through the protocol. Submits a message to the
 /// gateway, votes on the poll, routes the message to the outgoing gateway, triggers signing at the prover
 /// and signs via multisig. Also tests that rewards are distributed as expected for voting and signing.
@@ -16,7 +18,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     let msgs = vec![Message {
         cc_id: CrossChainId {
             chain: chain1.chain_name.clone(),
-            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924:3"
+            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -29,7 +31,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain2.chain_name,
+        destination_chain: chain2.chain_name.clone(),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )
@@ -41,44 +43,38 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     let msg_ids: Vec<CrossChainId> = msgs.iter().map(|msg| msg.cc_id.clone()).collect();
 
     // start the flow by submitting the message to the gateway
-    let (poll_id, expiry) =
-        test_utils::verify_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
+    let (poll_id, expiry) = test_utils::verify_messages(&mut protocol.app, &chain1.gateway, &msgs);
 
     // do voting
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
-        &chain1.voting_verifier_address,
-        msgs.len(),
+        &chain1.voting_verifier,
+        &msgs,
         &workers,
         poll_id,
     );
 
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
 
-    test_utils::end_poll(&mut protocol.app, &chain1.voting_verifier_address, poll_id);
+    test_utils::end_poll(&mut protocol.app, &chain1.voting_verifier, poll_id);
 
     // should be verified, now route
-    test_utils::route_messages(&mut protocol.app, &chain1.gateway_address, &msgs);
+    test_utils::route_messages(&mut protocol.app, &chain1.gateway, &msgs);
 
     // check that the message can be found at the outgoing gateway
     let found_msgs =
-        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway_address, &msg_ids);
+        test_utils::get_messages_from_gateway(&mut protocol.app, &chain2.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
     // trigger signing and submit all necessary signatures
     let session_id = test_utils::construct_proof_and_sign(
-        &mut protocol.app,
-        &chain2.multisig_prover_address,
-        &protocol.multisig_address,
+        &mut protocol,
+        &chain2.multisig_prover,
         &msgs,
         &workers,
     );
 
-    let proof = test_utils::get_proof(
-        &mut protocol.app,
-        &chain2.multisig_prover_address,
-        &session_id,
-    );
+    let proof = test_utils::get_proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
 
     // proof should be complete by now
     assert!(matches!(
@@ -94,15 +90,13 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     );
 
     test_utils::distribute_rewards(
-        &mut protocol.app,
-        &protocol.rewards_address,
-        &chain1.voting_verifier_address,
+        &mut protocol,
+        &chain1.chain_name,
+        chain1.voting_verifier.contract_addr.clone(),
     );
-    test_utils::distribute_rewards(
-        &mut protocol.app,
-        &protocol.rewards_address,
-        &protocol.multisig_address,
-    );
+
+    let protocol_multisig_address = protocol.multisig.contract_addr.clone();
+    test_utils::distribute_rewards(&mut protocol, &chain2.chain_name, protocol_multisig_address);
 
     // rewards split evenly amongst all workers, but there are two contracts that rewards should have been distributed for
     let expected_rewards = Uint128::from(protocol.rewards_params.rewards_per_epoch)
@@ -113,7 +107,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         let balance = protocol
             .app
             .wrap()
-            .query_balance(worker.addr, test_utils::AXL_DENOMINATION)
+            .query_balance(worker.addr, AXL_DENOMINATION)
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
     }
@@ -125,15 +119,14 @@ fn xrpl_ticket_create_can_be_proven() {
 
     /* Create tickets */
     let session_id = test_utils::construct_xrpl_ticket_create_proof_and_sign(
-        &mut protocol.app,
-        &xrpl.multisig_prover_address,
-        &protocol.multisig_address,
+        &mut protocol,
+        &xrpl.multisig_prover,
         &workers,
     );
 
     let proof = test_utils::get_xrpl_proof(
         &mut protocol.app,
-        &xrpl.multisig_prover_address,
+        &xrpl.multisig_prover,
         &session_id,
     );
     assert!(matches!(
@@ -149,7 +142,7 @@ fn xrpl_ticket_create_can_be_proven() {
         destination_address: Address::try_from(xrpl_multisig_address).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "9c2f220fe5ee650b3cd10b0a72af1206b3912afce8376214234354180198c5d5:0"
+            id: "9c2f220fe5ee650b3cd10b0a72af1206b3912afce8376214234354180198c5d5-0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -159,22 +152,22 @@ fn xrpl_ticket_create_can_be_proven() {
 
     let (poll_id, expiry) = test_utils::verify_messages(
         &mut protocol.app,
-        &xrpl.gateway_address,
+        &xrpl.gateway,
         &proof_msgs,
     );
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
-        &xrpl.voting_verifier_address,
-        1,
+        &xrpl.voting_verifier,
+        &proof_msgs,
         &workers,
         poll_id,
     );
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
-    test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier_address, poll_id);
+    test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
-        &xrpl.multisig_prover_address,
+        &xrpl.multisig_prover,
         workers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
         session_id,
         proof_msgs[0].cc_id.clone(),
@@ -189,7 +182,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
     let msg = Message {
         cc_id: CrossChainId {
             chain: source_chain.chain_name.clone(),
-            id: "0xaff42a67c474758ce97bd9b69c395c6dc6019707b400e06c30b0878a9357b2ea:3"
+            id: "0xaff42a67c474758ce97bd9b69c395c6dc6019707b400e06c30b0878a9357b2ea-3"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -213,34 +206,33 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
 
     // start the flow by submitting the message to the gateway
     let (poll_id, expiry) =
-        test_utils::verify_messages(&mut protocol.app, &source_chain.gateway_address, &msgs);
+        test_utils::verify_messages(&mut protocol.app, &source_chain.gateway, &msgs);
 
     // do voting
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
-        &source_chain.voting_verifier_address,
-        msgs.len(),
+        &source_chain.voting_verifier,
+        &msgs,
         &workers,
         poll_id,
     );
 
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
 
-    test_utils::end_poll(&mut protocol.app, &source_chain.voting_verifier_address, poll_id);
+    test_utils::end_poll(&mut protocol.app, &source_chain.voting_verifier, poll_id);
 
     // should be verified, now route
-    test_utils::route_messages(&mut protocol.app, &source_chain.gateway_address, &msgs);
+    test_utils::route_messages(&mut protocol.app, &source_chain.gateway, &msgs);
 
     // check that the message can be found at the outgoing gateway
     let found_msgs =
-        test_utils::get_messages_from_gateway(&mut protocol.app, &xrpl.gateway_address, &msg_ids);
+        test_utils::get_messages_from_gateway(&mut protocol.app, &xrpl.gateway, &msg_ids);
     assert_eq!(found_msgs, msgs);
 
     // trigger signing and submit all necessary signatures
     let session_id = test_utils::construct_xrpl_payment_proof_and_sign(
-        &mut protocol.app,
-        &xrpl.multisig_prover_address,
-        &protocol.multisig_address,
+        &mut protocol,
+        &xrpl.multisig_prover,
         msg,
         &workers,
         &[Coin {
@@ -253,7 +245,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
 
     let proof = test_utils::get_xrpl_proof(
         &mut protocol.app,
-        &xrpl.multisig_prover_address,
+        &xrpl.multisig_prover,
         &session_id,
     );
     println!("Payment proof: {:?}", proof);
@@ -270,7 +262,7 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         destination_address: Address::try_from("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".to_string()).unwrap(),
         cc_id: CrossChainId {
             chain: xrpl.chain_name.clone(),
-            id: "c5c80adaff8703e589988f68587535d5c5cac5a7d7b99f0507aee3de40201137:0"
+            id: "c5c80adaff8703e589988f68587535d5c5cac5a7d7b99f0507aee3de40201137-0"
                 .to_string()
                 .try_into()
                 .unwrap(),
@@ -280,22 +272,22 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
 
     let (poll_id, expiry) = test_utils::verify_messages(
         &mut protocol.app,
-        &xrpl.gateway_address,
+        &xrpl.gateway,
         &proof_msgs
     );
     test_utils::vote_success_for_all_messages(
         &mut protocol.app,
-        &xrpl.voting_verifier_address,
-        1,
+        &xrpl.voting_verifier,
+        &proof_msgs,
         &workers,
         poll_id,
     );
     test_utils::advance_at_least_to_height(&mut protocol.app, expiry);
-    test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier_address, poll_id);
+    test_utils::end_poll(&mut protocol.app, &xrpl.voting_verifier, poll_id);
 
     test_utils::xrpl_update_tx_status(
         &mut protocol.app,
-        &xrpl.multisig_prover_address,
+        &xrpl.multisig_prover,
         workers.iter().map(|w| (KeyType::Ecdsa, HexBinary::from(w.key_pair.encoded_verifying_key())).try_into().unwrap()).collect(),
         session_id,
         proof_msgs[0].cc_id.clone(),
@@ -308,16 +300,11 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
         u64::from(protocol.rewards_params.epoch_duration) * 2,
     );
 
-    test_utils::distribute_rewards(
-        &mut protocol.app,
-        &protocol.rewards_address,
-        &xrpl.voting_verifier_address,
-    );
-    test_utils::distribute_rewards(
-        &mut protocol.app,
-        &protocol.rewards_address,
-        &protocol.multisig_address,
-    );
+    test_utils::distribute_rewards(&mut protocol, &xrpl.chain_name, xrpl.voting_verifier.contract_addr.clone());
+    test_utils::distribute_rewards(&mut protocol, &source_chain.chain_name, source_chain.voting_verifier.contract_addr.clone());
+
+    let protocol_multisig_address = protocol.multisig.contract_addr.clone();
+    test_utils::distribute_rewards(&mut protocol, &source_chain.chain_name, protocol_multisig_address);
 
     // rewards split evenly amongst all workers, but there are two contracts that rewards should have been distributed for
     let expected_rewards = Uint128::from(protocol.rewards_params.rewards_per_epoch)
@@ -332,4 +319,52 @@ fn payment_towards_xrpl_can_be_verified_and_routed_and_proven() {
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
     }
+}
+
+fn routing_to_incorrect_gateway_interface() {
+    let (mut protocol, chain1, chain2, _, _) = test_utils::setup_test_case();
+
+    let msgs = vec![Message {
+        cc_id: CrossChainId {
+            chain: chain1.chain_name.clone(),
+            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
+                .to_string()
+                .try_into()
+                .unwrap(),
+        },
+        source_address: "0xBf12773B49()0e1Deb57039061AAcFA2A87DEaC9b9"
+            .to_string()
+            .try_into()
+            .unwrap(),
+        destination_address: "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+            .to_string()
+            .try_into()
+            .unwrap(),
+        destination_chain: chain2.chain_name.clone(),
+        payload_hash: HexBinary::from_hex(
+            "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
+        )
+        .unwrap()
+        .as_slice()
+        .try_into()
+        .unwrap(),
+    }];
+
+    test_utils::upgrade_gateway(
+        &mut protocol.app,
+        &protocol.connection_router,
+        &protocol.governance_address,
+        &chain2.chain_name,
+        Addr::unchecked("some random address")
+            .to_string()
+            .try_into()
+            .unwrap(), // gateway address does not implement required interface,
+    );
+
+    let response = protocol.connection_router.execute(
+        &mut protocol.app,
+        chain1.gateway.contract_addr.clone(),
+        &connection_router_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+    );
+    assert!(response.is_err())
 }

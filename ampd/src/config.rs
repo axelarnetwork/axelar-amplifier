@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 
 use crate::broadcaster;
 use crate::commands::ServiceRegistryConfig;
@@ -10,6 +12,7 @@ use crate::url::Url;
 #[derive(Deserialize, Serialize, Debug, PartialEq)]
 #[serde(default)]
 pub struct Config {
+    pub health_check_bind_addr: SocketAddrV4,
     pub tm_jsonrpc: Url,
     pub tm_grpc: Url,
     pub event_buffer_cap: usize,
@@ -33,6 +36,7 @@ impl Default for Config {
             event_buffer_cap: 100000,
             event_stream_timeout: Duration::from_secs(15),
             service_registry: ServiceRegistryConfig::default(),
+            health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
         }
     }
 }
@@ -48,7 +52,9 @@ mod tests {
 
     use cosmrs::AccountId;
 
-    use crate::evm::ChainName;
+    use connection_router_api::ChainName;
+
+    use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
     use crate::handlers::config::Config as HandlerConfig;
     use crate::types::TMAddress;
@@ -170,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_handlers_more_then_one_for_mulsitig_signer() {
+    fn deserialize_handlers_more_then_one_for_multisig_signer() {
         let config_str = format!(
             "
             [[handlers]]
@@ -261,7 +267,8 @@ mod tests {
             handlers: vec![
                 HandlerConfig::EvmMsgVerifier {
                     chain: Chain {
-                        name: ChainName::Ethereum,
+                        name: ChainName::from_str("Ethereum").unwrap(),
+                        finalization: Finalization::RPCFinalizedBlock,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),
@@ -274,7 +281,8 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     chain: Chain {
-                        name: ChainName::Other("Fantom".to_string()),
+                        name: ChainName::from_str("Fantom").unwrap(),
+                        finalization: Finalization::ConfirmationHeight,
                         rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     },
                     rpc_timeout: Some(Duration::from_secs(3)),

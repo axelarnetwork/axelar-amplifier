@@ -8,12 +8,13 @@ use mockall::automock;
 use tokio::sync::Mutex;
 use tonic::{transport::Channel, Status};
 
+use crate::{types::PublicKey, url::Url};
+
 use super::proto::{
     keygen_response::KeygenResponse, multisig_client, sign_response::SignResponse, KeygenRequest,
     SignRequest,
 };
 use super::{error::Error, error::TofndError, MessageDigest, Signature};
-use crate::{types::PublicKey, url::Url};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -214,12 +215,12 @@ mod tests {
         thread_rng().fill_bytes(&mut hash);
 
         let priv_key = SigningKey::<Secp256k1>::random(&mut OsRng);
-        let (signature, _) = priv_key.sign_prehash_recoverable(&hash.as_ref()).unwrap();
+        let (signature, _) = priv_key.sign_prehash_recoverable(hash.as_ref()).unwrap();
 
         let mut client = MockEcdsaClient::new();
         client
             .expect_sign()
-            .returning(move |_, _, _| Ok(signature.to_vec().into()));
+            .returning(move |_, _, _| Ok(signature.to_vec()));
 
         let digest: MessageDigest = rand::random::<[u8; 32]>().into();
 
@@ -247,7 +248,7 @@ mod tests {
         let mut client = MockEcdsaClient::new();
         client
             .expect_sign()
-            .returning(move |_, _, _| Ok(signature.to_vec().into()));
+            .returning(move |_, _, _| Ok(signature.to_vec()));
 
         let client = SharableEcdsaClient::new(client);
 

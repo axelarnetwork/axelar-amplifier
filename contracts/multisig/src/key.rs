@@ -1,10 +1,16 @@
-use crate::{ed25519::ed25519_verify, secp256k1::ecdsa_verify, ContractError};
+use crate::{
+    ed25519::{ed25519_verify, ED25519_SIGNATURE_LEN},
+    secp256k1::ecdsa_verify,
+    ContractError,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, StdError, StdResult};
 use cw_storage_plus::{KeyDeserialize, PrimaryKey};
 use enum_display_derive::Display;
 use serde::{de::Error, Deserialize, Deserializer};
 use std::fmt::Display;
+
+const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33;
 
 #[cw_serde]
 #[derive(Copy, Display)]
@@ -32,7 +38,7 @@ impl NonRecoverable {
         &self,
         msg: &[u8],
         pub_key: &PublicKey,
-        recovery_transform: impl FnOnce(u8) -> u8,
+        recovery_transform: impl FnOnce(k256::ecdsa::RecoveryId) -> u8,
     ) -> Result<Recoverable, ContractError> {
         let sig = k256::ecdsa::Signature::from_slice(self.0.as_ref()).map_err(|err| {
             ContractError::InvalidSignatureFormat {
@@ -44,8 +50,8 @@ impl NonRecoverable {
             .and_then(|k| k256::ecdsa::RecoveryId::trial_recovery_from_prehash(&k, msg, &sig))
             .map_err(|err| ContractError::InvalidSignatureFormat {
                 reason: err.to_string(),
-            })?
-            .to_byte();
+            })?;
+
         let mut recoverable = sig.to_vec();
         recoverable.push(recovery_transform(recovery_byte));
 
@@ -110,6 +116,7 @@ impl TryFrom<HexBinary> for Recoverable {
 #[cw_serde]
 #[derive(Ord, PartialOrd, Eq)]
 pub enum PublicKey {
+    /// ECDSA public key must be in compressed format (33 bytes)
     #[serde(deserialize_with = "deserialize_ecdsa_key")]
     Ecdsa(HexBinary),
 
@@ -167,18 +174,22 @@ impl KeyTyped for Signature {
 }
 
 impl Signature {
-    pub fn verify<T: AsRef<[u8]>>(
-        &self,
-        msg: T,
-        pub_key: &PublicKey,
-    ) -> Result<bool, ContractError> {
+    pub fn verify<T: AsRef<[u8]>>(&self, msg: T, pub_key: &PublicKey) -> Result<(), ContractError> {
         if !self.matches_type(pub_key) {
             return Err(ContractError::KeyTypeMismatch);
         }
 
-        match self.key_type() {
-            KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self, pub_key.as_ref()),
+        let res = match self.key_type() {
+            KeyType::Ecdsa => ecdsa_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
             KeyType::Ed25519 => ed25519_verify(msg.as_ref(), self.as_ref(), pub_key.as_ref()),
+        }?;
+
+        if res {
+            Ok(())
+        } else {
+            Err(ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            })
         }
     }
 }
@@ -211,37 +222,51 @@ impl KeyDeserialize for KeyType {
     }
 }
 
-const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33;
-const ECDSA_UNCOMPRESSED_PUBKEY_LEN: usize = 65;
+fn check_ecdsa_format(pub_key: HexBinary) -> Result<HexBinary, ContractError> {
+    if pub_key.len() != ECDSA_COMPRESSED_PUBKEY_LEN {
+        return Err(ContractError::InvalidPublicKey);
+    }
+    Ok(pub_key)
+}
 
-const ED25519_PUBKEY_LEN: usize = 32;
-const ED25519_SIGNATURE_LEN: usize = 64;
+// It is possible for the same public key to be represented in different formats/encodings.
+// This function validates and normalizes the public key to a single format.
+fn validate_and_normalize_public_key(
+    key_type: KeyType,
+    pub_key: HexBinary,
+) -> Result<HexBinary, ContractError> {
+    match key_type {
+        KeyType::Ecdsa => Ok(k256::PublicKey::from_sec1_bytes(
+            check_ecdsa_format(pub_key)?.as_slice(),
+        )
+        .map_err(|_| ContractError::InvalidPublicKey)?
+        .to_sec1_bytes()
+        .as_ref()
+        .into()),
+        // TODO: verify encoding scheme is standard
+        // Function `from_bytes()` will internally decompress into an EdwardsPoint which can only represent a valid point on the curve
+        // See https://docs.rs/curve25519-dalek/latest/curve25519_dalek/edwards/index.html#validity-checking
+        KeyType::Ed25519 => Ok(ed25519_dalek::VerifyingKey::from_bytes(
+            pub_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| ContractError::InvalidPublicKey)?,
+        )
+        .map_err(|_| ContractError::InvalidPublicKey)?
+        .to_bytes()
+        .into()),
+    }
+}
 
 impl TryFrom<(KeyType, HexBinary)> for PublicKey {
     type Error = ContractError;
 
     fn try_from((key_type, pub_key): (KeyType, HexBinary)) -> Result<Self, Self::Error> {
+        let pub_key = validate_and_normalize_public_key(key_type, pub_key)?;
+
         match key_type {
-            KeyType::Ecdsa => {
-                if pub_key.len() != ECDSA_COMPRESSED_PUBKEY_LEN
-                    && pub_key.len() != ECDSA_UNCOMPRESSED_PUBKEY_LEN
-                {
-                    return Err(ContractError::InvalidPublicKeyFormat {
-                        reason: "Invalid input length".into(),
-                    });
-                }
-                Ok(PublicKey::Ecdsa(pub_key))
-            }
-
-            KeyType::Ed25519 => {
-                if pub_key.len() != ED25519_PUBKEY_LEN {
-                    return Err(ContractError::InvalidPublicKeyFormat {
-                        reason: "Invalid input length".into(),
-                    });
-                }
-
-                Ok(PublicKey::Ed25519(pub_key))
-            }
+            KeyType::Ecdsa => Ok(PublicKey::Ecdsa(pub_key)),
+            KeyType::Ed25519 => Ok(PublicKey::Ed25519(pub_key)),
         }
     }
 }
@@ -296,8 +321,14 @@ impl From<PublicKey> for HexBinary {
 #[cfg(test)]
 mod ecdsa_tests {
     use cosmwasm_std::HexBinary;
+    use k256::{AffinePoint, EncodedPoint};
 
-    use crate::{key::Signature, test::common::ecdsa_test_data, types::MsgToSign, ContractError};
+    use crate::{
+        key::{validate_and_normalize_public_key, Signature},
+        test::common::ecdsa_test_data,
+        types::MsgToSign,
+        ContractError,
+    };
 
     use super::{KeyType, PublicKey};
 
@@ -320,9 +351,9 @@ mod ecdsa_tests {
 
     #[test]
     fn deserialize_ecdsa_key_fails() {
-        let key = PublicKey::Ecdsa(HexBinary::from_hex("deadbeef").unwrap());
+        let uncompressed_pub_key = PublicKey::Ecdsa(HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap());
 
-        let serialized = serde_json::to_string(&key).unwrap();
+        let serialized = serde_json::to_string(&uncompressed_pub_key).unwrap();
         let deserialized: Result<PublicKey, _> = serde_json::from_str(&serialized);
         assert!(deserialized.is_err());
     }
@@ -335,14 +366,33 @@ mod ecdsa_tests {
     }
 
     #[test]
-    fn test_try_from_hexbinary_to_eccdsa_public_key_fails() {
-        let hex = HexBinary::from_hex("049b").unwrap();
+    fn should_fail_from_hexbinary_to_ecdsa_if_wrong_format() {
+        let uncompressed_pub_key = HexBinary::from_hex("049bb8e80670371f45508b5f8f59946a7c4dea4b3a23a036cf24c1f40993f4a1daad1716de8bd664ecb4596648d722a4685293de208c1d2da9361b9cba74c3d1ec").unwrap();
+
         assert_eq!(
-            PublicKey::try_from((KeyType::Ecdsa, hex.clone())).unwrap_err(),
-            ContractError::InvalidPublicKeyFormat {
-                reason: "Invalid input length".into()
-            }
+            PublicKey::try_from((KeyType::Ecdsa, uncompressed_pub_key.clone())).unwrap_err(),
+            ContractError::InvalidPublicKey
         );
+    }
+
+    #[test]
+    fn validate_ecdsa_public_key_not_on_curve() {
+        // the compressed format is not validated and should produce an invalid point when decompressed
+        let invalid_compressed_point = EncodedPoint::from_bytes([
+            3, 132, 180, 161, 194, 115, 211, 43, 90, 122, 205, 26, 76, 14, 117, 209, 243, 206, 192,
+            34, 107, 93, 142, 13, 50, 95, 115, 188, 140, 82, 194, 140, 235,
+        ])
+        .unwrap();
+
+        // Assert that the point is invalid according to the crate we are using for ed25519. Both assert statements must match,
+        // otherwise `validate_and_normalize_public_key` is not doing the same internally as the crate
+        assert!(AffinePoint::try_from(&invalid_compressed_point).is_err());
+
+        let result = validate_and_normalize_public_key(
+            KeyType::Ecdsa,
+            HexBinary::from(invalid_compressed_point.as_bytes()),
+        );
+        assert_eq!(result.unwrap_err(), ContractError::InvalidPublicKey);
     }
 
     #[test]
@@ -372,12 +422,12 @@ mod ecdsa_tests {
             .unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, true);
+        let result = signature.verify(message, &public_key);
+        assert!(result.is_ok(), "{:?}", result)
     }
 
     #[test]
-    fn test_verify_signature_invalid_signature() {
+    fn should_fail_sig_verification_when_using_different_valid_sig() {
         let invalid_signature = HexBinary::from_hex(
             "a112231719403227b297139cc6beef82a4e034663bfe48cf732687860b16227a51e4bd6be96fceeecf8e77fe7cdd4f5567d71aed5388484d1f2ba355298c954e",
         )
@@ -386,8 +436,32 @@ mod ecdsa_tests {
         let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn should_fail_sig_verification_when_invalid_sig() {
+        let invalid_signature = HexBinary::from_hex(
+            "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
+
+        let signature: Signature = (KeyType::Ecdsa, invalid_signature).try_into().unwrap();
+        let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
+        let public_key = PublicKey::try_from((KeyType::Ecdsa, ecdsa_test_data::pub_key())).unwrap();
+        let result = signature.verify(message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "Crypto error: signature error".into(),
+            }
+        );
     }
 
     #[test]
@@ -402,16 +476,27 @@ mod ecdsa_tests {
             .unwrap();
         let message = MsgToSign::try_from(ecdsa_test_data::message()).unwrap();
         let public_key = PublicKey::try_from((KeyType::Ecdsa, invalid_pub_key)).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
     }
 }
 
 #[cfg(test)]
 mod ed25519_tests {
     use cosmwasm_std::HexBinary;
+    use curve25519_dalek::edwards::CompressedEdwardsY;
 
-    use crate::{key::Signature, test::common::ed25519_test_data, types::MsgToSign, ContractError};
+    use crate::{
+        key::{validate_and_normalize_public_key, Signature},
+        test::common::ed25519_test_data,
+        types::MsgToSign,
+        ContractError,
+    };
 
     use super::{KeyType, PublicKey};
 
@@ -447,14 +532,29 @@ mod ed25519_tests {
     }
 
     #[test]
-    fn test_try_from_hexbinary_to_eccdsa_public_key_fails() {
+    fn test_try_from_hexbinary_to_ed25519_public_key_fails() {
         let hex = HexBinary::from_hex("049b").unwrap();
         assert_eq!(
             PublicKey::try_from((KeyType::Ed25519, hex.clone())).unwrap_err(),
-            ContractError::InvalidPublicKeyFormat {
-                reason: "Invalid input length".into()
-            }
+            ContractError::InvalidPublicKey
         );
+    }
+
+    #[test]
+    fn validate_ed25519_public_key_not_in_curve() {
+        // the compressed format is not validated and should produce an invalid point when decompressed
+        let invalid_compressed_point = CompressedEdwardsY([
+            42, 20, 146, 53, 38, 178, 23, 135, 135, 22, 77, 119, 129, 45, 141, 139, 212, 122, 180,
+            97, 171, 0, 127, 226, 248, 13, 108, 227, 223, 188, 26, 121,
+        ]);
+
+        assert!(invalid_compressed_point.decompress().is_none());
+
+        let result = validate_and_normalize_public_key(
+            KeyType::Ed25519,
+            HexBinary::from(invalid_compressed_point.as_bytes()),
+        );
+        assert_eq!(result.unwrap_err(), ContractError::InvalidPublicKey);
     }
 
     #[test]
@@ -485,8 +585,8 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, true);
+        let result = signature.verify(message, &public_key);
+        assert!(result.is_ok(), "{:?}", result)
     }
 
     #[test]
@@ -500,8 +600,13 @@ mod ed25519_tests {
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
         let public_key =
             PublicKey::try_from((KeyType::Ed25519, ed25519_test_data::pub_key())).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let result = signature.verify(message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
     }
 
     #[test]
@@ -513,8 +618,13 @@ mod ed25519_tests {
         let signature =
             Signature::try_from((KeyType::Ed25519, ed25519_test_data::signature())).unwrap();
         let message = MsgToSign::try_from(ed25519_test_data::message()).unwrap();
-        let public_key = PublicKey::try_from((KeyType::Ed25519, invalid_pub_key)).unwrap();
-        let result = signature.verify(&message, &public_key).unwrap();
-        assert_eq!(result, false);
+        let public_key = PublicKey::Ed25519(invalid_pub_key);
+        let result = signature.verify(message, &public_key);
+        assert_eq!(
+            result.unwrap_err(),
+            ContractError::SignatureVerificationFailed {
+                reason: "unable to verify signature".into(),
+            }
+        );
     }
 }

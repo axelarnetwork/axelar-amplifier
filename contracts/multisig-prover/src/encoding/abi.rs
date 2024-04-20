@@ -166,8 +166,11 @@ fn make_evm_operator(signer: Signer) -> Result<Operator, ContractError> {
     })
 }
 
-fn add27(recovery_byte: u8) -> u8 {
-    recovery_byte + 27
+fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
+    recovery_byte
+        .to_byte()
+        .checked_add(27)
+        .expect("overflow when adding 27 to recovery byte")
 }
 
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
@@ -237,13 +240,13 @@ pub fn command_params(
 
 #[cfg(test)]
 mod test {
-    use connection_router::state::CrossChainId;
     use elliptic_curve::consts::U32;
     use ethers::types::Signature as EthersSignature;
     use generic_array::GenericArray;
     use hex::FromHex;
     use k256::ecdsa::Signature as K256Signature;
 
+    use connection_router_api::CrossChainId;
     use multisig::key::KeyType;
 
     use crate::{
@@ -254,7 +257,7 @@ mod test {
 
     use super::*;
 
-    fn decode_command_params<'a>(encoded_params: impl Into<Vec<u8>>) -> Vec<Token> {
+    fn decode_command_params(encoded_params: impl Into<Vec<u8>>) -> Vec<Token> {
         ethabi::decode(
             &[
                 ParamType::String,
@@ -267,9 +270,7 @@ mod test {
         .unwrap()
     }
 
-    fn decode_operator_transfer_command_params<'a>(
-        encoded_params: impl Into<Vec<u8>>,
-    ) -> Vec<Token> {
+    fn decode_operator_transfer_command_params(encoded_params: impl Into<Vec<u8>>) -> Vec<Token> {
         ethabi::decode(
             &[
                 ParamType::Array(Box::new(ParamType::Address)),
@@ -316,7 +317,7 @@ mod test {
                     .for_each(|((id, ty), params)| match (id, ty, params) {
                         (Token::FixedBytes(id), Token::String(ty), Token::Bytes(params)) => {
                             let command = Command {
-                                id: id.to_owned().try_into().unwrap(),
+                                id: id.to_owned().into(),
                                 ty: match ty.as_str() {
                                     "approveContractCall" => CommandType::ApproveContractCall,
                                     "transferOperatorship" => CommandType::TransferOperatorship,
@@ -392,8 +393,7 @@ mod test {
         let tokens = decode_operator_transfer_command_params(res.unwrap());
         let mut signers: Vec<Signer> = new_worker_set.signers.into_values().collect();
         signers.sort_by_key(|signer| evm_address(signer.pub_key.as_ref()).unwrap());
-        let mut i = 0;
-        for signer in signers {
+        for (i, signer) in signers.into_iter().enumerate() {
             assert_eq!(
                 tokens[0].clone().into_array().unwrap()[i],
                 Token::Address(ethereum_types::Address::from_slice(
@@ -409,7 +409,6 @@ mod test {
                     &signer.weight.to_be_bytes()
                 ))
             );
-            i = i + 1;
         }
         assert_eq!(
             tokens[2],
@@ -446,7 +445,7 @@ mod test {
         test_data
             .commands
             .into_iter()
-            .zip(res.data.commands.into_iter())
+            .zip(res.data.commands)
             .for_each(|(expected_command, command)| {
                 assert_eq!(command.id, expected_command.id);
                 assert_eq!(command.ty, expected_command.ty);
@@ -489,7 +488,7 @@ mod test {
                 (
                     Signer {
                         address: op.address,
-                        weight: op.weight.into(),
+                        weight: op.weight,
                         pub_key: op.pub_key,
                     },
                     op.signature,
@@ -529,7 +528,7 @@ mod test {
                 expected_data
                     .commands
                     .into_iter()
-                    .zip(res.commands.into_iter())
+                    .zip(res.commands)
                     .for_each(|(expected_command, command)| {
                         assert_eq!(command.id, expected_command.id);
                         assert_eq!(command.ty, expected_command.ty);
@@ -568,7 +567,7 @@ mod test {
                 (
                     Signer {
                         address: op.address,
-                        weight: op.weight.into(),
+                        weight: op.weight,
                         pub_key: op.pub_key,
                     },
                     op.signature,

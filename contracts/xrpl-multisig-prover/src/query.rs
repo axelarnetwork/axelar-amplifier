@@ -1,4 +1,4 @@
-use connection_router::state::CrossChainId;
+use connection_router_api::CrossChainId;
 use cosmwasm_std::{StdResult, Uint64, HexBinary, Storage};
 
 use multisig::{key::Signature, types::MultisigState};
@@ -31,8 +31,7 @@ pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, publi
     let tx_hash = get_message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
 
     // m.tx_hash is going to be over 32 bytes due to inclusion of the signer address, so it has to be passed unchecked
-    signature.verify(&multisig::types::MsgToSign::unchecked(tx_hash), &public_key)
-        .map_err(|_e| ContractError::SignatureVerificationFailed.into())
+    Ok(signature.verify(&multisig::types::MsgToSign::unchecked(tx_hash), &public_key).is_ok())
 }
 
 pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &Uint64) -> StdResult<GetProofResponse> {

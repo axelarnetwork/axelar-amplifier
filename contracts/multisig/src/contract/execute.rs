@@ -1,6 +1,7 @@
-use connection_router::state::ChainName;
-use cosmwasm_std::WasmMsg;
+use connection_router_api::ChainName;
+use cosmwasm_std::{OverflowError, OverflowOperation, WasmMsg};
 use sha3::{Digest, Keccak256};
+use signature_verifier_api::client::SignatureVerifier;
 
 use crate::signing::validate_session_signature;
 use crate::state::{load_session_signatures, save_pub_key, save_signature};
@@ -20,6 +21,7 @@ pub fn start_signing_session(
     worker_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
+    sig_verifier: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
@@ -27,15 +29,33 @@ pub fn start_signing_session(
     let session_id = SIGNING_SESSION_COUNTER.update(
         deps.storage,
         |mut counter| -> Result<Uint64, ContractError> {
-            counter += Uint64::one();
+            counter = counter
+                .checked_add(Uint64::one())
+                .map_err(ContractError::Overflow)?;
             Ok(counter)
         },
     )?;
 
-    let expires_at = env.block.height + config.block_expiry;
+    let expires_at = env
+        .block
+        .height
+        .checked_add(config.block_expiry)
+        .ok_or_else(|| {
+            OverflowError::new(
+                OverflowOperation::Add,
+                env.block.height,
+                config.block_expiry,
+            )
+        })?;
 
-    let signing_session =
-        SigningSession::new(session_id, worker_set_id.clone(), msg.clone(), expires_at);
+    let signing_session = SigningSession::new(
+        session_id,
+        worker_set_id.clone(),
+        chain_name.clone(),
+        msg.clone(),
+        expires_at,
+        sig_verifier,
+    );
 
     SIGNING_SESSIONS.save(deps.storage, session_id.into(), &signing_session)?;
 
@@ -76,12 +96,21 @@ pub fn submit_signature(
 
     let signature: Signature = (pub_key.key_type(), signature).try_into()?;
 
+    let sig_verifier = session
+        .sig_verifier
+        .clone()
+        .map(|address| SignatureVerifier {
+            address,
+            querier: deps.querier,
+        });
+
     validate_session_signature(
         &session,
         &info.sender,
         &signature,
         pub_key,
         env.block.height,
+        sig_verifier,
     )?;
     let signature = save_signature(deps.storage, session_id, signature, &info.sender)?;
 
@@ -95,8 +124,7 @@ pub fn submit_signature(
     let state_changed = old_state != session.state;
 
     signing_response(
-        session_id,
-        session.state,
+        session,
         state_changed,
         info.sender,
         signature,
@@ -127,9 +155,9 @@ pub fn register_pub_key(
 
     // to prevent anyone from registering a public key that belongs to someone else,
     // we require the sender to sign their own address using the private key
-    if !signed_sender_address.verify(address_hash.as_slice(), &public_key)? {
-        return Err(ContractError::InvalidPublicKeyRegistrationSignature);
-    }
+    signed_sender_address
+        .verify(address_hash.as_slice(), &public_key)
+        .map_err(|_| ContractError::InvalidPublicKeyRegistrationSignature)?;
 
     save_pub_key(deps.storage, info.sender.clone(), public_key.clone())?;
 
@@ -175,8 +203,7 @@ pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractEr
 }
 
 fn signing_response(
-    session_id: Uint64,
-    session_state: MultisigState,
+    session: SigningSession,
     state_changed: bool,
     signer: Addr,
     signature: Signature,
@@ -185,7 +212,9 @@ fn signing_response(
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
         msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
-            event_id: session_id
+            chain_name: session.chain_name,
+            event_id: session
+                .id
                 .to_string()
                 .try_into()
                 .expect("couldn't convert session_id to nonempty string"),
@@ -195,7 +224,7 @@ fn signing_response(
     };
 
     let event = Event::SignatureSubmitted {
-        session_id,
+        session_id: session.id,
         participant: signer,
         signature,
     };
@@ -204,12 +233,12 @@ fn signing_response(
         .add_message(rewards_msg)
         .add_event(event.into());
 
-    if let MultisigState::Completed { completed_at } = session_state {
+    if let MultisigState::Completed { completed_at } = session.state {
         if state_changed {
             // only send event if state changed
             response = response.add_event(
                 Event::SigningCompleted {
-                    session_id,
+                    session_id: session.id,
                     completed_at,
                 }
                 .into(),

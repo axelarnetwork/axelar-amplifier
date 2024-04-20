@@ -34,7 +34,7 @@ impl From<Event> for cosmwasm_std::Event {
                 pub_keys,
                 unsigned_tx,
                 expires_at,
-            } => cosmwasm_std::Event::new("signing_started")
+            } => cosmwasm_std::Event::new("xrpl_signing_started")
                 .add_attribute("session_id", session_id)
                 .add_attribute("worker_set_id", worker_set_id)
                 .add_attribute(
