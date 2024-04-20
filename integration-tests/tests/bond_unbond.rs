@@ -4,8 +4,13 @@ pub mod test_utils;
 
 #[test]
 fn workers_can_claim_stake() {
-    let (mut protocol, _, _, workers, min_worker_bond, unbonding_period_days) =
-        test_utils::setup_test_case();
+    let test_utils::TestCase {
+        mut protocol,
+        workers,
+        min_worker_bond,
+        unbonding_period_days,
+        ..
+    } = test_utils::setup_test_case();
 
     let before_balances = test_utils::query_balances(&protocol.app, &workers);
 

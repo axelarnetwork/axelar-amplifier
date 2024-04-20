@@ -793,8 +793,17 @@ pub fn query_balances(app: &App, workers: &Vec<Worker>) -> Vec<Uint128> {
     balances
 }
 
-// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns the instance, the chains, the workers, and the minimum worker bond.
-pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128, u16) {
+pub struct TestCase {
+    pub protocol: Protocol,
+    pub chain1: Chain,
+    pub chain2: Chain,
+    pub workers: Vec<Worker>,
+    pub min_worker_bond: Uint128,
+    pub unbonding_period_days: u16,
+}
+
+// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns a TestCase instance.
+pub fn setup_test_case() -> TestCase {
     let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
@@ -819,14 +828,14 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128, u16) 
     register_workers(&mut protocol, &workers, min_worker_bond);
     let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
-    (
+    TestCase {
         protocol,
         chain1,
         chain2,
         workers,
         min_worker_bond,
         unbonding_period_days,
-    )
+    }
 }
 
 pub fn assert_contract_err_strings_equal(
