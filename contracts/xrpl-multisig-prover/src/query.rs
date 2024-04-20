@@ -26,7 +26,7 @@ pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, 
     Ok(xrpl_multisig::xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, serialized_tx).into())
 }
 
-pub fn verify_message(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: &PublicKey, signature: &Signature) -> StdResult<bool> {
+pub fn verify_signature(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: &PublicKey, signature: &Signature) -> StdResult<bool> {
     let signer_xrpl_address = XRPLAccountId::from(public_key);
     let tx_hash = get_message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
 

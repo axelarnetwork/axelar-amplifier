@@ -73,7 +73,7 @@ pub fn validate_session_signature(
         });
     }
 
-    /*sig_verifier
+    sig_verifier
         .map_or_else(
             || signature.verify(&session.msg, pub_key),
             |sig_verifier| {
@@ -91,7 +91,6 @@ pub fn validate_session_signature(
             session_id: session.id,
             signer: signer.into(),
         })?;
-    */
 
     Ok(())
 }

@@ -35,7 +35,13 @@ pub enum QueryMsg {
     GetProof { multisig_session_id: Uint64 },
 
     #[returns(bool)]
-    VerifyMessage { multisig_session_id: Uint64, public_key: PublicKey, signature: Signature },
+    VerifySignature {
+        signature: HexBinary,
+        message: HexBinary,
+        public_key: HexBinary,
+        signer_address: String,
+        session_id: Uint64,
+    },
 
     #[returns(multisig::worker_set::WorkerSet)]
     GetWorkerSet,

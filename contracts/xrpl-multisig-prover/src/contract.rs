@@ -232,7 +232,7 @@ pub fn start_signing_session(
     storage: &mut dyn Storage,
     config: &Config,
     tx_hash: TxHash,
-    _self_address: Addr,
+    self_address: Addr,
 ) -> Result<Response, ContractError> {
     REPLY_TX_HASH.save(storage, &tx_hash)?;
     let cur_worker_set_id = match CURRENT_WORKER_SET.may_load(storage)? {
@@ -246,9 +246,7 @@ pub fn start_signing_session(
         worker_set_id: cur_worker_set_id,
         chain_name: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
         msg: tx_hash.into(),
-        // TODO: implement sig_verifier
-        //sig_verifier: Some(self_address.into())
-        sig_verifier: None,
+        sig_verifier: Some(self_address.into())
     };
 
     let wasm_msg = wasm_execute(&config.axelar_multisig, &start_sig_msg, vec![])?;
@@ -397,11 +395,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetProof {
             multisig_session_id,
         } => to_json_binary(&query::get_proof(deps.storage, querier, &multisig_session_id)?),
-        QueryMsg::VerifyMessage {
-            multisig_session_id,
+        QueryMsg::VerifySignature {
+            session_id,
+            message: _,
             public_key,
-            signature
-        } => to_json_binary(&query::verify_message(deps.storage, &multisig_session_id, &public_key, &signature)?),
+            signature,
+            signer_address: _,
+        } => to_json_binary(&query::verify_signature(
+            deps.storage,
+            &session_id,
+            &PublicKey::Ecdsa(public_key),
+            &multisig::key::Signature::try_from(
+                (multisig::key::KeyType::Ecdsa, signature)
+            ).map_err(|_| ContractError::InvalidSignature)?)?
+        ),
         QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps.storage)?),
         QueryMsg::GetMultisigSessionId { message_id } => to_json_binary(&query::get_multisig_session_id(deps.storage, &message_id)?), // TODO: rename
     }
