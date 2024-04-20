@@ -11,7 +11,7 @@ pub mod test_utils;
 /// and signs via multisig. Also tests that rewards are distributed as expected for voting and signing.
 #[test]
 fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distributed() {
-    let (mut protocol, chain1, chain2, workers, _) = test_utils::setup_test_case();
+    let (mut protocol, chain1, chain2, workers, _, _) = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
@@ -113,7 +113,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
 #[test]
 fn routing_to_incorrect_gateway_interface() {
-    let (mut protocol, chain1, chain2, _, _) = test_utils::setup_test_case();
+    let (mut protocol, chain1, chain2, _, _, _) = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {

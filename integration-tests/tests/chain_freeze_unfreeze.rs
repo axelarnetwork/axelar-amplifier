@@ -8,7 +8,7 @@ pub mod test_utils;
 // Tests that a chain can be frozen and unfrozen
 #[test]
 fn chain_can_be_freezed_unfreezed() {
-    let (mut protocol, chain1, chain2, workers, _) = test_utils::setup_test_case();
+    let (mut protocol, chain1, chain2, workers, _, _) = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
