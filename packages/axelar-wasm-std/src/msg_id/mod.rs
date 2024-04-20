@@ -3,8 +3,11 @@ use std::{fmt::Display, str::FromStr};
 use cosmwasm_schema::cw_serde;
 use error_stack::Report;
 
-use self::tx_hash_event_index::HexTxHashAndEventIndex;
+use self::{
+    base_58_event_index::Base58TxDigestAndEventIndex, tx_hash_event_index::HexTxHashAndEventIndex,
+};
 
+pub mod base_58_event_index;
 pub mod tx_hash_event_index;
 
 #[derive(thiserror::Error)]
@@ -16,6 +19,8 @@ pub enum Error {
     EventIndexOverflow(String),
     #[error("invalid transaction hash in message id '{0}'")]
     InvalidTxHash(String),
+    #[error("invalid tx digest in message id '{0}'")]
+    InvalidTxDigest(String),
 }
 
 /// Any message id format must implement this trait.
@@ -42,6 +47,8 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
         MessageIdFormat::HexTxHashAndEventIndex => {
             HexTxHashAndEventIndex::from_str(message_id).map(|_| ())
         }
-        MessageIdFormat::Base58TxDigestAndEventIndex => todo!(),
+        MessageIdFormat::Base58TxDigestAndEventIndex => {
+            Base58TxDigestAndEventIndex::from_str(message_id).map(|_| ())
+        }
     }
 }

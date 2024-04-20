@@ -99,8 +99,9 @@ fn get_messages(
         msg: to_binary(&query)?,
     }))?;
 
-    assert!(
-        messages.len() == length,
+    assert_eq!(
+        messages.len(),
+        length,
         "violated invariant: returned gateway messages count mismatch"
     );
 
@@ -283,11 +284,21 @@ pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, Contr
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
     NEXT_WORKER_SET.remove(deps.storage);
 
-    Ok(Response::new().add_message(wasm_execute(
-        config.multisig,
-        &multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set },
-        vec![],
-    )?))
+    Ok(Response::new()
+        .add_message(wasm_execute(
+            config.multisig,
+            &multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                worker_set: worker_set.clone(),
+            },
+            vec![],
+        )?)
+        .add_message(wasm_execute(
+            config.monitoring,
+            &monitoring::msg::ExecuteMsg::SetActiveVerifiers {
+                next_worker_set: worker_set,
+            },
+            vec![],
+        )?))
 }
 
 pub fn should_update_worker_set(

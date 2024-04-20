@@ -1,6 +1,6 @@
 use axelar_wasm_std::nonempty;
 use connection_router_api::CrossChainId;
-use cosmwasm_std::{wasm_execute, HexBinary, Storage, WasmMsg};
+use cosmwasm_std::{wasm_execute, HexBinary, Response, Storage};
 use sha2::{Sha512, Digest, Sha256};
 
 use crate::{
@@ -105,10 +105,10 @@ pub fn issue_signer_list_set(
 
 pub fn update_tx_status(
     storage: &mut dyn Storage,
-    axelar_multisig_address: impl Into<String>,
+    config: &Config,
     unsigned_tx_hash: TxHash,
     new_status: TransactionStatus
-) -> Result<Option<WasmMsg>, ContractError> {
+) -> Result<Response, ContractError> {
     let mut tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
     if tx_info.status != TransactionStatus::Pending {
         return Err(ContractError::TransactionStatusAlreadyUpdated);
@@ -131,36 +131,40 @@ pub fn update_tx_status(
     TRANSACTION_INFO.save(storage, &unsigned_tx_hash, &tx_info)?;
 
     if tx_info.status != TransactionStatus::Succeeded {
-        return Ok(None);
+        return Ok(Response::default());
     }
 
-    let res = match &tx_info.unsigned_contents {
+    Ok(match &tx_info.unsigned_contents {
         XRPLUnsignedTx::TicketCreate(tx) => {
             mark_tickets_available(
                 storage,
                 (tx_sequence_number + 1)..(tx_sequence_number + tx.ticket_count),
             )?;
-            None
+            Response::default()
         },
         XRPLUnsignedTx::SignerListSet(_tx) => {
             let next_worker_set = NEXT_WORKER_SET.load(storage, &unsigned_tx_hash)?;
             CURRENT_WORKER_SET.save(storage, &next_worker_set)?;
             NEXT_WORKER_SET.remove(storage, &unsigned_tx_hash);
 
-            let msg = wasm_execute(
-                axelar_multisig_address,
-                &multisig::msg::ExecuteMsg::RegisterWorkerSet {
-                    worker_set: next_worker_set.into(),
-                },
-                vec![],
-            )?;
-
-            Some(msg)
+            Response::new()
+                .add_message(wasm_execute(
+                    config.axelar_multisig.clone(),
+                    &multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                        worker_set: next_worker_set.clone().into(),
+                    },
+                    vec![],
+                )?)
+                .add_message(wasm_execute(
+                    config.monitoring.clone(),
+                    &monitoring::msg::ExecuteMsg::SetActiveVerifiers {
+                        next_worker_set: next_worker_set.into(),
+                    },
+                    vec![],
+                )?)
         },
-        XRPLUnsignedTx::Payment(_) => None
-    };
-
-    Ok(res)
+        XRPLUnsignedTx::Payment(_) => Response::default()
+    })
 }
 
 // TICKET / SEQUENCE NUMBER ASSIGNEMENT LOGIC

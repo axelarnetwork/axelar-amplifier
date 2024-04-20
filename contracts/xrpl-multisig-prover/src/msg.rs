@@ -2,7 +2,7 @@ use connection_router_api::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
 use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
-use multisig::key::{PublicKey, Signature};
+use multisig::key::PublicKey;
 
 use crate::types::{TxHash, XRPLToken};
 

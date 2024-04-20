@@ -40,7 +40,14 @@ pub fn instantiate(
         .add_message(wasm_execute(
             config.axelar_multisig,
             &multisig::msg::ExecuteMsg::RegisterWorkerSet {
-                worker_set: new_worker_set.into(),
+                worker_set: new_worker_set.clone().into(),
+            },
+            vec![],
+        )?)
+        .add_message(wasm_execute(
+            config.monitoring,
+            &monitoring::msg::ExecuteMsg::SetActiveVerifiers {
+                next_worker_set: new_worker_set.into(),
             },
             vec![],
         )?))
@@ -155,7 +162,7 @@ pub fn execute(
             construct_signer_list_set_proof(deps.storage, &querier, env, &config)
         },
         ExecuteMsg::UpdateTxStatus { multisig_session_id, signer_public_keys, message_id, message_status } => {
-            update_tx_status(deps.storage, &querier, &multisig_session_id, &signer_public_keys, &message_id, message_status, config.axelar_multisig, config.xrpl_multisig)
+            update_tx_status(deps.storage, &querier, &config, &multisig_session_id, &signer_public_keys, &message_id, message_status)
         },
         ExecuteMsg::TicketCreate {} => {
             construct_ticket_create_proof(deps.storage, env.contract.address, &config)
@@ -321,12 +328,11 @@ fn construct_ticket_create_proof(
 fn update_tx_status(
     storage: &mut dyn Storage,
     querier: &Querier,
+    config: &Config,
     multisig_session_id: &Uint64,
     signer_public_keys: &Vec<PublicKey>,
     message_id: &CrossChainId,
     status: VerificationStatus,
-    axelar_multisig_address: impl Into<String>,
-    xrpl_multisig_address: String,
 ) -> Result<Response, ContractError> {
     let unsigned_tx_hash = MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
@@ -334,12 +340,12 @@ fn update_tx_status(
 
     let destination_str = match &tx_info.unsigned_contents {
         XRPLUnsignedTx::Payment(p) => p.destination.to_string(),
-        _ => xrpl_multisig_address.to_string(),
+        _ => config.xrpl_multisig.to_string(),
     };
 
     let message = Message {
         destination_chain: ChainName::from_str(XRPL_CHAIN_NAME).unwrap(),
-        source_address: Address::from_str(&xrpl_multisig_address).map_err(|_| ContractError::InvalidAddress)?,
+        source_address: Address::from_str(&config.xrpl_multisig.to_string()).map_err(|_| ContractError::InvalidAddress)?,
         destination_address: Address::from_str(destination_str.as_ref()).map_err(|_| ContractError::InvalidAddress)?,
         cc_id: message_id.clone(),
         payload_hash: [0; 32],
@@ -368,10 +374,7 @@ fn update_tx_status(
         return Err(ContractError::InvalidMessageStatus)
     }
 
-    match xrpl_multisig::update_tx_status(storage, axelar_multisig_address, unsigned_tx_hash, status.into())? {
-        None => Ok(Response::default()),
-        Some(msg) => Ok(Response::new().add_message(msg))
-    }
+    xrpl_multisig::update_tx_status(storage, config, unsigned_tx_hash, status.into())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

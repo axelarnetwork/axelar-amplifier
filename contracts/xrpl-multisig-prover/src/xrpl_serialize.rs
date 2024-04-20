@@ -410,7 +410,7 @@ pub fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Uint128};
+    use cosmwasm_std::Uint128;
     use multisig::key::PublicKey;
 
     use crate::types::XRPLToken;

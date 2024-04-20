@@ -411,18 +411,21 @@ pub fn get_worker_set_from_prover(
     query_response.unwrap()
 }
 
-pub fn get_worker_set(
+pub fn get_worker_set_from_monitoring(
     app: &mut App,
-    multisig_prover_contract: &MultisigProverContract,
+    monitoring_contract: &MonitoringContract,
+    chain_name: ChainName,
 ) -> WorkerSet {
-    let query_response: Result<WorkerSet, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
+    let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
+        app,
+        &monitoring::msg::QueryMsg::GetActiveVerifiers { chain_name },
+    );
     assert!(query_response.is_ok());
 
     query_response.unwrap()
 }
 
-pub fn get_xrpl_worker_set(
+pub fn get_xrpl_worker_set_from_prover(
     app: &mut App,
     multisig_prover: &XRPLMultisigProverContract,
 ) -> multisig::worker_set::WorkerSet {
@@ -467,6 +470,7 @@ pub fn xrpl_update_tx_status(
             signer_public_keys,
         },
     );
+    println!("xrpl_update_tx_status res: {:?}", response);
     assert!(response.is_ok());
 }
 
@@ -699,7 +703,6 @@ pub fn confirm_worker_set(
         relayer_addr.clone(),
         &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
     );
-    println!("confirm_worker_set res: {:?}", response);
     assert!(response.is_ok());
 }
 
@@ -956,6 +959,16 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
             },
         },
         &coins(1000, AXL_DENOMINATION),
+    );
+    assert!(response.is_ok());
+
+    let response = protocol.monitoring.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &MonitoringExecuteMsg::RegisterProverContract {
+            chain_name: chain_name.clone(),
+            new_prover_addr: multisig_prover.contract_addr.clone(),
+        },
     );
     assert!(response.is_ok());
 
