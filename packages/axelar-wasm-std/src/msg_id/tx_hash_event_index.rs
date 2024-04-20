@@ -107,7 +107,13 @@ mod tests {
     #[test]
     fn should_not_parse_msg_id_with_wrong_length_tx_hash() {
         let tx_hash = random_hash();
+        // too long
         let res = HexTxHashAndEventIndex::from_str(&format!("{}ff-{}", tx_hash, 1));
+        assert!(res.is_err());
+
+        // too short
+        let res =
+            HexTxHashAndEventIndex::from_str(&format!("{}-{}", &tx_hash[..tx_hash.len() - 2], 1));
         assert!(res.is_err());
     }
 
@@ -143,11 +149,17 @@ mod tests {
     fn should_not_parse_msg_id_with_wrong_separator() {
         let tx_hash = random_hash();
         let event_index = random_event_index();
+
         let res = HexTxHashAndEventIndex::from_str(&format!("{}:{}", tx_hash, event_index));
         assert!(res.is_err());
+
         let res = HexTxHashAndEventIndex::from_str(&format!("{}_{}", tx_hash, event_index));
         assert!(res.is_err());
+
         let res = HexTxHashAndEventIndex::from_str(&format!("{}+{}", tx_hash, event_index));
+        assert!(res.is_err());
+
+        let res = HexTxHashAndEventIndex::from_str(&format!("{}{}", tx_hash, event_index));
         assert!(res.is_err());
 
         for _ in 0..10 {
