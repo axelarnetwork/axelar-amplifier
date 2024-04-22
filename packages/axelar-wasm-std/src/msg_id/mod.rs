@@ -52,3 +52,55 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::msg_id::{
+        base_58_event_index::Base58TxDigestAndEventIndex, verify_msg_id, MessageIdFormat,
+    };
+
+    use super::tx_hash_event_index::HexTxHashAndEventIndex;
+
+    #[test]
+    fn should_verify_hex_tx_hash_event_index_msg_id() {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: [1; 32],
+            event_index: 0,
+        }
+        .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_ok());
+    }
+
+    #[test]
+    fn should_verify_base_58_tx_digest_event_index_msg_id() {
+        let msg_id = Base58TxDigestAndEventIndex {
+            tx_digest: [1; 32],
+            event_index: 0,
+        }
+        .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::Base58TxDigestAndEventIndex).is_ok());
+    }
+
+    #[test]
+    fn should_not_verify_invalid_msg_id() {
+        let msg_id = "foobar";
+        assert!(verify_msg_id(msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+    }
+
+    #[test]
+    fn should_not_verify_msg_id_with_wrong_format() {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: [1; 32],
+            event_index: 0,
+        }
+        .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::Base58TxDigestAndEventIndex).is_err());
+
+        let msg_id = Base58TxDigestAndEventIndex {
+            tx_digest: [1; 32],
+            event_index: 0,
+        }
+        .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+    }
+}

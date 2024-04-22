@@ -1,6 +1,7 @@
 use std::{any::type_name, fmt, ops::Deref, str::FromStr};
 
 use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{hash::Hash, nonempty, FnExt};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary};
@@ -261,6 +262,7 @@ pub struct ChainEndpoint {
     pub name: ChainName,
     pub gateway: Gateway,
     pub frozen_status: FlagSet<GatewayDirection>,
+    pub msg_id_format: MessageIdFormat,
 }
 
 impl ChainEndpoint {
