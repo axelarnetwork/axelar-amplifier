@@ -151,7 +151,7 @@ mod tests {
     #[test]
     #[allow(clippy::arithmetic_side_effects)]
     fn test_instantiation() {
-        let governance = "governance_for_monitoring";
+        let governance = "governance_for_coordinator";
         let test_setup = setup(governance);
 
         let config = CONFIG.load(test_setup.deps.as_ref().storage).unwrap();
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn add_prover_from_governance_succeeds() {
-        let governance = "governance_for_monitoring";
+        let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
         let _res = execute(
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn add_prover_from_random_address_fails() {
-        let governance = "governance_for_monitoring";
+        let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
         let res = execute(
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn set_and_get_populated_active_worker_set_success() {
-        let governance = "governance_for_monitoring";
+        let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
         let new_worker = create_worker(
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn set_and_get_empty_active_worker_set_success() {
-        let governance = "governance_for_monitoring";
+        let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
         let _response = execute(

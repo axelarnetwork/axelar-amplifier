@@ -103,12 +103,12 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
         test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
     assert_eq!(new_worker_set, expected_new_worker_set);
 
-    let monitoring_worker_set = test_utils::get_worker_set_from_monitoring(
+    let coordinator_worker_set = test_utils::get_worker_set_from_coordinator(
         &mut protocol.app,
-        &protocol.monitoring,
+        &protocol.coordinator,
         ethereum.chain_name,
     );
-    assert_eq!(monitoring_worker_set, expected_new_worker_set);
+    assert_eq!(coordinator_worker_set, expected_new_worker_set);
 }
 
 #[test]

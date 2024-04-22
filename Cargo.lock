@@ -1619,6 +1619,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "coordinator"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "connection-router-api",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "integration-tests",
+ "multisig",
+ "report",
+ "thiserror",
+ "tofn",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4031,13 +4050,13 @@ dependencies = [
  "axelar-wasm-std",
  "connection-router",
  "connection-router-api",
+ "coordinator",
  "cosmwasm-std",
  "cw-multi-test",
  "error-stack",
  "gateway",
  "gateway-api",
  "k256",
- "monitoring",
  "multisig",
  "multisig-prover",
  "report",
@@ -4443,25 +4462,6 @@ dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "monitoring"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "error-stack",
- "integration-tests",
- "multisig",
- "report",
- "thiserror",
- "tofn",
 ]
 
 [[package]]
@@ -4969,6 +4969,7 @@ dependencies = [
  "axelar-wasm-std-derive",
  "bcs",
  "connection-router-api",
+ "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -4984,7 +4985,6 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "k256",
- "monitoring",
  "multisig",
  "report",
  "serde_json",

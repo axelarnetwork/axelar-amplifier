@@ -10,8 +10,8 @@ use cosmwasm_std::{
 use cw_multi_test::{App, AppResponse, Executor};
 
 use integration_tests::contract::Contract;
+use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
-use integration_tests::monitoring_contract::MonitoringContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
@@ -22,7 +22,7 @@ use integration_tests::{connection_router_contract::ConnectionRouterContract, pr
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
-use monitoring::msg::ExecuteMsg as MonitoringExecuteMsg;
+use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -309,14 +309,14 @@ pub fn get_worker_set_from_prover(
     query_response.unwrap()
 }
 
-pub fn get_worker_set_from_monitoring(
+pub fn get_worker_set_from_coordinator(
     app: &mut App,
-    monitoring_contract: &MonitoringContract,
+    coordinator_contract: &CoordinatorContract,
     chain_name: ChainName,
 ) -> WorkerSet {
-    let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
+    let query_response: Result<WorkerSet, StdError> = coordinator_contract.query(
         app,
-        &monitoring::msg::QueryMsg::GetActiveVerifiers { chain_name },
+        &coordinator::msg::QueryMsg::GetActiveVerifiers { chain_name },
     );
     assert!(query_response.is_ok());
 
@@ -395,7 +395,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         SIGNATURE_BLOCK_EXPIRY,
     );
 
-    let monitoring = MonitoringContract::instantiate_contract(&mut app, governance_address.clone());
+    let coordinator =
+        CoordinatorContract::instantiate_contract(&mut app, governance_address.clone());
 
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
@@ -406,7 +407,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         connection_router,
         router_admin_address,
         multisig,
-        monitoring,
+        coordinator,
         service_registry,
         service_name,
         rewards,
@@ -760,10 +761,10 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
-    let response = protocol.monitoring.execute(
+    let response = protocol.coordinator.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &MonitoringExecuteMsg::RegisterProverContract {
+        &CoordinatorExecuteMsg::RegisterProverContract {
             chain_name: chain_name.clone(),
             new_prover_addr: multisig_prover.contract_addr.clone(),
         },

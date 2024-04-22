@@ -37,6 +37,7 @@ axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 bcs = "0.1.5"
 connection-router-api = { workspace = true }
+coordinator = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
@@ -48,7 +49,6 @@ gateway-api = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = [] }
 itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
-monitoring = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
 report = { workspace = true }
 serde_json = "1.0.89"
