@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
-use broadcaster::{accounts::account, Broadcaster};
+use broadcaster::Broadcaster;
 use event_processor::EventHandler;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
@@ -106,19 +106,16 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         }
     };
 
-    let worker = pub_key
+    let worker: TMAddress = pub_key
         .account_id(PREFIX)
         .expect("failed to convert to account identifier")
         .into();
-    let account = account(query_client, &worker)
-        .await
-        .change_context(Error::Broadcaster)?;
 
     let broadcaster = broadcaster::BroadcastClientBuilder::default()
+        .query_client(query_client)
+        .address(worker.clone())
         .client(service_client)
         .signer(ecdsa_client.clone())
-        .acc_number(account.account_number)
-        .acc_sequence(account.sequence)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
         .build()
