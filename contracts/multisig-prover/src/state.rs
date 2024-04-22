@@ -16,7 +16,7 @@ pub struct Config {
     pub governance: Addr,
     pub gateway: Addr,
     pub multisig: Addr,
-    pub monitoring: Addr,
+    pub coordinator: Addr,
     pub service_registry: Addr,
     pub voting_verifier: Addr,
     pub destination_chain_id: Uint256,

@@ -293,8 +293,8 @@ pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, Contr
             vec![],
         )?)
         .add_message(wasm_execute(
-            config.monitoring,
-            &monitoring::msg::ExecuteMsg::SetActiveVerifiers {
+            config.coordinator,
+            &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
                 next_worker_set: worker_set,
             },
             vec![],
@@ -468,7 +468,7 @@ mod tests {
             governance: Addr::unchecked("doesn't matter"),
             gateway: Addr::unchecked("doesn't matter"),
             multisig: Addr::unchecked("doesn't matter"),
-            monitoring: Addr::unchecked("doesn't matter"),
+            coordinator: Addr::unchecked("doesn't matter"),
             service_registry: Addr::unchecked("doesn't matter"),
             voting_verifier: Addr::unchecked("doesn't matter"),
             destination_chain_id: Uint256::one(),

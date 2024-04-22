@@ -1,5 +1,5 @@
 [package]
-name = "monitoring"
+name = "coordinator"
 version = "0.1.0"
 rust-version = { workspace = true }
 edition = "2021"
@@ -16,7 +16,7 @@ exclude = [
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "monitoring-schema"
+name = "coordinator-schema"
 path = "src/bin/schema.rs"
 
 [features]

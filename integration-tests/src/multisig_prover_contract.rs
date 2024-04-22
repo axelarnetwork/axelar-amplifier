@@ -37,7 +37,7 @@ impl MultisigProverContract {
                     governance_address: protocol.governance_address.to_string(),
                     gateway_address: gateway_address.to_string(),
                     multisig_address: protocol.multisig.contract_addr.to_string(),
-                    monitoring_address: protocol.monitoring.contract_addr.to_string(),
+                    coordinator_address: protocol.coordinator.contract_addr.to_string(),
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
                     destination_chain_id: Uint256::zero(),
