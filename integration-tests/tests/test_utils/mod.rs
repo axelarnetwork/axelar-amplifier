@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router_api::{ChainName, CrossChainId, Message};
+use connection_router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
 };
@@ -11,6 +11,7 @@ use cw_multi_test::{App, AppResponse, Executor};
 
 use integration_tests::contract::Contract;
 use integration_tests::gateway_contract::GatewayContract;
+use integration_tests::monitoring_contract::MonitoringContract;
 use integration_tests::multisig_contract::MultisigContract;
 use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
@@ -21,6 +22,7 @@ use integration_tests::{connection_router_contract::ConnectionRouterContract, pr
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
 
+use monitoring::msg::ExecuteMsg as MonitoringExecuteMsg;
 use multisig::{
     key::{KeyType, PublicKey},
     worker_set::WorkerSet,
@@ -79,6 +81,60 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
         &gateway_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     assert!(response.is_ok());
+}
+
+pub fn freeze_chain(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    chain_name: &ChainName,
+    direction: GatewayDirection,
+    admin: &Addr,
+) {
+    let response = router.execute(
+        app,
+        admin.clone(),
+        &connection_router_api::msg::ExecuteMsg::FreezeChain {
+            chain: chain_name.clone(),
+            direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
+}
+
+pub fn unfreeze_chain(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    chain_name: &ChainName,
+    direction: GatewayDirection,
+    admin: &Addr,
+) {
+    let response = router.execute(
+        app,
+        admin.clone(),
+        &connection_router_api::msg::ExecuteMsg::UnfreezeChain {
+            chain: chain_name.clone(),
+            direction,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
+}
+
+pub fn upgrade_gateway(
+    app: &mut App,
+    router: &ConnectionRouterContract,
+    governance: &Addr,
+    chain_name: &ChainName,
+    contract_address: Address,
+) {
+    let response = router.execute(
+        app,
+        governance.clone(),
+        &connection_router_api::msg::ExecuteMsg::UpgradeGateway {
+            chain: chain_name.clone(),
+            contract_address,
+        },
+    );
+    assert!(response.is_ok(), "{:?}", response);
 }
 
 pub fn vote_success_for_all_messages(
@@ -187,7 +243,11 @@ pub fn sign_proof(protocol: &mut Protocol, workers: &Vec<Worker>, response: AppR
     session_id
 }
 
-pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
+pub fn register_service(
+    protocol: &mut Protocol,
+    min_worker_bond: Uint128,
+    unbonding_period_days: u16,
+) {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -198,7 +258,7 @@ pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
             max_num_workers: Some(100),
             min_worker_bond,
             bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: 10,
+            unbonding_period_days,
             description: "Some service".into(),
         },
     );
@@ -238,12 +298,26 @@ pub fn get_proof(
     query_response.unwrap()
 }
 
-pub fn get_worker_set(
+pub fn get_worker_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> WorkerSet {
     let query_response: Result<WorkerSet, StdError> =
         multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
+    assert!(query_response.is_ok());
+
+    query_response.unwrap()
+}
+
+pub fn get_worker_set_from_monitoring(
+    app: &mut App,
+    monitoring_contract: &MonitoringContract,
+    chain_name: ChainName,
+) -> WorkerSet {
+    let query_response: Result<WorkerSet, StdError> = monitoring_contract.query(
+        app,
+        &monitoring::msg::QueryMsg::GetActiveVerifiers { chain_name },
+    );
     assert!(query_response.is_ok());
 
     query_response.unwrap()
@@ -321,6 +395,8 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         SIGNATURE_BLOCK_EXPIRY,
     );
 
+    let monitoring = MonitoringContract::instantiate_contract(&mut app, governance_address.clone());
+
     let service_registry =
         ServiceRegistryContract::instantiate_contract(&mut app, governance_address.clone());
 
@@ -330,6 +406,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         connection_router,
         router_admin_address,
         multisig,
+        monitoring,
         service_registry,
         service_name,
         rewards,
@@ -437,6 +514,19 @@ pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
             &mut protocol.app,
             worker.addr.clone(),
             &ExecuteMsg::UnbondWorker {
+                service_name: protocol.service_name.to_string(),
+            },
+        );
+        assert!(response.is_ok());
+    }
+}
+
+pub fn claim_stakes(protocol: &mut Protocol, workers: &Vec<Worker>) {
+    for worker in workers {
+        let response = protocol.service_registry.execute(
+            &mut protocol.app,
+            worker.addr.clone(),
+            &ExecuteMsg::ClaimStake {
                 service_name: protocol.service_name.to_string(),
             },
         );
@@ -639,6 +729,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
         &connection_router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
             gateway_address: gateway.contract_addr.to_string().try_into().unwrap(),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         },
     );
     assert!(response.is_ok());
@@ -669,6 +760,16 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    let response = protocol.monitoring.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &MonitoringExecuteMsg::RegisterProverContract {
+            chain_name: chain_name.clone(),
+            new_prover_addr: multisig_prover.contract_addr.clone(),
+        },
+    );
+    assert!(response.is_ok());
+
     Chain {
         gateway,
         voting_verifier,
@@ -677,8 +778,33 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     }
 }
 
-// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns the instance, the chains, the workers, and the minimum worker bond.
-pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
+pub fn query_balance(app: &App, address: &Addr) -> Uint128 {
+    app.wrap()
+        .query_balance(address, AXL_DENOMINATION)
+        .unwrap()
+        .amount
+}
+
+pub fn query_balances(app: &App, workers: &Vec<Worker>) -> Vec<Uint128> {
+    let mut balances = Vec::new();
+    for worker in workers {
+        balances.push(query_balance(app, &worker.addr))
+    }
+
+    balances
+}
+
+pub struct TestCase {
+    pub protocol: Protocol,
+    pub chain1: Chain,
+    pub chain2: Chain,
+    pub workers: Vec<Worker>,
+    pub min_worker_bond: Uint128,
+    pub unbonding_period_days: u16,
+}
+
+// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns a TestCase instance.
+pub fn setup_test_case() -> TestCase {
     let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
@@ -697,10 +823,25 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
         },
     ];
     let min_worker_bond = Uint128::new(100);
-    register_service(&mut protocol, min_worker_bond);
+    let unbonding_period_days = 10;
+    register_service(&mut protocol, min_worker_bond, unbonding_period_days);
 
     register_workers(&mut protocol, &workers, min_worker_bond);
     let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
-    (protocol, chain1, chain2, workers, min_worker_bond)
+    TestCase {
+        protocol,
+        chain1,
+        chain2,
+        workers,
+        min_worker_bond,
+        unbonding_period_days,
+    }
+}
+
+pub fn assert_contract_err_strings_equal(
+    actual: impl Into<axelar_wasm_std::ContractError>,
+    expected: impl Into<axelar_wasm_std::ContractError>,
+) {
+    assert_eq!(actual.into().to_string(), expected.into().to_string());
 }

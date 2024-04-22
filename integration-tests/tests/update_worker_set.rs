@@ -2,6 +2,7 @@ use cosmwasm_std::Addr;
 use cw_multi_test::Executor;
 
 use integration_tests::contract::Contract;
+use multisig_prover::msg::ExecuteMsg;
 use test_utils::Worker;
 
 use crate::test_utils::get_multisig_session_id;
@@ -14,12 +15,19 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
-    let (mut protocol, ethereum, _, initial_workers, min_worker_bond) =
-        test_utils::setup_test_case();
+
+    let test_utils::TestCase {
+        mut protocol,
+        chain1: ethereum,
+        workers: initial_workers,
+        min_worker_bond,
+        ..
+    } = test_utils::setup_test_case();
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
-    let worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
+    let worker_set =
+        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(worker_set, simulated_worker_set);
 
@@ -91,9 +99,16 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
         &ethereum.multisig_prover,
     );
 
-    let new_worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
-
+    let new_worker_set =
+        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
     assert_eq!(new_worker_set, expected_new_worker_set);
+
+    let monitoring_worker_set = test_utils::get_worker_set_from_monitoring(
+        &mut protocol.app,
+        &protocol.monitoring,
+        ethereum.chain_name,
+    );
+    assert_eq!(monitoring_worker_set, expected_new_worker_set);
 }
 
 #[test]
@@ -102,12 +117,18 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
-    let (mut protocol, ethereum, _, initial_workers, min_worker_bond) =
-        test_utils::setup_test_case();
+    let test_utils::TestCase {
+        mut protocol,
+        chain1: ethereum,
+        workers: initial_workers,
+        min_worker_bond,
+        ..
+    } = test_utils::setup_test_case();
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
-    let worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
+    let worker_set =
+        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(worker_set, simulated_worker_set);
 
@@ -178,7 +199,8 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         &ethereum.multisig_prover,
     );
 
-    let new_worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
+    let new_worker_set =
+        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_worker_set, expected_new_worker_set);
 
@@ -206,12 +228,18 @@ fn worker_set_update_can_be_resigned() {
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
-    let (mut protocol, ethereum, _, initial_workers, min_worker_bond) =
-        test_utils::setup_test_case();
+    let test_utils::TestCase {
+        mut protocol,
+        chain1: ethereum,
+        workers: initial_workers,
+        min_worker_bond,
+        ..
+    } = test_utils::setup_test_case();
 
     let simulated_worker_set = test_utils::workers_to_worker_set(&mut protocol, &initial_workers);
 
-    let worker_set = test_utils::get_worker_set(&mut protocol.app, &ethereum.multisig_prover);
+    let worker_set =
+        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(worker_set, simulated_worker_set);
 
@@ -282,4 +310,53 @@ fn worker_set_update_can_be_resigned() {
         proof.status,
         multisig_prover::msg::ProofStatus::Completed { .. }
     ));
+}
+
+#[test]
+fn governance_should_confirm_new_worker_set_without_verification() {
+    let chains: Vec<connection_router_api::ChainName> =
+        vec!["Ethereum".to_string().try_into().unwrap()];
+    let test_utils::TestCase {
+        mut protocol,
+        chain1: ethereum,
+        workers: initial_workers,
+        min_worker_bond,
+        ..
+    } = test_utils::setup_test_case();
+
+    // add third worker
+    let mut new_workers = Vec::new();
+    let new_worker = Worker {
+        addr: Addr::unchecked("worker3"),
+        supported_chains: chains.clone(),
+        key_pair: test_utils::generate_key(2),
+    };
+    new_workers.push(new_worker);
+
+    let expected_new_worker_set = test_utils::workers_to_worker_set(&mut protocol, &new_workers);
+
+    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+
+    test_utils::deregister_workers(&mut protocol, &initial_workers);
+
+    let _ = protocol
+        .app
+        .execute_contract(
+            ethereum.multisig_prover.admin_addr.clone(),
+            ethereum.multisig_prover.contract_addr.clone(),
+            &ExecuteMsg::UpdateWorkerSet,
+            &[],
+        )
+        .unwrap();
+
+    test_utils::confirm_worker_set(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &ethereum.multisig_prover,
+    );
+
+    let new_worker_set =
+        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+
+    assert_eq!(new_worker_set, expected_new_worker_set);
 }

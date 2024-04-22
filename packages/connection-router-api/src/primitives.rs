@@ -1,6 +1,7 @@
 use std::{any::type_name, fmt, ops::Deref, str::FromStr};
 
 use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{hash::Hash, nonempty, FnExt};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary};
@@ -261,6 +262,7 @@ pub struct ChainEndpoint {
     pub name: ChainName,
     pub gateway: Gateway,
     pub frozen_status: FlagSet<GatewayDirection>,
+    pub msg_id_format: MessageIdFormat,
 }
 
 impl ChainEndpoint {
@@ -277,7 +279,7 @@ impl ChainEndpoint {
 mod tests {
     use super::*;
 
-    use cosmwasm_std::to_json_vec;
+    use cosmwasm_std::to_vec;
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
@@ -292,7 +294,7 @@ mod tests {
         let msg = dummy_message();
 
         assert_eq!(
-            hex::encode(Sha3_256::digest(to_json_vec(&msg).unwrap())),
+            hex::encode(Sha3_256::digest(to_vec(&msg).unwrap())),
             expected_message_hash
         );
     }

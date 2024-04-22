@@ -1,14 +1,14 @@
 use std::collections::BTreeMap;
 
 use cosmwasm_std::{
-    to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
+    to_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
     Response, Storage, SubMsg, WasmQuery,
 };
 
 use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
-use axelar_wasm_std::{snapshot, VerificationStatus};
+use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use connection_router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedWorker;
 
@@ -23,6 +23,13 @@ use crate::{
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     match CONFIG.load(deps.storage)?.admin {
         admin if admin == info.sender => Ok(()),
+        _ => Err(ContractError::Unauthorized),
+    }
+}
+
+pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
+    match CONFIG.load(deps.storage)?.governance {
+        governance if governance == info.sender => Ok(()),
         _ => Err(ContractError::Unauthorized),
     }
 }
@@ -89,11 +96,12 @@ fn get_messages(
     let query = gateway_api::msg::QueryMsg::GetOutgoingMessages { message_ids };
     let messages: Vec<Message> = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: gateway.into(),
-        msg: to_json_binary(&query)?,
+        msg: to_binary(&query)?,
     }))?;
 
-    assert!(
-        messages.len() == length,
+    assert_eq!(
+        messages.len(),
+        length,
         "violated invariant: returned gateway messages count mismatch"
     );
 
@@ -116,7 +124,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     let workers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry.to_string(),
-            msg: to_json_binary(&active_workers_query)?,
+            msg: to_binary(&active_workers_query)?,
         }))?;
 
     let participants = workers
@@ -136,7 +144,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
         };
         let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.multisig.to_string(),
-            msg: to_json_binary(&pub_key_query)?,
+            msg: to_binary(&pub_key_query)?,
         }))?;
         pub_keys.push(pub_key);
     }
@@ -254,7 +262,7 @@ fn ensure_worker_set_verification(
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.voting_verifier.to_string(),
-        msg: to_json_binary(&query)?,
+        msg: to_binary(&query)?,
     }))?;
 
     if status != VerificationStatus::SucceededOnChain {
@@ -276,11 +284,21 @@ pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, Contr
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
     NEXT_WORKER_SET.remove(deps.storage);
 
-    Ok(Response::new().add_message(wasm_execute(
-        config.multisig,
-        &multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set },
-        vec![],
-    )?))
+    Ok(Response::new()
+        .add_message(wasm_execute(
+            config.multisig,
+            &multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                worker_set: worker_set.clone(),
+            },
+            vec![],
+        )?)
+        .add_message(wasm_execute(
+            config.monitoring,
+            &monitoring::msg::ExecuteMsg::SetActiveVerifiers {
+                next_worker_set: worker_set,
+            },
+            vec![],
+        )?))
 }
 
 pub fn should_update_worker_set(
@@ -288,7 +306,8 @@ pub fn should_update_worker_set(
     cur_workers: &WorkerSet,
     max_diff: usize,
 ) -> bool {
-    signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
+    new_workers.threshold != cur_workers.threshold
+        || signers_symetric_difference_count(&new_workers.signers, &cur_workers.signers) > max_diff
 }
 
 fn signers_symetric_difference_count(
@@ -310,6 +329,20 @@ fn different_set_in_progress(storage: &dyn Storage, new_worker_set: &WorkerSet) 
     }
 
     false
+}
+
+pub fn update_signing_threshold(
+    deps: DepsMut,
+    new_signing_threshold: MajorityThreshold,
+) -> Result<Response, ContractError> {
+    CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<Config, ContractError> {
+            config.signing_threshold = new_signing_threshold;
+            Ok(config)
+        },
+    )?;
+    Ok(Response::new())
 }
 
 #[cfg(test)]
@@ -435,6 +468,7 @@ mod tests {
             governance: Addr::unchecked("doesn't matter"),
             gateway: Addr::unchecked("doesn't matter"),
             multisig: Addr::unchecked("doesn't matter"),
+            monitoring: Addr::unchecked("doesn't matter"),
             service_registry: Addr::unchecked("doesn't matter"),
             voting_verifier: Addr::unchecked("doesn't matter"),
             destination_chain_id: Uint256::one(),

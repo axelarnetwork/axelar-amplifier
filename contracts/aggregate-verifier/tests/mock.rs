@@ -2,7 +2,7 @@ use aggregate_verifier::error::ContractError;
 use axelar_wasm_std::VerificationStatus;
 use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{to_json_binary, Addr, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{to_binary, Addr, DepsMut, Env, MessageInfo, Response};
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_storage_plus::Map;
 
@@ -33,7 +33,7 @@ pub fn mock_verifier_execute(
                     None => res.push((m.cc_id, VerificationStatus::None)),
                 }
             }
-            Ok(Response::new().set_data(to_json_binary(&res)?))
+            Ok(Response::new().set_data(to_binary(&res)?))
         }
         MockVotingVerifierExecuteMsg::MessagesVerified { messages } => {
             for m in messages {
@@ -64,7 +64,7 @@ pub fn make_mock_voting_verifier(app: &mut App) -> Addr {
         |_, _, _, _: MockVotingVerifierInstantiateMsg| {
             Ok::<Response, ContractError>(Response::new())
         },
-        |_, _, _: aggregate_verifier::msg::QueryMsg| to_json_binary(&()),
+        |_, _, _: aggregate_verifier::msg::QueryMsg| to_binary(&()),
     );
     let code_id = app.store_code(Box::new(code));
 

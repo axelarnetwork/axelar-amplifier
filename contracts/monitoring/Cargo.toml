@@ -38,7 +38,6 @@ axelar-wasm-std-derive = { workspace = true }
 connection-router-api = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 multisig = { workspace = true, features = ["library"] }
@@ -48,6 +47,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 cw-multi-test = "0.15.1"
 integration-tests = { workspace = true }
+tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
 
 [lints]
 workspace = true

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::ops::Mul;
-use std::thread;
 use std::time::Duration;
+use std::{cmp, thread};
 
 use async_trait::async_trait;
 use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -26,7 +26,7 @@ use tracing::info;
 use valuable::Valuable;
 
 use crate::tofnd::grpc::SharableEcdsaClient;
-use crate::types::PublicKey;
+use crate::types::{PublicKey, TMAddress};
 use dec_coin::DecCoin;
 use report::LoggableError;
 use tx::TxBuilder;
@@ -50,6 +50,8 @@ pub enum Error {
     TxConfirmation,
     #[error("failed to execute tx")]
     Execution { response: TxResponse },
+    #[error("failed to query account information for address {address}")]
+    QueryAccount { address: TMAddress },
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -89,32 +91,32 @@ pub trait Broadcaster {
 }
 
 #[derive(Builder)]
-pub struct BroadcastClient<T>
-where
-    T: clients::BroadcastClient,
-{
+pub struct BroadcastClient<T, Q> {
     client: T,
     signer: SharableEcdsaClient,
-    acc_number: u64,
-    acc_sequence: u64,
+    query_client: Q,
+    address: TMAddress,
+    acc_sequence: Option<u64>,
     pub_key: (String, PublicKey),
     config: Config,
 }
 
 #[async_trait]
-impl<T> Broadcaster for BroadcastClient<T>
+impl<T, Q> Broadcaster for BroadcastClient<T, Q>
 where
-    T: clients::BroadcastClient + Send + Sync,
+    T: clients::BroadcastClient + Send,
+    Q: clients::AccountQueryClient + Send,
 {
     async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error> {
+        let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
         let tx = TxBuilder::default()
             .msgs(msgs.clone())
-            .fee(self.estimate_fee(msgs).await?)
+            .fee(self.estimate_fee(msgs, acc_sequence).await?)
             .pub_key(self.pub_key.1)
-            .acc_sequence(self.acc_sequence)
+            .acc_sequence(acc_sequence)
             .build()
             .change_context(Error::TxBuilding)?
-            .sign_with(&self.config.chain_id, self.acc_number, |sign_doc| {
+            .sign_with(&self.config.chain_id, acc_number, |sign_doc| {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_doc);
 
@@ -150,16 +152,51 @@ where
 
         info!(tx_hash, "confirmed transaction");
 
-        self.acc_sequence += 1;
+        self.acc_sequence.replace(
+            acc_sequence
+                .checked_add(1)
+                .expect("account sequence must be less than u64::MAX"),
+        );
         Ok(response)
     }
 
     async fn estimate_fee(&mut self, msgs: Vec<cosmrs::Any>) -> Result<Fee, Error> {
+        let (_, acc_sequence) = self.acc_number_and_sequence().await?;
+
+        self.estimate_fee(msgs, acc_sequence).await
+    }
+}
+
+impl<T, Q> BroadcastClient<T, Q>
+where
+    T: clients::BroadcastClient,
+    Q: clients::AccountQueryClient,
+{
+    async fn acc_number_and_sequence(&mut self) -> Result<(u64, u64), Error> {
+        let account = accounts::account(&mut self.query_client, &self.address)
+            .await
+            .change_context_lazy(|| Error::QueryAccount {
+                address: self.address.clone(),
+            })?;
+
+        let acc_sequence = self.acc_sequence.insert(cmp::max(
+            account.sequence,
+            self.acc_sequence.unwrap_or_default(),
+        ));
+
+        Ok((account.account_number, *acc_sequence))
+    }
+
+    async fn estimate_fee(
+        &mut self,
+        msgs: Vec<cosmrs::Any>,
+        acc_sequence: u64,
+    ) -> Result<Fee, Error> {
         let sim_tx = TxBuilder::default()
             .msgs(msgs)
             .zero_fee()
             .pub_key(self.pub_key.1)
-            .acc_sequence(self.acc_sequence)
+            .acc_sequence(acc_sequence)
             .build()
             .change_context(Error::TxBuilding)?
             .with_dummy_sig()
@@ -181,12 +218,7 @@ where
             ))
         })?
     }
-}
 
-impl<T> BroadcastClient<T>
-where
-    T: clients::BroadcastClient,
-{
     async fn estimate_gas(&mut self, tx_bytes: Vec<u8>) -> Result<u64, Error> {
         #[allow(deprecated)]
         self.client
@@ -266,8 +298,10 @@ enum ConfirmationResult {
 
 #[cfg(test)]
 mod tests {
+    use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
     use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
+    use cosmos_sdk_proto::traits::MessageExt;
     use cosmos_sdk_proto::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use ecdsa::SigningKey;
@@ -275,16 +309,27 @@ mod tests {
     use tokio::test;
     use tonic::Status;
 
-    use crate::broadcaster::clients::MockBroadcastClient;
+    use crate::broadcaster::clients::{MockAccountQueryClient, MockBroadcastClient};
     use crate::broadcaster::{BroadcastClient, Broadcaster, Config, Error};
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
-    use crate::types::PublicKey;
+    use crate::types::{PublicKey, TMAddress};
+    use crate::PREFIX;
 
     #[test]
     async fn gas_estimation_call_failed() {
         let key_id = "key_uid";
         let priv_key = SigningKey::random(&mut OsRng);
         let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
 
         let mut client = MockBroadcastClient::new();
         client
@@ -293,11 +338,19 @@ mod tests {
 
         let signer = MockEcdsaClient::new();
 
+        let mut query_client = MockAccountQueryClient::new();
+        query_client.expect_account().returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
-            acc_number: 0,
-            acc_sequence: 0,
+            query_client,
+            address,
+            acc_sequence: None,
             pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
@@ -318,6 +371,16 @@ mod tests {
         let key_id = "key_uid";
         let priv_key = SigningKey::random(&mut OsRng);
         let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
 
         let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
@@ -329,11 +392,19 @@ mod tests {
 
         let signer = MockEcdsaClient::new();
 
+        let mut query_client = MockAccountQueryClient::new();
+        query_client.expect_account().returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
-            acc_number: 0,
-            acc_sequence: 0,
+            query_client,
+            address,
+            acc_sequence: None,
             pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
@@ -354,6 +425,16 @@ mod tests {
         let key_id = "key_uid";
         let priv_key = SigningKey::random(&mut OsRng);
         let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
 
         let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
@@ -384,11 +465,19 @@ mod tests {
                 Ok(signature.to_vec())
             });
 
+        let mut query_client = MockAccountQueryClient::new();
+        query_client.expect_account().returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
-            acc_number: 0,
-            acc_sequence: 0,
+            query_client,
+            address,
+            acc_sequence: None,
             pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
@@ -409,6 +498,16 @@ mod tests {
         let key_id = "key_uid";
         let priv_key = SigningKey::random(&mut OsRng);
         let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
 
         let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
@@ -443,11 +542,19 @@ mod tests {
                 Ok(signature.to_vec())
             });
 
+        let mut query_client = MockAccountQueryClient::new();
+        query_client.expect_account().returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
-            acc_number: 0,
-            acc_sequence: 0,
+            query_client,
+            address,
+            acc_sequence: None,
             pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
@@ -468,6 +575,16 @@ mod tests {
         let key_id = "key_uid";
         let priv_key = SigningKey::random(&mut OsRng);
         let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
 
         let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
@@ -507,11 +624,19 @@ mod tests {
                 Ok(signature.to_vec())
             });
 
+        let mut query_client = MockAccountQueryClient::new();
+        query_client.expect_account().returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
-            acc_number: 0,
-            acc_sequence: 0,
+            query_client,
+            address,
+            acc_sequence: None,
             pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
@@ -534,6 +659,16 @@ mod tests {
         let key_id = "key_uid";
         let priv_key = SigningKey::random(&mut OsRng);
         let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
 
         let mut client = MockBroadcastClient::new();
         client.expect_simulate().returning(|_| {
@@ -573,19 +708,122 @@ mod tests {
                 Ok(signature.to_vec())
             });
 
+        let mut query_client = MockAccountQueryClient::new();
+        query_client.expect_account().returning(move |_| {
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
         let mut broadcaster = BroadcastClient {
             client,
             signer: SharableEcdsaClient::new(signer),
-            acc_number: 0,
-            acc_sequence: 0,
+            query_client,
+            address,
+            acc_sequence: None,
             pub_key: (key_id.to_string(), pub_key),
             config: Config::default(),
         };
         let msgs = vec![dummy_msg()];
 
-        assert_eq!(broadcaster.acc_sequence, 0);
+        assert_eq!(broadcaster.acc_sequence, None);
         assert!(broadcaster.broadcast(msgs).await.is_ok());
-        assert_eq!(broadcaster.acc_sequence, 1);
+        assert_eq!(broadcaster.acc_sequence, Some(1));
+    }
+
+    #[test]
+    async fn broadcast_confirmed_in_mem_acc_sequence_mismatch_with_on_chain() {
+        let key_id = "key_uid";
+        let priv_key = SigningKey::random(&mut OsRng);
+        let pub_key: PublicKey = priv_key.verifying_key().into();
+        let address: TMAddress = pub_key
+            .account_id(PREFIX)
+            .expect("failed to convert to account identifier")
+            .into();
+        let mut account = BaseAccount {
+            address: address.to_string(),
+            pub_key: None,
+            account_number: 7,
+            sequence: 0,
+        };
+
+        let mut client = MockBroadcastClient::new();
+        client.expect_simulate().returning(|_| {
+            Ok(SimulateResponse {
+                gas_info: Some(GasInfo {
+                    gas_wanted: 0,
+                    gas_used: 0,
+                }),
+                result: None,
+            })
+        });
+        client
+            .expect_broadcast_tx()
+            .returning(|_| Ok(TxResponse::default()));
+        client.expect_get_tx().returning(|_| {
+            Ok(GetTxResponse {
+                tx_response: Some(TxResponse {
+                    code: 0,
+                    ..TxResponse::default()
+                }),
+                ..GetTxResponse::default()
+            })
+        });
+
+        let mut signer = MockEcdsaClient::new();
+        signer
+            .expect_sign()
+            .times(3)
+            .returning(move |actual_key_uid, data, actual_pub_key| {
+                assert_eq!(actual_key_uid, key_id);
+                assert_eq!(actual_pub_key, &pub_key);
+
+                let (signature, _) = priv_key
+                    .sign_prehash_recoverable(<Vec<u8>>::from(data).as_slice())
+                    .unwrap();
+
+                Ok(signature.to_vec())
+            });
+
+        let mut query_client = MockAccountQueryClient::new();
+        let mut call_count = 0;
+        query_client.expect_account().returning(move |_| {
+            call_count += 1;
+
+            match call_count {
+                1 => {
+                    account.sequence = 0;
+                }
+                2 => {
+                    account.sequence = 10;
+                }
+                _ => {
+                    account.sequence = 0;
+                }
+            }
+
+            Ok(QueryAccountResponse {
+                account: Some(account.to_any().unwrap()),
+            })
+        });
+
+        let mut broadcaster = BroadcastClient {
+            client,
+            signer: SharableEcdsaClient::new(signer),
+            query_client,
+            address,
+            acc_sequence: None,
+            pub_key: (key_id.to_string(), pub_key),
+            config: Config::default(),
+        };
+
+        assert_eq!(broadcaster.acc_sequence, None);
+        assert!(broadcaster.broadcast(vec![dummy_msg()]).await.is_ok());
+        assert_eq!(broadcaster.acc_sequence, Some(1));
+        assert!(broadcaster.broadcast(vec![dummy_msg()]).await.is_ok());
+        assert_eq!(broadcaster.acc_sequence, Some(11));
+        assert!(broadcaster.broadcast(vec![dummy_msg()]).await.is_ok());
+        assert_eq!(broadcaster.acc_sequence, Some(12));
     }
 
     fn dummy_msg() -> Any {

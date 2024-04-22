@@ -6,8 +6,6 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use error_stack::ResultExt;
 use mockall::automock;
 
-pub const ID_SEPARATOR: char = ':';
-
 #[automock]
 pub trait Store {
     fn save_config(&mut self, config: Config) -> error_stack::Result<(), Error>;
