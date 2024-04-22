@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
 
-use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, WasmMsg, WasmQuery};
-use error_stack::{Result, ResultExt};
+use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdError, WasmMsg, WasmQuery};
+use error_stack::{Report, Result};
 use serde::{de::DeserializeOwned, Serialize};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("could not query the contract")]
-    Query,
+    #[error(transparent)]
+    QueryFailed(#[from] StdError),
 }
 
 pub struct Client<'a, M, Q>
@@ -52,6 +52,7 @@ where
                 contract_addr: self.address.to_string(),
                 msg: to_binary(msg).expect("msg should always be serializable"),
             }))
-            .change_context(Error::Query)
+            .map_err(Into::into)
+            .map_err(Report::new)
     }
 }
