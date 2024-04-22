@@ -56,6 +56,7 @@ mod test {
                 address: Addr::unchecked("some gateway"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
 
         assert!(chain_endpoints()
@@ -93,6 +94,7 @@ mod test {
                     address: Addr::unchecked(format!("{} gateway", chain)),
                 },
                 frozen_status: FlagSet::from(GatewayDirection::None),
+                msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
             })
             .collect();
 
