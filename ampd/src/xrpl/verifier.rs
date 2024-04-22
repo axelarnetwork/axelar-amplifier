@@ -83,7 +83,7 @@ pub fn verify_memos(amount: Amount, memos: Vec<Memo>, message: &Message) -> bool
 
         let expected_payload = ethers::abi::encode(&vec![
             ethers::abi::Token::String(token),
-            ethers::abi::Token::String(amount),
+            ethers::abi::Token::Uint(ethers::types::U256::from_dec_str(amount.as_ref()).ok()?),
             ethers::abi::Token::FixedBytes(hex::decode(remove_0x_prefix(memo_kv.get("payload_hash")?.clone())).ok()?),
         ]);
         let expected_payload_hash = ethers::utils::keccak256(expected_payload.clone());
@@ -129,7 +129,7 @@ mod test {
             source_address: XRPLAddress("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".to_string()),
             destination_address: "0x592639c10223C4EC6C0ffc670e94d289A25DD1ad".to_string(),
             destination_chain: ChainName::from_str("ethereum").unwrap(),
-            payload_hash: TxHash(hex::decode("25b99c1524e2467c7d30cdaae191d6ce6fa6e7fa73e8cb561d2dc93178f1e083").unwrap().to_vec().try_into().unwrap())
+            payload_hash: TxHash(hex::decode("feb30b51f41e4785664824dd0ee694e0d275757753f570e9f6b5e27d06197fa7").unwrap().to_vec().try_into().unwrap())
         };
         assert!(verify_memos(Amount::Drops("1000000".to_string()), memos, &message));
     }
