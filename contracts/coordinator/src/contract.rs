@@ -60,13 +60,13 @@ mod tests {
 
     use crate::error::ContractError;
     use axelar_wasm_std::Participant;
-    use connection_router_api::ChainName;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint256};
     use multisig::key::{KeyType, PublicKey};
     use multisig::worker_set::WorkerSet;
+    use router_api::ChainName;
     use tofn::ecdsa::KeyPair;
 
     use super::*;

@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 
-use connection_router_api::ChainName;
 use multisig::worker_set::WorkerSet;
+use router_api::ChainName;
 
 use crate::error::ContractError;
 use crate::state::{ACTIVE_WORKERSET_FOR_PROVER, CONFIG, PROVER_PER_CHAIN};

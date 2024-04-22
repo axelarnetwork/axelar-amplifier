@@ -11,7 +11,7 @@ pub mod test_utils;
 
 #[test]
 fn worker_set_can_be_initialized_and_then_manually_updated() {
-    let chains: Vec<connection_router_api::ChainName> = vec![
+    let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
@@ -314,8 +314,7 @@ fn worker_set_update_can_be_resigned() {
 
 #[test]
 fn governance_should_confirm_new_worker_set_without_verification() {
-    let chains: Vec<connection_router_api::ChainName> =
-        vec!["Ethereum".to_string().try_into().unwrap()];
+    let chains: Vec<router_api::ChainName> = vec!["Ethereum".to_string().try_into().unwrap()];
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,

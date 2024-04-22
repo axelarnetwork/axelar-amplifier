@@ -1,5 +1,5 @@
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use router_api::{CrossChainId, Message};
 
 #[cw_serde]
 pub enum ExecuteMsg {

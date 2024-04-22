@@ -1,6 +1,6 @@
 use axelar_wasm_std_derive::IntoContractError;
-use connection_router_api::ChainName;
 use cosmwasm_std::StdError;
+use router_api::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]

@@ -87,7 +87,7 @@ mod test {
         nonempty, operators::Operators, voting::Vote, MajorityThreshold, Threshold,
         VerificationStatus,
     };
-    use connection_router_api::{ChainName, CrossChainId, Message};
+    use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
     };

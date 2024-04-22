@@ -118,7 +118,7 @@ mod tests {
     };
     use serde_json::from_str;
 
-    use connection_router_api::ChainName;
+    use router_api::ChainName;
 
     use crate::{
         key::{KeyType, PublicKey, Signature},

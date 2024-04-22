@@ -11,7 +11,7 @@ use axelar_wasm_std::{
     MajorityThreshold, VerificationStatus,
 };
 
-use connection_router_api::{ChainName, Message};
+use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
 use crate::events::{

@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
-use connection_router_api::{CrossChainId, Message};
 use integration_tests::contract::Contract;
+use router_api::{CrossChainId, Message};
 
 use crate::test_utils::AXL_DENOMINATION;
 
@@ -154,7 +154,7 @@ fn routing_to_incorrect_gateway_interface() {
 
     test_utils::upgrade_gateway(
         &mut protocol.app,
-        &protocol.connection_router,
+        &protocol.router,
         &protocol.governance_address,
         &chain2.chain_name,
         Addr::unchecked("some random address")
@@ -163,10 +163,10 @@ fn routing_to_incorrect_gateway_interface() {
             .unwrap(), // gateway address does not implement required interface,
     );
 
-    let response = protocol.connection_router.execute(
+    let response = protocol.router.execute(
         &mut protocol.app,
         chain1.gateway.contract_addr.clone(),
-        &connection_router_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+        &router_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     assert!(response.is_err())
 }

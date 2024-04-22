@@ -3,15 +3,15 @@ use cosmwasm_std::Addr;
 use cw_multi_test::App;
 
 use crate::{
-    connection_router_contract::ConnectionRouterContract,
     coordinator_contract::CoordinatorContract, multisig_contract::MultisigContract,
-    rewards_contract::RewardsContract, service_registry_contract::ServiceRegistryContract,
+    rewards_contract::RewardsContract, router_contract::RouterContract,
+    service_registry_contract::ServiceRegistryContract,
 };
 
 pub struct Protocol {
     pub genesis_address: Addr, // holds u128::max coins, can use to send coins to other addresses
     pub governance_address: Addr,
-    pub connection_router: ConnectionRouterContract,
+    pub router: RouterContract,
     pub router_admin_address: Addr,
     pub multisig: MultisigContract,
     pub coordinator: CoordinatorContract,

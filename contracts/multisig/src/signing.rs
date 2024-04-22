@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use router_api::ChainName;
 use signature_verifier_api::client::SignatureVerifier;
 
 use crate::{

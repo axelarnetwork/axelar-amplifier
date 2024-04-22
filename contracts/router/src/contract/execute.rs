@@ -6,8 +6,8 @@ use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
 use axelar_wasm_std::flagset::FlagSet;
-use connection_router_api::error::Error;
-use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
+use router_api::error::Error;
+use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
@@ -234,12 +234,10 @@ mod test {
     use rand::{Rng, RngCore};
 
     use axelar_wasm_std::flagset::FlagSet;
-    use connection_router_api::error::Error;
-    use connection_router_api::{
-        ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message,
-    };
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Storage;
+    use router_api::error::Error;
+    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
 
     use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::state::chain_endpoints;

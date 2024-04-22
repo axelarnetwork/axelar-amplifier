@@ -219,11 +219,11 @@ mod test {
     use std::collections::HashMap;
 
     use axelar_wasm_std::nonempty;
-    use connection_router_api::ChainName;
     use cosmwasm_std::{
         testing::{mock_dependencies, MockApi, MockQuerier, MockStorage},
         Addr, OwnedDeps, Uint128, Uint64,
     };
+    use router_api::ChainName;
 
     use crate::{
         error::ContractError,

@@ -1,8 +1,10 @@
-# Connection Router Contract
+# Router Contract
 
-The connection router contract is responsible for routing messages to and from registered gateways, as well as handling chain registration, gateway upgrades and chain freezing.
+The router contract is responsible for routing messages to and from registered gateways, as well as handling chain
+registration, gateway upgrades and chain freezing.
 <br>
-The router admin can freeze and unfreeze a chain for a specified direction, while governance can register a chain and upgrade its gateway.
+The router admin can freeze and unfreeze a chain for a specified direction, while governance can register a chain and
+upgrade its gateway.
 
 ## Interface
 
@@ -90,10 +92,7 @@ pub struct MessageRouted {
 }
 ```
 
-
-
-
-## Connection Router graph
+## Router graph
 
 ```mermaid
 graph TD
@@ -102,7 +101,7 @@ ea[External Gateway A]
 ra[Relayer A]
 subgraph Axelar
 ta[Gateway A]
-c[Connection Router]
+c[Router]
 tb[Gateway B]
 m[Multisig Prover]
 end
@@ -128,7 +127,7 @@ participant External Gateway A
 participant Relayer A
 box LightYellow Axelar
 participant Gateway A
-participant Connection Router
+participant Router
 participant Gateway B
 participant Multisig Prover
 end
@@ -137,18 +136,21 @@ participant External Gateway B
 
 External Gateway A->>+Relayer A: event emitted
 Relayer A->>+Gateway A: gateway::ExecuteMsg::RouteMessages
-Gateway A->>+Connection Router: connection_router::ExecuteMsg::RouteMessages
-Connection Router->>+Gateway B: gateway::ExecuteMsg::RouteMessages
+Gateway A->>+Router: router::ExecuteMsg::RouteMessages
+Router->>+Gateway B: gateway::ExecuteMsg::RouteMessages
 Multisig Prover->>+Relayer B: constructs proof
 Relayer B->>+External Gateway B: sends proof 
 ```
 
 1. The External Gateway emits an event that is picked up by the Relayer.
 2. Relayer relays the event to the Gateway as a message.
-3. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Connection Router.
-4. Connection router sends the outgoing messages from Gateway A to Gateway B, which is the representation of destination chain on Axelar chain.
+3. Gateway receives the incoming messages, verifies the messages, and then passes the messages to the Router.
+4. Router sends the outgoing messages from Gateway A to Gateway B, which is the representation of destination chain on
+   Axelar chain.
 5. The Multisig Prover takes the messages stored in the destination Gateway and constructs a proof.
 6. The Relayer sends the proof, which also contains messages, to the destination's External Gateway.
 
 ### Notes
-1. External Gateways are deployed on blockchains other than Axelar, such as Ethereum and Avalanche, while internal gateways reside on Axelar's chain.
+
+1. External Gateways are deployed on blockchains other than Axelar, such as Ethereum and Avalanche, while internal
+   gateways reside on Axelar's chain.

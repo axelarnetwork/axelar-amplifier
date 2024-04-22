@@ -135,8 +135,8 @@ mod tests {
     use cw_multi_test::{AppResponse, Executor};
 
     use axelar_wasm_std::{MajorityThreshold, Threshold};
-    use connection_router_api::CrossChainId;
     use multisig::{msg::Signer, worker_set::WorkerSet};
+    use router_api::CrossChainId;
 
     use crate::contract::execute::should_update_worker_set;
     use crate::{

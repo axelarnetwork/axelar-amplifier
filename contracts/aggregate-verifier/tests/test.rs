@@ -1,9 +1,9 @@
 use aggregate_verifier::msg::ExecuteMsg;
 use axelar_wasm_std::VerificationStatus;
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::from_binary;
 use cosmwasm_std::Addr;
 use cw_multi_test::App;
+use router_api::{CrossChainId, Message};
 
 use integration_tests::contract::Contract;
 

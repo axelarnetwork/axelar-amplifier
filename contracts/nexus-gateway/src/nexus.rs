@@ -1,8 +1,8 @@
 use axelar_wasm_std::{msg_id::tx_hash_event_index::HexTxHashAndEventIndex, nonempty};
-use connection_router_api::{Address, ChainName, CrossChainId};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
 use hex::{FromHex, ToHex};
+use router_api::{Address, ChainName, CrossChainId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -50,8 +50,8 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Contra
     Ok((tx_id, index))
 }
 
-impl From<connection_router_api::Message> for Message {
-    fn from(msg: connection_router_api::Message) -> Self {
+impl From<router_api::Message> for Message {
+    fn from(msg: router_api::Message) -> Self {
         // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
@@ -68,7 +68,7 @@ impl From<connection_router_api::Message> for Message {
     }
 }
 
-impl TryFrom<Message> for connection_router_api::Message {
+impl TryFrom<Message> for router_api::Message {
     type Error = Report<ContractError>;
 
     fn try_from(msg: Message) -> Result<Self, ContractError> {
@@ -120,7 +120,7 @@ mod test {
             source_tx_index: 1,
         };
 
-        let router_msg = connection_router_api::Message::try_from(msg.clone());
+        let router_msg = router_api::Message::try_from(msg.clone());
         assert!(router_msg.is_ok());
         let router_msg = router_msg.unwrap();
         assert_eq!(router_msg.cc_id.chain, msg.source_chain);
