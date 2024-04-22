@@ -152,7 +152,11 @@ where
 
         info!(tx_hash, "confirmed transaction");
 
-        self.acc_sequence.replace(acc_sequence + 1);
+        self.acc_sequence.replace(
+            acc_sequence
+                .checked_add(1)
+                .expect("account sequence must be less than u64::MAX"),
+        );
         Ok(response)
     }
 
