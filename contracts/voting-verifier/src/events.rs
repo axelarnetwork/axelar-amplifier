@@ -162,7 +162,7 @@ impl TryFrom<Message> for TxEventConfirmation {
     }
 }
 
-fn parse_message_id(
+pub fn parse_message_id(
     message_id: &nonempty::String,
 ) -> Result<(nonempty::String, u32), ContractError> {
     // expected format: <tx_id>:<index>

@@ -41,6 +41,7 @@ k256 = { version = "0.13.1", features = ["ecdsa"] }
 monitoring = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
+xrpl-multisig-prover = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }
 serde = { workspace = true }

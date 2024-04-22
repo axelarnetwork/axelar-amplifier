@@ -47,6 +47,7 @@ mod tm_client;
 mod tofnd;
 mod types;
 mod url;
+mod xrpl;
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -296,6 +297,19 @@ where
                         ),
                         stream_timeout,
                     ),
+                handlers::config::Config::XRPLMultisigSigner { multisig_contract, multisig_prover_contract } => self
+                    .create_handler_task(
+                        "xrpl-multisig-signer",
+                        handlers::xrpl_multisig::Handler::new(
+                            worker.clone(),
+                            multisig_contract,
+                            multisig_prover_contract,
+                            self.broadcaster.client(),
+                            self.ecdsa_client.clone(),
+                            self.block_height_monitor.latest_block_height(),
+                        ),
+                        stream_timeout,
+                    ),
                 handlers::config::Config::SuiMsgVerifier {
                     cosmwasm_contract,
                     rpc_url,
@@ -313,6 +327,29 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
+                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    stream_timeout,
+                ),
+                handlers::config::Config::XRPLMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                    rpc_timeout
+                } => self.create_handler_task(
+                    "xrpl-msg-verifier",
+                    handlers::xrpl_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        xrpl_http_client::Client::builder()
+                            .base_url(rpc_url.as_str())
+                            .http_client(
+                                reqwest::ClientBuilder::new()
+                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                                .build()
+                                .change_context(Error::Connection)?,
+                            ).build(),
                         self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),

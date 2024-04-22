@@ -123,6 +123,7 @@ mod query {
             state: MultisigState::Completed {
                 completed_at: 12345,
             },
+            expires_at: 23456,
             quorum,
             signers,
         }
