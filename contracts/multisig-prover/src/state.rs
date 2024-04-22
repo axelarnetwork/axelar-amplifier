@@ -1,10 +1,10 @@
 use axelar_wasm_std::MajorityThreshold;
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
 use multisig::key::KeyType;
 use multisig::worker_set::WorkerSet;
+use router_api::ChainName;
 
 use crate::encoding::Encoder;
 use crate::types::{BatchId, CommandBatch};

@@ -9,7 +9,7 @@ on:
         options:
           - ampd
           - aggregate-verifier
-          - connection-router
+          - router
           - gateway
           - multisig
           - multisig-prover
@@ -41,7 +41,7 @@ jobs:
           declare -A binaries_data=(
             ["ampd"]="ampd,major-ampd,minor-ampd,"
             ["aggregate-verifier"]="aggregate-verifier,/(major-aggregate-verifier)|(major-contracts)/,/(minor-aggregate-verifier)|(minor-contracts)/,contracts/aggregate-verifier packages"
-            ["connection-router"]="connection-router,/(major-connection-router)|(major-contracts)/,/(minor-connection-router)|(minor-contracts)/,contracts/connection-router packages"
+            ["router"]="router,/(major-router)|(major-contracts)/,/(minor-router)|(minor-contracts)/,contracts/router packages"
             ["gateway"]="gateway,/(major-gateway)|(major-contracts)/,/(minor-gateway)|(minor-contracts)/,contracts/gateway packages"
             ["multisig"]="multisig,/(major-multisig)|(major-contracts)/,/(minor-multisig)|(minor-contracts)/,contracts/multisig packages"
             ["multisig-prover"]="multisig-prover,/(major-multisig-prover)|(major-contracts)/,/(minor-multisig-prover)|(minor-contracts)/,contracts/multisig-prover packages"

@@ -195,8 +195,8 @@ mod test {
 
     use axelar_wasm_std::operators::Operators;
     use bcs::from_bytes;
-    use connection_router_api::{CrossChainId, Message, CHAIN_NAME_DELIMITER};
     use cosmwasm_std::{Addr, HexBinary, Uint256};
+    use router_api::{CrossChainId, Message, CHAIN_NAME_DELIMITER};
 
     use multisig::{
         key::{PublicKey, Signature},

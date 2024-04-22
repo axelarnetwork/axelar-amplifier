@@ -1,10 +1,10 @@
-use connection_router_api::error::Error;
-use connection_router_api::{ChainEndpoint, ChainName};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use error_stack::ResultExt;
 use mockall::automock;
+use router_api::error::Error;
+use router_api::{ChainEndpoint, ChainName};
 
 #[automock]
 pub trait Store {

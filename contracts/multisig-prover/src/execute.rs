@@ -9,7 +9,7 @@ use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
-use connection_router_api::{ChainName, CrossChainId, Message};
+use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedWorker;
 
 use crate::{
@@ -348,11 +348,11 @@ pub fn update_signing_threshold(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::Threshold;
-    use connection_router_api::ChainName;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env},
         Addr, Uint256,
     };
+    use router_api::ChainName;
 
     use crate::{
         execute::should_update_worker_set,

@@ -1,8 +1,8 @@
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
+use router_api::{CrossChainId, Message};
 
 #[cw_serde]
 pub(crate) struct Config {
@@ -57,9 +57,9 @@ const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES
 
 #[cfg(test)]
 mod test {
-    use connection_router_api::{CrossChainId, Message};
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Addr;
+    use router_api::{CrossChainId, Message};
 
     use crate::state::{
         load_config, may_load_outgoing_msg, save_config, save_outgoing_msg, Config,

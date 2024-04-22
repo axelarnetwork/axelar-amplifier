@@ -148,12 +148,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 mod test {
     use std::str::FromStr;
 
-    use connection_router_api::ChainName;
     use cosmwasm_std::{
         coins, from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         CosmosMsg, Empty, OwnedDeps, StdResult,
     };
+    use router_api::ChainName;
 
     use crate::state::{WeightedWorker, WORKER_WEIGHT};
 

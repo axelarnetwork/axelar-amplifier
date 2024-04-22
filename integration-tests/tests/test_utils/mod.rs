@@ -3,11 +3,11 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use connection_router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
+use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
@@ -17,7 +17,7 @@ use integration_tests::multisig_prover_contract::MultisigProverContract;
 use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
-use integration_tests::{connection_router_contract::ConnectionRouterContract, protocol::Protocol};
+use integration_tests::{protocol::Protocol, router_contract::RouterContract};
 
 use k256::ecdsa;
 use sha3::{Digest, Keccak256};
@@ -85,7 +85,7 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 
 pub fn freeze_chain(
     app: &mut App,
-    router: &ConnectionRouterContract,
+    router: &RouterContract,
     chain_name: &ChainName,
     direction: GatewayDirection,
     admin: &Addr,
@@ -93,7 +93,7 @@ pub fn freeze_chain(
     let response = router.execute(
         app,
         admin.clone(),
-        &connection_router_api::msg::ExecuteMsg::FreezeChain {
+        &router_api::msg::ExecuteMsg::FreezeChain {
             chain: chain_name.clone(),
             direction,
         },
@@ -103,7 +103,7 @@ pub fn freeze_chain(
 
 pub fn unfreeze_chain(
     app: &mut App,
-    router: &ConnectionRouterContract,
+    router: &RouterContract,
     chain_name: &ChainName,
     direction: GatewayDirection,
     admin: &Addr,
@@ -111,7 +111,7 @@ pub fn unfreeze_chain(
     let response = router.execute(
         app,
         admin.clone(),
-        &connection_router_api::msg::ExecuteMsg::UnfreezeChain {
+        &router_api::msg::ExecuteMsg::UnfreezeChain {
             chain: chain_name.clone(),
             direction,
         },
@@ -121,7 +121,7 @@ pub fn unfreeze_chain(
 
 pub fn upgrade_gateway(
     app: &mut App,
-    router: &ConnectionRouterContract,
+    router: &RouterContract,
     governance: &Addr,
     chain_name: &ChainName,
     contract_address: Address,
@@ -129,7 +129,7 @@ pub fn upgrade_gateway(
     let response = router.execute(
         app,
         governance.clone(),
-        &connection_router_api::msg::ExecuteMsg::UpgradeGateway {
+        &router_api::msg::ExecuteMsg::UpgradeGateway {
             chain: chain_name.clone(),
             contract_address,
         },
@@ -369,7 +369,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
-    let connection_router = ConnectionRouterContract::instantiate_contract(
+    let router = RouterContract::instantiate_contract(
         &mut app,
         router_admin_address.clone(),
         governance_address.clone(),
@@ -404,7 +404,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     Protocol {
         genesis_address: genesis,
         governance_address,
-        connection_router,
+        router,
         router_admin_address,
         multisig,
         coordinator,
@@ -695,7 +695,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
 
     let gateway = GatewayContract::instantiate_contract(
         &mut protocol.app,
-        protocol.connection_router.contract_address().clone(),
+        protocol.router.contract_address().clone(),
         voting_verifier.contract_addr.clone(),
     );
 
@@ -724,10 +724,10 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
-    let response = protocol.connection_router.execute(
+    let response = protocol.router.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &connection_router_api::msg::ExecuteMsg::RegisterChain {
+        &router_api::msg::ExecuteMsg::RegisterChain {
             chain: chain_name.clone(),
             gateway_address: gateway.contract_addr.to_string().try_into().unwrap(),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,

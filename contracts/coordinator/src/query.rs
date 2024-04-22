@@ -1,8 +1,8 @@
 use crate::error::ContractError;
 use crate::state::{ACTIVE_WORKERSET_FOR_PROVER, PROVER_PER_CHAIN};
-use connection_router_api::ChainName;
 use cosmwasm_std::{Addr, Deps, StdResult};
 use multisig::worker_set::WorkerSet;
+use router_api::ChainName;
 
 pub fn provers(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
     PROVER_PER_CHAIN

@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use axelar_wasm_std::nonempty;
-use connection_router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use error_stack::Result;
 use report::ResultCompatExt;
+use router_api::ChainName;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;
 

@@ -1,7 +1,7 @@
-use connection_router_api::msg::{ExecuteMsg, QueryMsg};
 use cosmwasm_schema::write_api;
+use router_api::msg::{ExecuteMsg, QueryMsg};
 
-use connection_router::msg::InstantiateMsg;
+use router::msg::InstantiateMsg;
 
 fn main() {
     write_api! {

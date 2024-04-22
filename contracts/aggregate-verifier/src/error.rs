@@ -8,7 +8,7 @@ pub enum ContractError {
     Std(#[from] StdError),
 
     #[error(transparent)]
-    RouterError(#[from] connection_router_api::error::Error),
+    RouterError(#[from] router_api::error::Error),
 
     #[error("received invalid verifier reply: {0}")]
     InvalidVerifierReply(String),

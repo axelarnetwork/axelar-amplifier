@@ -246,8 +246,8 @@ mod test {
     use hex::FromHex;
     use k256::ecdsa::Signature as K256Signature;
 
-    use connection_router_api::CrossChainId;
     use multisig::key::KeyType;
+    use router_api::CrossChainId;
 
     use crate::{
         encoding::{CommandBatchBuilder, Encoder},

@@ -148,9 +148,9 @@ query the service registry for an updated snapshot.
 
 ## Contract Overview
 
-### Connection Router
+### Router
 
-[`connection-router`](contracts/connection_router.md) is the way messages are passed between different gateways. The
+[`router`](contracts/router.md) is the way messages are passed between different gateways. The
 router has methods for registering new chains and gateways, updating the address of the registered gateway, and freezing
 chains (preventing message flow). These methods are only callable by the router admin. Messages are passed to the router
 from registered gateways, and the router passes those messages to the appropriate gateway based on each message's

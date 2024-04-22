@@ -80,7 +80,6 @@ dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "client",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -89,6 +88,7 @@ dependencies = [
  "error-stack",
  "integration-tests",
  "report",
+ "router-api",
  "serde",
  "thiserror",
  "voting-verifier",
@@ -157,7 +157,6 @@ dependencies = [
  "bcs",
  "clap",
  "config",
- "connection-router-api",
  "cosmos-sdk-proto 0.16.0",
  "cosmrs",
  "cosmwasm-std",
@@ -186,6 +185,7 @@ dependencies = [
  "random-string",
  "report",
  "reqwest",
+ "router-api",
  "serde",
  "serde_json",
  "serde_with 3.3.0",
@@ -1518,50 +1518,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "connection-router"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "error-stack",
- "flagset",
- "gateway-api",
- "hex",
- "integration-tests",
- "itertools 0.11.0",
- "mockall",
- "rand",
- "report",
-]
-
-[[package]]
-name = "connection-router-api"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.1.0",
- "error-stack",
- "flagset",
- "hex",
- "rand",
- "report",
- "schemars",
- "serde",
- "serde_json",
- "sha3 0.10.8",
- "thiserror",
- "valuable",
-]
-
-[[package]]
 name = "console"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1624,7 +1580,6 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1633,6 +1588,7 @@ dependencies = [
  "integration-tests",
  "multisig",
  "report",
+ "router-api",
  "thiserror",
  "tofn",
 ]
@@ -3418,7 +3374,6 @@ dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "client",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -3427,6 +3382,7 @@ dependencies = [
  "gateway-api",
  "itertools 0.11.0",
  "report",
+ "router-api",
  "serde",
  "serde_json",
  "thiserror",
@@ -3436,8 +3392,8 @@ dependencies = [
 name = "gateway-api"
 version = "0.1.0"
 dependencies = [
- "connection-router-api",
  "cosmwasm-schema",
+ "router-api",
 ]
 
 [[package]]
@@ -4048,8 +4004,6 @@ name = "integration-tests"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
- "connection-router",
- "connection-router-api",
  "coordinator",
  "cosmwasm-std",
  "cw-multi-test",
@@ -4061,6 +4015,8 @@ dependencies = [
  "multisig-prover",
  "report",
  "rewards",
+ "router",
+ "router-api",
  "serde",
  "serde_json",
  "service-registry",
@@ -4939,7 +4895,6 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4953,6 +4908,7 @@ dependencies = [
  "k256",
  "report",
  "rewards",
+ "router-api",
  "serde",
  "serde_json",
  "sha3 0.10.8",
@@ -4968,7 +4924,6 @@ dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "bcs",
- "connection-router-api",
  "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4987,6 +4942,7 @@ dependencies = [
  "k256",
  "multisig",
  "report",
+ "router-api",
  "serde_json",
  "service-registry",
  "sha3 0.10.8",
@@ -5153,7 +5109,6 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.1.0",
@@ -5161,6 +5116,7 @@ dependencies = [
  "hex",
  "mockall",
  "report",
+ "router-api",
  "schemars",
  "serde",
  "thiserror",
@@ -6583,7 +6539,6 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6591,6 +6546,7 @@ dependencies = [
  "error-stack",
  "itertools 0.11.0",
  "report",
+ "router-api",
  "thiserror",
 ]
 
@@ -6680,6 +6636,50 @@ dependencies = [
  "base64 0.13.1",
  "bitflags 1.3.2",
  "serde",
+]
+
+[[package]]
+name = "router"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "flagset",
+ "gateway-api",
+ "hex",
+ "integration-tests",
+ "itertools 0.11.0",
+ "mockall",
+ "rand",
+ "report",
+ "router-api",
+]
+
+[[package]]
+name = "router-api"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "flagset",
+ "hex",
+ "rand",
+ "report",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha3 0.10.8",
+ "thiserror",
+ "valuable",
 ]
 
 [[package]]
@@ -7243,7 +7243,6 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -7251,6 +7250,7 @@ dependencies = [
  "error-stack",
  "integration-tests",
  "report",
+ "router-api",
  "schemars",
  "serde",
  "thiserror",
@@ -8941,7 +8941,6 @@ dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "client",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -8950,6 +8949,7 @@ dependencies = [
  "integration-tests",
  "report",
  "rewards",
+ "router-api",
  "serde_json",
  "service-registry",
  "thiserror",

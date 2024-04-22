@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use axelar_wasm_std::{nonempty, Threshold};
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Key, KeyDeserialize, Map, Prefixer, PrimaryKey};
 use error_stack::{Result, ResultExt};
+use router_api::ChainName;
 
 use crate::{error::ContractError, msg::Params};
 
@@ -396,8 +396,8 @@ mod test {
     use super::*;
     use crate::error::ContractError;
     use crate::{msg::Params, state::ParamsSnapshot};
-    use connection_router_api::ChainName;
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use router_api::ChainName;
     use std::collections::HashMap;
 
     /// Test that the rewards are

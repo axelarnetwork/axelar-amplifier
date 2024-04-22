@@ -1,8 +1,8 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 use multisig::worker_set::WorkerSet;
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct Config {
