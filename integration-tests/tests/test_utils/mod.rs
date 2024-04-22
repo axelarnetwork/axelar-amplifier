@@ -243,7 +243,11 @@ pub fn sign_proof(protocol: &mut Protocol, workers: &Vec<Worker>, response: AppR
     session_id
 }
 
-pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
+pub fn register_service(
+    protocol: &mut Protocol,
+    min_worker_bond: Uint128,
+    unbonding_period_days: u16,
+) {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
@@ -254,7 +258,7 @@ pub fn register_service(protocol: &mut Protocol, min_worker_bond: Uint128) {
             max_num_workers: Some(100),
             min_worker_bond,
             bond_denom: AXL_DENOMINATION.into(),
-            unbonding_period_days: 10,
+            unbonding_period_days,
             description: "Some service".into(),
         },
     );
@@ -517,6 +521,19 @@ pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
     }
 }
 
+pub fn claim_stakes(protocol: &mut Protocol, workers: &Vec<Worker>) {
+    for worker in workers {
+        let response = protocol.service_registry.execute(
+            &mut protocol.app,
+            worker.addr.clone(),
+            &ExecuteMsg::ClaimStake {
+                service_name: protocol.service_name.to_string(),
+            },
+        );
+        assert!(response.is_ok());
+    }
+}
+
 pub fn confirm_worker_set(
     app: &mut App,
     relayer_addr: Addr,
@@ -761,8 +778,33 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     }
 }
 
-// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns the instance, the chains, the workers, and the minimum worker bond.
-pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
+pub fn query_balance(app: &App, address: &Addr) -> Uint128 {
+    app.wrap()
+        .query_balance(address, AXL_DENOMINATION)
+        .unwrap()
+        .amount
+}
+
+pub fn query_balances(app: &App, workers: &Vec<Worker>) -> Vec<Uint128> {
+    let mut balances = Vec::new();
+    for worker in workers {
+        balances.push(query_balance(app, &worker.addr))
+    }
+
+    balances
+}
+
+pub struct TestCase {
+    pub protocol: Protocol,
+    pub chain1: Chain,
+    pub chain2: Chain,
+    pub workers: Vec<Worker>,
+    pub min_worker_bond: Uint128,
+    pub unbonding_period_days: u16,
+}
+
+// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns a TestCase instance.
+pub fn setup_test_case() -> TestCase {
     let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
@@ -781,12 +823,20 @@ pub fn setup_test_case() -> (Protocol, Chain, Chain, Vec<Worker>, Uint128) {
         },
     ];
     let min_worker_bond = Uint128::new(100);
-    register_service(&mut protocol, min_worker_bond);
+    let unbonding_period_days = 10;
+    register_service(&mut protocol, min_worker_bond, unbonding_period_days);
 
     register_workers(&mut protocol, &workers, min_worker_bond);
     let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
-    (protocol, chain1, chain2, workers, min_worker_bond)
+    TestCase {
+        protocol,
+        chain1,
+        chain2,
+        workers,
+        min_worker_bond,
+        unbonding_period_days,
+    }
 }
 
 pub fn assert_contract_err_strings_equal(

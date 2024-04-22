@@ -8940,6 +8940,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "client",
  "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
