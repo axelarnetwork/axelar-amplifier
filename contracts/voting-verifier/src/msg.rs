@@ -6,7 +6,7 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use connection_router_api::{ChainName, Message};
+use router_api::{ChainName, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {

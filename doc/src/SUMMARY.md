@@ -5,7 +5,7 @@
 # Contracts
 
 - [Service Registry](contracts/service_registry.md)
-- [Connection Router](contracts/connection_router.md)
+- [Router](contracts/router)
 - [Multisig](contracts/multisig.md)
 - [Gateway](contracts/gateway.md)
 - [Voting Verifier](contracts/voting_verifier.md)

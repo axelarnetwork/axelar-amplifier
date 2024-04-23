@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use connection_router_api::ChainName;
 use cosmwasm_std::{Addr, HexBinary, Uint64};
+use router_api::ChainName;
 use serde_json::to_string;
 
 use crate::{

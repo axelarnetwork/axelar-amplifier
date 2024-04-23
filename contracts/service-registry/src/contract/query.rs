@@ -1,4 +1,4 @@
-use connection_router_api::ChainName;
+use router_api::ChainName;
 
 use crate::state::{WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT};
 

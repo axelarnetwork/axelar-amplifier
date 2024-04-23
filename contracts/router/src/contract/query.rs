@@ -1,9 +1,9 @@
 use cosmwasm_std::{Deps, Order};
 use cw_storage_plus::Bound;
 
-use connection_router_api::error::Error;
-use connection_router_api::{ChainEndpoint, ChainName};
 use error_stack::{Result, ResultExt};
+use router_api::error::Error;
+use router_api::{ChainEndpoint, ChainName};
 
 use crate::state::chain_endpoints;
 
@@ -38,9 +38,9 @@ pub fn chains(
 #[cfg(test)]
 mod test {
     use axelar_wasm_std::flagset::FlagSet;
-    use connection_router_api::error::Error;
-    use connection_router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
     use cosmwasm_std::{testing::mock_dependencies, Addr};
+    use router_api::error::Error;
+    use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
 
     use crate::state::chain_endpoints;
 

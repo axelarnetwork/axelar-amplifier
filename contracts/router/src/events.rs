@@ -1,6 +1,6 @@
 use axelar_wasm_std::event;
-use connection_router_api::{ChainName, GatewayDirection, Message};
 use cosmwasm_std::{Addr, Attribute, Event};
+use router_api::{ChainName, GatewayDirection, Message};
 
 pub struct RouterInstantiated {
     pub admin: Addr,

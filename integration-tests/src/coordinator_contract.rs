@@ -1,14 +1,14 @@
 use crate::contract::Contract;
+use coordinator::contract::{execute, instantiate, query};
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
-use monitoring::contract::{execute, instantiate, query};
 
 #[derive(Clone)]
-pub struct MonitoringContract {
+pub struct CoordinatorContract {
     pub contract_addr: Addr,
 }
 
-impl MonitoringContract {
+impl CoordinatorContract {
     pub fn instantiate_contract(app: &mut App, governance: Addr) -> Self {
         let code = ContractWrapper::new(execute, instantiate, query);
         let code_id = app.store_code(Box::new(code));
@@ -17,22 +17,22 @@ impl MonitoringContract {
             .instantiate_contract(
                 code_id,
                 Addr::unchecked("anyone"),
-                &monitoring::msg::InstantiateMsg {
+                &coordinator::msg::InstantiateMsg {
                     governance_address: governance.to_string(),
                 },
                 &[],
-                "monitoring",
+                "coordinator",
                 None,
             )
             .unwrap();
 
-        MonitoringContract { contract_addr }
+        CoordinatorContract { contract_addr }
     }
 }
 
-impl Contract for MonitoringContract {
-    type QMsg = monitoring::msg::QueryMsg;
-    type ExMsg = monitoring::msg::ExecuteMsg;
+impl Contract for CoordinatorContract {
+    type QMsg = coordinator::msg::QueryMsg;
+    type ExMsg = coordinator::msg::ExecuteMsg;
 
     fn contract_address(&self) -> Addr {
         self.contract_addr.clone()

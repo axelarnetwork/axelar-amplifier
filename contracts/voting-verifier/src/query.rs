@@ -3,8 +3,8 @@ use axelar_wasm_std::{
     voting::{PollStatus, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use connection_router_api::Message;
 use cosmwasm_std::Deps;
+use router_api::Message;
 
 use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::{error::ContractError, state::CONFIG};

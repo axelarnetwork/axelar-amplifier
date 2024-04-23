@@ -1,8 +1,8 @@
 use axelar_wasm_std::MajorityThreshold;
-use connection_router_api::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use multisig::key::KeyType;
+use router_api::CrossChainId;
 
 use crate::encoding::{Data, Encoder};
 
@@ -20,8 +20,8 @@ pub struct InstantiateMsg {
     pub gateway_address: String,
     /// Address of the multisig contract on axelar.
     pub multisig_address: String,
-    /// Address of the monitoring contract on axelar.
-    pub monitoring_address: String,
+    /// Address of the coordinator contract on axelar.
+    pub coordinator_address: String,
     /// Address of the service registry contract on axelar.
     pub service_registry_address: String,
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
