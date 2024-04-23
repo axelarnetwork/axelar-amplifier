@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
@@ -8,6 +9,7 @@ use error_stack::{Result, ResultExt};
 pub(crate) struct Config {
     pub verifier: Addr,
     pub router: Addr,
+    pub msg_id_format: MessageIdFormat,
 }
 
 pub(crate) fn save_config(storage: &mut dyn Storage, value: &Config) -> Result<(), Error> {
@@ -72,6 +74,7 @@ mod test {
         let config = Config {
             verifier: Addr::unchecked("verifier"),
             router: Addr::unchecked("router"),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
         assert!(save_config(deps.as_mut().storage, &config).is_ok());
 

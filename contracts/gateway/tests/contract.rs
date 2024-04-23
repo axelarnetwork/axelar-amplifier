@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::iter;
 
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use axelar_wasm_std::{ContractError, VerificationStatus};
 use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
@@ -13,6 +14,7 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 use serde::Serialize;
+use sha3::{Digest, Keccak256};
 
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
@@ -27,6 +29,7 @@ fn instantiate_works() {
         InstantiateMsg {
             verifier_address: Addr::unchecked("verifier").into_string(),
             router_address: Addr::unchecked("router").into_string(),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         },
     );
 
@@ -280,6 +283,60 @@ fn route_duplicate_ids_should_fail() {
     }
 }
 
+#[test]
+fn verify_with_invalid_message_id_fails() {
+    let mut deps = mock_dependencies();
+
+    instantiate_contract(deps.as_mut(), "verifier", "router");
+
+    let mut msgs = generate_msgs("invalid_msg_id", 1);
+    msgs[0].cc_id.id = "foobar".parse().unwrap();
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("sender", &[]),
+        ExecuteMsg::VerifyMessages(msgs),
+    );
+
+    assert!(response.is_err());
+}
+
+#[test]
+fn route_with_invalid_message_id_fails() {
+    let mut deps = mock_dependencies();
+
+    instantiate_contract(deps.as_mut(), "verifier", "router");
+
+    let mut msgs = generate_msgs("invalid_msg_id", 1);
+    msgs[0].cc_id.id = "foobar".parse().unwrap();
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("sender", &[]),
+        ExecuteMsg::RouteMessages(msgs),
+    );
+
+    assert!(response.is_err());
+}
+
+#[test]
+fn route_from_router_with_invalid_message_id_succeeds() {
+    let mut deps = mock_dependencies();
+
+    instantiate_contract(deps.as_mut(), "verifier", "router");
+
+    let mut msgs = generate_msgs("invalid_msg_id", 1);
+    msgs[0].cc_id.id = "foobar".parse().unwrap();
+    let response = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("router", &[]),
+        ExecuteMsg::RouteMessages(msgs),
+    );
+
+    assert!(response.is_ok());
+}
+
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
     impl Fn(
@@ -354,7 +411,13 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
         .map(|i| Message {
             cc_id: CrossChainId {
                 chain: "mock-chain".parse().unwrap(),
-                id: format!("{:?}{}", namespace, i).parse().unwrap(),
+                id: HexTxHashAndEventIndex {
+                    tx_hash: Keccak256::digest(format!("{:?}", namespace).as_bytes()).into(),
+                    event_index: i as u32,
+                }
+                .to_string()
+                .parse()
+                .unwrap(),
             },
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
@@ -442,6 +505,7 @@ fn instantiate_contract(deps: DepsMut, verifier: &str, router: &str) {
         InstantiateMsg {
             verifier_address: Addr::unchecked(verifier).into_string(),
             router_address: Addr::unchecked(router).into_string(),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         }
         .clone(),
     );

@@ -55,6 +55,8 @@ pub enum Error {
     MessageStatus,
     #[error("message with ID {0} not found")]
     MessageNotFound(CrossChainId),
+    #[error("message id is invalid")]
+    InvalidMessageId,
 }
 
 mod internal {
@@ -87,8 +89,15 @@ mod internal {
             .change_context(Error::InvalidAddress)
             .attach_printable(msg.verifier_address)?;
 
-        state::save_config(deps.storage, &Config { verifier, router })
-            .change_context(Error::InvalidStoreAccess)?;
+        state::save_config(
+            deps.storage,
+            &Config {
+                verifier,
+                router,
+                msg_id_format: msg.msg_id_format,
+            },
+        )
+        .change_context(Error::InvalidStoreAccess)?;
 
         Ok(Response::new())
     }
@@ -107,12 +116,19 @@ mod internal {
         };
 
         match msg {
-            ExecuteMsg::VerifyMessages(msgs) => contract::execute::verify_messages(&verifier, msgs),
+            ExecuteMsg::VerifyMessages(msgs) => {
+                contract::execute::verify_messages(&verifier, config.msg_id_format, msgs)
+            }
             ExecuteMsg::RouteMessages(msgs) => {
                 if info.sender == router.address {
                     contract::execute::route_outgoing_messages(deps.storage, msgs)
                 } else {
-                    contract::execute::route_incoming_messages(&verifier, &router, msgs)
+                    contract::execute::route_incoming_messages(
+                        &verifier,
+                        &router,
+                        config.msg_id_format,
+                        msgs,
+                    )
                 }
             }
         }

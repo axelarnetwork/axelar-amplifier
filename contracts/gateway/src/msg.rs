@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::cw_serde;
 
 #[cw_serde]
@@ -6,4 +7,6 @@ pub struct InstantiateMsg {
     pub verifier_address: String,
     /// Address of the connection router contract on axelar.
     pub router_address: String,
+    /// Format that incoming messages should use for the id field of CrossChainId
+    pub msg_id_format: MessageIdFormat,
 }

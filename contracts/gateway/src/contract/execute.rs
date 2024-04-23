@@ -1,3 +1,4 @@
+use axelar_wasm_std::msg_id::{verify_msg_id, MessageIdFormat};
 use axelar_wasm_std::{FnExt, VerificationStatus};
 use connection_router_api::client::Router;
 use connection_router_api::Message;
@@ -11,9 +12,10 @@ use crate::state;
 
 pub fn verify_messages(
     verifier: &aggregate_verifier::Client,
+    msg_id_format: MessageIdFormat,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
-    apply(verifier, msgs, |msgs_by_status| {
+    apply(verifier, msg_id_format, msgs, |msgs_by_status| {
         verify(verifier, msgs_by_status)
     })
 }
@@ -21,9 +23,10 @@ pub fn verify_messages(
 pub(crate) fn route_incoming_messages(
     verifier: &aggregate_verifier::Client,
     router: &Router,
+    msg_id_format: MessageIdFormat,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
-    apply(verifier, msgs, |msgs_by_status| {
+    apply(verifier, msg_id_format, msgs, |msgs_by_status| {
         route(router, msgs_by_status)
     })
 }
@@ -48,16 +51,28 @@ pub(crate) fn route_outgoing_messages(
 
 fn apply(
     verifier: &aggregate_verifier::Client,
+    msg_id_format: MessageIdFormat,
     msgs: Vec<Message>,
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
+        .then(|msgs| verify_msg_ids(msg_id_format, msgs))?
         .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
         .then(group_by_status)
         .then(action)
         .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
         .then(Ok)
+}
+
+fn verify_msg_ids(
+    msg_id_format: MessageIdFormat,
+    msgs: Vec<Message>,
+) -> Result<Vec<Message>, Error> {
+    msgs.into_iter()
+        .map(|msg| verify_msg_id(&msg.cc_id.id, &msg_id_format).map(|_| msg))
+        .collect::<Result<Vec<Message>, _>>()
+        .change_context(Error::InvalidMessageId)
 }
 
 fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {

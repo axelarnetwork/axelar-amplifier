@@ -27,6 +27,7 @@ impl GatewayContract {
                 &gateway::msg::InstantiateMsg {
                     router_address: router_address.to_string(),
                     verifier_address: verifier_address.to_string(),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 },
                 &[],
                 "gateway",

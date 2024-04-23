@@ -104,6 +104,7 @@ fn instantiate_mock_gateway(app: &mut App) -> Addr {
     let msg = gateway::msg::InstantiateMsg {
         verifier_address: "verifier".to_string(),
         router_address: "router".to_string(),
+        msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
     };
 
     app.instantiate_contract(
