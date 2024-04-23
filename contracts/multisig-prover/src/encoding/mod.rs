@@ -1,5 +1,6 @@
 pub mod abi;
 pub mod bcs;
+pub mod abi2;
 
 use axelar_wasm_std::operators::Operators;
 use cosmwasm_schema::cw_serde;

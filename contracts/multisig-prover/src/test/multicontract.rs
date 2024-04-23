@@ -173,6 +173,7 @@ fn instantiate_prover(
         worker_set_diff_threshold: 0,
         encoder: crate::encoding::Encoder::Abi,
         key_type: multisig::key::KeyType::Ecdsa,
+        domain_separator: [0;32].into()
     };
 
     app.instantiate_contract(

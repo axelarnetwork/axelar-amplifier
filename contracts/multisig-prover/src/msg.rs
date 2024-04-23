@@ -22,6 +22,7 @@ pub struct InstantiateMsg {
     pub worker_set_diff_threshold: u32,
     pub encoder: Encoder,
     pub key_type: KeyType,
+    pub domain_separator: HexBinary,
 }
 
 #[cw_serde]

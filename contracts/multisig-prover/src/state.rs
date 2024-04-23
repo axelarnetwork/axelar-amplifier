@@ -1,4 +1,4 @@
-use axelar_wasm_std::MajorityThreshold;
+use axelar_wasm_std::{MajorityThreshold, hash::Hash};
 use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
@@ -7,7 +7,7 @@ use multisig::key::KeyType;
 use multisig::worker_set::WorkerSet;
 
 use crate::encoding::Encoder;
-use crate::types::{BatchId, CommandBatch};
+use crate::types::{BatchId, CommandBatch, MessageToSign};
 
 #[cw_serde]
 pub struct Config {
@@ -26,6 +26,7 @@ pub struct Config {
     pub worker_set_diff_threshold: u32,
     pub encoder: Encoder,
     pub key_type: KeyType,
+    pub domain_separator: Hash,
 }
 
 // temporary, so we can read the old config from storage (that doesn't have the governance field)
@@ -35,6 +36,7 @@ fn default_governance() -> Addr {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
+pub const MESSAGE_TO_SIGN: Map<&BatchId, MessageToSign> = Map::new("message_to_sign");
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");

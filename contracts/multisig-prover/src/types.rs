@@ -1,17 +1,18 @@
 use std::fmt::Display;
 
-use axelar_wasm_std::{Participant, Snapshot};
-use connection_router_api::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use sha3::{Digest, Keccak256};
+
+use axelar_wasm_std::{hash::Hash, Participant, Snapshot};
+use connection_router_api::{CrossChainId, Message};
 use multisig::{
     key::{PublicKey, Signature},
     worker_set::WorkerSet,
 };
-use sha3::{Digest, Keccak256};
 
-use crate::encoding::{Data, Encoder};
+use crate::encoding::{abi2, Data, Encoder};
 
 #[cw_serde]
 pub enum CommandType {
@@ -113,4 +114,59 @@ impl Operator {
 pub struct WorkersInfo {
     pub snapshot: Snapshot,
     pub pubkeys_by_participant: Vec<(Participant, PublicKey)>,
+}
+
+#[cw_serde]
+pub enum Payload {
+    Messages(Vec<Message>),
+    WorkerSet(WorkerSet),
+}
+
+impl Payload {
+    // id returns the unique identifier for the payload, which can be either
+    // - the hash of comma separated sorted message ids
+    // - the hash of the worker set
+    pub fn id(&self) -> BatchId {
+        match &self {
+            Payload::Messages(msgs) => {
+                let mut message_ids = msgs
+                    .iter()
+                    .map(|msg| msg.cc_id.to_string())
+                    .collect::<Vec<_>>();
+                message_ids.sort();
+
+                Keccak256::digest(message_ids.join(",")).as_slice().into()
+            }
+            Payload::WorkerSet(worker_set) => worker_set.hash().into(),
+        }
+    }
+}
+
+#[cw_serde]
+pub struct MessageToSign {
+    pub id: BatchId,
+    pub payload: Payload,
+}
+
+impl MessageToSign {
+    pub fn new(payload: Payload) -> MessageToSign {
+        MessageToSign {
+            id: payload.id(),
+            payload,
+        }
+    }
+
+    pub fn msg_digest(
+        &self,
+        encoder: Encoder,
+        domain_separator: &Hash,
+        curr_worker_set: &WorkerSet,
+    ) -> HexBinary {
+        match encoder {
+            Encoder::Abi => {
+                abi2::message_hash_to_sign(domain_separator, curr_worker_set, &self.payload)
+            }
+            Encoder::Bcs => todo!(),
+        }
+    }
 }
