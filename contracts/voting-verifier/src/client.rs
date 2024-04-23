@@ -6,7 +6,7 @@ use axelar_wasm_std::{
 };
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
-use router_api::{CrossChainId, Message};
+use router_api::Message;
 
 use crate::msg::{ExecuteMsg, Poll, QueryMsg};
 
@@ -165,8 +165,8 @@ mod test {
                 .messages_status(vec![msg_1.clone(), msg_2.clone()])
                 .unwrap(),
             vec![
-                (msg_1.cc_id, VerificationStatus::None),
-                (msg_2.cc_id, VerificationStatus::None)
+                (msg_1, VerificationStatus::None),
+                (msg_2, VerificationStatus::None)
             ]
         );
     }

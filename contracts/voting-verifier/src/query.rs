@@ -88,6 +88,7 @@ mod tests {
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
+    use router_api::CrossChainId;
 
     use crate::events::TX_HASH_EVENT_INDEX_SEPARATOR;
     use crate::state::PollContent;
@@ -118,7 +119,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::InProgress)],
+            vec![(msg.clone(), VerificationStatus::InProgress)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -150,7 +151,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::SucceededOnChain)],
+            vec![(msg.clone(), VerificationStatus::SucceededOnChain)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -181,7 +182,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::FailedToVerify)],
+            vec![(msg.clone(), VerificationStatus::FailedToVerify)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -192,7 +193,7 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::None)],
+            vec![(msg.clone(), VerificationStatus::None)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
