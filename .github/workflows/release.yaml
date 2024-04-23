@@ -23,6 +23,7 @@ on:
         default: true
 
 jobs:
+
   release:
     name: Release ${{ github.event.inputs.binary-to-release }}
     runs-on: ubuntu-22.04
@@ -30,7 +31,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: "0"
+          fetch-depth: '0'
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
