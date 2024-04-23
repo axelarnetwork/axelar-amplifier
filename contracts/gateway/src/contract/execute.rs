@@ -10,7 +10,7 @@ use crate::events::GatewayEvent;
 use crate::state;
 
 pub fn verify_messages(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {
@@ -19,7 +19,7 @@ pub fn verify_messages(
 }
 
 pub(crate) fn route_incoming_messages(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     router: &Router,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -47,13 +47,14 @@ pub(crate) fn route_outgoing_messages(
 }
 
 fn apply(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
         .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
+        .into_iter()
         .then(group_by_status)
         .then(action)
         .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
@@ -88,7 +89,7 @@ fn group_by_status(
 }
 
 fn verify(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
 ) -> (Option<WasmMsg>, Vec<Event>) {
     msgs_by_status

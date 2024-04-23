@@ -49,6 +49,7 @@ report = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

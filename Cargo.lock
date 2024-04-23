@@ -74,27 +74,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aggregate-verifier"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "client",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "cw-utils 1.0.1",
- "error-stack",
- "integration-tests",
- "report",
- "serde",
- "thiserror",
- "voting-verifier",
-]
-
-[[package]]
 name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1122,9 +1101,9 @@ dependencies = [
 
 [[package]]
 name = "bnum"
-version = "0.7.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "845141a4fade3f790628b7daaaa298a25b204fb28907eb54febe5142db6ce653"
+checksum = "56953345e39537a3e18bdaeba4cb0c58a78c1f61f361dc0fa7c5c7340ae87c5f"
 
 [[package]]
 name = "brotli"
@@ -1735,11 +1714,12 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-std"
-version = "1.3.4"
+version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0837f920e0ebdb6eed95f2899e39db632f7de8fb68034464a5cee925a2dffdfd"
+checksum = "ef8666e572a3a2519010dde88c04d16e9339ae751b56b2bb35081fe3f7d6be74"
 dependencies = [
- "base64 0.13.1",
+ "base64 0.21.4",
+ "bech32",
  "bnum",
  "cosmwasm-crypto",
  "cosmwasm-derive",
@@ -1750,14 +1730,15 @@ dependencies = [
  "serde",
  "serde-json-wasm",
  "sha2 0.10.7",
+ "static_assertions",
  "thiserror",
 ]
 
 [[package]]
 name = "cosmwasm-storage"
-version = "1.3.4"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f73fc6766006aef09dea5db0c0728446e8c0e22b26eeb33c83ae70a500894ff3"
+checksum = "ab544dfcad7c9e971933d522d99ec75cc8ddfa338854bb992b092e11bcd7e818"
 dependencies = [
  "cosmwasm-std",
  "serde",
@@ -3410,6 +3391,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "voting-verifier",
 ]
 
 [[package]]

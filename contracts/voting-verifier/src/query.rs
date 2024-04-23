@@ -3,7 +3,7 @@ use axelar_wasm_std::{
     voting::{PollStatus, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use connection_router_api::{CrossChainId, Message};
+use connection_router_api::Message;
 use cosmwasm_std::Deps;
 
 use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
@@ -16,12 +16,10 @@ pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> 
 pub fn messages_status(
     deps: Deps,
     messages: &[Message],
-) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
+) -> Result<Vec<(Message, VerificationStatus)>, ContractError> {
     messages
         .iter()
-        .map(|message| {
-            message_status(deps, message).map(|status| (message.cc_id.to_owned(), status))
-        })
+        .map(|message| message_status(deps, message).map(|status| (message.to_owned(), status)))
         .collect::<Result<Vec<_>, _>>()
 }
 
