@@ -16,10 +16,13 @@ use crate::{
     contract::START_MULTISIG_REPLY_ID,
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
-    state::{
-        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, MESSAGE_TO_SIGN, REPLY_BATCH,
-    },
-    types::{BatchId, Payload, WorkersInfo, MessageToSign},
+    state::{Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH},
+    types::{BatchId, WorkersInfo},
+};
+#[cfg(feature = "amplifier-gateway")]
+use crate::{
+    state::MESSAGE_TO_SIGN,
+    types::{MessageToSign, Payload},
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -251,7 +254,11 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
                 MESSAGE_TO_SIGN.save(deps.storage, &message_to_sign.id, &message_to_sign)?;
                 REPLY_BATCH.save(deps.storage, &message_to_sign.id)?;
 
-                msg_to_sign = message_to_sign.msg_digest(config.encoder, &config.domain_separator, &cur_worker_set);
+                msg_to_sign = message_to_sign.msg_digest(
+                    config.encoder,
+                    &config.domain_separator,
+                    &cur_worker_set,
+                );
             }
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
@@ -430,7 +437,7 @@ mod tests {
 
         assert!(!different_set_in_progress(
             deps.as_ref().storage,
-            &new_worker_set
+            &new_worker_set,
         ));
     }
 
@@ -447,7 +454,7 @@ mod tests {
 
         assert!(different_set_in_progress(
             deps.as_ref().storage,
-            &new_worker_set
+            &new_worker_set,
         ));
     }
 
@@ -464,7 +471,7 @@ mod tests {
 
         assert!(different_set_in_progress(
             deps.as_ref().storage,
-            &new_worker_set
+            &new_worker_set,
         ));
     }
 
@@ -496,7 +503,7 @@ mod tests {
             worker_set_diff_threshold: 0,
             encoder: crate::encoding::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
-            domain_separator: [0; 32].into(),
+            domain_separator: [0; 32],
         }
     }
 }

@@ -48,7 +48,7 @@ impl From<&WorkerSet> for WeightedSigners {
         let mut signers = worker_set
             .signers
             .values()
-            .map(|signer| WeightedSigner::from(signer))
+            .map(WeightedSigner::from)
             .collect::<Vec<_>>();
 
         signers.sort_by_key(|weighted_signer| weighted_signer.signer);
@@ -59,7 +59,7 @@ impl From<&WorkerSet> for WeightedSigners {
 
         WeightedSigners {
             signers,
-            threshold: threshold,
+            threshold,
             nonce: Uint256::from(worker_set.created_at).to_le_bytes().into(),
         }
     }
@@ -71,7 +71,7 @@ pub fn message_hash_to_sign(
     payload: &Payload,
 ) -> HexBinary {
     let signer = WeightedSigners::from(signer);
-    let data_to_sign = encode(&payload);
+    let data_to_sign = encode(payload);
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
