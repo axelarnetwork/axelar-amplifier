@@ -100,7 +100,7 @@ async fn broadcast_tx(
         .expect("failed to convert to account identifier")
         .into();
 
-    broadcaster::BroadcastClient::builder()
+    broadcaster::BroadcastClientBuilder::default()
         .client(service_client)
         .signer(ecdsa_client)
         .query_client(query_client)
@@ -108,6 +108,7 @@ async fn broadcast_tx(
         .config(broadcast)
         .address(address)
         .build()
+        .change_context(Error::Broadcaster)?
         .broadcast(vec![tx])
         .await
         .change_context(Error::Broadcaster)

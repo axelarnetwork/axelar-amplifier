@@ -12,6 +12,7 @@ use cosmos_sdk_proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Coin, Gas};
+use derive_builder::Builder;
 use error_stack::{FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
@@ -22,15 +23,13 @@ use thiserror::Error;
 use tonic::Status;
 use tracing::debug;
 use tracing::info;
-use typed_builder::TypedBuilder;
 use valuable::Valuable;
-
-use dec_coin::DecCoin;
-use report::LoggableError;
-use tx::Tx;
 
 use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::types::{PublicKey, TMAddress};
+use dec_coin::DecCoin;
+use report::LoggableError;
+use tx::TxBuilder;
 
 pub mod accounts;
 pub mod clients;
@@ -91,13 +90,14 @@ pub trait Broadcaster {
     async fn estimate_fee(&mut self, msgs: Vec<cosmrs::Any>) -> Result<Fee, Error>;
 }
 
-#[derive(TypedBuilder)]
+#[derive(Builder)]
+#[builder(pattern = "owned")]
 pub struct BroadcastClient<T, Q> {
     client: T,
     signer: SharableEcdsaClient,
     query_client: Q,
     address: TMAddress,
-    #[builder(default, setter(skip))]
+    #[builder(setter(skip))]
     acc_sequence: Option<u64>,
     pub_key: (String, PublicKey),
     config: Config,
@@ -111,12 +111,13 @@ where
 {
     async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error> {
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
-        let tx = Tx::builder()
+        let tx = TxBuilder::default()
             .msgs(msgs.clone())
             .fee(self.estimate_fee(msgs, acc_sequence).await?)
             .pub_key(self.pub_key.1)
             .acc_sequence(acc_sequence)
             .build()
+            .change_context(Error::TxBuilding)?
             .sign_with(&self.config.chain_id, acc_number, |sign_doc| {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_doc);
@@ -193,11 +194,13 @@ where
         msgs: Vec<cosmrs::Any>,
         acc_sequence: u64,
     ) -> Result<Fee, Error> {
-        let sim_tx = Tx::builder()
+        let sim_tx = TxBuilder::default()
             .msgs(msgs)
+            .zero_fee()
             .pub_key(self.pub_key.1)
             .acc_sequence(acc_sequence)
             .build()
+            .change_context(Error::TxBuilding)?
             .with_dummy_sig()
             .await
             .change_context(Error::TxBuilding)?
@@ -309,7 +312,7 @@ mod tests {
     use tonic::Status;
 
     use crate::broadcaster::clients::{MockAccountQueryClient, MockBroadcastClient};
-    use crate::broadcaster::{BroadcastClient, Broadcaster, Config, Error};
+    use crate::broadcaster::{BroadcastClientBuilder, Broadcaster, Config, Error};
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
     use crate::types::{PublicKey, TMAddress};
     use crate::PREFIX;
@@ -344,14 +347,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -397,14 +401,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -469,14 +474,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -545,14 +551,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -626,14 +633,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
         let msgs = vec![dummy_msg()];
 
         assert!(matches!(
@@ -709,14 +717,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
         let msgs = vec![dummy_msg()];
 
         assert_eq!(broadcaster.acc_sequence, None);
@@ -800,14 +809,15 @@ mod tests {
             })
         });
 
-        let mut broadcaster = BroadcastClient::builder()
+        let mut broadcaster = BroadcastClientBuilder::default()
             .client(client)
             .signer(SharableEcdsaClient::new(signer))
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
             .config(Config::default())
-            .build();
+            .build()
+            .unwrap();
 
         assert_eq!(broadcaster.acc_sequence, None);
         assert!(broadcaster.broadcast(vec![dummy_msg()]).await.is_ok());
