@@ -5,6 +5,7 @@ use cw_storage_plus::{Item, Map};
 use axelar_wasm_std::{
     counter,
     hash::Hash,
+    msg_id::MessageIdFormat,
     nonempty,
     operators::Operators,
     voting::{PollId, WeightedPoll},
@@ -25,6 +26,7 @@ pub struct Config {
     pub confirmation_height: u64,
     pub source_chain: ChainName,
     pub rewards_contract: Addr,
+    pub msg_id_format: MessageIdFormat,
 }
 
 #[cw_serde]

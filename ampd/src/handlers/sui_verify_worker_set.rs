@@ -11,10 +11,10 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
+use axelar_wasm_std::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
-use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -145,7 +145,11 @@ where
         let vote = info_span!(
             "verify a new worker set for Sui",
             poll_id = poll_id.to_string(),
-            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
+            id = Base58TxDigestAndEventIndex {
+                tx_digest: worker_set.tx_id.into(),
+                event_index: worker_set.event_index
+            }
+            .to_string()
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {

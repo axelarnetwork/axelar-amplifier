@@ -15,7 +15,8 @@ use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
 use crate::events::{
-    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
+    make_tx_event_confirmation, PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted,
+    WorkerSetConfirmation,
 };
 use crate::query::worker_set_status;
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
@@ -36,10 +37,13 @@ pub fn update_voting_threshold(
     deps: DepsMut,
     new_voting_threshold: MajorityThreshold,
 ) -> Result<Response, ContractError> {
-    CONFIG.update(deps.storage, |mut config| -> Result<_, ContractError> {
-        config.voting_threshold = new_voting_threshold;
-        Ok(config)
-    })?;
+    CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<_, ContractError> {
+            config.voting_threshold = new_voting_threshold;
+            Ok(config)
+        },
+    )?;
     Ok(Response::new())
 }
 
@@ -69,7 +73,11 @@ pub fn verify_worker_set(
 
     Ok(Response::new().add_event(
         PollStarted::WorkerSet {
-            worker_set: WorkerSetConfirmation::new(message_id, new_operators)?,
+            worker_set: WorkerSetConfirmation::new(
+                message_id,
+                config.msg_id_format,
+                new_operators,
+            )?,
             metadata: PollMetadata {
                 poll_id,
                 source_chain: config.source_chain,
@@ -140,7 +148,7 @@ pub fn verify_messages(
 
     let messages = msgs_to_verify
         .into_iter()
-        .map(TryInto::try_into)
+        .map(|msg| make_tx_event_confirmation(msg, &config.msg_id_format))
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
     Ok(Response::new().add_event(
@@ -310,6 +318,7 @@ mod test {
             block_expiry: 10,
             confirmation_height: 2,
             rewards_contract: Addr::unchecked("rewards"),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         }
     }
 

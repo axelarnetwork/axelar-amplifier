@@ -1,4 +1,5 @@
 use axelar_wasm_std::{
+    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
@@ -135,6 +136,14 @@ pub fn upgrade_gateway(
         },
     );
     assert!(response.is_ok(), "{:?}", response);
+}
+
+fn random_32_bytes() -> [u8; 32] {
+    let mut bytes = [0; 32];
+    for b in &mut bytes {
+        *b = rand::random();
+    }
+    bytes
 }
 
 pub fn vote_success_for_all_messages(
@@ -572,9 +581,13 @@ pub fn create_worker_set_poll(
         app,
         relayer_addr.clone(),
         &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
-            message_id: "7477095de32cfca1522076e3581501ddc249c5796622d1194f0b7ef891769bdb-0"
-                .parse()
-                .unwrap(),
+            message_id: HexTxHashAndEventIndex {
+                tx_hash: random_32_bytes(),
+                event_index: 0,
+            }
+            .to_string()
+            .parse()
+            .unwrap(),
             new_operators: make_operators(worker_set.clone(), Encoder::Abi),
         },
     );

@@ -9,11 +9,11 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use router_api::ChainName;
-use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -188,7 +188,11 @@ where
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
+            id = HexTxHashAndEventIndex {
+                tx_hash: worker_set.tx_id.into(),
+                event_index: worker_set.event_index
+            }
+            .to_string()
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");

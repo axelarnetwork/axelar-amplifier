@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
@@ -15,7 +16,6 @@ use axelar_wasm_std::voting::{PollId, Vote};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use router_api::ChainName;
-use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -195,7 +195,13 @@ where
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
-            .map(|message| construct_message_id(message.tx_id.into(), message.event_index))
+            .map(|message| {
+                HexTxHashAndEventIndex {
+                    tx_hash: message.tx_id.into(),
+                    event_index: message.event_index,
+                }
+                .to_string()
+            })
             .collect::<Vec<_>>();
         let votes = info_span!(
             "verify messages from an EVM chain",
@@ -351,7 +357,6 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
         let event: Result<PollStartedEvent, events::Error> = event.try_into();
-
         assert!(event.is_ok());
     }
 
