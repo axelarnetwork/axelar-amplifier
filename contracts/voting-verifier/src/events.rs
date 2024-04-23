@@ -7,7 +7,7 @@ use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::{Address, ChainName, Message};
+use router_api::{Address, ChainName, Message};
 
 pub const TX_HASH_EVENT_INDEX_SEPARATOR: char = '-';
 

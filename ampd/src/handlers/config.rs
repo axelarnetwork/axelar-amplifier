@@ -8,7 +8,7 @@ use serde_with::with_prefix;
 use crate::evm::finalizer::Finalization;
 use crate::types::TMAddress;
 use crate::url::Url;
-use connection_router_api::ChainName;
+use router_api::ChainName;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Chain {

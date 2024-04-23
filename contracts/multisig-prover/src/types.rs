@@ -4,9 +4,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_binary, HexBinary, StdResult, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use sha3::{Digest, Keccak256};
-
 use axelar_wasm_std::{hash::Hash, Participant, Snapshot};
-use connection_router_api::{CrossChainId, Message};
+use router_api::{CrossChainId, Message};
 use multisig::{
     key::{PublicKey, Signature},
     worker_set::WorkerSet,

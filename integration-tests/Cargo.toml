@@ -30,19 +30,19 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
-connection-router = { workspace = true }
-connection-router-api = { workspace = true }
+coordinator = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-multi-test = "0.15.1"
 error-stack = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
-monitoring = { workspace = true }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
 report = { workspace = true }
 rewards = { workspace = true }
+router = { workspace = true }
+router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 service-registry = { workspace = true }

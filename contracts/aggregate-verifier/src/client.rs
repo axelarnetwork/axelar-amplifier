@@ -1,8 +1,8 @@
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::WasmMsg;
 use error_stack::{Result, ResultExt};
+use router_api::{CrossChainId, Message};
 use std::collections::HashMap;
 
 use crate::msg::{ExecuteMsg, QueryMsg};
@@ -87,7 +87,7 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::VerificationStatus;
-    use connection_router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
+    use router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
 
     use crate::contract::{instantiate, query};
     use crate::msg::InstantiateMsg;
@@ -95,7 +95,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn query_messages_status_returns_empty_statuses() {
+    fn messages_status_returns_empty_statuses() {
         let addr = "aggregate-verifier";
 
         let mut querier = MockQuerier::default();
@@ -118,11 +118,11 @@ mod tests {
         let client: Client =
             client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
-        assert!(client.query_messages_status(vec![]).unwrap().is_empty());
+        assert_eq!(client.messages_status(vec![]).unwrap().count(), 0);
     }
 
     #[test]
-    fn query_messages_status_returns_some_statuses() {
+    fn messages_status_returns_some_statuses() {
         let addr = "aggregate-verifier";
         let msg_1 = Message {
             cc_id: CrossChainId::from_str(format!("eth{}0x1234", CHAIN_NAME_DELIMITER).as_str())
@@ -176,12 +176,9 @@ mod tests {
         let client: Client =
             client::Client::new(QuerierWrapper::new(&querier), Addr::unchecked(addr)).into();
 
-        assert!(
-            client
-                .query_messages_status(vec![msg_1, msg_2])
-                .unwrap()
-                .len()
-                == 2
+        assert_eq!(
+            client.messages_status(vec![msg_1, msg_2]).unwrap().count(),
+            2
         );
     }
 

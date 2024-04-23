@@ -142,9 +142,9 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
-    use connection_router_api::ChainName;
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
+    use router_api::ChainName;
 
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPool};
     use crate::state::PoolId;

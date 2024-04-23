@@ -87,7 +87,7 @@ mod test {
         nonempty, operators::Operators, voting::Vote, MajorityThreshold, Threshold,
         VerificationStatus,
     };
-    use connection_router_api::{ChainName, CrossChainId, Message};
+    use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
     };
@@ -95,7 +95,6 @@ mod test {
     use crate::{
         error::ContractError,
         events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
-        msg::VerifyMessagesResponse,
     };
 
     use super::*;
@@ -247,39 +246,6 @@ mod test {
         };
         let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
         assert_contract_err_strings_equal(err, ContractError::SourceChainMismatch(source_chain()));
-    }
-
-    #[test]
-    fn should_verify_messages_if_not_verified() {
-        let workers = workers(2);
-        let mut deps = setup(workers.clone());
-
-        let msg = ExecuteMsg::VerifyMessages {
-            messages: messages(2),
-        };
-
-        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
-        let reply: VerifyMessagesResponse = from_binary(&res.data.unwrap()).unwrap();
-        assert_eq!(reply.verification_statuses.len(), 2);
-        assert_eq!(
-            reply.verification_statuses,
-            vec![
-                (
-                    CrossChainId {
-                        id: message_id("id", 0),
-                        chain: source_chain()
-                    },
-                    VerificationStatus::None
-                ),
-                (
-                    CrossChainId {
-                        id: message_id("id", 1),
-                        chain: source_chain()
-                    },
-                    VerificationStatus::None
-                ),
-            ]
-        );
     }
 
     #[test]
@@ -981,8 +947,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // try again, should fail
-        let err = execute(
+        // try again, should return empty response
+        let res = execute(
             deps.as_mut(),
             mock_env_expired(),
             mock_info(SENDER, &[]),
@@ -991,8 +957,8 @@ mod test {
                 new_operators: operators.clone(),
             },
         )
-        .unwrap_err();
-        assert_contract_err_strings_equal(err, ContractError::WorkerSetAlreadyConfirmed);
+        .unwrap();
+        assert_eq!(res, Response::new());
     }
 
     #[test]

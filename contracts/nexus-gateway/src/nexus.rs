@@ -1,8 +1,8 @@
-use axelar_wasm_std::nonempty;
-use connection_router_api::{Address, ChainName, CrossChainId};
+use axelar_wasm_std::{msg_id::tx_hash_event_index::HexTxHashAndEventIndex, nonempty};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
-use error_stack::{Result, ResultExt};
+use error_stack::{Report, Result, ResultExt};
 use hex::{FromHex, ToHex};
+use router_api::{Address, ChainName, CrossChainId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -50,8 +50,8 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Contra
     Ok((tx_id, index))
 }
 
-impl From<connection_router_api::Message> for Message {
-    fn from(msg: connection_router_api::Message) -> Self {
+impl From<router_api::Message> for Message {
+    fn from(msg: router_api::Message) -> Self {
         // fallback to using the message ID as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
             parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.into(), u64::MAX));
@@ -68,29 +68,69 @@ impl From<connection_router_api::Message> for Message {
     }
 }
 
-impl From<Message> for connection_router_api::Message {
-    fn from(msg: Message) -> Self {
-        Self {
+impl TryFrom<Message> for router_api::Message {
+    type Error = Report<ContractError>;
+
+    fn try_from(msg: Message) -> Result<Self, ContractError> {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: <[u8; 32]>::try_from(msg.source_tx_id.as_ref().as_slice()).map_err(|_| {
+                ContractError::InvalidSourceTxId(msg.source_tx_id.as_ref().encode_hex::<String>())
+            })?,
+            event_index: u32::try_from(msg.source_tx_index)
+                .map_err(|_| ContractError::InvalidEventIndex(msg.source_tx_index))?,
+        };
+
+        Ok(Self {
             cc_id: CrossChainId {
                 chain: msg.source_chain,
-                id: format!(
-                    "{}:{}",
-                    msg.source_tx_id.as_ref().encode_hex::<String>(),
-                    msg.source_tx_index
-                )
-                .try_into()
-                .expect("cannot be empty"),
+                id: nonempty::String::try_from(msg_id.to_string())
+                    .change_context(ContractError::InvalidMessageId(msg_id.to_string()))?,
             },
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
             destination_address: msg.destination_address,
             payload_hash: msg.payload_hash,
-        }
+        })
     }
 }
 
 impl From<Message> for CosmosMsg<Message> {
     fn from(msg: Message) -> Self {
         CosmosMsg::Custom(msg)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::vec;
+
+    use cosmwasm_std::HexBinary;
+
+    use super::Message;
+
+    #[test]
+    fn should_convert_nexus_message_to_router_message() {
+        let msg = Message {
+            source_chain: "ethereum".parse().unwrap(),
+            source_address: "something".parse().unwrap(),
+            destination_chain: "polygon".parse().unwrap(),
+            destination_address: "something else".parse().unwrap(),
+            payload_hash: [1; 32],
+            source_tx_id: vec![2; 32].try_into().unwrap(),
+            source_tx_index: 1,
+        };
+
+        let router_msg = router_api::Message::try_from(msg.clone());
+        assert!(router_msg.is_ok());
+        let router_msg = router_msg.unwrap();
+        assert_eq!(router_msg.cc_id.chain, msg.source_chain);
+        assert_eq!(
+            router_msg.cc_id.id.to_string(),
+            format!(
+                "0x{}-{}",
+                HexBinary::from(msg.source_tx_id.as_ref().clone()).to_hex(),
+                msg.source_tx_index
+            )
+        );
     }
 }

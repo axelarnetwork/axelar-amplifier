@@ -9,7 +9,7 @@ use itertools::Itertools;
 use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
-use connection_router_api::{ChainName, CrossChainId, Message};
+use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedWorker;
 
 use crate::{
@@ -101,8 +101,9 @@ fn get_messages(
         msg: to_binary(&query)?,
     }))?;
 
-    assert!(
-        messages.len() == length,
+    assert_eq!(
+        messages.len(),
+        length,
         "violated invariant: returned gateway messages count mismatch"
     );
 
@@ -301,11 +302,21 @@ pub fn confirm_worker_set(deps: DepsMut, sender: Addr) -> Result<Response, Contr
     CURRENT_WORKER_SET.save(deps.storage, &worker_set)?;
     NEXT_WORKER_SET.remove(deps.storage);
 
-    Ok(Response::new().add_message(wasm_execute(
-        config.multisig,
-        &multisig::msg::ExecuteMsg::RegisterWorkerSet { worker_set },
-        vec![],
-    )?))
+    Ok(Response::new()
+        .add_message(wasm_execute(
+            config.multisig,
+            &multisig::msg::ExecuteMsg::RegisterWorkerSet {
+                worker_set: worker_set.clone(),
+            },
+            vec![],
+        )?)
+        .add_message(wasm_execute(
+            config.coordinator,
+            &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+                next_worker_set: worker_set,
+            },
+            vec![],
+        )?))
 }
 
 pub fn should_update_worker_set(
@@ -355,11 +366,11 @@ pub fn update_signing_threshold(
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::Threshold;
-    use connection_router_api::ChainName;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env},
         Addr, Uint256,
     };
+    use router_api::ChainName;
 
     use crate::{
         execute::should_update_worker_set,
@@ -475,7 +486,7 @@ mod tests {
             governance: Addr::unchecked("doesn't matter"),
             gateway: Addr::unchecked("doesn't matter"),
             multisig: Addr::unchecked("doesn't matter"),
-            monitoring: Addr::unchecked("doesn't matter"),
+            coordinator: Addr::unchecked("doesn't matter"),
             service_registry: Addr::unchecked("doesn't matter"),
             voting_verifier: Addr::unchecked("doesn't matter"),
             destination_chain_id: Uint256::one(),

@@ -1,6 +1,6 @@
 use axelar_wasm_std::VerificationStatus;
-use connection_router_api::Message;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use router_api::Message;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -16,6 +16,6 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<(connection_router_api::CrossChainId, VerificationStatus)>)]
+    #[returns(Vec<(router_api::CrossChainId, VerificationStatus)>)]
     GetMessagesStatus { messages: Vec<Message> },
 }

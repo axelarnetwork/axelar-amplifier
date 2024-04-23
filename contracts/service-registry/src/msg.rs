@@ -1,6 +1,6 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -27,6 +27,11 @@ pub enum ExecuteMsg {
     },
     // Revoke authorization for specified workers. Can only be called by governance account. Workers bond remains unchanged
     UnauthorizeWorkers {
+        workers: Vec<String>,
+        service_name: String,
+    },
+    // Jail workers. Can only be called by governance account. Jailed workers are not allowed to unbond or claim stake.
+    JailWorkers {
         workers: Vec<String>,
         service_name: String,
     },
