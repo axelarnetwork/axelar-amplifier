@@ -36,6 +36,7 @@ where
     #[builder(default = zero_fee())]
     fee: Fee,
 }
+
 fn zero_fee() -> Fee {
     Fee::from_amount_and_gas(
         Coin {
