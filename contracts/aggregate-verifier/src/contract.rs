@@ -1,12 +1,12 @@
 use axelar_wasm_std::VerificationStatus;
 use client::Client;
-use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response,
 };
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
+use router_api::CrossChainId;
 
 use crate::{
     error::ContractError,
@@ -45,7 +45,7 @@ pub fn execute(
 pub mod execute {
     use cosmwasm_std::SubMsg;
 
-    use connection_router_api::Message;
+    use router_api::Message;
 
     use super::*;
 

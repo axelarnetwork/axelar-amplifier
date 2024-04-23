@@ -17,7 +17,7 @@ pub struct TestCaseConfig {
     pub service_registry_address: Addr,
     pub voting_verifier_address: Addr,
     pub multisig_address: Addr,
-    pub monitoring_address: Addr,
+    pub coordinator_address: Addr,
 }
 
 pub fn mock_app() -> App {
@@ -64,18 +64,18 @@ fn instantiate_mock_multisig(app: &mut App) -> Addr {
     .unwrap()
 }
 
-fn contract_monitoring() -> Box<dyn Contract<Empty>> {
+fn contract_coordinator() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
-        mocks::monitoring::execute,
-        mocks::monitoring::instantiate,
-        mocks::monitoring::query,
+        mocks::coordinator::execute,
+        mocks::coordinator::instantiate,
+        mocks::coordinator::query,
     );
     Box::new(contract)
 }
 
-fn instantiate_mock_monitoring(app: &mut App) -> Addr {
-    let code_id = app.store_code(contract_monitoring());
-    let msg = monitoring::msg::InstantiateMsg {
+fn instantiate_mock_coordinator(app: &mut App) -> Addr {
+    let code_id = app.store_code(contract_coordinator());
+    let msg = coordinator::msg::InstantiateMsg {
         governance_address: "governance".to_string(),
     };
 
@@ -84,7 +84,7 @@ fn instantiate_mock_monitoring(app: &mut App) -> Addr {
         Addr::unchecked("governance"),
         &msg,
         &[],
-        "mock-monitoring",
+        "mock-coordinator",
         None,
     )
     .unwrap()
@@ -184,7 +184,7 @@ fn instantiate_prover(
     multisig_address: String,
     service_registry_address: String,
     voting_verifier_address: String,
-    monitoring_address: String,
+    coordinator_address: String,
 ) -> Addr {
     let code_id = app.store_code(contract_prover());
     let msg = crate::msg::InstantiateMsg {
@@ -192,7 +192,7 @@ fn instantiate_prover(
         governance_address: GOVERNANCE.to_string(),
         gateway_address,
         multisig_address,
-        monitoring_address,
+        coordinator_address,
         service_registry_address,
         voting_verifier_address,
         destination_chain_id: test_data::destination_chain_id(),
@@ -222,7 +222,7 @@ pub fn setup_test_case() -> TestCaseConfig {
     let multisig_address = instantiate_mock_multisig(&mut app);
     let service_registry_address = instantiate_mock_service_registry(&mut app);
     let voting_verifier_address = instantiate_mock_voting_verifier(&mut app);
-    let monitoring_address = instantiate_mock_monitoring(&mut app);
+    let coordinator_address = instantiate_mock_coordinator(&mut app);
 
     let prover_address = instantiate_prover(
         &mut app,
@@ -230,7 +230,7 @@ pub fn setup_test_case() -> TestCaseConfig {
         multisig_address.to_string(),
         service_registry_address.to_string(),
         voting_verifier_address.to_string(),
-        monitoring_address.to_string(),
+        coordinator_address.to_string(),
     );
 
     app.update_block(next_block);
@@ -249,6 +249,6 @@ pub fn setup_test_case() -> TestCaseConfig {
         service_registry_address,
         voting_verifier_address,
         multisig_address,
-        monitoring_address,
+        coordinator_address,
     }
 }

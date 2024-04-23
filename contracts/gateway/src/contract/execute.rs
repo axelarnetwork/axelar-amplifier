@@ -1,10 +1,10 @@
 use axelar_wasm_std::msg_id::{verify_msg_id, MessageIdFormat};
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router_api::client::Router;
-use connection_router_api::Message;
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
+use router_api::client::Router;
+use router_api::Message;
 
 use crate::contract::Error;
 use crate::events::GatewayEvent;

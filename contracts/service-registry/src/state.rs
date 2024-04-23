@@ -1,5 +1,5 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
+use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

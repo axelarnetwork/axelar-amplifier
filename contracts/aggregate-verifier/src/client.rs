@@ -1,8 +1,8 @@
 use axelar_wasm_std::utils::TryMapExt;
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::WasmMsg;
 use error_stack::{Result, ResultExt};
+use router_api::{CrossChainId, Message};
 use std::collections::HashMap;
 
 use crate::msg::{ExecuteMsg, QueryMsg};
@@ -87,7 +87,7 @@ mod tests {
     use std::str::FromStr;
 
     use axelar_wasm_std::VerificationStatus;
-    use connection_router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
+    use router_api::{CrossChainId, CHAIN_NAME_DELIMITER};
 
     use crate::contract::{instantiate, query};
     use crate::msg::InstantiateMsg;

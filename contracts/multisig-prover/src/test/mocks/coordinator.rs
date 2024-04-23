@@ -1,14 +1,14 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 
-use monitoring::msg::QueryMsg;
+use coordinator::msg::QueryMsg;
 use multisig::worker_set::WorkerSet;
 
 pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: monitoring::msg::InstantiateMsg,
+    _msg: coordinator::msg::InstantiateMsg,
 ) -> Result<Response, StdError> {
     Ok(Response::default())
 }

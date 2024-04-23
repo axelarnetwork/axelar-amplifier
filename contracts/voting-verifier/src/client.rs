@@ -4,9 +4,9 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
+use router_api::{CrossChainId, Message};
 
 use crate::msg::{ExecuteMsg, Poll, QueryMsg};
 
@@ -97,12 +97,12 @@ mod test {
         msg_id::tx_hash_event_index::HexTxHashAndEventIndex, operators::Operators, Threshold,
         VerificationStatus,
     };
-    use connection_router_api::{CrossChainId, Message};
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
         Addr, DepsMut, QuerierWrapper, Uint256, Uint64, WasmQuery,
     };
+    use router_api::{CrossChainId, Message};
 
     use crate::{
         contract::{instantiate, query},

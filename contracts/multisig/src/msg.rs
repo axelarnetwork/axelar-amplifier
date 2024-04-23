@@ -1,6 +1,6 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use router_api::ChainName;
 
 use crate::{
     key::{KeyType, PublicKey, Signature},

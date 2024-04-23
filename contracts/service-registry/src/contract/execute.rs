@@ -1,6 +1,6 @@
 use crate::state;
 use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
-use connection_router_api::ChainName;
+use router_api::ChainName;
 
 use super::*;
 

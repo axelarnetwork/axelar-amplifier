@@ -12,9 +12,9 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::ChainName;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
+use router_api::ChainName;
 use voting_verifier::events::construct_message_id;
 use voting_verifier::msg::ExecuteMsg;
 
@@ -35,7 +35,7 @@ pub struct Message {
     pub tx_id: Hash,
     pub event_index: u32,
     pub destination_address: String,
-    pub destination_chain: connection_router_api::ChainName,
+    pub destination_chain: router_api::ChainName,
     pub source_address: EVMAddress,
     pub payload_hash: Hash,
 }
@@ -44,7 +44,7 @@ pub struct Message {
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
-    source_chain: connection_router_api::ChainName,
+    source_chain: router_api::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     expires_at: u64,
@@ -242,9 +242,9 @@ mod tests {
     use tokio::sync::watch;
     use tokio::test as async_test;
 
-    use connection_router_api::ChainName;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use router_api::ChainName;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::event_processor::EventHandler;

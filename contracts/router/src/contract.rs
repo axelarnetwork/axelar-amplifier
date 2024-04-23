@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
-use connection_router_api::msg::{ExecuteMsg, QueryMsg};
+use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
@@ -126,12 +126,12 @@ mod test {
     use super::*;
 
     use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
-    use connection_router_api::{
-        error::Error, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
-    };
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
+    };
+    use router_api::{
+        error::Error, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
     };
 
     const ADMIN_ADDRESS: &str = "admin";

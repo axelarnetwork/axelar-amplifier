@@ -191,7 +191,6 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use connection_router_api::ChainName;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::{AccountId, Gas};
     use cosmwasm_std::{HexBinary, Uint64};
@@ -200,6 +199,7 @@ mod test {
     use rand::distributions::Alphanumeric;
     use rand::rngs::OsRng;
     use rand::Rng;
+    use router_api::ChainName;
     use tendermint::abci;
     use tokio::sync::watch;
 
