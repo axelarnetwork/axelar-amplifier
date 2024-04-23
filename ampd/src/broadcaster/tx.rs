@@ -7,10 +7,10 @@ use cosmrs::{
     tx::{BodyBuilder, Fee, SignDoc, SignerInfo},
     Any, Coin,
 };
-use derive_builder::Builder;
 use error_stack::{Context, Result, ResultExt};
 use report::ResultCompatExt;
 use thiserror::Error;
+use typed_builder::TypedBuilder;
 
 use crate::types::PublicKey;
 
@@ -25,7 +25,7 @@ pub enum Error {
     Marshaling,
 }
 
-#[derive(Builder)]
+#[derive(TypedBuilder)]
 pub struct Tx<M>
 where
     M: IntoIterator<Item = Any>,
@@ -33,22 +33,17 @@ where
     msgs: M,
     pub_key: PublicKey,
     acc_sequence: u64,
+    #[builder(default = zero_fee())]
     fee: Fee,
 }
-
-impl<M> TxBuilder<M>
-where
-    M: IntoIterator<Item = Any> + Clone,
-{
-    pub fn zero_fee(&mut self) -> &mut Self {
-        self.fee(Fee::from_amount_and_gas(
-            Coin {
-                denom: "".parse().unwrap(),
-                amount: 0,
-            },
-            0u64,
-        ))
-    }
+fn zero_fee() -> Fee {
+    Fee::from_amount_and_gas(
+        Coin {
+            denom: "".parse().unwrap(),
+            amount: 0,
+        },
+        0u64,
+    )
 }
 
 impl<M> Tx<M>
@@ -119,7 +114,7 @@ mod tests {
 
     use crate::types::PublicKey;
 
-    use super::{Error, TxBuilder, DUMMY_CHAIN_ID};
+    use super::{Error, Tx, DUMMY_CHAIN_ID};
 
     #[test]
     async fn sign_with_should_produce_the_correct_tx() {
@@ -131,13 +126,11 @@ mod tests {
         let chain_id: Id = DUMMY_CHAIN_ID.parse().unwrap();
         let msgs = vec![dummy_msg(), dummy_msg(), dummy_msg()];
 
-        let actual_tx = TxBuilder::default()
+        let actual_tx = Tx::builder()
             .msgs(msgs.clone())
-            .zero_fee()
             .pub_key(pub_key)
             .acc_sequence(acc_sequence)
             .build()
-            .unwrap()
             .sign_with(&chain_id, acc_number, |sign_doc| async move {
                 let mut hasher = Sha256::new();
                 hasher.update(sign_doc);
@@ -175,13 +168,11 @@ mod tests {
         let acc_sequence = 1000;
         let msgs = vec![dummy_msg(), dummy_msg(), dummy_msg()];
 
-        let actual_tx = TxBuilder::default()
+        let actual_tx = Tx::builder()
             .msgs(msgs.clone())
-            .zero_fee()
             .pub_key(pub_key)
             .acc_sequence(acc_sequence)
             .build()
-            .unwrap()
             .with_dummy_sig()
             .await
             .unwrap();
