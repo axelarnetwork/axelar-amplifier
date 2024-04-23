@@ -90,12 +90,15 @@ async fn broadcast_tx(
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-
     let ecdsa_client = SharableEcdsaClient::new(
         MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
             .await
             .change_context(Error::Connection)?,
     );
+    let address = pub_key
+        .account_id(PREFIX)
+        .expect("failed to convert to account identifier")
+        .into();
 
     broadcaster::BroadcastClientBuilder::default()
         .client(service_client)
@@ -103,6 +106,7 @@ async fn broadcast_tx(
         .query_client(query_client)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast)
+        .address(address)
         .build()
         .change_context(Error::Broadcaster)?
         .broadcast(vec![tx])
