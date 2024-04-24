@@ -3368,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aggregate-verifier",
  "axelar-wasm-std",
