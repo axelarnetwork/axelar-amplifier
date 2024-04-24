@@ -2,29 +2,28 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use block_height_monitor::BlockHeightMonitor;
+use broadcaster::accounts::account;
+use broadcaster::Broadcaster;
 use connection_router_api::ChainName;
-use cosmos_sdk_proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
-};
+use cosmos_sdk_proto::cosmos::auth::v1beta1::query_client::QueryClient;
+use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use error_stack::{report, FutureExt, Result, ResultExt};
+use event_processor::EventHandler;
+use events::Event;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
+use state::StateUpdater;
 use thiserror::Error;
+use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
-
-use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
-use broadcaster::{accounts::account, Broadcaster};
-use event_processor::EventHandler;
-use events::Event;
-use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
-use state::StateUpdater;
-use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
+use tracing::{info, warn};
 use types::TMAddress;
 
+use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use crate::config::Config;
 use crate::state::State;
 
@@ -41,6 +40,7 @@ mod handlers;
 mod health_check;
 mod json_rpc;
 mod queue;
+mod starknet;
 pub mod state;
 mod sui;
 mod tm_client;
@@ -431,7 +431,8 @@ where
                 broadcaster.run().change_context(Error::Broadcaster)
             }))
             .add_task(CancellableTask::create(|_| async move {
-                // assert: the state updater only stops when all handlers that are updating their states have stopped
+                // assert: the state updater only stops when all handlers that are updating
+                // their states have stopped
                 state_tx
                     .send(state_updater.run().await)
                     .map_err(|_| report!(Error::ReturnState))

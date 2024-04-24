@@ -43,6 +43,8 @@ serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry = { workspace = true }
 sha3 = { workspace = true }
+starknet-core = "0.10.0"
+starknet-providers = "0.10.0"
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.14.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.14.2" }
 # Need to switch to our own fork of tendermint and tendermint-rpc due to event attribute value being nullable.
