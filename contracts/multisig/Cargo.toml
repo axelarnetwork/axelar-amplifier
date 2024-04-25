@@ -1,6 +1,6 @@
 [package]
 name = "multisig"
-version = "0.1.0"
+version = "0.1.1"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Multisig contract"
