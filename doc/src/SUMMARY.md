@@ -5,7 +5,7 @@
 # Contracts
 
 - [Service Registry](contracts/service_registry.md)
-- [Router](contracts/router)
+- [Router](contracts/router.md)
 - [Multisig](contracts/multisig.md)
 - [Gateway](contracts/gateway.md)
 - [Aggregate Verifier](contracts/aggregate_verifier.md)
