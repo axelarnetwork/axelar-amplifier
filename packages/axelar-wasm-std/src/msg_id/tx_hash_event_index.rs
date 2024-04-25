@@ -20,6 +20,13 @@ impl HexTxHashAndEventIndex {
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
+
+    pub fn new(tx_id: impl Into<[u8; 32]>, event_index: impl Into<u32>) -> Self {
+        Self {
+            tx_hash: tx_id.into(),
+            event_index: event_index.into(),
+        }
+    }
 }
 
 const PATTERN: &str = "^(0x[0-9a-f]{64})-(0|[1-9][0-9]*)$";

@@ -196,11 +196,7 @@ where
         let message_ids = messages
             .iter()
             .map(|message| {
-                HexTxHashAndEventIndex {
-                    tx_hash: message.tx_id.into(),
-                    event_index: message.event_index,
-                }
-                .to_string()
+                HexTxHashAndEventIndex::new(message.tx_id, message.event_index).to_string()
             })
             .collect::<Vec<_>>();
         let votes = info_span!(

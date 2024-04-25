@@ -100,10 +100,7 @@ mod test {
     };
     use sha3::{Digest, Keccak256};
 
-    use crate::{
-        error::ContractError,
-        events::{make_tx_event_confirmation, TxEventConfirmation},
-    };
+    use crate::{error::ContractError, events::TxEventConfirmation};
 
     use super::*;
 
@@ -379,11 +376,12 @@ mod test {
             .iter()
             .cloned()
             .map(|e| {
-                make_tx_event_confirmation(
+                (
                     e,
                     &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 )
-                .unwrap()
+                    .try_into()
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -459,11 +457,12 @@ mod test {
         let expected = messages
             .into_iter()
             .map(|e| {
-                make_tx_event_confirmation(
+                (
                     e,
                     &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 )
-                .unwrap()
+                    .try_into()
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 

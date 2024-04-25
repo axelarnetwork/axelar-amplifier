@@ -145,11 +145,8 @@ where
         let vote = info_span!(
             "verify a new worker set for Sui",
             poll_id = poll_id.to_string(),
-            id = Base58TxDigestAndEventIndex {
-                tx_digest: worker_set.tx_id.into(),
-                event_index: worker_set.event_index
-            }
-            .to_string()
+            id = Base58TxDigestAndEventIndex::new(worker_set.tx_id, worker_set.event_index)
+                .to_string()
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {

@@ -15,8 +15,7 @@ use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
 use crate::events::{
-    make_tx_event_confirmation, PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted,
-    WorkerSetConfirmation,
+    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
 };
 use crate::query::worker_set_status;
 use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
@@ -37,13 +36,10 @@ pub fn update_voting_threshold(
     deps: DepsMut,
     new_voting_threshold: MajorityThreshold,
 ) -> Result<Response, ContractError> {
-    CONFIG.update(
-        deps.storage,
-        |mut config| -> Result<_, ContractError> {
-            config.voting_threshold = new_voting_threshold;
-            Ok(config)
-        },
-    )?;
+    CONFIG.update(deps.storage, |mut config| -> Result<_, ContractError> {
+        config.voting_threshold = new_voting_threshold;
+        Ok(config)
+    })?;
     Ok(Response::new())
 }
 
@@ -148,7 +144,7 @@ pub fn verify_messages(
 
     let messages = msgs_to_verify
         .into_iter()
-        .map(|msg| make_tx_event_confirmation(msg, &config.msg_id_format))
+        .map(|msg| (msg, &config.msg_id_format).try_into())
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
     Ok(Response::new().add_event(

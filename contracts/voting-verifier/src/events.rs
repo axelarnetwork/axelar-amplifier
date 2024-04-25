@@ -170,20 +170,20 @@ pub struct TxEventConfirmation {
     pub payload_hash: [u8; 32],
 }
 
-pub fn make_tx_event_confirmation(
-    other: Message,
-    msg_id_format: &MessageIdFormat,
-) -> Result<TxEventConfirmation, ContractError> {
-    let (tx_id, event_index) = parse_message_id(other.cc_id.id, msg_id_format)?;
+impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
+    type Error = ContractError;
+    fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
+        let (tx_id, event_index) = parse_message_id(msg.cc_id.id, msg_id_format)?;
 
-    Ok(TxEventConfirmation {
-        tx_id,
-        event_index,
-        destination_address: other.destination_address,
-        destination_chain: other.destination_chain,
-        source_address: other.source_address,
-        payload_hash: other.payload_hash,
-    })
+        Ok(TxEventConfirmation {
+            tx_id,
+            event_index,
+            destination_address: msg.destination_address,
+            destination_chain: msg.destination_chain,
+            source_address: msg.source_address,
+            payload_hash: msg.payload_hash,
+        })
+    }
 }
 
 pub struct Voted {
@@ -234,7 +234,7 @@ mod test {
     use cosmwasm_std::{HexBinary, Uint256};
     use router_api::{CrossChainId, Message};
 
-    use super::{make_tx_event_confirmation, TxEventConfirmation, WorkerSetConfirmation};
+    use super::{TxEventConfirmation, WorkerSetConfirmation};
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
@@ -273,7 +273,7 @@ mod test {
         let msg = generate_msg(msg_id.to_string().parse().unwrap());
 
         let event =
-            make_tx_event_confirmation(msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex)
+            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex))
                 .unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
@@ -289,9 +289,11 @@ mod test {
         };
         let msg = generate_msg(msg_id.to_string().parse().unwrap());
 
-        let event =
-            make_tx_event_confirmation(msg.clone(), &MessageIdFormat::Base58TxDigestAndEventIndex)
-                .unwrap();
+        let event = TxEventConfirmation::try_from((
+            msg.clone(),
+            &MessageIdFormat::Base58TxDigestAndEventIndex,
+        ))
+        .unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
         assert_eq!(event.event_index, msg_id.event_index);
@@ -302,7 +304,7 @@ mod test {
     fn make_tx_event_confirmation_should_fail_with_invalid_message_id() {
         let msg = generate_msg("foobar".parse().unwrap());
         let event =
-            make_tx_event_confirmation(msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex);
+            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex));
         assert!(event.is_err());
     }
 
@@ -314,8 +316,10 @@ mod test {
         };
         let msg = generate_msg(msg_id.to_string().parse().unwrap());
 
-        let event =
-            make_tx_event_confirmation(msg.clone(), &MessageIdFormat::Base58TxDigestAndEventIndex);
+        let event = TxEventConfirmation::try_from((
+            msg.clone(),
+            &MessageIdFormat::Base58TxDigestAndEventIndex,
+        ));
         assert!(event.is_err());
     }
 

@@ -188,11 +188,7 @@ where
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = HexTxHashAndEventIndex {
-                tx_hash: worker_set.tx_id.into(),
-                event_index: worker_set.event_index
-            }
-            .to_string()
+            id = HexTxHashAndEventIndex::new(worker_set.tx_id, worker_set.event_index).to_string()
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
