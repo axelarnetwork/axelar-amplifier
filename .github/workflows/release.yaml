@@ -41,7 +41,7 @@ jobs:
           declare -A binaries_data=(
             ["ampd"]="ampd,major-ampd,minor-ampd,"
             ["aggregate-verifier"]="aggregate-verifier,/(major-aggregate-verifier)|(major-contracts)/,/(minor-aggregate-verifier)|(minor-contracts)/,contracts/aggregate-verifier packages"
-            ["router"]="router,/(major-router)|(major-contracts)/,/(minor-router)|(minor-contracts)/,contracts/router packages"
+            ["router"]="router,/(major-router)|(major-contracts)|(major-connection-router)/,/(minor-router)|(minor-contracts)|(minor-connection-router)/,contracts/router packages"
             ["gateway"]="gateway,/(major-gateway)|(major-contracts)/,/(minor-gateway)|(minor-contracts)/,contracts/gateway packages"
             ["multisig"]="multisig,/(major-multisig)|(major-contracts)/,/(minor-multisig)|(minor-contracts)/,contracts/multisig packages"
             ["multisig-prover"]="multisig-prover,/(major-multisig-prover)|(major-contracts)/,/(minor-multisig-prover)|(minor-contracts)/,contracts/multisig-prover packages"
