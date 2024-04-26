@@ -1,15 +1,14 @@
+use std::str::FromStr;
+
 use axelar_wasm_std::{msg_id::tx_hash_event_index::HexTxHashAndEventIndex, nonempty};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
-use hex::{FromHex, ToHex};
+use hex::ToHex;
 use router_api::{Address, ChainName, CrossChainId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ContractError;
-use voting_verifier::events::TX_HASH_EVENT_INDEX_SEPARATOR;
-
-const ZEROX_PREFIX: &str = "0x";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // this matches the message type defined in the nexus module
@@ -29,25 +28,12 @@ impl CustomMsg for Message {}
 // it's parsed into u64 instead of u32 (https://github.com/axelarnetwork/axelar-amplifier/blob/bf0b3049c83e540989c7dad1c609c7e2ef6ed2e5/contracts/voting-verifier/src/events.rs#L162)
 // here in order to match the message type defined in the nexus module. Changing nexus to use u32 instead is not worth the effort.
 fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), ContractError> {
-    // expected format: <tx_id>:<index>
-    let components = message_id
-        .split(TX_HASH_EVENT_INDEX_SEPARATOR)
-        .collect::<Vec<_>>();
+    let id = HexTxHashAndEventIndex::from_str(message_id)
+        .change_context(ContractError::InvalidMessageId(message_id.into()))?;
+    let tx_id = nonempty::Vec::<u8>::try_from(id.tx_hash.to_vec())
+        .change_context(ContractError::InvalidMessageId(message_id.into()))?;
 
-    if components.len() != 2 {
-        return Err(ContractError::InvalidMessageId(message_id.to_string()).into());
-    }
-
-    // TODO: decode differently depending on the chain?
-    let tx_id = <Vec<u8>>::from_hex(components[0].trim_start_matches(ZEROX_PREFIX))
-        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.to_string()))?;
-    let tx_id: nonempty::Vec<u8> = <nonempty::Vec<u8>>::try_from(tx_id)
-        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.to_string()))?;
-    let index = components[1]
-        .parse::<u64>()
-        .change_context_lazy(|| ContractError::InvalidMessageId(message_id.to_string()))?;
-
-    Ok((tx_id, index))
+    Ok((tx_id, id.event_index.into()))
 }
 
 impl From<router_api::Message> for Message {
