@@ -168,4 +168,11 @@ impl MessageToSign {
             Encoder::Bcs => todo!(),
         }
     }
+
+    pub fn message_ids(&self) -> Vec<CrossChainId> {
+        match &self.payload {
+            Payload::Messages(msgs) => msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
+            Payload::WorkerSet(_) => vec![],
+        }
+    }
 }

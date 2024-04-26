@@ -24,7 +24,6 @@ path = "src/bin/schema.rs"
 backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all instantiate/execute/query exports
 library = []
-amplifier-gateway = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \

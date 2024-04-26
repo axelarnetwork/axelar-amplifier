@@ -50,7 +50,7 @@ impl MultisigProverContract {
                     worker_set_diff_threshold: 0,
                     encoder: Encoder::Abi,
                     key_type: KeyType::Ecdsa,
-                    domain_separator: [0; 32].into(),
+                    domain_separator: [0; 32],
                 },
                 &[],
                 "multisig_prover",
