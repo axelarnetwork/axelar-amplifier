@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use block_height_monitor::BlockHeightMonitor;
+use connection_router_api::ChainName;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
@@ -10,6 +11,8 @@ use error_stack::{report, FutureExt, Result, ResultExt};
 use solana::rpc::RpcCacheWrapper;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
+use evm::finalizer::{pick, Finalization};
+use evm::json_rpc::EthereumClient;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -39,6 +42,7 @@ mod event_processor;
 mod event_sub;
 mod evm;
 mod handlers;
+mod health_check;
 mod json_rpc;
 mod queue;
 mod solana;
@@ -73,6 +77,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         event_buffer_cap,
         event_stream_timeout,
         service_registry: _service_registry,
+        health_check_bind_addr,
     } = cfg;
 
     let tm_client = tendermint_rpc::HttpClient::new(tm_jsonrpc.to_string().as_str())
@@ -124,6 +129,8 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         .build()
         .change_context(Error::Broadcaster)?;
 
+    let health_check_server = health_check::Server::new(health_check_bind_addr);
+
     App::new(
         tm_client,
         broadcaster,
@@ -132,8 +139,26 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         broadcast,
         event_buffer_cap,
         block_height_monitor,
+        health_check_server,
     )
     .configure_handlers(worker, handlers, event_stream_timeout)
+    .await
+}
+
+async fn check_finalizer<'a, C>(
+    chain_name: &ChainName,
+    finalization: &Finalization,
+    rpc_client: &'a C,
+) -> Result<(), Error>
+where
+    C: EthereumClient + Send + Sync,
+{
+    let _ = pick(finalization, rpc_client, 0)
+        .latest_finalized_block_height()
+        .await
+        .change_context_lazy(|| Error::InvalidFinalizerType(chain_name.to_owned()))?;
+
+    Ok(())
 }
 
 struct App<T>
@@ -148,6 +173,7 @@ where
     state_updater: StateUpdater,
     ecdsa_client: SharableEcdsaClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+    health_check_server: health_check::Server,
     token: CancellationToken,
 }
 
@@ -155,6 +181,7 @@ impl<T> App<T>
 where
     T: Broadcaster + Send + Sync + 'static,
 {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: T,
@@ -163,6 +190,7 @@ where
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
+        health_check_server: health_check::Server,
     ) -> Self {
         let token = CancellationToken::new();
 
@@ -188,11 +216,12 @@ where
             state_updater,
             ecdsa_client,
             block_height_monitor,
+            health_check_server,
             token,
         }
     }
 
-    fn configure_handlers(
+    async fn configure_handlers(
         mut self,
         worker: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
@@ -204,50 +233,62 @@ where
                     chain,
                     cosmwasm_contract,
                     rpc_timeout,
-                } => self.create_handler_task(
-                    format!("{}-msg-verifier", chain.name),
-                    handlers::evm_verify_msg::Handler::new(
-                        worker.clone(),
-                        cosmwasm_contract,
-                        chain.name,
-                        chain.finalization,
-                        json_rpc::Client::new_http(
-                            &chain.rpc_url,
-                            reqwest::ClientBuilder::new()
-                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .build()
-                                .change_context(Error::Connection)?,
+                } => {
+                    let rpc_client = json_rpc::Client::new_http(
+                        &chain.rpc_url,
+                        reqwest::ClientBuilder::new()
+                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .build()
+                            .change_context(Error::Connection)?,
+                    );
+
+                    check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+
+                    self.create_handler_task(
+                        format!("{}-msg-verifier", chain.name),
+                        handlers::evm_verify_msg::Handler::new(
+                            worker.clone(),
+                            cosmwasm_contract,
+                            chain.name,
+                            chain.finalization,
+                            rpc_client,
+                            self.broadcaster.client(),
+                            self.block_height_monitor.latest_block_height(),
                         ),
-                        self.broadcaster.client(),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    stream_timeout,
-                ),
+                        stream_timeout,
+                    )
+                }
                 handlers::config::Config::EvmWorkerSetVerifier {
                     chain,
                     cosmwasm_contract,
                     rpc_timeout,
-                } => self.create_handler_task(
-                    format!("{}-worker-set-verifier", chain.name),
-                    handlers::evm_verify_worker_set::Handler::new(
-                        worker.clone(),
-                        cosmwasm_contract,
-                        chain.name,
-                        chain.finalization,
-                        json_rpc::Client::new_http(
-                            &chain.rpc_url,
-                            reqwest::ClientBuilder::new()
-                                .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
-                                .build()
-                                .change_context(Error::Connection)?,
+                } => {
+                    let rpc_client = json_rpc::Client::new_http(
+                        &chain.rpc_url,
+                        reqwest::ClientBuilder::new()
+                            .connect_timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
+                            .build()
+                            .change_context(Error::Connection)?,
+                    );
+
+                    check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
+
+                    self.create_handler_task(
+                        format!("{}-worker-set-verifier", chain.name),
+                        handlers::evm_verify_worker_set::Handler::new(
+                            worker.clone(),
+                            cosmwasm_contract,
+                            chain.name,
+                            chain.finalization,
+                            rpc_client,
+                            self.broadcaster.client(),
+                            self.block_height_monitor.latest_block_height(),
                         ),
-                        self.broadcaster.client(),
-                        self.block_height_monitor.latest_block_height(),
-                    ),
-                    stream_timeout,
-                ),
+                        stream_timeout,
+                    )
+                }
                 handlers::config::Config::MultisigSigner { cosmwasm_contract } => self
                     .create_handler_task(
                         "multisig-signer",
@@ -389,6 +430,7 @@ where
             broadcaster,
             state_updater,
             block_height_monitor,
+            health_check_server,
             token,
             ..
         } = self;
@@ -420,6 +462,11 @@ where
                 event_publisher
                     .run(token)
                     .change_context(Error::EventPublisher)
+            }))
+            .add_task(CancellableTask::create(|token| {
+                health_check_server
+                    .run(token)
+                    .change_context(Error::HealthCheck)
             }))
             .add_task(CancellableTask::create(|token| {
                 event_processor
@@ -469,4 +516,8 @@ pub enum Error {
     InvalidInput,
     #[error("block height monitor failed")]
     BlockHeightMonitor,
+    #[error("invalid finalizer type for chain {0}")]
+    InvalidFinalizerType(ChainName),
+    #[error("health check is not working")]
+    HealthCheck,
 }

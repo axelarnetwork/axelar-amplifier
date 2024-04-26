@@ -1,6 +1,7 @@
-use cosmwasm_std::{HexBinary, Uint128};
+use cosmwasm_std::{Addr, HexBinary, Uint128};
 
 use connection_router_api::{CrossChainId, Message};
+use integration_tests::contract::Contract;
 
 use crate::test_utils::AXL_DENOMINATION;
 
@@ -108,4 +109,53 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
     }
+}
+
+#[test]
+fn routing_to_incorrect_gateway_interface() {
+    let (mut protocol, chain1, chain2, _, _) = test_utils::setup_test_case();
+
+    let msgs = vec![Message {
+        cc_id: CrossChainId {
+            chain: chain1.chain_name.clone(),
+            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
+                .to_string()
+                .try_into()
+                .unwrap(),
+        },
+        source_address: "0xBf12773B49()0e1Deb57039061AAcFA2A87DEaC9b9"
+            .to_string()
+            .try_into()
+            .unwrap(),
+        destination_address: "0xce16F69375520ab01377ce7B88f5BA8C48F8D666"
+            .to_string()
+            .try_into()
+            .unwrap(),
+        destination_chain: chain2.chain_name.clone(),
+        payload_hash: HexBinary::from_hex(
+            "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
+        )
+        .unwrap()
+        .as_slice()
+        .try_into()
+        .unwrap(),
+    }];
+
+    test_utils::upgrade_gateway(
+        &mut protocol.app,
+        &protocol.connection_router,
+        &protocol.governance_address,
+        &chain2.chain_name,
+        Addr::unchecked("some random address")
+            .to_string()
+            .try_into()
+            .unwrap(), // gateway address does not implement required interface,
+    );
+
+    let response = protocol.connection_router.execute(
+        &mut protocol.app,
+        chain1.gateway.contract_addr.clone(),
+        &connection_router_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+    );
+    assert!(response.is_err())
 }

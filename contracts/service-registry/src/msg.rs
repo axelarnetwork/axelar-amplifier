@@ -30,6 +30,11 @@ pub enum ExecuteMsg {
         workers: Vec<String>,
         service_name: String,
     },
+    // Jail workers. Can only be called by governance account. Jailed workers are not allowed to unbond or claim stake.
+    JailWorkers {
+        workers: Vec<String>,
+        service_name: String,
+    },
 
     // Register support for the specified chains. Called by the worker.
     RegisterChainSupport {

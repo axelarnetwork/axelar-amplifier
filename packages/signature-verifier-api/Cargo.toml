@@ -7,7 +7,6 @@ edition = "2021"
 [dependencies]
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-cosmwasm-storage = { workspace = true }
 error-stack = { workspace = true }
 thiserror = { workspace = true }
 

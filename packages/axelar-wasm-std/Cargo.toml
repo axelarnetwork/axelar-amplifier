@@ -31,11 +31,12 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 [dependencies]
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
-cosmwasm-storage = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
+lazy_static = "1.4.0"
 num-traits = { workspace = true }
+regex = { version = "1.10.0", default-features = false, features = ["perf", "std"] }
 report = { workspace = true }
 schemars = "0.8.10"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }

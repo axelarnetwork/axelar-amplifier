@@ -1,7 +1,7 @@
 use axelar_wasm_std::{hash::Hash, operators::Operators, VerificationStatus};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdError,
     StdResult, Uint256,
 };
 use cw_multi_test::{App, Executor};
@@ -65,7 +65,7 @@ pub fn confirm_worker_set(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetWorkerSetStatus { new_operators } => to_json_binary(
+        QueryMsg::GetWorkerSetStatus { new_operators } => to_binary(
             &CONFIRMED_WORKER_SETS
                 .may_load(deps.storage, &new_operators.hash())?
                 .map_or(VerificationStatus::None, |_| {
