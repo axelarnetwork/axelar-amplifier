@@ -25,6 +25,7 @@ pub fn instantiate(
         confirmation_height: msg.confirmation_height,
         source_chain: msg.source_chain,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
+        msg_id_format: msg.msg_id_format,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -84,18 +85,22 @@ mod test {
     };
 
     use axelar_wasm_std::{
-        nonempty, operators::Operators, voting::Vote, MajorityThreshold, Threshold,
-        VerificationStatus,
+        msg_id::{
+            base_58_event_index::Base58TxDigestAndEventIndex,
+            tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
+        },
+        nonempty,
+        operators::Operators,
+        voting::Vote,
+        MajorityThreshold, Threshold, VerificationStatus,
     };
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
     };
+    use sha3::{Digest, Keccak256};
 
-    use crate::{
-        error::ContractError,
-        events::{TxEventConfirmation, TX_HASH_EVENT_INDEX_SEPARATOR},
-    };
+    use crate::{error::ContractError, events::TxEventConfirmation};
 
     use super::*;
 
@@ -140,7 +145,10 @@ mod test {
         workers
     }
 
-    fn setup(workers: Vec<Worker>) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+    fn setup(
+        workers: Vec<Worker>,
+        msg_id_format: &MessageIdFormat,
+    ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
 
         let config = Config {
@@ -153,6 +161,7 @@ mod test {
             confirmation_height: 100,
             source_chain: source_chain(),
             rewards_contract: Addr::unchecked(REWARDS_ADDRESS),
+            msg_id_format: msg_id_format.clone(),
         };
         CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
@@ -177,18 +186,32 @@ mod test {
         deps
     }
 
-    fn message_id(id: &str, index: u64) -> nonempty::String {
-        format!("{}{}{}", id, TX_HASH_EVENT_INDEX_SEPARATOR, index)
-            .try_into()
-            .unwrap()
+    fn message_id(id: &str, index: u64, msg_id_format: &MessageIdFormat) -> nonempty::String {
+        let tx_hash = Keccak256::digest(id.as_bytes()).into();
+        match msg_id_format {
+            MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
+                tx_hash,
+                event_index: index as u32,
+            }
+            .to_string()
+            .parse()
+            .unwrap(),
+            MessageIdFormat::Base58TxDigestAndEventIndex => Base58TxDigestAndEventIndex {
+                tx_digest: tx_hash,
+                event_index: index as u32,
+            }
+            .to_string()
+            .parse()
+            .unwrap(),
+        }
     }
 
-    fn messages(len: u64) -> Vec<Message> {
+    fn messages(len: u64, msg_id_format: &MessageIdFormat) -> Vec<Message> {
         (0..len)
             .map(|i| Message {
                 cc_id: CrossChainId {
                     chain: source_chain(),
-                    id: message_id("id", i),
+                    id: message_id("id", i, msg_id_format),
                 },
                 source_address: format!("source_address{i}").parse().unwrap(),
                 destination_chain: format!("destination-chain{i}").parse().unwrap(),
@@ -217,15 +240,16 @@ mod test {
 
     #[test]
     fn should_fail_if_messages_are_not_from_same_source() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let msg = ExecuteMsg::VerifyMessages {
             messages: vec![
                 Message {
                     cc_id: CrossChainId {
                         chain: source_chain(),
-                        id: message_id("id", 1),
+                        id: message_id("id", 1, &msg_id_format),
                     },
                     source_address: "source_address1".parse().unwrap(),
                     destination_chain: "destination-chain1".parse().unwrap(),
@@ -235,7 +259,7 @@ mod test {
                 Message {
                     cc_id: CrossChainId {
                         chain: "other-chain".parse().unwrap(),
-                        id: message_id("id", 2),
+                        id: message_id("id", 2, &msg_id_format),
                     },
                     source_address: "source_address2".parse().unwrap(),
                     destination_chain: "destination-chain2".parse().unwrap(),
@@ -249,12 +273,65 @@ mod test {
     }
 
     #[test]
-    fn should_not_verify_messages_if_in_progress() {
+    fn should_fail_if_messages_have_invalid_msg_id() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
+
+        let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
+        let msg_id = "foobar";
+        messages[0].cc_id.id = msg_id.parse().unwrap();
+
+        let msg = ExecuteMsg::VerifyMessages { messages };
+
+        let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::InvalidMessageID(msg_id.to_string()));
+    }
+
+    #[test]
+    fn should_fail_if_messages_have_base58_msg_id_but_contract_expects_hex() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let workers = workers(2);
+        let mut deps = setup(workers.clone(), &msg_id_format);
+
+        let messages = messages(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
+        let msg = ExecuteMsg::VerifyMessages {
+            messages: messages.clone(),
+        };
+
+        let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+        );
+    }
+
+    #[test]
+    fn should_fail_if_messages_have_hex_msg_id_but_contract_expects_base58() {
+        let msg_id_format = MessageIdFormat::Base58TxDigestAndEventIndex;
+        let workers = workers(2);
+        let mut deps = setup(workers.clone(), &msg_id_format);
+
+        let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
+        let msg = ExecuteMsg::VerifyMessages {
+            messages: messages.clone(),
+        };
+
+        let err = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap_err();
+        assert_contract_err_strings_equal(
+            err,
+            ContractError::InvalidMessageID(messages[0].cc_id.id.to_string()),
+        );
+    }
+
+    #[test]
+    fn should_not_verify_messages_if_in_progress() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let workers = workers(2);
+        let mut deps = setup(workers.clone(), &msg_id_format);
         let messages_count = 5;
         let messages_in_progress = 3;
-        let messages = messages(messages_count as u64);
+        let messages = messages(messages_count as u64, &msg_id_format);
 
         execute(
             deps.as_mut(),
@@ -298,7 +375,14 @@ mod test {
         let expected = messages[messages_in_progress..]
             .iter()
             .cloned()
-            .map(|e| e.try_into().unwrap())
+            .map(|e| {
+                (
+                    e,
+                    &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                )
+                    .try_into()
+                    .unwrap()
+            })
             .collect::<Vec<_>>();
 
         assert_eq!(actual, expected);
@@ -306,9 +390,10 @@ mod test {
 
     #[test]
     fn should_retry_if_message_not_verified() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
-        let messages = messages(5);
+        let mut deps = setup(workers.clone(), &msg_id_format);
+        let messages = messages(5, &msg_id_format);
 
         let msg = ExecuteMsg::VerifyMessages {
             messages: messages.clone(),
@@ -371,7 +456,14 @@ mod test {
 
         let expected = messages
             .into_iter()
-            .map(|e| e.try_into().unwrap())
+            .map(|e| {
+                (
+                    e,
+                    &axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
+                )
+                    .try_into()
+                    .unwrap()
+            })
             .collect::<Vec<_>>();
 
         assert_eq!(actual, expected);
@@ -379,10 +471,11 @@ mod test {
 
     #[test]
     fn should_retry_if_status_not_final() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let messages = messages(4);
+        let messages = messages(4, &msg_id_format);
 
         // 1. First verification
 
@@ -495,10 +588,11 @@ mod test {
 
     #[test]
     fn should_query_status_none_when_not_verified() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let deps = setup(workers.clone());
+        let deps = setup(workers.clone(), &msg_id_format);
 
-        let messages = messages(10);
+        let messages = messages(10, &msg_id_format);
 
         let statuses: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
@@ -519,10 +613,11 @@ mod test {
 
     #[test]
     fn should_query_status_in_progress_when_no_consensus_and_poll_not_ended() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let messages = messages(10);
+        let messages = messages(10, &msg_id_format);
 
         // starts verification process
         execute(
@@ -554,10 +649,11 @@ mod test {
 
     #[test]
     fn should_query_status_failed_to_verify_when_no_consensus_and_poll_ended() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let messages = messages(10);
+        let messages = messages(10, &msg_id_format);
 
         // starts verification process
         execute(
@@ -600,15 +696,25 @@ mod test {
 
     #[test]
     fn should_query_status_according_to_vote() {
-        for (consensus_vote, expected_status) in [
+        let test_cases = [
             (Vote::SucceededOnChain, VerificationStatus::SucceededOnChain),
             (Vote::FailedOnChain, VerificationStatus::FailedOnChain),
             (Vote::NotFound, VerificationStatus::NotFound),
-        ] {
-            let workers = workers(2);
-            let mut deps = setup(workers.clone());
+        ]
+        .iter()
+        .flat_map(|(v, s)| {
+            [
+                (v, s, MessageIdFormat::HexTxHashAndEventIndex),
+                (v, s, MessageIdFormat::Base58TxDigestAndEventIndex),
+            ]
+        })
+        .collect::<Vec<_>>();
 
-            let messages = messages(10);
+        for (consensus_vote, expected_status, msg_id_format) in test_cases {
+            let workers = workers(2);
+            let mut deps = setup(workers.clone(), &msg_id_format);
+
+            let messages = messages(10, &msg_id_format);
 
             // starts verification process
             execute(
@@ -624,7 +730,7 @@ mod test {
             // all workers vote
             let vote_msg = ExecuteMsg::Vote {
                 poll_id: Uint64::one().into(),
-                votes: vec![consensus_vote; messages.len()],
+                votes: vec![consensus_vote.clone(); messages.len()],
             };
             workers.iter().for_each(|worker| {
                 execute(
@@ -661,19 +767,20 @@ mod test {
             .unwrap();
             assert_eq!(
                 statuses,
-                msgs_and_statuses(messages.clone(), expected_status)
+                msgs_and_statuses(messages.clone(), *expected_status)
             );
         }
     }
 
     #[test]
     fn should_start_worker_set_confirmation() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let msg = ExecuteMsg::VerifyWorkerSet {
-            message_id: message_id("id", 0),
+            message_id: message_id("id", 0, &msg_id_format),
             new_operators: operators.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
@@ -695,12 +802,13 @@ mod test {
 
     #[test]
     fn should_confirm_worker_set() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let msg = ExecuteMsg::VerifyWorkerSet {
-            message_id: message_id("id", 0),
+            message_id: message_id("id", 0, &msg_id_format),
             new_operators: operators.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
@@ -746,8 +854,9 @@ mod test {
 
     #[test]
     fn should_not_confirm_worker_set() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let res = execute(
@@ -755,7 +864,7 @@ mod test {
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
-                message_id: message_id("id", 0),
+                message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
         );
@@ -800,8 +909,9 @@ mod test {
 
     #[test]
     fn should_confirm_worker_set_after_failed() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let res = execute(
@@ -809,7 +919,7 @@ mod test {
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
-                message_id: message_id("id", 0),
+                message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
         );
@@ -856,7 +966,7 @@ mod test {
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
-                message_id: message_id("id", 0),
+                message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
         );
@@ -901,8 +1011,9 @@ mod test {
 
     #[test]
     fn should_not_confirm_twice() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
         let res = execute(
@@ -910,7 +1021,7 @@ mod test {
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
-                message_id: message_id("id", 0),
+                message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
         );
@@ -944,7 +1055,7 @@ mod test {
             mock_env_expired(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
-                message_id: message_id("id", 0),
+                message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
         )
@@ -954,8 +1065,9 @@ mod test {
 
     #[test]
     fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let workers = workers(2);
-        let mut deps = setup(workers.clone());
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         let new_voting_threshold: MajorityThreshold = Threshold::try_from((
             initial_voting_threshold().numerator().u64() + 1,
@@ -988,9 +1100,10 @@ mod test {
         let majority = (workers.len() as u64 * initial_threshold.numerator().u64())
             .div_ceil(initial_threshold.denominator().u64());
 
-        let mut deps = setup(workers.clone());
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let messages = messages(1);
+        let messages = messages(1, &msg_id_format);
 
         execute(
             deps.as_mut(),
@@ -1073,7 +1186,8 @@ mod test {
         let old_majority = (workers.len() as u64 * initial_threshold.numerator().u64())
             .div_ceil(initial_threshold.denominator().u64());
 
-        let mut deps = setup(workers.clone());
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let mut deps = setup(workers.clone(), &msg_id_format);
 
         // increase the threshold prior to starting a poll
         let new_voting_threshold: MajorityThreshold =
@@ -1092,7 +1206,7 @@ mod test {
         )
         .unwrap();
 
-        let messages = messages(1);
+        let messages = messages(1, &msg_id_format);
 
         // start the poll, should just the new threshold
         execute(

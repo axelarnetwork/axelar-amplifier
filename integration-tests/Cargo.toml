@@ -39,6 +39,7 @@ gateway-api = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 multisig = { workspace = true }
 multisig-prover = { workspace = true }
+rand = "0.8.5"
 report = { workspace = true }
 rewards = { workspace = true }
 router = { workspace = true }
