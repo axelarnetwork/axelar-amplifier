@@ -20,7 +20,7 @@ pub fn messages_status(
     messages
         .iter()
         .map(|message| message_status(deps, message).map(|status| (message.to_owned(), status)))
-        .collect::<Result<Vec<_>, _>>()
+        .collect()
 }
 
 pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
