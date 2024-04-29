@@ -111,15 +111,14 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         .expect("failed to convert to account identifier")
         .into();
 
-    let broadcaster = broadcaster::BroadcastClientBuilder::default()
+    let broadcaster = broadcaster::BroadcastClient::builder()
         .query_client(query_client)
         .address(worker.clone())
         .client(service_client)
         .signer(ecdsa_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
-        .build()
-        .change_context(Error::Broadcaster)?;
+        .build();
 
     let health_check_server = health_check::Server::new(health_check_bind_addr);
 
