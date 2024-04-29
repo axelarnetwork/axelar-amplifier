@@ -5,7 +5,7 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
-use multisig::{msg::Signer, worker_set::WorkerSet};
+use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, worker_set::WorkerSet};
 
 use crate::error::ContractError;
 use crate::types::Payload;
@@ -36,8 +36,7 @@ impl From<&Signer> for WeightedSigner {
             .expect("weight is too large to convert to Uint128");
 
         WeightedSigner {
-            signer: evm_address(signer.pub_key.as_ref())
-                .expect("failed to convert pub key to evm address"),
+            signer: evm_address(&signer.pub_key).expect("failed to convert pub key to evm address"),
             weight: weight.u128(),
         }
     }
@@ -96,13 +95,18 @@ pub fn encode(payload: &Payload) -> Vec<u8> {
     }
 }
 
-fn evm_address(pub_key: &[u8]) -> Result<Address, ContractError> {
-    PublicKey::from_sec1_bytes(pub_key)
-        .map(|pub_key| pub_key.to_encoded_point(false))
-        .map(|pub_key| Address::from_raw_public_key(&pub_key.as_bytes()[1..]))
-        .map_err(|err| ContractError::InvalidPublicKey {
-            reason: err.to_string(),
-        })
+fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
+    match pub_key {
+        MultisigPublicKey::Ecdsa(pub_key) => PublicKey::from_sec1_bytes(pub_key)
+            .map(|pub_key| pub_key.to_encoded_point(false))
+            .map(|pub_key| Address::from_raw_public_key(&pub_key.as_bytes()[1..]))
+            .map_err(|err| ContractError::InvalidPublicKey {
+                reason: err.to_string(),
+            }),
+        _ => Err(ContractError::InvalidPublicKey {
+            reason: "expect ECDSA public key".to_string(),
+        }),
+    }
 }
 
 #[cfg(test)]
