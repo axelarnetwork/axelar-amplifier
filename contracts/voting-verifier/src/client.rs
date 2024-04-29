@@ -218,6 +218,7 @@ mod test {
             confirmation_height: 10,
             source_chain: "source-chain".parse().unwrap(),
             rewards_address: "rewards".to_string(),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
 
         instantiate(deps, env, info.clone(), msg.clone()).unwrap();

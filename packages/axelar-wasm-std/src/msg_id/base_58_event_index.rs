@@ -20,6 +20,13 @@ impl Base58TxDigestAndEventIndex {
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
     }
+
+    pub fn new(tx_id: impl Into<[u8; 32]>, event_index: impl Into<u32>) -> Self {
+        Self {
+            tx_digest: tx_id.into(),
+            event_index: event_index.into(),
+        }
+    }
 }
 
 const PATTERN: &str = "^([1-9A-HJ-NP-Za-km-z]{32,44})-(0|[1-9][0-9]*)$";

@@ -1,6 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use axelar_wasm_std::{
+    msg_id::MessageIdFormat,
     nonempty,
     operators::Operators,
     voting::{PollId, Vote},
@@ -30,6 +31,8 @@ pub struct InstantiateMsg {
     pub source_chain: ChainName,
     /// Rewards contract address on axelar.
     pub rewards_address: String,
+    /// Format that incoming messages should use for the id field of CrossChainId
+    pub msg_id_format: MessageIdFormat,
 }
 
 #[cw_serde]
