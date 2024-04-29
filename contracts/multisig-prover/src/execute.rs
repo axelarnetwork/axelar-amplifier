@@ -17,10 +17,9 @@ use crate::{
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{
-        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, MESSAGE_TO_SIGN, NEXT_WORKER_SET,
-        REPLY_BATCH,
+        Config, COMMAND, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH,
     },
-    types::{BatchId, MessageToSign, Payload, WorkersInfo},
+    types::{BatchId, Command2, Payload, WorkersInfo},
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -231,15 +230,12 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             save_next_worker_set(deps.storage, &new_worker_set)?;
 
-            let message_to_sign = MessageToSign::new(Payload::WorkerSet(new_worker_set));
-            MESSAGE_TO_SIGN.save(deps.storage, &message_to_sign.id, &message_to_sign)?;
-            REPLY_BATCH.save(deps.storage, &message_to_sign.id)?;
+            let command = Command2::new(Payload::WorkerSet(new_worker_set));
+            COMMAND.save(deps.storage, &command.id, &command)?;
+            REPLY_BATCH.save(deps.storage, &command.id)?;
 
-            let msg_digest = message_to_sign.msg_digest(
-                config.encoder,
-                &config.domain_separator,
-                &cur_worker_set,
-            );
+            let msg_digest =
+                command.msg_digest(config.encoder, &config.domain_separator, &cur_worker_set);
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 worker_set_id: cur_worker_set.id(),

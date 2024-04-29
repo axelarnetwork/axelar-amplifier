@@ -141,15 +141,16 @@ impl Payload {
     }
 }
 
+// TODO: use Command2 due to name conflict, remove Command struct after the migration.
 #[cw_serde]
-pub struct MessageToSign {
+pub struct Command2 {
     pub id: BatchId,
     pub payload: Payload,
 }
 
-impl MessageToSign {
-    pub fn new(payload: Payload) -> MessageToSign {
-        MessageToSign {
+impl Command2 {
+    pub fn new(payload: Payload) -> Self {
+        Command2 {
             id: payload.id(),
             payload,
         }

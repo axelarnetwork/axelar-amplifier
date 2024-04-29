@@ -7,7 +7,7 @@ use multisig::worker_set::WorkerSet;
 use router_api::ChainName;
 
 use crate::encoding::Encoder;
-use crate::types::{BatchId, CommandBatch, MessageToSign};
+use crate::types::{BatchId, Command2, CommandBatch};
 
 #[cw_serde]
 pub struct Config {
@@ -36,7 +36,7 @@ fn default_governance() -> Addr {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
-pub const MESSAGE_TO_SIGN: Map<&BatchId, MessageToSign> = Map::new("message_to_sign");
+pub const COMMAND: Map<&BatchId, Command2> = Map::new("command");
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");
