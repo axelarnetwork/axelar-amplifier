@@ -388,6 +388,16 @@ mod tests {
         assert!(!chain_name.eq(&"Ethereum-1".to_string()));
     }
 
+    #[test]
+    fn json_schema_for_gateway_direction_flag_set_does_not_panic() {
+        let gen = &mut SchemaGenerator::default();
+        // check it doesn't panic
+        let _ = FlagSet::<GatewayDirection>::json_schema(gen);
+
+        // make sure it's the same as the underlying type
+        assert_eq!(GatewayDirection::json_schema(gen), u8::json_schema(gen));
+    }
+
     fn dummy_message() -> Message {
         Message {
             cc_id: CrossChainId {
