@@ -54,7 +54,6 @@ fn apply(
     check_for_duplicates(msgs)?
         .then(|msgs| verifier.messages_status(msgs))
         .change_context(Error::MessageStatus)?
-        .into_iter()
         .then(group_by_status)
         .then(action)
         .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
@@ -77,9 +76,10 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
 }
 
 fn group_by_status(
-    msgs_with_status: impl Iterator<Item = (Message, VerificationStatus)>,
+    msgs_with_status: impl IntoIterator<Item = (Message, VerificationStatus)>,
 ) -> Vec<(VerificationStatus, Vec<Message>)> {
     msgs_with_status
+        .into_iter()
         .map(|(msg, status)| (status, msg))
         .into_group_map()
         .into_iter()
