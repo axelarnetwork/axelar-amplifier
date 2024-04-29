@@ -10,6 +10,8 @@ use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use error_stack::Report;
 use error_stack::ResultExt;
 use flagset::flags;
+use schemars::gen::SchemaGenerator;
+use schemars::schema::Schema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
@@ -243,12 +245,22 @@ impl AsRef<str> for ChainName {
 
 flags! {
     #[repr(u8)]
-    #[derive(Deserialize, Serialize, Hash, JsonSchema)]
+    #[derive(Deserialize, Serialize, Hash)]
     pub enum GatewayDirection: u8 {
         None = 0,
         Incoming = 1,
         Outgoing = 2,
         Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
+    }
+}
+
+impl JsonSchema for GatewayDirection {
+    fn schema_name() -> String {
+        "GatewayDirection".to_string()
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        gen.subschema_for::<u8>()
     }
 }
 
