@@ -1,13 +1,17 @@
-use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint256};
 use cw_storage_plus::{Item, Map};
+
+use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use multisig::key::KeyType;
 use multisig::worker_set::WorkerSet;
 use router_api::ChainName;
 
-use crate::encoding::Encoder;
-use crate::types::{BatchId, Command2, CommandBatch};
+use crate::{
+    command::Command,
+    encoding::Encoder,
+    types::{BatchId, CommandBatch},
+};
 
 #[cw_serde]
 pub struct Config {
@@ -36,7 +40,7 @@ fn default_governance() -> Addr {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
-pub const COMMAND: Map<&BatchId, Command2> = Map::new("command");
+pub const COMMAND: Map<&BatchId, Command> = Map::new("command");
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");

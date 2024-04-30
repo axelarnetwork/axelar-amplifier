@@ -13,13 +13,14 @@ use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedWorker;
 
 use crate::{
+    command::{Command, Payload},
     contract::START_MULTISIG_REPLY_ID,
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
     state::{
         Config, COMMAND, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH,
     },
-    types::{BatchId, Command2, Payload, WorkersInfo},
+    types::{BatchId, WorkersInfo},
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -230,7 +231,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             save_next_worker_set(deps.storage, &new_worker_set)?;
 
-            let command = Command2::new(Payload::WorkerSet(new_worker_set));
+            let command = Command::new(Payload::WorkerSet(new_worker_set));
             COMMAND.save(deps.storage, &command.id, &command)?;
             REPLY_BATCH.save(deps.storage, &command.id)?;
 

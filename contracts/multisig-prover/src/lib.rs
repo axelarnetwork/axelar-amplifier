@@ -1,3 +1,4 @@
+pub mod command;
 pub mod contract;
 pub mod encoding;
 pub mod error;
