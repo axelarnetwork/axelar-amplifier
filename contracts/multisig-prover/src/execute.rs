@@ -236,7 +236,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             REPLY_BATCH.save(deps.storage, &command.id)?;
 
             let msg_digest =
-                command.msg_digest(config.encoder, &config.domain_separator, &cur_worker_set);
+                command.digest(config.encoder, &config.domain_separator, &cur_worker_set);
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 worker_set_id: cur_worker_set.id(),

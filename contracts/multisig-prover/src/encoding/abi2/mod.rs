@@ -63,7 +63,7 @@ impl From<&WorkerSet> for WeightedSigners {
     }
 }
 
-pub fn message_hash_to_sign(
+pub fn payload_hash_to_sign(
     domain_separator: &Hash,
     signer: &WorkerSet,
     payload: &Payload,
@@ -76,7 +76,7 @@ pub fn message_hash_to_sign(
         "\x19Ethereum Signed Message:\n96".as_bytes(), // 96 is the length of the trailing bytes
         domain_separator,
         signer.hash().as_slice(),
-        Keccak256::digest(data_to_sign.clone()).as_slice(),
+        Keccak256::digest(data_to_sign).as_slice(),
     ]
     .concat();
 
@@ -117,7 +117,7 @@ mod tests {
 
     use crate::{
         command::Payload,
-        encoding::abi2::{message_hash_to_sign, CommandType, WeightedSigners},
+        encoding::abi2::{payload_hash_to_sign, CommandType, WeightedSigners},
         test::test_data::new_worker_set,
     };
 
@@ -167,7 +167,7 @@ mod tests {
         ];
         let new_worker_set = worker_set_from_pub_keys(new_pub_keys);
 
-        let msg_to_sign = message_hash_to_sign(
+        let msg_to_sign = payload_hash_to_sign(
             &domain_separator,
             &curr_worker_set(),
             &Payload::WorkerSet(new_worker_set),
