@@ -49,7 +49,7 @@ pub struct InstantiateMsg {
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
-    // an opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+    /// an opaque value created to distinguish distinct chains that the external gateway should be initialized with.
     pub domain_separator: Hash,
 }
 
