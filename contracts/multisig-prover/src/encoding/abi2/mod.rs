@@ -7,7 +7,7 @@ use sha3::{Digest, Keccak256};
 use axelar_wasm_std::hash::Hash;
 use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, worker_set::WorkerSet};
 
-use crate::{command::Payload, error::ContractError};
+use crate::{error::ContractError, payload::Payload};
 
 sol!("src/encoding/abi2/solidity/AmplifierGatewayTypes.sol");
 sol!("src/encoding/abi2/solidity/WeightedMultisigTypes.sol");
@@ -116,7 +116,7 @@ mod tests {
     use multisig::{key::PublicKey, worker_set::WorkerSet};
 
     use crate::{
-        command::Payload,
+        payload::Payload,
         encoding::abi2::{payload_hash_to_sign, CommandType, WeightedSigners},
         test::test_data::new_worker_set,
     };

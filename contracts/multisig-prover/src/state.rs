@@ -8,8 +8,8 @@ use multisig::worker_set::WorkerSet;
 use router_api::ChainName;
 
 use crate::{
-    command::Command,
     encoding::Encoder,
+    payload::Payload,
     types::{BatchId, CommandBatch},
 };
 
@@ -40,7 +40,7 @@ fn default_governance() -> Addr {
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
-pub const COMMAND: Map<&BatchId, Command> = Map::new("command");
+pub const PAYLOAD: Map<&BatchId, Payload> = Map::new("payload");
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
 
 pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");
