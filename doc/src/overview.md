@@ -174,8 +174,8 @@ The verifier contracts are responsible for verifying whether a given message or 
 connected external chain. The verifier can take many different forms, such as
 a [`voting-verifier`](contracts/voting_verifier.md) that conducts stake weighted polls for batches of messages, a light
 client that accepts block headers and merkle tree proofs, a zk proof verifier, etc. The verifier can also be
-an [`aggregate-verifier`](contracts/aggregate_verifier.md), that is linked to 1 or more other verifiers, and defines a
-security policy such as 2 out of 3 linked verification methods need to report a message as verified.
+an aggregate verifier, that is linked to 1 or more other verifiers, and defines a security policy such as 2 out of 3
+linked verification methods need to report a message as verified.
 
 ### Prover
 

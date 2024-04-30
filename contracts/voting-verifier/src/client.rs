@@ -6,7 +6,7 @@ use axelar_wasm_std::{
 };
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
-use router_api::{CrossChainId, Message};
+use router_api::Message;
 
 use crate::msg::{ExecuteMsg, Poll, QueryMsg};
 
@@ -29,9 +29,11 @@ pub struct Client<'a> {
 }
 
 impl<'a> Client<'a> {
-    pub fn verify_messages(&self, messages: Vec<Message>) -> WasmMsg {
-        self.client
-            .execute(&ExecuteMsg::VerifyMessages { messages })
+    pub fn verify_messages(&self, messages: Vec<Message>) -> Option<WasmMsg> {
+        ignore_empty(messages).map(|messages| {
+            self.client
+                .execute(&ExecuteMsg::VerifyMessages { messages })
+        })
     }
 
     pub fn vote(&self, poll_id: PollId, votes: Vec<Vote>) -> WasmMsg {
@@ -68,7 +70,7 @@ impl<'a> Client<'a> {
     pub fn messages_status(
         &self,
         messages: Vec<Message>,
-    ) -> Result<Vec<(CrossChainId, VerificationStatus)>> {
+    ) -> Result<Vec<(Message, VerificationStatus)>> {
         match messages.as_slice() {
             [] => Ok(vec![]),
             _ => self
@@ -88,6 +90,15 @@ impl<'a> Client<'a> {
         self.client
             .query(&QueryMsg::GetCurrentThreshold)
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
+    }
+}
+
+// TODO: unify across contract clients
+fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
+    if msgs.is_empty() {
+        None
+    } else {
+        Some(msgs)
     }
 }
 
@@ -154,8 +165,8 @@ mod test {
                 .messages_status(vec![msg_1.clone(), msg_2.clone()])
                 .unwrap(),
             vec![
-                (msg_1.cc_id, VerificationStatus::None),
-                (msg_2.cc_id, VerificationStatus::None)
+                (msg_1, VerificationStatus::None),
+                (msg_2, VerificationStatus::None)
             ]
         );
     }

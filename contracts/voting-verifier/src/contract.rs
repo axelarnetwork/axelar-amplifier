@@ -228,13 +228,13 @@ mod test {
         env
     }
 
-    fn msg_ids_and_statuses(
+    fn msgs_and_statuses(
         messages: Vec<Message>,
         status: VerificationStatus,
-    ) -> Vec<(CrossChainId, VerificationStatus)> {
+    ) -> Vec<(Message, VerificationStatus)> {
         messages
             .iter()
-            .map(|message| (message.cc_id.clone(), status))
+            .map(|message| (message.clone(), status))
             .collect::<Vec<(_, _)>>()
     }
 
@@ -417,7 +417,7 @@ mod test {
         .unwrap();
 
         // confirm it was not verified
-        let status: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let status: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -430,7 +430,7 @@ mod test {
         .unwrap();
         assert_eq!(
             status,
-            msg_ids_and_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+            msgs_and_statuses(messages.clone(), VerificationStatus::FailedToVerify)
         );
 
         // retries same message
@@ -532,7 +532,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let res: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -546,16 +546,10 @@ mod test {
         assert_eq!(
             res,
             vec![
-                (
-                    messages[0].cc_id.clone(),
-                    VerificationStatus::SucceededOnChain
-                ),
-                (messages[1].cc_id.clone(), VerificationStatus::FailedOnChain),
-                (messages[2].cc_id.clone(), VerificationStatus::NotFound),
-                (
-                    messages[3].cc_id.clone(),
-                    VerificationStatus::FailedToVerify
-                )
+                (messages[0].clone(), VerificationStatus::SucceededOnChain),
+                (messages[1].clone(), VerificationStatus::FailedOnChain),
+                (messages[2].clone(), VerificationStatus::NotFound),
+                (messages[3].clone(), VerificationStatus::FailedToVerify)
             ]
         );
 
@@ -570,7 +564,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let res: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -584,13 +578,10 @@ mod test {
         assert_eq!(
             res,
             vec![
-                (
-                    messages[0].cc_id.clone(),
-                    VerificationStatus::SucceededOnChain
-                ),
-                (messages[1].cc_id.clone(), VerificationStatus::FailedOnChain),
-                (messages[2].cc_id.clone(), VerificationStatus::InProgress),
-                (messages[3].cc_id.clone(), VerificationStatus::InProgress)
+                (messages[0].clone(), VerificationStatus::SucceededOnChain),
+                (messages[1].clone(), VerificationStatus::FailedOnChain),
+                (messages[2].clone(), VerificationStatus::InProgress),
+                (messages[3].clone(), VerificationStatus::InProgress)
             ]
         );
     }
@@ -603,7 +594,7 @@ mod test {
 
         let messages = messages(10, &msg_id_format);
 
-        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let statuses: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -616,7 +607,7 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            msg_ids_and_statuses(messages, VerificationStatus::None)
+            msgs_and_statuses(messages, VerificationStatus::None)
         );
     }
 
@@ -639,7 +630,7 @@ mod test {
         )
         .unwrap();
 
-        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let statuses: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -652,7 +643,7 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            msg_ids_and_statuses(messages.clone(), VerificationStatus::InProgress)
+            msgs_and_statuses(messages.clone(), VerificationStatus::InProgress)
         );
     }
 
@@ -686,7 +677,7 @@ mod test {
         )
         .unwrap();
 
-        let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let statuses: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -699,7 +690,7 @@ mod test {
         .unwrap();
         assert_eq!(
             statuses,
-            msg_ids_and_statuses(messages.clone(), VerificationStatus::FailedToVerify)
+            msgs_and_statuses(messages.clone(), VerificationStatus::FailedToVerify)
         );
     }
 
@@ -763,7 +754,7 @@ mod test {
             .unwrap();
 
             // check status corresponds to votes
-            let statuses: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+            let statuses: Vec<(Message, VerificationStatus)> = from_binary(
                 &query(
                     deps.as_ref(),
                     mock_env(),
@@ -776,7 +767,7 @@ mod test {
             .unwrap();
             assert_eq!(
                 statuses,
-                msg_ids_and_statuses(messages.clone(), *expected_status)
+                msgs_and_statuses(messages.clone(), *expected_status)
             );
         }
     }
@@ -1171,7 +1162,7 @@ mod test {
         )
         .unwrap();
 
-        let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let res: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -1184,10 +1175,7 @@ mod test {
         .unwrap();
         assert_eq!(
             res,
-            vec![(
-                messages[0].cc_id.clone(),
-                VerificationStatus::SucceededOnChain
-            )]
+            vec![(messages[0].clone(), VerificationStatus::SucceededOnChain)]
         );
     }
 
@@ -1262,7 +1250,7 @@ mod test {
         )
         .unwrap();
 
-        let res: Vec<(CrossChainId, VerificationStatus)> = from_binary(
+        let res: Vec<(Message, VerificationStatus)> = from_binary(
             &query(
                 deps.as_ref(),
                 mock_env(),
@@ -1275,10 +1263,7 @@ mod test {
         .unwrap();
         assert_eq!(
             res,
-            vec![(
-                messages[0].cc_id.clone(),
-                VerificationStatus::FailedToVerify
-            )]
+            vec![(messages[0].clone(), VerificationStatus::FailedToVerify)]
         );
     }
 }
