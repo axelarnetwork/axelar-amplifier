@@ -8,7 +8,6 @@ on:
         type: choice
         options:
           - ampd
-          - aggregate-verifier
           - router
           - gateway
           - multisig
@@ -24,7 +23,6 @@ on:
         default: true
 
 jobs:
-
   release:
     name: Release ${{ github.event.inputs.binary-to-release }}
     runs-on: ubuntu-22.04
@@ -32,7 +30,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: '0'
+          fetch-depth: 0
       - name: Setup variables for sub-project to release
         id: setup-variables
         shell: bash
@@ -40,7 +38,6 @@ jobs:
           binary="${{ github.event.inputs.binary-to-release }}"
           declare -A binaries_data=(
             ["ampd"]="ampd,major-ampd,minor-ampd,"
-            ["aggregate-verifier"]="aggregate-verifier,/(major-aggregate-verifier)|(major-contracts)/,/(minor-aggregate-verifier)|(minor-contracts)/,contracts/aggregate-verifier packages"
             ["router"]="router,/(major-router)|(major-contracts)|(major-connection-router)/,/(minor-router)|(minor-contracts)|(minor-connection-router)/,contracts/router packages"
             ["gateway"]="gateway,/(major-gateway)|(major-contracts)/,/(minor-gateway)|(minor-contracts)/,contracts/gateway packages"
             ["multisig"]="multisig,/(major-multisig)|(major-contracts)/,/(minor-multisig)|(minor-contracts)/,contracts/multisig packages"
@@ -71,4 +68,3 @@ jobs:
           major-pattern: ${{ steps.setup-variables.outputs.major-pattern }}
           minor-pattern: ${{ steps.setup-variables.outputs.minor-pattern }}
           change-path: ${{ steps.setup-variables.outputs.change-path }}
-

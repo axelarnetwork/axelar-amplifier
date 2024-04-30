@@ -4,7 +4,7 @@ use axelar_wasm_std::{
     MajorityThreshold, VerificationStatus,
 };
 use cosmwasm_std::Deps;
-use router_api::{CrossChainId, Message};
+use router_api::Message;
 
 use crate::state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS};
 use crate::{error::ContractError, state::CONFIG};
@@ -16,13 +16,11 @@ pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> 
 pub fn messages_status(
     deps: Deps,
     messages: &[Message],
-) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
+) -> Result<Vec<(Message, VerificationStatus)>, ContractError> {
     messages
         .iter()
-        .map(|message| {
-            message_status(deps, message).map(|status| (message.cc_id.to_owned(), status))
-        })
-        .collect::<Result<Vec<_>, _>>()
+        .map(|message| message_status(deps, message).map(|status| (message.to_owned(), status)))
+        .collect()
 }
 
 pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
@@ -91,6 +89,7 @@ mod tests {
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
+    use router_api::CrossChainId;
 
     use crate::state::PollContent;
 
@@ -120,7 +119,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::InProgress)],
+            vec![(msg.clone(), VerificationStatus::InProgress)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -152,7 +151,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::SucceededOnChain)],
+            vec![(msg.clone(), VerificationStatus::SucceededOnChain)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -183,7 +182,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::FailedToVerify)],
+            vec![(msg.clone(), VerificationStatus::FailedToVerify)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -194,7 +193,7 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            vec![(msg.cc_id.clone(), VerificationStatus::None)],
+            vec![(msg.clone(), VerificationStatus::None)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
