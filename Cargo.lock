@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "aggregate-verifier"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -221,7 +221,6 @@ dependencies = [
  "cosmrs",
  "cosmwasm-std",
  "deref-derive",
- "derive_builder",
  "dirs",
  "ecdsa",
  "elliptic-curve",
@@ -265,6 +264,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
+ "typed-builder",
  "url",
  "valuable",
  "valuable-serde",
@@ -2249,37 +2249,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_builder"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d67778784b508018359cbc8696edb3db78160bab2c2a28ba7f56ef6932997f8"
-dependencies = [
- "derive_builder_macro",
-]
-
-[[package]]
-name = "derive_builder_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c11bdc11a0c47bc7d37d582b5285da6849c96681023680b906673c5707af7b0f"
-dependencies = [
- "darling 0.14.4",
- "proc-macro2 1.0.67",
- "quote 1.0.33",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_builder_macro"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebcda35c7a396850a55ffeac740804b40ffec779b98fffbb1738f4033f0ee79e"
-dependencies = [
- "derive_builder_core",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3429,7 +3398,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aggregate-verifier",
  "axelar-wasm-std",
@@ -4086,6 +4055,7 @@ dependencies = [
  "k256",
  "multisig",
  "multisig-prover",
+ "rand",
  "report",
  "rewards",
  "router",
@@ -4964,7 +4934,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -4991,7 +4961,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -5180,7 +5150,7 @@ checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
 
 [[package]]
 name = "nexus-gateway"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6604,7 +6574,7 @@ checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
 
 [[package]]
 name = "rewards"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6709,7 +6679,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -7328,7 +7298,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -8807,6 +8777,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "typed-builder"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77739c880e00693faef3d65ea3aad725f196da38b22fdc7ea6ded6e1ce4d3add"
+dependencies = [
+ "typed-builder-macro",
+]
+
+[[package]]
+name = "typed-builder-macro"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f718dfaf347dcb5b983bfc87608144b0bad87970aebcbea5ce44d2a30c08e63"
+dependencies = [
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "syn 2.0.37",
+]
+
+[[package]]
 name = "typed-store"
 version = "0.4.0"
 source = "git+https://github.com/mystenlabs/sui?tag=mainnet-v1.14.2#299cbeafbb6aa5601e08f00ac24bd647c61a63e2"
@@ -9037,7 +9027,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voting-verifier"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -9048,11 +9038,13 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "error-stack",
  "integration-tests",
+ "rand",
  "report",
  "rewards",
  "router-api",
  "serde_json",
  "service-registry",
+ "sha3 0.10.8",
  "thiserror",
 ]
 

@@ -85,13 +85,13 @@ fn is_finished(poll: &state::Poll) -> bool {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::{
+        msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
         nonempty,
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
 
-    use crate::events::TX_HASH_EVENT_INDEX_SEPARATOR;
     use crate::state::PollContent;
 
     use super::*;
@@ -203,9 +203,13 @@ mod tests {
         Message {
             cc_id: CrossChainId {
                 chain: "source-chain".parse().unwrap(),
-                id: format!("id{TX_HASH_EVENT_INDEX_SEPARATOR}{id}")
-                    .parse()
-                    .unwrap(),
+                id: HexTxHashAndEventIndex {
+                    tx_hash: [0; 32],
+                    event_index: id as u32,
+                }
+                .to_string()
+                .try_into()
+                .unwrap(),
             },
             source_address: format!("source_address{id}").parse().unwrap(),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),

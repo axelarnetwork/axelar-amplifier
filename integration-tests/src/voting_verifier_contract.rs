@@ -45,6 +45,7 @@ impl VotingVerifierContract {
                     confirmation_height: 5,
                     source_chain,
                     rewards_address: protocol.rewards.contract_addr.to_string(),
+                    msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
                 },
                 &[],
                 "voting_verifier",
