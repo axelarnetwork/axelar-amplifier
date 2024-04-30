@@ -116,8 +116,8 @@ mod tests {
     use multisig::{key::PublicKey, worker_set::WorkerSet};
 
     use crate::{
-        payload::Payload,
         encoding::abi2::{payload_hash_to_sign, CommandType, WeightedSigners},
+        payload::Payload,
         test::test_data::new_worker_set,
     };
 
