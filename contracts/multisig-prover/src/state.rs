@@ -39,6 +39,7 @@ fn default_governance() -> Addr {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
+#[deprecated(since = "0.2.0", note = "Please use PAYLOAD instead")]
 pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
 pub const PAYLOAD: Map<&BatchId, Payload> = Map::new("payload");
 pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
