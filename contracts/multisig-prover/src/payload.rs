@@ -48,10 +48,10 @@ impl Payload {
         }
     }
 
-    pub fn message_ids(&self) -> Vec<CrossChainId> {
+    pub fn message_ids(&self) -> Option<Vec<CrossChainId>> {
         match &self {
-            Payload::Messages(msgs) => msgs.iter().map(|msg| msg.cc_id.clone()).collect(),
-            Payload::WorkerSet(_) => vec![],
+            Payload::Messages(msgs) => Some(msgs.iter().map(|msg| msg.cc_id.clone()).collect()),
+            Payload::WorkerSet(_) => None,
         }
     }
 }

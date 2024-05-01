@@ -68,15 +68,15 @@ pub fn payload_hash_to_sign(
     signer: &WorkerSet,
     payload: &Payload,
 ) -> HexBinary {
-    let signer = WeightedSigners::from(signer);
-    let data_to_sign = encode(payload);
+    let signer_hash = WeightedSigners::from(signer).hash();
+    let data_hash = Keccak256::digest(encode(payload));
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
-        "\x19Ethereum Signed Message:\n96".as_bytes(), // 96 is the length of the trailing bytes
+        "\x19Ethereum Signed Message:\n96".as_bytes(),
         domain_separator,
-        signer.hash().as_slice(),
-        Keccak256::digest(data_to_sign).as_slice(),
+        signer_hash.as_slice(),
+        data_hash.as_slice(),
     ]
     .concat();
 

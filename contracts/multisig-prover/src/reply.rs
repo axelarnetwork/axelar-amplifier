@@ -26,7 +26,10 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 &command_batch_id,
             )?;
 
-            let msg_ids = PAYLOAD.load(deps.storage, &command_batch_id)?.message_ids();
+            let msg_ids = PAYLOAD
+                .load(deps.storage, &command_batch_id)?
+                .message_ids()
+                .unwrap_or_default();
 
             Ok(Response::new().add_event(
                 Event::ProofUnderConstruction {
