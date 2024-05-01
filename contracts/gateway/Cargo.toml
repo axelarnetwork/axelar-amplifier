@@ -35,7 +35,6 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-aggregate-verifier = { workspace = true, features = ["library"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 client = { workspace = true }
@@ -50,6 +49,7 @@ router-api = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+voting-verifier = { workspace = true, features = ["library"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

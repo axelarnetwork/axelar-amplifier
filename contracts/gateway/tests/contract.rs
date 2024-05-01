@@ -283,8 +283,8 @@ fn route_duplicate_ids_should_fail() {
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
     impl Fn(
-            aggregate_verifier::msg::QueryMsg,
-        ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>
+            voting_verifier::msg::QueryMsg,
+        ) -> Result<Vec<(Message, VerificationStatus)>, ContractError>
         + Clone
         + Sized,
 ) {
@@ -312,8 +312,8 @@ fn test_cases_for_correct_verifier() -> (
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
     impl Fn(
-            aggregate_verifier::msg::QueryMsg,
-        ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>
+            voting_verifier::msg::QueryMsg,
+        ) -> Result<Vec<(Message, VerificationStatus)>, ContractError>
         + Clone
         + Sized,
 ) {
@@ -395,31 +395,32 @@ fn all_statuses() -> Vec<VerificationStatus> {
 
 fn map_status_by_msg_id(
     messages_by_status: HashMap<VerificationStatus, Vec<Message>>,
-) -> HashMap<CrossChainId, VerificationStatus> {
+) -> HashMap<Message, VerificationStatus> {
     messages_by_status
         .into_iter()
-        .flat_map(|(status, msgs)| msgs.into_iter().map(move |msg| (msg.cc_id, status)))
+        .flat_map(|(status, msgs)| msgs.into_iter().map(move |msg| (msg, status)))
         .collect()
 }
 
 fn correctly_working_verifier_handler(
-    status_by_id: HashMap<CrossChainId, VerificationStatus>,
+    status_by_id: HashMap<Message, VerificationStatus>,
 ) -> impl Fn(
-    aggregate_verifier::msg::QueryMsg,
-) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>
+    voting_verifier::msg::QueryMsg,
+) -> Result<Vec<(Message, VerificationStatus)>, ContractError>
        + Clone
        + 'static {
-    move |msg: aggregate_verifier::msg::QueryMsg| -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
+    move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<(Message, VerificationStatus)>, ContractError> {
             match msg {
-                aggregate_verifier::msg::QueryMsg::GetMessagesStatus { messages } =>
-                    Ok(messages.into_iter().map(|msg| (msg.cc_id.clone(), status_by_id.get(&msg.cc_id).copied().expect("there is a status for every message"))).collect())
+                voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } =>
+                    Ok(messages.into_iter().map(|msg| (msg.clone(), status_by_id.get(&msg).copied().expect("there is a status for every message"))).collect()),
+                _ => unimplemented!("unsupported query")
             }
         }
 }
 
 fn update_query_handler<U: Serialize>(
     querier: &mut MockQuerier,
-    handler: impl Fn(aggregate_verifier::msg::QueryMsg) -> Result<U, ContractError> + 'static,
+    handler: impl Fn(voting_verifier::msg::QueryMsg) -> Result<U, ContractError> + 'static,
 ) {
     let handler = move |msg: &WasmQuery| match msg {
         WasmQuery::Smart { msg, .. } => {

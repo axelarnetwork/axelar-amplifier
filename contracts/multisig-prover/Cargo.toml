@@ -6,9 +6,9 @@ edition = "2021"
 description = "Multisig prover contract"
 
 exclude = [
-    # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
-    "contract.wasm",
-    "hash.txt",
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience, but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -33,6 +33,8 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
+alloy-primitives = { version = "0.7.0", default-features = false }
+alloy-sol-types = { version = "0.7.0", default-features = false }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 bcs = "0.1.5"

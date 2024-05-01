@@ -16,7 +16,10 @@ use crate::{
     contract::START_MULTISIG_REPLY_ID,
     encoding::{make_operators, CommandBatchBuilder},
     error::ContractError,
-    state::{Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, REPLY_BATCH},
+    payload::Payload,
+    state::{
+        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, PAYLOAD, REPLY_BATCH,
+    },
     types::{BatchId, WorkersInfo},
 };
 
@@ -228,17 +231,17 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             save_next_worker_set(deps.storage, &new_worker_set)?;
 
-            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
-            builder.add_new_worker_set(new_worker_set)?;
+            let payload = Payload::WorkerSet(new_worker_set);
+            let payload_id = payload.id();
+            PAYLOAD.save(deps.storage, &payload_id, &payload)?;
+            REPLY_BATCH.save(deps.storage, &payload_id)?;
 
-            let batch = builder.build()?;
-
-            COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
-            REPLY_BATCH.save(deps.storage, &batch.id)?;
+            let msg_digest =
+                payload.digest(config.encoder, &config.domain_separator, &cur_worker_set);
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 worker_set_id: cur_worker_set.id(),
-                msg: batch.msg_digest(),
+                msg: msg_digest,
                 sig_verifier: None,
                 chain_name: config.chain_name,
             };
@@ -412,7 +415,7 @@ mod tests {
 
         assert!(!different_set_in_progress(
             deps.as_ref().storage,
-            &new_worker_set
+            &new_worker_set,
         ));
     }
 
@@ -429,7 +432,7 @@ mod tests {
 
         assert!(different_set_in_progress(
             deps.as_ref().storage,
-            &new_worker_set
+            &new_worker_set,
         ));
     }
 
@@ -446,7 +449,7 @@ mod tests {
 
         assert!(different_set_in_progress(
             deps.as_ref().storage,
-            &new_worker_set
+            &new_worker_set,
         ));
     }
 
@@ -478,6 +481,7 @@ mod tests {
             worker_set_diff_threshold: 0,
             encoder: crate::encoding::Encoder::Abi,
             key_type: multisig::key::KeyType::Ecdsa,
+            domain_separator: [0; 32],
         }
     }
 }

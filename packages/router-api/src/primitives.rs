@@ -22,6 +22,7 @@ use crate::error::*;
 pub const CHAIN_NAME_DELIMITER: char = '_';
 
 #[cw_serde]
+#[derive(Eq, Hash)]
 pub struct Message {
     pub cc_id: CrossChainId,
     pub source_address: Address,
@@ -64,6 +65,7 @@ impl From<Message> for Vec<Attribute> {
 }
 
 #[cw_serde]
+#[derive(Eq, Hash)]
 pub struct Address(nonempty::String);
 
 impl Deref for Address {

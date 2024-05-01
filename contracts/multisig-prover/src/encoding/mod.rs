@@ -1,4 +1,6 @@
+#[deprecated(since = "0.2.0", note = "Please use encoding::abi2 module instead")]
 pub mod abi;
+pub mod abi2;
 pub mod bcs;
 
 use axelar_wasm_std::operators::Operators;
