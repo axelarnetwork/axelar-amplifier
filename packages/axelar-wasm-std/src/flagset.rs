@@ -69,7 +69,7 @@ where
 
 impl<T> JsonSchema for FlagSet<T>
 where
-    T: flagset::Flags + Serialize,
+    T: flagset::Flags + Serialize + JsonSchema,
     <T as flagset::Flags>::Type: Serialize,
 {
     fn schema_name() -> String {
@@ -77,6 +77,6 @@ where
     }
 
     fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        gen.root_schema_for::<FlagSet<T>>().schema.into()
+        gen.subschema_for::<T>()
     }
 }
