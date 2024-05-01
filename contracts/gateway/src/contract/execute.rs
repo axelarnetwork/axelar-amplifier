@@ -4,6 +4,8 @@ use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::Message;
+use std::iter::Zip;
+use std::vec::IntoIter;
 
 use crate::contract::Error;
 use crate::events::GatewayEvent;
@@ -52,8 +54,7 @@ fn apply(
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
     check_for_duplicates(msgs)?
-        .then(|msgs| verifier.messages_status(msgs))
-        .change_context(Error::MessageStatus)?
+        .then(|msgs| associate_message_status(verifier, msgs))?
         .then(group_by_status)
         .then(action)
         .then(|(msgs, events)| Response::new().add_messages(msgs).add_events(events))
@@ -73,6 +74,17 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
         return Err(Error::DuplicateMessageIds).attach_printable(duplicates.iter().join(", "));
     }
     Ok(msgs)
+}
+
+fn associate_message_status(
+    verifier: &voting_verifier::Client,
+    msgs: Vec<Message>,
+) -> Result<Zip<IntoIter<Message>, IntoIter<VerificationStatus>>, Error> {
+    let statuses = verifier
+        .messages_status(msgs.clone())
+        .change_context(Error::MessageStatus)?;
+
+    Ok(msgs.into_iter().zip(statuses))
 }
 
 fn group_by_status(

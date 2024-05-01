@@ -67,10 +67,7 @@ impl<'a> Client<'a> {
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
-    pub fn messages_status(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<Vec<(Message, VerificationStatus)>> {
+    pub fn messages_status(&self, messages: Vec<Message>) -> Result<Vec<VerificationStatus>> {
         match messages.as_slice() {
             [] => Ok(vec![]),
             _ => self

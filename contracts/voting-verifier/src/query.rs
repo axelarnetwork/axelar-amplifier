@@ -16,10 +16,10 @@ pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> 
 pub fn messages_status(
     deps: Deps,
     messages: &[Message],
-) -> Result<Vec<(Message, VerificationStatus)>, ContractError> {
+) -> Result<Vec<VerificationStatus>, ContractError> {
     messages
         .iter()
-        .map(|message| message_status(deps, message).map(|status| (message.to_owned(), status)))
+        .map(|message| message_status(deps, message))
         .collect()
 }
 

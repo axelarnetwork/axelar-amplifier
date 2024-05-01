@@ -1,12 +1,15 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
+#[allow(unused_imports)]
+use axelar_wasm_std::VerificationStatus;
 use axelar_wasm_std::{
     msg_id::MessageIdFormat,
     nonempty,
     operators::Operators,
     voting::{PollId, Vote},
-    MajorityThreshold, VerificationStatus,
+    MajorityThreshold,
 };
+
 use router_api::{ChainName, Message};
 
 #[cw_serde]
@@ -79,7 +82,7 @@ pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollId },
 
-    #[returns(Vec<(Message, VerificationStatus)>)]
+    #[returns(Vec<VerificationStatus>)]
     GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]
