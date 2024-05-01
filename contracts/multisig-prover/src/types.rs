@@ -28,6 +28,7 @@ impl Display for CommandType {
     }
 }
 
+#[deprecated(since = "0.2.0", note = "Please use payload module instead")]
 #[cw_serde]
 pub struct Command {
     pub id: HexBinary,
@@ -84,6 +85,7 @@ impl BatchId {
     }
 }
 
+#[deprecated(since = "0.2.0", note = "Please use payload module instead")]
 #[cw_serde]
 pub struct CommandBatch {
     pub id: BatchId,
