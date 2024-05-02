@@ -1,5 +1,6 @@
 use crate::event_processor::EventHandler;
 use async_trait::async_trait;
+use cosmrs::Any;
 use error_stack::{Result, ResultExt};
 use events::Event;
 use thiserror::Error;
@@ -40,52 +41,65 @@ where
 {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<(), Error> {
-        self.handler_1
+    async fn handle(&self, event: &Event) -> Result<Vec<Any>, Error> {
+        let msgs_1 = self
+            .handler_1
             .handle(event)
             .await
             .change_context(Error::ChainError)?;
-        self.handler_2
+        let msgs_2 = self
+            .handler_2
             .handle(event)
             .await
             .change_context(Error::ChainError)?;
 
-        Ok(())
+        Ok(msgs_1.into_iter().chain(msgs_2).collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::event_processor::{self, EventHandler};
     use async_trait::async_trait;
+    use cosmrs::tx::Msg;
+    use cosmrs::{bank::MsgSend, AccountId, Any};
     use error_stack::Result;
     use events::Event;
     use mockall::{mock, predicate};
     use tendermint::block;
     use thiserror::Error;
 
+    use crate::event_processor::{self, EventHandler};
+
     #[tokio::test]
     async fn should_chain_handlers() {
         let height: block::Height = (10_u32).into();
+        let msg_1 = dummy_msg(AccountId::new("", &[1, 2, 3]).unwrap());
+        let msg_2 = dummy_msg(AccountId::new("", &[2, 3, 4]).unwrap());
+        let msg_3 = dummy_msg(AccountId::new("", &[3, 4, 5]).unwrap());
 
         let mut handler_1 = MockEventHandler::new();
+        let msgs_1 = vec![msg_1.clone()];
         handler_1
             .expect_handle()
             .once()
             .with(predicate::eq(Event::BlockEnd(height)))
-            .returning(|_| Ok(()));
+            .returning(move |_| Ok(msgs_1.clone()));
         let mut handler_2 = MockEventHandler::new();
+        let msgs_2 = vec![msg_2.clone(), msg_3.clone()];
         handler_2
             .expect_handle()
             .once()
             .with(predicate::eq(Event::BlockEnd(height)))
-            .returning(|_| Ok(()));
+            .returning(move |_| Ok(msgs_2.clone()));
 
-        assert!(handler_1
-            .chain(handler_2)
-            .handle(&Event::BlockEnd(height))
-            .await
-            .is_ok());
+        assert_eq!(
+            handler_1
+                .chain(handler_2)
+                .handle(&Event::BlockEnd(height))
+                .await
+                .unwrap(),
+            vec![msg_1, msg_2, msg_3]
+        );
     }
 
     #[tokio::test]
@@ -115,7 +129,7 @@ mod tests {
             .expect_handle()
             .once()
             .with(predicate::eq(Event::BlockEnd(height)))
-            .returning(|_| Ok(()));
+            .returning(|_| Ok(vec![]));
         let mut handler_2 = MockEventHandler::new();
         handler_2
             .expect_handle()
@@ -143,7 +157,17 @@ mod tests {
             impl event_processor::EventHandler for EventHandler {
                 type Err = EventHandlerError;
 
-                async fn handle(&self, event: &Event) -> Result<(), EventHandlerError>;
+                async fn handle(&self, event: &Event) -> Result<Vec<Any>, EventHandlerError>;
             }
+    }
+
+    fn dummy_msg(from_address: AccountId) -> Any {
+        MsgSend {
+            from_address,
+            to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
+            amount: vec![],
+        }
+        .to_any()
+        .unwrap()
     }
 }

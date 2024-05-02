@@ -244,7 +244,6 @@ where
                             chain.name,
                             chain.finalization,
                             rpc_client,
-                            self.broadcaster.client(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
@@ -274,7 +273,6 @@ where
                             chain.name,
                             chain.finalization,
                             rpc_client,
-                            self.broadcaster.client(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
@@ -286,7 +284,6 @@ where
                         handlers::multisig::Handler::new(
                             worker.clone(),
                             cosmwasm_contract,
-                            self.broadcaster.client(),
                             self.ecdsa_client.clone(),
                             self.block_height_monitor.latest_block_height(),
                         ),
@@ -309,7 +306,6 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
-                        self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
@@ -331,7 +327,6 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
-                        self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
@@ -356,6 +351,7 @@ where
         let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
         self.state_updater.register_event(label.as_ref(), rx);
 
+        let broadcaster = self.broadcaster.client();
         let sub: HandlerStream<_> = match self
             .state_updater
             .state()
@@ -369,7 +365,7 @@ where
         };
 
         CancellableTask::create(move |token| {
-            event_processor::consume_events(handler, sub, stream_timeout, token)
+            event_processor::consume_events(handler, broadcaster, sub, stream_timeout, token)
         })
     }
 

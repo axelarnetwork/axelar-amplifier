@@ -3,6 +3,7 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::{tx::Msg, Any};
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
 use error_stack::ResultExt;
@@ -19,7 +20,6 @@ use multisig::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
 use crate::types::PublicKey;
@@ -66,72 +66,53 @@ where
         .collect()
 }
 
-pub struct Handler<B>
-where
-    B: BroadcasterClient,
-{
+pub struct Handler {
     worker: TMAddress,
     multisig: TMAddress,
-    broadcaster: B,
     signer: SharableEcdsaClient,
     latest_block_height: Receiver<u64>,
 }
 
-impl<B> Handler<B>
-where
-    B: BroadcasterClient,
-{
+impl Handler {
     pub fn new(
         worker: TMAddress,
         multisig: TMAddress,
-        broadcaster: B,
         signer: SharableEcdsaClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             multisig,
-            broadcaster,
             signer,
             latest_block_height,
         }
     }
 
-    async fn broadcast_signature(
+    fn submit_signature_msg(
         &self,
         session_id: impl Into<Uint64>,
         signature: impl Into<HexBinary>,
-    ) -> error_stack::Result<(), Error> {
-        let msg = serde_json::to_vec(&ExecuteMsg::SubmitSignature {
-            session_id: session_id.into(),
-            signature: signature.into(),
-        })
-        .expect("submit signature msg should serialize");
-
-        let tx = MsgExecuteContract {
+    ) -> MsgExecuteContract {
+        MsgExecuteContract {
             sender: self.worker.as_ref().clone(),
             contract: self.multisig.as_ref().clone(),
-            msg,
+            msg: serde_json::to_vec(&ExecuteMsg::SubmitSignature {
+                session_id: session_id.into(),
+                signature: signature.into(),
+            })
+            .expect("submit signature msg should serialize"),
             funds: vec![],
-        };
-
-        self.broadcaster
-            .broadcast(tx)
-            .await
-            .change_context(Error::Broadcaster)
+        }
     }
 }
 
 #[async_trait]
-impl<B> EventHandler for Handler<B>
-where
-    B: BroadcasterClient + Send + Sync,
-{
+impl EventHandler for Handler {
     type Err = Error;
 
-    async fn handle(&self, event: &events::Event) -> error_stack::Result<(), Error> {
+    async fn handle(&self, event: &events::Event) -> error_stack::Result<Vec<Any>, Error> {
         if !event.is_from_contract(self.multisig.as_ref()) {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let SigningStartedEvent {
@@ -141,7 +122,7 @@ where
             expires_at,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(());
+                return Ok(vec![]);
             }
             result => result.change_context(DeserializeEvent)?,
         };
@@ -158,7 +139,7 @@ where
                 session_id = session_id.to_string(),
                 "skipping expired signing session"
             );
-            return Ok(());
+            return Ok(vec![]);
         }
 
         match pub_keys.get(&self.worker) {
@@ -171,13 +152,15 @@ where
 
                 info!(signature = encode(&signature), "ready to submit signature");
 
-                self.broadcast_signature(session_id, signature).await?;
-
-                Ok(())
+                Ok(vec![self
+                    .submit_signature_msg(session_id, signature)
+                    .into_any()
+                    .expect("submit signature msg should serialize")])
             }
             None => {
                 info!("worker is not a participant");
-                Ok(())
+
+                Ok(vec![])
             }
         }
     }
@@ -187,12 +170,11 @@ where
 mod test {
     use std::collections::HashMap;
     use std::convert::{TryFrom, TryInto};
-    use std::time::Duration;
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
-    use cosmrs::{AccountId, Gas};
+    use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
     use error_stack::{Report, Result};
@@ -208,7 +190,6 @@ mod test {
     use multisig::types::MsgToSign;
 
     use crate::broadcaster::MockBroadcaster;
-    use crate::queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterClient};
     use crate::tofnd;
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
     use crate::types;
@@ -312,18 +293,15 @@ mod test {
         multisig: TMAddress,
         signer: SharableEcdsaClient,
         latest_block_height: u64,
-    ) -> Handler<QueuedBroadcasterClient> {
+    ) -> Handler {
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
             .expect_broadcast()
             .returning(|_| Ok(TxResponse::default()));
 
-        let (broadcaster, _) =
-            QueuedBroadcaster::new(broadcaster, Gas::default(), 100, Duration::from_secs(5));
-
         let (_, rx) = watch::channel(latest_block_height);
 
-        Handler::new(worker, multisig, broadcaster.client(), signer, rx)
+        Handler::new(worker, multisig, signer, rx)
     }
 
     #[test]
@@ -392,12 +370,15 @@ mod test {
             100u64,
         );
 
-        assert!(handler
-            .handle(&signing_started_event_with_missing_fields(
-                &rand_account().to_string()
-            ))
-            .await
-            .is_ok());
+        assert_eq!(
+            handler
+                .handle(&signing_started_event_with_missing_fields(
+                    &rand_account().to_string()
+                ))
+                .await
+                .unwrap(),
+            vec![]
+        );
     }
 
     #[tokio::test]
@@ -428,7 +409,10 @@ mod test {
             100u64,
         );
 
-        assert!(handler.handle(&signing_started_event()).await.is_ok());
+        assert_eq!(
+            handler.handle(&signing_started_event()).await.unwrap(),
+            vec![]
+        );
     }
 
     #[tokio::test]
@@ -445,7 +429,10 @@ mod test {
             100u64,
         );
 
-        assert!(handler.handle(&signing_started_event()).await.is_ok());
+        assert_eq!(
+            handler.handle(&signing_started_event()).await.unwrap(),
+            vec![]
+        );
     }
 
     #[tokio::test]
@@ -488,6 +475,6 @@ mod test {
             101u64,
         );
 
-        assert!(handler.handle(&signing_started_event()).await.is_ok());
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 }

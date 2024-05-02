@@ -3,6 +3,7 @@ use std::convert::TryInto;
 
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
@@ -16,7 +17,6 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::sui::{json_rpc::SuiClient, verifier::verify_message};
 use crate::types::{Hash, TMAddress};
 
@@ -42,66 +42,55 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
-pub struct Handler<C, B>
+pub struct Handler<C>
 where
     C: SuiClient + Send + Sync,
-    B: BroadcasterClient,
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
     rpc_client: C,
-    broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
 
-impl<C, B> Handler<C, B>
+impl<C> Handler<C>
 where
     C: SuiClient + Send + Sync,
-    B: BroadcasterClient,
 {
     pub fn new(
         worker: TMAddress,
         voting_verifier: TMAddress,
         rpc_client: C,
-        broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
             worker,
             voting_verifier,
             rpc_client,
-            broadcast_client,
             latest_block_height,
         }
     }
-    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
-        let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-            .expect("vote msg should serialize");
-        let tx = MsgExecuteContract {
+
+    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
+        MsgExecuteContract {
             sender: self.worker.as_ref().clone(),
             contract: self.voting_verifier.as_ref().clone(),
-            msg,
+            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
+                .expect("vote msg should serialize"),
             funds: vec![],
-        };
-
-        self.broadcast_client
-            .broadcast(tx)
-            .await
-            .change_context(Error::Broadcaster)
+        }
     }
 }
 
 #[async_trait]
-impl<C, B> EventHandler for Handler<C, B>
+impl<C> EventHandler for Handler<C>
 where
     C: SuiClient + Send + Sync,
-    B: BroadcasterClient + Send + Sync,
 {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<()> {
+    async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
         if !event.is_from_contract(self.voting_verifier.as_ref()) {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let PollStartedEvent {
@@ -113,19 +102,20 @@ where
             ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(());
+                return Ok(vec![]);
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
 
         if !participants.contains(&self.worker) {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let latest_block_height = *self.latest_block_height.borrow();
         if latest_block_height >= expires_at {
             info!(poll_id = poll_id.to_string(), "skipping expired poll");
-            return Ok(());
+
+            return Ok(vec![]);
         }
 
         // Does not assume voting verifier emits unique tx ids.
@@ -148,16 +138,17 @@ where
             })
             .collect();
 
-        self.broadcast_votes(poll_id, votes).await
+        Ok(vec![self
+            .vote_msg(poll_id, votes)
+            .into_any()
+            .expect("vote msg should serialize")])
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::convert::TryInto;
 
-    use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
@@ -170,8 +161,6 @@ mod tests {
 
     use crate::event_processor::EventHandler;
     use crate::handlers::{errors::Error, tests::get_event};
-    use crate::queue::queued_broadcaster;
-    use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
 
@@ -202,11 +191,10 @@ mod tests {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
-            MockBroadcasterClient::new(),
             watch::channel(0).1,
         );
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
     // Should not handle event if it is not emitted from voting verifier
@@ -221,11 +209,10 @@ mod tests {
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             MockSuiClient::new(),
-            MockBroadcasterClient::new(),
             watch::channel(0).1,
         );
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
     // Should not handle event if worker is not a poll participant
@@ -241,11 +228,10 @@ mod tests {
             TMAddress::random(PREFIX),
             voting_verifier,
             MockSuiClient::new(),
-            MockBroadcasterClient::new(),
             watch::channel(0).1,
         );
 
-        assert!(handler.handle(&event).await.is_ok());
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
     #[async_test]
@@ -267,52 +253,11 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(
-            worker,
-            voting_verifier,
-            rpc_client,
-            MockBroadcasterClient::new(),
-            watch::channel(0).1,
-        );
+        let handler = super::Handler::new(worker, voting_verifier, rpc_client, watch::channel(0).1);
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
             Error::TxReceipts
-        ));
-    }
-
-    #[async_test]
-    async fn failed_to_broadcast() {
-        let mut rpc_client = MockSuiClient::new();
-        rpc_client
-            .expect_finalized_transaction_blocks()
-            .returning(|_| Ok(HashMap::new()));
-
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast()
-            .returning(move |_: MsgExecuteContract| {
-                Err(Report::from(queued_broadcaster::Error::Broadcast))
-            });
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
-        let event = get_event(
-            poll_started_event(participants(5, Some(worker.clone())), 100),
-            &voting_verifier,
-        );
-
-        let handler = super::Handler::new(
-            worker,
-            voting_verifier,
-            rpc_client,
-            broadcast_client,
-            watch::channel(0).1,
-        );
-
-        assert!(matches!(
-            *handler.handle(&event).await.unwrap_err().current_context(),
-            Error::Broadcaster
         ));
     }
 
@@ -327,7 +272,6 @@ mod tests {
                     "failed to get finalized transaction blocks".to_string(),
                 )))
             });
-        let broadcast_client = MockBroadcasterClient::new();
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -339,8 +283,7 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, rpc_client, broadcast_client, rx);
+        let handler = super::Handler::new(worker, voting_verifier, rpc_client, rx);
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
@@ -348,7 +291,7 @@ mod tests {
         let _ = tx.send(expiration + 1);
 
         // poll is expired, should not hit rpc error now
-        assert!(handler.handle(&event).await.is_ok());
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
