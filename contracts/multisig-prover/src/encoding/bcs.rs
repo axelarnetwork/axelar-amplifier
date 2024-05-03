@@ -98,7 +98,7 @@ pub fn command_params(
         source_chain,
         source_address,
         destination_address,
-        payload_hash.to_vec(),
+        payload_hash,
     ))
     .expect("couldn't serialize command as bcs")
     .into())
@@ -378,7 +378,7 @@ mod test {
             String,
             String,
             [u8; 32],
-            Vec<u8>,
+            [u8; 32],
         ) = params.unwrap();
         assert_eq!(source_chain, "Ethereum".to_string());
 
@@ -389,7 +389,7 @@ mod test {
             HexBinary::from_hex(&"01".repeat(32)).unwrap().to_vec()
         );
 
-        assert_eq!(payload_hash, vec![2; 32]);
+        assert_eq!(payload_hash, [2; 32]);
     }
 
     #[test]
@@ -444,7 +444,7 @@ mod test {
             source_address_decoded,
             destination_address_decoded,
             payload_hash_decoded,
-        ): (String, String, [u8; 32], Vec<u8>) = command.unwrap();
+        ): (String, String, [u8; 32], [u8; 32]) = command.unwrap();
 
         assert_eq!(source_chain_decoded, source_chain);
 
@@ -455,7 +455,7 @@ mod test {
             HexBinary::from_hex(&destination_address).unwrap().to_vec()
         );
 
-        assert_eq!(payload_hash_decoded, payload_hash.to_vec());
+        assert_eq!(payload_hash_decoded, payload_hash);
     }
 
     #[test]
@@ -496,7 +496,7 @@ mod test {
 
     #[test]
     fn test_encode_execute_data() {
-        let approval = HexBinary::from_hex("8a02010000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020213617070726f7665436f6e747261637443616c6c13617070726f7665436f6e747261637443616c6c0249034554480330783000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000004c064158454c415203307831000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000087010121037286a4f1177bea06c8e15cf6ec3df0b7747a01ac2329ca2999dfd74eff59902801640000000000000000000000000000000a0000000000000000000000000000000141ef5ce016a4beed7e11761e5831805e962fca3d8901696a61a6ffd3af2b646bdc3740f64643bdb164b8151d1424eb4943d03f71e71816c00726e2d68ee55600c600").unwrap();
+        let approval = HexBinary::from_hex("8802010000000000000002000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020213617070726f7665436f6e747261637443616c6c13617070726f7665436f6e747261637443616c6c02480345544803307830000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004b064158454c41520330783100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000450121037286a4f1177bea06c8e15cf6ec3df0b7747a01ac2329ca2999dfd74eff59902801640000000000000000000000000000000a00000000000000000000000000000000").unwrap();
 
         let zero_addr = "00".repeat(32);
 
@@ -557,8 +557,9 @@ mod test {
         );
         assert!(encoded.is_ok());
         let encoded = encoded.unwrap();
-        assert_eq!(encoded.len(), approval.to_vec().len());
+        println!("{}", encoded.to_hex());
         assert_eq!(encoded.to_vec(), approval.to_vec());
+        assert_eq!(encoded.len(), approval.to_vec().len());
     }
 
     type Proof = (Vec<Vec<u8>>, Vec<u128>, u128, Vec<Vec<u8>>);
