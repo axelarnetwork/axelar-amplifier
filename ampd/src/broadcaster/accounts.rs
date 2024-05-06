@@ -16,7 +16,7 @@ pub enum Error {
     MalformedResponse,
 }
 
-pub async fn account<T>(mut client: T, address: &TMAddress) -> Result<BaseAccount, Error>
+pub async fn account<T>(client: &mut T, address: &TMAddress) -> Result<BaseAccount, Error>
 where
     T: AccountQueryClient,
 {
@@ -79,7 +79,7 @@ mod tests {
         let address = rand_tm_address();
 
         assert!(matches!(
-            account(client, &address)
+            account(&mut client, &address)
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -97,7 +97,7 @@ mod tests {
         let address = rand_tm_address();
 
         assert!(matches!(
-            account(client, &address)
+            account(&mut client, &address)
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -120,7 +120,7 @@ mod tests {
         let address = rand_tm_address();
 
         assert!(matches!(
-            account(client, &address)
+            account(&mut client, &address)
                 .await
                 .unwrap_err()
                 .current_context(),
@@ -146,7 +146,7 @@ mod tests {
             })
         });
 
-        assert_eq!(account(client, &address).await.unwrap(), acc);
+        assert_eq!(account(&mut client, &address).await.unwrap(), acc);
     }
 
     fn rand_tm_address() -> TMAddress {

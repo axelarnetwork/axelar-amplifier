@@ -148,9 +148,9 @@ query the service registry for an updated snapshot.
 
 ## Contract Overview
 
-### Connection Router
+### Router
 
-[`connection-router`](contracts/connection_router.md) is the way messages are passed between different gateways. The
+[`router`](contracts/router.md) is the way messages are passed between different gateways. The
 router has methods for registering new chains and gateways, updating the address of the registered gateway, and freezing
 chains (preventing message flow). These methods are only callable by the router admin. Messages are passed to the router
 from registered gateways, and the router passes those messages to the appropriate gateway based on each message's
@@ -174,8 +174,8 @@ The verifier contracts are responsible for verifying whether a given message or 
 connected external chain. The verifier can take many different forms, such as
 a [`voting-verifier`](contracts/voting_verifier.md) that conducts stake weighted polls for batches of messages, a light
 client that accepts block headers and merkle tree proofs, a zk proof verifier, etc. The verifier can also be
-an [`aggregate-verifier`](contracts/aggregate_verifier.md), that is linked to 1 or more other verifiers, and defines a
-security policy such as 2 out of 3 linked verification methods need to report a message as verified.
+an aggregate verifier, that is linked to 1 or more other verifiers, and defines a security policy such as 2 out of 3
+linked verification methods need to report a message as verified.
 
 ### Prover
 

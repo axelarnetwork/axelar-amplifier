@@ -1,5 +1,5 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
+use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -21,7 +21,7 @@ use crate::ContractError;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
     pub name: String,
-    pub monitoring_contract: Addr,
+    pub coordinator_contract: Addr,
     pub min_num_workers: u16,
     pub max_num_workers: Option<u16>,
     pub min_worker_bond: Uint128,

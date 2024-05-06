@@ -1,4 +1,6 @@
+#[deprecated(since = "0.2.0", note = "Please use encoding::abi2 module instead")]
 pub mod abi;
+pub mod abi2;
 pub mod bcs;
 
 use axelar_wasm_std::operators::Operators;
@@ -6,8 +8,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use sha3::{Digest, Keccak256};
 
-use connection_router_api::{CrossChainId, Message};
 use multisig::{key::Signature, msg::Signer, worker_set::WorkerSet};
+use router_api::{CrossChainId, Message};
 
 use crate::{
     error::ContractError,

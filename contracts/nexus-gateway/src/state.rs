@@ -1,9 +1,9 @@
-use connection_router_api::CrossChainId;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{self, ResultExt};
 use mockall::automock;
+use router_api::CrossChainId;
 
 use crate::error::ContractError;
 

@@ -9,11 +9,11 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::ChainName;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use voting_verifier::events::construct_message_id;
+use router_api::ChainName;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -44,7 +44,7 @@ pub struct WorkerSetConfirmation {
 struct PollStartedEvent {
     worker_set: WorkerSetConfirmation,
     poll_id: PollId,
-    source_chain: connection_router_api::ChainName,
+    source_chain: router_api::ChainName,
     source_gateway_address: EVMAddress,
     expires_at: u64,
     confirmation_height: u64,
@@ -188,7 +188,7 @@ where
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = construct_message_id(worker_set.tx_id.into(), worker_set.event_index)
+            id = HexTxHashAndEventIndex::new(worker_set.tx_id, worker_set.event_index).to_string()
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
@@ -221,8 +221,8 @@ mod tests {
     use tokio::{sync::watch, test as async_test};
 
     use axelar_wasm_std::operators::Operators;
-    use connection_router_api::ChainName;
     use events::Event;
+    use router_api::ChainName;
     use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
 
     use crate::{

@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use clap::Subcommand;
-use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
 use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmos_sdk_proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
@@ -13,7 +12,7 @@ use error_stack::ResultExt;
 use serde::{Deserialize, Serialize};
 use valuable::Valuable;
 
-use crate::broadcaster::{accounts::account, Broadcaster};
+use crate::broadcaster::Broadcaster;
 use crate::config::Config as AmpdConfig;
 use crate::state;
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
@@ -85,46 +84,31 @@ async fn broadcast_tx(
         ..
     } = config;
 
-    let account = account_info(tm_grpc.to_string(), &pub_key)
-        .await
-        .change_context(Error::Broadcaster)?;
-
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-
+    let query_client = QueryClient::connect(tm_grpc.to_string())
+        .await
+        .change_context(Error::Connection)?;
     let ecdsa_client = SharableEcdsaClient::new(
         MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
             .await
             .change_context(Error::Connection)?,
     );
+    let address = pub_key
+        .account_id(PREFIX)
+        .expect("failed to convert to account identifier")
+        .into();
 
-    broadcaster::BroadcastClientBuilder::default()
+    broadcaster::BroadcastClient::builder()
         .client(service_client)
         .signer(ecdsa_client)
-        .acc_number(account.account_number)
-        .acc_sequence(account.sequence)
+        .query_client(query_client)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast)
+        .address(address)
         .build()
-        .change_context(Error::Broadcaster)?
         .broadcast(vec![tx])
         .await
         .change_context(Error::Broadcaster)
-}
-
-async fn account_info(tm_grpc: String, pub_key: &PublicKey) -> Result<BaseAccount, Error> {
-    let query_client = QueryClient::connect(tm_grpc.to_string())
-        .await
-        .change_context(Error::Connection)?;
-
-    account(
-        query_client,
-        &pub_key
-            .account_id(PREFIX)
-            .expect("failed to convert to account identifier")
-            .into(),
-    )
-    .await
-    .change_context(Error::Broadcaster)
 }

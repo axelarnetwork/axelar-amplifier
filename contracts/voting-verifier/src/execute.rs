@@ -11,7 +11,7 @@ use axelar_wasm_std::{
     MajorityThreshold, VerificationStatus,
 };
 
-use connection_router_api::{ChainName, Message};
+use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
 use crate::events::{
@@ -69,7 +69,11 @@ pub fn verify_worker_set(
 
     Ok(Response::new().add_event(
         PollStarted::WorkerSet {
-            worker_set: WorkerSetConfirmation::new(message_id, new_operators)?,
+            worker_set: WorkerSetConfirmation::new(
+                message_id,
+                config.msg_id_format,
+                new_operators,
+            )?,
             metadata: PollMetadata {
                 poll_id,
                 source_chain: config.source_chain,
@@ -140,7 +144,7 @@ pub fn verify_messages(
 
     let messages = msgs_to_verify
         .into_iter()
-        .map(TryInto::try_into)
+        .map(|msg| (msg, &config.msg_id_format).try_into())
         .collect::<Result<Vec<TxEventConfirmation>, _>>()?;
 
     Ok(Response::new().add_event(
@@ -310,6 +314,7 @@ mod test {
             block_expiry: 10,
             confirmation_height: 2,
             rewards_contract: Addr::unchecked("rewards"),
+            msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         }
     }
 

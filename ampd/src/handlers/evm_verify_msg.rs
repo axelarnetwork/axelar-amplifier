@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
@@ -12,10 +13,9 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::ChainName;
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
-use voting_verifier::events::construct_message_id;
+use router_api::ChainName;
 use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
@@ -35,7 +35,7 @@ pub struct Message {
     pub tx_id: Hash,
     pub event_index: u32,
     pub destination_address: String,
-    pub destination_chain: connection_router_api::ChainName,
+    pub destination_chain: router_api::ChainName,
     pub source_address: EVMAddress,
     pub payload_hash: Hash,
 }
@@ -44,7 +44,7 @@ pub struct Message {
 #[try_from("wasm-messages_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
-    source_chain: connection_router_api::ChainName,
+    source_chain: router_api::ChainName,
     source_gateway_address: EVMAddress,
     confirmation_height: u64,
     expires_at: u64,
@@ -195,7 +195,9 @@ where
         let source_chain_str: String = source_chain.into();
         let message_ids = messages
             .iter()
-            .map(|message| construct_message_id(message.tx_id.into(), message.event_index))
+            .map(|message| {
+                HexTxHashAndEventIndex::new(message.tx_id, message.event_index).to_string()
+            })
             .collect::<Vec<_>>();
         let votes = info_span!(
             "verify messages from an EVM chain",
@@ -242,9 +244,9 @@ mod tests {
     use tokio::sync::watch;
     use tokio::test as async_test;
 
-    use connection_router_api::ChainName;
     use events::Error::{DeserializationFailed, EventTypeMismatch};
     use events::Event;
+    use router_api::ChainName;
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::event_processor::EventHandler;
@@ -351,7 +353,6 @@ mod tests {
             &TMAddress::random(PREFIX),
         );
         let event: Result<PollStartedEvent, events::Error> = event.try_into();
-
         assert!(event.is_ok());
     }
 

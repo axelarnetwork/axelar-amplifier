@@ -74,27 +74,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aggregate-verifier"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "client",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "cw-utils 1.0.1",
- "error-stack",
- "integration-tests",
- "report",
- "serde",
- "thiserror",
- "voting-verifier",
-]
-
-[[package]]
 name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -147,8 +126,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-primitives"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99bbad0a6b588ef4aec1b5ddbbfdacd9ef04e00b979617765b03174318ee1f3a"
+dependencies = [
+ "bytes",
+ "cfg-if",
+ "const-hex",
+ "derive_more",
+ "hex-literal",
+ "itoa",
+ "ruint",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "alloy-sol-macro"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "452d929748ac948a10481fff4123affead32c553cf362841c5103dd508bdfc16"
+dependencies = [
+ "alloy-sol-macro-input",
+ "const-hex",
+ "heck 0.4.1",
+ "indexmap 2.0.0",
+ "proc-macro-error",
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "syn 2.0.37",
+ "syn-solidity",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "alloy-sol-macro-input"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df64e094f6d2099339f9e82b5b38440b159757b6920878f28316243f8166c8d1"
+dependencies = [
+ "const-hex",
+ "dunce",
+ "heck 0.5.0",
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "syn 2.0.37",
+ "syn-solidity",
+]
+
+[[package]]
+name = "alloy-sol-types"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43bc2d6dfc2a19fd56644494479510f98b1ee929e04cf0d4aa45e98baa3e545b"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-macro",
+ "const-hex",
+]
+
+[[package]]
 name = "ampd"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -157,12 +196,10 @@ dependencies = [
  "bcs",
  "clap",
  "config",
- "connection-router-api",
  "cosmos-sdk-proto 0.16.0",
  "cosmrs",
  "cosmwasm-std",
  "deref-derive",
- "derive_builder",
  "dirs",
  "ecdsa",
  "elliptic-curve",
@@ -186,6 +223,7 @@ dependencies = [
  "random-string",
  "report",
  "reqwest",
+ "router-api",
  "serde",
  "serde_json",
  "serde_with 3.3.0",
@@ -205,6 +243,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
+ "typed-builder",
  "url",
  "valuable",
  "valuable-serde",
@@ -662,6 +701,7 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 name = "axelar-wasm-std"
 version = "0.1.0"
 dependencies = [
+ "bs58 0.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -744,7 +784,7 @@ dependencies = [
  "http 1.1.0",
  "http-body 1.0.0",
  "http-body-util",
- "hyper 1.3.0",
+ "hyper 1.3.1",
  "hyper-util",
  "itoa",
  "matchit 0.7.2",
@@ -924,7 +964,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e141fb0f8be1c7b45887af94c88b182472b57c96b56773250ae00cd6a14a164"
 dependencies = [
- "bs58 0.5.0",
+ "bs58 0.5.1",
  "hmac",
  "k256",
  "once_cell",
@@ -1154,9 +1194,9 @@ checksum = "771fe0050b883fcc3ea2359b1a96bcfbc090b7116eae7c3c512c7a083fdf23d3"
 
 [[package]]
 name = "bs58"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5353f36341f7451062466f0b755b96ac3a9547e4d7f6b70d603fc721a7d7896"
+checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
 dependencies = [
  "sha2 0.10.7",
  "tinyvec",
@@ -1428,7 +1468,7 @@ version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b6be4a5df2098cd811f3194f64ddb96c267606bffd9689ac7b0160097b01ad3"
 dependencies = [
- "bs58 0.5.0",
+ "bs58 0.5.1",
  "coins-core",
  "digest 0.10.7",
  "hmac",
@@ -1462,7 +1502,7 @@ checksum = "5286a0843c21f8367f7be734f89df9b822e0321d8bcce8d6e735aadff7d74979"
 dependencies = [
  "base64 0.21.4",
  "bech32",
- "bs58 0.5.0",
+ "bs58 0.5.1",
  "digest 0.10.7",
  "generic-array",
  "hex",
@@ -1517,50 +1557,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "connection-router"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "error-stack",
- "flagset",
- "gateway-api",
- "hex",
- "integration-tests",
- "itertools 0.11.0",
- "mockall",
- "rand",
- "report",
-]
-
-[[package]]
-name = "connection-router-api"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.1.0",
- "error-stack",
- "flagset",
- "hex",
- "rand",
- "report",
- "schemars",
- "serde",
- "serde_json",
- "sha3 0.10.8",
- "thiserror",
- "valuable",
-]
-
-[[package]]
 name = "console"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1574,13 +1570,14 @@ dependencies = [
 
 [[package]]
 name = "const-hex"
-version = "1.8.0"
+version = "1.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08849ed393c907c90016652a01465a12d86361cd38ad2a7de026c56a520cc259"
+checksum = "5ba00838774b4ab0233e355d26710fbfc8327a05c017f6dc4873f876d1f79f78"
 dependencies = [
  "cfg-if",
  "cpufeatures",
  "hex",
+ "proptest",
  "serde",
 ]
 
@@ -1615,6 +1612,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
 dependencies = [
  "unicode-segmentation",
+]
+
+[[package]]
+name = "coordinator"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "integration-tests",
+ "multisig",
+ "report",
+ "router-api",
+ "thiserror",
+ "tofn",
 ]
 
 [[package]]
@@ -2208,37 +2224,6 @@ checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
 dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_builder"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d67778784b508018359cbc8696edb3db78160bab2c2a28ba7f56ef6932997f8"
-dependencies = [
- "derive_builder_macro",
-]
-
-[[package]]
-name = "derive_builder_core"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c11bdc11a0c47bc7d37d582b5285da6849c96681023680b906673c5707af7b0f"
-dependencies = [
- "darling 0.14.4",
- "proc-macro2 1.0.67",
- "quote 1.0.33",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_builder_macro"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebcda35c7a396850a55ffeac740804b40ffec779b98fffbb1738f4033f0ee79e"
-dependencies = [
- "derive_builder_core",
  "syn 1.0.109",
 ]
 
@@ -3392,13 +3377,11 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
- "aggregate-verifier",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "client",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -3407,17 +3390,19 @@ dependencies = [
  "gateway-api",
  "itertools 0.11.0",
  "report",
+ "router-api",
  "serde",
  "serde_json",
  "thiserror",
+ "voting-verifier",
 ]
 
 [[package]]
 name = "gateway-api"
 version = "0.1.0"
 dependencies = [
- "connection-router-api",
  "cosmwasm-schema",
+ "router-api",
 ]
 
 [[package]]
@@ -3598,6 +3583,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hermit-abi"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3611,6 +3602,12 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "hex-literal"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hkdf"
@@ -3755,9 +3752,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f24ce812868d86d19daa79bf3bf9175bc44ea323391147a5e3abde2a283871b"
+checksum = "fe575dd17d0862a9a33781c8c4696a55c320909004a67a00fb286ba8b1bc496d"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -3845,7 +3842,7 @@ dependencies = [
  "futures-util",
  "http 1.1.0",
  "http-body 1.0.0",
- "hyper 1.3.0",
+ "hyper 1.3.1",
  "pin-project-lite",
  "socket2 0.5.4",
  "tokio",
@@ -4028,19 +4025,20 @@ name = "integration-tests"
 version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
- "connection-router",
- "connection-router-api",
+ "coordinator",
  "cosmwasm-std",
  "cw-multi-test",
  "error-stack",
  "gateway",
  "gateway-api",
  "k256",
- "monitoring",
  "multisig",
  "multisig-prover",
+ "rand",
  "report",
  "rewards",
+ "router",
+ "router-api",
  "serde",
  "serde_json",
  "service-registry",
@@ -4442,25 +4440,6 @@ dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "monitoring"
-version = "0.1.0"
-dependencies = [
- "axelar-wasm-std",
- "axelar-wasm-std-derive",
- "connection-router-api",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test",
- "cw-storage-plus 1.1.0",
- "error-stack",
- "integration-tests",
- "multisig",
- "report",
- "thiserror",
- "tofn",
 ]
 
 [[package]]
@@ -4934,11 +4913,10 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-crypto",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -4952,6 +4930,7 @@ dependencies = [
  "k256",
  "report",
  "rewards",
+ "router-api",
  "serde",
  "serde_json",
  "sha3 0.10.8",
@@ -4961,13 +4940,15 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
  "anyhow",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "bcs",
- "connection-router-api",
+ "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -4983,9 +4964,9 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "k256",
- "monitoring",
  "multisig",
  "report",
+ "router-api",
  "serde_json",
  "service-registry",
  "sha3 0.10.8",
@@ -5148,11 +5129,10 @@ checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
 
 [[package]]
 name = "nexus-gateway"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.1.0",
@@ -5160,6 +5140,7 @@ dependencies = [
  "hex",
  "mockall",
  "report",
+ "router-api",
  "schemars",
  "serde",
  "thiserror",
@@ -6080,19 +6061,19 @@ dependencies = [
 
 [[package]]
 name = "proptest"
-version = "1.2.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e35c06b98bf36aba164cc17cb25f7e232f5c4aeea73baa14b8a9f0d92dbfa65"
+checksum = "31b476131c3c86cb68032fdc5cb6d5a1045e3e42d96b69fa599fd77701e1f5bf"
 dependencies = [
  "bit-set",
- "bitflags 1.3.2",
- "byteorder",
+ "bit-vec",
+ "bitflags 2.4.0",
  "lazy_static",
  "num-traits",
  "rand",
  "rand_chacha",
  "rand_xorshift",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.8.2",
  "rusty-fork",
  "tempfile",
  "unarray",
@@ -6502,12 +6483,6 @@ dependencies = [
 
 [[package]]
 name = "regex-syntax"
-version = "0.6.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
-
-[[package]]
-name = "regex-syntax"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
@@ -6578,11 +6553,10 @@ checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
 
 [[package]]
 name = "rewards"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
@@ -6590,6 +6564,7 @@ dependencies = [
  "error-stack",
  "itertools 0.11.0",
  "report",
+ "router-api",
  "thiserror",
 ]
 
@@ -6682,6 +6657,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "router"
+version = "0.2.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "flagset",
+ "gateway-api",
+ "hex",
+ "integration-tests",
+ "itertools 0.11.0",
+ "mockall",
+ "rand",
+ "report",
+ "router-api",
+]
+
+[[package]]
+name = "router-api"
+version = "0.1.0"
+dependencies = [
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.1.0",
+ "error-stack",
+ "flagset",
+ "hex",
+ "rand",
+ "report",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha3 0.10.8",
+ "thiserror",
+ "valuable",
+]
+
+[[package]]
 name = "rsa"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6701,6 +6720,26 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "ruint"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f308135fef9fc398342da5472ce7c484529df23743fb7c734e0f3d472971e62"
+dependencies = [
+ "proptest",
+ "rand",
+ "ruint-macro",
+ "serde",
+ "valuable",
+ "zeroize",
+]
+
+[[package]]
+name = "ruint-macro"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f86854cf50259291520509879a5c294c3c9a4c334e9ff65071c51e42ef1e2343"
 
 [[package]]
 name = "rust-ini"
@@ -7238,19 +7277,18 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "error-stack",
  "integration-tests",
- "monitoring",
  "report",
+ "router-api",
  "schemars",
  "serde",
  "thiserror",
@@ -7866,6 +7904,18 @@ dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
  "unicode-ident",
+]
+
+[[package]]
+name = "syn-solidity"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4497156948bd342b52038035a6fa514a89626e37af9d2c52a5e8d8ebcc7ee479"
+dependencies = [
+ "paste",
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "syn 2.0.37",
 ]
 
 [[package]]
@@ -8706,6 +8756,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "typed-builder"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77739c880e00693faef3d65ea3aad725f196da38b22fdc7ea6ded6e1ce4d3add"
+dependencies = [
+ "typed-builder-macro",
+]
+
+[[package]]
+name = "typed-builder-macro"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f718dfaf347dcb5b983bfc87608144b0bad87970aebcbea5ce44d2a30c08e63"
+dependencies = [
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "syn 2.0.37",
+]
+
+[[package]]
 name = "typed-store"
 version = "0.4.0"
 source = "git+https://github.com/mystenlabs/sui?tag=mainnet-v1.14.2#299cbeafbb6aa5601e08f00ac24bd647c61a63e2"
@@ -8936,21 +9006,24 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voting-verifier"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
- "connection-router-api",
+ "client",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
  "error-stack",
  "integration-tests",
+ "rand",
  "report",
  "rewards",
+ "router-api",
  "serde_json",
  "service-registry",
+ "sha3 0.10.8",
  "thiserror",
 ]
 

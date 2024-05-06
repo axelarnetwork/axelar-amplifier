@@ -1,14 +1,20 @@
 use cosmwasm_std::{Addr, HexBinary};
 
-use connection_router_api::{CrossChainId, Message};
 use integration_tests::contract::Contract;
+use router_api::{CrossChainId, Message};
 
 pub mod test_utils;
 
 // Tests that a chain can be frozen and unfrozen
 #[test]
 fn chain_can_be_freezed_unfreezed() {
-    let (mut protocol, chain1, chain2, workers, _) = test_utils::setup_test_case();
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        chain2,
+        workers,
+        ..
+    } = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
@@ -57,9 +63,9 @@ fn chain_can_be_freezed_unfreezed() {
 
     test_utils::freeze_chain(
         &mut protocol.app,
-        &protocol.connection_router,
+        &protocol.router,
         &chain1.chain_name,
-        connection_router_api::GatewayDirection::Bidirectional,
+        router_api::GatewayDirection::Bidirectional,
         &protocol.router_admin_address,
     );
 
@@ -70,16 +76,16 @@ fn chain_can_be_freezed_unfreezed() {
     );
     test_utils::assert_contract_err_strings_equal(
         response.unwrap_err(),
-        connection_router_api::error::Error::ChainFrozen {
+        router_api::error::Error::ChainFrozen {
             chain: chain1.chain_name.clone(),
         },
     );
 
     test_utils::unfreeze_chain(
         &mut protocol.app,
-        &protocol.connection_router,
+        &protocol.router,
         &chain1.chain_name,
-        connection_router_api::GatewayDirection::Bidirectional,
+        router_api::GatewayDirection::Bidirectional,
         &protocol.router_admin_address,
     );
 

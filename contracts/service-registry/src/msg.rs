@@ -1,6 +1,6 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -12,7 +12,7 @@ pub enum ExecuteMsg {
     // Can only be called by governance account
     RegisterService {
         service_name: String,
-        monitoring_contract: Addr,
+        coordinator_contract: Addr,
         min_num_workers: u16,
         max_num_workers: Option<u16>,
         min_worker_bond: Uint128,

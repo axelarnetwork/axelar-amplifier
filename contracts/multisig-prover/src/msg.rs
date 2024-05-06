@@ -1,8 +1,8 @@
-use axelar_wasm_std::MajorityThreshold;
-use connection_router_api::CrossChainId;
+use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use multisig::key::KeyType;
+use router_api::CrossChainId;
 
 use crate::encoding::{Data, Encoder};
 
@@ -20,8 +20,8 @@ pub struct InstantiateMsg {
     pub gateway_address: String,
     /// Address of the multisig contract on axelar.
     pub multisig_address: String,
-    /// Address of the monitoring contract on axelar.
-    pub monitoring_address: String,
+    /// Address of the coordinator contract on axelar.
+    pub coordinator_address: String,
     /// Address of the service registry contract on axelar.
     pub service_registry_address: String,
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
@@ -49,6 +49,8 @@ pub struct InstantiateMsg {
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
+    /// an opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+    pub domain_separator: Hash,
 }
 
 #[cw_serde]

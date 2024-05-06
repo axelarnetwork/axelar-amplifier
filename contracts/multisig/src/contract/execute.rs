@@ -1,5 +1,5 @@
-use connection_router_api::ChainName;
 use cosmwasm_std::{OverflowError, OverflowOperation, WasmMsg};
+use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 

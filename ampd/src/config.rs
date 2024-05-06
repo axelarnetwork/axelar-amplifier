@@ -52,7 +52,7 @@ mod tests {
 
     use cosmrs::AccountId;
 
-    use connection_router_api::ChainName;
+    use router_api::ChainName;
 
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;

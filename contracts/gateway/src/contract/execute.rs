@@ -1,16 +1,16 @@
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router_api::client::Router;
-use connection_router_api::Message;
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
+use router_api::client::Router;
+use router_api::Message;
 
 use crate::contract::Error;
 use crate::events::GatewayEvent;
 use crate::state;
 
 pub fn verify_messages(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {
@@ -19,7 +19,7 @@ pub fn verify_messages(
 }
 
 pub(crate) fn route_incoming_messages(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     router: &Router,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -47,7 +47,7 @@ pub(crate) fn route_outgoing_messages(
 }
 
 fn apply(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
@@ -76,9 +76,10 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
 }
 
 fn group_by_status(
-    msgs_with_status: impl Iterator<Item = (Message, VerificationStatus)>,
+    msgs_with_status: impl IntoIterator<Item = (Message, VerificationStatus)>,
 ) -> Vec<(VerificationStatus, Vec<Message>)> {
     msgs_with_status
+        .into_iter()
         .map(|(msg, status)| (status, msg))
         .into_group_map()
         .into_iter()
@@ -88,7 +89,7 @@ fn group_by_status(
 }
 
 fn verify(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
 ) -> (Option<WasmMsg>, Vec<Event>) {
     msgs_by_status

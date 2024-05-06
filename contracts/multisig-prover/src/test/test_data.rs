@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{
@@ -9,6 +8,7 @@ use multisig::{
     msg::Signer,
     worker_set::WorkerSet,
 };
+use router_api::{CrossChainId, Message};
 
 pub fn new_worker_set() -> WorkerSet {
     let signers = vec![
