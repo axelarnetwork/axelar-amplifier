@@ -1,3 +1,4 @@
+use axelar_wasm_std::event;
 use cosmwasm_std::{Addr, Attribute, Event};
 use router_api::{ChainName, GatewayDirection, Message};
 
@@ -95,7 +96,7 @@ impl From<ChainFrozen> for Event {
             .add_attribute("name", other.name)
             .add_attribute(
                 "direction",
-                serde_json::to_string(&other.direction).expect("failed to serialize direction"),
+                event::attribute_value(&other.direction).expect("failed to serialize direction"),
             )
     }
 }
@@ -106,7 +107,7 @@ impl From<ChainUnfrozen> for Event {
             .add_attribute("name", other.name)
             .add_attribute(
                 "direction",
-                serde_json::to_string(&other.direction).expect("failed to serialize direction"),
+                event::attribute_value(&other.direction).expect("failed to serialize direction"),
             )
     }
 }

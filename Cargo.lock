@@ -6676,7 +6676,6 @@ dependencies = [
  "rand",
  "report",
  "router-api",
- "serde_json",
 ]
 
 [[package]]
