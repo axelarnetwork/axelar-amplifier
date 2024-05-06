@@ -3,6 +3,7 @@ use cosmwasm_std::HexBinary;
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
+use multisig::msg::SignerWithSig;
 use multisig::worker_set::WorkerSet;
 use router_api::{CrossChainId, Message};
 
@@ -41,7 +42,7 @@ impl Payload {
         encoder: Encoder,
         domain_separator: &Hash,
         curr_worker_set: &WorkerSet,
-    ) -> HexBinary {
+    ) -> Hash {
         match encoder {
             Encoder::Abi => abi2::payload_hash_to_sign(domain_separator, curr_worker_set, self),
             Encoder::Bcs => todo!(),
@@ -52,6 +53,23 @@ impl Payload {
         match &self {
             Payload::Messages(msgs) => Some(msgs.iter().map(|msg| msg.cc_id.clone()).collect()),
             Payload::WorkerSet(_) => None,
+        }
+    }
+    pub fn execute_data(
+        &self,
+        encoder: Encoder,
+        domain_separator: &Hash,
+        worker_set: &WorkerSet,
+        signers_with_sigs: Vec<SignerWithSig>,
+        payload: &Payload,
+    ) -> HexBinary {
+        let payload_hash = payload.digest(encoder, domain_separator, worker_set);
+
+        match encoder {
+            Encoder::Abi => {
+                abi2::execute_data::encode(worker_set, signers_with_sigs, &payload_hash, payload)
+            }
+            Encoder::Bcs => todo!(),
         }
     }
 }

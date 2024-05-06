@@ -4,7 +4,7 @@ use cosmwasm_std::{HexBinary, Uint256, Uint64};
 use multisig::key::KeyType;
 use router_api::CrossChainId;
 
-use crate::encoding::{Data, Encoder};
+use crate::{encoding::Encoder, payload::Payload};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -95,6 +95,6 @@ pub enum ProofStatus {
 pub struct GetProofResponse {
     pub multisig_session_id: Uint64,
     pub message_ids: Vec<CrossChainId>,
-    pub data: Data,
+    pub payload: Payload,
     pub status: ProofStatus,
 }

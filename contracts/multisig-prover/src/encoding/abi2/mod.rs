@@ -1,6 +1,8 @@
+pub mod execute_data;
+
 use alloy_primitives::Address;
 use alloy_sol_types::{sol, SolValue};
-use cosmwasm_std::{HexBinary, Uint128, Uint256};
+use cosmwasm_std::{Uint128, Uint256};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
@@ -67,7 +69,7 @@ pub fn payload_hash_to_sign(
     domain_separator: &Hash,
     signer: &WorkerSet,
     payload: &Payload,
-) -> HexBinary {
+) -> Hash {
     let signer_hash = WeightedSigners::from(signer).hash();
     let data_hash = Keccak256::digest(encode(payload));
 
@@ -80,7 +82,10 @@ pub fn payload_hash_to_sign(
     ]
     .concat();
 
-    Keccak256::digest(unsigned).as_slice().into()
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&Keccak256::digest(unsigned));
+
+    hash
 }
 
 pub fn encode(payload: &Payload) -> Vec<u8> {
@@ -110,15 +115,12 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, HexBinary, Uint256};
-
-    use axelar_wasm_std::{nonempty, Participant};
-    use multisig::{key::PublicKey, worker_set::WorkerSet};
+    use cosmwasm_std::HexBinary;
 
     use crate::{
         encoding::abi2::{payload_hash_to_sign, CommandType, WeightedSigners},
         payload::Payload,
-        test::test_data::new_worker_set,
+        test::test_data::{curr_worker_set, new_worker_set, worker_set_from_pub_keys},
     };
 
     #[test]
@@ -173,33 +175,5 @@ mod tests {
             &Payload::WorkerSet(new_worker_set),
         );
         assert_eq!(msg_to_sign, expected_hash);
-    }
-
-    // generate a worker set matches AmplifierGateway solidity test data
-    fn curr_worker_set() -> WorkerSet {
-        let pub_keys = vec![
-            "038318535b54105d4a7aae60c08fc45f9687181b4fdfc625bd1a753fa7397fed75",
-            "02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad984f068b0",
-            "039d9031e97dd78ff8c15aa86939de9b1e791066a0224e331bc962a2099a7b1f04",
-            "0220b871f3ced029e14472ec4ebc3c0448164942b123aa6af91a3386c1c403e0eb",
-            "03bf6ee64a8d2fdc551ec8bb9ef862ef6b4bcb1805cdc520c3aa5866c0575fd3b5",
-        ];
-
-        worker_set_from_pub_keys(pub_keys)
-    }
-
-    fn worker_set_from_pub_keys(pub_keys: Vec<&str>) -> WorkerSet {
-        let participants: Vec<(_, _)> = (0..pub_keys.len())
-            .map(|i| {
-                (
-                    Participant {
-                        address: Addr::unchecked(format!("verifier{i}")),
-                        weight: nonempty::Uint256::one(),
-                    },
-                    PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),
-                )
-            })
-            .collect();
-        WorkerSet::new(participants, Uint256::from_u128(3), 0)
     }
 }
