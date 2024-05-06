@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::event::attribute_value;
 use axelar_wasm_std::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use axelar_wasm_std::msg_id::MessageIdFormat;
@@ -30,7 +29,7 @@ impl From<Config> for Vec<Attribute> {
             ),
             (
                 "voting_threshold",
-                attribute_value(&other.voting_threshold)
+                serde_json::to_string(&other.voting_threshold)
                     .expect("failed to serialize voting_threshold"),
             ),
             ("block_expiry", other.block_expiry.to_string()),
@@ -42,7 +41,6 @@ impl From<Config> for Vec<Attribute> {
     }
 }
 
-#[derive(Clone)]
 pub struct PollMetadata {
     pub poll_id: PollId,
     pub source_chain: ChainName,
@@ -68,7 +66,7 @@ impl From<PollMetadata> for Vec<Attribute> {
         vec![
             (
                 "poll_id",
-                &attribute_value(&value.poll_id).expect("failed to serialize poll_id"),
+                &serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
             ),
             ("source_chain", &value.source_chain.to_string()),
             ("source_gateway_address", &value.source_gateway_address),
@@ -79,7 +77,8 @@ impl From<PollMetadata> for Vec<Attribute> {
             ("expires_at", &value.expires_at.to_string()),
             (
                 "participants",
-                &attribute_value(&value.participants).expect("failed to serialize participants"),
+                &serde_json::to_string(&value.participants)
+                    .expect("failed to serialize participants"),
             ),
         ]
         .into_iter()
@@ -97,7 +96,7 @@ impl From<PollStarted> for Event {
             } => Event::new("messages_poll_started")
                 .add_attribute(
                     "messages",
-                    attribute_value(&data).expect("failed to serialize messages"),
+                    serde_json::to_string(&data).expect("failed to serialize messages"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
             PollStarted::WorkerSet {
@@ -106,7 +105,8 @@ impl From<PollStarted> for Event {
             } => Event::new("worker_set_poll_started")
                 .add_attribute(
                     "worker_set",
-                    attribute_value(&data).expect("failed to serialize worker set confirmation"),
+                    serde_json::to_string(&data)
+                        .expect("failed to serialize worker set confirmation"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
         }
@@ -196,7 +196,7 @@ impl From<Voted> for Event {
         Event::new("voted")
             .add_attribute(
                 "poll_id",
-                attribute_value(&other.poll_id).expect("failed to serialize poll_id"),
+                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute("voter", other.voter)
     }
@@ -212,11 +212,11 @@ impl From<PollEnded> for Event {
         Event::new("poll_ended")
             .add_attribute(
                 "poll_id",
-                attribute_value(&other.poll_id).expect("failed to serialize poll_id"),
+                serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute(
                 "results",
-                attribute_value(&other.results).expect("failed to serialize results"),
+                serde_json::to_string(&other.results).expect("failed to serialize results"),
             )
     }
 }
