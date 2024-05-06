@@ -77,7 +77,7 @@ fn convert_uint256_to_u16(value: Uint256) -> Result<u16, ContractError> {
 
 // Converts a Vec<Uint256> to Vec<u16>, scaling down with precision loss, if necessary.
 // We make sure that XRPL multisig and Axelar multisig both use the same scaled down numbers and have the same precision loss
-fn convert_or_scale_weights(weights: Vec<Uint256>) -> Result<Vec<u16>, ContractError> {
+fn convert_or_scale_weights(weights: &[Uint256]) -> Result<Vec<u16>, ContractError> {
     let max_weight: Option<&Uint256> = weights.iter().max();
     match max_weight {
         Some(max_weight) => {
@@ -107,10 +107,12 @@ pub fn get_active_worker_set(
         .filter_map(|result| result.ok())
         .collect();
 
+
     let weights = convert_or_scale_weights(participants
         .iter()
         .map(|participant| Uint256::from(participant.weight))
-        .collect())?;
+        .collect::<Vec<Uint256>>()
+        .as_slice())?;
 
     let mut signers: Vec<AxelarSigner> = vec![];
     for (i, participant) in participants.iter().enumerate() {
@@ -167,15 +169,15 @@ mod tests {
     #[test]
     fn test_convert_or_scale_weights() {
         let weights = vec![Uint256::from(1u128), Uint256::from(1u128)];
-        let scaled_weights = convert_or_scale_weights(weights).unwrap();
+        let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![65535, 65535]);
 
         let weights = vec![Uint256::from(1u128), Uint256::from(2u128), Uint256::from(3u128)];
-        let scaled_weights = convert_or_scale_weights(weights).unwrap();
+        let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![21845, 43690, 65535]);
 
         let weights = vec![Uint256::from(1u128), Uint256::from(2u128), Uint256::from(3u128), Uint256::from(4u128)];
-        let scaled_weights = convert_or_scale_weights(weights).unwrap();
+        let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![16383, 32767, 49151, 65535]);
 
         let weights = vec![
@@ -184,7 +186,7 @@ mod tests {
             Uint256::MAX - Uint256::from(1u128),
             Uint256::MAX
         ];
-        let scaled_weights = convert_or_scale_weights(weights).unwrap();
+        let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![65534, 65534, 65534, 65535]);
 
         let weights = vec![
@@ -193,7 +195,7 @@ mod tests {
             Uint256::MAX - Uint256::from(1u128),
             Uint256::MAX
         ];
-        let scaled_weights = convert_or_scale_weights(weights).unwrap();
+        let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![0, 0, 65534, 65535]);
 
         let weights = vec![
@@ -203,10 +205,10 @@ mod tests {
             Uint256::from(400000000u128),
             Uint256::from(50000000000u128),
         ];
-        let scaled_weights = convert_or_scale_weights(weights).unwrap();
+        let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![0, 2, 39, 524, 65535]);
 
-        let scaled_weights = convert_or_scale_weights(vec![]).unwrap();
+        let scaled_weights = convert_or_scale_weights(&vec![]).unwrap();
         assert_eq!(scaled_weights, vec![] as Vec<u16>);
     }
 }

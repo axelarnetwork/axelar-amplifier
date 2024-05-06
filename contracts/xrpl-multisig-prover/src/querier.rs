@@ -72,7 +72,8 @@ impl<'a> Querier<'a> {
                 messages: vec![message],
             }
         )?;
-        Ok(statuses[0].1)
+        let status = statuses.get(0).ok_or(ContractError::GenericError("failed fetching message status".to_owned()))?;
+        Ok(status.1)
     }
 
     pub fn get_multisig_session(&self, multisig_session_id: &Uint64) -> Result<Multisig, ContractError> {

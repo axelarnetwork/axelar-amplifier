@@ -271,8 +271,8 @@ pub fn compute_unsigned_tx_hash(unsigned_tx: &XRPLUnsignedTx) -> Result<TxHash, 
     Ok(TxHash(HexBinary::from(d.to_vec())))
 }
 
-pub fn compute_signed_tx_hash(encoded_signed_tx: Vec<u8>) -> Result<TxHash, ContractError> {
-    Ok(TxHash(HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx.as_slice()))))
+pub fn compute_signed_tx_hash(encoded_signed_tx: &[u8]) -> Result<TxHash, ContractError> {
+    Ok(TxHash(HexBinary::from(xrpl_hash(HASH_PREFIX_SIGNED_TRANSACTION, encoded_signed_tx))))
 }
 
 pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_address: &XRPLAccountId) -> Result<[u8; 32], ContractError> {

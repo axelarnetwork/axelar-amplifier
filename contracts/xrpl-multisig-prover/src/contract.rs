@@ -363,7 +363,7 @@ fn update_tx_status(
 
     let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
-    let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice().to_vec())?).into();
+    let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice())?).into();
 
     if parse_message_id(&message_id.id).map_err(|_| ContractError::InvalidMessageID(message_id.id.to_string()))?.0.to_string() != tx_hash.to_string() {
         return Err(ContractError::InvalidMessageID(message_id.id.to_string()));
