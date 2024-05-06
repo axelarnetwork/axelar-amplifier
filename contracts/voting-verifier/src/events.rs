@@ -41,7 +41,6 @@ impl From<Config> for Vec<Attribute> {
     }
 }
 
-#[derive(Clone)]
 pub struct PollMetadata {
     pub poll_id: PollId,
     pub source_chain: ChainName,
