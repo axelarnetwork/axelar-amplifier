@@ -10,6 +10,8 @@ use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use error_stack::Report;
 use error_stack::ResultExt;
 use flagset::flags;
+use schemars::gen::SchemaGenerator;
+use schemars::schema::Schema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
@@ -20,6 +22,7 @@ use crate::error::*;
 pub const CHAIN_NAME_DELIMITER: char = '_';
 
 #[cw_serde]
+#[derive(Eq, Hash)]
 pub struct Message {
     pub cc_id: CrossChainId,
     pub source_address: Address,
@@ -62,6 +65,7 @@ impl From<Message> for Vec<Attribute> {
 }
 
 #[cw_serde]
+#[derive(Eq, Hash)]
 pub struct Address(nonempty::String);
 
 impl Deref for Address {
@@ -243,12 +247,22 @@ impl AsRef<str> for ChainName {
 
 flags! {
     #[repr(u8)]
-    #[derive(Deserialize, Serialize, Hash, JsonSchema)]
+    #[derive(Deserialize, Serialize, Hash)]
     pub enum GatewayDirection: u8 {
         None = 0,
         Incoming = 1,
         Outgoing = 2,
         Bidirectional = (GatewayDirection::Incoming | GatewayDirection::Outgoing).bits(),
+    }
+}
+
+impl JsonSchema for GatewayDirection {
+    fn schema_name() -> String {
+        "GatewayDirection".to_string()
+    }
+
+    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
+        gen.subschema_for::<u8>()
     }
 }
 
@@ -374,6 +388,16 @@ mod tests {
         assert!(chain_name.eq(&"ethEReum".to_string()));
 
         assert!(!chain_name.eq(&"Ethereum-1".to_string()));
+    }
+
+    #[test]
+    fn json_schema_for_gateway_direction_flag_set_does_not_panic() {
+        let gen = &mut SchemaGenerator::default();
+        // check it doesn't panic
+        let _ = FlagSet::<GatewayDirection>::json_schema(gen);
+
+        // make sure it's the same as the underlying type
+        assert_eq!(GatewayDirection::json_schema(gen), u8::json_schema(gen));
     }
 
     fn dummy_message() -> Message {
