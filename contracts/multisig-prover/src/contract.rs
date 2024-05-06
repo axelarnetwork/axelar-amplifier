@@ -690,24 +690,16 @@ mod tests {
         let mut new_worker_set = test_data::operators();
         new_worker_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set,
+            new_worker_set.clone(),
             VerificationStatus::SucceededOnChain,
         ));
-        let res = execute_update_worker_set(deps.as_mut());
+        execute_update_worker_set(deps.as_mut()).unwrap();
 
         new_worker_set.pop();
-        let total_weight: Uint256 = new_worker_set
-            .iter()
-            .fold(Uint256::zero(), |acc, x| acc + x.weight);
-        let quorum = total_weight.mul_ceil(test_data::threshold());
-        mocks::voting_verifier::confirm_worker_set(
-            &mut test_case.app,
-            test_case.voting_verifier_address.clone(),
+        deps.querier.update_wasm(mock_querier_handler(
             new_worker_set,
-            quorum,
-        );
-
-        assert!(res.is_ok());
+            VerificationStatus::None,
+        ));
 
         let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_err());
@@ -862,7 +854,7 @@ mod tests {
     }
 
     #[test]
-    fn should_confirm_new_threshold_via_voting_verifier() {
+    fn should_confirm_new_threshold() {
         let mut deps = setup_test_case();
         execute_update_worker_set(deps.as_mut()).unwrap();
 
@@ -872,12 +864,6 @@ mod tests {
 
         execute_update_worker_set(deps.as_mut()).unwrap();
 
-        mocks::voting_verifier::confirm_worker_set(
-            &mut test_case.app,
-            test_case.voting_verifier_address.clone(),
-            test_data::operators(),
-            new_threshold,
-        );
         let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_ok());
 
