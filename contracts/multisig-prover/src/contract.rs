@@ -349,6 +349,7 @@ mod tests {
 
         let response = SubMsgResponse {
             events: vec![],
+            // see https://github.com/CosmWasm/cw-minus/blob/11164624d1bbb8df8a89e5142a03e106e751dfc4/packages/cw-utils/src/parse_reply.rs#L245
             data: Some(
                 [
                     b"\x0a".as_ref(),
