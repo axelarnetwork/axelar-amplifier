@@ -1,5 +1,5 @@
 use crate::state;
-use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
+use crate::state::{AuthorizationState, WORKERS};
 use router_api::ChainName;
 
 use super::*;
@@ -156,9 +156,8 @@ pub fn deregister_chains_support(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::WorkerNotFound)?;
 
-    for chain in chains {
-        WORKERS_PER_CHAIN.remove(deps.storage, (&service_name, &chain, &info.sender));
-    }
+    let _res =
+        state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender);
 
     Ok(Response::new())
 }

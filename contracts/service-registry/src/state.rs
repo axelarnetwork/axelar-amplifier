@@ -184,6 +184,27 @@ pub fn register_chains_support(
     Ok(())
 }
 
+pub fn deregister_chains_support(
+    storage: &mut dyn Storage,
+    service_name: String,
+    chains: Vec<ChainName>,
+    worker: WorkerAddress,
+) -> Result<(), ContractError> {
+    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
+        let mut current_chains = current_chains.unwrap_or_default();
+        for chain in chains.iter() {
+            current_chains.remove(chain);
+        }
+        Ok::<HashSet<ChainName>, ContractError>(current_chains)
+    })?;
+
+    for chain in chains.iter() {
+        WORKERS_PER_CHAIN.remove(storage, (&service_name, &chain, &worker));
+    }
+
+    Ok(())
+}
+
 pub fn may_load_chains_per_worker(
     storage: &dyn Storage,
     service_name: String,
@@ -288,6 +309,82 @@ mod tests {
         let err = may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker)
             .unwrap_err();
         assert!(matches!(err, ContractError::WorkerNotFound));
+    }
+
+    #[test]
+    fn deregister_single_supported_chain_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chains = vec![chain_name.clone()];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chains.clone(),
+            worker.clone()
+        )
+        .is_ok());
+
+        assert!(deregister_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chains,
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+        assert!(!worker_chains.contains(&chain_name));
+    }
+
+    #[test]
+    fn deregister_one_of_supported_chains_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_names = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("cosmos").unwrap(),
+        ];
+        assert!(register_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chain_names.clone(),
+            worker.clone()
+        )
+        .is_ok());
+
+        assert!(deregister_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            vec![chain_names[0].clone()],
+            worker.clone()
+        )
+        .is_ok());
+
+        let worker_chains =
+            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+        assert!(worker_chains.contains(&chain_names[1]));
+        assert!(!worker_chains.contains(&chain_names[0]));
+    }
+
+    #[test]
+    fn deregister_unsupported_chain_success() {
+        let mut deps = mock_dependencies();
+        let worker = Addr::unchecked("worker");
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let chains = vec![chain_name.clone()];
+
+        assert!(deregister_chains_support(
+            deps.as_mut().storage,
+            service_name.into(),
+            chains,
+            worker.clone()
+        )
+        .is_ok());
     }
 
     #[test]
