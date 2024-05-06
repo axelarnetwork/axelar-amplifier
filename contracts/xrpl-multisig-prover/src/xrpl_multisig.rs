@@ -206,10 +206,11 @@ pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractErro
     Ok(*ticket_number)
 }
 
-pub fn available_ticket_count(storage: &mut dyn Storage) -> Result<u32, ContractError> {
+pub fn tickets_available_to_request(storage: &mut dyn Storage) -> Result<u32, ContractError> {
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
-    let ticket_count = 250 - (available_tickets.len() as u32);
-    Ok(ticket_count)
+    let available_ticket_count = u32::try_from(available_tickets.len()).map_err(|e| ContractError::GenericError(e.to_string()))?;
+    assert!(available_ticket_count <= 250);
+    Ok(250 - available_ticket_count)
 }
 
 fn get_next_sequence_number(storage: &dyn Storage) -> Result<u32, ContractError> {

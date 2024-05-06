@@ -276,7 +276,7 @@ fn construct_signer_list_set_proof(
     if !axelar_workers::should_update_worker_set(
         &new_worker_set.clone().into(),
         &cur_worker_set.clone().into(),
-        config.worker_set_diff_threshold as usize,
+        usize::try_from(config.worker_set_diff_threshold).unwrap(),
     ) {
         return Err(ContractError::WorkerSetUnchanged.into())
     }
@@ -304,7 +304,7 @@ fn construct_ticket_create_proof(
     self_address: Addr,
     config: &Config,
 ) -> Result<Response, ContractError> {
-    let ticket_count = xrpl_multisig::available_ticket_count(storage)?;
+    let ticket_count = xrpl_multisig::tickets_available_to_request(storage)?;
     if ticket_count < config.ticket_count_threshold {
         return Err(ContractError::TicketCountThresholdNotReached.into());
     }

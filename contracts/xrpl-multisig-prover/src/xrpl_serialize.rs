@@ -205,7 +205,7 @@ impl XRPLSerialize for XRPLAccountId {
 
     fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
-        result.extend(vec![self.to_bytes().len() as u8]);
+        result.extend(vec![20u8]);
         result.extend(self.to_bytes());
         Ok(result)
     }

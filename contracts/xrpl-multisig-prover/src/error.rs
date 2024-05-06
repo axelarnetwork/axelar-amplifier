@@ -109,6 +109,9 @@ pub enum ContractError {
 
     #[error("no worker set stored")]
     NoWorkerSet,
+
+    #[error("generic error {0}")]
+    GenericError(String),
 }
 
 impl From<ContractError> for StdError {
