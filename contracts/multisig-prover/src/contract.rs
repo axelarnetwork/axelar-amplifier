@@ -141,6 +141,7 @@ mod tests {
 
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
     use multisig::{msg::Signer, worker_set::WorkerSet};
+    use prost::Message;
     use router_api::CrossChainId;
 
     use crate::{
@@ -245,13 +246,9 @@ mod tests {
             events: vec![],
             // see https://github.com/CosmWasm/cw-minus/blob/11164624d1bbb8df8a89e5142a03e106e751dfc4/packages/cw-utils/src/parse_reply.rs#L245
             data: Some(
-                [
-                    b"\x0a".as_ref(),
-                    &[session_id.len() as u8],
-                    session_id.as_ref(),
-                ]
-                .concat()
-                .into(),
+                prost::bytes::Bytes::from(session_id.to_vec())
+                    .encode_to_vec()
+                    .into(),
             ),
         };
 

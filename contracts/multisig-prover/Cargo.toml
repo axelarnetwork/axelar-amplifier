@@ -65,6 +65,7 @@ cw-multi-test = "0.15.1"
 elliptic-curve = "0.13.5"
 ethers = "2.0.8"
 generic-array = "0.14.7"
+prost = "0.12.4"
 
 [lints]
 workspace = true
