@@ -34,7 +34,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 
 [dependencies]
 alloy-primitives = { version = "0.7.0", default-features = false }
-alloy-sol-types = { version = "0.7.0", default-features = false }
+alloy-sol-types = { version = "0.7.0", default-features = false, features = ["json"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 bcs = "0.1.5"

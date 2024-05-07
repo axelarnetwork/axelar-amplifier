@@ -4,7 +4,7 @@ use router_api::ChainName;
 
 use crate::{
     key::{KeyType, PublicKey, Signature},
-    types::MultisigState,
+    multisig::Multisig,
     worker_set::WorkerSet,
 };
 
@@ -78,9 +78,17 @@ pub struct Signer {
     pub pub_key: PublicKey,
 }
 
+impl Signer {
+    pub fn with_sig(&self, signature: Signature) -> SignerWithSig {
+        SignerWithSig {
+            signer: self.clone(),
+            signature,
+        }
+    }
+}
+
 #[cw_serde]
-pub struct Multisig {
-    pub state: MultisigState,
-    pub quorum: Uint256,
-    pub signers: Vec<(Signer, Option<Signature>)>,
+pub struct SignerWithSig {
+    pub signer: Signer,
+    pub signature: Signature,
 }

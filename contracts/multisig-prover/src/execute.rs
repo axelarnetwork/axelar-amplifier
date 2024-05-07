@@ -241,7 +241,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 worker_set_id: cur_worker_set.id(),
-                msg: msg_digest,
+                msg: msg_digest.into(),
                 sig_verifier: None,
                 chain_name: config.chain_name,
             };
