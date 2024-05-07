@@ -82,10 +82,7 @@ pub fn payload_hash_to_sign(
     ]
     .concat();
 
-    let mut hash = [0u8; 32];
-    hash.copy_from_slice(&Keccak256::digest(unsigned));
-
-    hash
+    Keccak256::digest(unsigned).into()
 }
 
 pub fn encode(payload: &Payload) -> Vec<u8> {
