@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use axelar_wasm_std::{nonempty, MajorityThreshold, Threshold};
+use axelar_wasm_std::{nonempty, MajorityThreshold, Participant, Threshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
 use multisig::{
@@ -185,25 +185,53 @@ pub fn operators() -> Vec<TestOperator> {
             None,
         ),
     ]
-    .into_iter()
-    .map(
-        |(address, pub_key, operator, weight, signature)| TestOperator {
-            address: Addr::unchecked(address),
-            pub_key: (KeyType::Ecdsa, HexBinary::from_hex(pub_key).unwrap())
-                .try_into()
-                .unwrap(),
-            operator: HexBinary::from_hex(operator).unwrap(),
-            weight: Uint256::from(weight),
-            signature: signature.map(|sig| {
-                (KeyType::Ecdsa, HexBinary::from_hex(sig).unwrap())
+        .into_iter()
+        .map(
+            |(address, pub_key, operator, weight, signature)| TestOperator {
+                address: Addr::unchecked(address),
+                pub_key: (KeyType::Ecdsa, HexBinary::from_hex(pub_key).unwrap())
                     .try_into()
-                    .unwrap()
-            }),
-        },
-    )
-    .collect()
+                    .unwrap(),
+                operator: HexBinary::from_hex(operator).unwrap(),
+                weight: Uint256::from(weight),
+                signature: signature.map(|sig| {
+                    (KeyType::Ecdsa, HexBinary::from_hex(sig).unwrap())
+                        .try_into()
+                        .unwrap()
+                }),
+            },
+        )
+        .collect()
 }
 
 pub fn quorum() -> Uint256 {
     3u128.into()
+}
+
+// Generate a worker set matches axelar-gmp-sdk-solidity repo test data
+pub fn curr_worker_set() -> WorkerSet {
+    let pub_keys = vec![
+        "038318535b54105d4a7aae60c08fc45f9687181b4fdfc625bd1a753fa7397fed75",
+        "02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad984f068b0",
+        "039d9031e97dd78ff8c15aa86939de9b1e791066a0224e331bc962a2099a7b1f04",
+        "0220b871f3ced029e14472ec4ebc3c0448164942b123aa6af91a3386c1c403e0eb",
+        "03bf6ee64a8d2fdc551ec8bb9ef862ef6b4bcb1805cdc520c3aa5866c0575fd3b5",
+    ];
+
+    worker_set_from_pub_keys(pub_keys)
+}
+
+pub fn worker_set_from_pub_keys(pub_keys: Vec<&str>) -> WorkerSet {
+    let participants: Vec<(_, _)> = (0..pub_keys.len())
+        .map(|i| {
+            (
+                Participant {
+                    address: Addr::unchecked(format!("verifier{i}")),
+                    weight: nonempty::Uint256::one(),
+                },
+                PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),
+            )
+        })
+        .collect();
+    WorkerSet::new(participants, Uint256::from_u128(3), 0)
 }
