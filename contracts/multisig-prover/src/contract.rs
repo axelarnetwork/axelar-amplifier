@@ -626,7 +626,7 @@ mod tests {
         assert!(event.is_some());
     }
     /// TODO: remove ignore flag
-    #[ignore = "proof query is temporarily broken during the multisig prover amplifier gateway migration"]
+    #[ignore = "construct proof is temporarily broken during the multisig prover amplifier gateway migration"]
     #[test]
     fn test_query_proof() {
         let mut deps = setup_test_case();
@@ -646,8 +646,6 @@ mod tests {
         }
     }
 
-    /// TODO: remove ignore flag
-    #[ignore = "construct proof is temporarily broken during the multisig prover amplifier gateway migration"]
     #[test]
     fn test_construct_proof_no_worker_set() {
         let mut deps = setup_test_case();
