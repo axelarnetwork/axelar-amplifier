@@ -179,6 +179,7 @@ mod tests {
 
         let payload = Payload::WorkerSet(new_worker_set);
         let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &worker_set, &payload)
+            .unwrap()
             .as_slice()
             .try_into()
             .unwrap();
