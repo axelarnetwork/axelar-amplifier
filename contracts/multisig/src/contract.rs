@@ -7,7 +7,7 @@ use cosmwasm_std::{
 
 use crate::{
     events::Event,
-    msg::{ExecuteMsg, InstantiateMsg, Multisig, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{
         get_worker_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, WORKER_SETS,
     },
@@ -122,7 +122,7 @@ mod tests {
 
     use crate::{
         key::{KeyType, PublicKey, Signature},
-        msg::Multisig,
+        multisig::Multisig,
         state::load_session_signatures,
         test::common::{build_worker_set, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
@@ -717,24 +717,8 @@ mod tests {
                     completed_at: expected_completed_at
                 }
             );
-            assert_eq!(query_res.signers.len(), worker_set.signers.len());
-            worker_set
-                .signers
-                .iter()
-                .for_each(|(address, worker_set_signer)| {
-                    let signer = query_res
-                        .signers
-                        .iter()
-                        .find(|signer| signer.0.address == worker_set_signer.address)
-                        .unwrap();
-
-                    assert_eq!(signer.0.weight, worker_set_signer.weight);
-                    assert_eq!(
-                        signer.0.pub_key,
-                        worker_set.signers.get(address).unwrap().pub_key
-                    );
-                    assert_eq!(signer.1, signatures.get(address).cloned());
-                });
+            assert_eq!(query_res.signatures, signatures);
+            assert_eq!(query_res.worker_set, worker_set);
         }
     }
 

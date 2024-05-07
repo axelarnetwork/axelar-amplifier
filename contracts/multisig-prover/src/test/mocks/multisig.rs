@@ -25,6 +25,7 @@ pub fn instantiate(
 }
 
 pub const PUB_KEYS: Map<(String, KeyType), PublicKey> = Map::new("registered_pub_keys");
+
 pub fn execute(
     deps: DepsMut,
     _env: Env,
@@ -94,8 +95,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 mod query {
-    use multisig::key::PublicKey;
-    use multisig::msg::{Multisig, Signer};
+    use multisig::{key::PublicKey, msg::Signer, multisig::Multisig, worker_set::WorkerSet};
 
     use crate::test::test_data;
 
@@ -106,27 +106,46 @@ mod query {
         let quorum = test_data::quorum();
 
         let signers = operators
+            .clone()
             .into_iter()
             .map(|op| {
                 (
+                    op.address.as_str().into(),
                     Signer {
                         address: op.address,
                         weight: op.weight,
                         pub_key: op.pub_key,
                     },
-                    op.signature,
                 )
             })
-            .collect::<Vec<_>>();
+            .collect();
+
+        let signatures = operators
+            .into_iter()
+            .filter_map(|op| {
+                if let Some(signature) = op.signature {
+                    Some((op.address.into_string(), signature))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let worker_set = WorkerSet {
+            signers,
+            threshold: quorum,
+            created_at: 1,
+        };
 
         Multisig {
             state: MultisigState::Completed {
                 completed_at: 12345,
             },
-            quorum,
-            signers,
+            worker_set,
+            signatures,
         }
     }
+
     pub fn get_public_key_query_success(
         deps: Deps,
         worker: String,
