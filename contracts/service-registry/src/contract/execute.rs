@@ -136,8 +136,7 @@ pub fn register_chains_support(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::WorkerNotFound)?;
 
-    let _res =
-        state::register_chains_support(deps.storage, service_name.clone(), chains, info.sender);
+    state::register_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
 
     Ok(Response::new())
 }
@@ -156,8 +155,7 @@ pub fn deregister_chains_support(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::WorkerNotFound)?;
 
-    let _res =
-        state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender);
+    state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
 
     Ok(Response::new())
 }

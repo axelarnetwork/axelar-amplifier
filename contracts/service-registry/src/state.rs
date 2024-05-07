@@ -191,14 +191,16 @@ pub fn deregister_chains_support(
     worker: WorkerAddress,
 ) -> Result<(), ContractError> {
     CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
-        let mut current_chains = current_chains.unwrap_or_default();
-        for chain in chains.iter() {
-            current_chains.remove(chain);
-        }
-        Ok::<HashSet<ChainName>, ContractError>(current_chains)
+        Ok::<HashSet<ChainName>, ContractError>(
+            current_chains
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|chain| !chains.contains(chain))
+                .collect(),
+        )
     })?;
 
-    for chain in chains.iter() {
+    for chain in chains {
         WORKERS_PER_CHAIN.remove(storage, (&service_name, &chain, &worker));
     }
 
