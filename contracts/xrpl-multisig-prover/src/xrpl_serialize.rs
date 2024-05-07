@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+use cosmwasm_schema::serde::Serializer;
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 
@@ -80,13 +81,13 @@ macro_rules! xrpl_json {
 
 pub trait XRPLSerialize {
     const TYPE_CODE: u8;
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError>;
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError>;
 }
 
 impl XRPLSerialize for u16 {
     const TYPE_CODE: u8 = 1;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         Ok(self.to_be_bytes().to_vec())
     }
 }
@@ -94,7 +95,7 @@ impl XRPLSerialize for u16 {
 impl XRPLSerialize for u32 {
     const TYPE_CODE: u8 = 2;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         Ok(self.to_be_bytes().to_vec())
     }
 }
@@ -102,9 +103,9 @@ impl XRPLSerialize for u32 {
 impl XRPLSerialize for XRPLPaymentAmount {
     const TYPE_CODE: u8 = 6;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         match self {
-            XRPLPaymentAmount::Drops(value) => {
+            &XRPLPaymentAmount::Drops(value) => {
                 if value <= 10u64.pow(17) {
                     Ok((value | POSITIVE_BIT).to_be_bytes().to_vec())
                 } else {
@@ -112,7 +113,11 @@ impl XRPLSerialize for XRPLPaymentAmount {
                 }
             },
             XRPLPaymentAmount::Token(token, amount) => {
-                Ok([amount.to_bytes().as_ref(), token.currency.clone().to_bytes().as_ref(), token.issuer.to_bytes().as_ref()].concat())
+                let mut buf = Vec::with_capacity(48);
+                buf.extend_from_slice(&amount.to_bytes());
+                buf.extend_from_slice(&token.currency.clone().to_bytes());
+                buf.extend_from_slice(&token.issuer.to_bytes());
+                Ok(buf)
             }
         }
     }
@@ -121,8 +126,13 @@ impl XRPLSerialize for XRPLPaymentAmount {
 impl XRPLSerialize for HexBinary {
     const TYPE_CODE: u8 = 7;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
-        Ok([encode_length(self.len())?, self.to_vec()].concat())
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
+        let len_encoded = encode_length(self.len())?;
+        let contents = self.to_vec();
+        let mut result = Vec::with_capacity(len_encoded.len() + contents.len());
+        result.extend(len_encoded);
+        result.extend(contents);
+        Ok(result)
     }
 }
 
@@ -148,7 +158,7 @@ pub fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
 
 impl XRPLSerialize for PublicKey {
     const TYPE_CODE: u8 = 7;
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         match self.clone() {
             // rippled prefixes Ed25519 public keys with the byte 0xED so both types of public key are 33 bytes.
             // https://xrpl.org/cryptographic-keys.html
@@ -203,7 +213,7 @@ impl TryInto<XRPLObject> for XRPLMemo {
 impl XRPLSerialize for XRPLAccountId {
     const TYPE_CODE: u8 = 8;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
         result.extend(vec![20u8]);
         result.extend(self.to_bytes());
@@ -304,9 +314,9 @@ struct XRPLArray<T> {
 impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
     const TYPE_CODE: u8 = 15;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let mut result: Vec<u8> = Vec::new();
-        for item in self.items {
+        for item in &self.items {
             result.extend(field_id(T::TYPE_CODE, self.field.clone().to_u8()));
             result.extend(item.xrpl_serialize()?);
             result.extend(field_id(T::TYPE_CODE, 1));
@@ -326,9 +336,6 @@ struct SerializedField {
 impl SerializedField {
     fn new(type_code: u8, field_code: u8, serialized_value: Vec<u8>) -> Self {
         Self { type_code, field_code, serialized_value }
-    }
-    fn to_vec(&self) -> Vec<u8> {
-        return [field_id(self.type_code, self.field_code), self.clone().serialized_value].concat()
     }
 }
 
@@ -377,10 +384,15 @@ impl XRPLObject {
 impl XRPLSerialize for XRPLObject {
     const TYPE_CODE: u8 = 14;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let mut fields: Vec<SerializedField> = self.fields.clone();
         fields.sort();
-        Ok(fields.into_iter().map(|f| { f.to_vec() }).collect::<Vec<Vec<u8>>>().concat())
+        let mut buf = Vec::new();
+        for field in fields {
+            buf.extend(field_id(field.type_code, field.field_code));
+            buf.extend(field.serialized_value);
+        }
+        Ok(buf)
     }
 }
 
@@ -391,7 +403,7 @@ where
 {
     const TYPE_CODE: u8 = XRPLObject::TYPE_CODE;
 
-    fn xrpl_serialize(self) -> Result<Vec<u8>, ContractError> {
+    fn xrpl_serialize(&self) -> Result<Vec<u8>, ContractError> {
         let obj: XRPLObject = self.clone().try_into()?;
         obj.xrpl_serialize()
     }
@@ -407,6 +419,8 @@ pub fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
         vec![type_code << 4, field_code]
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {

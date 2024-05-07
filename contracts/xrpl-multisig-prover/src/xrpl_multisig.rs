@@ -276,8 +276,9 @@ pub fn compute_signed_tx_hash(encoded_signed_tx: &[u8]) -> Result<TxHash, Contra
 }
 
 pub fn message_to_sign(encoded_unsigned_tx: &HexBinary, signer_address: &XRPLAccountId) -> Result<[u8; 32], ContractError> {
-    let msg = &[encoded_unsigned_tx.to_vec(), signer_address.to_bytes().into()].concat();
-    Ok(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg))
+    let mut msg = encoded_unsigned_tx.to_vec();
+    msg.extend_from_slice(&signer_address.to_bytes());
+    Ok(xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, msg.as_slice()))
 }
 
 #[cfg(test)]
