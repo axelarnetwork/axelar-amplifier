@@ -1,8 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult,
-};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
@@ -100,13 +99,19 @@ pub fn reply(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
         } => to_binary(&query::get_proof(deps, multisig_session_id)?),
         QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps)?),
     }
+    .change_context(ContractError::SerializeResponse)
+    .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -131,7 +136,7 @@ mod tests {
     use anyhow::Error;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        Addr, Fraction, Uint128, Uint256, Uint64,
+        Addr, Fraction, StdResult, Uint128, Uint256, Uint64,
     };
     use cw_multi_test::{AppResponse, Executor};
 
@@ -572,8 +577,6 @@ mod tests {
         );
     }
 
-    /// TODO: remove ignore flag
-    #[ignore = "construct proof is temporarily broken during the multisig prover amplifier gateway migration"]
     #[test]
     fn test_construct_proof() {
         let mut test_case = setup_test_case();
@@ -597,6 +600,7 @@ mod tests {
 
         assert!(event.is_some());
     }
+
     /// TODO: remove ignore flag
     #[ignore = "construct proof is temporarily broken during the multisig prover amplifier gateway migration"]
     #[test]

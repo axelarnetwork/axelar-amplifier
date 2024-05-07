@@ -1,12 +1,17 @@
 use cosmwasm_std::{to_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
+
 use multisig::{multisig::Multisig, types::MultisigState, worker_set::WorkerSet};
 
 use crate::{
+    error::ContractError,
     msg::{GetProofResponse, ProofStatus},
     state::{CONFIG, CURRENT_WORKER_SET, MULTISIG_SESSION_BATCH, PAYLOAD},
 };
 
-pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofResponse> {
+pub fn get_proof(
+    deps: Deps,
+    multisig_session_id: Uint64,
+) -> Result<GetProofResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     let payload_id = MULTISIG_SESSION_BATCH.load(deps.storage, multisig_session_id.u64())?;
@@ -31,7 +36,7 @@ pub fn get_proof(deps: Deps, multisig_session_id: Uint64) -> StdResult<GetProofR
                 &multisig.worker_set,
                 multisig.optimize_signatures(),
                 &payload,
-            );
+            )?;
             ProofStatus::Completed { execute_data }
         }
     };
