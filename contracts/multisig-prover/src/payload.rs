@@ -9,6 +9,7 @@ use router_api::{CrossChainId, Message};
 
 use crate::{
     encoding::{abi2, Encoder},
+    error::ContractError,
     types::BatchId,
 };
 
@@ -42,7 +43,7 @@ impl Payload {
         encoder: Encoder,
         domain_separator: &Hash,
         curr_worker_set: &WorkerSet,
-    ) -> Hash {
+    ) -> Result<Hash, ContractError> {
         match encoder {
             Encoder::Abi => abi2::payload_hash_to_sign(domain_separator, curr_worker_set, self),
             Encoder::Bcs => todo!(),
@@ -62,13 +63,16 @@ impl Payload {
         worker_set: &WorkerSet,
         signers_with_sigs: Vec<SignerWithSig>,
         payload: &Payload,
-    ) -> HexBinary {
-        let payload_hash = payload.digest(encoder, domain_separator, worker_set);
+    ) -> Result<HexBinary, ContractError> {
+        let payload_hash = payload.digest(encoder, domain_separator, worker_set)?;
 
         match encoder {
-            Encoder::Abi => {
-                abi2::execute_data::encode(worker_set, signers_with_sigs, &payload_hash, payload)
-            }
+            Encoder::Abi => Ok(abi2::execute_data::encode(
+                worker_set,
+                signers_with_sigs,
+                &payload_hash,
+                payload,
+            )),
             Encoder::Bcs => todo!(),
         }
     }

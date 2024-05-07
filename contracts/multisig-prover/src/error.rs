@@ -52,4 +52,7 @@ pub enum ContractError {
 
     #[error("no worker set stored")]
     NoWorkerSet,
+
+    #[error("failed to serialize the response")]
+    SerializeResponse,
 }

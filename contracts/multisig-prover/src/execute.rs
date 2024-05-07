@@ -14,12 +14,10 @@ use service_registry::state::WeightedWorker;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
-    encoding::{make_operators, CommandBatchBuilder},
+    encoding::make_operators,
     error::ContractError,
     payload::Payload,
-    state::{
-        Config, COMMANDS_BATCH, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, PAYLOAD, REPLY_BATCH,
-    },
+    state::{Config, CONFIG, CURRENT_WORKER_SET, NEXT_WORKER_SET, PAYLOAD, REPLY_BATCH},
     types::{BatchId, WorkersInfo},
 };
 
@@ -42,7 +40,7 @@ pub fn construct_proof(
     message_ids: Vec<CrossChainId>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let batch_id = BatchId::new(&message_ids, None);
+    let payload_id = BatchId::new(&message_ids, None);
 
     let messages = get_messages(
         deps.querier,
@@ -51,34 +49,28 @@ pub fn construct_proof(
         config.chain_name.clone(),
     )?;
 
-    let command_batch = match COMMANDS_BATCH.may_load(deps.storage, &batch_id)? {
-        Some(batch) => batch,
+    let payload = match PAYLOAD.may_load(deps.storage, &payload_id)? {
+        Some(payload) => payload,
         None => {
-            let mut builder = CommandBatchBuilder::new(config.destination_chain_id, config.encoder);
+            let payload = Payload::Messages(messages);
+            PAYLOAD.save(deps.storage, &payload_id, &payload)?;
 
-            for msg in messages {
-                builder.add_message(msg)?;
-            }
-            let batch = builder.build()?;
-
-            COMMANDS_BATCH.save(deps.storage, &batch.id, &batch)?;
-
-            batch
+            payload
         }
     };
 
-    // keep track of the batch id to use during submessage reply
-    REPLY_BATCH.save(deps.storage, &command_batch.id)?;
+    // keep track of the payload id to use during submessage reply
+    REPLY_BATCH.save(deps.storage, &payload_id)?;
 
-    let worker_set_id = match CURRENT_WORKER_SET.may_load(deps.storage)? {
-        Some(worker_set) => worker_set.id(),
-        None => {
-            return Err(ContractError::NoWorkerSet);
-        }
-    };
+    let worker_set = CURRENT_WORKER_SET
+        .may_load(deps.storage)?
+        .ok_or(ContractError::NoWorkerSet)?;
+
+    let digest = payload.digest(config.encoder, &config.domain_separator, &worker_set)?;
+
     let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
-        worker_set_id,
-        msg: command_batch.msg_digest(),
+        worker_set_id: worker_set.id(),
+        msg: digest.into(),
         chain_name: config.chain_name,
         sig_verifier: None,
     };
@@ -236,12 +228,12 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             PAYLOAD.save(deps.storage, &payload_id, &payload)?;
             REPLY_BATCH.save(deps.storage, &payload_id)?;
 
-            let msg_digest =
-                payload.digest(config.encoder, &config.domain_separator, &cur_worker_set);
+            let digest =
+                payload.digest(config.encoder, &config.domain_separator, &cur_worker_set)?;
 
             let start_sig_msg = multisig::msg::ExecuteMsg::StartSigningSession {
                 worker_set_id: cur_worker_set.id(),
-                msg: msg_digest.into(),
+                msg: digest.into(),
                 sig_verifier: None,
                 chain_name: config.chain_name,
             };
