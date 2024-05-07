@@ -45,6 +45,7 @@ itertools = { workspace = true }
 mockall = "0.11.4"
 report = { workspace = true }
 router-api = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"
