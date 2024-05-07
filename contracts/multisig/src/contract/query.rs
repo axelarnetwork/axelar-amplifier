@@ -1,5 +1,6 @@
 use crate::{
     key::{KeyType, PublicKey},
+    multisig::Multisig,
     state::{load_pub_key, load_session_signatures},
     worker_set::WorkerSet,
 };
@@ -12,16 +13,10 @@ pub fn get_multisig(deps: Deps, session_id: Uint64) -> StdResult<Multisig> {
     let worker_set = WORKER_SETS.load(deps.storage, &session.worker_set_id)?;
     let signatures = load_session_signatures(deps.storage, session.id.u64())?;
 
-    let signers_with_sigs = worker_set
-        .signers
-        .into_iter()
-        .map(|(address, signer)| (signer, signatures.get(&address).cloned()))
-        .collect::<Vec<_>>();
-
     Ok(Multisig {
         state: session.state,
-        quorum: worker_set.threshold,
-        signers: signers_with_sigs,
+        worker_set,
+        signatures,
     })
 }
 

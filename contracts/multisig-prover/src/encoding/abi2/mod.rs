@@ -1,11 +1,16 @@
-use alloy_primitives::Address;
+pub mod execute_data;
+
+use std::str::FromStr;
+
+use alloy_primitives::{Address, FixedBytes};
 use alloy_sol_types::{sol, SolValue};
-use cosmwasm_std::{HexBinary, Uint128, Uint256};
+use cosmwasm_std::{Uint128, Uint256};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
 use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, worker_set::WorkerSet};
+use router_api::Message as RouterMessage;
 
 use crate::{error::ContractError, payload::Payload};
 
@@ -63,13 +68,36 @@ impl From<&WorkerSet> for WeightedSigners {
     }
 }
 
+impl TryFrom<&RouterMessage> for Message {
+    type Error = ContractError;
+
+    fn try_from(msg: &RouterMessage) -> Result<Self, Self::Error> {
+        let contract_address =
+            Address::from_str(msg.destination_address.as_str()).map_err(|err| {
+                ContractError::InvalidMessage {
+                    reason: format!("destination_address is not a valid EVM address: {}", err),
+                }
+            })?;
+
+        let payload_hash = FixedBytes::<32>::from_slice(msg.payload_hash.as_slice());
+
+        Ok(Message {
+            messageId: msg.cc_id.id.to_string(),
+            sourceChain: msg.cc_id.chain.to_string(),
+            sourceAddress: msg.source_address.to_string(),
+            contractAddress: contract_address,
+            payloadHash: payload_hash,
+        })
+    }
+}
+
 pub fn payload_hash_to_sign(
     domain_separator: &Hash,
     signer: &WorkerSet,
     payload: &Payload,
-) -> HexBinary {
+) -> Result<Hash, ContractError> {
     let signer_hash = WeightedSigners::from(signer).hash();
-    let data_hash = Keccak256::digest(encode(payload));
+    let data_hash = Keccak256::digest(encode(payload)?);
 
     // Prefix for standard EVM signed data https://eips.ethereum.org/EIPS/eip-191
     let unsigned = [
@@ -80,17 +108,24 @@ pub fn payload_hash_to_sign(
     ]
     .concat();
 
-    Keccak256::digest(unsigned).as_slice().into()
+    Ok(Keccak256::digest(unsigned).into())
 }
 
-pub fn encode(payload: &Payload) -> Vec<u8> {
+pub fn encode(payload: &Payload) -> Result<Vec<u8>, ContractError> {
+    let command_type = CommandType::from(payload);
+
     match payload {
-        Payload::Messages(_) => todo!(),
-        Payload::WorkerSet(worker_set) => (
-            CommandType::from(payload),
-            WeightedSigners::from(worker_set),
-        )
-            .abi_encode_sequence(),
+        Payload::Messages(messages) => {
+            let messages: Vec<_> = messages
+                .iter()
+                .map(Message::try_from)
+                .collect::<Result<_, _>>()?;
+
+            Ok((command_type, messages).abi_encode_sequence())
+        }
+        Payload::WorkerSet(worker_set) => {
+            Ok((command_type, WeightedSigners::from(worker_set)).abi_encode_sequence())
+        }
     }
 }
 
@@ -110,15 +145,14 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, HexBinary, Uint256};
+    use cosmwasm_std::HexBinary;
 
-    use axelar_wasm_std::{nonempty, Participant};
-    use multisig::{key::PublicKey, worker_set::WorkerSet};
+    use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{
-        encoding::abi2::{payload_hash_to_sign, CommandType, WeightedSigners},
+        encoding::abi2::{payload_hash_to_sign, CommandType, Message, WeightedSigners},
         payload::Payload,
-        test::test_data::new_worker_set,
+        test::test_data::{curr_worker_set, messages, new_worker_set, worker_set_from_pub_keys},
     };
 
     #[test]
@@ -171,35 +205,68 @@ mod tests {
             &domain_separator,
             &curr_worker_set(),
             &Payload::WorkerSet(new_worker_set),
-        );
+        )
+        .unwrap();
         assert_eq!(msg_to_sign, expected_hash);
     }
 
-    // generate a worker set matches AmplifierGateway solidity test data
-    fn curr_worker_set() -> WorkerSet {
-        let pub_keys = vec![
-            "038318535b54105d4a7aae60c08fc45f9687181b4fdfc625bd1a753fa7397fed75",
-            "02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad984f068b0",
-            "039d9031e97dd78ff8c15aa86939de9b1e791066a0224e331bc962a2099a7b1f04",
-            "0220b871f3ced029e14472ec4ebc3c0448164942b123aa6af91a3386c1c403e0eb",
-            "03bf6ee64a8d2fdc551ec8bb9ef862ef6b4bcb1805cdc520c3aa5866c0575fd3b5",
-        ];
+    #[test]
+    fn router_message_to_gateway_message() {
+        let source_chain = "chain0";
+        let message_id = "0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0";
+        let source_address = "0x52444f1835Adc02086c37Cb226561605e2E1699b";
+        let destination_chain = "chain1";
+        let destination_address = "0xA4f10f76B86E01B98daF66A3d02a65e14adb0767";
+        let payload_hash = "8c3685dc41c2eca11426f8035742fb97ea9f14931152670a5703f18fe8b392f0";
 
-        worker_set_from_pub_keys(pub_keys)
+        let router_messages = RouterMessage {
+            cc_id: CrossChainId {
+                chain: source_chain.parse().unwrap(),
+                id: message_id.parse().unwrap(),
+            },
+            source_address: source_address.parse().unwrap(),
+            destination_address: destination_address.parse().unwrap(),
+            destination_chain: destination_chain.parse().unwrap(),
+            payload_hash: HexBinary::from_hex(payload_hash)
+                .unwrap()
+                .to_array::<32>()
+                .unwrap(),
+        };
+
+        let gateway_message = Message::try_from(&router_messages).unwrap();
+        assert_eq!(gateway_message.sourceChain, source_chain);
+        assert_eq!(gateway_message.messageId, message_id);
+        assert_eq!(gateway_message.sourceAddress, source_address);
+        assert_eq!(
+            gateway_message.contractAddress.to_string(),
+            destination_address
+        );
+        assert_eq!(
+            gateway_message.payloadHash.to_string()[2..],
+            payload_hash.to_string()
+        );
     }
 
-    fn worker_set_from_pub_keys(pub_keys: Vec<&str>) -> WorkerSet {
-        let participants: Vec<(_, _)> = (0..pub_keys.len())
-            .map(|i| {
-                (
-                    Participant {
-                        address: Addr::unchecked(format!("verifier{i}")),
-                        weight: nonempty::Uint256::one(),
-                    },
-                    PublicKey::Ecdsa(HexBinary::from_hex(pub_keys[i]).unwrap()),
-                )
-            })
-            .collect();
-        WorkerSet::new(participants, Uint256::from_u128(3), 0)
+    #[test]
+    fn approve_messages_hash() {
+        // generated by axelar-gmp-sdk-solidity unit tests
+        let expected_hash =
+            HexBinary::from_hex("2ab230ae08c9fc5e9110c08061a9dffe928a1093133a6f157316fb9c90bf825c")
+                .unwrap();
+
+        let domain_separator: [u8; 32] =
+            HexBinary::from_hex("3593643a7d7e917a099eef6c52d1420bb4f33eb074b16439556de5984791262b")
+                .unwrap()
+                .to_array()
+                .unwrap();
+
+        let digest = payload_hash_to_sign(
+            &domain_separator,
+            &curr_worker_set(),
+            &Payload::Messages(messages()),
+        )
+        .unwrap();
+
+        assert_eq!(digest, expected_hash);
     }
 }
