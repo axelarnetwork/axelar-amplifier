@@ -20,7 +20,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
         .values()
         .map(|signer| (signer.pub_key.clone().into(), signer.weight))
         .collect();
-    Operators::new(operators, worker_set.threshold)
+    Operators::new(operators, worker_set.threshold, worker_set.created_at)
 }
 
 pub fn transfer_operatorship_params(worker_set: &WorkerSet) -> Result<HexBinary, ContractError> {
@@ -260,7 +260,8 @@ mod test {
         expected.sort_by_key(|op| op.0.clone());
 
         let operators = make_operators(worker_set.clone());
-        let expected_operators = Operators::new(expected, worker_set.threshold);
+        let expected_operators =
+            Operators::new(expected, worker_set.threshold, worker_set.created_at);
         assert_eq!(operators, expected_operators);
     }
 
