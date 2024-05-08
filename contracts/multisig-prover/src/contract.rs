@@ -244,7 +244,7 @@ mod tests {
 
         let response = SubMsgResponse {
             events: vec![],
-            // see https://github.com/CosmWasm/cw-minus/blob/11164624d1bbb8df8a89e5142a03e106e751dfc4/packages/cw-utils/src/parse_reply.rs#L245
+            // the reply data gets protobuf encoded when moving through the wasm module. We need to emulate this behaviour in tests as well
             data: Some(
                 prost::bytes::Bytes::from(session_id.to_vec())
                     .encode_to_vec()
