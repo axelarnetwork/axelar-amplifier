@@ -769,7 +769,8 @@ mod test {
         let workers = workers(2);
         let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let operators =
+            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let msg = ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0, &msg_id_format),
             new_operators: operators.clone(),
@@ -797,7 +798,8 @@ mod test {
         let workers = workers(2);
         let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let operators =
+            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let msg = ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0, &msg_id_format),
             new_operators: operators.clone(),
@@ -849,7 +851,8 @@ mod test {
         let workers = workers(2);
         let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let operators =
+            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -904,7 +907,8 @@ mod test {
         let workers = workers(2);
         let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let operators =
+            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1006,7 +1010,8 @@ mod test {
         let workers = workers(2);
         let mut deps = setup(workers.clone(), &msg_id_format);
 
-        let operators = Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into());
+        let operators =
+            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let res = execute(
             deps.as_mut(),
             mock_env(),

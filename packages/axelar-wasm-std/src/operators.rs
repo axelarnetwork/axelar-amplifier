@@ -9,15 +9,21 @@ use crate::hash::Hash;
 pub struct Operators {
     weights_by_addresses: Vec<(HexBinary, Uint256)>,
     pub threshold: Uint256,
+    pub created_at: u64,
 }
 
 impl Operators {
-    pub fn new(mut weights_by_addresses: Vec<(HexBinary, Uint256)>, threshold: Uint256) -> Self {
+    pub fn new(
+        mut weights_by_addresses: Vec<(HexBinary, Uint256)>,
+        threshold: Uint256,
+        created_at: u64,
+    ) -> Self {
         weights_by_addresses.sort_by_key(|op| op.0.clone());
 
         Self {
             weights_by_addresses,
             threshold,
+            created_at,
         }
     }
 
@@ -27,6 +33,7 @@ impl Operators {
             to_binary(&self.weights_by_addresses).expect("could not serialize serializable object"),
         );
         hasher.update(self.threshold.to_be_bytes());
+        hasher.update(self.created_at.to_be_bytes());
         hasher.finalize().into()
     }
 }
@@ -41,7 +48,7 @@ mod tests {
     #[test]
     fn hash_id_unchanged() {
         let expected_operators_hash =
-            "99644dc48547a984edaabc9b0a2592d9a29d721be075a561ec2cfa644f5dc918";
+            "5189efe9aaf1509716b975216b9823f16fbbbc7217a6438da97527b4ec9d891e";
 
         let operators = Operators {
             weights_by_addresses: vec![
@@ -59,6 +66,7 @@ mod tests {
                 ),
             ],
             threshold: Uint256::one(),
+            created_at: 1,
         };
 
         assert_eq!(hex::encode(operators.hash()), expected_operators_hash);
