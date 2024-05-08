@@ -1048,7 +1048,7 @@ pub fn setup_xrpl(protocol: &mut Protocol) -> XRPLChain {
         &multisig_prover,
         ETH_DENOMINATION.to_string(),
         XRPLToken {
-            issuer: xrpl_multisig_address.as_str().try_into().unwrap(),
+            issuer: XRPLAccountId::from_str(xrpl_multisig_address.as_str()).unwrap(),
             currency: "ETH".to_string().try_into().unwrap(),
         },
         18u8,

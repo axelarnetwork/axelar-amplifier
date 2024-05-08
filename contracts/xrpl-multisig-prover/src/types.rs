@@ -83,7 +83,7 @@ impl KeyDeserialize for TxHash {
     type Output = TxHash;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        Ok(from_json(&Binary::from(value)).expect("violated invariant: TxHash is not deserializable"))
+        from_json(&Binary::from(value))
     }
 }
 
@@ -113,9 +113,7 @@ pub struct XRPLToken {
 
 #[cw_serde]
 pub enum XRPLPaymentAmount {
-    Drops(
-        u64,
-    ),
+    Drops(u64),
     Token(XRPLToken, XRPLTokenAmount),
 }
 
@@ -239,14 +237,17 @@ impl XRPLAccountId {
     }
 
     pub fn to_string(&self) -> String {
-        let address_type_prefix: &[u8] = &[0x00];
-        let payload = [address_type_prefix, &self.to_bytes()].concat();
+        let mut payload = Vec::<u8>::with_capacity(25);
+        payload.extend(&[0x00]);
+        payload.extend_from_slice(&self.to_bytes());
 
         let checksum_hash1 = Sha256::digest(payload.clone());
         let checksum_hash2 = Sha256::digest(checksum_hash1);
         let checksum = &checksum_hash2[0..4];
 
-        bs58::encode([payload, checksum.to_vec()].concat())
+        payload.extend(checksum);
+
+        bs58::encode(payload)
             .with_alphabet(bs58::Alphabet::RIPPLE)
             .into_string()
     }
@@ -265,10 +266,10 @@ impl From<&PublicKey> for XRPLAccountId {
     }
 }
 
-impl TryFrom<&str> for XRPLAccountId {
-    type Error = ContractError;
+impl std::str::FromStr for XRPLAccountId {
+    type Err = ContractError;
 
-    fn try_from(address: &str) -> Result<Self, ContractError> {
+    fn from_str(address: &str) -> Result<Self, ContractError> {
         let res = bs58::decode(address).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().map_err(|_| ContractError::InvalidAddress)?;
         // .map_err(|_| ContractError::InvalidAddress)?;
         if res.len() != 25 {

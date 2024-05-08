@@ -424,6 +424,8 @@ pub fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use cosmwasm_std::Uint128;
     use multisig::key::PublicKey;
 
@@ -462,7 +464,7 @@ mod tests {
         assert_hex_eq!(
             "800000000000000000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+                issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
             }, canonicalize_coin_amount(Uint128::zero(), 0)?)
             .xrpl_serialize()?
@@ -470,7 +472,7 @@ mod tests {
         assert_hex_eq!(
             "D4838D7EA4C6800000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+                issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?,
             }, canonicalize_coin_amount(Uint128::one(), 0)?)
             .xrpl_serialize()?
@@ -479,7 +481,7 @@ mod tests {
         assert_hex_eq!(
             "C0438D7EA4C6800000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+                issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?
             }, XRPLTokenAmount::new(MIN_MANTISSA, MIN_EXPONENT))
             .xrpl_serialize()?
@@ -488,7 +490,7 @@ mod tests {
         assert_hex_eq!(
             "EC6386F26FC0FFFF00000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+                issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "USD".to_string().try_into()?
             }, XRPLTokenAmount::new(MAX_MANTISSA, MAX_EXPONENT))
             .xrpl_serialize()?
@@ -500,7 +502,7 @@ mod tests {
         assert_hex_eq!(
             "D4CEEBE0B40E8000000000000000000000000000247B7D00000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
-                issuer: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+                issuer: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
                 currency: "${}".to_string().try_into()?,
             }, canonicalize_coin_amount(Uint128::from(42u128), 0)?)
             .xrpl_serialize()?
@@ -536,25 +538,25 @@ mod tests {
         // account "0" (with length prefix)
         assert_hex_eq!(
             "140000000000000000000000000000000000000000",
-            XRPLAccountId::try_from("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?
+            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?
             .xrpl_serialize()?
         );
         // account "1" (with length prefix)
         assert_hex_eq!(
             "140000000000000000000000000000000000000001",
-            XRPLAccountId::try_from("rrrrrrrrrrrrrrrrrrrrBZbvji")?
+            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?
             .xrpl_serialize()?
         );
         // max acccount
         assert_hex_eq!(
             "14FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-            XRPLAccountId::try_from("rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi")?
+            XRPLAccountId::from_str("rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi")?
             .xrpl_serialize()?
         );
         assert_hex_eq!(
             "13000081140000000000000000000000000000000000000000",
             XRPLSignerEntry{
-                account: "rrrrrrrrrrrrrrrrrrrrrhoLvTp".try_into()?,
+                account: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?,
                 signer_weight: 0
             }.xrpl_serialize()?
         );
@@ -575,7 +577,7 @@ mod tests {
             "EA13000081140000000000000000000000000000000000000000E1F1",
             XRPLArray::<XRPLSignerEntry>{ field: Field::Memo, items: vec![
                 XRPLSignerEntry{
-                    account: "rrrrrrrrrrrrrrrrrrrrrhoLvTp".try_into()?,
+                    account: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?,
                     signer_weight: 0
                 },
             ] }
@@ -587,17 +589,17 @@ mod tests {
     #[test]
     fn serialize_xrpl_unsigned_token_payment_transaction() -> Result<(), ContractError> {
         let unsigned_tx = XRPLPaymentTx {
-            account: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+            account: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
             fee: 12,
             sequence: XRPLSequence::Plain(1),
             amount: XRPLPaymentAmount::Token(
                 XRPLToken {
                     currency: "JPY".to_string().try_into()?,
-                    issuer: "rrrrrrrrrrrrrrrrrrrrBZbvji".try_into()?,
+                    issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
                 },
                 XRPLTokenAmount::new(3369568318000000u64, -16)
             ),
-            destination: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".try_into()?,
+            destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
         };
         let encoded_unsigned_tx = XRPLUnsignedTx::Payment(unsigned_tx).xrpl_serialize()?;
         assert_eq!(
@@ -610,11 +612,11 @@ mod tests {
     #[test]
     fn serialize_xrpl_unsigned_xrp_payment_transaction() -> Result<(), ContractError> {
         let tx = XRPLPaymentTx {
-            account: "r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ".try_into()?,
+            account: XRPLAccountId::from_str("r9LqNeG6qHxjeUocjvVki2XR35weJ9mZgQ")?,
             fee: 10,
             sequence: XRPLSequence::Plain(1),
             amount: XRPLPaymentAmount::Drops(1000),
-            destination: "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".try_into()?,
+            destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize()?;
         assert_eq!(
@@ -623,11 +625,11 @@ mod tests {
         );
 
         let tx = XRPLPaymentTx {
-            account: "rhKnz85JUKcrAizwxNUDfqCvaUi9ZMhuwj".try_into()?,
+            account: XRPLAccountId::from_str("rhKnz85JUKcrAizwxNUDfqCvaUi9ZMhuwj")?,
             fee: 3,
             sequence: XRPLSequence::Plain(43497363),
             amount: XRPLPaymentAmount::Drops(1000000000),
-            destination: "rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq".try_into()?,
+            destination: XRPLAccountId::from_str("rw2521mDNXyKzHBrFGZ5Rj4wzUjS9FbiZq")?,
         };
         let encoded_unsigned_tx = &XRPLUnsignedTx::Payment(tx).xrpl_serialize()?;
         assert_eq!(
@@ -645,19 +647,19 @@ mod tests {
     fn serialize_xrpl_signed_xrp_payment_transaction() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".try_into()?,
+                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
                 sequence: XRPLSequence::Ticket(44218193),
                 amount: XRPLPaymentAmount::Drops(100000000),
-                destination: "rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG".try_into()?,
+                destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
             }), signers: vec![
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into()?,
+                    account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
                     txn_signature: HexBinary::from_hex("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045")?,
                     signing_pub_key: pub_key_from_hex("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856")?
                 },
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into()?,
+                    account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
                     txn_signature: HexBinary::from_hex("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9")?,
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?
                 }
@@ -675,19 +677,19 @@ mod tests {
     fn tx_serialization_sort_signers() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".try_into()?,
+                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
                 sequence: XRPLSequence::Ticket(44218193),
                 amount: XRPLPaymentAmount::Drops(100000000),
-                destination: "rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG".try_into()?,
+                destination: XRPLAccountId::from_str("rfgqgX62inhKsfti1NR6FeMS8NcQJCFniG")?,
             }), signers: vec![
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into()?,
+                    account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
                     txn_signature: HexBinary::from_hex("3045022100FC1490C236AD05A306EB5FD89072F14FEFC19ED35EB61BACD294D10E0910EDB102205A4CF0C0A759D7158A8FEE2F526C70277910DE88BF85564A1B3142AE635C9CE9")?,
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?
                 },
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into()?,
+                    account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
                     txn_signature: HexBinary::from_hex("3044022023DD4545108D411008FC9A76A58E1573AB0F8786413C8F38A92B1E2EAED60014022012A0A7890BFD0F0C8EA2C342107F65D4C91CAC29AAF3CF2840350BF3FB91E045")?,
                     signing_pub_key: pub_key_from_hex("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856")?
                 },
@@ -705,22 +707,22 @@ mod tests {
     fn tx_serialization_ed25519_signers() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::Payment(XRPLPaymentTx {
-                account: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".try_into()?,
+                account: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?,
                 fee: 30,
                 sequence: XRPLSequence::Ticket(45205896),
                 amount: XRPLPaymentAmount::Token(XRPLToken{
                     currency: "ETH".to_string().try_into()?,
-                    issuer: "r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM".try_into()?
+                    issuer: XRPLAccountId::from_str("r4ZMbbb4Y3KoeexmjEeTdhqUBrYjjWdyGM")?
                 }, canonicalize_coin_amount(Uint128::from(100000000u128), 0)?),
-                destination: "raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo".try_into()?,
+                destination: XRPLAccountId::from_str("raNVNWvhUQzFkDDTdEw3roXRJfMJFVJuQo")?,
             }), signers: vec![
                 XRPLSigner{
-                    account: "rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj".try_into()?,
+                    account: XRPLAccountId::from_str("rBTmbPMAWghUv52pCCtkLYh5SPVy2PuDSj")?,
                     txn_signature: HexBinary::from_hex("531B9E854C81AEFA573C00DF1603C3DE80C1F3680D39A80F3FB725A0388D177E3EC5E28AD6760D9EEF8203FEB1FC61F9D9451F777114B97943E5702B54589E09")?,
                     signing_pub_key: PublicKey::Ed25519(HexBinary::from_hex("45e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f")?)
                 },
                 XRPLSigner{
-                    account: "rhAdaMDgF89314TfNRHc5GsA6LQZdk35S5".try_into()?,
+                    account: XRPLAccountId::from_str("rhAdaMDgF89314TfNRHc5GsA6LQZdk35S5")?,
                     txn_signature: HexBinary::from_hex("76CF2097D7038B90445CB952AE52CBDBE6D55FE7C0562493FE3D9AAE5E05A66A43777CBCDAA89233CAFD4D1D0F9B02DB0619B9BB14957CC3ADAA8D7D343E0106")?,
                     signing_pub_key: PublicKey::Ed25519(HexBinary::from_hex("dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b")?)
                 },
@@ -738,18 +740,18 @@ mod tests {
     fn serialize_xrpl_signed_xrp_ticket_create_transaction() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::TicketCreate(XRPLTicketCreateTx {
-                account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".try_into()?,
+                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
                 sequence: XRPLSequence::Plain(44218194),
                 ticket_count: 3,
             }), signers: vec![
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into()?,
+                    account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
                     txn_signature: HexBinary::from_hex("304402203C10D5295AE4A34FD702355B075E951CF9FFE3A73F8B7557FB68E5DF64D87D3702200945D65BAAD7F10A14EA57E08914005F412709D10F27D868D63BE3052F30363F")?,
                     signing_pub_key: pub_key_from_hex("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856")?
                 },
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into()?,
+                    account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
                     txn_signature: HexBinary::from_hex("3045022100EF2CBAC3B2D81E1E3502B064BA198D9D0D3F1FFE6604DAC5019C53C262B5F9E7022000808A438BD5CA808649DCDA6766D2BA0E8FA7E94150675F73FC41B2F73C9C58")?,
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?
                 },
@@ -767,28 +769,28 @@ mod tests {
     fn serialize_xrpl_signed_signer_list_set_transaction() -> Result<(), ContractError> {
         let signed_tx = XRPLSignedTransaction {
             unsigned_tx: XRPLUnsignedTx::SignerListSet(XRPLSignerListSetTx {
-                account: "rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb".try_into()?,
+                account: XRPLAccountId::from_str("rfEf91bLxrTVC76vw1W3Ur8Jk4Lwujskmb")?,
                 fee: 30,
                 sequence: XRPLSequence::Plain(44218445),
                 signer_quorum: 3,
                 signer_entries: vec![
                     XRPLSignerEntry{
-                        account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into()?,
+                        account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
                         signer_weight: 2
                     },
                     XRPLSignerEntry{
-                        account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into()?,
+                        account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
                         signer_weight: 1
                     }
                 ],
             }), signers: vec![
                 XRPLSigner{
-                    account: "r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ".try_into()?,
+                    account: XRPLAccountId::from_str("r3mJFUQeVQma7qucT4iQSNCWuijVCPcicZ")?,
                     txn_signature: HexBinary::from_hex("3045022100B94B346A418BE9EF5AEE7806EE984E3E9B48EB4ED48E79B5BFB69C607167023E02206B14BD72B69206D14DADA82ACCDD2539D275719FB187ECE2A46BAC9025877B39")?,
                     signing_pub_key: pub_key_from_hex("025E0231BFAD810E5276E2CF9EB2F3F380CE0BDF6D84C3B6173499D3DDCC008856")?,
                 },
                 XRPLSigner{
-                    account: "rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f".try_into()?,
+                    account: XRPLAccountId::from_str("rHxbKjRSFUUyuiio1jnFhimJRVAYYaGj7f")?,
                     txn_signature: HexBinary::from_hex("3044022072A1028FF972D9D6E950810AF72443EEE352ADB1BC54B1112983842C857C464502206D74A77387979A47863F08F9191611D142C2BD6B32D5C750EF58513C5669F21A")?,
                     signing_pub_key: pub_key_from_hex("036FF6F4B2BC5E08ABA924BD8FD986608F3685CA651A015B3D9D6A656DE14769FE")?,
                 },

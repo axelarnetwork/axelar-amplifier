@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use axelar_wasm_std::nonempty;
 use connection_router_api::CrossChainId;
 use cosmwasm_std::{wasm_execute, HexBinary, Response, Storage};
@@ -46,11 +47,11 @@ pub fn issue_payment(
     let ticket_number = assign_ticket_number(storage, message_id)?;
 
     let tx = XRPLPaymentTx {
-        account: config.xrpl_multisig.as_str().try_into()?,
+        account: XRPLAccountId::from_str(config.xrpl_multisig.as_str())?,
         fee: config.xrpl_fee,
         sequence: XRPLSequence::Ticket(ticket_number),
         amount: amount.clone(),
-        destination: XRPLAccountId::try_from(destination.as_str())?
+        destination: XRPLAccountId::from_str(destination.as_str())?
     };
 
     issue_tx(
@@ -68,7 +69,7 @@ pub fn issue_ticket_create(
     let sequence_number = get_next_sequence_number(storage)?;
 
     let tx = XRPLTicketCreateTx {
-        account: config.xrpl_multisig.as_str().try_into()?,
+        account: XRPLAccountId::from_str(config.xrpl_multisig.as_str())?,
         fee: config.xrpl_fee,
         sequence: XRPLSequence::Plain(sequence_number.clone()),
         ticket_count,
@@ -89,7 +90,7 @@ pub fn issue_signer_list_set(
     let sequence_number = get_next_sequence_number(storage)?;
 
     let tx = XRPLSignerListSetTx {
-        account: config.xrpl_multisig.as_str().try_into()?,
+        account: XRPLAccountId::from_str(config.xrpl_multisig.as_str())?,
         fee: config.xrpl_fee,
         sequence: XRPLSequence::Plain(sequence_number.clone()),
         signer_quorum: workers.quorum,

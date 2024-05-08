@@ -19,11 +19,10 @@ pub fn get_message_to_sign(storage: &dyn Storage, multisig_session_id: &Uint64, 
         return Err(ContractError::TransactionStatusNotPending.into());
     }
 
-    let serialized_unsigned_tx = tx_info.unsigned_contents.xrpl_serialize()?;
+    let mut tx_blob = tx_info.unsigned_contents.xrpl_serialize()?;
+    tx_blob.extend(signer_xrpl_address.to_bytes());
 
-    let serialized_tx = &[serialized_unsigned_tx, signer_xrpl_address.to_bytes().to_vec()].concat();
-
-    Ok(xrpl_multisig::xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, serialized_tx).into())
+    Ok(xrpl_multisig::xrpl_hash(HASH_PREFIX_UNSIGNED_TX_MULTI_SIGNING, tx_blob.as_slice()).into())
 }
 
 pub fn verify_signature(storage: &dyn Storage, multisig_session_id: &Uint64, public_key: &PublicKey, signature: &Signature) -> StdResult<bool> {
@@ -44,12 +43,11 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
     let response = match multisig_session.state {
         MultisigState::Pending => GetProofResponse::Pending { unsigned_tx_hash },
         MultisigState::Completed { .. } => {
-            let axelar_signers: Vec<(multisig::msg::Signer, multisig::key::Signature)> = multisig_session.signers
+            let xrpl_signers: Vec<XRPLSigner> = multisig_session.signers
                 .into_iter()
                 .filter_map(|(signer, sig)| sig.map(|sig| (signer, sig)))
-                .collect();
-
-            let xrpl_signers = axelar_signers.into_iter().map(|p| XRPLSigner::try_from(p)).collect::<Result<Vec<_>, ContractError>>()?;
+                .map(|p| XRPLSigner::try_from(p))
+                .collect::<Result<Vec<_>, ContractError>>()?;
             let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
             let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
             GetProofResponse::Completed { unsigned_tx_hash, tx_blob }
