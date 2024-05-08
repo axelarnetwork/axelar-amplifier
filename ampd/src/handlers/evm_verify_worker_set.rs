@@ -294,6 +294,7 @@ mod tests {
                         ),
                     ],
                     40u64.into(),
+                    1,
                 ),
             },
             metadata: PollMetadata {

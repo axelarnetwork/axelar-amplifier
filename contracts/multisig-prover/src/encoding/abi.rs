@@ -142,7 +142,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
             )
         })
         .collect();
-    Operators::new(operators, worker_set.threshold)
+    Operators::new(operators, worker_set.threshold, worker_set.created_at)
 }
 
 fn make_evm_operators_with_sigs(

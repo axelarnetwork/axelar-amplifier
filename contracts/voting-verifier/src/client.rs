@@ -178,7 +178,7 @@ mod test {
 
         assert_eq!(
             client
-                .worker_set_status(Operators::new(vec![], Uint256::one()))
+                .worker_set_status(Operators::new(vec![], Uint256::one(), 1))
                 .unwrap(),
             VerificationStatus::None
         );
