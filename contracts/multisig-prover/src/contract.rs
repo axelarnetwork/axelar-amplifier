@@ -601,8 +601,6 @@ mod tests {
         assert!(event.is_some());
     }
 
-    /// TODO: remove ignore flag
-    #[ignore = "construct proof is temporarily broken during the multisig prover amplifier gateway migration"]
     #[test]
     fn test_query_proof() {
         let mut test_case = setup_test_case();
@@ -615,7 +613,7 @@ mod tests {
         assert_eq!(res.message_ids.len(), 1);
         match res.status {
             ProofStatus::Completed { execute_data } => {
-                assert_eq!(execute_data, test_data::execute_data());
+                assert_eq!(execute_data, test_data::approve_messages_calldata());
             }
             _ => panic!("Expected proof status to be completed"), // multisig mock will always return completed multisig
         }
