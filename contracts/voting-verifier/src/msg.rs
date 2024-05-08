@@ -79,7 +79,7 @@ pub enum QueryMsg {
     #[returns(Poll)]
     GetPoll { poll_id: PollId },
 
-    #[returns(Vec<(Message, VerificationStatus)>)]
+    #[returns(Vec<MessageStatus>)]
     GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]
@@ -87,4 +87,16 @@ pub enum QueryMsg {
 
     #[returns(MajorityThreshold)]
     GetCurrentThreshold,
+}
+
+#[cw_serde]
+pub struct MessageStatus {
+    pub message: Message,
+    pub status: VerificationStatus,
+}
+
+impl MessageStatus {
+    pub fn new(message: Message, status: VerificationStatus) -> Self {
+        Self { message, status }
+    }
 }
