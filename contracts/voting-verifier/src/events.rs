@@ -332,6 +332,7 @@ mod test {
         let operators = Operators::new(
             vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
             Uint256::one(),
+            1,
         );
         let event = WorkerSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
@@ -354,6 +355,7 @@ mod test {
         let operators = Operators::new(
             vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
             Uint256::one(),
+            1,
         );
         let event = WorkerSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
@@ -373,6 +375,7 @@ mod test {
         let operators = Operators::new(
             vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
             Uint256::one(),
+            1,
         );
         let event = WorkerSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
@@ -391,6 +394,7 @@ mod test {
         let operators = Operators::new(
             vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
             Uint256::one(),
+            1,
         );
         let event = WorkerSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
