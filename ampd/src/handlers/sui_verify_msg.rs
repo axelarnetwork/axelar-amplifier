@@ -147,8 +147,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::convert::TryInto;
 
+    use cosmrs::cosmwasm::MsgExecuteContract;
+    use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
@@ -259,6 +262,27 @@ mod tests {
             *handler.handle(&event).await.unwrap_err().current_context(),
             Error::TxReceipts
         ));
+    }
+
+    #[async_test]
+    async fn should_vote_correctly() {
+        let mut rpc_client = MockSuiClient::new();
+        rpc_client
+            .expect_finalized_transaction_blocks()
+            .returning(|_| Ok(HashMap::new()));
+
+        let voting_verifier = TMAddress::random(PREFIX);
+        let worker = TMAddress::random(PREFIX);
+        let event = get_event(
+            poll_started_event(participants(5, Some(worker.clone())), 100),
+            &voting_verifier,
+        );
+
+        let handler = super::Handler::new(worker, voting_verifier, rpc_client, watch::channel(0).1);
+
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
+        assert!(MsgExecuteContract::from_any(actual.first().unwrap()).is_ok());
     }
 
     #[async_test]
