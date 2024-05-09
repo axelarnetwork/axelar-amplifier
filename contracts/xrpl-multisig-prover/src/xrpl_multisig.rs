@@ -27,7 +27,7 @@ fn issue_tx(
 
     match tx.sequence() {
         XRPLSequence::Ticket(ticket_number) => {
-            LAST_ASSIGNED_TICKET_NUMBER.save(storage, &ticket_number)?;
+            LAST_ASSIGNED_TICKET_NUMBER.save(storage, ticket_number)?;
         },
         XRPLSequence::Plain(_) => {
             LATEST_SEQUENTIAL_TX_HASH.save(storage, &tx_hash)?;
@@ -71,7 +71,7 @@ pub fn issue_ticket_create(
     let tx = XRPLTicketCreateTx {
         account: XRPLAccountId::from_str(config.xrpl_multisig.as_str())?,
         fee: config.xrpl_fee,
-        sequence: XRPLSequence::Plain(sequence_number.clone()),
+        sequence: XRPLSequence::Plain(sequence_number),
         ticket_count,
     };
 
@@ -92,9 +92,9 @@ pub fn issue_signer_list_set(
     let tx = XRPLSignerListSetTx {
         account: XRPLAccountId::from_str(config.xrpl_multisig.as_str())?,
         fee: config.xrpl_fee,
-        sequence: XRPLSequence::Plain(sequence_number.clone()),
+        sequence: XRPLSequence::Plain(sequence_number),
         signer_quorum: workers.quorum,
-        signer_entries: workers.signers.into_iter().map(|worker| XRPLSignerEntry::from(worker)).collect(),
+        signer_entries: workers.signers.into_iter().map(XRPLSignerEntry::from).collect(),
     };
 
     issue_tx(
@@ -176,7 +176,7 @@ pub fn update_tx_status(
 pub fn assign_ticket_number(storage: &mut dyn Storage, message_id: &CrossChainId) -> Result<u32, ContractError> {
     // If this message ID has already been ticketed,
     // then use the same ticket number as before,
-    if let Some(ticket_number) = MESSAGE_ID_TO_TICKET.may_load(storage, &message_id)? {
+    if let Some(ticket_number) = MESSAGE_ID_TO_TICKET.may_load(storage, message_id)? {
         let confirmed_tx_hash = CONFIRMED_TRANSACTIONS.may_load(storage, &ticket_number)?;
         // as long as it has not already been consumed
         if confirmed_tx_hash.is_none()
@@ -198,7 +198,7 @@ pub fn get_next_ticket_number(storage: &dyn Storage) -> Result<u32, ContractErro
     // TODO: handle no available tickets
     let available_tickets = AVAILABLE_TICKETS.load(storage)?;
 
-    if available_tickets.len() == 0 {
+    if available_tickets.is_empty() {
         return Err(ContractError::NoAvailableTickets);
     }
 

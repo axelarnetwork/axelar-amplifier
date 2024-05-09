@@ -30,7 +30,7 @@ pub fn verify_signature(storage: &dyn Storage, multisig_session_id: &Uint64, pub
     let tx_hash = get_message_to_sign(storage, multisig_session_id, &signer_xrpl_address)?;
 
     // m.tx_hash is going to be over 32 bytes due to inclusion of the signer address, so it has to be passed unchecked
-    Ok(signature.verify(&multisig::types::MsgToSign::unchecked(tx_hash), &public_key).is_ok())
+    Ok(signature.verify(multisig::types::MsgToSign::unchecked(tx_hash), public_key).is_ok())
 }
 
 pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &Uint64) -> StdResult<GetProofResponse> {
@@ -38,7 +38,7 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
 
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
 
-    let multisig_session= querier.get_multisig_session(&multisig_session_id)?;
+    let multisig_session= querier.get_multisig_session(multisig_session_id)?;
 
     let response = match multisig_session.state {
         MultisigState::Pending => GetProofResponse::Pending { unsigned_tx_hash },
@@ -46,7 +46,7 @@ pub fn get_proof(storage: &dyn Storage, querier: Querier, multisig_session_id: &
             let xrpl_signers: Vec<XRPLSigner> = multisig_session.signers
                 .into_iter()
                 .filter_map(|(signer, sig)| sig.map(|sig| (signer, sig)))
-                .map(|p| XRPLSigner::try_from(p))
+                .map(XRPLSigner::try_from)
                 .collect::<Result<Vec<_>, ContractError>>()?;
             let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
             let tx_blob: HexBinary = HexBinary::from(signed_tx.xrpl_serialize()?);
@@ -69,8 +69,8 @@ pub fn get_multisig_session_id(storage: &dyn Storage, message_id: &CrossChainId)
     }
 
     if available_tickets.unwrap().contains(&existing_ticket_number.unwrap()) {
-        return Ok(MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, message_id)?);
+        return MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, message_id);
     }
 
-    return Ok(None)
+    Ok(None)
 }

@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Display;
+
 use axelar_wasm_std::VerificationStatus;
 use connection_router_api::CrossChainId;
 use cosmwasm_schema::cw_serde;
@@ -33,15 +36,15 @@ impl TryFrom<CrossChainId> for TxHash {
     }
 }
 
-impl Into<HexBinary> for TxHash {
-    fn into(self) -> HexBinary {
-        self.0
+impl From<TxHash> for HexBinary {
+    fn from(hash: TxHash) -> Self {
+        hash.0
     }
 }
 
-impl Into<TransactionStatus> for VerificationStatus {
-    fn into(self) -> TransactionStatus {
-        match self {
+impl From<VerificationStatus> for TransactionStatus {
+    fn from(status: VerificationStatus) -> TransactionStatus {
+        match status {
             VerificationStatus::SucceededOnChain => TransactionStatus::Succeeded,
             VerificationStatus::FailedOnChain => TransactionStatus::FailedOnChain,
             _ => TransactionStatus::Inconclusive,
@@ -83,7 +86,7 @@ impl KeyDeserialize for TxHash {
     type Output = TxHash;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        from_json(&Binary::from(value))
+        from_json(Binary::from(value))
     }
 }
 
@@ -123,9 +126,9 @@ pub enum XRPLSequence {
     Ticket(u32),
 }
 
-impl Into<u32> for XRPLSequence {
-    fn into(self) -> u32 {
-        match self {
+impl From<XRPLSequence> for u32 {
+    fn from(value: XRPLSequence) -> Self {
+        match value {
             XRPLSequence::Plain(sequence) => sequence,
             XRPLSequence::Ticket(ticket) => ticket,
         }
@@ -229,14 +232,16 @@ pub struct XRPLAccountId([u8; 20]);
 
 impl XRPLAccountId {
     pub const fn to_bytes(&self) -> [u8; 20] {
-        return self.0;
+        self.0
     }
 
     pub fn from_bytes(bytes: [u8; 20]) -> Self {
         Self(bytes)
     }
+}
 
-    pub fn to_string(&self) -> String {
+impl Display for XRPLAccountId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut payload = Vec::<u8>::with_capacity(25);
         payload.extend(&[0x00]);
         payload.extend_from_slice(&self.to_bytes());
@@ -247,9 +252,11 @@ impl XRPLAccountId {
 
         payload.extend(checksum);
 
-        bs58::encode(payload)
+        let str = bs58::encode(payload)
             .with_alphabet(bs58::Alphabet::RIPPLE)
-            .into_string()
+            .into_string();
+
+        write!(f, "{}", str) 
     }
 }
 
@@ -262,7 +269,7 @@ impl From<&PublicKey> for XRPLAccountId {
         let public_key_inner_hash = Sha256::digest(public_key_hex);
         let account_id = Ripemd160::digest(public_key_inner_hash);
 
-        return XRPLAccountId(account_id.into());
+        XRPLAccountId(account_id.into())
     }
 }
 
@@ -277,7 +284,7 @@ impl std::str::FromStr for XRPLAccountId {
         }
         let mut buffer = [0u8; 20];
         buffer.copy_from_slice(&res[1..21]);
-        return Ok(XRPLAccountId(buffer))
+        Ok(XRPLAccountId(buffer))
     }
 }
 
@@ -303,7 +310,7 @@ impl TryFrom<(multisig::msg::Signer, multisig::key::Signature)> for XRPLSigner {
 
         Ok(XRPLSigner {
             account: XRPLAccountId::from(&axelar_signer.pub_key),
-            signing_pub_key: axelar_signer.pub_key.clone().into(),
+            signing_pub_key: axelar_signer.pub_key.clone(),
             txn_signature,
         })
     }
@@ -330,10 +337,11 @@ impl XRPLCurrency {
         buffer[12..15].copy_from_slice(self.to_string().as_bytes());
         buffer
     }
+}
 
-    // Convert the CurrencyCode to a String
-    fn to_string(self) -> String {
-        self.0
+impl Display for XRPLCurrency {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -366,7 +374,7 @@ pub struct XRPLTokenAmount {
 
 impl XRPLTokenAmount {
     pub fn new(mantissa: u64, exponent: i64) -> Self {
-        assert!(mantissa == 0 || (MIN_MANTISSA <= mantissa && mantissa <= MAX_MANTISSA && MIN_EXPONENT <= exponent && exponent <= MAX_EXPONENT));
+        assert!(mantissa == 0 || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa) && (MIN_EXPONENT..=MAX_EXPONENT).contains(&exponent)));
         Self { mantissa, exponent }
     }
 
@@ -381,7 +389,7 @@ impl XRPLTokenAmount {
 }
 
 pub fn canonicalize_coin_amount(amount: Uint128, decimals: u8) -> Result<XRPLTokenAmount, ContractError>{
-    let (mantissa, exponent) = canonicalize_mantissa(amount, -1 * i64::from(decimals))?;
+    let (mantissa, exponent) = canonicalize_mantissa(amount, -i64::from(decimals))?;
     Ok(XRPLTokenAmount::new(mantissa, exponent))
 }
 
@@ -413,5 +421,5 @@ pub fn canonicalize_mantissa(mut mantissa: Uint128, mut exponent: i64) -> Result
 
     let mantissa = u64::from_be_bytes(mantissa.to_be_bytes()[8..].try_into().unwrap());
 
-    return Ok((mantissa, exponent));
+    Ok((mantissa, exponent))
 }

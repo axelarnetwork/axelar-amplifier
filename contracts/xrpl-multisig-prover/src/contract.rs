@@ -193,14 +193,11 @@ fn construct_payment_proof(
     }
 
     // Prevent creating a duplicate signing session before the previous one expires
-    match MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, &message_id)? {
-        Some(multisig_session_id) => {
-            let multisig_session = querier.get_multisig_session(&Uint64::from(multisig_session_id))?;
-            if multisig_session.state == MultisigState::Pending && multisig_session.expires_at <= block_height {
-                return Err(ContractError::PaymentAlreadyHasActiveSigningSession(multisig_session_id));
-            }
-        },
-        None => (),
+    if let Some(multisig_session_id) = MESSAGE_ID_TO_MULTISIG_SESSION_ID.may_load(storage, &message_id)? {
+        let multisig_session = querier.get_multisig_session(&Uint64::from(multisig_session_id))?;
+        if multisig_session.state == MultisigState::Pending && multisig_session.expires_at <= block_height {
+            return Err(ContractError::PaymentAlreadyHasActiveSigningSession(multisig_session_id));
+        }
     };
 
     let message = querier.get_message(&message_id)?;
@@ -225,13 +222,11 @@ fn construct_payment_proof(
     )?;
 
     REPLY_MESSAGE_ID.save(storage, &message_id)?;
-    Ok(
-        start_signing_session(
-            storage,
-            config,
-            tx_hash,
-            self_address
-        )?
+    start_signing_session(
+        storage,
+        config,
+        tx_hash,
+        self_address
     )
 }
 
@@ -268,7 +263,7 @@ fn construct_signer_list_set_proof(
     config: &Config,
 ) -> Result<Response, ContractError> {
     if !CURRENT_WORKER_SET.exists(storage) {
-        return Err(ContractError::WorkerSetIsNotSet.into())
+        return Err(ContractError::WorkerSetIsNotSet)
     }
 
     let new_worker_set = axelar_workers::get_active_worker_set(querier, config.signing_threshold, env.block.height)?;
@@ -278,7 +273,7 @@ fn construct_signer_list_set_proof(
         &cur_worker_set.clone().into(),
         usize::try_from(config.worker_set_diff_threshold).unwrap(),
     ) {
-        return Err(ContractError::WorkerSetUnchanged.into())
+        return Err(ContractError::WorkerSetUnchanged)
     }
 
     let tx_hash = xrpl_multisig::issue_signer_list_set(
@@ -289,13 +284,11 @@ fn construct_signer_list_set_proof(
 
     NEXT_WORKER_SET.save(storage, &tx_hash, &new_worker_set)?;
 
-    Ok(
-        start_signing_session(
-            storage,
-            config,
-            tx_hash,
-            env.contract.address
-        )?
+    start_signing_session(
+        storage,
+        config,
+        tx_hash,
+        env.contract.address
     )
 }
 
@@ -306,7 +299,7 @@ fn construct_ticket_create_proof(
 ) -> Result<Response, ContractError> {
     let ticket_count = xrpl_multisig::tickets_available_to_request(storage)?;
     if ticket_count < config.ticket_count_threshold {
-        return Err(ContractError::TicketCountThresholdNotReached.into());
+        return Err(ContractError::TicketCountThresholdNotReached);
     }
 
     let tx_hash = xrpl_multisig::issue_ticket_create(
@@ -330,13 +323,13 @@ fn update_tx_status(
     querier: &Querier,
     config: &Config,
     multisig_session_id: &Uint64,
-    signer_public_keys: &Vec<PublicKey>,
+    signer_public_keys: &[PublicKey],
     message_id: &CrossChainId,
     status: VerificationStatus,
 ) -> Result<Response, ContractError> {
     let unsigned_tx_hash = MULTISIG_SESSION_ID_TO_TX_HASH.load(storage, multisig_session_id.u64())?;
     let tx_info = TRANSACTION_INFO.load(storage, &unsigned_tx_hash)?;
-    let multisig_session = querier.get_multisig_session(&multisig_session_id)?;
+    let multisig_session = querier.get_multisig_session(multisig_session_id)?;
 
     let destination_str = match &tx_info.unsigned_contents {
         XRPLUnsignedTx::Payment(p) => p.destination.to_string(),
@@ -363,7 +356,7 @@ fn update_tx_status(
 
     let signed_tx = XRPLSignedTransaction::new(tx_info.unsigned_contents, xrpl_signers);
     let tx_blob = HexBinary::from(signed_tx.xrpl_serialize()?);
-    let tx_hash: HexBinary = TxHash::from(xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice())?).into();
+    let tx_hash: HexBinary = xrpl_multisig::compute_signed_tx_hash(tx_blob.as_slice())?.into();
 
     if parse_message_id(&message_id.id).map_err(|_| ContractError::InvalidMessageID(message_id.id.to_string()))?.0.to_string() != tx_hash.to_string() {
         return Err(ContractError::InvalidMessageID(message_id.id.to_string()));

@@ -48,10 +48,10 @@ impl<'a> Querier<'a> {
         )
     }
 
-    pub fn get_public_key(&self, worker_address: &String) -> Result<PublicKey, ContractError> {
+    pub fn get_public_key(&self, worker_address: String) -> Result<PublicKey, ContractError> {
         query(self.querier, self.config.axelar_multisig.to_string(),
             &multisig::msg::QueryMsg::GetPublicKey {
-                worker_address: worker_address.clone(),
+                worker_address,
                 key_type: self.config.key_type,
             },
         )
@@ -72,13 +72,13 @@ impl<'a> Querier<'a> {
                 messages: vec![message],
             }
         )?;
-        let status = statuses.get(0).ok_or(ContractError::GenericError("failed fetching message status".to_owned()))?;
+        let status = statuses.first().ok_or(ContractError::GenericError("failed fetching message status".to_owned()))?;
         Ok(status.1)
     }
 
     pub fn get_multisig_session(&self, multisig_session_id: &Uint64) -> Result<Multisig, ContractError> {
         let query_msg = multisig::msg::QueryMsg::GetMultisig {
-            session_id: multisig_session_id.clone(),
+            session_id: *multisig_session_id,
         };
         query(self.querier, self.config.axelar_multisig.to_string(), &query_msg)
     }

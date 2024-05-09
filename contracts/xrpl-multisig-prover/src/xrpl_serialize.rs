@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 
-use cosmwasm_schema::serde::Serializer;
 use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::PublicKey;
 
@@ -36,7 +35,7 @@ pub enum Field {
 }
 
 impl Field {
-    const fn to_u8(self) -> u8 {
+    const fn to_u8(&self) -> u8 {
         match self {
             Field::SigningPubKey => 3,
             Field::TxnSignature => 4,
@@ -194,9 +193,9 @@ impl TryInto<XRPLObject> for XRPLSignerEntry {
 #[derive(Clone)]
 pub struct XRPLMemo(HexBinary);
 
-impl Into<HexBinary> for XRPLMemo {
-    fn into(self) -> HexBinary {
-        return self.0;
+impl From<XRPLMemo> for HexBinary {
+    fn from(memo: XRPLMemo) -> Self {
+        memo.0
     }
 }
 
@@ -341,17 +340,17 @@ impl SerializedField {
 
 impl PartialOrd for SerializedField {
     fn partial_cmp(&self, other: &SerializedField) -> Option<Ordering> {
-        return (self.type_code, self.field_code).partial_cmp(&(other.type_code, other.field_code))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for SerializedField {
     fn cmp(&self, other: &SerializedField) -> Ordering {
-        return (self.type_code, self.field_code).cmp(&(other.type_code, other.field_code))
+        (self.type_code, self.field_code).cmp(&(other.type_code, other.field_code))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct XRPLObject {
     fields: Vec<SerializedField>
 }

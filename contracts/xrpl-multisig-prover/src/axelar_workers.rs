@@ -20,11 +20,11 @@ pub struct AxelarSigner {
     pub pub_key: PublicKey,
 }
 
-impl Into<Participant> for AxelarSigner {
-    fn into(self) -> Participant {
-        let weight = nonempty::Uint256::try_from(Uint256::from(u128::try_from(self.weight).unwrap())).unwrap();
-        Participant {
-            address: self.address,
+impl From<AxelarSigner> for Participant {
+    fn from(signer: AxelarSigner) -> Self {
+        let weight = nonempty::Uint256::try_from(Uint256::from(u128::from(signer.weight))).unwrap();
+        Self {
+            address: signer.address,
             weight,
         }
     }
@@ -39,15 +39,15 @@ pub struct WorkerSet {
     pub created_at: u64,
 }
 
-impl Into<multisig::worker_set::WorkerSet> for WorkerSet {
-    fn into(self) -> multisig::worker_set::WorkerSet {
-        let participants = self.signers.into_iter()
+impl From<WorkerSet> for multisig::worker_set::WorkerSet {
+    fn from(worker_set: WorkerSet) -> Self {
+        let participants = worker_set.signers.into_iter()
             .map(|s| (s.clone().into(), s.pub_key))
             .collect();
         multisig::worker_set::WorkerSet::new(
             participants,
-            Uint256::from(u128::try_from(self.quorum).unwrap()),
-            self.created_at
+            Uint256::from(u128::from(worker_set.quorum)),
+            worker_set.created_at
         )
     }
 }
@@ -103,7 +103,7 @@ pub fn get_active_worker_set(
 
     let participants: Vec<Participant> = workers
         .into_iter()
-        .map(|worker| Participant::try_from(worker))
+        .map(Participant::try_from)
         .filter_map(|result| result.ok())
         .collect();
 
@@ -116,7 +116,7 @@ pub fn get_active_worker_set(
 
     let mut signers: Vec<AxelarSigner> = vec![];
     for (i, participant) in participants.iter().enumerate() {
-        let pub_key: PublicKey = querier.get_public_key(&participant.address.to_string())?;
+        let pub_key: PublicKey = querier.get_public_key(participant.address.to_string())?;
         signers.push(AxelarSigner {
             address: participant.address.clone(),
             weight: weights[i],
@@ -134,7 +134,7 @@ pub fn get_active_worker_set(
         .unwrap();
 
     let worker_set = WorkerSet {
-        signers: BTreeSet::from_iter(signers.into_iter()),
+        signers: BTreeSet::from_iter(signers),
         quorum,
         created_at: block_height,
     };

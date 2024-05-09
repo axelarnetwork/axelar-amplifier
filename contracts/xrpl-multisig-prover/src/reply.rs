@@ -11,7 +11,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let tx_hash = REPLY_TX_HASH.load(deps.storage)?;
 
             let multisig_session_id: Uint64 =
-                from_json(&data).map_err(|_| ContractError::InvalidContractReply {
+                from_json(data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
@@ -41,9 +41,8 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let evt_attributes: Vec<Attribute> = res.events
                 .into_iter()
                 .filter(|e| e.ty == "wasm-signing_started")
-                .map(|e| e.attributes)
-                .flatten()
-                .filter(|a| !a.key.starts_with("_") && a.key != "msg")
+                .flat_map(|e| e.attributes)
+                .filter(|a| !a.key.starts_with('_') && a.key != "msg")
                 .collect();
 
             let evt = cosmwasm_std::Event::new("xrpl_signing_started")
