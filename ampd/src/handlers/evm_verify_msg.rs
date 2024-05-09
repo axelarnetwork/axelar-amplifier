@@ -4,6 +4,7 @@ use std::convert::TryInto;
 use async_trait::async_trait;
 use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
 use futures::future::join_all;
@@ -25,7 +26,6 @@ use crate::evm::json_rpc::EthereumClient;
 use crate::evm::verifier::verify_message;
 use crate::handlers::errors::Error;
 use crate::handlers::errors::Error::DeserializeEvent;
-use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
@@ -52,24 +52,21 @@ struct PollStartedEvent {
     participants: Vec<TMAddress>,
 }
 
-pub struct Handler<C, B>
+pub struct Handler<C>
 where
     C: EthereumClient,
-    B: BroadcasterClient,
 {
     worker: TMAddress,
     voting_verifier: TMAddress,
     chain: ChainName,
     finalizer_type: Finalization,
     rpc_client: C,
-    broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
 
-impl<C, B> Handler<C, B>
+impl<C> Handler<C>
 where
     C: EthereumClient + Send + Sync,
-    B: BroadcasterClient,
 {
     pub fn new(
         worker: TMAddress,
@@ -77,7 +74,6 @@ where
         chain: ChainName,
         finalizer_type: Finalization,
         rpc_client: C,
-        broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
@@ -86,7 +82,6 @@ where
             chain,
             finalizer_type,
             rpc_client,
-            broadcast_client,
             latest_block_height,
         }
     }
@@ -127,34 +122,27 @@ where
         .collect())
     }
 
-    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
-        let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-            .expect("vote msg should serialize");
-        let tx = MsgExecuteContract {
+    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
+        MsgExecuteContract {
             sender: self.worker.as_ref().clone(),
             contract: self.voting_verifier.as_ref().clone(),
-            msg,
+            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
+                .expect("vote msg should serialize"),
             funds: vec![],
-        };
-
-        self.broadcast_client
-            .broadcast(tx)
-            .await
-            .change_context(Error::Broadcaster)
+        }
     }
 }
 
 #[async_trait]
-impl<C, B> EventHandler for Handler<C, B>
+impl<C> EventHandler for Handler<C>
 where
     C: EthereumClient + Send + Sync,
-    B: BroadcasterClient + Send + Sync,
 {
     type Err = Error;
 
-    async fn handle(&self, event: &events::Event) -> Result<()> {
+    async fn handle(&self, event: &events::Event) -> Result<Vec<Any>> {
         if !event.is_from_contract(self.voting_verifier.as_ref()) {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let PollStartedEvent {
@@ -167,23 +155,23 @@ where
             participants,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(())
+                return Ok(vec![])
             }
             event => event.change_context(DeserializeEvent)?,
         };
 
         if self.chain != source_chain {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         if !participants.contains(&self.worker) {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let latest_block_height = *self.latest_block_height.borrow();
         if latest_block_height >= expires_at {
             info!(poll_id = poll_id.to_string(), "skipping expired poll");
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let tx_hashes: HashSet<_> = messages.iter().map(|message| message.tx_id).collect();
@@ -226,7 +214,10 @@ where
             votes
         });
 
-        self.broadcast_votes(poll_id, votes).await
+        Ok(vec![self
+            .vote_msg(poll_id, votes)
+            .into_any()
+            .expect("vote msg should serialize")])
     }
 }
 
@@ -252,7 +243,6 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::evm::finalizer::Finalization;
     use crate::evm::json_rpc::MockEthereumClient;
-    use crate::queue::queued_broadcaster::MockBroadcasterClient;
     use crate::types::{EVMAddress, Hash, TMAddress};
     use crate::PREFIX;
 
@@ -365,7 +355,6 @@ mod tests {
                 "failed to get finalized block".to_string(),
             )))
         });
-        let broadcast_client = MockBroadcasterClient::new();
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -383,7 +372,6 @@ mod tests {
             ChainName::from_str("ethereum").unwrap(),
             Finalization::RPCFinalizedBlock,
             rpc_client,
-            broadcast_client,
             rx,
         );
 
@@ -393,7 +381,7 @@ mod tests {
         let _ = tx.send(expiration + 1);
 
         // poll is expired, should not hit rpc error now
-        assert!(handler.handle(&event).await.is_ok());
+        assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
     fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {
