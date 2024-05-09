@@ -1,9 +1,12 @@
+use crate::{
+    axelar_workers::WorkerSet,
+    types::{TransactionInfo, TxHash, XRPLToken},
+};
 use axelar_wasm_std::MajorityThreshold;
 use connection_router_api::CrossChainId;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
-use cosmwasm_schema::cw_serde;
-use crate::{types::{TransactionInfo, TxHash, XRPLToken}, axelar_workers::WorkerSet};
 
 #[cw_serde]
 pub struct Config {
@@ -40,7 +43,8 @@ pub const NEXT_SEQUENCE_NUMBER: Item<u32> = Item::new("next_sequence_number");
 pub const LAST_ASSIGNED_TICKET_NUMBER: Item<u32> = Item::new("last_assigned_ticket_number");
 
 pub const MESSAGE_ID_TO_TICKET: Map<&CrossChainId, u32> = Map::new("message_id_to_ticket");
-pub const MESSAGE_ID_TO_MULTISIG_SESSION_ID: Map<&CrossChainId, u64> = Map::new("message_id_to_multisig_session_id");
+pub const MESSAGE_ID_TO_MULTISIG_SESSION_ID: Map<&CrossChainId, u64> =
+    Map::new("message_id_to_multisig_session_id");
 pub const CONFIRMED_TRANSACTIONS: Map<&u32, TxHash> = Map::new("confirmed_transactions");
 pub const AVAILABLE_TICKETS: Item<Vec<u32>> = Item::new("available_tickets");
 pub const TRANSACTION_INFO: Map<&TxHash, TransactionInfo> = Map::new("transaction_info");

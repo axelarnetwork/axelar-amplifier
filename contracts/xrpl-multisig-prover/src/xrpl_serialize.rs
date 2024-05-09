@@ -31,7 +31,7 @@ pub enum Field {
     Memo,
     TicketCount,
     Signers,
-    Signer
+    Signer,
 }
 
 impl Field {
@@ -56,7 +56,7 @@ impl Field {
             Field::Memo => 10,
             Field::TicketCount => 40,
             Field::Signers => 3,
-            Field::Signer => 16
+            Field::Signer => 16,
         }
     }
 }
@@ -108,9 +108,11 @@ impl XRPLSerialize for XRPLPaymentAmount {
                 if value <= 10u64.pow(17) {
                     Ok((value | POSITIVE_BIT).to_be_bytes().to_vec())
                 } else {
-                    Err(ContractError::InvalidAmount { reason: "more than maximum amount of drops".to_string() })
+                    Err(ContractError::InvalidAmount {
+                        reason: "more than maximum amount of drops".to_string(),
+                    })
                 }
-            },
+            }
             XRPLPaymentAmount::Token(token, amount) => {
                 let mut buf = Vec::with_capacity(48);
                 buf.extend_from_slice(&amount.to_bytes());
@@ -143,12 +145,12 @@ pub fn encode_length(mut length: usize) -> Result<Vec<u8>, ContractError> {
     } else if length <= 12480 {
         length -= 193;
         Ok(vec![193 + (length >> 8) as u8, (length & 0xff) as u8])
-    } else if length <= 918744  {
+    } else if length <= 918744 {
         length -= 12481;
         Ok(vec![
             241 + (length >> 16) as u8,
             ((length >> 8) & 0xff) as u8,
-            (length & 0xff) as u8
+            (length & 0xff) as u8,
         ])
     } else {
         Err(ContractError::InvalidBlob)
@@ -161,7 +163,9 @@ impl XRPLSerialize for PublicKey {
         match self.clone() {
             // rippled prefixes Ed25519 public keys with the byte 0xED so both types of public key are 33 bytes.
             // https://xrpl.org/cryptographic-keys.html
-            Self::Ed25519(hex) => HexBinary::from_hex(format!("ED{}", hex.to_hex()).as_str())?.xrpl_serialize(),
+            Self::Ed25519(hex) => {
+                HexBinary::from_hex(format!("ED{}", hex.to_hex()).as_str())?.xrpl_serialize()
+            }
             Self::Ecdsa(hex) => hex.xrpl_serialize(),
         }
     }
@@ -221,7 +225,14 @@ impl XRPLSerialize for XRPLAccountId {
 }
 
 pub fn hex_encode_session_id(session_id: Uint64) -> HexBinary {
-    HexBinary::from(session_id.to_be_bytes().iter().skip_while(|&&byte| byte == 0).cloned().collect::<Vec<u8>>())
+    HexBinary::from(
+        session_id
+            .to_be_bytes()
+            .iter()
+            .skip_while(|&&byte| byte == 0)
+            .cloned()
+            .collect::<Vec<u8>>(),
+    )
 }
 
 impl TryInto<XRPLObject> for XRPLPaymentTx {
@@ -284,7 +295,7 @@ impl TryInto<XRPLObject> for XRPLUnsignedTx {
         match self {
             XRPLUnsignedTx::Payment(tx) => tx.try_into(),
             XRPLUnsignedTx::TicketCreate(tx) => tx.try_into(),
-            XRPLUnsignedTx::SignerListSet(tx) => tx.try_into()
+            XRPLUnsignedTx::SignerListSet(tx) => tx.try_into(),
         }
     }
 }
@@ -300,14 +311,20 @@ impl TryInto<XRPLObject> for XRPLSignedTransaction {
             a.account.to_bytes().cmp(&b.account.to_bytes())
         });
         let mut obj: XRPLObject = self.unsigned_tx.clone().try_into()?;
-        obj.add_field(Field::Signers, XRPLArray{ field: Field::Signer, items: sorted_signers })?;
+        obj.add_field(
+            Field::Signers,
+            XRPLArray {
+                field: Field::Signer,
+                items: sorted_signers,
+            },
+        )?;
         Ok(obj)
     }
 }
 
 struct XRPLArray<T> {
     field: Field,
-    items: Vec<T>
+    items: Vec<T>,
 }
 
 impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
@@ -329,12 +346,16 @@ impl<T: XRPLSerialize> XRPLSerialize for XRPLArray<T> {
 struct SerializedField {
     type_code: u8,
     field_code: u8,
-    serialized_value: Vec<u8>
+    serialized_value: Vec<u8>,
 }
 
 impl SerializedField {
     fn new(type_code: u8, field_code: u8, serialized_value: Vec<u8>) -> Self {
-        Self { type_code, field_code, serialized_value }
+        Self {
+            type_code,
+            field_code,
+            serialized_value,
+        }
     }
 }
 
@@ -352,26 +373,30 @@ impl Ord for SerializedField {
 
 #[derive(Debug, Clone, Default)]
 pub struct XRPLObject {
-    fields: Vec<SerializedField>
+    fields: Vec<SerializedField>,
 }
 
 impl XRPLObject {
     pub fn new() -> XRPLObject {
-        Self {
-            fields: Vec::new()
-        }
+        Self { fields: Vec::new() }
     }
 
-    pub fn add_field<T: XRPLSerialize>(&mut self, field: Field, value: T) -> Result<(), ContractError> {
-        self.fields.push(SerializedField::new(T::TYPE_CODE, field.to_u8(), value.xrpl_serialize()?));
+    pub fn add_field<T: XRPLSerialize>(
+        &mut self,
+        field: Field,
+        value: T,
+    ) -> Result<(), ContractError> {
+        self.fields.push(SerializedField::new(
+            T::TYPE_CODE,
+            field.to_u8(),
+            value.xrpl_serialize()?,
+        ));
         Ok(())
     }
 
     pub fn add_sequence(&mut self, sequence: XRPLSequence) -> Result<(), ContractError> {
         match sequence {
-            XRPLSequence::Plain(seq) => {
-                self.add_field(Field::Sequence, seq)
-            },
+            XRPLSequence::Plain(seq) => self.add_field(Field::Sequence, seq),
             XRPLSequence::Ticket(seq) => {
                 self.add_field(Field::Sequence, 0u32)?;
                 self.add_field(Field::TicketSequence, seq)
@@ -419,8 +444,6 @@ pub fn field_id(type_code: u8, field_code: u8) -> Vec<u8> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -459,7 +482,10 @@ mod tests {
         assert_hex_eq!("00000005", 5u32.xrpl_serialize()?);
         assert_hex_eq!("FFFFFFFF", 0xffffffffu32.xrpl_serialize()?);
         assert_hex_eq!("00", HexBinary::from_hex("")?.xrpl_serialize()?);
-        assert_hex_eq!("04DEADBEEF", HexBinary::from_hex("DEADBEEF")?.xrpl_serialize()?);
+        assert_hex_eq!(
+            "04DEADBEEF",
+            HexBinary::from_hex("DEADBEEF")?.xrpl_serialize()?
+        );
         assert_hex_eq!(
             "800000000000000000000000000000000000000055534400000000005B812C9D57731E27A2DA8B1830195F88EF32A3B6",
             XRPLPaymentAmount::Token(XRPLToken {
@@ -509,77 +535,75 @@ mod tests {
         // minimum XRP
         assert_hex_eq!(
             "4000000000000000",
-            XRPLPaymentAmount::Drops(0)
-            .xrpl_serialize()?
+            XRPLPaymentAmount::Drops(0).xrpl_serialize()?
         );
         assert_hex_eq!(
             "4000000000000001",
-            XRPLPaymentAmount::Drops(1)
-            .xrpl_serialize()?
+            XRPLPaymentAmount::Drops(1).xrpl_serialize()?
         );
         assert_hex_eq!(
             "40000000499602D2",
-            XRPLPaymentAmount::Drops(1234567890)
-            .xrpl_serialize()?
+            XRPLPaymentAmount::Drops(1234567890).xrpl_serialize()?
         );
         // maximum XRP
         assert_hex_eq!(
             "416345785D8A0000",
-            XRPLPaymentAmount::Drops(100_000_000_000_000_000)
-            .xrpl_serialize()?
+            XRPLPaymentAmount::Drops(100_000_000_000_000_000).xrpl_serialize()?
         );
         // more than maximum XRP fails
-        assert!(
-            XRPLPaymentAmount::Drops(100_000_000_000_000_001)
+        assert!(XRPLPaymentAmount::Drops(100_000_000_000_000_001)
             .xrpl_serialize()
-            .is_err()
-        );
+            .is_err());
         // account "0" (with length prefix)
         assert_hex_eq!(
             "140000000000000000000000000000000000000000",
-            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?
-            .xrpl_serialize()?
+            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?.xrpl_serialize()?
         );
         // account "1" (with length prefix)
         assert_hex_eq!(
             "140000000000000000000000000000000000000001",
-            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?
-            .xrpl_serialize()?
+            XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?.xrpl_serialize()?
         );
         // max acccount
         assert_hex_eq!(
             "14FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-            XRPLAccountId::from_str("rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi")?
-            .xrpl_serialize()?
+            XRPLAccountId::from_str("rQLbzfJH5BT1FS9apRLKV3G8dWEA5njaQi")?.xrpl_serialize()?
         );
         assert_hex_eq!(
             "13000081140000000000000000000000000000000000000000",
-            XRPLSignerEntry{
+            XRPLSignerEntry {
                 account: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?,
                 signer_weight: 0
-            }.xrpl_serialize()?
+            }
+            .xrpl_serialize()?
         );
         // { "NetworkID": 0 }
         assert_hex_eq!(
             "2100000000",
-            XRPLObject { fields: vec![SerializedField::new(2, 1, 0u32.xrpl_serialize()?)]}
+            XRPLObject {
+                fields: vec![SerializedField::new(2, 1, 0u32.xrpl_serialize()?)]
+            }
             .xrpl_serialize()?
         );
         // empty array
         assert_hex_eq!(
             "F1",
-            XRPLArray::<XRPLSignerEntry>{ field: Field::Memo, items: vec![] }
+            XRPLArray::<XRPLSignerEntry> {
+                field: Field::Memo,
+                items: vec![]
+            }
             .xrpl_serialize()?
         );
         // array with 1 element
         assert_hex_eq!(
             "EA13000081140000000000000000000000000000000000000000E1F1",
-            XRPLArray::<XRPLSignerEntry>{ field: Field::Memo, items: vec![
-                XRPLSignerEntry{
+            XRPLArray::<XRPLSignerEntry> {
+                field: Field::Memo,
+                items: vec![XRPLSignerEntry {
                     account: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrrhoLvTp")?,
                     signer_weight: 0
-                },
-            ] }
+                },]
+            }
             .xrpl_serialize()?
         );
         Ok(())
@@ -596,7 +620,7 @@ mod tests {
                     currency: "JPY".to_string().try_into()?,
                     issuer: XRPLAccountId::from_str("rrrrrrrrrrrrrrrrrrrrBZbvji")?,
                 },
-                XRPLTokenAmount::new(3369568318000000u64, -16)
+                XRPLTokenAmount::new(3369568318000000u64, -16),
             ),
             destination: XRPLAccountId::from_str("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh")?,
         };
@@ -802,5 +826,4 @@ mod tests {
         );
         Ok(())
     }
-
 }

@@ -4,18 +4,18 @@ use std::fmt::Display;
 use axelar_wasm_std::VerificationStatus;
 use connection_router_api::CrossChainId;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_json, HexBinary, Binary, StdResult, Uint256, Uint128};
+use cosmwasm_std::{from_json, Binary, HexBinary, StdResult, Uint128, Uint256};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use k256::ecdsa;
 use k256::schnorr::signature::SignatureEncoding;
-use multisig::key::Signature;
 use multisig::key::PublicKey;
+use multisig::key::Signature;
 use ripemd::Ripemd160;
 use sha2::{Digest, Sha256};
 
-use voting_verifier::events::parse_message_id;
 use crate::axelar_workers::AxelarSigner;
 use crate::error::ContractError;
+use voting_verifier::events::parse_message_id;
 
 #[cw_serde]
 pub enum TransactionStatus {
@@ -31,8 +31,11 @@ pub struct TxHash(pub HexBinary);
 impl TryFrom<CrossChainId> for TxHash {
     type Error = ContractError;
     fn try_from(cc_id: CrossChainId) -> Result<Self, ContractError> {
-        let (tx_id, _event_index) = parse_message_id(&cc_id.id).map_err(|_e| ContractError::InvalidMessageID(cc_id.id.to_string()))?;
-        Ok(Self(HexBinary::from_hex(tx_id.to_ascii_lowercase().as_str())?))
+        let (tx_id, _event_index) = parse_message_id(&cc_id.id)
+            .map_err(|_e| ContractError::InvalidMessageID(cc_id.id.to_string()))?;
+        Ok(Self(HexBinary::from_hex(
+            tx_id.to_ascii_lowercase().as_str(),
+        )?))
     }
 }
 
@@ -160,15 +163,9 @@ pub enum XRPLUnsignedTx {
 impl XRPLUnsignedTx {
     pub fn sequence(&self) -> &XRPLSequence {
         match self {
-            XRPLUnsignedTx::Payment(tx) => {
-                &tx.sequence
-            },
-            XRPLUnsignedTx::TicketCreate(tx) => {
-                &tx.sequence
-            },
-            XRPLUnsignedTx::SignerListSet(tx) => {
-                &tx.sequence
-            }
+            XRPLUnsignedTx::Payment(tx) => &tx.sequence,
+            XRPLUnsignedTx::TicketCreate(tx) => &tx.sequence,
+            XRPLUnsignedTx::SignerListSet(tx) => &tx.sequence,
         }
     }
     pub fn sequence_number_increment(&self, status: TransactionStatus) -> u32 {
@@ -177,25 +174,18 @@ impl XRPLUnsignedTx {
         }
 
         match self {
-            XRPLUnsignedTx::Payment(tx ) => {
-                match tx.sequence {
-                    XRPLSequence::Plain(_) => 1,
-                    XRPLSequence::Ticket(_) => 0,
-                }
-            }
-            XRPLUnsignedTx::SignerListSet(tx) => {
-                match tx.sequence {
-                    XRPLSequence::Plain(_) => 1,
-                    XRPLSequence::Ticket(_) => 0,
-                }
+            XRPLUnsignedTx::Payment(tx) => match tx.sequence {
+                XRPLSequence::Plain(_) => 1,
+                XRPLSequence::Ticket(_) => 0,
             },
-            XRPLUnsignedTx::TicketCreate(tx) => {
-                match status {
-                    TransactionStatus::Succeeded => tx.ticket_count + 1,
-                    TransactionStatus::FailedOnChain => 1,
-                    TransactionStatus::Inconclusive |
-                    TransactionStatus::Pending => unreachable!(),
-                }
+            XRPLUnsignedTx::SignerListSet(tx) => match tx.sequence {
+                XRPLSequence::Plain(_) => 1,
+                XRPLSequence::Ticket(_) => 0,
+            },
+            XRPLUnsignedTx::TicketCreate(tx) => match status {
+                TransactionStatus::Succeeded => tx.ticket_count + 1,
+                TransactionStatus::FailedOnChain => 1,
+                TransactionStatus::Inconclusive | TransactionStatus::Pending => unreachable!(),
             },
         }
     }
@@ -256,7 +246,7 @@ impl Display for XRPLAccountId {
             .with_alphabet(bs58::Alphabet::RIPPLE)
             .into_string();
 
-        write!(f, "{}", str) 
+        write!(f, "{}", str)
     }
 }
 
@@ -277,7 +267,10 @@ impl std::str::FromStr for XRPLAccountId {
     type Err = ContractError;
 
     fn from_str(address: &str) -> Result<Self, ContractError> {
-        let res = bs58::decode(address).with_alphabet(bs58::Alphabet::RIPPLE).into_vec().map_err(|_| ContractError::InvalidAddress)?;
+        let res = bs58::decode(address)
+            .with_alphabet(bs58::Alphabet::RIPPLE)
+            .into_vec()
+            .map_err(|_| ContractError::InvalidAddress)?;
         // .map_err(|_| ContractError::InvalidAddress)?;
         if res.len() != 25 {
             return Err(ContractError::InvalidAddress);
@@ -298,13 +291,19 @@ pub struct XRPLSigner {
 impl TryFrom<(multisig::msg::Signer, multisig::key::Signature)> for XRPLSigner {
     type Error = ContractError;
 
-    fn try_from((axelar_signer, signature): (multisig::msg::Signer, multisig::key::Signature)) -> Result<Self, ContractError> {
+    fn try_from(
+        (axelar_signer, signature): (multisig::msg::Signer, multisig::key::Signature),
+    ) -> Result<Self, ContractError> {
         let txn_signature = match signature {
-            multisig::key::Signature::Ecdsa(_) |
-            multisig::key::Signature::EcdsaRecoverable(_) => HexBinary::from(ecdsa::Signature::to_der(
-                &ecdsa::Signature::try_from(signature.clone().as_ref())
-                    .map_err(|_| ContractError::FailedToEncodeSignature)?
-            ).to_vec()),
+            multisig::key::Signature::Ecdsa(_) | multisig::key::Signature::EcdsaRecoverable(_) => {
+                HexBinary::from(
+                    ecdsa::Signature::to_der(
+                        &ecdsa::Signature::try_from(signature.clone().as_ref())
+                            .map_err(|_| ContractError::FailedToEncodeSignature)?,
+                    )
+                    .to_vec(),
+                )
+            }
             _ => unimplemented!("Unsupported signature type"),
         };
 
@@ -319,12 +318,15 @@ impl TryFrom<(multisig::msg::Signer, multisig::key::Signature)> for XRPLSigner {
 #[cw_serde]
 pub struct XRPLSignedTransaction {
     pub unsigned_tx: XRPLUnsignedTx,
-    pub signers: Vec<XRPLSigner>
+    pub signers: Vec<XRPLSigner>,
 }
 
 impl XRPLSignedTransaction {
     pub fn new(unsigned_tx: XRPLUnsignedTx, signers: Vec<XRPLSigner>) -> Self {
-        Self { unsigned_tx, signers }
+        Self {
+            unsigned_tx,
+            signers,
+        }
     }
 }
 
@@ -345,7 +347,8 @@ impl Display for XRPLCurrency {
     }
 }
 
-const ALLOWED_CURRENCY_CHARS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
+const ALLOWED_CURRENCY_CHARS: &str =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789?!@#$%^&*<>(){}[]|";
 
 impl TryFrom<String> for XRPLCurrency {
     type Error = ContractError;
@@ -369,12 +372,16 @@ pub const MAX_EXPONENT: i64 = 80;
 #[cw_serde]
 pub struct XRPLTokenAmount {
     mantissa: u64,
-    exponent: i64
+    exponent: i64,
 }
 
 impl XRPLTokenAmount {
     pub fn new(mantissa: u64, exponent: i64) -> Self {
-        assert!(mantissa == 0 || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa) && (MIN_EXPONENT..=MAX_EXPONENT).contains(&exponent)));
+        assert!(
+            mantissa == 0
+                || ((MIN_MANTISSA..=MAX_MANTISSA).contains(&mantissa)
+                    && (MIN_EXPONENT..=MAX_EXPONENT).contains(&exponent))
+        );
         Self { mantissa, exponent }
     }
 
@@ -383,19 +390,26 @@ impl XRPLTokenAmount {
             0x8000000000000000u64.to_be_bytes()
         } else {
             // not xrp-bit | positive bit | 8 bits exponent | 54 bits mantissa
-            (0xC000000000000000u64 | ((self.exponent + 97) as u64) << 54 | self.mantissa).to_be_bytes()
+            (0xC000000000000000u64 | ((self.exponent + 97) as u64) << 54 | self.mantissa)
+                .to_be_bytes()
         }
     }
 }
 
-pub fn canonicalize_coin_amount(amount: Uint128, decimals: u8) -> Result<XRPLTokenAmount, ContractError>{
+pub fn canonicalize_coin_amount(
+    amount: Uint128,
+    decimals: u8,
+) -> Result<XRPLTokenAmount, ContractError> {
     let (mantissa, exponent) = canonicalize_mantissa(amount, -i64::from(decimals))?;
     Ok(XRPLTokenAmount::new(mantissa, exponent))
 }
 
 // always called when XRPLTokenAmount instantiated
 // see https://github.com/XRPLF/xrpl-dev-portal/blob/82da0e53a8d6cdf2b94a80594541d868b4d03b94/content/_code-samples/tx-serialization/py/xrpl_num.py#L19
-pub fn canonicalize_mantissa(mut mantissa: Uint128, mut exponent: i64) -> Result<(u64, i64), ContractError> {
+pub fn canonicalize_mantissa(
+    mut mantissa: Uint128,
+    mut exponent: i64,
+) -> Result<(u64, i64), ContractError> {
     let ten = Uint128::from(10u128);
 
     while mantissa < MIN_MANTISSA.into() && exponent > MIN_EXPONENT {
@@ -405,7 +419,9 @@ pub fn canonicalize_mantissa(mut mantissa: Uint128, mut exponent: i64) -> Result
 
     while mantissa > MAX_MANTISSA.into() && exponent > MIN_EXPONENT {
         if exponent > MAX_EXPONENT {
-            return Err(ContractError::InvalidAmount { reason: "overflow".to_string() });
+            return Err(ContractError::InvalidAmount {
+                reason: "overflow".to_string(),
+            });
         }
         mantissa /= ten;
         exponent += 1;
@@ -416,7 +432,9 @@ pub fn canonicalize_mantissa(mut mantissa: Uint128, mut exponent: i64) -> Result
     }
 
     if exponent > MAX_EXPONENT || mantissa > MAX_MANTISSA.into() {
-        return Err(ContractError::InvalidAmount { reason: format!("overflow exponent {} mantissa {}", exponent, mantissa).to_string() });
+        return Err(ContractError::InvalidAmount {
+            reason: format!("overflow exponent {} mantissa {}", exponent, mantissa).to_string(),
+        });
     }
 
     let mantissa = u64::from_be_bytes(mantissa.to_be_bytes()[8..].try_into().unwrap());

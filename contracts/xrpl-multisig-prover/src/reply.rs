@@ -2,7 +2,14 @@ use cosmwasm_std::{from_json, Attribute, DepsMut, HexBinary, Reply, Response, Ui
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
 use crate::{
-    error::ContractError, events::Event, state::{MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID, REPLY_TX_HASH, TRANSACTION_INFO}, types::XRPLUnsignedTx, xrpl_serialize::XRPLSerialize
+    error::ContractError,
+    events::Event,
+    state::{
+        MESSAGE_ID_TO_MULTISIG_SESSION_ID, MULTISIG_SESSION_ID_TO_TX_HASH, REPLY_MESSAGE_ID,
+        REPLY_TX_HASH, TRANSACTION_INFO,
+    },
+    types::XRPLUnsignedTx,
+    xrpl_serialize::XRPLSerialize,
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -31,14 +38,17 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                         &multisig_session_id.u64(),
                     )?;
                     REPLY_MESSAGE_ID.remove(deps.storage);
-                },
-                None if matches!(tx_info.unsigned_contents, XRPLUnsignedTx::Payment(_)) => panic!("No reply message ID found for Payment"),
+                }
+                None if matches!(tx_info.unsigned_contents, XRPLUnsignedTx::Payment(_)) => {
+                    panic!("No reply message ID found for Payment")
+                }
                 None => (),
             }
 
             let res = reply.result.unwrap();
 
-            let evt_attributes: Vec<Attribute> = res.events
+            let evt_attributes: Vec<Attribute> = res
+                .events
                 .into_iter()
                 .filter(|e| e.ty == "wasm-signing_started")
                 .flat_map(|e| e.attributes)
@@ -47,15 +57,20 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
             let evt = cosmwasm_std::Event::new("xrpl_signing_started")
                 .add_attributes(evt_attributes)
-                .add_attribute("unsigned_tx", HexBinary::from(tx_info.unsigned_contents.xrpl_serialize()?).to_hex());
+                .add_attribute(
+                    "unsigned_tx",
+                    HexBinary::from(tx_info.unsigned_contents.xrpl_serialize()?).to_hex(),
+                );
 
-            Ok(Response::new().add_event(
-                Event::ProofUnderConstruction {
-                    tx_hash,
-                    multisig_session_id,
-                }
-                .into(),
-            ).add_event(evt))
+            Ok(Response::new()
+                .add_event(
+                    Event::ProofUnderConstruction {
+                        tx_hash,
+                        multisig_session_id,
+                    }
+                    .into(),
+                )
+                .add_event(evt))
         }
         Ok(MsgExecuteContractResponse { data: None }) => Err(ContractError::InvalidContractReply {
             reason: "no data".to_string(),

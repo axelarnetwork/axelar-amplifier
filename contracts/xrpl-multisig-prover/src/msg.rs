@@ -1,7 +1,7 @@
+use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use connection_router_api::CrossChainId;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{HexBinary, Uint64};
-use axelar_wasm_std::{MajorityThreshold, VerificationStatus};
 use multisig::key::PublicKey;
 
 use crate::types::{TxHash, XRPLToken};
@@ -53,15 +53,27 @@ pub enum QueryMsg {
 #[cw_serde]
 #[serde(tag = "status")]
 pub enum GetProofResponse {
-    Completed { unsigned_tx_hash: TxHash, tx_blob: HexBinary},
-    Pending { unsigned_tx_hash: TxHash },
+    Completed {
+        unsigned_tx_hash: TxHash,
+        tx_blob: HexBinary,
+    },
+    Pending {
+        unsigned_tx_hash: TxHash,
+    },
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    RegisterToken { denom: String, token: XRPLToken, decimals: u8 },
+    RegisterToken {
+        denom: String,
+        token: XRPLToken,
+        decimals: u8,
+    },
     // TODO: remove coin parameter
-    ConstructProof { message_id: CrossChainId, coin: cosmwasm_std::Coin },
+    ConstructProof {
+        message_id: CrossChainId,
+        coin: cosmwasm_std::Coin,
+    },
     UpdateTxStatus {
         multisig_session_id: Uint64,
         signer_public_keys: Vec<PublicKey>,

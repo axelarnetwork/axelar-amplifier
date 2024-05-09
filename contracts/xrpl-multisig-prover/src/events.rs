@@ -50,8 +50,7 @@ impl From<Event> for cosmwasm_std::Event {
             } => cosmwasm_std::Event::new("proof_under_construction")
                 .add_attribute(
                     "tx_hash",
-                    to_string(&tx_hash)
-                        .expect("violated invariant: tx_hash is not serializable"),
+                    to_string(&tx_hash).expect("violated invariant: tx_hash is not serializable"),
                 )
                 .add_attribute(
                     "multisig_session_id",

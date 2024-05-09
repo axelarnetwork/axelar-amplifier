@@ -1,16 +1,19 @@
+use itertools::Itertools;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use itertools::Itertools;
 
-use axelar_wasm_std::{nonempty, MajorityThreshold};
 use axelar_wasm_std::Participant;
+use axelar_wasm_std::{nonempty, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Fraction, HexBinary, Uint256};
+use multisig::{
+    key::{KeyType, PublicKey},
+    msg::Signer,
+};
 use service_registry::state::WeightedWorker;
-use multisig::{key::{PublicKey, KeyType}, msg::Signer};
 
-use crate::querier::Querier;
 use crate::error::ContractError;
+use crate::querier::Querier;
 
 #[cw_serde]
 #[derive(Eq, Ord, PartialOrd)]
@@ -41,21 +44,22 @@ pub struct WorkerSet {
 
 impl From<WorkerSet> for multisig::worker_set::WorkerSet {
     fn from(worker_set: WorkerSet) -> Self {
-        let participants = worker_set.signers.into_iter()
+        let participants = worker_set
+            .signers
+            .into_iter()
             .map(|s| (s.clone().into(), s.pub_key))
             .collect();
         multisig::worker_set::WorkerSet::new(
             participants,
             Uint256::from(u128::from(worker_set.quorum)),
-            worker_set.created_at
+            worker_set.created_at,
         )
     }
 }
 
 impl WorkerSet {
     pub fn pub_keys_by_address(&self) -> HashMap<String, (KeyType, HexBinary), RandomState> {
-        self
-            .signers
+        self.signers
             .iter()
             .map(|signer| {
                 (
@@ -69,7 +73,9 @@ impl WorkerSet {
 
 fn convert_uint256_to_u16(value: Uint256) -> Result<u16, ContractError> {
     if value > Uint256::from(u16::MAX) {
-        return Err(ContractError::GenericError("Overflow, cannot convert value to u16".to_owned()))
+        return Err(ContractError::GenericError(
+            "Overflow, cannot convert value to u16".to_owned(),
+        ));
     }
     let bytes = value.to_le_bytes();
     Ok(u16::from(bytes[0]) | u16::from(bytes[1]).checked_shl(8).unwrap()) // this unwrap is never supposed to fail
@@ -87,9 +93,9 @@ fn convert_or_scale_weights(weights: &[Uint256]) -> Result<Vec<u16>, ContractErr
                 let scaled = weight.multiply_ratio(max_u16_as_uint256, *max_weight);
                 result.push(convert_uint256_to_u16(scaled)?);
             }
-            
+
             Ok(result)
-        },
+        }
         None => Ok(vec![]),
     }
 }
@@ -107,12 +113,13 @@ pub fn get_active_worker_set(
         .filter_map(|result| result.ok())
         .collect();
 
-
-    let weights = convert_or_scale_weights(participants
-        .iter()
-        .map(|participant| Uint256::from(participant.weight))
-        .collect::<Vec<Uint256>>()
-        .as_slice())?;
+    let weights = convert_or_scale_weights(
+        participants
+            .iter()
+            .map(|participant| Uint256::from(participant.weight))
+            .collect::<Vec<Uint256>>()
+            .as_slice(),
+    )?;
 
     let mut signers: Vec<AxelarSigner> = vec![];
     for (i, participant) in participants.iter().enumerate() {
@@ -126,12 +133,14 @@ pub fn get_active_worker_set(
 
     let sum_of_weights: u32 = weights.iter().map(|w| u32::from(*w)).sum();
 
-    let quorum = u32::try_from(u64::from(sum_of_weights)
-        .checked_mul(signing_threshold.numerator().into())
-        .unwrap()
-        .checked_div(signing_threshold.denominator().into())
-        .unwrap())
-        .unwrap();
+    let quorum = u32::try_from(
+        u64::from(sum_of_weights)
+            .checked_mul(signing_threshold.numerator().into())
+            .unwrap()
+            .checked_div(signing_threshold.denominator().into())
+            .unwrap(),
+    )
+    .unwrap();
 
     let worker_set = WorkerSet {
         signers: BTreeSet::from_iter(signers),
@@ -172,11 +181,20 @@ mod tests {
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![65535, 65535]);
 
-        let weights = vec![Uint256::from(1u128), Uint256::from(2u128), Uint256::from(3u128)];
+        let weights = vec![
+            Uint256::from(1u128),
+            Uint256::from(2u128),
+            Uint256::from(3u128),
+        ];
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![21845, 43690, 65535]);
 
-        let weights = vec![Uint256::from(1u128), Uint256::from(2u128), Uint256::from(3u128), Uint256::from(4u128)];
+        let weights = vec![
+            Uint256::from(1u128),
+            Uint256::from(2u128),
+            Uint256::from(3u128),
+            Uint256::from(4u128),
+        ];
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![16383, 32767, 49151, 65535]);
 
@@ -184,7 +202,7 @@ mod tests {
             Uint256::MAX - Uint256::from(3u128),
             Uint256::MAX - Uint256::from(2u128),
             Uint256::MAX - Uint256::from(1u128),
-            Uint256::MAX
+            Uint256::MAX,
         ];
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![65534, 65534, 65534, 65535]);
@@ -193,7 +211,7 @@ mod tests {
             Uint256::from(0u128),
             Uint256::from(1u128),
             Uint256::MAX - Uint256::from(1u128),
-            Uint256::MAX
+            Uint256::MAX,
         ];
         let scaled_weights = convert_or_scale_weights(&weights).unwrap();
         assert_eq!(scaled_weights, vec![0, 0, 65534, 65535]);
