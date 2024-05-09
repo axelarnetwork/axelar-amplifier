@@ -152,7 +152,9 @@ mod tests {
     use crate::{
         encoding::abi2::{payload_hash_to_sign, CommandType, Message, WeightedSigners},
         payload::Payload,
-        test::test_data::{curr_worker_set, messages, new_worker_set, worker_set_from_pub_keys},
+        test::test_data::{
+            curr_worker_set, domain_separator, messages, new_worker_set, worker_set_from_pub_keys,
+        },
     };
 
     #[test]
@@ -186,11 +188,7 @@ mod tests {
             HexBinary::from_hex("fbb9a154bbafd0be9469d7c83bfe5807d916ec7430f5232f29b967240880f327")
                 .unwrap();
 
-        let domain_separator: [u8; 32] =
-            HexBinary::from_hex("3593643a7d7e917a099eef6c52d1420bb4f33eb074b16439556de5984791262b")
-                .unwrap()
-                .to_array()
-                .unwrap();
+        let domain_separator = domain_separator();
 
         let new_pub_keys = vec![
             "02de8b0cc10de1becab121cb1254a7b4075866b6e040d5a4cdd38c7ea6c68c7d0a",
@@ -254,11 +252,7 @@ mod tests {
             HexBinary::from_hex("2ab230ae08c9fc5e9110c08061a9dffe928a1093133a6f157316fb9c90bf825c")
                 .unwrap();
 
-        let domain_separator: [u8; 32] =
-            HexBinary::from_hex("3593643a7d7e917a099eef6c52d1420bb4f33eb074b16439556de5984791262b")
-                .unwrap()
-                .to_array()
-                .unwrap();
+        let domain_separator = domain_separator();
 
         let digest = payload_hash_to_sign(
             &domain_separator,

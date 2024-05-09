@@ -67,12 +67,9 @@ impl Payload {
         let payload_hash = payload.digest(encoder, domain_separator, worker_set)?;
 
         match encoder {
-            Encoder::Abi => Ok(abi2::execute_data::encode(
-                worker_set,
-                signers_with_sigs,
-                &payload_hash,
-                payload,
-            )),
+            Encoder::Abi => {
+                abi2::execute_data::encode(worker_set, signers_with_sigs, &payload_hash, payload)
+            }
             Encoder::Bcs => todo!(),
         }
     }
