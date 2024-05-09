@@ -17,6 +17,7 @@ use serde::Serialize;
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use voting_verifier::msg::MessageStatus;
 
 #[test]
 fn instantiate_works() {
@@ -282,15 +283,11 @@ fn route_duplicate_ids_should_fail() {
 
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
-    impl Fn(
-            voting_verifier::msg::QueryMsg,
-        ) -> Result<Vec<(Message, VerificationStatus)>, ContractError>
-        + Clone
-        + Sized,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + Sized,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
-    let status_by_id = map_status_by_msg_id(all_messages.clone());
-    let handler = correctly_working_verifier_handler(status_by_id);
+    let status_by_msg = map_status_by_msg(all_messages.clone());
+    let handler = correctly_working_verifier_handler(status_by_msg);
     let all_messages = sort_msgs_by_status(all_messages).collect::<Vec<_>>();
 
     let mut test_cases = vec![];
@@ -311,15 +308,11 @@ fn test_cases_for_correct_verifier() -> (
 
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
-    impl Fn(
-            voting_verifier::msg::QueryMsg,
-        ) -> Result<Vec<(Message, VerificationStatus)>, ContractError>
-        + Clone
-        + Sized,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + Sized,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
-    let status_by_id = map_status_by_msg_id(all_messages.clone());
-    let handler = correctly_working_verifier_handler(status_by_id);
+    let status_by_msg = map_status_by_msg(all_messages.clone());
+    let handler = correctly_working_verifier_handler(status_by_msg);
     let all_messages = sort_msgs_by_status(all_messages)
         .flatten()
         .collect::<Vec<_>>();
@@ -393,7 +386,7 @@ fn all_statuses() -> Vec<VerificationStatus> {
     statuses
 }
 
-fn map_status_by_msg_id(
+fn map_status_by_msg(
     messages_by_status: HashMap<VerificationStatus, Vec<Message>>,
 ) -> HashMap<Message, VerificationStatus> {
     messages_by_status
@@ -403,19 +396,26 @@ fn map_status_by_msg_id(
 }
 
 fn correctly_working_verifier_handler(
-    status_by_id: HashMap<Message, VerificationStatus>,
-) -> impl Fn(
-    voting_verifier::msg::QueryMsg,
-) -> Result<Vec<(Message, VerificationStatus)>, ContractError>
-       + Clone
-       + 'static {
-    move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<(Message, VerificationStatus)>, ContractError> {
-            match msg {
-                voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } =>
-                    Ok(messages.into_iter().map(|msg| (msg.clone(), status_by_id.get(&msg).copied().expect("there is a status for every message"))).collect()),
-                _ => unimplemented!("unsupported query")
-            }
+    status_by_msg: HashMap<Message, VerificationStatus>,
+) -> impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + 'static
+{
+    move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
+        match msg {
+            voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
+                .into_iter()
+                .map(|msg| {
+                    MessageStatus::new(
+                        msg.clone(),
+                        status_by_msg
+                            .get(&msg)
+                            .copied()
+                            .expect("there is a status for every message"),
+                    )
+                })
+                .collect()),
+            _ => unimplemented!("unsupported query"),
         }
+    }
 }
 
 fn update_query_handler<U: Serialize>(
