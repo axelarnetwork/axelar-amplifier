@@ -4,6 +4,7 @@ use error_stack::{Result, ResultExt};
 use itertools::Itertools;
 use router_api::client::Router;
 use router_api::Message;
+use voting_verifier::msg::MessageStatus;
 
 use crate::contract::Error;
 use crate::events::GatewayEvent;
@@ -76,11 +77,11 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
 }
 
 fn group_by_status(
-    msgs_with_status: impl IntoIterator<Item = (Message, VerificationStatus)>,
+    msgs_with_status: impl IntoIterator<Item = MessageStatus>,
 ) -> Vec<(VerificationStatus, Vec<Message>)> {
     msgs_with_status
         .into_iter()
-        .map(|(msg, status)| (status, msg))
+        .map(|msg_status| (msg_status.status, msg_status.message))
         .into_group_map()
         .into_iter()
         // sort by verification status so the order of messages is deterministic
