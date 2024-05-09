@@ -4,9 +4,9 @@ use cosmwasm_std::{
     to_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, query};
+use crate::{execute, migrate, query};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -73,6 +73,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetCurrentThreshold => to_binary(&query::voting_threshold(deps)?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    migrate::set_source_gateway_address(deps, msg.source_gateway_address)
 }
 
 #[cfg(test)]
