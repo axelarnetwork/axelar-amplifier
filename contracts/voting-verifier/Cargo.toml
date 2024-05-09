@@ -38,6 +38,7 @@ axelar-wasm-std-derive = { workspace = true }
 client = { workspace = true }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 report = { workspace = true }
