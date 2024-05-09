@@ -1,5 +1,6 @@
 use crate::event_processor::EventHandler;
 use async_trait::async_trait;
+use cosmrs::Any;
 use error_stack::{Result, ResultExt};
 use events::Event;
 use tendermint::block;
@@ -34,11 +35,15 @@ pub fn with_block_height_notifier(
 impl EventHandler for Handler {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<(), Error> {
-        match event {
-            Event::BlockEnd(height) => self.tx.send(*height).await.change_context(Error::SendError),
-            _ => Ok(()),
+    async fn handle(&self, event: &Event) -> Result<Vec<Any>, Error> {
+        if let Event::BlockEnd(height) = event {
+            self.tx
+                .send(*height)
+                .await
+                .change_context(Error::SendError)?;
         }
+
+        Ok(vec![])
     }
 }
 
@@ -56,7 +61,10 @@ mod tests {
         let mut height = block::Height::default();
 
         for _ in 0..count {
-            assert!(handler.handle(&Event::BlockEnd(height)).await.is_ok());
+            assert_eq!(
+                handler.handle(&Event::BlockEnd(height)).await.unwrap(),
+                vec![]
+            );
             height = height.increment();
         }
 
