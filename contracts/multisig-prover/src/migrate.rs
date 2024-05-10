@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[cw_serde]
-struct OldConfig {
+pub struct OldConfig {
     pub admin: Addr,
     pub governance: Addr,
     pub gateway: Addr,

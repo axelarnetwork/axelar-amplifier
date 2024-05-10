@@ -137,7 +137,8 @@ mod tests {
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64,
+        to_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint256,
+        Uint64,
     };
 
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
@@ -351,6 +352,29 @@ mod tests {
     #[test]
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
+
+        let initial_config = migrate::OldConfig {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            gateway: Addr::unchecked("gateway"),
+            multisig: Addr::unchecked("multisig"),
+            coordinator: Addr::unchecked("coordinator"),
+            service_registry: Addr::unchecked("service_registry"),
+            voting_verifier: Addr::unchecked("voting_verifier"),
+            destination_chain_id: Uint256::from(1337u128),
+            signing_threshold: Threshold::try_from((2u64, 3u64))
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            service_name: "validators".to_string(),
+            chain_name: "ganache-0".parse().unwrap(),
+            worker_set_diff_threshold: 0,
+            encoder: crate::encoding::Encoder::Abi,
+            key_type: multisig::key::KeyType::Ecdsa,
+        };
+        deps.as_mut()
+            .storage
+            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
 
         migrate(
             deps.as_mut(),
