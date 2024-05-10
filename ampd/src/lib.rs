@@ -157,6 +157,7 @@ where
     T: Broadcaster,
 {
     event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+    event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
     #[allow(dead_code)]
@@ -185,7 +186,8 @@ where
     ) -> Self {
         let token = CancellationToken::new();
 
-        let event_publisher = event_sub::EventPublisher::new(tm_client, event_buffer_cap);
+        let (event_publisher, event_subscriber) =
+            event_sub::EventPublisher::new(tm_client, event_buffer_cap);
         let event_publisher = match state_updater.state().min_handler_block_height() {
             Some(min_height) => event_publisher.start_from(min_height.increment()),
             None => event_publisher,
@@ -201,6 +203,7 @@ where
 
         Self {
             event_publisher,
+            event_subscriber,
             event_processor,
             broadcaster,
             broadcaster_driver,
@@ -357,9 +360,9 @@ where
             .state()
             .handler_block_height(label.as_ref())
         {
-            None => Box::pin(self.event_publisher.subscribe()),
+            None => Box::pin(self.event_subscriber.subscribe()),
             Some(&completed_height) => Box::pin(event_sub::skip_to_block(
-                self.event_publisher.subscribe(),
+                self.event_subscriber.subscribe(),
                 completed_height.increment(),
             )),
         };
