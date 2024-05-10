@@ -262,7 +262,7 @@ pub fn register_service(
         protocol.governance_address.clone(),
         &ExecuteMsg::RegisterService {
             service_name: protocol.service_name.to_string(),
-            coordinator_contract: Addr::unchecked("nowhere"),
+            coordinator_contract: protocol.coordinator.contract_addr.clone(),
             min_num_workers: 0,
             max_num_workers: Some(100),
             min_worker_bond,

@@ -1,5 +1,5 @@
 use crate::state;
-use crate::state::{AuthorizationState, WORKERS};
+use crate::state::{AuthorizationState, CHAINS_PER_WORKER, WORKERS};
 use router_api::ChainName;
 
 use super::*;
@@ -166,7 +166,7 @@ pub fn unbond_worker(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    SERVICES
+    let service = SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
@@ -174,7 +174,18 @@ pub fn unbond_worker(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::WorkerNotFound)?;
 
-    let can_unbond = true; // TODO: actually query the service to determine this value
+    let chains = CHAINS_PER_WORKER
+        .may_load(deps.storage, (&service_name, &worker.address))?
+        .unwrap_or_default();
+
+    let query = coordinator::msg::QueryMsg::CheckWorkerCanUnbond {
+        worker_address: worker.address.clone(),
+        chains: chains.clone(),
+    };
+    let can_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: service.coordinator_contract.into(),
+        msg: to_binary(&query)?,
+    }))?;
 
     let worker = worker.unbond(can_unbond, env.block.time)?;
 

@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    Uint128,
+    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest,
+    Response, Uint128, WasmQuery,
 };
 
 use crate::error::ContractError;
@@ -161,6 +161,7 @@ mod test {
 
     const GOVERNANCE_ADDRESS: &str = "governance";
     const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
+    const COORDINATOR_ADDRESS: &str = "coordinator_address";
     const WORKER_ADDRESS: &str = "worker";
     const AXL_DENOMINATION: &str = "uaxl";
 
@@ -176,6 +177,13 @@ mod test {
             },
         )
         .unwrap();
+
+        deps.querier.update_wasm(move |wq| match wq {
+            WasmQuery::Smart { contract_addr, .. } if contract_addr == COORDINATOR_ADDRESS => {
+                Ok(to_binary(&true).into()).into()
+            }
+            _ => panic!("no mock for this query"),
+        });
 
         deps
     }
@@ -197,7 +205,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond: Uint128::zero(),
@@ -214,7 +222,7 @@ mod test {
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: "validators".into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond: Uint128::zero(),
@@ -238,7 +246,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond: Uint128::zero(),
@@ -285,7 +293,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -333,7 +341,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -436,7 +444,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -523,7 +531,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -617,7 +625,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -742,7 +750,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -844,7 +852,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -956,7 +964,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1032,7 +1040,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1106,7 +1114,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1180,7 +1188,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1264,7 +1272,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1300,7 +1308,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1363,7 +1371,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1437,7 +1445,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1524,7 +1532,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1633,7 +1641,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1754,7 +1762,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("nowhere"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers,
                 max_num_workers: Some(100),
                 min_worker_bond,
@@ -1865,7 +1873,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::RegisterService {
                 service_name: service_name.into(),
-                coordinator_contract: Addr::unchecked("service contract"),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
                 min_num_workers: 0,
                 max_num_workers: Some(100),
                 min_worker_bond,
