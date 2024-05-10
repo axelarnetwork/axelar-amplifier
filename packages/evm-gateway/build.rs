@@ -6,33 +6,43 @@ use std::path::{Path, PathBuf};
 use reqwest::blocking::Client;
 use zip::ZipArchive;
 
-const SOLIDITY_RELEASES_URL: &str =
-    "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity/releases/download";
-
 const ABI_FILES: [&str; 2] = ["IAxelarAmplifierGateway.json", "IBaseWeightedMultisig.json"];
+const OUTPUT_DIR_BASE: &str = "src/abi"; // Base output directory
+
+const VERSION: &str = env!(
+    "SOLIDITY_GATEWAY_VERSION",
+    "environment variable SOLIDITY_GATEWAY_VERSION is not set"
+);
+const URL: &str = env!(
+    "SOLIDITY_RELEASES_URL",
+    "environment variable SOLIDITY_RELEASES_URL is not set"
+);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if !cfg!(feature = "run-script") {
+    // Append version to output directory
+    let output_dir = format!("{}/{}/", OUTPUT_DIR_BASE, VERSION);
+
+    // Skip if files already exist
+    if files_exist(&output_dir, &ABI_FILES) {
         return Ok(());
     }
 
-    let version_tag = env::var("SOLIDITY_GATEWAY_VERSION")
-        .expect("Environment variable SOLIDITY_GATEWAY_VERSION is not set");
-
-    let zipfile_name = format!("Bytecode-{}.zip", version_tag);
-    let url = format!(
-        "{}/{}/{}",
-        SOLIDITY_RELEASES_URL, version_tag, &zipfile_name
-    );
+    let zipfile_name = format!("Bytecode-{}.zip", VERSION);
+    let url = format!("{}/{}/{}", URL, VERSION, &zipfile_name);
     let zipfile_path = PathBuf::from(&zipfile_name);
 
     let mut zip_archive = download(&url, &zipfile_path)?;
 
-    extract(&mut zip_archive)?;
+    extract(&mut zip_archive, &output_dir)?;
 
     fs::remove_file(zipfile_path)?;
 
     Ok(())
+}
+
+fn files_exist(output_dir: &str, files: &[&str]) -> bool {
+    let output_path = Path::new(output_dir);
+    files.iter().all(|file| output_path.join(file).exists())
 }
 
 fn download(url: &str, zip_path: &Path) -> Result<ZipArchive<File>, Box<dyn std::error::Error>> {
@@ -41,7 +51,7 @@ fn download(url: &str, zip_path: &Path) -> Result<ZipArchive<File>, Box<dyn std:
     if !response.status().is_success() {
         return Err(Box::new(io::Error::new(
             io::ErrorKind::Other,
-            format!("Failed to download {}", url),
+            format!("failed to download {}", url),
         )));
     }
 
@@ -52,8 +62,10 @@ fn download(url: &str, zip_path: &Path) -> Result<ZipArchive<File>, Box<dyn std:
     Ok(ZipArchive::new(zipfile)?)
 }
 
-fn extract(archive: &mut ZipArchive<File>) -> io::Result<()> {
-    let abi_output = Path::new("src/abi");
+fn extract(archive: &mut ZipArchive<File>, output_dir: &str) -> io::Result<()> {
+    let abi_output = Path::new(output_dir);
+
+    fs::create_dir_all(abi_output)?;
 
     for abi in ABI_FILES.iter() {
         let file_path = format!(
@@ -66,7 +78,7 @@ fn extract(archive: &mut ZipArchive<File>) -> io::Result<()> {
         let mut file = archive.by_name(&file_path).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("File not found in archive: {}", file_path),
+                format!("file not found in archive: {}", file_path),
             )
         })?;
 

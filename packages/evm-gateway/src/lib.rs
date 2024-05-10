@@ -1,7 +1,10 @@
-use alloy_sol_types::sol;
+use ethers::prelude::abigen;
 
-sol!(
+abigen!(
     IAxelarAmplifierGateway,
-    "src/abi/IAxelarAmplifierGateway.json"
+    "src/abi/$SOLIDITY_GATEWAY_VERSION/IAxelarAmplifierGateway.json"
 );
-sol!(IBaseWeightedMultisig, "src/abi/IBaseWeightedMultisig.json");
+abigen!(
+    IBaseWeightedMultisig,
+    "src/abi/$SOLIDITY_GATEWAY_VERSION/IBaseWeightedMultisig.json"
+);

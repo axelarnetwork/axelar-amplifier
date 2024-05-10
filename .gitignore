@@ -17,3 +17,6 @@
 *.iml
 .idea
 .vscode
+
+# EVM gateway artifacts
+packages/evm-gateway/src/abi/
