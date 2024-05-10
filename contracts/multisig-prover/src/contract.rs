@@ -5,13 +5,16 @@ use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
-    execute,
+    execute, migrate,
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
+
+const CONTRACT_NAME: &str = "crates.io:multisig-prover";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -20,6 +23,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = make_config(&deps, msg)?;
     CONFIG.save(deps.storage, &config)?;
 
@@ -120,15 +125,11 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let old_config = CONFIG.load(deps.storage)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    let new_config = Config {
-        governance,
-        ..old_config
-    };
-    CONFIG.save(deps.storage, &new_config)?;
+    // any version checks should be done before here
 
-    Ok(Response::default())
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrate::set_domain_separator(deps, msg.domain_separator)
 }
 
 #[cfg(test)]
@@ -345,6 +346,24 @@ mod tests {
             assert_eq!(config.service_name, service_name);
             assert_eq!(config.encoder, encoding)
         }
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(
+            deps.as_mut(),
+            mock_env(),
+            MigrateMsg {
+                domain_separator: [0; 32],
+            },
+        )
+        .unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[allow(clippy::arithmetic_side_effects)]

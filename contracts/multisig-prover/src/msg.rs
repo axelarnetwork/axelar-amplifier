@@ -82,7 +82,7 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
-    pub governance_address: String,
+    pub domain_separator: Hash,
 }
 
 #[cw_serde]
