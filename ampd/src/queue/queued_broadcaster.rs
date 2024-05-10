@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use cosmrs::{tx::Msg, Any, Gas};
+use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
 use thiserror::Error;
@@ -20,8 +20,6 @@ pub enum Error {
     EstimateFee,
     #[error("failed broadcasting messages in queue")]
     Broadcast,
-    #[error("failed encoding message to Protobuf Any {0}")]
-    Proto(String),
     #[error("failed to queue message")]
     Queue,
 }
@@ -44,9 +42,7 @@ impl QueuedBroadcasterDriver {
 #[automock]
 #[async_trait]
 pub trait BroadcasterClient {
-    async fn broadcast<T>(&self, tx: T) -> Result
-    where
-        T: Msg + Send + Sync + 'static;
+    async fn broadcast(&self, tx: Any) -> Result;
 }
 
 pub struct QueuedBroadcasterClient {
@@ -55,15 +51,9 @@ pub struct QueuedBroadcasterClient {
 
 #[async_trait]
 impl BroadcasterClient for QueuedBroadcasterClient {
-    async fn broadcast<T>(&self, tx: T) -> Result
-    where
-        T: Msg + Send + Sync + 'static,
-    {
+    async fn broadcast(&self, msg: Any) -> Result {
         self.sender
-            .send(
-                tx.into_any()
-                    .map_err(|err| Report::new(Error::Proto(err.to_string())))?,
-            )
+            .send(msg)
             .await
             .map_err(|_| Report::new(Error::Broadcast))
     }
@@ -184,6 +174,7 @@ where
 mod test {
     use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::tx::Fee;
+    use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use tokio::test;
     use tokio::time::{sleep, Duration};
@@ -379,11 +370,13 @@ mod test {
         assert!(handler.await.is_ok());
     }
 
-    fn dummy_msg() -> impl Msg {
+    fn dummy_msg() -> Any {
         MsgSend {
             from_address: AccountId::new("", &[1, 2, 3]).unwrap(),
             to_address: AccountId::new("", &[4, 5, 6]).unwrap(),
             amount: vec![],
         }
+        .to_any()
+        .unwrap()
     }
 }

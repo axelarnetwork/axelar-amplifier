@@ -48,6 +48,7 @@ ed25519-dalek = { version = "2.1.1", default-features = false }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }
+itertools = "0.11.0"
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 report = { workspace = true }
 rewards = { workspace = true, features = ["library"] }

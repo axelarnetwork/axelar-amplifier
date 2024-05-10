@@ -8,7 +8,7 @@ use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
 use router_api::Message;
 
-use crate::msg::{ExecuteMsg, Poll, QueryMsg};
+use crate::msg::{ExecuteMsg, MessageStatus, Poll, QueryMsg};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -67,10 +67,7 @@ impl<'a> Client<'a> {
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
-    pub fn messages_status(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<Vec<(Message, VerificationStatus)>> {
+    pub fn messages_status(&self, messages: Vec<Message>) -> Result<Vec<MessageStatus>> {
         match messages.as_slice() {
             [] => Ok(vec![]),
             _ => self
@@ -117,7 +114,7 @@ mod test {
 
     use crate::{
         contract::{instantiate, query},
-        msg::{InstantiateMsg, QueryMsg},
+        msg::{InstantiateMsg, MessageStatus, QueryMsg},
         Client,
     };
 
@@ -165,8 +162,8 @@ mod test {
                 .messages_status(vec![msg_1.clone(), msg_2.clone()])
                 .unwrap(),
             vec![
-                (msg_1, VerificationStatus::None),
-                (msg_2, VerificationStatus::None)
+                MessageStatus::new(msg_1, VerificationStatus::None),
+                MessageStatus::new(msg_2, VerificationStatus::None)
             ]
         );
     }
@@ -178,7 +175,7 @@ mod test {
 
         assert_eq!(
             client
-                .worker_set_status(Operators::new(vec![], Uint256::one()))
+                .worker_set_status(Operators::new(vec![], Uint256::one(), 1))
                 .unwrap(),
             VerificationStatus::None
         );

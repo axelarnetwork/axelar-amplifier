@@ -94,6 +94,10 @@ pub struct CommandBatch {
     pub encoder: Encoder,
 }
 
+#[deprecated(
+    since = "0.2.0",
+    note = "Please use multisig::msg::SignerWithSig instead"
+)]
 #[cw_serde]
 #[derive(Ord, PartialOrd, Eq)]
 pub struct Operator {
