@@ -12,7 +12,6 @@ use crate::{encoding::Encoder, payload::Payload, types::BatchId};
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
-    #[serde(default = "default_governance")]
     pub governance: Addr,
     pub gateway: Addr,
     pub multisig: Addr,
@@ -27,11 +26,6 @@ pub struct Config {
     pub encoder: Encoder,
     pub key_type: KeyType,
     pub domain_separator: Hash,
-}
-
-// temporary, so we can read the old config from storage (that doesn't have the governance field)
-fn default_governance() -> Addr {
-    Addr::unchecked("axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj")
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
