@@ -9043,6 +9043,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test",
  "cw-storage-plus 1.1.0",
+ "cw2 1.1.0",
  "error-stack",
  "integration-tests",
  "rand",

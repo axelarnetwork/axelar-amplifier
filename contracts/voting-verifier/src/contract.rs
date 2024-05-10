@@ -4,9 +4,12 @@ use cosmwasm_std::{
     to_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, query};
+use crate::{execute, migrate, query};
+
+const CONTRACT_NAME: &str = "crates.io:voting-verifier";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -15,6 +18,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = Config {
         governance: deps.api.addr_validate(&msg.governance_address)?,
         service_name: msg.service_name,
@@ -73,6 +78,19 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetCurrentThreshold => to_binary(&query::voting_threshold(deps)?),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    // any version checks should be done before here
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrate::set_source_gateway_address(deps, msg.source_gateway_address)
 }
 
 #[cfg(test)]
@@ -233,6 +251,26 @@ mod test {
             .iter()
             .map(|message| MessageStatus::new(message.clone(), status))
             .collect()
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let workers = workers(2);
+        let mut deps = setup(workers.clone(), &msg_id_format);
+
+        migrate(
+            deps.as_mut(),
+            mock_env(),
+            MigrateMsg {
+                source_gateway_address: "new_source_gateway_address".parse().unwrap(),
+            },
+        )
+        .unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
