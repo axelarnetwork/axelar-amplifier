@@ -9,9 +9,7 @@ use zip::ZipArchive;
 const SOLIDITY_RELEASES_URL: &str =
     "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity/releases/download";
 
-const OUTPUT_DIR: &str = "interfaces";
-
-const INTERFACE_FILES: [&str; 2] = ["IAxelarAmplifierGateway.sol", "IBaseWeightedMultisig.sol"];
+const ABI_FILES: [&str; 2] = ["IAxelarAmplifierGateway.json", "IBaseWeightedMultisig.json"];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !cfg!(feature = "run-script") {
@@ -28,14 +26,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let zipfile_path = PathBuf::from(&zipfile_name);
 
-    download_and_extract(&url, &zipfile_path)?;
+    let mut zip_archive = download(&url, &zipfile_path)?;
+
+    extract(&mut zip_archive)?;
 
     fs::remove_file(zipfile_path)?;
 
     Ok(())
 }
 
-fn download_and_extract(url: &str, zip_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn download(url: &str, zip_path: &Path) -> Result<ZipArchive<File>, Box<dyn std::error::Error>> {
     let client = Client::new();
     let mut response = client.get(url).send()?;
     if !response.status().is_success() {
@@ -48,30 +48,29 @@ fn download_and_extract(url: &str, zip_path: &Path) -> Result<(), Box<dyn std::e
     let mut zipfile = File::create(zip_path)?;
     io::copy(&mut response, &mut zipfile)?;
 
-    extract_files(zip_path)?;
-    Ok(())
+    let zipfile = File::open(zip_path)?;
+    Ok(ZipArchive::new(zipfile)?)
 }
 
-fn extract_files(zip_path: &Path) -> io::Result<()> {
-    let zipfile = File::open(zip_path)?;
-    let mut archive = ZipArchive::new(zipfile)?;
+fn extract(archive: &mut ZipArchive<File>) -> io::Result<()> {
+    let abi_output = Path::new("src/abi");
 
-    for interface_file in INTERFACE_FILES.iter() {
-        let path = format!("flattened/interfaces/{}", interface_file);
+    for abi in ABI_FILES.iter() {
+        let file_path = format!(
+            "contracts/interfaces/{}.sol/{}",
+            abi.trim_end_matches(".json"),
+            abi
+        );
+        let output_path = abi_output.join(abi);
 
-        let mut file = match archive.by_name(&path) {
-            Ok(file) => file,
-            Err(_) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("File not found in archive: {}", interface_file),
-                ))
-            }
-        };
+        let mut file = archive.by_name(&file_path).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("File not found in archive: {}", file_path),
+            )
+        })?;
 
-        let output_path = Path::new(OUTPUT_DIR).join(interface_file);
-        let mut output_file = File::create(&output_path)?;
-
+        let mut output_file = File::create(output_path)?;
         io::copy(&mut file, &mut output_file)?;
     }
 
