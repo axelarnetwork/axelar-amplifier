@@ -5,13 +5,16 @@ use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
-    execute,
+    execute, migrations,
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
 };
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
+
+const CONTRACT_NAME: &str = "crates.io:multisig-prover";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -20,6 +23,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let config = make_config(&deps, msg)?;
     CONFIG.save(deps.storage, &config)?;
 
@@ -46,7 +51,6 @@ fn make_config(
         coordinator,
         service_registry,
         voting_verifier,
-        destination_chain_id: msg.destination_chain_id,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg
@@ -120,15 +124,11 @@ pub fn migrate(
     _env: Env,
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let old_config = CONFIG.load(deps.storage)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    let new_config = Config {
-        governance,
-        ..old_config
-    };
-    CONFIG.save(deps.storage, &new_config)?;
+    // any version checks should be done before here
 
-    Ok(Response::default())
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrations::v_0_3::migrate_config(deps, msg.domain_separator)
 }
 
 #[cfg(test)]
@@ -136,7 +136,8 @@ mod tests {
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64,
+        to_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint256,
+        Uint64,
     };
 
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
@@ -182,7 +183,6 @@ mod tests {
                 coordinator_address: COORDINATOR_ADDRESS.to_string(),
                 service_registry_address: SERVICE_REGISTRY_ADDRESS.to_string(),
                 voting_verifier_address: VOTING_VERIFIER_ADDRESS.to_string(),
-                destination_chain_id: test_data::destination_chain_id(),
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
@@ -296,7 +296,6 @@ mod tests {
         let coordinator_address = "coordinator_address";
         let service_registry_address = "service_registry_address";
         let voting_verifier_address = "voting_verifier";
-        let destination_chain_id = Uint256::one();
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -318,7 +317,6 @@ mod tests {
                 coordinator_address: coordinator_address.to_string(),
                 voting_verifier_address: voting_verifier_address.to_string(),
                 service_registry_address: service_registry_address.to_string(),
-                destination_chain_id,
                 signing_threshold,
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
@@ -340,11 +338,51 @@ mod tests {
             assert_eq!(config.gateway, gateway_address);
             assert_eq!(config.multisig, multisig_address);
             assert_eq!(config.service_registry, service_registry_address);
-            assert_eq!(config.destination_chain_id, destination_chain_id);
             assert_eq!(config.signing_threshold, signing_threshold);
             assert_eq!(config.service_name, service_name);
             assert_eq!(config.encoder, encoding)
         }
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        let initial_config = migrations::v_0_3::OldConfig {
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            gateway: Addr::unchecked("gateway"),
+            multisig: Addr::unchecked("multisig"),
+            coordinator: Addr::unchecked("coordinator"),
+            service_registry: Addr::unchecked("service_registry"),
+            voting_verifier: Addr::unchecked("voting_verifier"),
+            destination_chain_id: Uint256::from(1337u128),
+            signing_threshold: Threshold::try_from((2u64, 3u64))
+                .unwrap()
+                .try_into()
+                .unwrap(),
+            service_name: "validators".to_string(),
+            chain_name: "ganache-0".parse().unwrap(),
+            worker_set_diff_threshold: 0,
+            encoder: crate::encoding::Encoder::Abi,
+            key_type: multisig::key::KeyType::Ecdsa,
+        };
+        deps.as_mut()
+            .storage
+            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+
+        migrate(
+            deps.as_mut(),
+            mock_env(),
+            MigrateMsg {
+                domain_separator: [0; 32],
+            },
+        )
+        .unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[allow(clippy::arithmetic_side_effects)]

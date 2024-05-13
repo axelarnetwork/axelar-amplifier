@@ -1,6 +1,6 @@
 use crate::{contract::Contract, protocol::Protocol};
 use axelar_wasm_std::Threshold;
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::Addr;
 use cw_multi_test::{ContractWrapper, Executor};
 use multisig::key::KeyType;
 use multisig_prover::encoding::Encoder;
@@ -40,7 +40,6 @@ impl MultisigProverContract {
                     coordinator_address: protocol.coordinator.contract_addr.to_string(),
                     service_registry_address: protocol.service_registry.contract_addr.to_string(),
                     voting_verifier_address: voting_verifier_address.to_string(),
-                    destination_chain_id: Uint256::zero(),
                     signing_threshold: Threshold::try_from((2u64, 3u64))
                         .unwrap()
                         .try_into()

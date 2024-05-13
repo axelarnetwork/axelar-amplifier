@@ -1,6 +1,6 @@
 use axelar_wasm_std::{hash::Hash, MajorityThreshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{HexBinary, Uint256, Uint64};
+use cosmwasm_std::{HexBinary, Uint64};
 use multisig::key::KeyType;
 use router_api::CrossChainId;
 
@@ -27,8 +27,6 @@ pub struct InstantiateMsg {
     /// Address of the voting verifier contract on axelar associated with the destination chain. For example, if this prover is creating
     /// proofs to be relayed to Ethereum, this is the address of the voting verifier for Ethereum.
     pub voting_verifier_address: String,
-    /// Chain id of the chain for which this prover contract creates proofs. For example, if the destination chain is Ethereum, the chain id is 1.
-    pub destination_chain_id: Uint256,
     /// Threshold of weighted signatures required for signing to be considered complete
     pub signing_threshold: MajorityThreshold,
     /// Name of service in the service registry for which verifiers are registered.
@@ -82,7 +80,7 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub struct MigrateMsg {
-    pub governance_address: String,
+    pub domain_separator: Hash,
 }
 
 #[cw_serde]
