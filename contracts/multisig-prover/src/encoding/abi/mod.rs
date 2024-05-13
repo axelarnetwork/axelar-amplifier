@@ -14,8 +14,8 @@ use router_api::Message as RouterMessage;
 
 use crate::{error::ContractError, payload::Payload};
 
-sol!("src/encoding/abi2/solidity/AmplifierGatewayTypes.sol");
-sol!("src/encoding/abi2/solidity/WeightedMultisigTypes.sol");
+sol!("src/encoding/abi/solidity/AmplifierGatewayTypes.sol");
+sol!("src/encoding/abi/solidity/WeightedMultisigTypes.sol");
 
 impl From<&Payload> for CommandType {
     fn from(payload: &Payload) -> Self {
@@ -168,7 +168,7 @@ mod tests {
     use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{
-        encoding::abi2::{
+        encoding::abi::{
             make_operators, payload_hash_to_sign, CommandType, Message, WeightedSigners,
         },
         payload::Payload,
