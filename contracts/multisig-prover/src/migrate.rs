@@ -116,7 +116,7 @@ mod test {
             .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
 
         let domain_separator = [1; 32];
-        let response = set_domain_separator(deps.as_mut(), domain_separator.clone()).unwrap();
+        let response = set_domain_separator(deps.as_mut(), domain_separator).unwrap();
 
         assert_eq!(response, Response::default());
 
