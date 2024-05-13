@@ -1,3 +1,5 @@
+//! Migrate the `Config` to include `msg_id_format` field and replace source_gateway_address value.
+
 use axelar_wasm_std::{msg_id::MessageIdFormat, nonempty, FnExt, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_slice, Addr, DepsMut, Response};
