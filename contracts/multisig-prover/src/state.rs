@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
 use axelar_wasm_std::{hash::Hash, MajorityThreshold};
@@ -18,7 +18,6 @@ pub struct Config {
     pub coordinator: Addr,
     pub service_registry: Addr,
     pub voting_verifier: Addr,
-    pub destination_chain_id: Uint256,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: ChainName,

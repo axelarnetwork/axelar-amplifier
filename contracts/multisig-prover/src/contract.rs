@@ -51,7 +51,6 @@ fn make_config(
         coordinator,
         service_registry,
         voting_verifier,
-        destination_chain_id: msg.destination_chain_id,
         signing_threshold: msg.signing_threshold,
         service_name: msg.service_name,
         chain_name: msg
@@ -129,7 +128,7 @@ pub fn migrate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate::migrate_0_3::set_domain_separator(deps, msg.domain_separator)
+    migrate::v_0_3::migrate_config(deps, msg.domain_separator)
 }
 
 #[cfg(test)]
@@ -184,7 +183,6 @@ mod tests {
                 coordinator_address: COORDINATOR_ADDRESS.to_string(),
                 service_registry_address: SERVICE_REGISTRY_ADDRESS.to_string(),
                 voting_verifier_address: VOTING_VERIFIER_ADDRESS.to_string(),
-                destination_chain_id: test_data::destination_chain_id(),
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
@@ -298,7 +296,6 @@ mod tests {
         let coordinator_address = "coordinator_address";
         let service_registry_address = "service_registry_address";
         let voting_verifier_address = "voting_verifier";
-        let destination_chain_id = Uint256::one();
         let signing_threshold = Threshold::try_from((
             test_data::threshold().numerator(),
             test_data::threshold().denominator(),
@@ -320,7 +317,6 @@ mod tests {
                 coordinator_address: coordinator_address.to_string(),
                 voting_verifier_address: voting_verifier_address.to_string(),
                 service_registry_address: service_registry_address.to_string(),
-                destination_chain_id,
                 signing_threshold,
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
@@ -342,7 +338,6 @@ mod tests {
             assert_eq!(config.gateway, gateway_address);
             assert_eq!(config.multisig, multisig_address);
             assert_eq!(config.service_registry, service_registry_address);
-            assert_eq!(config.destination_chain_id, destination_chain_id);
             assert_eq!(config.signing_threshold, signing_threshold);
             assert_eq!(config.service_name, service_name);
             assert_eq!(config.encoder, encoding)
@@ -353,7 +348,7 @@ mod tests {
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
 
-        let initial_config = migrate::migrate_0_3::OldConfig {
+        let initial_config = migrate::v_0_3::OldConfig {
             admin: Addr::unchecked("admin"),
             governance: Addr::unchecked("governance"),
             gateway: Addr::unchecked("gateway"),

@@ -345,7 +345,7 @@ mod tests {
     use axelar_wasm_std::Threshold;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env},
-        Addr, Uint256,
+        Addr,
     };
     use router_api::ChainName;
 
@@ -466,7 +466,6 @@ mod tests {
             coordinator: Addr::unchecked("doesn't matter"),
             service_registry: Addr::unchecked("doesn't matter"),
             voting_verifier: Addr::unchecked("doesn't matter"),
-            destination_chain_id: Uint256::one(),
             signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
             service_name: "validators".to_string(),
             chain_name: ChainName::try_from("ethereum".to_owned()).unwrap(),

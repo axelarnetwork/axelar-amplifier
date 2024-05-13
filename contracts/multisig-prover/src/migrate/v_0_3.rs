@@ -38,7 +38,6 @@ impl OldConfig {
             coordinator: self.coordinator,
             service_registry: self.service_registry,
             voting_verifier: self.voting_verifier,
-            destination_chain_id: self.destination_chain_id,
             signing_threshold: self.signing_threshold,
             service_name: self.service_name,
             chain_name: self.chain_name,
@@ -49,7 +48,7 @@ impl OldConfig {
     }
 }
 
-pub fn set_domain_separator(
+pub fn migrate_config(
     deps: DepsMut,
     domain_separator: Hash,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
@@ -116,7 +115,7 @@ mod test {
             .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
 
         let domain_separator = [1; 32];
-        let response = set_domain_separator(deps.as_mut(), domain_separator).unwrap();
+        let response = migrate_config(deps.as_mut(), domain_separator).unwrap();
 
         assert_eq!(response, Response::default());
 
@@ -129,7 +128,6 @@ mod test {
             coordinator: initial_config.coordinator,
             service_registry: initial_config.service_registry,
             voting_verifier: initial_config.voting_verifier,
-            destination_chain_id: initial_config.destination_chain_id,
             signing_threshold: initial_config.signing_threshold,
             service_name: initial_config.service_name,
             chain_name: initial_config.chain_name,
