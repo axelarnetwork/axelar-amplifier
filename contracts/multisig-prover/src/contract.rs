@@ -5,7 +5,7 @@ use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
-    execute, migrate,
+    execute, migrations,
     msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
@@ -128,7 +128,7 @@ pub fn migrate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate::v_0_3::migrate_config(deps, msg.domain_separator)
+    migrations::v_0_3::migrate_config(deps, msg.domain_separator)
 }
 
 #[cfg(test)]
@@ -348,7 +348,7 @@ mod tests {
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
 
-        let initial_config = migrate::v_0_3::OldConfig {
+        let initial_config = migrations::v_0_3::OldConfig {
             admin: Addr::unchecked("admin"),
             governance: Addr::unchecked("governance"),
             gateway: Addr::unchecked("gateway"),
