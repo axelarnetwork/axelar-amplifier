@@ -1,5 +1,5 @@
 FROM rust:1.75-bookworm as builder
-RUN apt-get update && apt-get install -y clang protobuf-compiler
+RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /ampd
 COPY ./Cargo.toml ./Cargo.toml
