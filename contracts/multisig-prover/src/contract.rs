@@ -129,7 +129,7 @@ pub fn migrate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate::set_domain_separator(deps, msg.domain_separator)
+    migrate::migrate_0_3::set_domain_separator(deps, msg.domain_separator)
 }
 
 #[cfg(test)]
@@ -353,7 +353,7 @@ mod tests {
     fn migrate_sets_contract_version() {
         let mut deps = mock_dependencies();
 
-        let initial_config = migrate::OldConfig {
+        let initial_config = migrate::migrate_0_3::OldConfig {
             admin: Addr::unchecked("admin"),
             governance: Addr::unchecked("governance"),
             gateway: Addr::unchecked("gateway"),
