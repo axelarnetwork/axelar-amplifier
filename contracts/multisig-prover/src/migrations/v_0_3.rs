@@ -1,3 +1,5 @@
+//! Migrate the `Config` to include `domain_separator` field and remove `destination_chain_id` field.
+
 use axelar_wasm_std::{hash::Hash, FnExt, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_slice, Addr, DepsMut, Response, Uint256};
@@ -18,7 +20,7 @@ pub struct OldConfig {
     pub coordinator: Addr,
     pub service_registry: Addr,
     pub voting_verifier: Addr,
-    pub destination_chain_id: Uint256,
+    pub destination_chain_id: Uint256, // this field is removed during migration
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: ChainName,
