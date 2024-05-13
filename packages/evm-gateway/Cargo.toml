@@ -1,0 +1,18 @@
+[package]
+name = "evm-gateway"
+version = "0.1.0"
+rust-version = { workspace = true }
+edition = "2021"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ethers = { version = "2.0.14", features = ["abigen"] }
+
+[build-dependencies]
+reqwest = { version = "0.12.4", features = ["blocking", "json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+zip = "1.2.1"
+
+[lints]
+workspace = true
