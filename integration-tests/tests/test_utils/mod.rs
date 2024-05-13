@@ -698,7 +698,7 @@ pub struct Chain {
     pub chain_name: ChainName,
 }
 
-pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName, workers: &Vec<Worker>) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         "doesn't matter".to_string().try_into().unwrap(),
@@ -784,6 +784,16 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    let worker_set = workers_to_worker_set(protocol, workers);
+    let response = protocol.coordinator.execute(
+        &mut protocol.app,
+        multisig_prover.contract_addr.clone(),
+        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+            next_worker_set: worker_set,
+        },
+    );
+    assert!(response.is_ok());
+
     Chain {
         gateway,
         voting_verifier,
@@ -841,8 +851,8 @@ pub fn setup_test_case() -> TestCase {
     register_service(&mut protocol, min_worker_bond, unbonding_period_days);
 
     register_workers(&mut protocol, &workers, min_worker_bond);
-    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
-    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
+    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone(), &workers);
+    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone(), &workers);
     TestCase {
         protocol,
         chain1,
