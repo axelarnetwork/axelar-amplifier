@@ -6,7 +6,7 @@ use cosmwasm_std::{
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, migrate, query};
+use crate::{execute, migrations, query};
 
 const CONTRACT_NAME: &str = "crates.io:voting-verifier";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -90,7 +90,7 @@ pub fn migrate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrate::set_source_gateway_address(deps, msg.source_gateway_address)
+    migrations::v_0_3::migrate_config(deps, msg.source_gateway_address, msg.msg_id_format)
 }
 
 #[cfg(test)]
@@ -99,7 +99,7 @@ mod test {
     use cosmwasm_std::{
         from_binary,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
+        to_vec, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
 
     use axelar_wasm_std::{
@@ -259,11 +259,27 @@ mod test {
         let workers = workers(2);
         let mut deps = setup(workers.clone(), &msg_id_format);
 
+        let initial_config = migrations::v_0_3::OldConfig {
+            governance: Addr::unchecked("governance"),
+            service_name: "service_name".parse().unwrap(),
+            service_registry_contract: Addr::unchecked("service_registry_address"),
+            source_gateway_address: "initial_source_gateway_address".parse().unwrap(),
+            voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
+            block_expiry: 100,
+            confirmation_height: 100,
+            source_chain: "source-chain".parse().unwrap(),
+            rewards_contract: Addr::unchecked("rewards_address"),
+        };
+        deps.as_mut()
+            .storage
+            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+
         migrate(
             deps.as_mut(),
             mock_env(),
             MigrateMsg {
                 source_gateway_address: "new_source_gateway_address".parse().unwrap(),
+                msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
             },
         )
         .unwrap();
