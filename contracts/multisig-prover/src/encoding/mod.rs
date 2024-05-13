@@ -1,4 +1,4 @@
-pub mod abi2;
+pub mod abi;
 
 use cosmwasm_schema::cw_serde;
 
@@ -14,7 +14,7 @@ pub enum Encoder {
 
 pub fn make_operators(worker_set: WorkerSet, encoder: Encoder) -> Operators {
     match encoder {
-        Encoder::Abi => abi2::make_operators(worker_set),
+        Encoder::Abi => abi::make_operators(worker_set),
         Encoder::Bcs => todo!(),
     }
 }

@@ -6,14 +6,14 @@ use axelar_wasm_std::hash::Hash;
 use multisig::{key::Signature, msg::SignerWithSig, worker_set::WorkerSet};
 
 use crate::{
-    encoding::abi2::{evm_address, Message, Proof, WeightedSigners},
+    encoding::abi::{evm_address, Message, Proof, WeightedSigners},
     error::ContractError,
     payload::Payload,
 };
 
 sol!(
     IAxelarAmplifierGateway,
-    "src/encoding/abi2/solidity/IAxelarAmplifierGateway.json"
+    "src/encoding/abi/solidity/IAxelarAmplifierGateway.json"
 );
 
 impl From<WeightedSigners> for IAxelarAmplifierGateway::WeightedSigners {
@@ -148,7 +148,7 @@ mod tests {
     use multisig::msg::{Signer, SignerWithSig};
 
     use crate::{
-        encoding::abi2::{
+        encoding::abi::{
             evm_address,
             execute_data::{add27, encode},
             payload_hash_to_sign,
