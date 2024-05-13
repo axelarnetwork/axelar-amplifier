@@ -63,7 +63,7 @@ impl From<&WorkerSet> for WeightedSigners {
         WeightedSigners {
             signers,
             threshold,
-            nonce: Uint256::from(worker_set.created_at).to_le_bytes().into(),
+            nonce: Uint256::from(worker_set.created_at).to_be_bytes().into(),
         }
     }
 }
