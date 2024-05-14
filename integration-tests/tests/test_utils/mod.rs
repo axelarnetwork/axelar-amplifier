@@ -531,7 +531,12 @@ pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
     }
 }
 
-pub fn claim_stakes(protocol: &mut Protocol, workers: &Vec<Worker>) {
+pub fn claim_stakes(
+    protocol: &mut Protocol,
+    workers: &Vec<Worker>,
+) -> Vec<Result<AppResponse, String>> {
+    let mut responses = Vec::new();
+
     for worker in workers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
@@ -540,8 +545,11 @@ pub fn claim_stakes(protocol: &mut Protocol, workers: &Vec<Worker>) {
                 service_name: protocol.service_name.to_string(),
             },
         );
-        assert!(response.is_ok());
+
+        responses.push(response.map_err(|e| e.to_string()));
     }
+
+    responses
 }
 
 pub fn confirm_worker_set(
@@ -816,6 +824,56 @@ pub fn query_balances(app: &App, workers: &Vec<Worker>) -> Vec<Uint128> {
     }
 
     balances
+}
+
+pub fn rotate_active_worker_set(
+    protocol: &mut Protocol,
+    chain: Chain,
+    previous_workers: &Vec<Worker>,
+    new_workers: &Vec<Worker>,
+) {
+    let response = protocol
+        .app
+        .execute_contract(
+            chain.multisig_prover.admin_addr.clone(),
+            chain.multisig_prover.contract_addr.clone(),
+            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &[],
+        )
+        .unwrap();
+
+    let session_id = sign_proof(protocol, previous_workers, response);
+
+    let proof = get_proof(&mut protocol.app, &chain.multisig_prover, &session_id);
+    assert!(matches!(
+        proof.status,
+        multisig_prover::msg::ProofStatus::Completed { .. }
+    ));
+    assert_eq!(proof.message_ids.len(), 0);
+
+    let new_worker_set = workers_to_worker_set(protocol, new_workers);
+    let (poll_id, expiry) = create_worker_set_poll(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        &chain.voting_verifier,
+        new_worker_set.clone(),
+    );
+
+    vote_true_for_worker_set(
+        &mut protocol.app,
+        &chain.voting_verifier,
+        new_workers,
+        poll_id,
+    );
+
+    advance_at_least_to_height(&mut protocol.app, expiry);
+    end_poll(&mut protocol.app, &chain.voting_verifier, poll_id);
+
+    confirm_worker_set(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        &chain.multisig_prover,
+    );
 }
 
 pub struct TestCase {
