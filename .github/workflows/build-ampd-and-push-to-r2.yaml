@@ -1,21 +1,16 @@
 name: Upload ampd contracts to Cloudflare R2 bucket
 
-#on:
-#  push:
-#    branches:
-#      - main
-#  workflow_dispatch:
-#    inputs:
-#      branch:
-#        description: Github branch to checkout for compilation
-#        required: true
-#        default: main
-#        type: string
-
 on:
   push:
     branches:
-      - feat/add-contract-checksums-to-r2
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Github branch to checkout for compilation
+        required: true
+        default: main
+        type: string
 
 jobs:
   compile-and-upload:
@@ -26,23 +21,23 @@ jobs:
       packages: write
       id-token: write
     steps:
-#      - name: Determine branch
-#        id: get-branch-name
-#        run: |
-#          if [ "${{ github.event_name }}" == "push" ]; then
-#            branch="main"
-#          else
-#            branch="${{ inputs.branch }}"
-#          fi
-#          echo "branch=$branch" >> $GITHUB_OUTPUT
+      - name: Determine branch
+        id: get-branch-name
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            branch="main"
+          else
+            branch="${{ inputs.branch }}"
+          fi
+          echo "branch=$branch" >> $GITHUB_OUTPUT
 
-      #TODO: bring back ref: ${{ steps.get-branch-name.outputs.branch }}
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: "0"
           path: axelar-amplifier
           submodules: recursive
+          ref: ${{ steps.get-branch-name.outputs.branch }}
 
       - name: Compile amplifier contracts
         id: compile-contracts
