@@ -52,7 +52,7 @@ jobs:
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
           mkdir -p ./artifacts/$commit_hash/
-          mv axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
+          cp -R axelar-amplifier/artifacts/* ./artifacts/$commit_hash/
           echo "wasm-directory=./artifacts" >> $GITHUB_OUTPUT
 
       - uses: ryand56/r2-upload-action@latest
