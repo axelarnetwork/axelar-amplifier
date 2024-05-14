@@ -3484,7 +3484,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -5081,7 +5081,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -5109,7 +5109,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -5318,7 +5318,7 @@ checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
 
 [[package]]
 name = "nexus-gateway"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6940,7 +6940,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -7576,7 +7576,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -9374,7 +9374,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voting-verifier"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",

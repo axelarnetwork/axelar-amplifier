@@ -1,6 +1,6 @@
 [package]
 name = "router"
-version = "0.2.0"
+version = "0.3.0"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Router contract"

@@ -78,39 +78,21 @@ mod test {
     fn successfuly_migrate_domain_separator() {
         let mut deps = mock_dependencies();
 
-        let admin = Addr::unchecked("admin");
-        let governance = Addr::unchecked("governance");
-        let gateway = Addr::unchecked("gateway");
-        let multisig = Addr::unchecked("multisig");
-        let coordinator = Addr::unchecked("coordinator");
-        let service_registry = Addr::unchecked("service_registry");
-        let voting_verifier = Addr::unchecked("voting_verifier");
-        let destination_chain_id = Uint256::from(1337u128);
-        let signing_threshold = Threshold::try_from((2u64, 3u64))
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let service_name = "validators".to_string();
-        let chain_name = "ganache-0".parse().unwrap();
-        let worker_set_diff_threshold = 0;
-        let encoder = crate::encoding::Encoder::Abi;
-        let key_type = multisig::key::KeyType::Ecdsa;
-
         let initial_config = OldConfig {
-            admin,
-            governance,
-            gateway,
-            multisig,
-            coordinator,
-            service_registry,
-            voting_verifier,
-            destination_chain_id,
-            signing_threshold,
-            service_name,
-            chain_name,
-            worker_set_diff_threshold,
-            encoder,
-            key_type,
+            admin: Addr::unchecked("admin"),
+            governance: Addr::unchecked("governance"),
+            gateway: Addr::unchecked("gateway"),
+            multisig: Addr::unchecked("multisig"),
+            coordinator: Addr::unchecked("coordinator"),
+            service_registry: Addr::unchecked("service_registry"),
+            voting_verifier: Addr::unchecked("voting_verifier"),
+            destination_chain_id: Uint256::from(1337u128),
+            signing_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
+            service_name: "validators".to_string(),
+            chain_name: "ganache-0".parse().unwrap(),
+            worker_set_diff_threshold: 0,
+            encoder: crate::encoding::Encoder::Abi,
+            key_type: multisig::key::KeyType::Ecdsa,
         };
         deps.as_mut()
             .storage
@@ -138,6 +120,6 @@ mod test {
             key_type: initial_config.key_type,
             domain_separator,
         };
-        assert_eq!(actual_config, expected_config,)
+        assert_eq!(actual_config, expected_config)
     }
 }
