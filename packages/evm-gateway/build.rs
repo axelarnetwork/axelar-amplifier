@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use reqwest::blocking::Client;
 use zip::ZipArchive;
 
-const ABI_FILES: [&str; 2] = ["IAxelarAmplifierGateway.json", "IBaseWeightedMultisig.json"];
+const ABI_FILES: [&str; 1] = ["IAxelarAmplifierGateway.json"];
 const OUTPUT_DIR_BASE: &str = "src/abi"; // Base output directory
 
 const VERSION: &str = env!(
