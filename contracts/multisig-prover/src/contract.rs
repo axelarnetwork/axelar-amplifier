@@ -85,6 +85,10 @@ pub fn execute(
             execute::require_governance(&deps, info)?;
             execute::update_signing_threshold(deps, new_signing_threshold)
         }
+        ExecuteMsg::UpdateAdmin { new_admin_address } => {
+            execute::require_governance(&deps, info)?;
+            execute::update_admin(deps, new_admin_address)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -221,6 +225,15 @@ mod tests {
             new_signing_threshold,
         };
         execute(deps, mock_env(), mock_info(sender.as_str(), &[]), msg)
+    }
+
+    fn execute_update_admin(
+        deps: DepsMut,
+        sender: &str,
+        new_admin_address: String,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let msg = ExecuteMsg::UpdateAdmin { new_admin_address };
+        execute(deps, mock_env(), mock_info(sender, &[]), msg)
     }
 
     fn execute_construct_proof(
@@ -846,5 +859,24 @@ mod tests {
             },
         );
         assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+    }
+
+    #[test]
+    fn non_governance_should_not_be_able_to_call_update_admin() {
+        let mut deps = setup_test_case();
+        let res = execute_update_admin(deps.as_mut(), "unauthorized", "new admin".to_string());
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn governance_should_be_able_to_call_update_admin() {
+        let mut deps = setup_test_case();
+        let new_admin = "new admin";
+
+        let res = execute_update_admin(deps.as_mut(), GOVERNANCE, new_admin.to_string());
+        assert!(res.is_ok(), "{:?}", res);
+
+        let config = CONFIG.load(deps.as_ref().storage).unwrap();
+        assert_eq!(config.admin, Addr::unchecked(new_admin));
     }
 }

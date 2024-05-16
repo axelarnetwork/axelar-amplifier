@@ -66,6 +66,9 @@ pub enum ExecuteMsg {
     UpdateSigningThreshold {
         new_signing_threshold: MajorityThreshold,
     },
+    UpdateAdmin {
+        new_admin_address: String,
+    },
 }
 
 #[cw_serde]
