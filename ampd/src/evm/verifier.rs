@@ -295,18 +295,20 @@ mod tests {
         let log_index = 1;
         let gateway_address = EVMAddress::random();
 
+        let operators = Operators::new(
+            vec![
+                (EVMAddress::random().as_bytes().into(), Uint256::from(10u64)),
+                (EVMAddress::random().as_bytes().into(), Uint256::from(20u64)),
+                (EVMAddress::random().as_bytes().into(), Uint256::from(30u64)),
+            ],
+            Uint256::from(40u64),
+            1u64,
+        );
+
         let worker_set = WorkerSetConfirmation {
             tx_id,
             event_index: log_index,
-            operators: Operators {
-                threshold: Uint256::from(40u64),
-                weights_by_addresses: vec![
-                    (EVMAddress::random().as_bytes().into(), Uint256::from(10u64)),
-                    (EVMAddress::random().as_bytes().into(), Uint256::from(20u64)),
-                    (EVMAddress::random().as_bytes().into(), Uint256::from(30u64)),
-                ],
-                created_at: 1u64,
-            },
+            operators,
         };
 
         let weighted_signers = WeightedSigners {
@@ -314,7 +316,7 @@ mod tests {
             nonce: Uint256::from(worker_set.operators.created_at).to_be_bytes(),
             signers: worker_set
                 .operators
-                .weights_by_addresses
+                .weights_by_addresses()
                 .iter()
                 .map(|(operator, weight)| WeightedSigner {
                     signer: operator.to_hex().parse().unwrap(),

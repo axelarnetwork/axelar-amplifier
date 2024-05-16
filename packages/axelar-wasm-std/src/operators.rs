@@ -7,7 +7,7 @@ use crate::hash::Hash;
 
 #[cw_serde]
 pub struct Operators {
-    pub weights_by_addresses: Vec<(HexBinary, Uint256)>,
+    weights_by_addresses: Vec<(HexBinary, Uint256)>,
     pub threshold: Uint256,
     pub created_at: u64,
 }
@@ -35,6 +35,10 @@ impl Operators {
         hasher.update(self.threshold.to_be_bytes());
         hasher.update(self.created_at.to_be_bytes());
         hasher.finalize().into()
+    }
+
+    pub fn weights_by_addresses(&self) -> &Vec<(HexBinary, Uint256)> {
+        &self.weights_by_addresses
     }
 }
 

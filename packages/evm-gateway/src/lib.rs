@@ -11,6 +11,8 @@ use thiserror::Error;
 
 use axelar_wasm_std::{hash::Hash, operators::Operators};
 
+// Generates the bindings for the Axelar Amplifier Gateway contract.
+// This includes the defined structs: Messages, WeightedSigners, WeightedSigner, and Proofs.
 abigen!(
     IAxelarAmplifierGateway,
     "src/abi/$SOLIDITY_GATEWAY_VERSION/IAxelarAmplifierGateway.json"
@@ -27,7 +29,7 @@ impl TryFrom<&Operators> for WeightedSigners {
 
     fn try_from(operators: &Operators) -> Result<Self, Error> {
         let signers = operators
-            .weights_by_addresses
+            .weights_by_addresses()
             .iter()
             .map(WeightedSigner::try_from)
             .collect::<Result<Vec<_>, _>>()?;
