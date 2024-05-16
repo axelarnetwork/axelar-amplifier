@@ -36,6 +36,10 @@ impl Operators {
         hasher.update(self.created_at.to_be_bytes());
         hasher.finalize().into()
     }
+
+    pub fn weights_by_addresses(&self) -> &Vec<(HexBinary, Uint256)> {
+        &self.weights_by_addresses
+    }
 }
 
 #[cfg(test)]
