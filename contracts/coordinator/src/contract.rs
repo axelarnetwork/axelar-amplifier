@@ -41,6 +41,9 @@ pub fn execute(
         ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
             execute::set_active_worker_set(deps, info, next_worker_set)
         }
+        ExecuteMsg::AddSupportedChainsForWorker { chains, worker } => {
+            execute::add_supported_chains_for_worker(deps, chains, worker)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -52,15 +55,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetActiveVerifiers { chain_name } => {
             to_binary(&query::get_active_worker_set(deps, chain_name)?).map_err(|err| err.into())
         }
-        QueryMsg::CheckWorkerCanUnbond {
-            worker_address,
-            chains,
-        } => to_binary(&query::check_worker_can_unbond(
-            deps,
-            worker_address,
-            chains,
-        )?)
-        .map_err(|err| err.into()),
+        QueryMsg::ReadyToUnbond { worker_address } => {
+            to_binary(&query::check_worker_ready_to_unbond(deps, worker_address)?)
+                .map_err(|err| err.into())
+        }
     }
 }
 

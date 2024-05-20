@@ -1,5 +1,6 @@
 use crate::state;
-use crate::state::{AuthorizationState, CHAINS_PER_WORKER, WORKERS};
+use crate::state::{AuthorizationState, WORKERS};
+use cosmwasm_std::wasm_execute;
 use router_api::ChainName;
 
 use super::*;
@@ -128,7 +129,7 @@ pub fn register_chains_support(
     service_name: String,
     chains: Vec<ChainName>,
 ) -> Result<Response, ContractError> {
-    SERVICES
+    let service = SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
@@ -136,9 +137,21 @@ pub fn register_chains_support(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::WorkerNotFound)?;
 
-    state::register_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
+    state::register_chains_support(
+        deps.storage,
+        service_name.clone(),
+        chains.clone(),
+        info.sender.clone(),
+    )?;
 
-    Ok(Response::new())
+    Ok(Response::new().add_message(wasm_execute(
+        service.coordinator_contract,
+        &coordinator::msg::ExecuteMsg::AddSupportedChainsForWorker {
+            chains,
+            worker: info.sender,
+        },
+        vec![],
+    )?))
 }
 
 pub fn deregister_chains_support(
@@ -174,20 +187,15 @@ pub fn unbond_worker(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::WorkerNotFound)?;
 
-    let chains = CHAINS_PER_WORKER
-        .may_load(deps.storage, (&service_name, &worker.address))?
-        .unwrap_or_default();
-
-    let query = coordinator::msg::QueryMsg::CheckWorkerCanUnbond {
+    let query = coordinator::msg::QueryMsg::ReadyToUnbond {
         worker_address: worker.address.clone(),
-        chains: chains.clone(),
     };
-    let can_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+    let ready_to_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: service.coordinator_contract.into(),
         msg: to_binary(&query)?,
     }))?;
 
-    let worker = worker.unbond(can_unbond, env.block.time)?;
+    let worker = worker.unbond(ready_to_unbond, env.block.time)?;
 
     WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
 

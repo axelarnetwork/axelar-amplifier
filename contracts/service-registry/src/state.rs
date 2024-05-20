@@ -171,10 +171,10 @@ pub fn register_chains_support(
     chains: Vec<ChainName>,
     worker: WorkerAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
-        let mut current_chains = current_chains.unwrap_or_default();
-        current_chains.extend(chains.iter().cloned());
-        Ok::<HashSet<ChainName>, ContractError>(current_chains)
+    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |existing_chains| {
+        let mut existing_chains = existing_chains.unwrap_or_default();
+        existing_chains.extend(chains.iter().cloned());
+        Ok::<HashSet<ChainName>, ContractError>(existing_chains)
     })?;
 
     for chain in chains.iter() {

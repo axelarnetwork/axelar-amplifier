@@ -2,7 +2,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use multisig::worker_set::WorkerSet;
 use router_api::ChainName;
-use std::collections::HashSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -19,6 +18,10 @@ pub enum ExecuteMsg {
     SetActiveVerifiers {
         next_worker_set: WorkerSet,
     },
+    AddSupportedChainsForWorker {
+        chains: Vec<ChainName>,
+        worker: Addr,
+    },
 }
 
 #[cw_serde]
@@ -28,8 +31,5 @@ pub enum QueryMsg {
     GetActiveVerifiers { chain_name: ChainName },
 
     #[returns(bool)]
-    CheckWorkerCanUnbond {
-        worker_address: Addr,
-        chains: HashSet<ChainName>,
-    },
+    ReadyToUnbond { worker_address: Addr },
 }
