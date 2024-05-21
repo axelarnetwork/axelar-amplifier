@@ -41,6 +41,9 @@ pub fn execute(
         ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
             execute::set_active_worker_set(deps, info, next_worker_set)
         }
+        ExecuteMsg::SetNextVerifiers { next_worker_set } => {
+            execute::set_next_worker_set(deps, info, next_worker_set)
+        }
         ExecuteMsg::AddSupportedChainsForWorker { chains, worker } => {
             execute::add_supported_chains_for_worker(deps, chains, worker)
         }

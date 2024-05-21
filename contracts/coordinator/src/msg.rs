@@ -18,6 +18,9 @@ pub enum ExecuteMsg {
     SetActiveVerifiers {
         next_worker_set: WorkerSet,
     },
+    SetNextVerifiers {
+        next_worker_set: WorkerSet,
+    },
     AddSupportedChainsForWorker {
         chains: Vec<ChainName>,
         worker: Addr,

@@ -22,3 +22,6 @@ pub const CHAINS_OF_WORKER: Map<WorkerAddress, ChainNames> = Map::new("chains_of
 
 pub const ACTIVE_WORKERSET_FOR_PROVER: Map<ProverAddress, WorkerSet> =
     Map::new("active_prover_workerset");
+
+pub const NEXT_WORKERSET_FOR_PROVER: Map<ProverAddress, WorkerSet> =
+    Map::new("next_prover_workerset");

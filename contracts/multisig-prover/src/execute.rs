@@ -190,13 +190,21 @@ fn get_next_worker_set(
 fn save_next_worker_set(
     storage: &mut dyn Storage,
     new_worker_set: &WorkerSet,
-) -> Result<(), ContractError> {
+    coordinator_address: Addr,
+) -> Result<Response, ContractError> {
     if different_set_in_progress(storage, new_worker_set) {
         return Err(ContractError::WorkerSetConfirmationInProgress);
     }
 
     NEXT_WORKER_SET.save(storage, new_worker_set)?;
-    Ok(())
+
+    Ok(Response::new().add_message(wasm_execute(
+        coordinator_address,
+        &coordinator::msg::ExecuteMsg::SetNextVerifiers {
+            next_worker_set: new_worker_set.clone(),
+        },
+        vec![],
+    )?))
 }
 
 pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
@@ -221,7 +229,7 @@ pub fn update_worker_set(deps: DepsMut, env: Env) -> Result<Response, ContractEr
             let new_worker_set = get_next_worker_set(&deps, &env, &config)?
                 .ok_or(ContractError::WorkerSetUnchanged)?;
 
-            save_next_worker_set(deps.storage, &new_worker_set)?;
+            save_next_worker_set(deps.storage, &new_worker_set, config.coordinator.clone())?;
 
             let payload = Payload::WorkerSet(new_worker_set);
             let payload_id = payload.id();

@@ -5,7 +5,10 @@ use router_api::ChainName;
 use std::collections::HashSet;
 
 use crate::error::ContractError;
-use crate::state::{ACTIVE_WORKERSET_FOR_PROVER, CHAINS_OF_WORKER, CONFIG, PROVER_PER_CHAIN};
+use crate::state::{
+    ACTIVE_WORKERSET_FOR_PROVER, CHAINS_OF_WORKER, CONFIG, NEXT_WORKERSET_FOR_PROVER,
+    PROVER_PER_CHAIN,
+};
 
 pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -30,6 +33,15 @@ pub fn set_active_worker_set(
     next_worker_set: WorkerSet,
 ) -> Result<Response, ContractError> {
     ACTIVE_WORKERSET_FOR_PROVER.save(deps.storage, info.sender, &(next_worker_set))?;
+    Ok(Response::new())
+}
+
+pub fn set_next_worker_set(
+    deps: DepsMut,
+    info: MessageInfo,
+    next_worker_set: WorkerSet,
+) -> Result<Response, ContractError> {
+    NEXT_WORKERSET_FOR_PROVER.save(deps.storage, info.sender, &(next_worker_set))?;
     Ok(Response::new())
 }
 
