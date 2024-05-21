@@ -294,7 +294,9 @@ mod tests {
         .map(|res| from_binary(&res).unwrap())
     }
 
-    fn query_get_worker_set(deps: Deps) -> Result<WorkerSet, axelar_wasm_std::ContractError> {
+    fn query_get_worker_set(
+        deps: Deps,
+    ) -> Result<Option<WorkerSet>, axelar_wasm_std::ContractError> {
         query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_binary(&res).unwrap())
     }
 
@@ -427,7 +429,8 @@ mod tests {
     fn test_update_worker_set_fresh() {
         let mut deps = setup_test_case();
         let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_err());
+        assert!(worker_set.is_ok());
+        assert!(worker_set.unwrap().is_none());
         let res = execute_update_worker_set(deps.as_mut());
 
         assert!(res.is_ok());
@@ -435,7 +438,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
@@ -505,7 +508,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
@@ -539,7 +542,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(new_worker_set, mock_env().block.height);
@@ -573,7 +576,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
@@ -733,7 +736,7 @@ mod tests {
     /// Calls update_signing_threshold, increasing the threshold by one.
     /// Returns (initial threshold, new threshold)
     fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint256, Uint256) {
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         let initial_threshold = worker_set.threshold;
         let total_weight = worker_set
             .signers
@@ -768,7 +771,7 @@ mod tests {
             update_signing_threshold_increase_by_one(deps.as_mut());
         assert_ne!(initial_threshold, new_threshold);
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         assert_eq!(worker_set.threshold, initial_threshold);
     }
 
@@ -786,7 +789,7 @@ mod tests {
         let governance = Addr::unchecked(GOVERNANCE);
         confirm_worker_set(deps.as_mut(), governance).unwrap();
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         assert_eq!(worker_set.threshold, new_threshold);
     }
 
@@ -804,7 +807,7 @@ mod tests {
         let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         assert_eq!(worker_set.threshold, new_threshold);
     }
 

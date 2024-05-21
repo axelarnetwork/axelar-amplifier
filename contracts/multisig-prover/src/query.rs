@@ -49,6 +49,6 @@ pub fn get_proof(
     })
 }
 
-pub fn get_worker_set(deps: Deps) -> StdResult<WorkerSet> {
-    CURRENT_WORKER_SET.load(deps.storage)
+pub fn get_worker_set(deps: Deps) -> StdResult<Option<WorkerSet>> {
+    CURRENT_WORKER_SET.may_load(deps.storage)
 }
