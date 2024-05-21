@@ -63,7 +63,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint256};
+    use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint128};
     use multisig::key::{KeyType, PublicKey};
     use multisig::worker_set::WorkerSet;
     use router_api::ChainName;
@@ -137,13 +137,13 @@ mod tests {
             .iter()
             .map(|worker| Participant {
                 address: worker.addr.clone(),
-                weight: Uint256::one().try_into().unwrap(),
+                weight: Uint128::one().try_into().unwrap(),
             })
             .collect();
 
         WorkerSet::new(
             participants.clone().into_iter().zip(pub_keys).collect(),
-            Uint256::from_u128(participants.len() as u128).mul_ceil((2u64, 3u64)),
+            Uint128::from(participants.len() as u128).mul_ceil((2u64, 3u64)),
             block_height,
         )
     }

@@ -34,14 +34,9 @@ impl WeightedSigners {
 
 impl From<&Signer> for WeightedSigner {
     fn from(signer: &Signer) -> Self {
-        let weight: Uint128 = signer
-            .weight
-            .try_into()
-            .expect("weight is too large to convert to Uint128");
-
         WeightedSigner {
             signer: evm_address(&signer.pub_key).expect("failed to convert pub key to evm address"),
-            weight: weight.u128(),
+            weight: signer.weight.u128(),
         }
     }
 }
@@ -56,13 +51,9 @@ impl From<&WorkerSet> for WeightedSigners {
 
         signers.sort_by_key(|weighted_signer| weighted_signer.signer);
 
-        let threshold: u128 = Uint128::try_from(worker_set.threshold)
-            .expect("threshold is too large to convert to Uint128")
-            .u128();
-
         WeightedSigners {
             signers,
-            threshold,
+            threshold: worker_set.threshold.u128(),
             nonce: Uint256::from(worker_set.created_at).to_be_bytes().into(),
         }
     }
@@ -144,7 +135,7 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
 }
 
 pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let operators: Vec<(HexBinary, Uint256)> = worker_set
+    let operators: Vec<(HexBinary, Uint128)> = worker_set
         .signers
         .values()
         .map(|signer| {

@@ -21,7 +21,7 @@ use std::ops::Mul;
 use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, StdResult, Uint256, Uint64};
+use cosmwasm_std::{Addr, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::CheckedAdd;
 use num_traits::One;
@@ -168,20 +168,20 @@ impl fmt::Display for Vote {
 
 // Deserialization of enums as map keys is not supported by serde-json-wasm, we use String instead
 #[cw_serde]
-pub struct Tallies(BTreeMap<String, Uint256>);
+pub struct Tallies(BTreeMap<String, Uint128>);
 
 impl Default for Tallies {
     fn default() -> Self {
         Self(
             Vote::iter()
-                .map(|vote| (vote.to_string(), Uint256::zero()))
+                .map(|vote| (vote.to_string(), Uint128::zero()))
                 .collect(),
         )
     }
 }
 
 impl Tallies {
-    pub fn consensus(&self, quorum: Uint256) -> Option<Vote> {
+    pub fn consensus(&self, quorum: Uint128) -> Option<Vote> {
         self.0.iter().find_map(|(vote, tally)| {
             if *tally >= quorum {
                 Some(vote.parse().expect("can't parse vote string back to enum"))
@@ -191,13 +191,13 @@ impl Tallies {
         })
     }
 
-    pub fn tally(&mut self, vote: &Vote, weight: &Uint256) {
+    pub fn tally(&mut self, vote: &Vote, weight: &Uint128) {
         let key = vote.to_string();
 
         let tally = self
             .0
             .get(&key)
-            .unwrap_or(&Uint256::zero())
+            .unwrap_or(&Uint128::zero())
             .saturating_add(*weight);
 
         self.0.insert(key, tally);
@@ -220,14 +220,14 @@ pub enum PollStatus {
 
 #[cw_serde]
 pub struct Participation {
-    pub weight: nonempty::Uint256,
+    pub weight: nonempty::Uint128,
     pub vote: Option<Vec<Vote>>,
 }
 
 #[cw_serde]
 pub struct WeightedPoll {
     pub poll_id: PollId,
-    pub quorum: nonempty::Uint256,
+    pub quorum: nonempty::Uint128,
     pub expires_at: u64,
     pub poll_size: u64,
     pub tallies: Vec<Tallies>, // running tally of weighted votes
@@ -279,7 +279,7 @@ impl WeightedPoll {
     }
 
     pub fn state(&self) -> PollState {
-        let quorum: Uint256 = self.quorum.into();
+        let quorum: Uint128 = self.quorum.into();
         let results: Vec<Option<Vote>> = self
             .tallies
             .iter()
@@ -357,7 +357,7 @@ impl WeightedPoll {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Uint256, Uint64};
+    use cosmwasm_std::{Addr, Uint64};
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
 
@@ -373,7 +373,7 @@ mod tests {
         assert_eq!(
             poll.participation.get("addr1").unwrap(),
             &Participation {
-                weight: nonempty::Uint256::try_from(Uint256::from(100u64)).unwrap(),
+                weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
                 vote: None,
             }
         );
@@ -385,7 +385,7 @@ mod tests {
         assert_eq!(
             poll.participation.get("addr1").unwrap(),
             &Participation {
-                weight: nonempty::Uint256::try_from(Uint256::from(100u64)).unwrap(),
+                weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
                 vote: Some(votes),
             }
         );
@@ -520,7 +520,7 @@ mod tests {
             .into_iter()
             .map(|participant| Participant {
                 address: Addr::unchecked(participant),
-                weight: nonempty::Uint256::try_from(Uint256::from_u128(100)).unwrap(),
+                weight: nonempty::Uint128::try_from(Uint128::from(100u64)).unwrap(),
             })
             .collect::<Vec<Participant>>()
             .try_into()
