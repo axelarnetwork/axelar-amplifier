@@ -110,12 +110,6 @@ impl From<Uint128> for cosmwasm_std::Uint128 {
     }
 }
 
-impl AsRef<cosmwasm_std::Uint128> for Uint128 {
-    fn as_ref(&self) -> &cosmwasm_std::Uint128 {
-        &self.0
-    }
-}
-
 impl Uint128 {
     pub const fn one() -> Self {
         Self(cosmwasm_std::Uint128::one())

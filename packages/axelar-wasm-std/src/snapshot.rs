@@ -44,12 +44,6 @@ impl Snapshot {
         }
     }
 
-    pub fn get_participant_weight(&self, participant: &Addr) -> Option<&Uint128> {
-        self.participants
-            .get(participant.as_str())
-            .map(|p| p.weight.as_ref())
-    }
-
     pub fn get_participants(&self) -> Vec<Addr> {
         self.participants
             .keys()
