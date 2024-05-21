@@ -263,3 +263,59 @@ fn claim_stake_when_jailed_fails() {
         assert!(claim_result.clone().is_err());
     }
 }
+
+#[test]
+fn claim_stake_when_in_next_worker_sets_fails() {
+    let chains: Vec<router_api::ChainName> = vec![
+        "Ethereum".to_string().try_into().unwrap(),
+        "Polygon".to_string().try_into().unwrap(),
+    ];
+
+    let test_utils::TestCase {
+        mut protocol,
+        chain1: ethereum,
+        chain2: polygon,
+        workers,
+        min_worker_bond,
+        ..
+    } = test_utils::setup_test_case();
+
+    let new_workers = test_utils::create_new_workers_vec(
+        chains.clone(),
+        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+    );
+
+    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+
+    test_utils::deregister_workers(&mut protocol, &workers);
+
+    let response = ethereum.multisig_prover.execute(
+        &mut protocol.app,
+        ethereum.multisig_prover.admin_addr.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+    );
+    assert!(response.is_ok());
+
+    let response = polygon.multisig_prover.execute(
+        &mut protocol.app,
+        polygon.multisig_prover.admin_addr.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+    );
+    assert!(response.is_ok());
+
+    for worker in &workers {
+        let response = protocol.service_registry.execute(
+            &mut protocol.app,
+            worker.addr.clone(),
+            &ExecuteMsg::UnbondWorker {
+                service_name: protocol.service_name.to_string(),
+            },
+        );
+        assert!(response.is_ok());
+    }
+
+    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    for claim_result in claim_results {
+        assert!(claim_result.is_err());
+    }
+}

@@ -832,17 +832,14 @@ pub fn rotate_active_worker_set(
     previous_workers: &Vec<Worker>,
     new_workers: &Vec<Worker>,
 ) {
-    let response = protocol
-        .app
-        .execute_contract(
-            chain.multisig_prover.admin_addr.clone(),
-            chain.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
-            &[],
-        )
-        .unwrap();
+    let response = chain.multisig_prover.execute(
+        &mut protocol.app,
+        chain.multisig_prover.admin_addr.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+    );
+    assert!(response.is_ok());
 
-    let session_id = sign_proof(protocol, previous_workers, response);
+    let session_id = sign_proof(protocol, previous_workers, response.unwrap());
 
     let proof = get_proof(&mut protocol.app, &chain.multisig_prover, &session_id);
     assert!(matches!(
