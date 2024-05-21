@@ -10,8 +10,11 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
-use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{
+    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
+    operators::Operators,
+    voting::{PollId, Vote},
+};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
 use router_api::ChainName;
@@ -22,15 +25,9 @@ use crate::evm::finalizer::Finalization;
 use crate::evm::verifier::verify_worker_set;
 use crate::evm::{finalizer, json_rpc::EthereumClient};
 use crate::handlers::errors::Error;
-use crate::types::{EVMAddress, Hash, TMAddress, U256};
+use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
-
-#[derive(Deserialize, Debug)]
-pub struct Operators {
-    pub weights_by_addresses: Vec<(EVMAddress, U256)>,
-    pub threshold: U256,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct WorkerSetConfirmation {

@@ -1,24 +1,21 @@
 use axelar_wasm_std::voting::Vote;
-use ethers::abi::{encode, Token};
 use ethers::contract::EthLogDecode;
-use ethers::prelude::abigen;
 use ethers::types::{Log, TransactionReceipt, H256};
+use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
 use crate::types::EVMAddress;
 
-abigen!(IAxelarGateway, "src/evm/abi/IAxelarGateway.json");
-
-struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarGatewayEvents);
+struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
 
 impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
     fn eq(&self, other: &IAxelarGatewayEventsWithLog<'_>) -> bool {
         let IAxelarGatewayEventsWithLog(log, event) = other;
 
         match event {
-            IAxelarGatewayEvents::ContractCallFilter(event) => {
+            IAxelarAmplifierGatewayEvents::ContractCallFilter(event) => {
                 log.transaction_hash == Some(self.tx_id)
                     && event.sender == self.source_address
                     && self.destination_chain == event.destination_chain
@@ -33,28 +30,16 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
 impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
     fn eq(&self, other: &IAxelarGatewayEventsWithLog<'_>) -> bool {
         let IAxelarGatewayEventsWithLog(log, event) = other;
-
         match event {
-            IAxelarGatewayEvents::OperatorshipTransferredFilter(event) => {
-                let (operators, weights): (Vec<_>, Vec<_>) = self
-                    .operators
-                    .weights_by_addresses
-                    .iter()
-                    .map(|(operator, weight)| {
-                        (
-                            Token::Address(operator.to_owned()),
-                            Token::Uint(weight.as_ref().to_owned()),
-                        )
-                    })
-                    .unzip();
+            IAxelarAmplifierGatewayEvents::SignersRotatedFilter(event) => {
+                let weighted_signers = match WeightedSigners::try_from(&self.operators) {
+                    Ok(signers) => signers,
+                    Err(_) => return false,
+                };
 
                 log.transaction_hash == Some(self.tx_id)
-                    && event.new_operators_data
-                        == encode(&[
-                            Token::Array(operators),
-                            Token::Array(weights),
-                            Token::Uint(self.operators.threshold.as_ref().to_owned()),
-                        ])
+                    && event.signers_hash == weighted_signers.hash()
+                    && event.signers == weighted_signers.abi_encode()
             }
             _ => false,
         }
@@ -77,7 +62,7 @@ fn get_event<'a>(
         .get(log_index)
         .filter(|log| log.address == *gateway_address)
         .and_then(
-            |log| match IAxelarGatewayEvents::decode_log(&log.clone().into()) {
+            |log| match IAxelarAmplifierGatewayEvents::decode_log(&log.clone().into()) {
                 Ok(event) => Some(IAxelarGatewayEventsWithLog(log, event)),
                 Err(_) => None,
             },
@@ -132,18 +117,23 @@ pub fn verify_worker_set(
 
 #[cfg(test)]
 mod tests {
-    use crate::evm::verifier::OperatorshipTransferredFilter;
-    use crate::handlers::evm_verify_msg::Message;
-    use crate::handlers::evm_verify_worker_set::{Operators, WorkerSetConfirmation};
-    use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std::Uint256;
-    use ethers::abi::{encode, Token};
-    use ethers::contract::EthEvent;
-    use ethers::types::{Log, TransactionReceipt};
+    use axelar_wasm_std::{operators::Operators, voting::Vote};
+    use cosmwasm_std::{Uint128, Uint256};
+    use ethers::{
+        abi::{encode, Token},
+        contract::EthEvent,
+        types::{Log, TransactionReceipt, H256},
+    };
+    use evm_gateway::{
+        i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter},
+        WeightedSigner, WeightedSigners,
+    };
 
-    use super::i_axelar_gateway::ContractCallFilter;
     use super::{verify_message, verify_worker_set};
-    use crate::types::{EVMAddress, Hash};
+    use crate::{
+        handlers::{evm_verify_msg::Message, evm_verify_worker_set::WorkerSetConfirmation},
+        types::{EVMAddress, Hash},
+    };
 
     #[test]
     fn should_not_verify_worker_set_if_tx_id_does_not_match() {
@@ -207,7 +197,7 @@ mod tests {
         let (gateway_address, tx_receipt, mut worker_set) =
             get_matching_worker_set_and_tx_receipt();
 
-        worker_set.operators.threshold = Uint256::from(50u64).into();
+        worker_set.operators.threshold = Uint256::from(50u64);
         assert_eq!(
             verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
             Vote::NotFound
@@ -305,42 +295,49 @@ mod tests {
         let log_index = 1;
         let gateway_address = EVMAddress::random();
 
+        let operators = Operators::new(
+            vec![
+                (EVMAddress::random().as_bytes().into(), Uint256::from(10u64)),
+                (EVMAddress::random().as_bytes().into(), Uint256::from(20u64)),
+                (EVMAddress::random().as_bytes().into(), Uint256::from(30u64)),
+            ],
+            Uint256::from(40u64),
+            1u64,
+        );
+
         let worker_set = WorkerSetConfirmation {
             tx_id,
             event_index: log_index,
-            operators: Operators {
-                threshold: Uint256::from(40u64).into(),
-                weights_by_addresses: vec![
-                    (EVMAddress::random(), Uint256::from(10u64).into()),
-                    (EVMAddress::random(), Uint256::from(20u64).into()),
-                    (EVMAddress::random(), Uint256::from(30u64).into()),
-                ],
-            },
+            operators,
         };
-        let (operators, weights): (Vec<_>, Vec<_>) = worker_set
-            .operators
-            .weights_by_addresses
-            .iter()
-            .map(|(operator, weight)| {
-                (
-                    Token::Address(operator.to_owned()),
-                    Token::Uint(weight.as_ref().to_owned()),
-                )
-            })
-            .unzip();
+
+        let weighted_signers = WeightedSigners {
+            threshold: 40,
+            nonce: Uint256::from(worker_set.operators.created_at).to_be_bytes(),
+            signers: worker_set
+                .operators
+                .weights_by_addresses()
+                .iter()
+                .map(|(operator, weight)| WeightedSigner {
+                    signer: operator.to_hex().parse().unwrap(),
+                    weight: Uint128::try_from(*weight).unwrap().u128(),
+                })
+                .collect(),
+        };
+
         let log = Log {
             transaction_hash: Some(tx_id),
             log_index: Some(log_index.into()),
             address: gateway_address,
-            topics: vec![OperatorshipTransferredFilter::signature()],
-            data: encode(&[Token::Bytes(encode(&[
-                Token::Array(operators),
-                Token::Array(weights),
-                Token::Uint(worker_set.operators.threshold.as_ref().to_owned()),
-            ]))])
-            .into(),
+            topics: vec![
+                SignersRotatedFilter::signature(),
+                H256::from_low_u64_be(1),
+                weighted_signers.hash().into(),
+            ],
+            data: encode(&[Token::Bytes(weighted_signers.abi_encode())]).into(),
             ..Default::default()
         };
+
         let tx_receipt = TransactionReceipt {
             transaction_hash: tx_id,
             status: Some(1u64.into()),

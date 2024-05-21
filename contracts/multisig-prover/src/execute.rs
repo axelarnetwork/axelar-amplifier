@@ -348,6 +348,17 @@ pub fn update_signing_threshold(
     Ok(Response::new())
 }
 
+pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response, ContractError> {
+    CONFIG.update(
+        deps.storage,
+        |mut config| -> Result<Config, ContractError> {
+            config.admin = deps.api.addr_validate(&new_admin_address)?;
+            Ok(config)
+        },
+    )?;
+    Ok(Response::new())
+}
+
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::Threshold;
