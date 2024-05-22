@@ -37,6 +37,7 @@ pub mod error;
 mod event_processor;
 mod event_sub;
 mod evm;
+mod flow;
 mod handlers;
 mod health_check;
 mod json_rpc;
