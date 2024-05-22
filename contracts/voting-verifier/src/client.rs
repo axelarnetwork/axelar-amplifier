@@ -106,7 +106,7 @@ mod test {
         VerificationStatus,
     };
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
         Addr, DepsMut, QuerierWrapper, Uint256, Uint64, WasmQuery,
     };
@@ -200,7 +200,7 @@ mod test {
         let mut querier = MockQuerier::default();
         querier.update_wasm(move |msg| match msg {
             WasmQuery::Smart { contract_addr, msg } if contract_addr == addr => {
-                let msg = from_binary::<QueryMsg>(msg).unwrap();
+                let msg = from_json::<QueryMsg>(msg).unwrap();
                 Ok(query(deps.as_ref(), mock_env(), msg).into()).into()
             }
             _ => panic!("unexpected query: {:?}", msg),

@@ -293,7 +293,7 @@ impl ChainEndpoint {
 mod tests {
     use super::*;
 
-    use cosmwasm_std::to_vec;
+    use cosmwasm_std::to_json_vec;
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     use sha3::{Digest, Sha3_256};
@@ -308,7 +308,7 @@ mod tests {
         let msg = dummy_message();
 
         assert_eq!(
-            hex::encode(Sha3_256::digest(to_vec(&msg).unwrap())),
+            hex::encode(Sha3_256::digest(to_json_vec(&msg).unwrap())),
             expected_message_hash
         );
     }

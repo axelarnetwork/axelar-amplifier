@@ -7,14 +7,14 @@ rust-version = "1.75.0" # be sure there is an optimizer release supporting this 
 
 [workspace.dependencies]
 router = { version = "^0.3.0", path = "contracts/router" }
-cosmwasm-std = "1.3.4"
-cosmwasm-schema = "1.3.4"
-cw-storage-plus = "1.1.0"
+cosmwasm-std = "1.5.5"
+cosmwasm-schema = "1.5.5"
+cw-storage-plus = "1.2.0"
 cw2 = "1.1.0"
 error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
-evm-gateway ={ version = "^0.1.0", path = "packages/evm-gateway" }
+evm-gateway = { version = "^0.1.0", path = "packages/evm-gateway" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^0.1.0", path = "integration-tests" }

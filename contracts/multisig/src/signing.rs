@@ -135,7 +135,7 @@ fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSe
 mod tests {
     use cosmwasm_std::{
         testing::{MockQuerier, MockStorage},
-        to_binary, Addr, HexBinary, QuerierWrapper,
+        to_json_binary, Addr, HexBinary, QuerierWrapper,
     };
 
     use crate::{
@@ -279,7 +279,7 @@ mod tests {
 
             for verification in [true, false] {
                 let mut querier = MockQuerier::default();
-                querier.update_wasm(move |_| Ok(to_binary(&verification).into()).into());
+                querier.update_wasm(move |_| Ok(to_json_binary(&verification).into()).into());
                 let sig_verifier = Some(SignatureVerifier {
                     address: Addr::unchecked("verifier".to_string()),
                     querier: QuerierWrapper::new(&querier),
