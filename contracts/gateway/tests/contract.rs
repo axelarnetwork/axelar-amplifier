@@ -360,24 +360,24 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
 #[allow(clippy::arithmetic_side_effects)]
 fn all_statuses() -> Vec<VerificationStatus> {
     let statuses = vec![
-        VerificationStatus::None,
-        VerificationStatus::NotFound,
+        VerificationStatus::Unknown,
+        VerificationStatus::NotFoundOnSourceChain,
         VerificationStatus::FailedToVerify,
         VerificationStatus::InProgress,
-        VerificationStatus::SucceededOnChain,
-        VerificationStatus::FailedOnChain,
+        VerificationStatus::SucceededOnSourceChain,
+        VerificationStatus::FailedOnSourceChain,
     ];
 
     // we need to make sure that if the variants change, the tests cover all of them
     let mut status_count: usize = 0;
     for status in &statuses {
         match status {
-            VerificationStatus::None
-            | VerificationStatus::NotFound
+            VerificationStatus::Unknown
+            | VerificationStatus::NotFoundOnSourceChain
             | VerificationStatus::FailedToVerify
             | VerificationStatus::InProgress
-            | VerificationStatus::SucceededOnChain
-            | VerificationStatus::FailedOnChain => status_count += 1,
+            | VerificationStatus::SucceededOnSourceChain
+            | VerificationStatus::FailedOnSourceChain => status_count += 1,
         };
     }
 

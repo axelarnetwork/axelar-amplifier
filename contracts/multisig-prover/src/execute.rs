@@ -260,7 +260,7 @@ fn ensure_worker_set_verification(
         msg: to_json_binary(&query)?,
     }))?;
 
-    if status != VerificationStatus::SucceededOnChain {
+    if status != VerificationStatus::SucceededOnSourceChain {
         Err(ContractError::WorkerSetNotConfirmed)
     } else {
         Ok(())
