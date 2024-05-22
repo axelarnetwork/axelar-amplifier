@@ -1,5 +1,5 @@
 use axelar_wasm_std::VerificationStatus;
-use cosmwasm_std::{from_binary, to_binary, QuerierResult, WasmQuery};
+use cosmwasm_std::{from_json, to_json_binary, QuerierResult, WasmQuery};
 use multisig::{msg::Signer, multisig::Multisig, types::MultisigState, worker_set::WorkerSet};
 use service_registry::state::{
     AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
@@ -25,7 +25,7 @@ pub fn mock_querier_handler(
             gateway_mock_querier_handler()
         }
         WasmQuery::Smart { contract_addr, msg } if contract_addr == MULTISIG_ADDRESS => {
-            multisig_mock_querier_handler(from_binary(msg).unwrap(), operators.clone())
+            multisig_mock_querier_handler(from_json(msg).unwrap(), operators.clone())
         }
         WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
             service_registry_mock_querier_handler(operators.clone())
@@ -38,7 +38,7 @@ pub fn mock_querier_handler(
 }
 
 fn gateway_mock_querier_handler() -> QuerierResult {
-    Ok(to_binary(&test_data::messages()).into()).into()
+    Ok(to_json_binary(&test_data::messages()).into()).into()
 }
 
 fn multisig_mock_querier_handler(
@@ -47,12 +47,12 @@ fn multisig_mock_querier_handler(
 ) -> QuerierResult {
     let result = match msg {
         multisig::msg::QueryMsg::GetMultisig { session_id: _ } => {
-            to_binary(&mock_get_multisig(operators))
+            to_json_binary(&mock_get_multisig(operators))
         }
         multisig::msg::QueryMsg::GetPublicKey {
             worker_address,
             key_type: _,
-        } => to_binary(
+        } => to_json_binary(
             &operators
                 .iter()
                 .find(|op| op.address == worker_address)
@@ -110,7 +110,7 @@ fn mock_get_multisig(operators: Vec<TestOperator>) -> Multisig {
 }
 
 fn service_registry_mock_querier_handler(operators: Vec<TestOperator>) -> QuerierResult {
-    Ok(to_binary(
+    Ok(to_json_binary(
         &operators
             .clone()
             .into_iter()
@@ -130,5 +130,5 @@ fn service_registry_mock_querier_handler(operators: Vec<TestOperator>) -> Querie
 }
 
 fn voting_verifier_mock_querier_handler(status: VerificationStatus) -> QuerierResult {
-    Ok(to_binary(&status).into()).into()
+    Ok(to_json_binary(&status).into()).into()
 }
