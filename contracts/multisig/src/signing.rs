@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use router_api::ChainName;
 use signature_verifier_api::client::SignatureVerifier;
 
@@ -118,10 +118,10 @@ fn call_sig_verifier(
     }
 }
 
-fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint256 {
+fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint128 {
     signatures
         .keys()
-        .map(|addr| -> Uint256 {
+        .map(|addr| -> Uint128 {
             worker_set
                 .signers
                 .get(addr)

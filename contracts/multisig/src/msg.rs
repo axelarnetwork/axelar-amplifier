@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use router_api::ChainName;
 
 use crate::{
@@ -74,7 +74,7 @@ pub enum QueryMsg {
 #[derive(Eq, Ord, PartialOrd)]
 pub struct Signer {
     pub address: Addr,
-    pub weight: Uint256,
+    pub weight: Uint128,
     pub pub_key: PublicKey,
 }
 

@@ -52,12 +52,6 @@ impl fmt::Display for Uint64 {
 #[derive(Copy, PartialOrd, Eq)]
 pub struct Uint256(cosmwasm_std::Uint256);
 
-impl Uint256 {
-    pub const fn one() -> Self {
-        Self(cosmwasm_std::Uint256::one())
-    }
-}
-
 impl TryFrom<cosmwasm_std::Uint256> for Uint256 {
     type Error = Error;
 
@@ -113,6 +107,12 @@ impl TryFrom<cosmwasm_std::Uint128> for Uint128 {
 impl From<Uint128> for cosmwasm_std::Uint128 {
     fn from(value: Uint128) -> Self {
         value.0
+    }
+}
+
+impl Uint128 {
+    pub const fn one() -> Self {
+        Self(cosmwasm_std::Uint128::one())
     }
 }
 

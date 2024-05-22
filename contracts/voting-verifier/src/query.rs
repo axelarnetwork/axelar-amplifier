@@ -94,7 +94,7 @@ mod tests {
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use router_api::CrossChainId;
 
     use crate::state::PollContent;
@@ -140,7 +140,7 @@ mod tests {
 
         let mut poll = poll();
         poll.tallies[idx] = Tallies::default();
-        poll.tallies[idx].tally(&Vote::SucceededOnChain, &Uint256::from(5u64));
+        poll.tallies[idx].tally(&Vote::SucceededOnChain, &Uint128::from(5u64));
 
         POLLS
             .save(
@@ -237,7 +237,7 @@ mod tests {
             .into_iter()
             .map(|participant| Participant {
                 address: Addr::unchecked(participant),
-                weight: nonempty::Uint256::try_from(Uint256::one()).unwrap(),
+                weight: nonempty::Uint128::try_from(Uint128::one()).unwrap(),
             })
             .collect::<Vec<Participant>>()
             .try_into()

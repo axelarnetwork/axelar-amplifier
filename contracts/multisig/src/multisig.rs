@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint256;
+use cosmwasm_std::Uint128;
 use itertools::Itertools;
 
 use crate::{
@@ -26,7 +26,7 @@ impl Multisig {
             .sorted_by(|(addr_a, _), (addr_b, _)| {
                 self.signer(addr_b).weight.cmp(&self.signer(addr_a).weight)
             })
-            .scan(Uint256::zero(), |acc, (addr, signature)| {
+            .scan(Uint128::zero(), |acc, (addr, signature)| {
                 let signer = self.signer(addr);
 
                 if *acc < self.worker_set.threshold {
@@ -49,7 +49,7 @@ impl Multisig {
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{Addr, HexBinary, Uint256};
+    use cosmwasm_std::{Addr, HexBinary, Uint128};
 
     use crate::{
         key::{PublicKey, Signature},
@@ -81,7 +81,7 @@ mod test {
             ("signer6".to_string(), sig.clone()),
         ];
 
-        let threshold = Uint256::from(13u64);
+        let threshold = Uint128::from(13u64);
 
         // optimized signers are signer 3 (weight 7), signer 2 (weight 5), signer 6 (weight 2)
         let expected_optimized_signers = vec![

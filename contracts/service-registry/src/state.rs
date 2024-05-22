@@ -117,11 +117,11 @@ impl Worker {
 #[cw_serde]
 pub struct WeightedWorker {
     pub worker_info: Worker,
-    pub weight: nonempty::Uint256,
+    pub weight: nonempty::Uint128,
 }
 
 /// For now, all workers have equal weight, regardless of amount bonded
-pub const WORKER_WEIGHT: nonempty::Uint256 = nonempty::Uint256::one();
+pub const WORKER_WEIGHT: nonempty::Uint128 = nonempty::Uint128::one();
 
 impl From<WeightedWorker> for Participant {
     fn from(worker: WeightedWorker) -> Participant {

@@ -402,9 +402,9 @@ mod tests {
 
     #[allow(clippy::arithmetic_side_effects)]
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
-        let total_weight: Uint256 = operators
+        let total_weight: Uint128 = operators
             .iter()
-            .fold(Uint256::zero(), |acc, x| acc + x.weight);
+            .fold(Uint128::zero(), |acc, x| acc + x.weight);
         let quorum = total_weight.mul_ceil(test_data::threshold());
         WorkerSet {
             signers: operators
@@ -735,24 +735,24 @@ mod tests {
 
     /// Calls update_signing_threshold, increasing the threshold by one.
     /// Returns (initial threshold, new threshold)
-    fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint256, Uint256) {
+    fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint128, Uint128) {
         let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         let initial_threshold = worker_set.threshold;
         let total_weight = worker_set
             .signers
             .iter()
-            .fold(Uint256::zero(), |acc, signer| {
+            .fold(Uint128::zero(), |acc, signer| {
                 acc.checked_add(signer.1.weight).unwrap()
             });
-        let new_threshold = initial_threshold.checked_add(Uint256::one()).unwrap();
+        let new_threshold = initial_threshold.checked_add(Uint128::one()).unwrap();
 
         let governance = Addr::unchecked(GOVERNANCE);
         execute_update_signing_threshold(
             deps,
             governance.clone(),
             Threshold::try_from((
-                Uint64::try_from(Uint128::try_from(new_threshold).unwrap()).unwrap(),
-                Uint64::try_from(Uint128::try_from(total_weight).unwrap()).unwrap(),
+                Uint64::try_from(new_threshold).unwrap(),
+                Uint64::try_from(total_weight).unwrap(),
             ))
             .unwrap()
             .try_into()

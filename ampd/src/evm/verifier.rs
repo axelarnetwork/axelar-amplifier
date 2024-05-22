@@ -197,7 +197,7 @@ mod tests {
         let (gateway_address, tx_receipt, mut worker_set) =
             get_matching_worker_set_and_tx_receipt();
 
-        worker_set.operators.threshold = Uint256::from(50u64);
+        worker_set.operators.threshold = Uint128::from(50u64);
         assert_eq!(
             verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
             Vote::NotFound
@@ -297,11 +297,11 @@ mod tests {
 
         let operators = Operators::new(
             vec![
-                (EVMAddress::random().as_bytes().into(), Uint256::from(10u64)),
-                (EVMAddress::random().as_bytes().into(), Uint256::from(20u64)),
-                (EVMAddress::random().as_bytes().into(), Uint256::from(30u64)),
+                (EVMAddress::random().as_bytes().into(), Uint128::from(10u64)),
+                (EVMAddress::random().as_bytes().into(), Uint128::from(20u64)),
+                (EVMAddress::random().as_bytes().into(), Uint128::from(30u64)),
             ],
-            Uint256::from(40u64),
+            Uint128::from(40u64),
             1u64,
         );
 
@@ -320,7 +320,7 @@ mod tests {
                 .iter()
                 .map(|(operator, weight)| WeightedSigner {
                     signer: operator.to_hex().parse().unwrap(),
-                    weight: Uint128::try_from(*weight).unwrap().u128(),
+                    weight: weight.u128(),
                 })
                 .collect(),
         };

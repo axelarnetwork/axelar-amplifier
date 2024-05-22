@@ -108,7 +108,7 @@ mod test {
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
-        Addr, DepsMut, QuerierWrapper, Uint256, Uint64, WasmQuery,
+        Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
     };
     use router_api::{CrossChainId, Message};
 
@@ -175,7 +175,7 @@ mod test {
 
         assert_eq!(
             client
-                .worker_set_status(Operators::new(vec![], Uint256::one(), 1))
+                .worker_set_status(Operators::new(vec![], Uint128::one(), 1))
                 .unwrap(),
             VerificationStatus::None
         );

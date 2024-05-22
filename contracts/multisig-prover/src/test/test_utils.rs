@@ -117,9 +117,7 @@ fn service_registry_mock_querier_handler(operators: Vec<TestOperator>) -> Querie
             .map(|op| WeightedWorker {
                 worker_info: Worker {
                     address: op.address,
-                    bonding_state: BondingState::Bonded {
-                        amount: op.weight.try_into().unwrap(),
-                    },
+                    bonding_state: BondingState::Bonded { amount: op.weight },
                     authorization_state: AuthorizationState::Authorized,
                     service_name: SERVICE_NAME.to_string(),
                 },

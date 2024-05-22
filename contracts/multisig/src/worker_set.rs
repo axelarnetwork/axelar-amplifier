@@ -3,14 +3,14 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{key::PublicKey, msg::Signer};
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint256};
+use cosmwasm_std::{HexBinary, Uint128};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
 pub struct WorkerSet {
     // An ordered map with the signer's address as the key, and the signer as the value.
     pub signers: BTreeMap<String, Signer>,
-    pub threshold: Uint256,
+    pub threshold: Uint128,
     // for hash uniqueness. The same exact worker set could be in use at two different times,
     // and we need to be able to distinguish between the two
     pub created_at: u64,
@@ -22,7 +22,7 @@ pub struct WorkerSet {
 impl WorkerSet {
     pub fn new(
         participants: Vec<(Participant, PublicKey)>,
-        threshold: Uint256,
+        threshold: Uint128,
         block_height: u64,
     ) -> Self {
         let signers = participants
