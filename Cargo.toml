@@ -6,7 +6,7 @@ resolver = "2"
 rust-version = "1.75.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 
 [workspace.dependencies]
-router = { version = "^0.3.0", path = "contracts/router" }
+router = { version = "^0.3.1", path = "contracts/router" }
 cosmwasm-std = "1.5.5"
 cosmwasm-schema = "1.5.5"
 cw-storage-plus = "1.2.0"
