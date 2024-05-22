@@ -6,6 +6,9 @@ use ethers::{
     prelude::abigen,
     types::Address,
 };
+use multisig::{key::PublicKey, worker_set::WorkerSet};
+use alloy_primitives::{FixedBytes};
+use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey as k256PubKey};
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
 
@@ -22,6 +25,46 @@ abigen!(
 pub enum Error {
     #[error("address is invalid: {reason}")]
     InvalidAddress { reason: String },
+    #[error("public key is invalid: {reason}")]
+    InvalidPublicKey { reason: String },
+}
+
+fn evm_address(pub_key: &PublicKey) -> Result<alloy_primitives::Address, Error> {
+    match pub_key {
+        PublicKey::Ecdsa(pub_key) => k256PubKey::from_sec1_bytes(pub_key)
+            .map(|pub_key| pub_key.to_encoded_point(false))
+            .map(|pub_key| alloy_primitives::Address::from_raw_public_key(&pub_key.as_bytes()[1..]))
+            .map_err(|err| Error::InvalidPublicKey {
+                reason: err.to_string(),
+            }),
+        _ => Err(Error::InvalidPublicKey {
+            reason: "expect ECDSA public key".to_string(),
+        }),
+    }
+}
+
+pub fn make_operators(worker_set: WorkerSet) -> Operators {
+    let operators: Vec<(HexBinary, Uint256)> = worker_set
+        .signers
+        .values()
+        .map(|signer| {
+            (
+                evm_address(&signer.pub_key)
+                    .expect("couldn't convert pubkey to evm address")
+                    .as_slice()
+                    .into(),
+                signer.weight,
+            )
+        })
+        .collect();
+    Operators::new(operators, worker_set.threshold, worker_set.created_at)
+}
+impl TryFrom<&WorkerSet> for WeightedSigners {
+    type Error = Error;
+    fn try_from(worker_set: &WorkerSet) -> Result<Self, Error> {
+        WeightedSigners::try_from(&make_operators(worker_set.clone()))
+
+    }
 }
 
 impl TryFrom<&Operators> for WeightedSigners {

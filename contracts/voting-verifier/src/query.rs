@@ -4,6 +4,7 @@ use axelar_wasm_std::{
     MajorityThreshold, VerificationStatus,
 };
 use cosmwasm_std::Deps;
+use multisig::worker_set::WorkerSet;
 use router_api::Message;
 
 use crate::{error::ContractError, state::CONFIG};
@@ -37,11 +38,11 @@ pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatu
 
 pub fn worker_set_status(
     deps: Deps,
-    operators: &Operators,
+    worker_set: &WorkerSet
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
+    let loaded_poll_content = POLL_WORKER_SETS.may_load(deps.storage, &worker_set.hash().as_slice().try_into().unwrap())?;
 
-    Ok(verification_status(deps, loaded_poll_content, operators))
+    Ok(verification_status(deps, loaded_poll_content, worker_set))
 }
 
 fn verification_status<T: PartialEq + std::fmt::Debug>(

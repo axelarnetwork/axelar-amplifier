@@ -32,7 +32,7 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
         let IAxelarGatewayEventsWithLog(log, event) = other;
         match event {
             IAxelarAmplifierGatewayEvents::SignersRotatedFilter(event) => {
-                let weighted_signers = match WeightedSigners::try_from(&self.operators) {
+                let weighted_signers = match WeightedSigners::try_from(&self.workerset) {
                     Ok(signers) => signers,
                     Err(_) => return false,
                 };
@@ -197,7 +197,7 @@ mod tests {
         let (gateway_address, tx_receipt, mut worker_set) =
             get_matching_worker_set_and_tx_receipt();
 
-        worker_set.operators.threshold = Uint256::from(50u64);
+        worker_set.workerset.threshold = Uint256::from(50u64);
         assert_eq!(
             verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
             Vote::NotFound
@@ -308,14 +308,14 @@ mod tests {
         let worker_set = WorkerSetConfirmation {
             tx_id,
             event_index: log_index,
-            operators,
+            workerset: operators,
         };
 
         let weighted_signers = WeightedSigners {
             threshold: 40,
-            nonce: Uint256::from(worker_set.operators.created_at).to_be_bytes(),
+            nonce: Uint256::from(worker_set.workerset.created_at).to_be_bytes(),
             signers: worker_set
-                .operators
+                .workerset
                 .weights_by_addresses()
                 .iter()
                 .map(|(operator, weight)| WeightedSigner {

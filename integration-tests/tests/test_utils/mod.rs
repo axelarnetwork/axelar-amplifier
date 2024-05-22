@@ -588,7 +588,7 @@ pub fn create_worker_set_poll(
             .to_string()
             .parse()
             .unwrap(),
-            new_operators: make_operators(worker_set.clone(), Encoder::Abi),
+            new_workerset: make_operators(worker_set.clone(), Encoder::Abi),
         },
     );
     assert!(response.is_ok());

@@ -3046,9 +3046,12 @@ dependencies = [
 name = "evm-gateway"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
  "axelar-wasm-std",
  "cosmwasm-std",
  "ethers",
+ "k256",
+ "multisig",
  "reqwest 0.12.4",
  "serde",
  "serde_json",
@@ -9413,6 +9416,7 @@ dependencies = [
  "cw2 1.1.0",
  "error-stack",
  "integration-tests",
+ "multisig",
  "rand",
  "report",
  "rewards",

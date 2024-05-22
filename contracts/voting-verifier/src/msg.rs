@@ -8,6 +8,7 @@ use axelar_wasm_std::{
     MajorityThreshold, VerificationStatus,
 };
 use router_api::{ChainName, Message};
+use multisig::worker_set::WorkerSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -58,7 +59,7 @@ pub enum ExecuteMsg {
     // Starts a poll to confirm a worker set update on the external evm gateway
     VerifyWorkerSet {
         message_id: nonempty::String,
-        new_operators: Operators,
+        new_workerset: WorkerSet,
     },
 
     // Update the threshold used for new polls. Callable only by governance
@@ -83,7 +84,7 @@ pub enum QueryMsg {
     GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]
-    GetWorkerSetStatus { new_operators: Operators },
+    GetWorkerSetStatus { new_workerset: WorkerSet },
 
     #[returns(MajorityThreshold)]
     GetCurrentThreshold,

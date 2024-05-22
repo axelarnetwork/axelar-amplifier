@@ -11,6 +11,7 @@ use axelar_wasm_std::{
     MajorityThreshold, VerificationStatus,
 };
 
+use multisig::worker_set::WorkerSet;
 use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
@@ -47,9 +48,9 @@ pub fn verify_worker_set(
     deps: DepsMut,
     env: Env,
     message_id: nonempty::String,
-    new_operators: Operators,
+    new_workerset: WorkerSet
 ) -> Result<Response, ContractError> {
-    let status = worker_set_status(deps.as_ref(), &new_operators)?;
+    let status = worker_set_status(deps.as_ref(), &new_workerset)?;
     if status.is_confirmed() {
         return Ok(Response::new());
     }
@@ -63,8 +64,8 @@ pub fn verify_worker_set(
 
     POLL_WORKER_SETS.save(
         deps.storage,
-        &new_operators.hash(),
-        &PollContent::<Operators>::new(new_operators.clone(), poll_id),
+        &new_workerset.hash().as_slice().try_into().unwrap(),
+        &PollContent::<WorkerSet>::new(new_workerset.clone(), poll_id),
     )?;
 
     Ok(Response::new().add_event(
@@ -72,7 +73,7 @@ pub fn verify_worker_set(
             worker_set: WorkerSetConfirmation::new(
                 message_id,
                 config.msg_id_format,
-                new_operators,
+                new_workerset,
             )?,
             metadata: PollMetadata {
                 poll_id,

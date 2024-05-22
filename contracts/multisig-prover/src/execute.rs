@@ -252,7 +252,7 @@ fn ensure_worker_set_verification(
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
     let query = voting_verifier::msg::QueryMsg::GetWorkerSetStatus {
-        new_operators: make_operators(worker_set.clone(), config.encoder),
+        new_workerset: worker_set.clone()
     };
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

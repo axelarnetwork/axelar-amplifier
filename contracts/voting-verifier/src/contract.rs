@@ -51,8 +51,8 @@ pub fn execute(
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyWorkerSet {
             message_id,
-            new_operators,
-        } => execute::verify_worker_set(deps, env, message_id, new_operators),
+            new_workerset,
+        } => execute::verify_worker_set(deps, env, message_id, new_workerset),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         } => {
@@ -73,7 +73,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetMessagesStatus { messages } => {
             to_json_binary(&query::messages_status(deps, &messages)?)
         }
-        QueryMsg::GetWorkerSetStatus { new_operators } => {
+        QueryMsg::GetWorkerSetStatus { new_workerset: new_operators } => {
             to_json_binary(&query::worker_set_status(deps, &new_operators)?)
         }
         QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
@@ -827,7 +827,7 @@ mod test {
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let msg = ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0, &msg_id_format),
-            new_operators: operators.clone(),
+            new_workerset: operators.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
@@ -837,7 +837,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
-                    new_operators: operators.clone(),
+                    new_workerset: operators.clone(),
                 },
             )
             .unwrap(),
@@ -856,7 +856,7 @@ mod test {
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
         let msg = ExecuteMsg::VerifyWorkerSet {
             message_id: message_id("id", 0, &msg_id_format),
-            new_operators: operators.clone(),
+            new_workerset: operators.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
@@ -890,7 +890,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
-                    new_operators: operators.clone(),
+                    new_workerset: operators.clone(),
                 },
             )
             .unwrap(),
@@ -913,7 +913,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_workerset: operators.clone(),
             },
         );
         assert!(res.is_ok());
@@ -946,7 +946,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
-                    new_operators: operators.clone(),
+                    new_workerset: operators.clone(),
                 },
             )
             .unwrap(),
@@ -969,7 +969,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_workerset: operators.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1002,7 +1002,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
-                    new_operators: operators.clone(),
+                    new_workerset: operators.clone(),
                 },
             )
             .unwrap(),
@@ -1016,7 +1016,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_workerset: operators.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1049,7 +1049,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
-                    new_operators: operators.clone(),
+                    new_workerset: operators.clone(),
                 },
             )
             .unwrap(),
@@ -1072,7 +1072,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_workerset: operators.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1106,7 +1106,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyWorkerSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_workerset: operators.clone(),
             },
         )
         .unwrap();

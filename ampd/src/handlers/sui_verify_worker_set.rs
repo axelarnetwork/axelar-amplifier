@@ -244,7 +244,7 @@ mod tests {
             worker_set: WorkerSetConfirmation {
                 tx_id: TransactionDigest::random().to_string().parse().unwrap(),
                 event_index: 0,
-                operators: Operators::new(
+                workerset: Operators::new(
                     vec![
                         (
                             HexBinary::from(SuiAddress::random_for_testing_only().to_vec()),

@@ -11,6 +11,7 @@ use axelar_wasm_std::{
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };
+use multisig::worker_set::WorkerSet;
 use router_api::{ChainName, Message};
 
 use crate::error::ContractError;
@@ -65,10 +66,10 @@ impl PollContent<Message> {
     }
 }
 
-impl PollContent<Operators> {
-    pub fn new(operators: Operators, poll_id: PollId) -> Self {
+impl PollContent<WorkerSet> {
+    pub fn new(workerset: WorkerSet, poll_id: PollId) -> Self {
         Self {
-            content: operators,
+            content: workerset,
             poll_id,
             index_in_poll: 0,
         }
@@ -83,4 +84,4 @@ pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messa
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const POLL_WORKER_SETS: Map<&Hash, PollContent<Operators>> = Map::new("poll_worker_sets");
+pub const POLL_WORKER_SETS: Map<&Hash, PollContent<WorkerSet>> = Map::new("poll_worker_sets");

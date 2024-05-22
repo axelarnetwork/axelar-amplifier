@@ -5,6 +5,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
+use multisig::worker_set::WorkerSet;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -33,7 +34,7 @@ type Result<T> = error_stack::Result<T, Error>;
 pub struct WorkerSetConfirmation {
     pub tx_id: Hash,
     pub event_index: u32,
-    pub operators: Operators,
+    pub workerset: WorkerSet,
 }
 
 #[derive(Deserialize, Debug)]
@@ -275,7 +276,7 @@ mod tests {
             worker_set: WorkerSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
-                operators: Operators::new(
+                workerset: Operators::new(
                     vec![
                         (
                             HexBinary::from(EVMAddress::random().as_bytes()),

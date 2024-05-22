@@ -6,6 +6,7 @@ use axelar_wasm_std::{
 };
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
+use multisig::worker_set::WorkerSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, Poll, QueryMsg};
@@ -47,11 +48,11 @@ impl<'a> Client<'a> {
     pub fn verify_worker_set(
         &self,
         message_id: nonempty::String,
-        new_operators: Operators,
+        new_workerset: WorkerSet
     ) -> WasmMsg {
         self.client.execute(&ExecuteMsg::VerifyWorkerSet {
             message_id,
-            new_operators,
+            new_workerset,
         })
     }
 
@@ -77,9 +78,9 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn worker_set_status(&self, new_operators: Operators) -> Result<VerificationStatus> {
+    pub fn worker_set_status(&self, new_workerset: WorkerSet) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetWorkerSetStatus { new_operators })
+            .query(&QueryMsg::GetWorkerSetStatus { new_workerset })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 

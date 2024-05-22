@@ -10,6 +10,7 @@ use cosmwasm_std::{Addr, Attribute, Event};
 use axelar_wasm_std::nonempty;
 use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
+use multisig::worker_set::WorkerSet;
 use router_api::{Address, ChainName, Message};
 
 use crate::error::ContractError;
@@ -117,7 +118,7 @@ impl From<PollStarted> for Event {
 pub struct WorkerSetConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
-    pub operators: Operators,
+    pub workerset: WorkerSet
 }
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
@@ -144,14 +145,14 @@ impl WorkerSetConfirmation {
     pub fn new(
         message_id: nonempty::String,
         msg_id_format: MessageIdFormat,
-        operators: Operators,
+        workerset: WorkerSet
     ) -> Result<Self, ContractError> {
         let (tx_id, event_index) = parse_message_id(message_id, &msg_id_format)?;
 
         Ok(Self {
             tx_id,
             event_index,
-            operators,
+            workerset,
         })
     }
 }
@@ -343,7 +344,7 @@ mod test {
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.operators, operators);
+        assert_eq!(event.workerset, operators);
     }
 
     #[test]
@@ -366,7 +367,7 @@ mod test {
 
         assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.operators, operators);
+        assert_eq!(event.workerset, operators);
     }
 
     #[test]
