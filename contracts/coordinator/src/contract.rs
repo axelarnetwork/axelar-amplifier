@@ -1,7 +1,7 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 use cosmwasm_std::{entry_point, Empty};
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::error::ContractError;
 use crate::execute;
@@ -68,7 +68,8 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_binary(&query::get_active_worker_set(deps, chain_name)?).map_err(|err| err.into())
+            to_json_binary(&query::get_active_worker_set(deps, chain_name)?)
+                .map_err(|err| err.into())
         }
     }
 }

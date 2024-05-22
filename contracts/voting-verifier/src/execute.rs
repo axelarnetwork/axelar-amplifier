@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, Addr, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation,
+    to_json_binary, Addr, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
@@ -209,7 +209,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         .iter()
         .map(|address| WasmMsg::Execute {
             contract_addr: config.rewards_contract.to_string(),
-            msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+            msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                 chain_name: config.source_chain.clone(),
                 event_id: poll_id
                     .to_string()
@@ -243,7 +243,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     let workers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
-            msg: to_binary(&active_workers_query)?,
+            msg: to_json_binary(&active_workers_query)?,
         }))?;
 
     let participants = workers

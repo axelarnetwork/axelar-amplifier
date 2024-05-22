@@ -2,7 +2,7 @@
 
 use axelar_wasm_std::{hash::Hash, FnExt, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_slice, Addr, DepsMut, Response, Uint256};
+use cosmwasm_std::{from_json, Addr, DepsMut, Response, Uint256};
 use multisig::key::KeyType;
 use router_api::ChainName;
 
@@ -58,7 +58,7 @@ pub fn migrate_config(
         .storage
         .get(CONFIG.as_slice())
         .expect("config not found")
-        .then(|data| from_slice(&data))?;
+        .then(|data| from_json(&data))?;
 
     let new_config = old_config.migrate(domain_separator);
     CONFIG.save(deps.storage, &new_config)?;
@@ -70,7 +70,7 @@ pub fn migrate_config(
 mod test {
 
     use axelar_wasm_std::Threshold;
-    use cosmwasm_std::{testing::mock_dependencies, to_vec, Addr, Uint256};
+    use cosmwasm_std::{testing::mock_dependencies, to_json_vec, Addr, Uint256};
 
     use super::*;
 
@@ -96,7 +96,7 @@ mod test {
         };
         deps.as_mut()
             .storage
-            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
 
         let domain_separator = [1; 32];
         let response = migrate_config(deps.as_mut(), domain_separator).unwrap();

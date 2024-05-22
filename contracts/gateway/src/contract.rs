@@ -77,7 +77,7 @@ pub enum Error {
 
 mod internal {
     use client::Client;
-    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
     use gateway_api::msg::{ExecuteMsg, QueryMsg};
     use router_api::client::Router;
@@ -140,7 +140,7 @@ mod internal {
         match msg {
             QueryMsg::GetOutgoingMessages { message_ids } => {
                 let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
-                to_binary(&msgs).change_context(Error::SerializeResponse)
+                to_json_binary(&msgs).change_context(Error::SerializeResponse)
             }
         }
     }

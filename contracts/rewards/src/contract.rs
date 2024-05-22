@@ -2,7 +2,7 @@ use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
 };
 use error_stack::ResultExt;
 use itertools::Itertools;
@@ -153,7 +153,7 @@ pub fn query(
     match msg {
         QueryMsg::RewardsPool { pool_id } => {
             let pool = query::rewards_pool(deps.storage, pool_id, env.block.height)?;
-            to_binary(&pool)
+            to_json_binary(&pool)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::ContractError::from)
         }
