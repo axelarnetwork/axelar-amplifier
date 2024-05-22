@@ -114,7 +114,7 @@ where
                   let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
 
                   if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
-                    warn!(queue_size = queue.len(), queue_gas_cost = queue.gas_cost(), "exceeded batch gas limit");
+                    warn!(queue_size = queue.len(), queue_gas_cost = queue.gas_cost(), "exceeded batch gas limit. gas limit can be adjusted in ampd config");
                     broadcast_all(&mut queue, &mut broadcaster).await?;
                     interval.reset();
                   }
