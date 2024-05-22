@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Addr, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, WasmMsg};
 
 use crate::msg::ExecuteMsg;
 use crate::Message;
@@ -11,7 +11,7 @@ impl Router {
     fn execute(&self, msg: &ExecuteMsg) -> WasmMsg {
         WasmMsg::Execute {
             contract_addr: self.address.to_string(),
-            msg: to_binary(&msg).expect("msg should always be serializable"),
+            msg: to_json_binary(&msg).expect("msg should always be serializable"),
             funds: vec![],
         }
     }

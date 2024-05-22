@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
 
 use crate::{
@@ -115,8 +115,8 @@ pub fn query(
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
-        } => to_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps)?),
+        } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
+        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::ContractError::from)
@@ -138,10 +138,10 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint256,
-        Uint64,
+        to_json_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128,
+        Uint256, Uint64,
     };
 
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
@@ -253,7 +253,7 @@ mod tests {
     }
 
     fn reply_construct_proof(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
-        let session_id = to_binary(&MULTISIG_SESSION_ID).unwrap();
+        let session_id = to_json_binary(&MULTISIG_SESSION_ID).unwrap();
 
         let response = SubMsgResponse {
             events: vec![],
@@ -291,13 +291,13 @@ mod tests {
                 multisig_session_id,
             },
         )
-        .map(|res| from_binary(&res).unwrap())
+        .map(|res| from_json(res).unwrap())
     }
 
     fn query_get_worker_set(
         deps: Deps,
     ) -> Result<Option<WorkerSet>, axelar_wasm_std::ContractError> {
-        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_binary(&res).unwrap())
+        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_json(res).unwrap())
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         };
         deps.as_mut()
             .storage
-            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
 
         migrate(
             deps.as_mut(),

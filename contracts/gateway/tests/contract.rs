@@ -8,7 +8,7 @@ use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier}
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
 use itertools::Itertools;
 use router_api::{CrossChainId, Message};
@@ -147,7 +147,7 @@ fn successful_route_outgoing() {
         if msgs.is_empty() {
             assert_eq!(
                 query_response.unwrap(),
-                to_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
+                to_json_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
             )
         } else {
             assert!(query_response.is_err());
@@ -174,7 +174,7 @@ fn successful_route_outgoing() {
         // check all outgoing messages are stored because the router (sender) is implicitly trusted
         iter::repeat(query(deps.as_ref(), mock_env().clone(), query_msg).unwrap())
             .take(2)
-            .for_each(|response| assert_eq!(response, to_binary(&msgs).unwrap()));
+            .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
     let golden_file = "tests/test_route_outgoing.json";
@@ -424,8 +424,8 @@ fn update_query_handler<U: Serialize>(
 ) {
     let handler = move |msg: &WasmQuery| match msg {
         WasmQuery::Smart { msg, .. } => {
-            let result = handler(from_binary(msg).expect("should not fail to deserialize"))
-                .map(|response| to_binary(&response).expect("should not fail to serialize"));
+            let result = handler(from_json(msg).expect("should not fail to deserialize"))
+                .map(|response| to_json_binary(&response).expect("should not fail to serialize"));
 
             QuerierResult::Ok(ContractResult::from(result))
         }

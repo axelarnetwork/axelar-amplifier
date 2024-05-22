@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
+use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 
 use multisig::{multisig::Multisig, types::MultisigState, worker_set::WorkerSet};
 
@@ -22,7 +22,7 @@ pub fn get_proof(
 
     let multisig: Multisig = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.multisig.to_string(),
-        msg: to_binary(&query_msg)?,
+        msg: to_json_binary(&query_msg)?,
     }))?;
 
     let payload = PAYLOAD.load(deps.storage, &payload_id)?;

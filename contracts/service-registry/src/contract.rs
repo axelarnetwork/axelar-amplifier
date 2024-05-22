@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    Uint128,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    Response, Uint128,
 };
 
 use crate::error::ContractError;
@@ -12,6 +12,22 @@ use crate::state::{AuthorizationState, BondingState, Config, Service, Worker, CO
 mod execute;
 mod query;
 
+const CONTRACT_NAME: &str = "crates.io:service-registry";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    // any version checks should be done before here
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -19,6 +35,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     CONFIG.save(
         deps.storage,
         &Config {
@@ -132,14 +150,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetActiveWorkers {
             service_name,
             chain_name,
-        } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
+        } => to_json_binary(&query::get_active_workers(deps, service_name, chain_name)?)
             .map_err(|err| err.into()),
         QueryMsg::GetWorker {
             service_name,
             worker,
-        } => to_binary(&query::get_worker(deps, service_name, worker)?).map_err(|err| err.into()),
+        } => to_json_binary(&query::get_worker(deps, service_name, worker)?)
+            .map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
-            to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }
@@ -149,7 +168,7 @@ mod test {
     use std::str::FromStr;
 
     use cosmwasm_std::{
-        coins, from_binary,
+        coins, from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         CosmosMsg, Empty, OwnedDeps, StdResult,
     };
@@ -380,8 +399,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -407,8 +426,8 @@ mod test {
             }]
         );
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -495,8 +514,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -587,7 +606,7 @@ mod test {
         assert!(res.is_ok());
 
         for chain in chains {
-            let workers: Vec<WeightedWorker> = from_binary(
+            let workers: Vec<WeightedWorker> = from_json(
                 &query(
                     deps.as_ref(),
                     mock_env(),
@@ -683,8 +702,8 @@ mod test {
 
         // Verify that worker is not associated with the deregistered chain
         let deregistered_chain = chains[0].clone();
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -699,7 +718,7 @@ mod test {
 
         // Verify that worker is still associated with other chains
         for chain in chains.iter().skip(1) {
-            let workers: Vec<WeightedWorker> = from_binary(
+            let workers: Vec<WeightedWorker> = from_json(
                 &query(
                     deps.as_ref(),
                     mock_env(),
@@ -802,8 +821,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -914,8 +933,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1003,8 +1022,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1077,8 +1096,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1131,8 +1150,8 @@ mod test {
 
         assert_contract_err_strings_equal(err, ContractError::WorkerNotFound);
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1237,8 +1256,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1336,8 +1355,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1410,8 +1429,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1484,8 +1503,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1591,8 +1610,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let workers: Vec<WeightedWorker> = from_binary(
-            &query(
+        let workers: Vec<WeightedWorker> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1816,8 +1835,8 @@ mod test {
         }
 
         // all workers registered, should not return err now
-        let res: StdResult<Vec<WeightedWorker>> = from_binary(
-            &query(
+        let res: StdResult<Vec<WeightedWorker>> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1945,8 +1964,8 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        let worker: Worker = from_binary(
-            &query(
+        let worker: Worker = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorker {
