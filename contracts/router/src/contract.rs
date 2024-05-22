@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
@@ -127,9 +127,9 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
-        QueryMsg::GetChainInfo(chain) => to_binary(&query::get_chain_info(deps, chain)?),
+        QueryMsg::GetChainInfo(chain) => to_json_binary(&query::get_chain_info(deps, chain)?),
         QueryMsg::Chains { start_after, limit } => {
-            to_binary(&query::chains(deps, start_after, limit)?)
+            to_json_binary(&query::chains(deps, start_after, limit)?)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -240,7 +240,8 @@ mod test {
         assert_eq!(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr,
-                msg: to_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(messages,)).unwrap(),
+                msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(messages,))
+                    .unwrap(),
                 funds: vec![],
             }),
             cosmos_msg
