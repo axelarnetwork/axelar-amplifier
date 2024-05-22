@@ -15,8 +15,8 @@ use valuable::Valuable;
 use crate::broadcaster::Broadcaster;
 use crate::config::Config as AmpdConfig;
 use crate::state;
+use crate::tm_address::{PublicKey, TMAddress};
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
-use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, Error};
 use crate::{tofnd, PREFIX};
 

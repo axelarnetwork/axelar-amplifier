@@ -22,8 +22,8 @@ use event_processor::EventHandler;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
+use tm_address::TMAddress;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
-use types::TMAddress;
 
 use crate::config::Config;
 use crate::state::State;
@@ -43,9 +43,9 @@ mod json_rpc;
 mod queue;
 pub mod state;
 mod sui;
+mod tm_address;
 mod tm_client;
 mod tofnd;
-mod types;
 mod url;
 
 const PREFIX: &str = "axelar";

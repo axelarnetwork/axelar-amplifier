@@ -12,7 +12,7 @@ use report::ResultCompatExt;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 
-use crate::types::PublicKey;
+use crate::tm_address::PublicKey;
 
 const DUMMY_CHAIN_ID: &str = "dummy_chain_id";
 const DUMMY_ACC_NUMBER: u64 = 0;
@@ -113,7 +113,7 @@ mod tests {
     use k256::sha2::{Digest, Sha256};
     use tokio::test;
 
-    use crate::types::PublicKey;
+    use crate::tm_address::PublicKey;
 
     use super::{Error, Tx, DUMMY_CHAIN_ID};
 

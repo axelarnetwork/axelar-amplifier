@@ -17,7 +17,7 @@ mod tests {
     use events::Event;
     use tendermint::abci;
 
-    use crate::types::TMAddress;
+    use crate::tm_address::TMAddress;
 
     /// Convert a CosmWasm event into an ABCI event
     pub fn get_event(event: impl Into<cosmwasm_std::Event>, contract_address: &TMAddress) -> Event {

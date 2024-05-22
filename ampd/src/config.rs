@@ -57,7 +57,7 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
     use crate::handlers::config::Config as HandlerConfig;
-    use crate::types::TMAddress;
+    use crate::tm_address::TMAddress;
     use crate::url::Url;
 
     use super::Config;

@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{StreamExt, StreamMap};
 use tracing::info;
 
-use crate::types::PublicKey;
+use crate::tm_address::PublicKey;
 
 #[derive(Error, Debug)]
 pub enum Error {

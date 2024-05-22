@@ -4,7 +4,7 @@ use error_stack::{Result, ResultExt};
 use thiserror::Error;
 
 use crate::broadcaster::clients::AccountQueryClient;
-use crate::types::TMAddress;
+use crate::tm_address::TMAddress;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -66,8 +66,8 @@ mod tests {
     use crate::broadcaster::accounts::account;
     use crate::broadcaster::accounts::Error::*;
     use crate::broadcaster::clients::MockAccountQueryClient;
-    use crate::types::PublicKey;
-    use crate::types::TMAddress;
+    use crate::tm_address::PublicKey;
+    use crate::tm_address::TMAddress;
 
     #[test]
     async fn response_failed() {

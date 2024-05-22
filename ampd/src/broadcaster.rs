@@ -29,8 +29,8 @@ use dec_coin::DecCoin;
 use report::LoggableError;
 use tx::Tx;
 
+use crate::tm_address::{PublicKey, TMAddress};
 use crate::tofnd::grpc::SharableEcdsaClient;
-use crate::types::{PublicKey, TMAddress};
 
 pub mod accounts;
 pub mod clients;
@@ -310,8 +310,8 @@ mod tests {
 
     use crate::broadcaster::clients::{MockAccountQueryClient, MockBroadcastClient};
     use crate::broadcaster::{BroadcastClient, Broadcaster, Config, Error};
+    use crate::tm_address::{PublicKey, TMAddress};
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
-    use crate::types::{PublicKey, TMAddress};
     use crate::PREFIX;
 
     #[test]

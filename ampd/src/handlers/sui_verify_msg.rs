@@ -18,7 +18,7 @@ use voting_verifier::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::sui::{json_rpc::SuiClient, verifier::verify_message};
-use crate::types::{Hash, TMAddress};
+use crate::tm_address::{Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -165,7 +165,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::handlers::{errors::Error, tests::get_event};
     use crate::sui::json_rpc::MockSuiClient;
-    use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::tm_address::{EVMAddress, Hash, TMAddress};
 
     use super::PollStartedEvent;
 
