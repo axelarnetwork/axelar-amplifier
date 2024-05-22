@@ -36,7 +36,7 @@ impl KeyDeserialize for BatchId {
     type Output = BatchId;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        Ok(from_json(&value).expect("violated invariant: BatchID is not deserializable"))
+        Ok(from_json(value).expect("violated invariant: BatchID is not deserializable"))
     }
 }
 

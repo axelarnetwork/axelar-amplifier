@@ -50,7 +50,7 @@ pub fn migrate_config(
         .storage
         .get(CONFIG.as_slice())
         .expect("config not found")
-        .then(|data| from_json(&data))?;
+        .then(from_json)?;
 
     let new_config = old_config.migrate(source_gateway_address, msg_id_format);
     CONFIG.save(deps.storage, &new_config)?;

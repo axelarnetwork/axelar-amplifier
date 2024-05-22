@@ -400,7 +400,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -427,7 +427,7 @@ mod test {
         );
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -515,7 +515,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -703,7 +703,7 @@ mod test {
         // Verify that worker is not associated with the deregistered chain
         let deregistered_chain = chains[0].clone();
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -822,7 +822,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -934,7 +934,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1023,7 +1023,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1097,7 +1097,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1151,7 +1151,7 @@ mod test {
         assert_contract_err_strings_equal(err, ContractError::WorkerNotFound);
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1257,7 +1257,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1356,7 +1356,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1430,7 +1430,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1504,7 +1504,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1611,7 +1611,7 @@ mod test {
         assert!(res.is_ok());
 
         let workers: Vec<WeightedWorker> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1836,7 +1836,7 @@ mod test {
 
         // all workers registered, should not return err now
         let res: StdResult<Vec<WeightedWorker>> = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetActiveWorkers {
@@ -1965,7 +1965,7 @@ mod test {
         );
         assert!(res.is_ok());
         let worker: Worker = from_json(
-            &query(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorker {

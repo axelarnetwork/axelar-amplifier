@@ -16,7 +16,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
             let command_batch_id = REPLY_BATCH.load(deps.storage)?;
 
             let multisig_session_id: Uint64 =
-                from_json(&data).map_err(|_| ContractError::InvalidContractReply {
+                from_json(data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 

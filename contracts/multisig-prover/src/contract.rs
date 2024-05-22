@@ -291,11 +291,11 @@ mod tests {
                 multisig_session_id,
             },
         )
-        .map(|res| from_json(&res).unwrap())
+        .map(|res| from_json(res).unwrap())
     }
 
     fn query_get_worker_set(deps: Deps) -> Result<WorkerSet, axelar_wasm_std::ContractError> {
-        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_json(&res).unwrap())
+        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_json(res).unwrap())
     }
 
     #[test]

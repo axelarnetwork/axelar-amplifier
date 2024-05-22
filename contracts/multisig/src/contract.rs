@@ -369,11 +369,11 @@ mod tests {
 
         let res = query_worker_set(&worker_set_1.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_1, from_json(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_1, from_json(res.unwrap()).unwrap());
 
         let res = query_worker_set(&worker_set_2.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_2, from_json(&res.unwrap()).unwrap());
+        assert_eq!(worker_set_2, from_json(res.unwrap()).unwrap());
 
         for (key_type, _) in [
             (KeyType::Ecdsa, worker_set_1_id),

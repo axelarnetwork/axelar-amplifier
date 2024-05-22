@@ -58,7 +58,7 @@ pub fn migrate_config(
         .storage
         .get(CONFIG.as_slice())
         .expect("config not found")
-        .then(|data| from_json(&data))?;
+        .then(from_json)?;
 
     let new_config = old_config.migrate(domain_separator);
     CONFIG.save(deps.storage, &new_config)?;
