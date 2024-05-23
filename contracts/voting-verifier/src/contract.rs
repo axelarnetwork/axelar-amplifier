@@ -597,9 +597,15 @@ mod test {
         assert_eq!(
             res,
             vec![
-                MessageStatus::new(messages[0].clone(), VerificationStatus::SucceededOnChain),
-                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnChain),
-                MessageStatus::new(messages[2].clone(), VerificationStatus::NotFound),
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+                MessageStatus::new(
+                    messages[2].clone(),
+                    VerificationStatus::NotFoundOnSourceChain
+                ),
                 MessageStatus::new(messages[3].clone(), VerificationStatus::FailedToVerify)
             ]
         );
@@ -629,8 +635,11 @@ mod test {
         assert_eq!(
             res,
             vec![
-                MessageStatus::new(messages[0].clone(), VerificationStatus::SucceededOnChain),
-                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnChain),
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
                 MessageStatus::new(messages[2].clone(), VerificationStatus::InProgress),
                 MessageStatus::new(messages[3].clone(), VerificationStatus::InProgress)
             ]
@@ -656,7 +665,10 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(statuses, msgs_statuses(messages, VerificationStatus::None));
+        assert_eq!(
+            statuses,
+            msgs_statuses(messages, VerificationStatus::Unknown)
+        );
     }
 
     #[test]
@@ -745,9 +757,12 @@ mod test {
     #[test]
     fn should_query_status_according_to_vote() {
         let test_cases = [
-            (Vote::SucceededOnChain, VerificationStatus::SucceededOnChain),
-            (Vote::FailedOnChain, VerificationStatus::FailedOnChain),
-            (Vote::NotFound, VerificationStatus::NotFound),
+            (
+                Vote::SucceededOnChain,
+                VerificationStatus::SucceededOnSourceChain,
+            ),
+            (Vote::FailedOnChain, VerificationStatus::FailedOnSourceChain),
+            (Vote::NotFound, VerificationStatus::NotFoundOnSourceChain),
         ]
         .iter()
         .flat_map(|(v, s)| {
@@ -896,7 +911,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::SucceededOnChain);
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
     }
 
     #[test]
@@ -952,7 +967,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::NotFound);
+        assert_eq!(res, VerificationStatus::NotFoundOnSourceChain);
     }
 
     #[test]
@@ -1008,7 +1023,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::NotFound);
+        assert_eq!(res, VerificationStatus::NotFoundOnSourceChain);
 
         let res = execute(
             deps.as_mut(),
@@ -1055,7 +1070,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::SucceededOnChain);
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
     }
 
     #[test]
@@ -1227,7 +1242,7 @@ mod test {
             res,
             vec![MessageStatus::new(
                 messages[0].clone(),
-                VerificationStatus::SucceededOnChain
+                VerificationStatus::SucceededOnSourceChain
             )]
         );
     }

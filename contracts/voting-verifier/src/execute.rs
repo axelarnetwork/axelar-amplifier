@@ -115,12 +115,12 @@ pub fn verify_messages(
     let msgs_to_verify: Vec<Message> = messages
         .into_iter()
         .filter_map(|(status, message)| match status {
-            VerificationStatus::NotFound
+            VerificationStatus::NotFoundOnSourceChain
             | VerificationStatus::FailedToVerify
-            | VerificationStatus::None => Some(message),
+            | VerificationStatus::Unknown => Some(message),
             VerificationStatus::InProgress
-            | VerificationStatus::SucceededOnChain
-            | VerificationStatus::FailedOnChain => None,
+            | VerificationStatus::SucceededOnSourceChain
+            | VerificationStatus::FailedOnSourceChain => None,
         })
         .collect();
 
