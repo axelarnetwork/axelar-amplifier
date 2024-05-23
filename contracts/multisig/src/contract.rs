@@ -18,7 +18,7 @@ use crate::{
 mod execute;
 mod query;
 
-const CONTRACT_NAME: &str = "crates.io:multisig";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -350,6 +350,17 @@ mod tests {
         let session_counter = SIGNING_SESSION_COUNTER.load(deps.as_ref().storage).unwrap();
 
         assert_eq!(session_counter, Uint64::zero());
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "multisig");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
