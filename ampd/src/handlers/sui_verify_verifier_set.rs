@@ -173,7 +173,6 @@ mod tests {
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::event_processor::EventHandler;
-    use crate::handlers::sui_verify_verifier_set;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
     use crate::{handlers::tests::get_event, types::TMAddress};
@@ -251,7 +250,7 @@ mod tests {
             verifier_set: VerifierSetConfirmation {
                 tx_id: TransactionDigest::random().to_string().parse().unwrap(),
                 event_index: 0,
-                operators: Operators::new(
+                verifier_set: Operators::new(
                     vec![
                         (
                             HexBinary::from(SuiAddress::random_for_testing_only().to_vec()),

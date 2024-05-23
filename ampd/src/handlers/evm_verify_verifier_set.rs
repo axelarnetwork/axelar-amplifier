@@ -276,7 +276,7 @@ mod tests {
             verifier_set: VerifierSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
-                operators: Operators::new(
+                verifier_set: Operators::new(
                     vec![
                         (
                             HexBinary::from(EVMAddress::random().as_bytes()),
