@@ -13,7 +13,7 @@ use crate::{
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
-const CONTRACT_NAME: &str = "crates.io:multisig-prover";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]

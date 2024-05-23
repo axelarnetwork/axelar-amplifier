@@ -11,7 +11,7 @@ use crate::state::{Config, RouterStore, Store};
 mod execute;
 mod query;
 
-const CONTRACT_NAME: &str = "crates.io:router";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]

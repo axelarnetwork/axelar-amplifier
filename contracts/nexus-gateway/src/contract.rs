@@ -10,7 +10,7 @@ use crate::state::{Config, GatewayStore, Store};
 
 mod execute;
 
-const CONTRACT_NAME: &str = "crates.io:nexus-gateway";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
