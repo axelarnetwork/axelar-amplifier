@@ -162,6 +162,7 @@ pub fn query(
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
     use cw_multi_test::{App, ContractWrapper, Executor};
     use router_api::ChainName;
@@ -169,7 +170,18 @@ mod tests {
     use crate::msg::{ExecuteMsg, InstantiateMsg, Params, QueryMsg, RewardsPool};
     use crate::state::PoolId;
 
-    use super::{execute, instantiate, query};
+    use super::*;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "rewards");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
 
     /// Tests that the contract entry points (instantiate, query and execute) work as expected.
     /// Instantiates the contract and calls each of the 4 ExecuteMsg variants.

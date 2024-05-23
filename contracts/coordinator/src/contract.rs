@@ -178,6 +178,17 @@ mod tests {
     }
 
     #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "coordinator");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+
+    #[test]
     fn add_prover_from_governance_succeeds() {
         let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);

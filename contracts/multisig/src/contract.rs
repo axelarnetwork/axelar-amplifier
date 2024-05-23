@@ -353,6 +353,17 @@ mod tests {
     }
 
     #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "multisig");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
+    }
+
+    #[test]
     fn update_worker_set() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();

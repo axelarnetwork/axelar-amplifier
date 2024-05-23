@@ -285,7 +285,7 @@ mod test {
         .unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.contract, "voting-verifier");
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
