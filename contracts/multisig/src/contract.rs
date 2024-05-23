@@ -2,13 +2,11 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
-    StdError, StdResult, Uint64,
+    StdResult, Uint64,
 };
-use cw_utils::ensure_from_older_version;
 
 use crate::{
     events::Event,
-    migrations,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{
         get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
@@ -25,22 +23,11 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
-
-    let old_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    if old_version.minor < 2 {
-        return Err(StdError::generic_err(format!(
-            "invalid existing contract version {}. Must be 0.2.0 or greater",
-            old_version
-        ))
-        .into());
-    }
-    migrations::v_0_3::migrate_verifier_sets(deps)?;
-
+    // TODO migrate
     Ok(Response::default())
 }
 
