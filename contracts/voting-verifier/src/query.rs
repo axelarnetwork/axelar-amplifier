@@ -9,7 +9,7 @@ use router_api::Message;
 use crate::{error::ContractError, state::CONFIG};
 use crate::{
     msg::MessageStatus,
-    state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_WORKER_SETS},
+    state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_VERIFIER_SETS},
 };
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
@@ -35,11 +35,11 @@ pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatu
     Ok(verification_status(deps, loaded_poll_content, message))
 }
 
-pub fn worker_set_status(
+pub fn verifier_set_status(
     deps: Deps,
     operators: &Operators,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_WORKER_SETS.may_load(deps.storage, &operators.hash())?;
+    let loaded_poll_content = POLL_VERIFIER_SETS.may_load(deps.storage, &operators.hash())?;
 
     Ok(verification_status(deps, loaded_poll_content, operators))
 }
@@ -61,7 +61,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 .expect("invalid invariant: content's poll not found");
 
             let consensus = match &poll {
-                Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll
+                Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => poll
                     .consensus(stored.index_in_poll)
                     .expect("invalid invariant: message not found in poll"),
             };
@@ -80,7 +80,7 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
 
 fn is_finished(poll: &state::Poll) -> bool {
     match poll {
-        state::Poll::Messages(poll) | state::Poll::ConfirmWorkerSet(poll) => {
+        state::Poll::Messages(poll) | state::Poll::ConfirmVerifierSet(poll) => {
             poll.status == PollStatus::Finished
         }
     }

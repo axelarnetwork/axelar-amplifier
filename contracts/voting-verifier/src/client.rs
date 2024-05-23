@@ -49,7 +49,7 @@ impl<'a> Client<'a> {
         message_id: nonempty::String,
         new_operators: Operators,
     ) -> WasmMsg {
-        self.client.execute(&ExecuteMsg::VerifyWorkerSet {
+        self.client.execute(&ExecuteMsg::VerifyVerifierSet {
             message_id,
             new_operators,
         })
@@ -79,7 +79,7 @@ impl<'a> Client<'a> {
 
     pub fn worker_set_status(&self, new_operators: Operators) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetWorkerSetStatus { new_operators })
+            .query(&QueryMsg::GetVerifierSetStatus { new_operators })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 

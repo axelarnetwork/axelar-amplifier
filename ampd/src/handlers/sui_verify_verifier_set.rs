@@ -170,9 +170,10 @@ mod tests {
 
     use axelar_wasm_std::operators::Operators;
     use events::Event;
-    use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::event_processor::EventHandler;
+    use crate::handlers::sui_verify_verifier_set;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
     use crate::{handlers::tests::get_event, types::TMAddress};
@@ -232,7 +233,7 @@ mod tests {
         participants: Vec<TMAddress>,
         expires_at: u64,
     ) -> PollStarted {
-        PollStarted::WorkerSet {
+        PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "sui".parse().unwrap(),
@@ -247,7 +248,7 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            worker_set: WorkerSetConfirmation {
+            verifier_set: VerifierSetConfirmation {
                 tx_id: TransactionDigest::random().to_string().parse().unwrap(),
                 event_index: 0,
                 operators: Operators::new(

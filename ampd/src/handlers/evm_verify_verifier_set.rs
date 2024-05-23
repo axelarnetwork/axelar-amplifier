@@ -212,7 +212,7 @@ mod tests {
     use axelar_wasm_std::operators::Operators;
     use events::Event;
     use router_api::ChainName;
-    use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::{
         event_processor::EventHandler,
@@ -272,8 +272,8 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        PollStarted::WorkerSet {
-            worker_set: WorkerSetConfirmation {
+        PollStarted::VerifierSet {
+            verifier_set: VerifierSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
                 operators: Operators::new(

@@ -10,8 +10,8 @@ pub enum ContractError {
     #[error(transparent)]
     Overflow(#[from] OverflowError),
 
-    #[error("no active worker set found for {worker_set_id:?}")]
-    NoActiveWorkerSetFound { worker_set_id: String },
+    #[error("no active verifier set found for {verifier_set_id:?}")]
+    NoActiveVerifierSetFound { verifier_set_id: String },
 
     #[error("{signer:?} already submitted a signature for signing session {session_id:?}")]
     DuplicateSignature { session_id: Uint64, signer: String },
