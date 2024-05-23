@@ -8,14 +8,14 @@ use signature_verifier_api::client::SignatureVerifier;
 use crate::{
     key::{PublicKey, Signature},
     types::{MsgToSign, MultisigState},
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
     ContractError,
 };
 
 #[cw_serde]
 pub struct SigningSession {
     pub id: Uint64,
-    pub worker_set_id: String,
+    pub verifier_set_id: String,
     pub chain_name: ChainName,
     pub msg: MsgToSign,
     pub state: MultisigState,
@@ -26,7 +26,7 @@ pub struct SigningSession {
 impl SigningSession {
     pub fn new(
         session_id: Uint64,
-        worker_set_id: String,
+        verifier_set_id: String,
         chain_name: ChainName,
         msg: MsgToSign,
         expires_at: u64,
@@ -34,7 +34,7 @@ impl SigningSession {
     ) -> Self {
         Self {
             id: session_id,
-            worker_set_id,
+            verifier_set_id,
             chain_name,
             msg,
             state: MultisigState::Pending,
@@ -46,12 +46,12 @@ impl SigningSession {
     pub fn recalculate_session_state(
         &mut self,
         signatures: &HashMap<String, Signature>,
-        worker_set: &WorkerSet,
+        verifier_set: &VerifierSet,
         block_height: u64,
     ) {
-        let weight = signers_weight(signatures, worker_set);
+        let weight = signers_weight(signatures, verifier_set);
 
-        if self.state == MultisigState::Pending && weight >= worker_set.threshold {
+        if self.state == MultisigState::Pending && weight >= verifier_set.threshold {
             self.state = MultisigState::Completed {
                 completed_at: block_height,
             };
@@ -118,11 +118,11 @@ fn call_sig_verifier(
     }
 }
 
-fn signers_weight(signatures: &HashMap<String, Signature>, worker_set: &WorkerSet) -> Uint128 {
+fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &VerifierSet) -> Uint128 {
     signatures
         .keys()
         .map(|addr| -> Uint128 {
-            worker_set
+            verifier_set
                 .signers
                 .get(addr)
                 .expect("violated invariant: signature submitted by non-participant")
@@ -140,7 +140,7 @@ mod tests {
 
     use crate::{
         key::KeyType,
-        test::common::build_worker_set,
+        test::common::build_verifier_set,
         test::common::{ecdsa_test_data, ed25519_test_data},
     };
 
@@ -148,7 +148,7 @@ mod tests {
 
     pub struct TestConfig {
         pub store: MockStorage,
-        pub worker_set: WorkerSet,
+        pub verifier_set: VerifierSet,
         pub session: SigningSession,
         pub signatures: HashMap<String, Signature>,
         pub key_type: KeyType,
@@ -159,15 +159,15 @@ mod tests {
 
         let signers = ecdsa_test_data::signers();
 
-        let worker_set_id = "subkey".to_string();
+        let verifier_set_id = "subkey".to_string();
         let key_type = KeyType::Ecdsa;
-        let worker_set = build_worker_set(KeyType::Ecdsa, &signers);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &signers);
 
         let message: MsgToSign = ecdsa_test_data::message().try_into().unwrap();
         let expires_at = 12345;
         let session = SigningSession::new(
             Uint64::one(),
-            worker_set_id,
+            verifier_set_id,
             "mock-chain".parse().unwrap(),
             message.clone(),
             expires_at,
@@ -186,7 +186,7 @@ mod tests {
 
         TestConfig {
             store,
-            worker_set,
+            verifier_set,
             session,
             signatures,
             key_type,
@@ -198,15 +198,15 @@ mod tests {
 
         let signers = ed25519_test_data::signers();
 
-        let worker_set_id = "subkey".to_string();
+        let verifier_set_id = "subkey".to_string();
         let key_type = KeyType::Ed25519;
-        let worker_set = build_worker_set(key_type, &signers);
+        let verifier_set = build_verifier_set(key_type, &signers);
 
         let message: MsgToSign = ed25519_test_data::message().try_into().unwrap();
         let expires_at = 12345;
         let session = SigningSession::new(
             Uint64::one(),
-            worker_set_id,
+            verifier_set_id,
             "mock-chain".parse().unwrap(),
             message.clone(),
             expires_at,
@@ -225,7 +225,7 @@ mod tests {
 
         TestConfig {
             store,
-            worker_set,
+            verifier_set,
             session,
             signatures,
             key_type,
@@ -236,14 +236,14 @@ mod tests {
     fn correct_session_state() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let mut session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let signatures = config.signatures;
             let block_height = 12345;
 
-            session.recalculate_session_state(&HashMap::new(), &worker_set, block_height);
+            session.recalculate_session_state(&HashMap::new(), &verifier_set, block_height);
             assert_eq!(session.state, MultisigState::Pending);
 
-            session.recalculate_session_state(&signatures, &worker_set, block_height);
+            session.recalculate_session_state(&signatures, &verifier_set, block_height);
             assert_eq!(
                 session.state,
                 MultisigState::Completed {
@@ -257,10 +257,14 @@ mod tests {
     fn success_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+            let pub_key = &verifier_set
+                .signers
+                .get(&signer.to_string())
+                .unwrap()
+                .pub_key;
 
             assert!(
                 validate_session_signature(&session, &signer, signature, pub_key, 0, None).is_ok()
@@ -272,10 +276,14 @@ mod tests {
     fn validation_through_signature_verifier_contract() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
-            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+            let pub_key = &verifier_set
+                .signers
+                .get(&signer.to_string())
+                .unwrap()
+                .pub_key;
 
             for verification in [true, false] {
                 let mut querier = MockQuerier::default();
@@ -313,11 +321,15 @@ mod tests {
     fn success_validation_expiry_not_reached() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
             let block_height = 12340; // inclusive
-            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+            let pub_key = &verifier_set
+                .signers
+                .get(&signer.to_string())
+                .unwrap()
+                .pub_key;
 
             assert!(validate_session_signature(
                 &session,
@@ -335,11 +347,15 @@ mod tests {
     fn signing_session_closed_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
             let signature = config.signatures.values().next().unwrap();
             let block_height = 12346;
-            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+            let pub_key = &verifier_set
+                .signers
+                .get(&signer.to_string())
+                .unwrap()
+                .pub_key;
 
             let result = validate_session_signature(
                 &session,
@@ -363,9 +379,13 @@ mod tests {
     fn invalid_signature_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let signer = Addr::unchecked(config.signatures.keys().next().unwrap());
-            let pub_key = &worker_set.signers.get(&signer.to_string()).unwrap().pub_key;
+            let pub_key = &verifier_set
+                .signers
+                .get(&signer.to_string())
+                .unwrap()
+                .pub_key;
 
             let sig_bytes = match config.key_type {
                 KeyType::Ecdsa =>   "a58c9543b9df54578ec45838948e19afb1c6e4c86b34d9899b10b44e619ea74e19b457611e41a047030ed233af437d7ecff84de97cb6b3c13d73d22874e03511",
@@ -393,10 +413,10 @@ mod tests {
     fn signer_not_a_participant_validation() {
         for config in [ecdsa_setup(), ed25519_setup()] {
             let session = config.session;
-            let worker_set = config.worker_set;
+            let verifier_set = config.verifier_set;
             let invalid_participant = Addr::unchecked("not_a_participant".to_string());
 
-            let result = match worker_set.signers.get(&invalid_participant.to_string()) {
+            let result = match verifier_set.signers.get(&invalid_participant.to_string()) {
                 Some(signer) => Ok(&signer.pub_key),
                 None => Err(ContractError::NotAParticipant {
                     session_id: session.id,

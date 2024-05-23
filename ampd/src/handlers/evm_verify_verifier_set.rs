@@ -30,16 +30,16 @@ use crate::types::{EVMAddress, Hash, TMAddress};
 type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
-pub struct WorkerSetConfirmation {
+pub struct VerifierSetConfirmation {
     pub tx_id: Hash,
     pub event_index: u32,
     pub operators: Operators,
 }
 
 #[derive(Deserialize, Debug)]
-#[try_from("wasm-worker_set_poll_started")]
+#[try_from("wasm-verifier_set_poll_started")]
 struct PollStartedEvent {
-    worker_set: WorkerSetConfirmation,
+    verifier_set: VerifierSetConfirmation,
     poll_id: PollId,
     source_chain: router_api::ChainName,
     source_gateway_address: EVMAddress,
@@ -144,7 +144,7 @@ where
             expires_at,
             confirmation_height,
             participants,
-            worker_set,
+            verifier_set,
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
                 return Ok(vec![])
@@ -167,19 +167,20 @@ where
         }
 
         let tx_receipt = self
-            .finalized_tx_receipt(worker_set.tx_id, confirmation_height)
+            .finalized_tx_receipt(verifier_set.tx_id, confirmation_height)
             .await?;
         let vote = info_span!(
             "verify a new worker set for an EVM chain",
             poll_id = poll_id.to_string(),
             source_chain = source_chain.to_string(),
-            id = HexTxHashAndEventIndex::new(worker_set.tx_id, worker_set.event_index).to_string()
+            id = HexTxHashAndEventIndex::new(verifier_set.tx_id, verifier_set.event_index)
+                .to_string()
         )
         .in_scope(|| {
             info!("ready to verify a new worker set in poll");
 
             let vote = tx_receipt.map_or(Vote::NotFound, |tx_receipt| {
-                verify_worker_set(&source_gateway_address, &tx_receipt, &worker_set)
+                verify_worker_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
             info!(
                 vote = vote.as_value(),
@@ -211,12 +212,12 @@ mod tests {
     use axelar_wasm_std::operators::Operators;
     use events::Event;
     use router_api::ChainName;
-    use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::{
         event_processor::EventHandler,
         evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
-        handlers::evm_verify_worker_set::PollStartedEvent,
+        handlers::evm_verify_verifier_set::{self, PollStartedEvent},
         types::{EVMAddress, Hash, TMAddress},
         PREFIX,
     };
@@ -252,7 +253,7 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(
+        let handler = evm_verify_verifier_set::Handler::new(
             worker,
             voting_verifier,
             ChainName::from_str("ethereum").unwrap(),
@@ -271,8 +272,8 @@ mod tests {
     }
 
     fn poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        PollStarted::WorkerSet {
-            worker_set: WorkerSetConfirmation {
+        PollStarted::VerifierSet {
+            verifier_set: VerifierSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
                 operators: Operators::new(

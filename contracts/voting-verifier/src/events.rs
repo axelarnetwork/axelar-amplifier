@@ -55,8 +55,8 @@ pub enum PollStarted {
         messages: Vec<TxEventConfirmation>,
         metadata: PollMetadata,
     },
-    WorkerSet {
-        worker_set: WorkerSetConfirmation,
+    VerifierSet {
+        verifier_set: VerifierSetConfirmation,
         metadata: PollMetadata,
     },
 }
@@ -99,14 +99,14 @@ impl From<PollStarted> for Event {
                     serde_json::to_string(&data).expect("failed to serialize messages"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
-            PollStarted::WorkerSet {
-                worker_set: data,
+            PollStarted::VerifierSet {
+                verifier_set: data,
                 metadata,
-            } => Event::new("worker_set_poll_started")
+            } => Event::new("verifier_set_poll_started")
                 .add_attribute(
-                    "worker_set",
+                    "verifier_set",
                     serde_json::to_string(&data)
-                        .expect("failed to serialize worker set confirmation"),
+                        .expect("failed to serialize verifier set confirmation"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
         }
@@ -114,7 +114,7 @@ impl From<PollStarted> for Event {
 }
 
 #[cw_serde]
-pub struct WorkerSetConfirmation {
+pub struct VerifierSetConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
     pub operators: Operators,
@@ -140,7 +140,7 @@ fn parse_message_id(
     }
 }
 
-impl WorkerSetConfirmation {
+impl VerifierSetConfirmation {
     pub fn new(
         message_id: nonempty::String,
         msg_id_format: MessageIdFormat,
@@ -234,7 +234,7 @@ mod test {
     use cosmwasm_std::{HexBinary, Uint128};
     use router_api::{CrossChainId, Message};
 
-    use super::{TxEventConfirmation, WorkerSetConfirmation};
+    use super::{TxEventConfirmation, VerifierSetConfirmation};
 
     fn random_32_bytes() -> [u8; 32] {
         let mut bytes = [0; 32];
@@ -324,7 +324,7 @@ mod test {
     }
 
     #[test]
-    fn should_make_workerset_confirmation_with_hex_msg_id() {
+    fn should_make_verifier_set_confirmation_with_hex_msg_id() {
         let msg_id = HexTxHashAndEventIndex {
             tx_hash: random_32_bytes(),
             event_index: rand::random::<u32>(),
@@ -334,7 +334,7 @@ mod test {
             Uint128::one(),
             1,
         );
-        let event = WorkerSetConfirmation::new(
+        let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::HexTxHashAndEventIndex,
             operators.clone(),
@@ -347,7 +347,7 @@ mod test {
     }
 
     #[test]
-    fn should_make_workerset_confirmation_with_base58_msg_id() {
+    fn should_make_verifier_set_confirmation_with_base58_msg_id() {
         let msg_id = Base58TxDigestAndEventIndex {
             tx_digest: random_32_bytes(),
             event_index: rand::random::<u32>(),
@@ -357,7 +357,7 @@ mod test {
             Uint128::one(),
             1,
         );
-        let event = WorkerSetConfirmation::new(
+        let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             operators.clone(),
@@ -370,14 +370,14 @@ mod test {
     }
 
     #[test]
-    fn make_workerset_confirmation_should_fail_with_invalid_message_id() {
+    fn make_verifier_set_confirmation_should_fail_with_invalid_message_id() {
         let msg_id = "foobar";
         let operators = Operators::new(
             vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
             Uint128::one(),
             1,
         );
-        let event = WorkerSetConfirmation::new(
+        let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             operators.clone(),
@@ -386,7 +386,7 @@ mod test {
     }
 
     #[test]
-    fn make_workerset_confirmation_should_fail_with_different_msg_id_format() {
+    fn make_verifier_set_confirmation_should_fail_with_different_msg_id_format() {
         let msg_id = HexTxHashAndEventIndex {
             tx_hash: random_32_bytes(),
             event_index: rand::random::<u32>(),
@@ -396,7 +396,7 @@ mod test {
             Uint128::one(),
             1,
         );
-        let event = WorkerSetConfirmation::new(
+        let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
             operators.clone(),

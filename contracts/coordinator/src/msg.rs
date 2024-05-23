@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
-use multisig::worker_set::WorkerSet;
+use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 
 #[cw_serde]
@@ -16,13 +16,13 @@ pub enum ExecuteMsg {
         new_prover_addr: Addr,
     },
     SetActiveVerifiers {
-        next_worker_set: WorkerSet,
+        next_verifier_set: VerifierSet,
     },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(WorkerSet)]
+    #[returns(VerifierSet)]
     GetActiveVerifiers { chain_name: ChainName },
 }

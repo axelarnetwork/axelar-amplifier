@@ -6,7 +6,7 @@ use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
 use crate::handlers::sui_verify_msg::Message;
-use crate::handlers::sui_verify_worker_set::WorkerSetConfirmation;
+use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use crate::types::Hash;
 
 #[derive(Deserialize)]
@@ -60,8 +60,8 @@ impl PartialEq<&Message> for &SuiEvent {
     }
 }
 
-impl PartialEq<&WorkerSetConfirmation> for &SuiEvent {
-    fn eq(&self, worker_set: &&WorkerSetConfirmation) -> bool {
+impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
+    fn eq(&self, worker_set: &&VerifierSetConfirmation) -> bool {
         match serde_json::from_value::<OperatorshipTransferred>(self.parsed_json.clone()) {
             Ok(event) => {
                 let (operators, weights): (Vec<_>, Vec<_>) = worker_set
@@ -114,7 +114,7 @@ pub fn verify_message(
 pub fn verify_worker_set(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,
-    worker_set: &WorkerSetConfirmation,
+    worker_set: &VerifierSetConfirmation,
 ) -> Vote {
     match find_event(transaction_block, worker_set.event_index as u64) {
         Some(event)
@@ -145,7 +145,7 @@ mod tests {
 
     use crate::handlers::{
         sui_verify_msg::Message,
-        sui_verify_worker_set::{Operators, WorkerSetConfirmation},
+        sui_verify_verifier_set::{Operators, VerifierSetConfirmation},
     };
     use crate::sui::verifier::{verify_message, verify_worker_set};
     use crate::types::{EVMAddress, Hash};
@@ -288,11 +288,11 @@ mod tests {
     fn get_matching_worker_set_and_tx_block() -> (
         SuiAddress,
         SuiTransactionBlockResponse,
-        WorkerSetConfirmation,
+        VerifierSetConfirmation,
     ) {
         let gateway_address = SuiAddress::random_for_testing_only();
 
-        let worker_set_confirmation = WorkerSetConfirmation {
+        let worker_set_confirmation = VerifierSetConfirmation {
             tx_id: TransactionDigest::random(),
             event_index: rand::random::<u32>(),
             operators: Operators {
