@@ -4,19 +4,20 @@ import "google/protobuf/any.proto";
 
 package ampd;
 
-message SubscribeRequest {
-  string event_type = 1;
-  map<string, string> event_attributes = 2;
-  bool include_block_begin_end = 3;
+message EventFilter {
+  repeated Event filters = 1;
+  bool include_block_begin_end = 2;
 }
+
+message SubscribeRequest { EventFilter event_filter = 1; }
 
 message EventBlockBegin { uint64 height = 1; }
 
 message EventBlockEnd { uint64 height = 1; }
 
 message Event {
-  string type = 1;
-  map<string, string> attributes = 2;
+  string event_type = 1;
+  map<string, string> event_attributes = 2;
 }
 
 message SubscribeResponse {
