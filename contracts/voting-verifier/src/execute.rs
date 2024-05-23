@@ -12,7 +12,7 @@ use axelar_wasm_std::{
 };
 
 use router_api::{ChainName, Message};
-use service_registry::{msg::QueryMsg, state::WeightedWorker};
+use service_registry::{msg::QueryMsg, state::WeightedVerifier};
 
 use crate::events::{
     PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
@@ -235,12 +235,12 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
     // todo: add chain param to query after service registry updated
     // query service registry for active workers
-    let active_workers_query = QueryMsg::GetActiveWorkers {
+    let active_workers_query = QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.to_string(),
         chain_name: chain.clone(),
     };
 
-    let workers: Vec<WeightedWorker> =
+    let workers: Vec<WeightedVerifier> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
             msg: to_json_binary(&active_workers_query)?,
@@ -248,7 +248,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
 
     let participants = workers
         .into_iter()
-        .map(service_registry::state::WeightedWorker::into)
+        .map(WeightedVerifier::into)
         .collect::<Vec<snapshot::Participant>>();
 
     Ok(snapshot::Snapshot::new(

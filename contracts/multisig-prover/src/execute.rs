@@ -10,7 +10,7 @@ use multisig::{key::PublicKey, msg::Signer, worker_set::WorkerSet};
 
 use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::WeightedWorker;
+use service_registry::state::WeightedVerifier;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
@@ -111,12 +111,12 @@ fn get_messages(
 }
 
 fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, ContractError> {
-    let active_workers_query = service_registry::msg::QueryMsg::GetActiveWorkers {
+    let active_workers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
     };
 
-    let workers: Vec<WeightedWorker> =
+    let workers: Vec<WeightedVerifier> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry.to_string(),
             msg: to_json_binary(&active_workers_query)?,
@@ -125,7 +125,7 @@ fn get_workers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Cont
     let participants = workers
         .clone()
         .into_iter()
-        .map(service_registry::state::WeightedWorker::into)
+        .map(WeightedVerifier::into)
         .collect::<Vec<snapshot::Participant>>();
 
     let snapshot =

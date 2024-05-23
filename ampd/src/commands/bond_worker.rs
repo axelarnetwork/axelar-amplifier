@@ -25,7 +25,7 @@ pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option
 
     let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
 
-    let msg = serde_json::to_vec(&ExecuteMsg::BondWorker {
+    let msg = serde_json::to_vec(&ExecuteMsg::BondVerifier {
         service_name: args.service_name.into(),
     })
     .expect("bond worker msg should serialize");
