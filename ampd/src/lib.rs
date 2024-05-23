@@ -21,6 +21,7 @@ use broadcaster::Broadcaster;
 use event_processor::EventHandler;
 use event_sub::EventSub;
 use events::Event;
+use multiversx_sdk::blockchain::CommunicationProxy;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
 use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
@@ -42,6 +43,7 @@ mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
+mod mvx;
 mod queue;
 pub mod state;
 mod sui;
@@ -333,6 +335,32 @@ where
                                 .change_context(Error::Connection)?,
                         ),
                         self.block_height_monitor.latest_block_height(),
+                    ),
+                    stream_timeout,
+                ),
+                handlers::config::Config::MvxMsgVerifier {
+                    cosmwasm_contract,
+                    proxy_url,
+                } => self.create_handler_task(
+                    "mvx-msg-verifier",
+                    handlers::mvx_verify_msg::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        CommunicationProxy::new(proxy_url.to_string()),
+                        self.broadcaster.client(),
+                    ),
+                    stream_timeout,
+                ),
+                handlers::config::Config::MvxWorkerSetVerifier {
+                    cosmwasm_contract,
+                    proxy_url,
+                } => self.create_handler_task(
+                    "mvx-worker-set-verifier",
+                    handlers::mvx_verify_worker_set::Handler::new(
+                        worker.clone(),
+                        cosmwasm_contract,
+                        CommunicationProxy::new(proxy_url.to_string()),
+                        self.broadcaster.client(),
                     ),
                     stream_timeout,
                 ),

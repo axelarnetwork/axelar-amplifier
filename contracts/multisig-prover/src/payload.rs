@@ -46,6 +46,7 @@ impl Payload {
         match encoder {
             Encoder::Abi => abi::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
             Encoder::Bcs => todo!(),
+            Encoder::Mvx => todo!(),
         }
     }
 
@@ -70,6 +71,7 @@ impl Payload {
                 abi::execute_data::encode(verifier_set, signers_with_sigs, &payload_hash, payload)
             }
             Encoder::Bcs => todo!(),
+            Encoder::Mvx => todo!(),
         }
     }
 }
