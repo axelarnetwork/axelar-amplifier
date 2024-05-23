@@ -486,7 +486,7 @@ mod tests {
                 msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
-                    worker_address: signer.address.clone().into(),
+                    verifier_address: signer.address.clone().into(),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -614,7 +614,7 @@ mod tests {
                 msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
-                    worker_address: signer.address.clone().into(),
+                    verifier_address: signer.address.clone().into(),
                 })
                 .unwrap(),
                 funds: vec![],
