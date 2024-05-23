@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, StdError, WasmMsg, WasmQuery};
+use cosmwasm_std::{
+    to_json_binary, Addr, QuerierWrapper, QueryRequest, StdError, WasmMsg, WasmQuery,
+};
 use error_stack::{Report, Result};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -38,7 +40,7 @@ where
     pub fn execute(&self, msg: &M) -> WasmMsg {
         WasmMsg::Execute {
             contract_addr: self.address.to_string(),
-            msg: to_binary(msg).expect("msg should always be serializable"),
+            msg: to_json_binary(msg).expect("msg should always be serializable"),
             funds: vec![],
         }
     }
@@ -50,7 +52,7 @@ where
         self.querier
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.address.to_string(),
-                msg: to_binary(msg).expect("msg should always be serializable"),
+                msg: to_json_binary(msg).expect("msg should always be serializable"),
             }))
             .map_err(Into::into)
             .map_err(Report::new)

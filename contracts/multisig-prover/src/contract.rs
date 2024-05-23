@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
 use error_stack::ResultExt;
 
 use crate::{
@@ -115,8 +115,8 @@ pub fn query(
     match msg {
         QueryMsg::GetProof {
             multisig_session_id,
-        } => to_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetWorkerSet {} => to_binary(&query::get_worker_set(deps)?),
+        } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
+        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::ContractError::from)
@@ -138,10 +138,10 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint256,
-        Uint64,
+        to_json_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128,
+        Uint256, Uint64,
     };
 
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
@@ -172,7 +172,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             test_data::operators(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         instantiate(
@@ -253,7 +253,7 @@ mod tests {
     }
 
     fn reply_construct_proof(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
-        let session_id = to_binary(&MULTISIG_SESSION_ID).unwrap();
+        let session_id = to_json_binary(&MULTISIG_SESSION_ID).unwrap();
 
         let response = SubMsgResponse {
             events: vec![],
@@ -291,11 +291,13 @@ mod tests {
                 multisig_session_id,
             },
         )
-        .map(|res| from_binary(&res).unwrap())
+        .map(|res| from_json(res).unwrap())
     }
 
-    fn query_get_worker_set(deps: Deps) -> Result<WorkerSet, axelar_wasm_std::ContractError> {
-        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_binary(&res).unwrap())
+    fn query_get_worker_set(
+        deps: Deps,
+    ) -> Result<Option<WorkerSet>, axelar_wasm_std::ContractError> {
+        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_json(res).unwrap())
     }
 
     #[test]
@@ -382,7 +384,7 @@ mod tests {
         };
         deps.as_mut()
             .storage
-            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
 
         migrate(
             deps.as_mut(),
@@ -400,9 +402,9 @@ mod tests {
 
     #[allow(clippy::arithmetic_side_effects)]
     fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
-        let total_weight: Uint256 = operators
+        let total_weight: Uint128 = operators
             .iter()
-            .fold(Uint256::zero(), |acc, x| acc + x.weight);
+            .fold(Uint128::zero(), |acc, x| acc + x.weight);
         let quorum = total_weight.mul_ceil(test_data::threshold());
         WorkerSet {
             signers: operators
@@ -427,7 +429,8 @@ mod tests {
     fn test_update_worker_set_fresh() {
         let mut deps = setup_test_case();
         let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_err());
+        assert!(worker_set.is_ok());
+        assert!(worker_set.unwrap().is_none());
         let res = execute_update_worker_set(deps.as_mut());
 
         assert!(res.is_ok());
@@ -435,7 +438,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
@@ -495,7 +498,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             new_worker_set,
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         let res = execute_update_worker_set(deps.as_mut());
@@ -505,7 +508,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
@@ -522,7 +525,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             new_worker_set.clone(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         let res = execute_update_worker_set(deps.as_mut());
@@ -530,7 +533,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             test_data::operators(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         let res = execute_update_worker_set(deps.as_mut());
@@ -539,7 +542,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(new_worker_set, mock_env().block.height);
@@ -564,7 +567,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             new_worker_set,
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
         let res = execute_update_worker_set(deps.as_mut());
 
@@ -573,7 +576,7 @@ mod tests {
         let worker_set = query_get_worker_set(deps.as_ref());
         assert!(worker_set.is_ok());
 
-        let worker_set = worker_set.unwrap();
+        let worker_set = worker_set.unwrap().unwrap();
 
         let expected_worker_set =
             test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
@@ -608,7 +611,7 @@ mod tests {
         new_worker_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
             new_worker_set,
-            VerificationStatus::None,
+            VerificationStatus::Unknown,
         ));
         let res = execute_update_worker_set(deps.as_mut());
 
@@ -633,14 +636,14 @@ mod tests {
         new_worker_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
             new_worker_set.clone(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
         execute_update_worker_set(deps.as_mut()).unwrap();
 
         new_worker_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
             new_worker_set,
-            VerificationStatus::None,
+            VerificationStatus::Unknown,
         ));
 
         let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
@@ -732,24 +735,24 @@ mod tests {
 
     /// Calls update_signing_threshold, increasing the threshold by one.
     /// Returns (initial threshold, new threshold)
-    fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint256, Uint256) {
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+    fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint128, Uint128) {
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         let initial_threshold = worker_set.threshold;
         let total_weight = worker_set
             .signers
             .iter()
-            .fold(Uint256::zero(), |acc, signer| {
+            .fold(Uint128::zero(), |acc, signer| {
                 acc.checked_add(signer.1.weight).unwrap()
             });
-        let new_threshold = initial_threshold.checked_add(Uint256::one()).unwrap();
+        let new_threshold = initial_threshold.checked_add(Uint128::one()).unwrap();
 
         let governance = Addr::unchecked(GOVERNANCE);
         execute_update_signing_threshold(
             deps,
             governance.clone(),
             Threshold::try_from((
-                Uint64::try_from(Uint128::try_from(new_threshold).unwrap()).unwrap(),
-                Uint64::try_from(Uint128::try_from(total_weight).unwrap()).unwrap(),
+                Uint64::try_from(new_threshold).unwrap(),
+                Uint64::try_from(total_weight).unwrap(),
             ))
             .unwrap()
             .try_into()
@@ -768,7 +771,7 @@ mod tests {
             update_signing_threshold_increase_by_one(deps.as_mut());
         assert_ne!(initial_threshold, new_threshold);
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         assert_eq!(worker_set.threshold, initial_threshold);
     }
 
@@ -786,7 +789,7 @@ mod tests {
         let governance = Addr::unchecked(GOVERNANCE);
         confirm_worker_set(deps.as_mut(), governance).unwrap();
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         assert_eq!(worker_set.threshold, new_threshold);
     }
 
@@ -804,7 +807,7 @@ mod tests {
         let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap();
+        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
         assert_eq!(worker_set.threshold, new_threshold);
     }
 

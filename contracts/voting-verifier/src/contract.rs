@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
 };
 
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -71,12 +71,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
 
         QueryMsg::GetMessagesStatus { messages } => {
-            to_binary(&query::messages_status(deps, &messages)?)
+            to_json_binary(&query::messages_status(deps, &messages)?)
         }
         QueryMsg::GetWorkerSetStatus { new_operators } => {
-            to_binary(&query::worker_set_status(deps, &new_operators)?)
+            to_json_binary(&query::worker_set_status(deps, &new_operators)?)
         }
-        QueryMsg::GetCurrentThreshold => to_binary(&query::voting_threshold(deps)?),
+        QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
 }
 
@@ -97,9 +97,9 @@ pub fn migrate(
 mod test {
 
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_vec, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
+        to_json_vec, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
 
     use axelar_wasm_std::{
@@ -185,7 +185,7 @@ mod test {
 
         deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
-                Ok(to_binary(
+                Ok(to_json_binary(
                     &workers
                         .clone()
                         .into_iter()
@@ -272,7 +272,7 @@ mod test {
         };
         deps.as_mut()
             .storage
-            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
 
         migrate(
             deps.as_mut(),
@@ -468,8 +468,8 @@ mod test {
         .unwrap();
 
         // confirm it was not verified
-        let status: Vec<MessageStatus> = from_binary(
-            &query(
+        let status: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -583,8 +583,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: Vec<MessageStatus> = from_binary(
-            &query(
+        let res: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -597,9 +597,15 @@ mod test {
         assert_eq!(
             res,
             vec![
-                MessageStatus::new(messages[0].clone(), VerificationStatus::SucceededOnChain),
-                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnChain),
-                MessageStatus::new(messages[2].clone(), VerificationStatus::NotFound),
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+                MessageStatus::new(
+                    messages[2].clone(),
+                    VerificationStatus::NotFoundOnSourceChain
+                ),
                 MessageStatus::new(messages[3].clone(), VerificationStatus::FailedToVerify)
             ]
         );
@@ -615,8 +621,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: Vec<MessageStatus> = from_binary(
-            &query(
+        let res: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -629,8 +635,11 @@ mod test {
         assert_eq!(
             res,
             vec![
-                MessageStatus::new(messages[0].clone(), VerificationStatus::SucceededOnChain),
-                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnChain),
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
                 MessageStatus::new(messages[2].clone(), VerificationStatus::InProgress),
                 MessageStatus::new(messages[3].clone(), VerificationStatus::InProgress)
             ]
@@ -645,8 +654,8 @@ mod test {
 
         let messages = messages(10, &msg_id_format);
 
-        let statuses: Vec<MessageStatus> = from_binary(
-            &query(
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -656,7 +665,10 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(statuses, msgs_statuses(messages, VerificationStatus::None));
+        assert_eq!(
+            statuses,
+            msgs_statuses(messages, VerificationStatus::Unknown)
+        );
     }
 
     #[test]
@@ -678,8 +690,8 @@ mod test {
         )
         .unwrap();
 
-        let statuses: Vec<MessageStatus> = from_binary(
-            &query(
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -725,8 +737,8 @@ mod test {
         )
         .unwrap();
 
-        let statuses: Vec<MessageStatus> = from_binary(
-            &query(
+        let statuses: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -745,9 +757,12 @@ mod test {
     #[test]
     fn should_query_status_according_to_vote() {
         let test_cases = [
-            (Vote::SucceededOnChain, VerificationStatus::SucceededOnChain),
-            (Vote::FailedOnChain, VerificationStatus::FailedOnChain),
-            (Vote::NotFound, VerificationStatus::NotFound),
+            (
+                Vote::SucceededOnChain,
+                VerificationStatus::SucceededOnSourceChain,
+            ),
+            (Vote::FailedOnChain, VerificationStatus::FailedOnSourceChain),
+            (Vote::NotFound, VerificationStatus::NotFoundOnSourceChain),
         ]
         .iter()
         .flat_map(|(v, s)| {
@@ -802,7 +817,7 @@ mod test {
             .unwrap();
 
             // check status corresponds to votes
-            let statuses: Vec<MessageStatus> = from_binary(
+            let statuses: Vec<MessageStatus> = from_json(
                 &query(
                     deps.as_ref(),
                     mock_env(),
@@ -832,8 +847,8 @@ mod test {
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -885,8 +900,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -896,7 +911,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::SucceededOnChain);
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
     }
 
     #[test]
@@ -941,8 +956,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -952,7 +967,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::NotFound);
+        assert_eq!(res, VerificationStatus::NotFoundOnSourceChain);
     }
 
     #[test]
@@ -997,8 +1012,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -1008,7 +1023,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::NotFound);
+        assert_eq!(res, VerificationStatus::NotFoundOnSourceChain);
 
         let res = execute(
             deps.as_mut(),
@@ -1044,8 +1059,8 @@ mod test {
         );
         assert!(res.is_ok());
 
-        let res: VerificationStatus = from_binary(
-            &query(
+        let res: VerificationStatus = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetWorkerSetStatus {
@@ -1055,7 +1070,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::SucceededOnChain);
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
     }
 
     #[test]
@@ -1139,7 +1154,7 @@ mod test {
 
         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCurrentThreshold).unwrap();
 
-        let threshold: MajorityThreshold = from_binary(&res).unwrap();
+        let threshold: MajorityThreshold = from_json(res).unwrap();
         assert_eq!(threshold, new_voting_threshold);
     }
 
@@ -1212,8 +1227,8 @@ mod test {
         )
         .unwrap();
 
-        let res: Vec<MessageStatus> = from_binary(
-            &query(
+        let res: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {
@@ -1227,7 +1242,7 @@ mod test {
             res,
             vec![MessageStatus::new(
                 messages[0].clone(),
-                VerificationStatus::SucceededOnChain
+                VerificationStatus::SucceededOnSourceChain
             )]
         );
     }
@@ -1303,8 +1318,8 @@ mod test {
         )
         .unwrap();
 
-        let res: Vec<MessageStatus> = from_binary(
-            &query(
+        let res: Vec<MessageStatus> = from_json(
+            query(
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetMessagesStatus {

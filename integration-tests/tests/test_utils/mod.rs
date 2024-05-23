@@ -5,7 +5,7 @@ use axelar_wasm_std::{
     Participant, Threshold,
 };
 use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint256, Uint64,
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
@@ -619,11 +619,11 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
         .iter()
         .map(|worker| Participant {
             address: worker.addr.clone(),
-            weight: Uint256::one().try_into().unwrap(),
+            weight: Uint128::one().try_into().unwrap(),
         })
         .collect();
 
-    let total_weight = Uint256::from_u128(participants.len() as u128);
+    let total_weight = Uint128::from(participants.len() as u128);
 
     let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
 

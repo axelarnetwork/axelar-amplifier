@@ -67,14 +67,14 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
             };
 
             match consensus {
-                Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnChain,
-                Some(Vote::FailedOnChain) => VerificationStatus::FailedOnChain,
-                Some(Vote::NotFound) => VerificationStatus::NotFound,
+                Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnSourceChain,
+                Some(Vote::FailedOnChain) => VerificationStatus::FailedOnSourceChain,
+                Some(Vote::NotFound) => VerificationStatus::NotFoundOnSourceChain,
                 None if is_finished(&poll) => VerificationStatus::FailedToVerify,
                 None => VerificationStatus::InProgress,
             }
         }
-        None => VerificationStatus::None,
+        None => VerificationStatus::Unknown,
     }
 }
 
@@ -94,7 +94,7 @@ mod tests {
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint256, Uint64};
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
     use router_api::CrossChainId;
 
     use crate::state::PollContent;
@@ -140,7 +140,7 @@ mod tests {
 
         let mut poll = poll();
         poll.tallies[idx] = Tallies::default();
-        poll.tallies[idx].tally(&Vote::SucceededOnChain, &Uint256::from(5u64));
+        poll.tallies[idx].tally(&Vote::SucceededOnChain, &Uint128::from(5u64));
 
         POLLS
             .save(
@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(
             vec![MessageStatus::new(
                 msg.clone(),
-                VerificationStatus::SucceededOnChain
+                VerificationStatus::SucceededOnSourceChain
             )],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
@@ -208,7 +208,7 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            vec![MessageStatus::new(msg.clone(), VerificationStatus::None)],
+            vec![MessageStatus::new(msg.clone(), VerificationStatus::Unknown)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
@@ -237,7 +237,7 @@ mod tests {
             .into_iter()
             .map(|participant| Participant {
                 address: Addr::unchecked(participant),
-                weight: nonempty::Uint256::try_from(Uint256::one()).unwrap(),
+                weight: nonempty::Uint128::try_from(Uint128::one()).unwrap(),
             })
             .collect::<Vec<Participant>>()
             .try_into()

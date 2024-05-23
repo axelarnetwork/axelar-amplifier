@@ -1,5 +1,5 @@
 use axelar_wasm_std::Participant;
-use cosmwasm_std::{Addr, HexBinary, Uint256};
+use cosmwasm_std::{Addr, HexBinary, Uint128};
 
 use crate::{
     key::{KeyType, PublicKey},
@@ -130,15 +130,15 @@ pub mod ed25519_test_data {
 
 #[allow(clippy::arithmetic_side_effects)]
 pub fn build_worker_set(key_type: KeyType, signers: &[TestSigner]) -> WorkerSet {
-    let mut total_weight = Uint256::zero();
+    let mut total_weight = Uint128::zero();
     let participants = signers
         .iter()
         .map(|signer| {
-            total_weight += Uint256::one();
+            total_weight += Uint128::one();
             (
                 Participant {
                     address: signer.address.clone(),
-                    weight: Uint256::one().try_into().unwrap(),
+                    weight: Uint128::one().try_into().unwrap(),
                 },
                 PublicKey::try_from((key_type, signer.pub_key.clone())).unwrap(),
             )

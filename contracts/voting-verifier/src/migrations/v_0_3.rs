@@ -2,7 +2,7 @@
 
 use axelar_wasm_std::{msg_id::MessageIdFormat, nonempty, FnExt, MajorityThreshold};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_slice, Addr, DepsMut, Response};
+use cosmwasm_std::{from_json, Addr, DepsMut, Response};
 use router_api::ChainName;
 
 use crate::state::{Config, CONFIG};
@@ -50,7 +50,7 @@ pub fn migrate_config(
         .storage
         .get(CONFIG.as_slice())
         .expect("config not found")
-        .then(|data| from_slice(&data))?;
+        .then(from_json)?;
 
     let new_config = old_config.migrate(source_gateway_address, msg_id_format);
     CONFIG.save(deps.storage, &new_config)?;
@@ -62,7 +62,7 @@ pub fn migrate_config(
 mod test {
 
     use axelar_wasm_std::{msg_id::MessageIdFormat, Threshold};
-    use cosmwasm_std::{testing::mock_dependencies, to_vec, Addr};
+    use cosmwasm_std::{testing::mock_dependencies, to_json_vec, Addr};
 
     use super::*;
 
@@ -83,7 +83,7 @@ mod test {
         };
         deps.as_mut()
             .storage
-            .set(CONFIG.as_slice(), &to_vec(&initial_config).unwrap());
+            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
 
         let new_source_gateway_address: nonempty::String =
             "new_source_gateway_address".parse().unwrap();

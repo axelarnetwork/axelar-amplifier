@@ -231,7 +231,7 @@ mod test {
         nonempty,
         operators::Operators,
     };
-    use cosmwasm_std::{HexBinary, Uint256};
+    use cosmwasm_std::{HexBinary, Uint128};
     use router_api::{CrossChainId, Message};
 
     use super::{TxEventConfirmation, WorkerSetConfirmation};
@@ -330,8 +330,8 @@ mod test {
             event_index: rand::random::<u32>(),
         };
         let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
-            Uint256::one(),
+            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
+            Uint128::one(),
             1,
         );
         let event = WorkerSetConfirmation::new(
@@ -353,8 +353,8 @@ mod test {
             event_index: rand::random::<u32>(),
         };
         let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
-            Uint256::one(),
+            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
+            Uint128::one(),
             1,
         );
         let event = WorkerSetConfirmation::new(
@@ -373,8 +373,8 @@ mod test {
     fn make_workerset_confirmation_should_fail_with_invalid_message_id() {
         let msg_id = "foobar";
         let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
-            Uint256::one(),
+            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
+            Uint128::one(),
             1,
         );
         let event = WorkerSetConfirmation::new(
@@ -392,8 +392,8 @@ mod test {
             event_index: rand::random::<u32>(),
         };
         let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint256::one())],
-            Uint256::one(),
+            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
+            Uint128::one(),
             1,
         );
         let event = WorkerSetConfirmation::new(

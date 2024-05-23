@@ -1,7 +1,9 @@
 use axelar_wasm_std::nonempty;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+};
 use error_stack::ResultExt;
 use itertools::Itertools;
 
@@ -14,6 +16,22 @@ use crate::{
 mod execute;
 mod query;
 
+const CONTRACT_NAME: &str = "crates.io:rewards";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    // any version checks should be done before here
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -21,6 +39,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     let governance = deps.api.addr_validate(&msg.governance_address)?;
 
     CONFIG.save(
@@ -133,7 +153,7 @@ pub fn query(
     match msg {
         QueryMsg::RewardsPool { pool_id } => {
             let pool = query::rewards_pool(deps.storage, pool_id, env.block.height)?;
-            to_binary(&pool)
+            to_json_binary(&pool)
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::ContractError::from)
         }

@@ -125,8 +125,8 @@ fn route(
 // instead of requiring the caller to allocate a vector for every message
 fn filter_verifiable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec<Message> {
     match status {
-        VerificationStatus::None
-        | VerificationStatus::NotFound
+        VerificationStatus::Unknown
+        | VerificationStatus::NotFoundOnSourceChain
         | VerificationStatus::FailedToVerify => msgs.to_vec(),
         _ => vec![],
     }
@@ -134,16 +134,16 @@ fn filter_verifiable_messages(status: VerificationStatus, msgs: &[Message]) -> V
 
 fn into_verify_events(status: VerificationStatus, msgs: Vec<Message>) -> Vec<Event> {
     match status {
-        VerificationStatus::None
-        | VerificationStatus::NotFound
+        VerificationStatus::Unknown
+        | VerificationStatus::NotFoundOnSourceChain
         | VerificationStatus::FailedToVerify
         | VerificationStatus::InProgress => {
             messages_into_events(msgs, |msg| GatewayEvent::Verifying { msg })
         }
-        VerificationStatus::SucceededOnChain => {
+        VerificationStatus::SucceededOnSourceChain => {
             messages_into_events(msgs, |msg| GatewayEvent::AlreadyVerified { msg })
         }
-        VerificationStatus::FailedOnChain => {
+        VerificationStatus::FailedOnSourceChain => {
             messages_into_events(msgs, |msg| GatewayEvent::AlreadyRejected { msg })
         }
     }
@@ -152,7 +152,7 @@ fn into_verify_events(status: VerificationStatus, msgs: Vec<Message>) -> Vec<Eve
 // not all messages are routable, so it's better to only take a reference and allocate a vector on demand
 // instead of requiring the caller to allocate a vector for every message
 fn filter_routable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec<Message> {
-    if status == VerificationStatus::SucceededOnChain {
+    if status == VerificationStatus::SucceededOnSourceChain {
         msgs.to_vec()
     } else {
         vec![]
@@ -161,7 +161,7 @@ fn filter_routable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec
 
 fn into_route_events(status: VerificationStatus, msgs: Vec<Message>) -> Vec<Event> {
     match status {
-        VerificationStatus::SucceededOnChain => {
+        VerificationStatus::SucceededOnSourceChain => {
             messages_into_events(msgs, |msg| GatewayEvent::Routing { msg })
         }
         _ => messages_into_events(msgs, |msg| GatewayEvent::UnfitForRouting { msg }),

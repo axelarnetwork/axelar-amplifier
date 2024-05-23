@@ -1,11 +1,27 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{entry_point, Empty};
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::error::ContractError;
 use crate::execute;
 use crate::query;
+
+const CONTRACT_NAME: &str = "crates.io:coordinator";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    // any version checks should be done before here
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -14,6 +30,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     CONFIG.save(
         deps.storage,
         &Config {
@@ -56,7 +74,8 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_binary(&query::get_active_worker_set(deps, chain_name)?).map_err(|err| err.into())
+            to_json_binary(&query::get_active_worker_set(deps, chain_name)?)
+                .map_err(|err| err.into())
         }
         QueryMsg::ReadyToUnbond { worker_address } => {
             to_binary(&query::check_worker_ready_to_unbond(deps, worker_address)?)
@@ -73,7 +92,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint256};
+    use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint128};
     use multisig::key::{KeyType, PublicKey};
     use multisig::worker_set::WorkerSet;
     use router_api::ChainName;
@@ -147,13 +166,13 @@ mod tests {
             .iter()
             .map(|worker| Participant {
                 address: worker.addr.clone(),
-                weight: Uint256::one().try_into().unwrap(),
+                weight: Uint128::one().try_into().unwrap(),
             })
             .collect();
 
         WorkerSet::new(
             participants.clone().into_iter().zip(pub_keys).collect(),
-            Uint256::from_u128(participants.len() as u128).mul_ceil((2u64, 3u64)),
+            Uint128::from(participants.len() as u128).mul_ceil((2u64, 3u64)),
             block_height,
         )
     }
