@@ -49,12 +49,10 @@ mod test {
         let res = migrate_verifier_sets(deps.as_mut());
         assert!(res.is_ok());
         for worker_set in worker_sets {
-            let res = VERIFIER_SETS
-                .load(&mut deps.storage, &worker_set.id())
-                .unwrap();
+            let res = VERIFIER_SETS.load(&deps.storage, &worker_set.id()).unwrap();
             assert_eq!(res, worker_set);
             assert!(WORKER_SETS
-                .may_load(&mut deps.storage, &worker_set.id())
+                .may_load(&deps.storage, &worker_set.id())
                 .unwrap()
                 .is_none())
         }

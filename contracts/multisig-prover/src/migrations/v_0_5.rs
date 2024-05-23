@@ -38,54 +38,56 @@ mod test {
     #[test]
     fn should_be_able_to_migrate_worker_set_to_verifier_set() {
         let mut deps = mock_dependencies();
+
         let worker_set = new_verifier_set();
         CURRENT_WORKER_SET
             .save(&mut deps.storage, &worker_set)
             .unwrap();
+
         let res = migrate_verifier_sets(deps.as_mut());
         assert!(res.is_ok());
-        let verifier_set = CURRENT_VERIFIER_SET.load(&mut deps.storage).unwrap();
+
+        let verifier_set = CURRENT_VERIFIER_SET.load(&deps.storage).unwrap();
         assert_eq!(verifier_set, worker_set);
-        assert!(NEXT_VERIFIER_SET
-            .may_load(&mut deps.storage)
+
+        assert!(NEXT_VERIFIER_SET.may_load(&deps.storage).unwrap().is_none());
+
+        assert!(CURRENT_WORKER_SET
+            .may_load(&deps.storage)
             .unwrap()
             .is_none());
 
-        assert!(CURRENT_WORKER_SET
-            .may_load(&mut deps.storage)
-            .unwrap()
-            .is_none());
-        assert!(NEXT_WORKER_SET
-            .may_load(&mut deps.storage)
-            .unwrap()
-            .is_none());
+        assert!(NEXT_WORKER_SET.may_load(&deps.storage).unwrap().is_none());
     }
 
     #[test]
     fn should_be_able_to_migrate_worker_set_to_verifier_set_mid_rotation() {
         let mut deps = mock_dependencies();
         let worker_set = new_verifier_set();
+
         CURRENT_WORKER_SET
             .save(&mut deps.storage, &worker_set)
             .unwrap();
+
         let mut next_worker_set = worker_set.clone();
         next_worker_set.threshold = worker_set.threshold.checked_add(Uint128::one()).unwrap();
         NEXT_WORKER_SET
             .save(&mut deps.storage, &next_worker_set)
             .unwrap();
+
         let res = migrate_verifier_sets(deps.as_mut());
         assert!(res.is_ok());
-        let verifier_set = CURRENT_VERIFIER_SET.load(&mut deps.storage).unwrap();
+
+        let verifier_set = CURRENT_VERIFIER_SET.load(&deps.storage).unwrap();
         assert_eq!(verifier_set, worker_set);
-        let next_verifier_set = NEXT_VERIFIER_SET.load(&mut deps.storage).unwrap();
+
+        let next_verifier_set = NEXT_VERIFIER_SET.load(&deps.storage).unwrap();
         assert_eq!(next_verifier_set, next_worker_set);
+
         assert!(CURRENT_WORKER_SET
-            .may_load(&mut deps.storage)
+            .may_load(&deps.storage)
             .unwrap()
             .is_none());
-        assert!(NEXT_WORKER_SET
-            .may_load(&mut deps.storage)
-            .unwrap()
-            .is_none());
+        assert!(NEXT_WORKER_SET.may_load(&deps.storage).unwrap().is_none());
     }
 }

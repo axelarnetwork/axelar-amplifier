@@ -305,7 +305,7 @@ mod tests {
     fn query_get_verifier_set(
         deps: Deps,
     ) -> Result<Option<VerifierSet>, axelar_wasm_std::ContractError> {
-        query(deps, mock_env(), QueryMsg::GetVerifierSet {}).map(|res| from_json(&res).unwrap())
+        query(deps, mock_env(), QueryMsg::GetVerifierSet {}).map(|res| from_json(res).unwrap())
     }
 
     #[test]

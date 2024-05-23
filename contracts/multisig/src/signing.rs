@@ -186,7 +186,7 @@ mod tests {
 
         TestConfig {
             store,
-            verifier_set: verifier_set,
+            verifier_set,
             session,
             signatures,
             key_type,
@@ -225,7 +225,7 @@ mod tests {
 
         TestConfig {
             store,
-            verifier_set: verifier_set,
+            verifier_set,
             session,
             signatures,
             key_type,
