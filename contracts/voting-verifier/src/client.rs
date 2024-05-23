@@ -162,8 +162,8 @@ mod test {
                 .messages_status(vec![msg_1.clone(), msg_2.clone()])
                 .unwrap(),
             vec![
-                MessageStatus::new(msg_1, VerificationStatus::None),
-                MessageStatus::new(msg_2, VerificationStatus::None)
+                MessageStatus::new(msg_1, VerificationStatus::Unknown),
+                MessageStatus::new(msg_2, VerificationStatus::Unknown)
             ]
         );
     }
@@ -177,7 +177,7 @@ mod test {
             client
                 .worker_set_status(Operators::new(vec![], Uint128::one(), 1))
                 .unwrap(),
-            VerificationStatus::None
+            VerificationStatus::Unknown
         );
     }
 

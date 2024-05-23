@@ -16,7 +16,7 @@ use crate::{
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
-const CONTRACT_NAME: &str = "crates.io:multisig-prover";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -180,7 +180,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             test_data::operators(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         instantiate(
@@ -465,7 +465,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             new_verifier_set,
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         let res = execute_update_verifier_set(deps.as_mut());
@@ -492,7 +492,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             new_verifier_set.clone(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         let res = execute_update_verifier_set(deps.as_mut());
@@ -500,7 +500,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             test_data::operators(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
 
         let res = execute_update_verifier_set(deps.as_mut());
@@ -534,7 +534,7 @@ mod tests {
 
         deps.querier.update_wasm(mock_querier_handler(
             new_verifier_set,
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
         let res = execute_update_verifier_set(deps.as_mut());
 
@@ -578,7 +578,7 @@ mod tests {
         new_verifier_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
             new_verifier_set,
-            VerificationStatus::None,
+            VerificationStatus::Unknown,
         ));
         let res = execute_update_verifier_set(deps.as_mut());
 
@@ -604,14 +604,14 @@ mod tests {
         new_verifier_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
             new_verifier_set.clone(),
-            VerificationStatus::SucceededOnChain,
+            VerificationStatus::SucceededOnSourceChain,
         ));
         execute_update_verifier_set(deps.as_mut()).unwrap();
 
         new_verifier_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
             new_verifier_set,
-            VerificationStatus::None,
+            VerificationStatus::Unknown,
         ));
 
         let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));

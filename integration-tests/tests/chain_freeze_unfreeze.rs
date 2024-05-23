@@ -12,7 +12,7 @@ fn chain_can_be_freezed_unfreezed() {
         mut protocol,
         chain1,
         chain2,
-        workers,
+        verifiers,
         ..
     } = test_utils::setup_test_case();
 
@@ -51,7 +51,7 @@ fn chain_can_be_freezed_unfreezed() {
         &mut protocol.app,
         &chain1.voting_verifier,
         &msgs,
-        &workers,
+        &verifiers,
         poll_id,
     );
 

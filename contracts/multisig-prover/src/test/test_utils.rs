@@ -2,7 +2,7 @@ use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, WasmQuery};
 use multisig::{msg::Signer, multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
 use service_registry::state::{
-    AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
+    AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
 };
 
 use super::test_data::{self, TestOperator};
@@ -114,16 +114,16 @@ fn service_registry_mock_querier_handler(operators: Vec<TestOperator>) -> Querie
         &operators
             .clone()
             .into_iter()
-            .map(|op| WeightedWorker {
-                worker_info: Worker {
+            .map(|op| WeightedVerifier {
+                verifier_info: Verifier {
                     address: op.address,
                     bonding_state: BondingState::Bonded { amount: op.weight },
                     authorization_state: AuthorizationState::Authorized,
                     service_name: SERVICE_NAME.to_string(),
                 },
-                weight: WORKER_WEIGHT,
+                weight: VERIFIER_WEIGHT,
             })
-            .collect::<Vec<WeightedWorker>>(),
+            .collect::<Vec<WeightedVerifier>>(),
     )
     .into())
     .into()

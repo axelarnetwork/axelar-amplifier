@@ -8,7 +8,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
 use crate::{execute, migrations, query};
 
-const CONTRACT_NAME: &str = "crates.io:voting-verifier";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -114,7 +114,7 @@ mod test {
     };
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
-        AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
+        AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
     use sha3::{Digest, Keccak256};
 
@@ -148,10 +148,10 @@ mod test {
         assert_eq!(actual.into().to_string(), expected.into().to_string());
     }
 
-    fn workers(num_workers: usize) -> Vec<Worker> {
-        let mut workers = vec![];
-        for i in 0..num_workers {
-            workers.push(Worker {
+    fn verifiers(num_verifiers: usize) -> Vec<Verifier> {
+        let mut verifiers = vec![];
+        for i in 0..num_verifiers {
+            verifiers.push(Verifier {
                 address: Addr::unchecked(format!("addr{}", i)),
                 bonding_state: BondingState::Bonded {
                     amount: Uint128::from(100u128),
@@ -160,11 +160,11 @@ mod test {
                 service_name: SERVICE_NAME.parse().unwrap(),
             })
         }
-        workers
+        verifiers
     }
 
     fn setup(
-        workers: Vec<Worker>,
+        verifiers: Vec<Verifier>,
         msg_id_format: &MessageIdFormat,
     ) -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
         let mut deps = mock_dependencies();
@@ -186,14 +186,14 @@ mod test {
         deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == SERVICE_REGISTRY_ADDRESS => {
                 Ok(to_json_binary(
-                    &workers
+                    &verifiers
                         .clone()
                         .into_iter()
-                        .map(|w| WeightedWorker {
-                            worker_info: w,
-                            weight: WORKER_WEIGHT,
+                        .map(|v| WeightedVerifier {
+                            verifier_info: v,
+                            weight: VERIFIER_WEIGHT,
                         })
-                        .collect::<Vec<WeightedWorker>>(),
+                        .collect::<Vec<WeightedVerifier>>(),
                 )
                 .into())
                 .into()
@@ -256,8 +256,8 @@ mod test {
     #[test]
     fn migrate_sets_contract_version() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let initial_config = migrations::v_0_3::OldConfig {
             governance: Addr::unchecked("governance"),
@@ -285,15 +285,15 @@ mod test {
         .unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.contract, "voting-verifier");
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
     fn should_fail_if_messages_are_not_from_same_source() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let msg = ExecuteMsg::VerifyMessages {
             messages: vec![
@@ -326,8 +326,8 @@ mod test {
     #[test]
     fn should_fail_if_messages_have_invalid_msg_id() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let mut messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         let msg_id = "foobar";
@@ -342,8 +342,8 @@ mod test {
     #[test]
     fn should_fail_if_messages_have_base58_msg_id_but_contract_expects_hex() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(1, &MessageIdFormat::Base58TxDigestAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages {
@@ -360,8 +360,8 @@ mod test {
     #[test]
     fn should_fail_if_messages_have_hex_msg_id_but_contract_expects_base58() {
         let msg_id_format = MessageIdFormat::Base58TxDigestAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(1, &MessageIdFormat::HexTxHashAndEventIndex);
         let msg = ExecuteMsg::VerifyMessages {
@@ -378,8 +378,8 @@ mod test {
     #[test]
     fn should_not_verify_messages_if_in_progress() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
         let messages_count = 5;
         let messages_in_progress = 3;
         let messages = messages(messages_count as u64, &msg_id_format);
@@ -442,8 +442,8 @@ mod test {
     #[test]
     fn should_retry_if_message_not_verified() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
         let messages = messages(5, &msg_id_format);
 
         let msg = ExecuteMsg::VerifyMessages {
@@ -523,8 +523,8 @@ mod test {
     #[test]
     fn should_retry_if_status_not_final() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(4, &msg_id_format);
 
@@ -544,7 +544,7 @@ mod test {
 
         // 2. Workers cast votes, but only reach consensus on the first three messages
 
-        workers.iter().enumerate().for_each(|(i, worker)| {
+        verifiers.iter().enumerate().for_each(|(i, verifier)| {
             let msg = ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
                 votes: vec![
@@ -552,7 +552,7 @@ mod test {
                     Vote::FailedOnChain,
                     Vote::NotFound,
                     if i % 2 == 0 {
-                        // workers vote is divided so no consensus is reached
+                        // verifiers vote is divided so no consensus is reached
                         Vote::SucceededOnChain
                     } else {
                         Vote::FailedOnChain
@@ -563,7 +563,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 msg,
             );
             assert!(res.is_ok());
@@ -597,9 +597,15 @@ mod test {
         assert_eq!(
             res,
             vec![
-                MessageStatus::new(messages[0].clone(), VerificationStatus::SucceededOnChain),
-                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnChain),
-                MessageStatus::new(messages[2].clone(), VerificationStatus::NotFound),
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
+                MessageStatus::new(
+                    messages[2].clone(),
+                    VerificationStatus::NotFoundOnSourceChain
+                ),
                 MessageStatus::new(messages[3].clone(), VerificationStatus::FailedToVerify)
             ]
         );
@@ -629,8 +635,11 @@ mod test {
         assert_eq!(
             res,
             vec![
-                MessageStatus::new(messages[0].clone(), VerificationStatus::SucceededOnChain),
-                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnChain),
+                MessageStatus::new(
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain
+                ),
+                MessageStatus::new(messages[1].clone(), VerificationStatus::FailedOnSourceChain),
                 MessageStatus::new(messages[2].clone(), VerificationStatus::InProgress),
                 MessageStatus::new(messages[3].clone(), VerificationStatus::InProgress)
             ]
@@ -640,8 +649,8 @@ mod test {
     #[test]
     fn should_query_status_none_when_not_verified() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(10, &msg_id_format);
 
@@ -656,14 +665,17 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(statuses, msgs_statuses(messages, VerificationStatus::None));
+        assert_eq!(
+            statuses,
+            msgs_statuses(messages, VerificationStatus::Unknown)
+        );
     }
 
     #[test]
     fn should_query_status_in_progress_when_no_consensus_and_poll_not_ended() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(10, &msg_id_format);
 
@@ -698,8 +710,8 @@ mod test {
     #[test]
     fn should_query_status_failed_to_verify_when_no_consensus_and_poll_ended() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(10, &msg_id_format);
 
@@ -745,9 +757,12 @@ mod test {
     #[test]
     fn should_query_status_according_to_vote() {
         let test_cases = [
-            (Vote::SucceededOnChain, VerificationStatus::SucceededOnChain),
-            (Vote::FailedOnChain, VerificationStatus::FailedOnChain),
-            (Vote::NotFound, VerificationStatus::NotFound),
+            (
+                Vote::SucceededOnChain,
+                VerificationStatus::SucceededOnSourceChain,
+            ),
+            (Vote::FailedOnChain, VerificationStatus::FailedOnSourceChain),
+            (Vote::NotFound, VerificationStatus::NotFoundOnSourceChain),
         ]
         .iter()
         .flat_map(|(v, s)| {
@@ -759,8 +774,8 @@ mod test {
         .collect::<Vec<_>>();
 
         for (consensus_vote, expected_status, msg_id_format) in test_cases {
-            let workers = workers(2);
-            let mut deps = setup(workers.clone(), &msg_id_format);
+            let verifiers = verifiers(2);
+            let mut deps = setup(verifiers.clone(), &msg_id_format);
 
             let messages = messages(10, &msg_id_format);
 
@@ -775,16 +790,16 @@ mod test {
             )
             .unwrap();
 
-            // all workers vote
+            // all verifiers vote
             let vote_msg = ExecuteMsg::Vote {
                 poll_id: Uint64::one().into(),
                 votes: vec![consensus_vote.clone(); messages.len()],
             };
-            workers.iter().for_each(|worker| {
+            verifiers.iter().for_each(|verifier| {
                 execute(
                     deps.as_mut(),
                     mock_env(),
-                    mock_info(worker.address.as_str(), &[]),
+                    mock_info(verifier.address.as_str(), &[]),
                     vote_msg.clone(),
                 )
                 .unwrap();
@@ -820,8 +835,8 @@ mod test {
     #[test]
     fn should_start_worker_set_confirmation() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
@@ -849,8 +864,8 @@ mod test {
     #[test]
     fn should_confirm_worker_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
@@ -865,11 +880,11 @@ mod test {
             poll_id: 1u64.into(),
             votes: vec![Vote::SucceededOnChain],
         };
-        for worker in workers {
+        for verifier in verifiers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 msg.clone(),
             );
             assert!(res.is_ok());
@@ -896,14 +911,14 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::SucceededOnChain);
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
     }
 
     #[test]
     fn should_not_confirm_worker_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
@@ -918,11 +933,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        for worker in workers {
+        for verifier in verifiers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 ExecuteMsg::Vote {
                     poll_id: 1u64.into(),
                     votes: vec![Vote::NotFound],
@@ -952,14 +967,14 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::NotFound);
+        assert_eq!(res, VerificationStatus::NotFoundOnSourceChain);
     }
 
     #[test]
     fn should_confirm_worker_set_after_failed() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
@@ -974,11 +989,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        for worker in &workers {
+        for verifier in &verifiers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 ExecuteMsg::Vote {
                     poll_id: 1u64.into(),
                     votes: vec![Vote::NotFound],
@@ -1008,7 +1023,7 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::NotFound);
+        assert_eq!(res, VerificationStatus::NotFoundOnSourceChain);
 
         let res = execute(
             deps.as_mut(),
@@ -1021,11 +1036,11 @@ mod test {
         );
         assert!(res.is_ok());
 
-        for worker in workers {
+        for verifier in verifiers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 ExecuteMsg::Vote {
                     poll_id: 2u64.into(),
                     votes: vec![Vote::SucceededOnChain],
@@ -1055,14 +1070,14 @@ mod test {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(res, VerificationStatus::SucceededOnChain);
+        assert_eq!(res, VerificationStatus::SucceededOnSourceChain);
     }
 
     #[test]
     fn should_not_confirm_twice() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
@@ -1076,11 +1091,11 @@ mod test {
             },
         );
         assert!(res.is_ok());
-        for worker in workers {
+        for verifier in verifiers {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 ExecuteMsg::Vote {
                     poll_id: 1u64.into(),
                     votes: vec![Vote::SucceededOnChain],
@@ -1116,8 +1131,8 @@ mod test {
     #[test]
     fn should_be_able_to_update_threshold_and_then_query_new_threshold() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let workers = workers(2);
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let verifiers = verifiers(2);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let new_voting_threshold: MajorityThreshold = Threshold::try_from((
             initial_voting_threshold().numerator().u64() + 1,
@@ -1145,13 +1160,13 @@ mod test {
 
     #[test]
     fn threshold_changes_should_not_affect_existing_polls() {
-        let workers = workers(10);
+        let verifiers = verifiers(10);
         let initial_threshold = initial_voting_threshold();
-        let majority = (workers.len() as u64 * initial_threshold.numerator().u64())
+        let majority = (verifiers.len() as u64 * initial_threshold.numerator().u64())
             .div_ceil(initial_threshold.denominator().u64());
 
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         let messages = messages(1, &msg_id_format);
 
@@ -1165,8 +1180,8 @@ mod test {
         )
         .unwrap();
 
-        // simulate a majority of workers voting for succeeded on chain
-        workers.iter().enumerate().for_each(|(i, worker)| {
+        // simulate a majority of verifiers voting for succeeded on chain
+        verifiers.iter().enumerate().for_each(|(i, verifier)| {
             if i >= majority as usize {
                 return;
             }
@@ -1178,16 +1193,16 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 msg,
             );
             assert!(res.is_ok());
         });
 
-        // increase the threshold. Not enough workers voted to meet the new majority,
+        // increase the threshold. Not enough verifiers voted to meet the new majority,
         // but threshold changes should not affect existing polls
         let new_voting_threshold: MajorityThreshold =
-            Threshold::try_from((majority + 1, workers.len() as u64))
+            Threshold::try_from((majority + 1, verifiers.len() as u64))
                 .unwrap()
                 .try_into()
                 .unwrap();
@@ -1227,24 +1242,24 @@ mod test {
             res,
             vec![MessageStatus::new(
                 messages[0].clone(),
-                VerificationStatus::SucceededOnChain
+                VerificationStatus::SucceededOnSourceChain
             )]
         );
     }
 
     #[test]
     fn threshold_changes_should_affect_new_polls() {
-        let workers = workers(10);
+        let verifiers = verifiers(10);
         let initial_threshold = initial_voting_threshold();
-        let old_majority = (workers.len() as u64 * initial_threshold.numerator().u64())
+        let old_majority = (verifiers.len() as u64 * initial_threshold.numerator().u64())
             .div_ceil(initial_threshold.denominator().u64());
 
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
-        let mut deps = setup(workers.clone(), &msg_id_format);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
 
         // increase the threshold prior to starting a poll
         let new_voting_threshold: MajorityThreshold =
-            Threshold::try_from((old_majority + 1, workers.len() as u64))
+            Threshold::try_from((old_majority + 1, verifiers.len() as u64))
                 .unwrap()
                 .try_into()
                 .unwrap();
@@ -1272,10 +1287,10 @@ mod test {
         )
         .unwrap();
 
-        // simulate old_majority of workers voting succeeded on chain,
+        // simulate old_majority of verifiers voting succeeded on chain,
         // which is one less than the updated majority. The messages
         // should not receive enough votes to be considered verified
-        workers.iter().enumerate().for_each(|(i, worker)| {
+        verifiers.iter().enumerate().for_each(|(i, verifier)| {
             if i >= old_majority as usize {
                 return;
             }
@@ -1287,7 +1302,7 @@ mod test {
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
-                mock_info(worker.address.as_str(), &[]),
+                mock_info(verifier.address.as_str(), &[]),
                 msg,
             );
             assert!(res.is_ok());

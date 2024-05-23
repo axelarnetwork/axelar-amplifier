@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::execute;
 use crate::query;
 
-const CONTRACT_NAME: &str = "crates.io:coordinator";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -175,6 +175,17 @@ mod tests {
 
         let config = CONFIG.load(test_setup.deps.as_ref().storage).unwrap();
         assert_eq!(config.governance, governance);
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "coordinator");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
