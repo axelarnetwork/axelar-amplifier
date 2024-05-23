@@ -15,10 +15,10 @@ use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedWorker};
 
 use crate::events::{
-    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, Voted, WorkerSetConfirmation,
+    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation, Voted,
 };
-use crate::query::worker_set_status;
-use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_WORKER_SETS};
+use crate::query::verifier_set_status;
+use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_VERIFIER_SETS};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 use crate::{error::ContractError, query::message_status};
 
@@ -43,13 +43,13 @@ pub fn update_voting_threshold(
     Ok(Response::new())
 }
 
-pub fn verify_worker_set(
+pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
     message_id: nonempty::String,
     new_operators: Operators,
 ) -> Result<Response, ContractError> {
-    let status = worker_set_status(deps.as_ref(), &new_operators)?;
+    let status = verifier_set_status(deps.as_ref(), &new_operators)?;
     if status.is_confirmed() {
         return Ok(Response::new());
     }
@@ -59,17 +59,17 @@ pub fn verify_worker_set(
     let participants = snapshot.get_participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 
-    let poll_id = create_worker_set_poll(deps.storage, expires_at, snapshot)?;
+    let poll_id = create_verifier_set_poll(deps.storage, expires_at, snapshot)?;
 
-    POLL_WORKER_SETS.save(
+    POLL_VERIFIER_SETS.save(
         deps.storage,
         &new_operators.hash(),
         &PollContent::<Operators>::new(new_operators.clone(), poll_id),
     )?;
 
     Ok(Response::new().add_event(
-        PollStarted::WorkerSet {
-            worker_set: WorkerSetConfirmation::new(
+        PollStarted::VerifierSet {
+            verifier_set: VerifierSetConfirmation::new(
                 message_id,
                 config.msg_id_format,
                 new_operators,
@@ -200,7 +200,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmWorkerSet(poll) => poll.state(),
+        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => poll.state(),
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
@@ -234,19 +234,19 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     let config = CONFIG.load(deps.storage)?;
 
     // todo: add chain param to query after service registry updated
-    // query service registry for active workers
-    let active_workers_query = QueryMsg::GetActiveWorkers {
+    // query service registry for active verifiers
+    let active_verifiers_query = QueryMsg::GetActiveWorkers {
         service_name: config.service_name.to_string(),
         chain_name: chain.clone(),
     };
 
-    let workers: Vec<WeightedWorker> =
+    let verifiers: Vec<WeightedWorker> =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: config.service_registry_contract.to_string(),
-            msg: to_json_binary(&active_workers_query)?,
+            msg: to_json_binary(&active_verifiers_query)?,
         }))?;
 
-    let participants = workers
+    let participants = verifiers
         .into_iter()
         .map(service_registry::state::WeightedWorker::into)
         .collect::<Vec<snapshot::Participant>>();
@@ -257,7 +257,7 @@ fn take_snapshot(deps: Deps, chain: &ChainName) -> Result<snapshot::Snapshot, Co
     ))
 }
 
-fn create_worker_set_poll(
+fn create_verifier_set_poll(
     store: &mut dyn Storage,
     expires_at: u64,
     snapshot: snapshot::Snapshot,
@@ -265,7 +265,7 @@ fn create_worker_set_poll(
     let id = POLL_ID.incr(store)?;
 
     let poll = WeightedPoll::new(id, snapshot, expires_at, 1);
-    POLLS.save(store, id, &state::Poll::ConfirmWorkerSet(poll))?;
+    POLLS.save(store, id, &state::Poll::ConfirmVerifierSet(poll))?;
 
     Ok(id)
 }

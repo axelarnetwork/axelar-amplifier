@@ -5,7 +5,7 @@ use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
-use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
+use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
 use crate::types::EVMAddress;
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
@@ -27,7 +27,7 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
     }
 }
 
-impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
+impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &VerifierSetConfirmation {
     fn eq(&self, other: &IAxelarGatewayEventsWithLog<'_>) -> bool {
         let IAxelarGatewayEventsWithLog(log, event) = other;
         match event {
@@ -104,7 +104,7 @@ pub fn verify_message(
 pub fn verify_worker_set(
     gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
-    worker_set: &WorkerSetConfirmation,
+    worker_set: &VerifierSetConfirmation,
 ) -> Vote {
     verify(
         gateway_address,
@@ -131,7 +131,7 @@ mod tests {
 
     use super::{verify_message, verify_worker_set};
     use crate::{
-        handlers::{evm_verify_msg::Message, evm_verify_worker_set::WorkerSetConfirmation},
+        handlers::{evm_verify_msg::Message, evm_verify_verifier_set::VerifierSetConfirmation},
         types::{EVMAddress, Hash},
     };
 
@@ -290,7 +290,7 @@ mod tests {
     }
 
     fn get_matching_worker_set_and_tx_receipt(
-    ) -> (EVMAddress, TransactionReceipt, WorkerSetConfirmation) {
+    ) -> (EVMAddress, TransactionReceipt, VerifierSetConfirmation) {
         let tx_id = Hash::random();
         let log_index = 1;
         let gateway_address = EVMAddress::random();
@@ -305,7 +305,7 @@ mod tests {
             1u64,
         );
 
-        let worker_set = WorkerSetConfirmation {
+        let worker_set = VerifierSetConfirmation {
             tx_id,
             event_index: log_index,
             operators,

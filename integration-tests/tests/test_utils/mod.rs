@@ -26,7 +26,7 @@ use sha3::{Digest, Keccak256};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use multisig::{
     key::{KeyType, PublicKey},
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
@@ -310,9 +310,9 @@ pub fn get_proof(
 pub fn get_worker_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
-) -> WorkerSet {
-    let query_response: Result<WorkerSet, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
+) -> VerifierSet {
+    let query_response: Result<VerifierSet, StdError> =
+        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetVerifierSet);
     assert!(query_response.is_ok());
 
     query_response.unwrap()
@@ -322,8 +322,8 @@ pub fn get_worker_set_from_coordinator(
     app: &mut App,
     coordinator_contract: &CoordinatorContract,
     chain_name: ChainName,
-) -> WorkerSet {
-    let query_response: Result<WorkerSet, StdError> = coordinator_contract.query(
+) -> VerifierSet {
+    let query_response: Result<VerifierSet, StdError> = coordinator_contract.query(
         app,
         &coordinator::msg::QueryMsg::GetActiveVerifiers { chain_name },
     );
@@ -552,18 +552,22 @@ pub fn confirm_worker_set(
     let response = multisig_prover.execute(
         app,
         relayer_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
     );
     assert!(response.is_ok());
 }
 
 fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
-    let poll_id = get_event_attribute(&response.events, "wasm-worker_set_poll_started", "poll_id")
-        .map(|attr| serde_json::from_str(&attr.value).unwrap())
-        .expect("couldn't get poll_id");
+    let poll_id = get_event_attribute(
+        &response.events,
+        "wasm-verifier_set_poll_started",
+        "poll_id",
+    )
+    .map(|attr| serde_json::from_str(&attr.value).unwrap())
+    .expect("couldn't get poll_id");
     let expiry = get_event_attribute(
         &response.events,
-        "wasm-worker_set_poll_started",
+        "wasm-verifier_set_poll_started",
         "expires_at",
     )
     .map(|attr| attr.value.as_str().parse().unwrap())
@@ -575,12 +579,12 @@ pub fn create_worker_set_poll(
     app: &mut App,
     relayer_addr: Addr,
     voting_verifier: &VotingVerifierContract,
-    worker_set: WorkerSet,
+    worker_set: VerifierSet,
 ) -> (PollId, PollExpiryBlock) {
     let response = voting_verifier.execute(
         app,
         relayer_addr.clone(),
-        &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
+        &voting_verifier::msg::ExecuteMsg::VerifyVerifierSet {
             message_id: HexTxHashAndEventIndex {
                 tx_hash: random_32_bytes(),
                 event_index: 0,
@@ -596,7 +600,7 @@ pub fn create_worker_set_poll(
     get_worker_set_poll_id_and_expiry(response.unwrap())
 }
 
-pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
+pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> VerifierSet {
     // get public keys
     let mut pub_keys = vec![];
     for worker in workers {
@@ -619,7 +623,7 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
 
     let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
 
-    WorkerSet::new(
+    VerifierSet::new(
         pubkeys_by_participant,
         total_weight.mul_ceil((2u64, 3u64)),
         protocol.app.block_info().height,
@@ -657,7 +661,7 @@ pub fn update_registry_and_construct_worker_set_update_proof(
     let response = chain_multisig_prover.execute(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
     sign_proof(protocol, current_workers, response.unwrap())
@@ -724,7 +728,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 

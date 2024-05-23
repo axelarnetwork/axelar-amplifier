@@ -58,7 +58,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -151,7 +151,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -189,7 +189,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -217,7 +217,7 @@ fn worker_set_cannot_be_updated_again_while_pending_worker_is_not_yet_confirmed(
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
     );
     assert!(response.is_err());
 }
@@ -259,7 +259,7 @@ fn worker_set_update_can_be_resigned() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -272,7 +272,7 @@ fn worker_set_update_can_be_resigned() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -288,7 +288,7 @@ fn worker_set_update_can_be_resigned() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+            &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();
@@ -343,7 +343,7 @@ fn governance_should_confirm_new_worker_set_without_verification() {
         .execute_contract(
             ethereum.multisig_prover.admin_addr.clone(),
             ethereum.multisig_prover.contract_addr.clone(),
-            &ExecuteMsg::UpdateWorkerSet,
+            &ExecuteMsg::UpdateVerifierSet,
             &[],
         )
         .unwrap();

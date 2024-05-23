@@ -49,10 +49,10 @@ pub fn execute(
         ExecuteMsg::VerifyMessages { messages } => execute::verify_messages(deps, env, messages),
         ExecuteMsg::Vote { poll_id, votes } => execute::vote(deps, env, info, poll_id, votes),
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
-        ExecuteMsg::VerifyWorkerSet {
+        ExecuteMsg::VerifyVerifierSet {
             message_id,
             new_operators,
-        } => execute::verify_worker_set(deps, env, message_id, new_operators),
+        } => execute::verify_verifier_set(deps, env, message_id, new_operators),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         } => {
@@ -73,8 +73,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetMessagesStatus { messages } => {
             to_json_binary(&query::messages_status(deps, &messages)?)
         }
-        QueryMsg::GetWorkerSetStatus { new_operators } => {
-            to_json_binary(&query::worker_set_status(deps, &new_operators)?)
+        QueryMsg::GetVerifierSetStatus { new_operators } => {
+            to_json_binary(&query::verifier_set_status(deps, &new_operators)?)
         }
         QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
@@ -825,7 +825,7 @@ mod test {
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
-        let msg = ExecuteMsg::VerifyWorkerSet {
+        let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
             new_operators: operators.clone(),
         };
@@ -836,7 +836,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetWorkerSetStatus {
+                QueryMsg::GetVerifierSetStatus {
                     new_operators: operators.clone(),
                 },
             )
@@ -854,7 +854,7 @@ mod test {
 
         let operators =
             Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
-        let msg = ExecuteMsg::VerifyWorkerSet {
+        let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
             new_operators: operators.clone(),
         };
@@ -889,7 +889,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetWorkerSetStatus {
+                QueryMsg::GetVerifierSetStatus {
                     new_operators: operators.clone(),
                 },
             )
@@ -911,7 +911,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyWorkerSet {
+            ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
@@ -945,7 +945,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetWorkerSetStatus {
+                QueryMsg::GetVerifierSetStatus {
                     new_operators: operators.clone(),
                 },
             )
@@ -967,7 +967,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyWorkerSet {
+            ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
@@ -1001,7 +1001,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetWorkerSetStatus {
+                QueryMsg::GetVerifierSetStatus {
                     new_operators: operators.clone(),
                 },
             )
@@ -1014,7 +1014,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyWorkerSet {
+            ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
@@ -1048,7 +1048,7 @@ mod test {
             query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::GetWorkerSetStatus {
+                QueryMsg::GetVerifierSetStatus {
                     new_operators: operators.clone(),
                 },
             )
@@ -1070,7 +1070,7 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyWorkerSet {
+            ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },
@@ -1104,7 +1104,7 @@ mod test {
             deps.as_mut(),
             mock_env_expired(),
             mock_info(SENDER, &[]),
-            ExecuteMsg::VerifyWorkerSet {
+            ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
                 new_operators: operators.clone(),
             },

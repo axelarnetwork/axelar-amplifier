@@ -8,13 +8,13 @@ use crate::{
     key::Signature,
     msg::{Signer, SignerWithSig},
     types::MultisigState,
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
 };
 
 #[cw_serde]
 pub struct Multisig {
     pub state: MultisigState,
-    pub worker_set: WorkerSet,
+    pub verifier_set: VerifierSet,
     pub signatures: HashMap<String, Signature>,
 }
 
@@ -29,7 +29,7 @@ impl Multisig {
             .scan(Uint128::zero(), |acc, (addr, signature)| {
                 let signer = self.signer(addr);
 
-                if *acc < self.worker_set.threshold {
+                if *acc < self.verifier_set.threshold {
                     *acc = acc.saturating_add(signer.weight);
                     Some(signer.with_sig(signature.clone()))
                 } else {
@@ -40,10 +40,10 @@ impl Multisig {
     }
 
     fn signer(&self, address: &str) -> &Signer {
-        self.worker_set
+        self.verifier_set
             .signers
             .get(address)
-            .expect("signer not found in worker set")
+            .expect("signer not found in verifier set")
     }
 }
 
@@ -56,7 +56,7 @@ mod test {
         msg::Signer,
         multisig::Multisig,
         types::MultisigState,
-        worker_set::WorkerSet,
+        verifier_set::VerifierSet,
     };
 
     #[test]
@@ -90,7 +90,7 @@ mod test {
             signers[6].with_sig(sig.clone()),
         ];
 
-        let worker_set = WorkerSet {
+        let verifier_set = VerifierSet {
             signers: signers
                 .iter()
                 .map(|s| (s.address.to_string(), s.clone()))
@@ -101,7 +101,7 @@ mod test {
 
         let multisig = Multisig {
             state: MultisigState::Completed { completed_at: 1 },
-            worker_set,
+            verifier_set,
             signatures: sigs.into_iter().collect(),
         };
 

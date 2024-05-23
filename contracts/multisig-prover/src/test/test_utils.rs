@@ -1,6 +1,6 @@
 use axelar_wasm_std::VerificationStatus;
 use cosmwasm_std::{from_json, to_json_binary, QuerierResult, WasmQuery};
-use multisig::{msg::Signer, multisig::Multisig, types::MultisigState, worker_set::WorkerSet};
+use multisig::{msg::Signer, multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
 use service_registry::state::{
     AuthorizationState, BondingState, WeightedWorker, Worker, WORKER_WEIGHT,
 };
@@ -50,7 +50,7 @@ fn multisig_mock_querier_handler(
             to_json_binary(&mock_get_multisig(operators))
         }
         multisig::msg::QueryMsg::GetPublicKey {
-            worker_address,
+            verifier_address: worker_address,
             key_type: _,
         } => to_json_binary(
             &operators
@@ -94,7 +94,7 @@ fn mock_get_multisig(operators: Vec<TestOperator>) -> Multisig {
         })
         .collect();
 
-    let worker_set = WorkerSet {
+    let worker_set = VerifierSet {
         signers,
         threshold: quorum,
         created_at: 1,
@@ -104,7 +104,7 @@ fn mock_get_multisig(operators: Vec<TestOperator>) -> Multisig {
         state: MultisigState::Completed {
             completed_at: 12345,
         },
-        worker_set,
+        verifier_set: worker_set,
         signatures,
     }
 }
