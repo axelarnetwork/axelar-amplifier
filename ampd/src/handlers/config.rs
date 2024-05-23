@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::with_prefix;
 
 use crate::evm::finalizer::Finalization;
-use crate::tm_address::TMAddress;
+use crate::types::TMAddress;
 use crate::url::Url;
 use router_api::ChainName;
 

@@ -6,7 +6,7 @@ use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
-use crate::tm_address::EVMAddress;
+use crate::types::EVMAddress;
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
 
@@ -132,7 +132,7 @@ mod tests {
     use super::{verify_message, verify_worker_set};
     use crate::{
         handlers::{evm_verify_msg::Message, evm_verify_worker_set::WorkerSetConfirmation},
-        tm_address::{EVMAddress, Hash},
+        types::{EVMAddress, Hash},
     };
 
     #[test]

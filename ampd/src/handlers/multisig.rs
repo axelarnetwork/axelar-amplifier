@@ -20,10 +20,10 @@ use multisig::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::tm_address::PublicKey;
-use crate::tm_address::TMAddress;
 use crate::tofnd::grpc::SharableEcdsaClient;
 use crate::tofnd::MessageDigest;
+use crate::types::PublicKey;
+use crate::types::TMAddress;
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -190,16 +190,16 @@ mod test {
     use multisig::types::MsgToSign;
 
     use crate::broadcaster::MockBroadcaster;
-    use crate::tm_address;
     use crate::tofnd;
     use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
+    use crate::types;
 
     use super::*;
 
     const MULTISIG_ADDRESS: &str = "axelarvaloper1zh9wrak6ke4n6fclj5e8yk397czv430ygs5jz7";
 
     fn rand_account() -> TMAddress {
-        tm_address::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
+        types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key())
             .account_id("axelar")
             .unwrap()
             .into()
@@ -207,7 +207,7 @@ mod test {
 
     fn rand_public_key() -> multisig::key::PublicKey {
         multisig::key::PublicKey::Ecdsa(HexBinary::from(
-            tm_address::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
+            types::PublicKey::from(SigningKey::random(&mut OsRng).verifying_key()).to_bytes(),
         ))
     }
 

@@ -5,7 +5,7 @@ use ethers::utils::serialize;
 use mockall::automock;
 
 use crate::json_rpc::Client;
-use crate::tm_address::Hash;
+use crate::types::Hash;
 
 type Result<T> = error_stack::Result<T, ProviderError>;
 

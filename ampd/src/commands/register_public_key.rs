@@ -14,8 +14,8 @@ use tracing::info;
 
 use crate::commands::{broadcast_tx, worker_pub_key};
 use crate::config::Config;
-use crate::tm_address::TMAddress;
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
+use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
 pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Error> {

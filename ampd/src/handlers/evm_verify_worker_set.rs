@@ -25,7 +25,7 @@ use crate::evm::finalizer::Finalization;
 use crate::evm::verifier::verify_worker_set;
 use crate::evm::{finalizer, json_rpc::EthereumClient};
 use crate::handlers::errors::Error;
-use crate::tm_address::{EVMAddress, Hash, TMAddress};
+use crate::types::{EVMAddress, Hash, TMAddress};
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -217,7 +217,7 @@ mod tests {
         event_processor::EventHandler,
         evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
         handlers::evm_verify_worker_set::PollStartedEvent,
-        tm_address::{EVMAddress, Hash, TMAddress},
+        types::{EVMAddress, Hash, TMAddress},
         PREFIX,
     };
 

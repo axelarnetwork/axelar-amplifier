@@ -8,7 +8,7 @@ use mockall::automock;
 use tokio::sync::Mutex;
 use tonic::{transport::Channel, Status};
 
-use crate::{tm_address::PublicKey, url::Url};
+use crate::{types::PublicKey, url::Url};
 
 use super::proto::{
     keygen_response::KeygenResponse, multisig_client, sign_response::SignResponse, KeygenRequest,

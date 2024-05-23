@@ -22,7 +22,7 @@ use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
 use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_worker_set;
-use crate::tm_address::TMAddress;
+use crate::types::TMAddress;
 
 #[derive(Deserialize, Debug)]
 pub struct Operators {
@@ -175,7 +175,7 @@ mod tests {
     use crate::event_processor::EventHandler;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
-    use crate::{handlers::tests::get_event, tm_address::TMAddress};
+    use crate::{handlers::tests::get_event, types::TMAddress};
 
     use super::PollStartedEvent;
 

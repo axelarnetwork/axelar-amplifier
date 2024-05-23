@@ -7,7 +7,7 @@ use sui_types::base_types::SuiAddress;
 
 use crate::handlers::sui_verify_msg::Message;
 use crate::handlers::sui_verify_worker_set::WorkerSetConfirmation;
-use crate::tm_address::Hash;
+use crate::types::Hash;
 
 #[derive(Deserialize)]
 struct ContractCall {
@@ -148,7 +148,7 @@ mod tests {
         sui_verify_worker_set::{Operators, WorkerSetConfirmation},
     };
     use crate::sui::verifier::{verify_message, verify_worker_set};
-    use crate::tm_address::{EVMAddress, Hash};
+    use crate::types::{EVMAddress, Hash};
 
     #[test]
     fn should_not_verify_msg_if_tx_id_does_not_match() {

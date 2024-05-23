@@ -42,7 +42,7 @@ pub mod test_utils {
     use ecdsa::SigningKey;
     use rand::rngs::OsRng;
 
-    use crate::tm_address::{PublicKey, TMAddress};
+    use crate::types::{PublicKey, TMAddress};
 
     impl TMAddress {
         pub fn random(prefix: &str) -> Self {
