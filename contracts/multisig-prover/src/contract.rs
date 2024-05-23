@@ -13,7 +13,7 @@ use crate::{
 
 pub const START_MULTISIG_REPLY_ID: u64 = 1;
 
-const CONTRACT_NAME: &str = "crates.io:multisig-prover";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -396,7 +396,7 @@ mod tests {
         .unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, CONTRACT_NAME);
+        assert_eq!(contract_version.contract, "multisig-prover");
         assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
