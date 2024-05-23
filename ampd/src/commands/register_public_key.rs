@@ -12,14 +12,14 @@ use report::ResultCompatExt;
 use sha3::{Digest, Keccak256};
 use tracing::info;
 
-use crate::commands::{broadcast_tx, worker_pub_key};
+use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
 use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
 pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Error> {
-    let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
+    let pub_key = verifier_pub_key(state_path, config.tofnd_config.clone()).await?;
 
     let multisig_address = get_multisig_address(&config)?;
 

@@ -46,8 +46,8 @@ pub struct Handler<C>
 where
     C: SuiClient + Send + Sync,
 {
-    worker: TMAddress,
-    voting_verifier: TMAddress,
+    verifier: TMAddress,
+    voting_verifier_contract: TMAddress,
     rpc_client: C,
     latest_block_height: Receiver<u64>,
 }
@@ -57,14 +57,14 @@ where
     C: SuiClient + Send + Sync,
 {
     pub fn new(
-        worker: TMAddress,
-        voting_verifier: TMAddress,
+        verifier: TMAddress,
+        voting_verifier_contract: TMAddress,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
-            worker,
-            voting_verifier,
+            verifier: verifier,
+            voting_verifier_contract,
             rpc_client,
             latest_block_height,
         }
@@ -72,8 +72,8 @@ where
 
     fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
         MsgExecuteContract {
-            sender: self.worker.as_ref().clone(),
-            contract: self.voting_verifier.as_ref().clone(),
+            sender: self.verifier.as_ref().clone(),
+            contract: self.voting_verifier_contract.as_ref().clone(),
             msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
                 .expect("vote msg should serialize"),
             funds: vec![],
@@ -89,7 +89,7 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
-        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+        if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
             return Ok(vec![]);
         }
 
@@ -107,7 +107,7 @@ where
             event => event.change_context(Error::DeserializeEvent)?,
         };
 
-        if !participants.contains(&self.worker) {
+        if !participants.contains(&self.verifier) {
             return Ok(vec![]);
         }
 
@@ -218,9 +218,9 @@ mod tests {
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
     }
 
-    // Should not handle event if worker is not a poll participant
+    // Should not handle event if verifier is not a poll participant
     #[async_test]
-    async fn worker_is_not_a_participant() {
+    async fn verifier_is_not_a_participant() {
         let voting_verifier = TMAddress::random(PREFIX);
         let event = get_event(
             poll_started_event(participants(5, None), 100),
@@ -249,14 +249,15 @@ mod tests {
             });
 
         let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
 
         let event = get_event(
-            poll_started_event(participants(5, Some(worker.clone())), 100),
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, watch::channel(0).1);
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, watch::channel(0).1);
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
@@ -272,13 +273,14 @@ mod tests {
             .returning(|_| Ok(HashMap::new()));
 
         let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
         let event = get_event(
-            poll_started_event(participants(5, Some(worker.clone())), 100),
+            poll_started_event(participants(5, Some(verifier.clone())), 100),
             &voting_verifier,
         );
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, watch::channel(0).1);
+        let handler =
+            super::Handler::new(verifier, voting_verifier, rpc_client, watch::channel(0).1);
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -298,16 +300,16 @@ mod tests {
             });
 
         let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let event: Event = get_event(
-            poll_started_event(participants(5, Some(worker.clone())), expiration),
+            poll_started_event(participants(5, Some(verifier.clone())), expiration),
             &voting_verifier,
         );
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, rx);
+        let handler = super::Handler::new(verifier, voting_verifier, rpc_client, rx);
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
@@ -348,10 +350,10 @@ mod tests {
         }
     }
 
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
+    fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
+            .chain(verifier)
             .collect()
     }
 }

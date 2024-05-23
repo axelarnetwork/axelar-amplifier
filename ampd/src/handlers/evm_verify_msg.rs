@@ -56,8 +56,8 @@ pub struct Handler<C>
 where
     C: EthereumClient,
 {
-    worker: TMAddress,
-    voting_verifier: TMAddress,
+    verifier: TMAddress,
+    voting_verifier_contract: TMAddress,
     chain: ChainName,
     finalizer_type: Finalization,
     rpc_client: C,
@@ -69,16 +69,16 @@ where
     C: EthereumClient + Send + Sync,
 {
     pub fn new(
-        worker: TMAddress,
-        voting_verifier: TMAddress,
+        verifier: TMAddress,
+        voting_verifier_contract: TMAddress,
         chain: ChainName,
         finalizer_type: Finalization,
         rpc_client: C,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
-            worker,
-            voting_verifier,
+            verifier,
+            voting_verifier_contract,
             chain,
             finalizer_type,
             rpc_client,
@@ -124,8 +124,8 @@ where
 
     fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
         MsgExecuteContract {
-            sender: self.worker.as_ref().clone(),
-            contract: self.voting_verifier.as_ref().clone(),
+            sender: self.verifier.as_ref().clone(),
+            contract: self.voting_verifier_contract.as_ref().clone(),
             msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
                 .expect("vote msg should serialize"),
             funds: vec![],
@@ -141,7 +141,7 @@ where
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> Result<Vec<Any>> {
-        if !event.is_from_contract(self.voting_verifier.as_ref()) {
+        if !event.is_from_contract(self.voting_verifier_contract.as_ref()) {
             return Ok(vec![]);
         }
 
@@ -164,7 +164,7 @@ where
             return Ok(vec![]);
         }
 
-        if !participants.contains(&self.worker) {
+        if !participants.contains(&self.verifier) {
             return Ok(vec![]);
         }
 
@@ -356,19 +356,19 @@ mod tests {
             )))
         });
 
-        let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
+        let voting_verifier_contract = TMAddress::random(PREFIX);
+        let verifier = TMAddress::random(PREFIX);
         let expiration = 100u64;
         let event: Event = get_event(
-            get_poll_started_event(participants(5, Some(worker.clone())), expiration),
-            &voting_verifier,
+            get_poll_started_event(participants(5, Some(verifier.clone())), expiration),
+            &voting_verifier_contract,
         );
 
         let (tx, rx) = watch::channel(expiration - 1);
 
         let handler = super::Handler::new(
-            worker,
-            voting_verifier,
+            verifier,
+            voting_verifier_contract,
             ChainName::from_str("ethereum").unwrap(),
             Finalization::RPCFinalizedBlock,
             rpc_client,
@@ -403,10 +403,10 @@ mod tests {
         .unwrap()
     }
 
-    fn participants(n: u8, worker: Option<TMAddress>) -> Vec<TMAddress> {
+    fn participants(n: u8, verifier: Option<TMAddress>) -> Vec<TMAddress> {
         (0..n)
             .map(|_| TMAddress::random(PREFIX))
-            .chain(worker)
+            .chain(verifier)
             .collect()
     }
 }
