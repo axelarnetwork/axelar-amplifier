@@ -67,14 +67,14 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
             };
 
             match consensus {
-                Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnChain,
-                Some(Vote::FailedOnChain) => VerificationStatus::FailedOnChain,
-                Some(Vote::NotFound) => VerificationStatus::NotFound,
+                Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnSourceChain,
+                Some(Vote::FailedOnChain) => VerificationStatus::FailedOnSourceChain,
+                Some(Vote::NotFound) => VerificationStatus::NotFoundOnSourceChain,
                 None if is_finished(&poll) => VerificationStatus::FailedToVerify,
                 None => VerificationStatus::InProgress,
             }
         }
-        None => VerificationStatus::None,
+        None => VerificationStatus::Unknown,
     }
 }
 
@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(
             vec![MessageStatus::new(
                 msg.clone(),
-                VerificationStatus::SucceededOnChain
+                VerificationStatus::SucceededOnSourceChain
             )],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
@@ -208,7 +208,7 @@ mod tests {
         let msg = message(1);
 
         assert_eq!(
-            vec![MessageStatus::new(msg.clone(), VerificationStatus::None)],
+            vec![MessageStatus::new(msg.clone(), VerificationStatus::Unknown)],
             messages_status(deps.as_ref(), &[msg]).unwrap()
         );
     }
