@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, QueryRequest,
-    Response, Uint128, WasmQuery,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    QueryRequest, Response, Uint128, WasmQuery,
 };
 
 use crate::error::ContractError;
@@ -199,7 +199,7 @@ mod test {
 
         deps.querier.update_wasm(move |wq| match wq {
             WasmQuery::Smart { contract_addr, .. } if contract_addr == COORDINATOR_ADDRESS => {
-                Ok(to_binary(&true).into()).into()
+                Ok(to_json_binary(&true).into()).into()
             }
             _ => panic!("no mock for this query"),
         });

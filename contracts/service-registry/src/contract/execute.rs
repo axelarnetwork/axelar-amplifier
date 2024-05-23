@@ -192,7 +192,7 @@ pub fn unbond_worker(
     };
     let ready_to_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: service.coordinator_contract.into(),
-        msg: to_binary(&query)?,
+        msg: to_json_binary(&query)?,
     }))?;
 
     let worker = worker.unbond(ready_to_unbond, env.block.time)?;

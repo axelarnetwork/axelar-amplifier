@@ -78,7 +78,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
                 .map_err(|err| err.into())
         }
         QueryMsg::ReadyToUnbond { worker_address } => {
-            to_binary(&query::check_worker_ready_to_unbond(deps, worker_address)?)
+            to_json_binary(&query::check_worker_ready_to_unbond(deps, worker_address)?)
                 .map_err(|err| err.into())
         }
     }
