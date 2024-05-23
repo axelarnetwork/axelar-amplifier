@@ -22,16 +22,16 @@ pub enum ContractError {
     ServiceAlreadyExists,
     #[error("service not found")]
     ServiceNotFound,
-    #[error("worker already authorized")]
-    WorkerAlreadyAuthorized,
+    #[error("verifier already authorized")]
+    VerifierAlreadyAuthorized,
     #[error("funds are in the wrong denomination")]
     WrongDenom,
-    #[error("worker not found")]
-    WorkerNotFound,
+    #[error("verifier not found")]
+    VerifierNotFound,
     #[error("invalid bonding state `{0:?}` for this operation")]
     InvalidBondingState(BondingState),
-    #[error("not enough workers")]
-    NotEnoughWorkers,
-    #[error("worker is jailed")]
-    WorkerJailed,
+    #[error("not enough verifiers")]
+    NotEnoughVerifiers,
+    #[error("verifier is jailed")]
+    VerifierJailed,
 }

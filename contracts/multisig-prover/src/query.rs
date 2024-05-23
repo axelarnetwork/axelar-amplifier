@@ -1,11 +1,11 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 
-use multisig::{multisig::Multisig, types::MultisigState, worker_set::WorkerSet};
+use multisig::{multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
 
 use crate::{
     error::ContractError,
     msg::{GetProofResponse, ProofStatus},
-    state::{CONFIG, CURRENT_WORKER_SET, MULTISIG_SESSION_BATCH, PAYLOAD},
+    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_BATCH, PAYLOAD},
 };
 
 pub fn get_proof(
@@ -33,7 +33,7 @@ pub fn get_proof(
             let execute_data = payload.execute_data(
                 config.encoder,
                 &config.domain_separator,
-                &multisig.worker_set,
+                &multisig.verifier_set,
                 multisig.optimize_signatures(),
                 &payload,
             )?;
@@ -49,6 +49,6 @@ pub fn get_proof(
     })
 }
 
-pub fn get_worker_set(deps: Deps) -> StdResult<Option<WorkerSet>> {
-    CURRENT_WORKER_SET.may_load(deps.storage)
+pub fn get_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
+    CURRENT_VERIFIER_SET.may_load(deps.storage)
 }

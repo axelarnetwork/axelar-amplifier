@@ -233,7 +233,7 @@ mod test {
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
-            worker_set_id: "worker_set_id".to_string(),
+            verifier_set_id: "worker_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
             chain_name: rand_chain_name(),
@@ -264,7 +264,7 @@ mod test {
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
-            worker_set_id: "worker_set_id".to_string(),
+            verifier_set_id: "worker_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
             chain_name: rand_chain_name(),

@@ -8,7 +8,7 @@ use crate::{encoding::Encoder, payload::Payload};
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Address that can execute all messages that either have unrestricted or admin permission level, such as UpdateWorkerSet.
+    /// Address that can execute all messages that either have unrestricted or admin permission level, such as Updateverifier set.
     /// Should be set to a trusted address that can react to unexpected interruptions to the contract's operation.
     pub admin_address: String,
     /// Address that can call all messages of unrestricted, admin and governance permission level, such as UpdateSigningThreshold.
@@ -33,11 +33,11 @@ pub struct InstantiateMsg {
     pub service_name: String,
     /// Name of chain for which this prover contract creates proofs.
     pub chain_name: String,
-    /// Maximum tolerable difference between currently active workerset and registered workerset.
-    /// The workerset registered in the service registry must be different by more than this number
-    /// of workers before calling UpdateWorkerSet. For example, if this is set to 1, UpdateWorkerSet
-    /// will fail unless the registered workerset and active workerset differ by more than 1.
-    pub worker_set_diff_threshold: u32,
+    /// Maximum tolerable difference between currently active verifier set and registered verifier set.
+    /// The verifier set registered in the service registry must be different by more than this number
+    /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
+    /// will fail unless the registered verifier set and active verifier set differ by more than 1.
+    pub verifier_set_diff_threshold: u32,
     /// Type of encoding to use for signed batches. Blockchains can encode their execution payloads in various ways (ABI, BCS, etc).
     /// This defines the specific encoding type to use for this prover, which should correspond to the encoding type used by the gateway
     /// deployed on the destination chain.
@@ -58,10 +58,10 @@ pub enum ExecuteMsg {
     ConstructProof {
         message_ids: Vec<CrossChainId>,
     },
-    UpdateWorkerSet,
-    ConfirmWorkerSet,
+    UpdateVerifierSet,
+    ConfirmVerifierSet,
     // Updates the signing threshold. The threshold currently in use does not change.
-    // The worker set must be updated and confirmed for the change to take effect.
+    // The verifier set must be updated and confirmed for the change to take effect.
     // Callable only by governance.
     UpdateSigningThreshold {
         new_signing_threshold: MajorityThreshold,
@@ -77,8 +77,8 @@ pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
 
-    #[returns(Option<multisig::worker_set::WorkerSet>)]
-    GetWorkerSet,
+    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    GetVerifierSet,
 }
 
 #[cw_serde]
