@@ -173,6 +173,7 @@ mod tests {
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::event_processor::EventHandler;
+    use crate::handlers::sui_verify_verifier_set;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
     use crate::{handlers::tests::get_event, types::TMAddress};
