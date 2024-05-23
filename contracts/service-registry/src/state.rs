@@ -2,7 +2,6 @@ use cosmwasm_schema::cw_serde;
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
@@ -154,15 +153,12 @@ pub enum AuthorizationState {
     Jailed,
 }
 
-type ChainNames = HashSet<ChainName>;
 type ServiceName = str;
 type WorkerAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 pub const WORKERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &WorkerAddress), ()> =
     Map::new("workers_per_chain");
-pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
-    Map::new("chains_per_worker");
 pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
 
 pub fn register_chains_support(
@@ -171,12 +167,6 @@ pub fn register_chains_support(
     chains: Vec<ChainName>,
     worker: WorkerAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |existing_chains| {
-        let mut existing_chains = existing_chains.unwrap_or_default();
-        existing_chains.extend(chains.iter().cloned());
-        Ok::<HashSet<ChainName>, ContractError>(existing_chains)
-    })?;
-
     for chain in chains.iter() {
         WORKERS_PER_CHAIN.save(storage, (&service_name, chain, &worker), &())?;
     }
@@ -190,31 +180,11 @@ pub fn deregister_chains_support(
     chains: Vec<ChainName>,
     worker: WorkerAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
-        Ok::<HashSet<ChainName>, ContractError>(
-            current_chains
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|chain| !chains.contains(chain))
-                .collect(),
-        )
-    })?;
-
     for chain in chains {
         WORKERS_PER_CHAIN.remove(storage, (&service_name, &chain, &worker));
     }
 
     Ok(())
-}
-
-pub fn may_load_chains_per_worker(
-    storage: &dyn Storage,
-    service_name: String,
-    worker_address: WorkerAddress,
-) -> Result<HashSet<ChainName>, ContractError> {
-    CHAINS_PER_WORKER
-        .may_load(storage, (&service_name, &worker_address))?
-        .ok_or(ContractError::WorkerNotFound)
 }
 
 #[cfg(test)]
@@ -237,10 +207,6 @@ mod tests {
             worker.clone()
         )
         .is_ok());
-
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-        assert!(worker_chains.contains(&chain_name));
     }
 
     #[test]
@@ -260,13 +226,6 @@ mod tests {
             worker.clone()
         )
         .is_ok());
-
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-
-        for chain_name in chain_names {
-            assert!(worker_chains.contains(&chain_name));
-        }
     }
 
     #[test]
@@ -294,23 +253,6 @@ mod tests {
             worker.clone()
         )
         .is_ok());
-
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-
-        assert!(worker_chains.contains(&first_chain_name));
-        assert!(worker_chains.contains(&second_chain_name));
-    }
-
-    #[test]
-    fn get_unregistered_worker_chains_fails() {
-        let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
-        let service_name = "validators";
-
-        let err = may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker)
-            .unwrap_err();
-        assert!(matches!(err, ContractError::WorkerNotFound));
     }
 
     #[test]
@@ -335,10 +277,6 @@ mod tests {
             worker.clone()
         )
         .is_ok());
-
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-        assert!(!worker_chains.contains(&chain_name));
     }
 
     #[test]
@@ -365,11 +303,6 @@ mod tests {
             worker.clone()
         )
         .is_ok());
-
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-        assert!(worker_chains.contains(&chain_names[1]));
-        assert!(!worker_chains.contains(&chain_names[0]));
     }
 
     #[test]

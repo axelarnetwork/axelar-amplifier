@@ -62,9 +62,6 @@ pub fn execute(
         ExecuteMsg::SetNextVerifiers { next_worker_set } => {
             execute::set_next_worker_set(deps, info, next_worker_set)
         }
-        ExecuteMsg::AddSupportedChainsForWorker { chains, worker } => {
-            execute::add_supported_chains_for_worker(deps, chains, worker)
-        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -74,8 +71,7 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_json_binary(&query::get_active_worker_set(deps, chain_name)?)
-                .map_err(|err| err.into())
+            to_json_binary(&query::active_worker_set(deps, chain_name)?).map_err(|err| err.into())
         }
         QueryMsg::ReadyToUnbond { worker_address } => {
             to_json_binary(&query::check_worker_ready_to_unbond(deps, worker_address)?)
@@ -204,7 +200,7 @@ mod tests {
         .unwrap();
 
         let chain_provers =
-            query::provers(test_setup.deps.as_ref(), test_setup.chain_name.clone()).unwrap();
+            query::prover(test_setup.deps.as_ref(), test_setup.chain_name.clone()).unwrap();
         assert_eq!(chain_provers, test_setup.prover);
     }
 
@@ -263,7 +259,7 @@ mod tests {
         assert!(res.is_ok());
 
         let eth_active_worker_set =
-            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
         assert_eq!(eth_active_worker_set, Some(new_worker_set));
@@ -285,7 +281,7 @@ mod tests {
         );
 
         let query_result =
-            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
         assert_eq!(query_result, None);

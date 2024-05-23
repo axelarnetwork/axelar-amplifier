@@ -1,6 +1,5 @@
 use crate::state;
 use crate::state::{AuthorizationState, WORKERS};
-use cosmwasm_std::wasm_execute;
 use router_api::ChainName;
 
 use super::*;
@@ -129,7 +128,7 @@ pub fn register_chains_support(
     service_name: String,
     chains: Vec<ChainName>,
 ) -> Result<Response, ContractError> {
-    let service = SERVICES
+    SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
@@ -144,14 +143,7 @@ pub fn register_chains_support(
         info.sender.clone(),
     )?;
 
-    Ok(Response::new().add_message(wasm_execute(
-        service.coordinator_contract,
-        &coordinator::msg::ExecuteMsg::AddSupportedChainsForWorker {
-            chains,
-            worker: info.sender,
-        },
-        vec![],
-    )?))
+    Ok(Response::new())
 }
 
 pub fn deregister_chains_support(
