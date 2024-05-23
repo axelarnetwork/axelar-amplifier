@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+package ampd;
+
+message SubscribeRequest {
+  string event_type = 1;
+  map<string, string> event_attributes = 2;
+  bool include_block_begin_end = 3;
+}
+
+message EventBlockBegin { uint64 height = 1; }
+
+message EventBlockEnd { uint64 height = 1; }
+
+message Event {
+  string type = 1;
+  map<string, string> attributes = 2;
+}
+
+message SubscribeResponse {
+  oneof event {
+    EventBlockBegin block_begin = 1;
+    EventBlockEnd block_end = 2;
+    Event abci = 3;
+  }
+}
+
+message BroadcastRequest { google.protobuf.Any msg = 1; }
+
+message BroadcastResponse {}
+
+service Ampd {
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {}
+  rpc Broadcast(BroadcastRequest) returns (BroadcastResponse) {}
+}
