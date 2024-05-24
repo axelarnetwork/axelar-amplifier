@@ -192,7 +192,7 @@ mod tests {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
         let user = Addr::unchecked("user");
         let verifier = Addr::unchecked("verifier");
-        let participation_contract = Addr::unchecked("participation contract");
+        let pool_contract = Addr::unchecked("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -227,7 +227,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: participation_contract.clone(),
+            contract: pool_contract.clone(),
         };
 
         let rewards = 200;
@@ -256,7 +256,7 @@ mod tests {
         assert!(res.is_ok());
 
         let res = app.execute_contract(
-            participation_contract.clone(),
+            pool_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
@@ -268,7 +268,7 @@ mod tests {
         assert!(res.is_ok());
 
         let res = app.execute_contract(
-            participation_contract.clone(),
+            pool_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
@@ -308,7 +308,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: participation_contract.clone(),
+                    contract: pool_contract.clone(),
                 },
                 epoch_count: None,
             },

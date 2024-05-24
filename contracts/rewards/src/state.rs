@@ -414,7 +414,7 @@ mod test {
             },
             pool_id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: Addr::unchecked("participation contract"),
+                contract: Addr::unchecked("pool_contract"),
             },
             event_count: 101u64,
             participation: HashMap::from([
@@ -469,7 +469,7 @@ mod test {
         let pool = RewardsPool {
             id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: Addr::unchecked("participation contract"),
+                contract: Addr::unchecked("pool_contract"),
             },
             balance: Uint128::from(100u128),
         };

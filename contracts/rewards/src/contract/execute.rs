@@ -468,23 +468,23 @@ mod test {
             ),
         );
 
-        for (verifier, (participation_contract, events_participated)) in &simulated_participation {
+        for (verifier, (pool_contract, events_participated)) in &simulated_participation {
             for i in 0..*events_participated {
                 let event_id = i.to_string().try_into().unwrap();
                 record_participation(
                     mock_deps.as_mut().storage,
                     event_id,
                     verifier.clone(),
-                    participation_contract.clone(),
+                    pool_contract.clone(),
                     block_height_started,
                 )
                 .unwrap();
             }
         }
-        for (verifier, (participation_contract, events_participated)) in simulated_participation {
+        for (verifier, (pool_contract, events_participated)) in simulated_participation {
             let tally = state::load_epoch_tally(
                 mock_deps.as_ref().storage,
-                participation_contract.clone(),
+                pool_contract.clone(),
                 cur_epoch_num,
             )
             .unwrap();
@@ -800,10 +800,10 @@ mod test {
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
 
-        for (participation_contract, rewards) in &test_data {
+        for (pool_contract, rewards) in &test_data {
             let pool_id = PoolId {
                 chain_name: chain_name.clone(),
-                contract: participation_contract.clone(),
+                contract: pool_contract.clone(),
             };
 
             for amount in rewards {
@@ -816,10 +816,10 @@ mod test {
             }
         }
 
-        for (participation_contract, rewards) in test_data {
+        for (pool_contract, rewards) in test_data {
             let pool_id = PoolId {
                 chain_name: chain_name.clone(),
-                contract: participation_contract.clone(),
+                contract: pool_contract.clone(),
             };
 
             let pool =
@@ -883,7 +883,7 @@ mod test {
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("participation_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         for (verifier, events_participated) in verifier_participation_per_epoch.clone() {
@@ -950,7 +950,7 @@ mod test {
         let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("participation_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
@@ -1029,7 +1029,7 @@ mod test {
         let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("participation_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         let _ = record_participation(
@@ -1108,7 +1108,7 @@ mod test {
         let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("participation_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         let _ = record_participation(
@@ -1175,7 +1175,7 @@ mod test {
         let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("participation_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         let _ = record_participation(
