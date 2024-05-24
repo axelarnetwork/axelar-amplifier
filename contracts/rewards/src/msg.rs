@@ -15,36 +15,36 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub struct Params {
     /// How often rewards are calculated, specified in number of blocks. Participation is calculated over this window. So if epoch_duration is 500
-    /// blocks, workers are rewarded for their participation within each 500 block window.
+    /// blocks, verifiers are rewarded for their participation within each 500 block window.
     pub epoch_duration: nonempty::Uint64,
 
-    /// Total number of tokens distributed as rewards per epoch. Tokens are split equally amongst all participating workers for a given epoch
+    /// Total number of tokens distributed as rewards per epoch. Tokens are split equally amongst all participating verifiers for a given epoch
     pub rewards_per_epoch: nonempty::Uint128,
 
-    /// Participation threshold workers must meet to receive rewards in a given epoch, specified as a fraction between 0 (exclusive) and 1 (exclusive). Workers
+    /// Participation threshold verifiers must meet to receive rewards in a given epoch, specified as a fraction between 0 (exclusive) and 1 (exclusive). Verifiers
     /// must participate in at least this fraction of all events in a given epoch to receive rewards. So, if participation_threshold is 9/10,
-    /// and there are 100 events in a given epoch, workers must have participated in at least 90 events to receive rewards.
+    /// and there are 100 events in a given epoch, verifiers must have participated in at least 90 events to receive rewards.
     /// Participation is reset at the beginning of each epoch, so participation in previous epochs does not affect rewards for future epochs.
     pub participation_threshold: Threshold,
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Log a specific worker as participating in a specific event. Worker weights are ignored
+    /// Log a specific verifier as participating in a specific event. Verifier weights are ignored
     ///
     /// TODO: For batched voting, treating the entire batch as a single event can be problematic.
-    /// A worker may vote correctly for 9 out of 10 messages in a batch, but the worker's participation
-    /// will not be recorded, because of the one message that the worker voted incorrectly for. Or the voting
+    /// A verifier may vote correctly for 9 out of 10 messages in a batch, but the verifier's participation
+    /// will not be recorded, because of the one message that the verifier voted incorrectly for. Or the voting
     /// verifier could choose to record the participation, but then the missed message is not recorded in any way.
     /// A possible solution to this is to add a weight to each event, where the voting verifier specifies the number
-    /// of messages in a batch as well as the number of messages a particular worker actually participated in.
+    /// of messages in a batch as well as the number of messages a particular verifier actually participated in.
     RecordParticipation {
         chain_name: ChainName,
         event_id: nonempty::String,
-        worker_address: String,
+        verifier_address: String,
     },
 
-    /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each worker
+    /// Distribute rewards up to epoch T - 2 (i.e. if we are currently in epoch 10, distribute all undistributed rewards for epochs 0-8) and send the required number of tokens to each verifier
     DistributeRewards {
         pool_id: PoolId,
         /// Maximum number of historical epochs for which to distribute rewards, starting with the oldest. If not specified, distribute rewards for 10 epochs.
