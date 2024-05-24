@@ -14,7 +14,6 @@ use service_registry::state::WeightedVerifier;
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
-    encoding::make_operators,
     error::ContractError,
     payload::Payload,
     state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_BATCH},

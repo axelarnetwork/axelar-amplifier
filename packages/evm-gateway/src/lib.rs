@@ -43,46 +43,31 @@ fn evm_address(pub_key: &PublicKey) -> Result<alloy_primitives::Address, Error> 
     }
 }
 
-pub fn make_operators(worker_set: VerifierSet) -> Operators {
-    let operators: Vec<(HexBinary, Uint128)> = worker_set
+
+impl TryFrom<&VerifierSet> for WeightedSigners {
+    type Error = Error;
+    fn try_from(verifier_set: &VerifierSet) -> Result<Self, Error> {
+    let signers: Vec<_> = verifier_set
         .signers
         .values()
         .map(|signer| {
             (
-                evm_address(&signer.pub_key)
+                HexBinary::from(evm_address(&signer.pub_key)
                     .expect("couldn't convert pubkey to evm address")
-                    .as_slice()
-                    .into(),
+                    .as_slice()),
                 signer.weight,
             )
         })
-        .collect();
-    Operators::new(operators, worker_set.threshold, worker_set.created_at)
-}
-impl TryFrom<&VerifierSet> for WeightedSigners {
-    type Error = Error;
-    fn try_from(worker_set: &VerifierSet) -> Result<Self, Error> {
-        WeightedSigners::try_from(&make_operators(worker_set.clone()))
-    }
-}
-
-impl TryFrom<&Operators> for WeightedSigners {
-    type Error = Error;
-
-    fn try_from(operators: &Operators) -> Result<Self, Error> {
-        let signers = operators
-            .weights_by_addresses()
-            .iter()
-            .map(WeightedSigner::try_from)
+            .map(|e| WeightedSigner::try_from(&e))
             .collect::<Result<Vec<_>, _>>()?;
-
         Ok(WeightedSigners {
             signers,
-            threshold: operators.threshold.u128(),
-            nonce: Uint256::from(operators.created_at).to_be_bytes(),
+            threshold: verifier_set.threshold.u128(),
+            nonce: Uint256::from(verifier_set.created_at).to_be_bytes(),
         })
     }
 }
+
 
 impl TryFrom<&(HexBinary, Uint128)> for WeightedSigner {
     type Error = Error;

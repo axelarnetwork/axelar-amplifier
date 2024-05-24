@@ -12,12 +12,6 @@ pub enum Encoder {
     Bcs,
 }
 
-pub fn make_operators(worker_set: VerifierSet, encoder: Encoder) -> Operators {
-    match encoder {
-        Encoder::Abi => abi::make_operators(worker_set),
-        Encoder::Bcs => todo!(),
-    }
-}
 
 #[cfg(test)]
 mod test {

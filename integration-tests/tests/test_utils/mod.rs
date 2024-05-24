@@ -28,7 +28,7 @@ use multisig::{
     key::{KeyType, PublicKey},
     verifier_set::VerifierSet,
 };
-use multisig_prover::encoding::{make_operators, Encoder};
+use multisig_prover::encoding::{Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
 use tofn::ecdsa::KeyPair;
