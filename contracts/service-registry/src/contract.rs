@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
+use crate::migrations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
 
@@ -24,8 +25,7 @@ pub fn migrate(
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
+    migrations::v_0_3::migrate(deps).map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
