@@ -22,9 +22,9 @@ use crate::ContractError;
 pub struct Service {
     pub name: String,
     pub service_contract: Addr,
-    pub min_num_workers: u16,
-    pub max_num_workers: Option<u16>,
-    pub min_worker_bond: Uint128,
+    pub min_num_verifiers: u16,
+    pub max_num_verifiers: Option<u16>,
+    pub min_verifier_bond: Uint128,
     pub bond_denom: String,
     // should be set to a duration longer than the voting period for governance proposals,
     // otherwise a verifier could bail before they get penalized
@@ -33,14 +33,14 @@ pub struct Service {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct Worker {
+pub struct Verifier {
     pub address: Addr,
     pub bonding_state: BondingState,
     pub authorization_state: AuthorizationState,
     pub service_name: String,
 }
 
-impl Worker {
+impl Verifier {
     pub fn add_bond(self, to_add: Uint128) -> Result<Self, ContractError> {
         let amount = match self.bonding_state {
             BondingState::Bonded { amount }
@@ -66,7 +66,7 @@ impl Worker {
 
     pub fn unbond(self, can_unbond: bool, time: Timestamp) -> Result<Self, ContractError> {
         if self.authorization_state == AuthorizationState::Jailed {
-            return Err(ContractError::WorkerJailed);
+            return Err(ContractError::VerifierJailed);
         }
 
         let bonding_state = match self.bonding_state {
@@ -95,7 +95,7 @@ impl Worker {
         unbonding_period_days: u64,
     ) -> Result<(Self, Uint128), ContractError> {
         if self.authorization_state == AuthorizationState::Jailed {
-            return Err(ContractError::WorkerJailed);
+            return Err(ContractError::VerifierJailed);
         }
 
         match self.bonding_state {
@@ -115,19 +115,19 @@ impl Worker {
 }
 
 #[cw_serde]
-pub struct WeightedWorker {
-    pub worker_info: Worker,
-    pub weight: nonempty::Uint256,
+pub struct WeightedVerifier {
+    pub verifier_info: Verifier,
+    pub weight: nonempty::Uint128,
 }
 
-/// For now, all workers have equal weight, regardless of amount bonded
-pub const WORKER_WEIGHT: nonempty::Uint256 = nonempty::Uint256::one();
+/// For now, all verifiers have equal weight, regardless of amount bonded
+pub const VERIFIER_WEIGHT: nonempty::Uint128 = nonempty::Uint128::one();
 
-impl From<WeightedWorker> for Participant {
-    fn from(worker: WeightedWorker) -> Participant {
+impl From<WeightedVerifier> for Participant {
+    fn from(verifier: WeightedVerifier) -> Participant {
         Self {
-            weight: worker.weight,
-            address: worker.worker_info.address,
+            weight: verifier.weight,
+            address: verifier.verifier_info.address,
         }
     }
 }
@@ -156,29 +156,29 @@ pub enum AuthorizationState {
 
 type ChainNames = HashSet<ChainName>;
 type ServiceName = str;
-type WorkerAddress = Addr;
+type VerifierAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
-pub const WORKERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &WorkerAddress), ()> =
-    Map::new("workers_per_chain");
-pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
-    Map::new("chains_per_worker");
-pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
+pub const VERIFIERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &VerifierAddress), ()> =
+    Map::new("verifiers_per_chain");
+pub const CHAINS_PER_VERIFIER: Map<(&ServiceName, &VerifierAddress), ChainNames> =
+    Map::new("chains_per_verifier");
+pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn register_chains_support(
     storage: &mut dyn Storage,
     service_name: String,
     chains: Vec<ChainName>,
-    worker: WorkerAddress,
+    verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
+    CHAINS_PER_VERIFIER.update(storage, (&service_name, &verifier), |current_chains| {
         let mut current_chains = current_chains.unwrap_or_default();
         current_chains.extend(chains.iter().cloned());
         Ok::<HashSet<ChainName>, ContractError>(current_chains)
     })?;
 
     for chain in chains.iter() {
-        WORKERS_PER_CHAIN.save(storage, (&service_name, chain, &worker), &())?;
+        VERIFIERS_PER_CHAIN.save(storage, (&service_name, chain, &verifier), &())?;
     }
 
     Ok(())
@@ -188,9 +188,9 @@ pub fn deregister_chains_support(
     storage: &mut dyn Storage,
     service_name: String,
     chains: Vec<ChainName>,
-    worker: WorkerAddress,
+    verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_WORKER.update(storage, (&service_name, &worker), |current_chains| {
+    CHAINS_PER_VERIFIER.update(storage, (&service_name, &verifier), |current_chains| {
         Ok::<HashSet<ChainName>, ContractError>(
             current_chains
                 .unwrap_or_default()
@@ -201,20 +201,20 @@ pub fn deregister_chains_support(
     })?;
 
     for chain in chains {
-        WORKERS_PER_CHAIN.remove(storage, (&service_name, &chain, &worker));
+        VERIFIERS_PER_CHAIN.remove(storage, (&service_name, &chain, &verifier));
     }
 
     Ok(())
 }
 
-pub fn may_load_chains_per_worker(
+pub fn may_load_chains_per_verifier(
     storage: &dyn Storage,
     service_name: String,
-    worker_address: WorkerAddress,
+    verifier_address: VerifierAddress,
 ) -> Result<HashSet<ChainName>, ContractError> {
-    CHAINS_PER_WORKER
-        .may_load(storage, (&service_name, &worker_address))?
-        .ok_or(ContractError::WorkerNotFound)
+    CHAINS_PER_VERIFIER
+        .may_load(storage, (&service_name, &verifier_address))?
+        .ok_or(ContractError::VerifierNotFound)
 }
 
 #[cfg(test)]
@@ -224,9 +224,9 @@ mod tests {
     use std::{str::FromStr, vec};
 
     #[test]
-    fn register_single_worker_chain_single_call_success() {
+    fn register_single_verifier_chain_single_call_success() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
@@ -234,19 +234,20 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             chains,
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-        assert!(worker_chains.contains(&chain_name));
+        let verifier_chains =
+            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
+                .unwrap();
+        assert!(verifier_chains.contains(&chain_name));
     }
 
     #[test]
-    fn register_multiple_worker_chains_single_call_success() {
+    fn register_multiple_verifier_chains_single_call_success() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_names = vec![
             ChainName::from_str("ethereum").unwrap(),
@@ -257,22 +258,23 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             chain_names.clone(),
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+        let verifier_chains =
+            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
+                .unwrap();
 
         for chain_name in chain_names {
-            assert!(worker_chains.contains(&chain_name));
+            assert!(verifier_chains.contains(&chain_name));
         }
     }
 
     #[test]
-    fn register_multiple_worker_chains_multiple_calls_success() {
+    fn register_multiple_verifier_chains_multiple_calls_success() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
 
         let first_chain_name = ChainName::from_str("ethereum").unwrap();
@@ -281,7 +283,7 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             first_chains_vector,
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
@@ -291,32 +293,34 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             second_chains_vector,
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
+        let verifier_chains =
+            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
+                .unwrap();
 
-        assert!(worker_chains.contains(&first_chain_name));
-        assert!(worker_chains.contains(&second_chain_name));
+        assert!(verifier_chains.contains(&first_chain_name));
+        assert!(verifier_chains.contains(&second_chain_name));
     }
 
     #[test]
-    fn get_unregistered_worker_chains_fails() {
+    fn get_unregistered_verifier_chains_fails() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
 
-        let err = may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker)
-            .unwrap_err();
-        assert!(matches!(err, ContractError::WorkerNotFound));
+        let err =
+            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
+                .unwrap_err();
+        assert!(matches!(err, ContractError::VerifierNotFound));
     }
 
     #[test]
     fn deregister_single_supported_chain_success() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
@@ -324,7 +328,7 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             chains.clone(),
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
@@ -332,19 +336,20 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             chains,
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-        assert!(!worker_chains.contains(&chain_name));
+        let verifier_chains =
+            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
+                .unwrap();
+        assert!(!verifier_chains.contains(&chain_name));
     }
 
     #[test]
     fn deregister_one_of_supported_chains_success() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_names = vec![
             ChainName::from_str("ethereum").unwrap(),
@@ -354,7 +359,7 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             chain_names.clone(),
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
@@ -362,20 +367,21 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             vec![chain_names[0].clone()],
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
 
-        let worker_chains =
-            may_load_chains_per_worker(deps.as_mut().storage, service_name.into(), worker).unwrap();
-        assert!(worker_chains.contains(&chain_names[1]));
-        assert!(!worker_chains.contains(&chain_names[0]));
+        let verifier_chains =
+            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
+                .unwrap();
+        assert!(verifier_chains.contains(&chain_names[1]));
+        assert!(!verifier_chains.contains(&chain_names[0]));
     }
 
     #[test]
     fn deregister_unsupported_chain_success() {
         let mut deps = mock_dependencies();
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let service_name = "validators";
         let chain_name = ChainName::from_str("ethereum").unwrap();
         let chains = vec![chain_name.clone()];
@@ -384,15 +390,15 @@ mod tests {
             deps.as_mut().storage,
             service_name.into(),
             chains,
-            worker.clone()
+            verifier.clone()
         )
         .is_ok());
     }
 
     #[test]
     fn test_bonded_add_bond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32),
             },
@@ -400,7 +406,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = worker.add_bond(Uint128::from(200u32));
+        let res = verifier.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -412,8 +418,8 @@ mod tests {
 
     #[test]
     fn test_requested_unbonding_add_bond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32),
             },
@@ -421,7 +427,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = worker.add_bond(Uint128::from(200u32));
+        let res = verifier.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -433,8 +439,8 @@ mod tests {
 
     #[test]
     fn test_unbonding_add_bond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Unbonding {
                 amount: Uint128::from(100u32),
                 unbonded_at: Timestamp::from_nanos(0),
@@ -443,7 +449,7 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = worker.add_bond(Uint128::from(200u32));
+        let res = verifier.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -455,14 +461,14 @@ mod tests {
 
     #[test]
     fn test_unbonded_add_bond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Unbonded,
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.add_bond(Uint128::from(200u32));
+        let res = verifier.add_bond(Uint128::from(200u32));
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -476,14 +482,14 @@ mod tests {
     fn test_zero_bond() {
         let bonding_state = BondingState::Unbonded;
 
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.add_bond(Uint128::from(0u32));
+        let res = verifier.add_bond(Uint128::from(0u32));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -493,8 +499,8 @@ mod tests {
 
     #[test]
     fn test_bonded_unbond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32),
             },
@@ -503,7 +509,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = worker.unbond(true, unbonded_at);
+        let res = verifier.unbond(true, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -516,8 +522,8 @@ mod tests {
 
     #[test]
     fn test_bonded_unbond_cant_unbond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32),
             },
@@ -526,7 +532,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = worker.unbond(false, unbonded_at);
+        let res = verifier.unbond(false, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -538,8 +544,8 @@ mod tests {
 
     #[test]
     fn test_requested_unbonding_unbond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32),
             },
@@ -548,7 +554,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = worker.unbond(true, unbonded_at);
+        let res = verifier.unbond(true, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -561,8 +567,8 @@ mod tests {
 
     #[test]
     fn test_requested_unbonding_cant_unbond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::RequestedUnbonding {
                 amount: Uint128::from(100u32),
             },
@@ -571,7 +577,7 @@ mod tests {
         };
 
         let unbonded_at = Timestamp::from_nanos(0);
-        let res = worker.unbond(false, unbonded_at);
+        let res = verifier.unbond(false, unbonded_at);
         assert!(res.is_ok());
         assert_eq!(
             res.unwrap().bonding_state,
@@ -588,21 +594,21 @@ mod tests {
             unbonded_at: Timestamp::from_nanos(0),
         };
 
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.clone().unbond(true, Timestamp::from_nanos(2));
+        let res = verifier.clone().unbond(true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = worker.unbond(false, Timestamp::from_nanos(2));
+        let res = verifier.unbond(false, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -614,21 +620,21 @@ mod tests {
     fn test_unbonded_unbond() {
         let bonding_state = BondingState::Unbonded;
 
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.clone().unbond(true, Timestamp::from_nanos(2));
+        let res = verifier.clone().unbond(true, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = worker.unbond(false, Timestamp::from_nanos(2));
+        let res = verifier.unbond(false, Timestamp::from_nanos(2));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -641,21 +647,21 @@ mod tests {
         let bonding_state = BondingState::Bonded {
             amount: Uint128::from(100u32),
         };
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -668,21 +674,21 @@ mod tests {
         let bonding_state = BondingState::RequestedUnbonding {
             amount: Uint128::from(100u32),
         };
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -696,26 +702,26 @@ mod tests {
             amount: Uint128::from(100u32),
             unbonded_at: Timestamp::from_nanos(0),
         };
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_ok());
 
-        let (worker, amount) = res.unwrap();
+        let (verifier, amount) = res.unwrap();
         assert_eq!(
-            (worker.bonding_state, amount),
+            (verifier.bonding_state, amount),
             (BondingState::Unbonded, Uint128::from(100u32))
         );
     }
@@ -723,21 +729,21 @@ mod tests {
     #[test]
     fn test_unbonded_claim_stake() {
         let bonding_state = BondingState::Unbonded;
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: bonding_state.clone(),
             authorization_state: AuthorizationState::Authorized,
             service_name: "validators".to_string(),
         };
 
-        let res = worker.clone().claim_stake(Timestamp::from_seconds(60), 1);
+        let res = verifier.clone().claim_stake(Timestamp::from_seconds(60), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
             ContractError::InvalidBondingState(bonding_state.clone())
         );
 
-        let res = worker.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
+        let res = verifier.claim_stake(Timestamp::from_seconds(60 * 60 * 24), 1);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err(),
@@ -746,9 +752,9 @@ mod tests {
     }
 
     #[test]
-    fn jailed_worker_cannot_unbond() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+    fn jailed_verifier_cannot_unbond() {
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Bonded {
                 amount: Uint128::from(100u32),
             },
@@ -756,15 +762,15 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = worker.unbond(true, Timestamp::from_nanos(0));
+        let res = verifier.unbond(true, Timestamp::from_nanos(0));
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), ContractError::WorkerJailed);
+        assert_eq!(res.unwrap_err(), ContractError::VerifierJailed);
     }
 
     #[test]
-    fn jailed_worker_cannot_claim_stake() {
-        let worker = Worker {
-            address: Addr::unchecked("worker"),
+    fn jailed_verifier_cannot_claim_stake() {
+        let verifier = Verifier {
+            address: Addr::unchecked("verifier"),
             bonding_state: BondingState::Unbonding {
                 amount: Uint128::from(100u32),
                 unbonded_at: Timestamp::from_nanos(0),
@@ -773,8 +779,8 @@ mod tests {
             service_name: "validators".to_string(),
         };
 
-        let res = worker.claim_stake(Timestamp::from_nanos(1), 0);
+        let res = verifier.claim_stake(Timestamp::from_nanos(1), 0);
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err(), ContractError::WorkerJailed);
+        assert_eq!(res.unwrap_err(), ContractError::VerifierJailed);
     }
 }

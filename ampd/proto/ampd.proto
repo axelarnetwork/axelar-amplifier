@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+package ampd;
+
+message EventFilter {
+  // the subscription will return all events that match ANY of these filters
+  repeated Event filters = 1;
+  bool include_block_begin_end = 2;
+}
+
+message SubscribeRequest { EventFilter event_filter = 1; }
+
+message EventBlockBegin { uint64 height = 1; }
+
+message EventBlockEnd { uint64 height = 1; }
+
+message Event {
+  string event_type = 1;
+  map<string, string> event_attributes = 2;
+}
+
+message SubscribeResponse {
+  oneof event {
+    EventBlockBegin block_begin = 1;
+    EventBlockEnd block_end = 2;
+    Event abci = 3;
+  }
+}
+
+message BroadcastRequest { google.protobuf.Any msg = 1; }
+
+message BroadcastResponse {}
+
+service Ampd {
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {}
+  rpc Broadcast(BroadcastRequest) returns (BroadcastResponse) {}
+}

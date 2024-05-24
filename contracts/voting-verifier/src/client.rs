@@ -6,7 +6,7 @@ use axelar_wasm_std::{
 };
 use cosmwasm_std::{Addr, WasmMsg};
 use error_stack::ResultExt;
-use multisig::worker_set::WorkerSet;
+use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, Poll, QueryMsg};
@@ -48,11 +48,11 @@ impl<'a> Client<'a> {
     pub fn verify_worker_set(
         &self,
         message_id: nonempty::String,
-        new_workerset: WorkerSet
+        new_verifier_set: VerifierSet
     ) -> WasmMsg {
-        self.client.execute(&ExecuteMsg::VerifyWorkerSet {
+        self.client.execute(&ExecuteMsg::VerifyVerifierSet {
             message_id,
-            new_workerset,
+            new_verifier_set,
         })
     }
 
@@ -78,9 +78,9 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn worker_set_status(&self, new_workerset: WorkerSet) -> Result<VerificationStatus> {
+    pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetWorkerSetStatus { new_workerset })
+            .query(&QueryMsg::GetVerifierSetStatus { new_verifier_set })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
@@ -109,7 +109,7 @@ mod test {
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
-        Addr, DepsMut, QuerierWrapper, Uint256, Uint64, WasmQuery,
+        Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
     };
     use router_api::{CrossChainId, Message};
 
@@ -163,8 +163,8 @@ mod test {
                 .messages_status(vec![msg_1.clone(), msg_2.clone()])
                 .unwrap(),
             vec![
-                MessageStatus::new(msg_1, VerificationStatus::None),
-                MessageStatus::new(msg_2, VerificationStatus::None)
+                MessageStatus::new(msg_1, VerificationStatus::Unknown),
+                MessageStatus::new(msg_2, VerificationStatus::Unknown)
             ]
         );
     }
@@ -176,9 +176,9 @@ mod test {
 
         assert_eq!(
             client
-                .worker_set_status(Operators::new(vec![], Uint256::one(), 1))
+                .verifier_set_status(Operators::new(vec![], Uint128::one(), 1))
                 .unwrap(),
-            VerificationStatus::None
+            VerificationStatus::Unknown
         );
     }
 

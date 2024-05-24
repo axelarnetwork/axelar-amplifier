@@ -5,7 +5,7 @@ use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use num_traits::cast;
 
 use crate::handlers::evm_verify_msg::Message;
-use crate::handlers::evm_verify_worker_set::WorkerSetConfirmation;
+use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
 use crate::types::EVMAddress;
 
 struct IAxelarGatewayEventsWithLog<'a>(&'a Log, IAxelarAmplifierGatewayEvents);
@@ -27,12 +27,12 @@ impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &Message {
     }
 }
 
-impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &WorkerSetConfirmation {
+impl PartialEq<IAxelarGatewayEventsWithLog<'_>> for &VerifierSetConfirmation {
     fn eq(&self, other: &IAxelarGatewayEventsWithLog<'_>) -> bool {
         let IAxelarGatewayEventsWithLog(log, event) = other;
         match event {
             IAxelarAmplifierGatewayEvents::SignersRotatedFilter(event) => {
-                let weighted_signers = match WeightedSigners::try_from(&self.workerset) {
+                let weighted_signers = match WeightedSigners::try_from(&self.verifier_set) {
                     Ok(signers) => signers,
                     Err(_) => return false,
                 };
@@ -104,7 +104,7 @@ pub fn verify_message(
 pub fn verify_worker_set(
     gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
-    worker_set: &WorkerSetConfirmation,
+    worker_set: &VerifierSetConfirmation,
 ) -> Vote {
     verify(
         gateway_address,
@@ -131,7 +131,7 @@ mod tests {
 
     use super::{verify_message, verify_worker_set};
     use crate::{
-        handlers::{evm_verify_msg::Message, evm_verify_worker_set::WorkerSetConfirmation},
+        handlers::{evm_verify_msg::Message, evm_verify_verifier_set::VerifierSetConfirmation},
         types::{EVMAddress, Hash},
     };
 
@@ -197,7 +197,7 @@ mod tests {
         let (gateway_address, tx_receipt, mut worker_set) =
             get_matching_worker_set_and_tx_receipt();
 
-        worker_set.workerset.threshold = Uint256::from(50u64);
+        worker_set.verifier_set.threshold = Uint128::from(50u64);
         assert_eq!(
             verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
             Vote::NotFound
@@ -290,37 +290,37 @@ mod tests {
     }
 
     fn get_matching_worker_set_and_tx_receipt(
-    ) -> (EVMAddress, TransactionReceipt, WorkerSetConfirmation) {
+    ) -> (EVMAddress, TransactionReceipt, VerifierSetConfirmation) {
         let tx_id = Hash::random();
         let log_index = 1;
         let gateway_address = EVMAddress::random();
 
         let operators = Operators::new(
             vec![
-                (EVMAddress::random().as_bytes().into(), Uint256::from(10u64)),
-                (EVMAddress::random().as_bytes().into(), Uint256::from(20u64)),
-                (EVMAddress::random().as_bytes().into(), Uint256::from(30u64)),
+                (EVMAddress::random().as_bytes().into(), Uint128::from(10u64)),
+                (EVMAddress::random().as_bytes().into(), Uint128::from(20u64)),
+                (EVMAddress::random().as_bytes().into(), Uint128::from(30u64)),
             ],
-            Uint256::from(40u64),
+            Uint128::from(40u64),
             1u64,
         );
 
-        let worker_set = WorkerSetConfirmation {
+        let verifier_set = VerifierSetConfirmation {
             tx_id,
             event_index: log_index,
-            workerset: operators,
+            verifier_set
         };
 
         let weighted_signers = WeightedSigners {
             threshold: 40,
-            nonce: Uint256::from(worker_set.workerset.created_at).to_be_bytes(),
-            signers: worker_set
+            nonce: Uint256::from(verifier_set.workerset.created_at).to_be_bytes(),
+            signers: verifier_set
                 .workerset
                 .weights_by_addresses()
                 .iter()
                 .map(|(operator, weight)| WeightedSigner {
                     signer: operator.to_hex().parse().unwrap(),
-                    weight: Uint128::try_from(*weight).unwrap().u128(),
+                    weight: weight.u128(),
                 })
                 .collect(),
         };
@@ -345,7 +345,7 @@ mod tests {
             ..Default::default()
         };
 
-        (gateway_address, tx_receipt, worker_set)
+        (gateway_address, tx_receipt, verifier_set)
     }
 
     fn get_matching_msg_and_tx_receipt() -> (EVMAddress, TransactionReceipt, Message) {

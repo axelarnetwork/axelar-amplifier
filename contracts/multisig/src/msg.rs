@@ -1,11 +1,11 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, HexBinary, Uint256, Uint64};
+use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use router_api::ChainName;
 
 use crate::{
     key::{KeyType, PublicKey, Signature},
     multisig::Multisig,
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
 };
 
 #[cw_serde]
@@ -20,7 +20,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     // Can only be called by an authorized contract.
     StartSigningSession {
-        worker_set_id: String,
+        verifier_set_id: String,
         msg: HexBinary,
         chain_name: ChainName,
         /// Address of a contract responsible for signature verification.
@@ -35,8 +35,8 @@ pub enum ExecuteMsg {
         session_id: Uint64,
         signature: HexBinary,
     },
-    RegisterWorkerSet {
-        worker_set: WorkerSet,
+    RegisterVerifierSet {
+        verifier_set: VerifierSet,
     },
     RegisterPublicKey {
         public_key: PublicKey,
@@ -60,12 +60,12 @@ pub enum QueryMsg {
     #[returns(Multisig)]
     GetMultisig { session_id: Uint64 },
 
-    #[returns(WorkerSet)]
-    GetWorkerSet { worker_set_id: String },
+    #[returns(VerifierSet)]
+    GetVerifierSet { verifier_set_id: String },
 
     #[returns(PublicKey)]
     GetPublicKey {
-        worker_address: String,
+        verifier_address: String,
         key_type: KeyType,
     },
 }
@@ -74,7 +74,7 @@ pub enum QueryMsg {
 #[derive(Eq, Ord, PartialOrd)]
 pub struct Signer {
     pub address: Addr,
-    pub weight: Uint256,
+    pub weight: Uint128,
     pub pub_key: PublicKey,
 }
 

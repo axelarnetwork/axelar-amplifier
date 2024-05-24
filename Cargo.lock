@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -259,6 +259,7 @@ dependencies = [
  "multisig",
  "num-traits",
  "prost 0.11.9",
+ "prost-types",
  "rand",
  "random-string",
  "report",
@@ -1680,7 +1681,7 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -3509,7 +3510,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -5107,7 +5108,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -5117,6 +5118,7 @@ dependencies = [
  "curve25519-dalek 4.1.1",
  "cw-multi-test",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.1",
  "cw2 1.1.0",
  "ed25519-dalek",
  "enum-display-derive",
@@ -5136,7 +5138,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -5162,7 +5164,7 @@ dependencies = [
  "itertools 0.11.0",
  "k256",
  "multisig",
- "prost 0.12.4",
+ "prost 0.12.6",
  "report",
  "router-api",
  "serde_json",
@@ -5345,7 +5347,7 @@ checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
 
 [[package]]
 name = "nexus-gateway"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6379,12 +6381,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.12.4"
+version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0f5d036824e4761737860779c906171497f6d55681139d8312388f8fe398922"
+checksum = "deb1435c188b76130da55f17a466d252ff7b1418b2ad3e037d127b94e3411f29"
 dependencies = [
  "bytes",
- "prost-derive 0.12.4",
+ "prost-derive 0.12.6",
 ]
 
 [[package]]
@@ -6437,9 +6439,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.12.4"
+version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19de2de2a00075bf566bee3bd4db014b11587e84184d3f7a791bc17f1a8e9e48"
+checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -6863,7 +6865,7 @@ checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
 
 [[package]]
 name = "rewards"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6969,7 +6971,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -7606,7 +7608,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -8917,7 +8919,7 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost 0.12.4",
+ "prost 0.12.6",
  "rustls 0.21.7",
  "rustls-pemfile 1.0.3",
  "tokio",
@@ -8949,7 +8951,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f80db390246dfb46553481f6024f0082ba00178ea495dbb99e70ba9a4fafb5e1"
 dependencies = [
  "async-stream",
- "prost 0.12.4",
+ "prost 0.12.6",
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",
@@ -9404,7 +9406,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voting-verifier"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",

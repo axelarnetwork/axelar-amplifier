@@ -11,7 +11,7 @@ use axelar_wasm_std::{
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };
-use multisig::worker_set::WorkerSet;
+use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
 use crate::error::ContractError;
@@ -33,7 +33,7 @@ pub struct Config {
 #[cw_serde]
 pub enum Poll {
     Messages(WeightedPoll),
-    ConfirmWorkerSet(WeightedPoll),
+    ConfirmVerifierSet(WeightedPoll),
 }
 
 impl Poll {
@@ -44,7 +44,7 @@ impl Poll {
     {
         match self {
             Poll::Messages(poll) => Ok(Poll::Messages(func(poll)?)),
-            Poll::ConfirmWorkerSet(poll) => Ok(Poll::ConfirmWorkerSet(func(poll)?)),
+            Poll::ConfirmVerifierSet(poll) => Ok(Poll::ConfirmVerifierSet(func(poll)?)),
         }
     }
 }
@@ -66,8 +66,8 @@ impl PollContent<Message> {
     }
 }
 
-impl PollContent<WorkerSet> {
-    pub fn new(workerset: WorkerSet, poll_id: PollId) -> Self {
+impl PollContent<VerifierSet> {
+    pub fn new(workerset: VerifierSet, poll_id: PollId) -> Self {
         Self {
             content: workerset,
             poll_id,
@@ -84,4 +84,5 @@ pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messa
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const POLL_WORKER_SETS: Map<&Hash, PollContent<WorkerSet>> = Map::new("poll_worker_sets");
+// TODO: do we need to migrate this or just drop it?
+pub const POLL_VERIFIER_SETS: Map<&Hash, PollContent<VerifierSet>> = Map::new("poll_verifier_sets");

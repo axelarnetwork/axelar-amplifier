@@ -7,7 +7,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 use crate::{
     key::{KeyType, KeyTyped, PublicKey, Signature},
     signing::SigningSession,
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
     ContractError,
 };
 
@@ -56,17 +56,17 @@ pub fn save_signature(
     )
 }
 
-type WorkerSetId = str;
-pub const WORKER_SETS: Map<&WorkerSetId, WorkerSet> = Map::new("worker_sets");
-pub fn get_worker_set(
+type VerifierSetId = str;
+pub const VERIFIER_SETS: Map<&VerifierSetId, VerifierSet> = Map::new("verifier_sets");
+pub fn get_verifier_set(
     store: &dyn Storage,
-    worker_set_id: &str,
-) -> Result<WorkerSet, ContractError> {
-    WORKER_SETS
-        .load(store, worker_set_id)
-        .map_err(|_| ContractError::NoActiveWorkerSetFound {
-            worker_set_id: worker_set_id.to_string(),
-        })
+    verifier_set_id: &str,
+) -> Result<VerifierSet, ContractError> {
+    VERIFIER_SETS.load(store, verifier_set_id).map_err(|_| {
+        ContractError::NoActiveVerifierSetFound {
+            verifier_set_id: verifier_set_id.to_string(),
+        }
+    })
 }
 
 pub struct PubKeysIndexes<'a> {

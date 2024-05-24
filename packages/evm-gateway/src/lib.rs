@@ -6,7 +6,7 @@ use ethers::{
     prelude::abigen,
     types::Address,
 };
-use multisig::{key::PublicKey, worker_set::WorkerSet};
+use multisig::{key::PublicKey, verifier_set::VerifierSet};
 use alloy_primitives::{FixedBytes};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey as k256PubKey};
 use sha3::{Digest, Keccak256};
@@ -43,8 +43,8 @@ fn evm_address(pub_key: &PublicKey) -> Result<alloy_primitives::Address, Error> 
     }
 }
 
-pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let operators: Vec<(HexBinary, Uint256)> = worker_set
+pub fn make_operators(worker_set: VerifierSet) -> Operators {
+    let operators: Vec<(HexBinary, Uint128)> = worker_set
         .signers
         .values()
         .map(|signer| {
@@ -59,9 +59,9 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
         .collect();
     Operators::new(operators, worker_set.threshold, worker_set.created_at)
 }
-impl TryFrom<&WorkerSet> for WeightedSigners {
+impl TryFrom<&VerifierSet> for WeightedSigners {
     type Error = Error;
-    fn try_from(worker_set: &WorkerSet) -> Result<Self, Error> {
+    fn try_from(worker_set: &VerifierSet) -> Result<Self, Error> {
         WeightedSigners::try_from(&make_operators(worker_set.clone()))
 
     }
@@ -77,27 +77,18 @@ impl TryFrom<&Operators> for WeightedSigners {
             .map(WeightedSigner::try_from)
             .collect::<Result<Vec<_>, _>>()?;
 
-        let threshold: Uint128 = operators
-            .threshold
-            .try_into()
-            .expect("weight is too large to convert to Uint128");
-
         Ok(WeightedSigners {
             signers,
-            threshold: threshold.u128(),
+            threshold: operators.threshold.u128(),
             nonce: Uint256::from(operators.created_at).to_be_bytes(),
         })
     }
 }
 
-impl TryFrom<&(HexBinary, Uint256)> for WeightedSigner {
+impl TryFrom<&(HexBinary, Uint128)> for WeightedSigner {
     type Error = Error;
 
-    fn try_from((address, weight): &(HexBinary, Uint256)) -> Result<Self, Error> {
-        let weight: Uint128 = (*weight)
-            .try_into()
-            .expect("weight is too large to convert to Uint128");
-
+    fn try_from((address, weight): &(HexBinary, Uint128)) -> Result<Self, Error> {
         let address =
             Address::from_str(&address.to_hex()).map_err(|err| Error::InvalidAddress {
                 reason: err.to_string(),

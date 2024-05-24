@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint256;
+use cosmwasm_std::Uint128;
 use itertools::Itertools;
 
 use crate::{
     key::Signature,
     msg::{Signer, SignerWithSig},
     types::MultisigState,
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
 };
 
 #[cw_serde]
 pub struct Multisig {
     pub state: MultisigState,
-    pub worker_set: WorkerSet,
+    pub verifier_set: VerifierSet,
     pub signatures: HashMap<String, Signature>,
 }
 
@@ -26,10 +26,10 @@ impl Multisig {
             .sorted_by(|(addr_a, _), (addr_b, _)| {
                 self.signer(addr_b).weight.cmp(&self.signer(addr_a).weight)
             })
-            .scan(Uint256::zero(), |acc, (addr, signature)| {
+            .scan(Uint128::zero(), |acc, (addr, signature)| {
                 let signer = self.signer(addr);
 
-                if *acc < self.worker_set.threshold {
+                if *acc < self.verifier_set.threshold {
                     *acc = acc.saturating_add(signer.weight);
                     Some(signer.with_sig(signature.clone()))
                 } else {
@@ -40,23 +40,23 @@ impl Multisig {
     }
 
     fn signer(&self, address: &str) -> &Signer {
-        self.worker_set
+        self.verifier_set
             .signers
             .get(address)
-            .expect("signer not found in worker set")
+            .expect("signer not found in verifier set")
     }
 }
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::{Addr, HexBinary, Uint256};
+    use cosmwasm_std::{Addr, HexBinary, Uint128};
 
     use crate::{
         key::{PublicKey, Signature},
         msg::Signer,
         multisig::Multisig,
         types::MultisigState,
-        worker_set::WorkerSet,
+        verifier_set::VerifierSet,
     };
 
     #[test]
@@ -81,7 +81,7 @@ mod test {
             ("signer6".to_string(), sig.clone()),
         ];
 
-        let threshold = Uint256::from(13u64);
+        let threshold = Uint128::from(13u64);
 
         // optimized signers are signer 3 (weight 7), signer 2 (weight 5), signer 6 (weight 2)
         let expected_optimized_signers = vec![
@@ -90,7 +90,7 @@ mod test {
             signers[6].with_sig(sig.clone()),
         ];
 
-        let worker_set = WorkerSet {
+        let verifier_set = VerifierSet {
             signers: signers
                 .iter()
                 .map(|s| (s.address.to_string(), s.clone()))
@@ -101,7 +101,7 @@ mod test {
 
         let multisig = Multisig {
             state: MultisigState::Completed { completed_at: 1 },
-            worker_set,
+            verifier_set,
             signatures: sigs.into_iter().collect(),
         };
 
