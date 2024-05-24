@@ -55,7 +55,7 @@ impl BatchId {
     }
 }
 
-pub struct WorkersInfo {
+pub struct VerifiersInfo {
     pub snapshot: Snapshot,
     pub pubkeys_by_participant: Vec<(Participant, PublicKey)>,
 }
