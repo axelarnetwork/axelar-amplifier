@@ -1,9 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError,
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response,
 };
-use cw_utils::ensure_from_older_version;
 use error_stack::ResultExt;
 
 use crate::{
@@ -131,14 +130,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let old_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    if old_version.minor < 3 {
-        return Err(StdError::generic_err(format!(
-            "invalid existing contract version {}. Must be 0.3.0 or greater",
-            old_version
-        ))
-        .into());
-    }
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     migrations::v_0_5::migrate_verifier_sets(deps)
 }

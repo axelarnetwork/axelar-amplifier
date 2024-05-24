@@ -2,9 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
-    StdError, StdResult, Uint64,
+    StdResult, Uint64,
 };
-use cw_utils::ensure_from_older_version;
 
 use crate::{
     events::Event,
@@ -29,14 +28,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let old_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    if old_version.minor < 2 {
-        return Err(StdError::generic_err(format!(
-            "invalid existing contract version {}. Must be 0.2.0 or greater",
-            old_version
-        ))
-        .into());
-    }
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     migrations::v_0_3::migrate_verifier_sets(deps)
 }
