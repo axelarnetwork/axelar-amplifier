@@ -26,7 +26,7 @@ use sha3::{Digest, Keccak256};
 use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use multisig::{
     key::{KeyType, PublicKey},
-    worker_set::WorkerSet,
+    verifier_set::VerifierSet,
 };
 use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
@@ -150,13 +150,13 @@ pub fn vote_success_for_all_messages(
     app: &mut App,
     voting_verifier: &VotingVerifierContract,
     messages: &[Message],
-    workers: &[Worker],
+    verifiers: &[Verifier],
     poll_id: PollId,
 ) {
-    for worker in workers {
+    for verifier in verifiers {
         let response = voting_verifier.execute(
             app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
                 votes: vec![Vote::SucceededOnChain; messages.len()],
@@ -169,13 +169,13 @@ pub fn vote_success_for_all_messages(
 pub fn vote_true_for_worker_set(
     app: &mut App,
     voting_verifier: &VotingVerifierContract,
-    workers: &Vec<Worker>,
+    verifiers: &Vec<Verifier>,
     poll_id: PollId,
 ) {
-    for worker in workers {
+    for verifier in verifiers {
         let response = voting_verifier.execute(
             app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &voting_verifier::msg::ExecuteMsg::Vote {
                 poll_id,
                 votes: vec![Vote::SucceededOnChain; 1],
@@ -199,7 +199,7 @@ pub fn construct_proof_and_sign(
     protocol: &mut Protocol,
     multisig_prover: &MultisigProverContract,
     messages: &[Message],
-    workers: &Vec<Worker>,
+    verifiers: &Vec<Verifier>,
 ) -> Uint64 {
     let response = multisig_prover.execute(
         &mut protocol.app,
@@ -210,7 +210,7 @@ pub fn construct_proof_and_sign(
     );
     assert!(response.is_ok());
 
-    sign_proof(protocol, workers, response.unwrap())
+    sign_proof(protocol, verifiers, response.unwrap())
 }
 
 pub fn get_multisig_session_id(response: AppResponse) -> Uint64 {
@@ -219,15 +219,19 @@ pub fn get_multisig_session_id(response: AppResponse) -> Uint64 {
         .expect("couldn't get session_id")
 }
 
-pub fn sign_proof(protocol: &mut Protocol, workers: &Vec<Worker>, response: AppResponse) -> Uint64 {
+pub fn sign_proof(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+    response: AppResponse,
+) -> Uint64 {
     let msg_to_sign = get_event_attribute(&response.events, "wasm-signing_started", "msg")
         .map(|attr| attr.value.clone())
         .expect("couldn't find message to sign");
     let session_id = get_multisig_session_id(response);
 
-    for worker in workers {
+    for verifier in verifiers {
         let signature = tofn::ecdsa::sign(
-            worker.key_pair.signing_key(),
+            verifier.key_pair.signing_key(),
             &HexBinary::from_hex(&msg_to_sign)
                 .unwrap()
                 .as_slice()
@@ -240,7 +244,7 @@ pub fn sign_proof(protocol: &mut Protocol, workers: &Vec<Worker>, response: AppR
 
         let response = protocol.multisig.execute(
             &mut protocol.app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &multisig::msg::ExecuteMsg::SubmitSignature {
                 session_id,
                 signature: HexBinary::from(sig.to_vec()),
@@ -254,7 +258,7 @@ pub fn sign_proof(protocol: &mut Protocol, workers: &Vec<Worker>, response: AppR
 
 pub fn register_service(
     protocol: &mut Protocol,
-    min_worker_bond: Uint128,
+    min_verifier_bond: Uint128,
     unbonding_period_days: u16,
 ) {
     let response = protocol.service_registry.execute(
@@ -263,9 +267,9 @@ pub fn register_service(
         &ExecuteMsg::RegisterService {
             service_name: protocol.service_name.to_string(),
             service_contract: Addr::unchecked("nowhere"),
-            min_num_workers: 0,
-            max_num_workers: Some(100),
-            min_worker_bond,
+            min_num_verifiers: 0,
+            max_num_verifiers: Some(100),
+            min_verifier_bond,
             bond_denom: AXL_DENOMINATION.into(),
             unbonding_period_days,
             description: "Some service".into(),
@@ -310,9 +314,9 @@ pub fn get_proof(
 pub fn get_worker_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
-) -> WorkerSet {
-    let query_response: Result<WorkerSet, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetWorkerSet);
+) -> VerifierSet {
+    let query_response: Result<VerifierSet, StdError> =
+        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetVerifierSet);
     assert!(query_response.is_ok());
 
     query_response.unwrap()
@@ -322,8 +326,8 @@ pub fn get_worker_set_from_coordinator(
     app: &mut App,
     coordinator_contract: &CoordinatorContract,
     chain_name: ChainName,
-) -> WorkerSet {
-    let query_response: Result<WorkerSet, StdError> = coordinator_contract.query(
+) -> VerifierSet {
+    let query_response: Result<VerifierSet, StdError> = coordinator_contract.query(
         app,
         &coordinator::msg::QueryMsg::GetActiveVerifiers { chain_name },
     );
@@ -434,58 +438,62 @@ pub fn generate_key(seed: u32) -> KeyPair {
     tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap()
 }
 
-pub struct Worker {
+pub struct Verifier {
     pub addr: Addr,
     pub supported_chains: Vec<ChainName>,
     pub key_pair: KeyPair,
 }
 
-pub fn register_workers(protocol: &mut Protocol, workers: &Vec<Worker>, min_worker_bond: Uint128) {
+pub fn register_verifiers(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+    min_verifier_bond: Uint128,
+) {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &ExecuteMsg::AuthorizeWorkers {
-            workers: workers
+        &ExecuteMsg::AuthorizeVerifiers {
+            verifiers: verifiers
                 .iter()
-                .map(|worker| worker.addr.to_string())
+                .map(|verifier| verifier.addr.to_string())
                 .collect(),
             service_name: protocol.service_name.to_string(),
         },
     );
     assert!(response.is_ok());
 
-    for worker in workers {
+    for verifier in verifiers {
         let response = protocol.app.send_tokens(
             protocol.genesis_address.clone(),
-            worker.addr.clone(),
-            &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+            verifier.addr.clone(),
+            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
         let response = protocol.service_registry.execute_with_funds(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::BondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::BondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
-            &coins(min_worker_bond.u128(), AXL_DENOMINATION),
+            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
         );
         assert!(response.is_ok());
 
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &ExecuteMsg::RegisterChainSupport {
                 service_name: protocol.service_name.to_string(),
-                chains: worker.supported_chains.clone(),
+                chains: verifier.supported_chains.clone(),
             },
         );
         assert!(response.is_ok());
 
-        let address_hash = Keccak256::digest(worker.addr.as_bytes());
+        let address_hash = Keccak256::digest(verifier.addr.as_bytes());
 
         let sig = tofn::ecdsa::sign(
-            worker.key_pair.signing_key(),
+            verifier.key_pair.signing_key(),
             &address_hash.as_slice().try_into().unwrap(),
         )
         .unwrap();
@@ -493,10 +501,10 @@ pub fn register_workers(protocol: &mut Protocol, workers: &Vec<Worker>, min_work
 
         let response = protocol.multisig.execute(
             &mut protocol.app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &multisig::msg::ExecuteMsg::RegisterPublicKey {
                 public_key: PublicKey::Ecdsa(HexBinary::from(
-                    worker.key_pair.encoded_verifying_key(),
+                    verifier.key_pair.encoded_verifying_key(),
                 )),
                 signed_sender_address: HexBinary::from(sig.to_vec()),
             },
@@ -505,25 +513,25 @@ pub fn register_workers(protocol: &mut Protocol, workers: &Vec<Worker>, min_work
     }
 }
 
-pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
+pub fn deregister_verifiers(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &ExecuteMsg::UnauthorizeWorkers {
-            workers: workers
+        &ExecuteMsg::UnauthorizeVerifiers {
+            verifiers: verifiers
                 .iter()
-                .map(|worker| worker.addr.to_string())
+                .map(|verifier| verifier.addr.to_string())
                 .collect(),
             service_name: protocol.service_name.to_string(),
         },
     );
     assert!(response.is_ok());
 
-    for worker in workers {
+    for verifier in verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
@@ -531,11 +539,11 @@ pub fn deregister_workers(protocol: &mut Protocol, workers: &Vec<Worker>) {
     }
 }
 
-pub fn claim_stakes(protocol: &mut Protocol, workers: &Vec<Worker>) {
-    for worker in workers {
+pub fn claim_stakes(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
+    for verifier in verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &ExecuteMsg::ClaimStake {
                 service_name: protocol.service_name.to_string(),
             },
@@ -552,18 +560,22 @@ pub fn confirm_worker_set(
     let response = multisig_prover.execute(
         app,
         relayer_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::ConfirmWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::ConfirmVerifierSet,
     );
     assert!(response.is_ok());
 }
 
 fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
-    let poll_id = get_event_attribute(&response.events, "wasm-worker_set_poll_started", "poll_id")
-        .map(|attr| serde_json::from_str(&attr.value).unwrap())
-        .expect("couldn't get poll_id");
+    let poll_id = get_event_attribute(
+        &response.events,
+        "wasm-verifier_set_poll_started",
+        "poll_id",
+    )
+    .map(|attr| serde_json::from_str(&attr.value).unwrap())
+    .expect("couldn't get poll_id");
     let expiry = get_event_attribute(
         &response.events,
-        "wasm-worker_set_poll_started",
+        "wasm-verifier_set_poll_started",
         "expires_at",
     )
     .map(|attr| attr.value.as_str().parse().unwrap())
@@ -575,12 +587,12 @@ pub fn create_worker_set_poll(
     app: &mut App,
     relayer_addr: Addr,
     voting_verifier: &VotingVerifierContract,
-    worker_set: WorkerSet,
+    worker_set: VerifierSet,
 ) -> (PollId, PollExpiryBlock) {
     let response = voting_verifier.execute(
         app,
         relayer_addr.clone(),
-        &voting_verifier::msg::ExecuteMsg::VerifyWorkerSet {
+        &voting_verifier::msg::ExecuteMsg::VerifyVerifierSet {
             message_id: HexTxHashAndEventIndex {
                 tx_hash: random_32_bytes(),
                 event_index: 0,
@@ -596,21 +608,21 @@ pub fn create_worker_set_poll(
     get_worker_set_poll_id_and_expiry(response.unwrap())
 }
 
-pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> WorkerSet {
+pub fn verifiers_to_worker_set(protocol: &mut Protocol, verifiers: &Vec<Verifier>) -> VerifierSet {
     // get public keys
     let mut pub_keys = vec![];
-    for worker in workers {
+    for verifier in verifiers {
         let encoded_verifying_key =
-            HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+            HexBinary::from(verifier.key_pair.encoded_verifying_key().to_vec());
         let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
         pub_keys.push(pub_key);
     }
 
     // turn into participants
-    let participants: Vec<Participant> = workers
+    let participants: Vec<Participant> = verifiers
         .iter()
-        .map(|worker| Participant {
-            address: worker.addr.clone(),
+        .map(|verifier| Participant {
+            address: verifier.addr.clone(),
             weight: Uint128::one().try_into().unwrap(),
         })
         .collect();
@@ -619,20 +631,20 @@ pub fn workers_to_worker_set(protocol: &mut Protocol, workers: &Vec<Worker>) -> 
 
     let pubkeys_by_participant = participants.into_iter().zip(pub_keys).collect();
 
-    WorkerSet::new(
+    VerifierSet::new(
         pubkeys_by_participant,
         total_weight.mul_ceil((2u64, 3u64)),
         protocol.app.block_info().height,
     )
 }
 
-pub fn create_new_workers_vec(
+pub fn create_new_verifiers_vec(
     chains: Vec<ChainName>,
-    worker_details: Vec<(String, u32)>,
-) -> Vec<Worker> {
-    worker_details
+    verifier_details: Vec<(String, u32)>,
+) -> Vec<Verifier> {
+    verifier_details
         .into_iter()
-        .map(|(name, seed)| Worker {
+        .map(|(name, seed)| Verifier {
             addr: Addr::unchecked(name),
             supported_chains: chains.clone(),
             key_pair: generate_key(seed),
@@ -642,35 +654,35 @@ pub fn create_new_workers_vec(
 
 pub fn update_registry_and_construct_worker_set_update_proof(
     protocol: &mut Protocol,
-    new_workers: &Vec<Worker>,
-    workers_to_remove: &Vec<Worker>,
-    current_workers: &Vec<Worker>,
+    new_verifiers: &Vec<Verifier>,
+    verifiers_to_remove: &Vec<Verifier>,
+    current_verifiers: &Vec<Verifier>,
     chain_multisig_prover: &MultisigProverContract,
-    min_worker_bond: Uint128,
+    min_verifier_bond: Uint128,
 ) -> Uint64 {
-    // Register new workers
-    register_workers(protocol, new_workers, min_worker_bond);
+    // Register new verifiers
+    register_verifiers(protocol, new_verifiers, min_verifier_bond);
 
-    // Deregister old workers
-    deregister_workers(protocol, workers_to_remove);
+    // Deregister old verifiers
+    deregister_verifiers(protocol, verifiers_to_remove);
 
     let response = chain_multisig_prover.execute(
         &mut protocol.app,
         Addr::unchecked("relayer"),
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
 
-    sign_proof(protocol, current_workers, response.unwrap())
+    sign_proof(protocol, current_verifiers, response.unwrap())
 }
 
 pub fn execute_worker_set_poll(
     protocol: &mut Protocol,
     relayer_addr: &Addr,
     voting_verifier: &VotingVerifierContract,
-    new_workers: &Vec<Worker>,
+    new_verifiers: &Vec<Verifier>,
 ) {
     // Create worker set
-    let new_worker_set = workers_to_worker_set(protocol, new_workers);
+    let new_worker_set = verifiers_to_worker_set(protocol, new_verifiers);
 
     // Create worker set poll
     let (poll_id, expiry) = create_worker_set_poll(
@@ -681,7 +693,7 @@ pub fn execute_worker_set_poll(
     );
 
     // Vote for the worker set
-    vote_true_for_worker_set(&mut protocol.app, voting_verifier, new_workers, poll_id);
+    vote_true_for_worker_set(&mut protocol.app, voting_verifier, new_verifiers, poll_id);
 
     // Advance to expiration height
     advance_at_least_to_height(&mut protocol.app, expiry);
@@ -724,7 +736,7 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     let response = multisig_prover.execute(
         &mut protocol.app,
         multisig_prover_admin,
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
@@ -799,10 +811,10 @@ pub fn query_balance(app: &App, address: &Addr) -> Uint128 {
         .amount
 }
 
-pub fn query_balances(app: &App, workers: &Vec<Worker>) -> Vec<Uint128> {
+pub fn query_balances(app: &App, verifiers: &Vec<Verifier>) -> Vec<Uint128> {
     let mut balances = Vec::new();
-    for worker in workers {
-        balances.push(query_balance(app, &worker.addr))
+    for verifier in verifiers {
+        balances.push(query_balance(app, &verifier.addr))
     }
 
     balances
@@ -812,8 +824,8 @@ pub struct TestCase {
     pub protocol: Protocol,
     pub chain1: Chain,
     pub chain2: Chain,
-    pub workers: Vec<Worker>,
-    pub min_worker_bond: Uint128,
+    pub verifiers: Vec<Verifier>,
+    pub min_verifier_bond: Uint128,
     pub unbonding_period_days: u16,
 }
 
@@ -824,31 +836,31 @@ pub fn setup_test_case() -> TestCase {
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
-    let workers = vec![
-        Worker {
-            addr: Addr::unchecked("worker1"),
+    let verifiers = vec![
+        Verifier {
+            addr: Addr::unchecked("verifier1"),
             supported_chains: chains.clone(),
             key_pair: generate_key(0),
         },
-        Worker {
-            addr: Addr::unchecked("worker2"),
+        Verifier {
+            addr: Addr::unchecked("verifier2"),
             supported_chains: chains.clone(),
             key_pair: generate_key(1),
         },
     ];
-    let min_worker_bond = Uint128::new(100);
+    let min_verifier_bond = Uint128::new(100);
     let unbonding_period_days = 10;
-    register_service(&mut protocol, min_worker_bond, unbonding_period_days);
+    register_service(&mut protocol, min_verifier_bond, unbonding_period_days);
 
-    register_workers(&mut protocol, &workers, min_worker_bond);
+    register_verifiers(&mut protocol, &verifiers, min_verifier_bond);
     let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
     let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
     TestCase {
         protocol,
         chain1,
         chain2,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         unbonding_period_days,
     }
 }

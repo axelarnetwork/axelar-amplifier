@@ -271,7 +271,7 @@ where
 
                     self.create_handler_task(
                         format!("{}-worker-set-verifier", chain.name),
-                        handlers::evm_verify_worker_set::Handler::new(
+                        handlers::evm_verify_verifier_set::Handler::new(
                             worker.clone(),
                             cosmwasm_contract,
                             chain.name,
@@ -320,7 +320,7 @@ where
                     rpc_timeout,
                 } => self.create_handler_task(
                     "sui-worker-set-verifier",
-                    handlers::sui_verify_worker_set::Handler::new(
+                    handlers::sui_verify_verifier_set::Handler::new(
                         worker.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(

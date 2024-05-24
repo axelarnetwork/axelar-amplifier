@@ -5115,6 +5115,7 @@ dependencies = [
  "curve25519-dalek 4.1.1",
  "cw-multi-test",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.1",
  "cw2 1.1.0",
  "ed25519-dalek",
  "enum-display-derive",

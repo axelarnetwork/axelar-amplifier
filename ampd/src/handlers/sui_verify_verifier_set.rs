@@ -31,18 +31,18 @@ pub struct Operators {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct WorkerSetConfirmation {
+pub struct VerifierSetConfirmation {
     pub tx_id: TransactionDigest,
     pub event_index: u32,
     pub operators: Operators,
 }
 
 #[derive(Deserialize, Debug)]
-#[try_from("wasm-worker_set_poll_started")]
+#[try_from("wasm-verifier_set_poll_started")]
 struct PollStartedEvent {
     poll_id: PollId,
     source_gateway_address: SuiAddress,
-    worker_set: WorkerSetConfirmation,
+    verifier_set: VerifierSetConfirmation,
     participants: Vec<TMAddress>,
     expires_at: u64,
 }
@@ -104,7 +104,7 @@ where
         let PollStartedEvent {
             poll_id,
             source_gateway_address,
-            worker_set,
+            verifier_set,
             participants,
             expires_at,
             ..
@@ -127,19 +127,19 @@ where
 
         let transaction_block = self
             .rpc_client
-            .finalized_transaction_block(worker_set.tx_id)
+            .finalized_transaction_block(verifier_set.tx_id)
             .await
             .change_context(Error::TxReceipts)?;
 
         let vote = info_span!(
             "verify a new worker set for Sui",
             poll_id = poll_id.to_string(),
-            id = Base58TxDigestAndEventIndex::new(worker_set.tx_id, worker_set.event_index)
+            id = Base58TxDigestAndEventIndex::new(verifier_set.tx_id, verifier_set.event_index)
                 .to_string()
         )
         .in_scope(|| {
             let vote = transaction_block.map_or(Vote::NotFound, |tx_receipt| {
-                verify_worker_set(&source_gateway_address, &tx_receipt, &worker_set)
+                verify_worker_set(&source_gateway_address, &tx_receipt, &verifier_set)
             });
 
             info!(
@@ -170,9 +170,10 @@ mod tests {
 
     use axelar_wasm_std::operators::Operators;
     use events::Event;
-    use voting_verifier::events::{PollMetadata, PollStarted, WorkerSetConfirmation};
+    use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::event_processor::EventHandler;
+    use crate::handlers::sui_verify_verifier_set;
     use crate::sui::json_rpc::MockSuiClient;
     use crate::PREFIX;
     use crate::{handlers::tests::get_event, types::TMAddress};
@@ -214,7 +215,8 @@ mod tests {
 
         let (tx, rx) = watch::channel(expiration - 1);
 
-        let handler = super::Handler::new(worker, voting_verifier, rpc_client, rx);
+        let handler =
+            sui_verify_verifier_set::Handler::new(worker, voting_verifier, rpc_client, rx);
 
         // poll is not expired yet, should hit rpc error
         assert!(handler.handle(&event).await.is_err());
@@ -226,7 +228,7 @@ mod tests {
     }
 
     fn worker_set_poll_started_event(participants: Vec<TMAddress>, expires_at: u64) -> PollStarted {
-        PollStarted::WorkerSet {
+        PollStarted::VerifierSet {
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),
                 source_chain: "sui".parse().unwrap(),
@@ -241,7 +243,7 @@ mod tests {
                     .map(|addr| cosmwasm_std::Addr::unchecked(addr.to_string()))
                     .collect(),
             },
-            worker_set: WorkerSetConfirmation {
+            verifier_set: VerifierSetConfirmation {
                 tx_id: TransactionDigest::random().to_string().parse().unwrap(),
                 event_index: 0,
                 operators: Operators::new(
