@@ -16,9 +16,10 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
+use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use broadcaster::Broadcaster;
 use event_processor::EventHandler;
+use event_sub::EventSub;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
