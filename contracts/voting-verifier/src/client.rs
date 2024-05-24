@@ -48,7 +48,7 @@ impl<'a> Client<'a> {
     pub fn verify_worker_set(
         &self,
         message_id: nonempty::String,
-        new_verifier_set: VerifierSet
+        new_verifier_set: VerifierSet,
     ) -> WasmMsg {
         self.client.execute(&ExecuteMsg::VerifyVerifierSet {
             message_id,
@@ -102,6 +102,8 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::{
         msg_id::tx_hash_event_index::HexTxHashAndEventIndex, operators::Operators, Threshold,
         VerificationStatus,
@@ -111,6 +113,7 @@ mod test {
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
         Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
     };
+    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use crate::{
@@ -176,7 +179,11 @@ mod test {
 
         assert_eq!(
             client
-                .verifier_set_status(Operators::new(vec![], Uint128::one(), 1))
+                .verifier_set_status(VerifierSet {
+                    signers: BTreeMap::new(),
+                    threshold: Uint128::one(),
+                    created_at: 0
+                })
                 .unwrap(),
             VerificationStatus::Unknown
         );

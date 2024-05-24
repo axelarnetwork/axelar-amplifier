@@ -117,8 +117,10 @@ pub fn verify_worker_set(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::{operators::Operators, voting::Vote};
-    use cosmwasm_std::{Uint128, Uint256};
+    use cosmwasm_std::{Addr, HexBinary, Uint128, Uint256};
     use ethers::{
         abi::{encode, Token},
         contract::EthEvent,
@@ -128,6 +130,7 @@ mod tests {
         i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter},
         WeightedSigner, WeightedSigners,
     };
+    use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
 
     use super::{verify_message, verify_worker_set};
     use crate::{
@@ -289,41 +292,87 @@ mod tests {
         );
     }
 
+    pub fn new_verifier_set() -> VerifierSet {
+        let signers = vec![
+            Signer {
+                address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
+                weight: Uint128::from(10u128),
+                pub_key: PublicKey::Ecdsa(
+                    HexBinary::from_hex(
+                        "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
+                    )
+                    .unwrap(),
+                ),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
+                weight: Uint128::from(10u128),
+                pub_key: PublicKey::Ecdsa(
+                    HexBinary::from_hex(
+                        "03c6ddb0fcee7b528da1ef3c9eed8d51eeacd7cc28a8baa25c33037c5562faa6e4",
+                    )
+                    .unwrap(),
+                ),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
+                weight: Uint128::from(10u128),
+                pub_key: PublicKey::Ecdsa(
+                    HexBinary::from_hex(
+                        "0274b5d2a4c55d7edbbf9cc210c4d25adbb6194d6b444816235c82984bee518255",
+                    )
+                    .unwrap(),
+                ),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
+                weight: Uint128::from(10u128),
+                pub_key: PublicKey::Ecdsa(
+                    HexBinary::from_hex(
+                        "02a670f57de55b8b39b4cb051e178ca8fb3fe3a78cdde7f8238baf5e6ce1893185",
+                    )
+                    .unwrap(),
+                ),
+            },
+            Signer {
+                address: Addr::unchecked("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
+                weight: Uint128::from(10u128),
+                pub_key: PublicKey::Ecdsa(
+                    HexBinary::from_hex(
+                        "028584592624e742ba154c02df4c0b06e4e8a957ba081083ea9fe5309492aa6c7b",
+                    )
+                    .unwrap(),
+                ),
+            },
+        ];
+
+        let mut btree_signers = BTreeMap::new();
+        for signer in signers {
+            btree_signers.insert(signer.address.clone().to_string(), signer);
+        }
+
+        VerifierSet {
+            signers: btree_signers,
+            threshold: Uint128::from(30u128),
+            created_at: 1,
+        }
+    }
+
     fn get_matching_worker_set_and_tx_receipt(
     ) -> (EVMAddress, TransactionReceipt, VerifierSetConfirmation) {
         let tx_id = Hash::random();
         let log_index = 1;
         let gateway_address = EVMAddress::random();
 
-        let operators = Operators::new(
-            vec![
-                (EVMAddress::random().as_bytes().into(), Uint128::from(10u64)),
-                (EVMAddress::random().as_bytes().into(), Uint128::from(20u64)),
-                (EVMAddress::random().as_bytes().into(), Uint128::from(30u64)),
-            ],
-            Uint128::from(40u64),
-            1u64,
-        );
+        let verifier_set = new_verifier_set();
 
         let verifier_set = VerifierSetConfirmation {
             tx_id,
             event_index: log_index,
-            verifier_set
+            verifier_set,
         };
 
-        let weighted_signers = WeightedSigners {
-            threshold: 40,
-            nonce: Uint256::from(verifier_set.workerset.created_at).to_be_bytes(),
-            signers: verifier_set
-                .workerset
-                .weights_by_addresses()
-                .iter()
-                .map(|(operator, weight)| WeightedSigner {
-                    signer: operator.to_hex().parse().unwrap(),
-                    weight: weight.u128(),
-                })
-                .collect(),
-        };
+        let weighted_signers = WeightedSigners::try_from(&verifier_set.verifier_set).unwrap();
 
         let log = Log {
             transaction_hash: Some(tx_id),

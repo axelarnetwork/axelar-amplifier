@@ -48,7 +48,7 @@ pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
     message_id: nonempty::String,
-    new_verifier_set: VerifierSet
+    new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     let status = verifier_set_status(deps.as_ref(), &new_verifier_set)?;
     if status.is_confirmed() {

@@ -7,8 +7,8 @@ use axelar_wasm_std::{
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use router_api::{ChainName, Message};
 use multisig::verifier_set::VerifierSet;
+use router_api::{ChainName, Message};
 
 #[cw_serde]
 pub struct InstantiateMsg {

@@ -1,14 +1,14 @@
 use std::str::FromStr;
 
+use alloy_primitives::FixedBytes;
 use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use ethers::{
     abi::{encode, Token::Tuple, Tokenize},
     prelude::abigen,
     types::Address,
 };
-use multisig::{key::PublicKey, verifier_set::VerifierSet};
-use alloy_primitives::{FixedBytes};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey as k256PubKey};
+use multisig::{key::PublicKey, verifier_set::VerifierSet};
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
 
@@ -63,7 +63,6 @@ impl TryFrom<&VerifierSet> for WeightedSigners {
     type Error = Error;
     fn try_from(worker_set: &VerifierSet) -> Result<Self, Error> {
         WeightedSigners::try_from(&make_operators(worker_set.clone()))
-
     }
 }
 

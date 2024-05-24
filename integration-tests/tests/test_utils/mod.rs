@@ -587,7 +587,7 @@ pub fn create_worker_set_poll(
     app: &mut App,
     relayer_addr: Addr,
     voting_verifier: &VotingVerifierContract,
-    worker_set: VerifierSet,
+    verifier_set: VerifierSet,
 ) -> (PollId, PollExpiryBlock) {
     let response = voting_verifier.execute(
         app,
@@ -600,7 +600,7 @@ pub fn create_worker_set_poll(
             .to_string()
             .parse()
             .unwrap(),
-            new_workerset: make_operators(worker_set.clone(), Encoder::Abi),
+            new_verifier_set: verifier_set,
         },
     );
     assert!(response.is_ok());

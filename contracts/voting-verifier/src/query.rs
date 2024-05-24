@@ -38,9 +38,12 @@ pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatu
 
 pub fn verifier_set_status(
     deps: Deps,
-    verifier_set: &VerifierSet
+    verifier_set: &VerifierSet,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_VERIFIER_SETS.may_load(deps.storage, &verifier_set.hash().as_slice().try_into().unwrap())?;
+    let loaded_poll_content = POLL_VERIFIER_SETS.may_load(
+        deps.storage,
+        &verifier_set.hash().as_slice().try_into().unwrap(),
+    )?;
 
     Ok(verification_status(deps, loaded_poll_content, verifier_set))
 }

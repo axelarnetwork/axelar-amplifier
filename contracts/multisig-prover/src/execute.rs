@@ -13,7 +13,12 @@ use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedVerifier;
 
 use crate::{
-    contract::START_MULTISIG_REPLY_ID, encoding::make_operators, error::ContractError, payload::Payload, state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_BATCH}, types::{BatchId, WorkersInfo}
+    contract::START_MULTISIG_REPLY_ID,
+    encoding::make_operators,
+    error::ContractError,
+    payload::Payload,
+    state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_BATCH},
+    types::{BatchId, WorkersInfo},
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -251,7 +256,7 @@ fn ensure_verifier_set_verification(
     deps: &DepsMut,
 ) -> Result<(), ContractError> {
     let query = voting_verifier::msg::QueryMsg::GetVerifierSetStatus {
-        new_verifier_set: verifier_set.clone()
+        new_verifier_set: verifier_set.clone(),
     };
 
     let status: VerificationStatus = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {

@@ -224,6 +224,8 @@ impl From<PollEnded> for Event {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::{
         msg_id::{
             base_58_event_index::Base58TxDigestAndEventIndex,
@@ -233,6 +235,7 @@ mod test {
         operators::Operators,
     };
     use cosmwasm_std::{HexBinary, Uint128};
+    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
@@ -330,21 +333,21 @@ mod test {
             tx_hash: random_32_bytes(),
             event_index: rand::random::<u32>(),
         };
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::HexTxHashAndEventIndex,
-            operators.clone(),
+            verifier_set.clone(),
         )
         .unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.workerset, operators);
+        assert_eq!(event.verifier_set, verifier_set);
     }
 
     #[test]
@@ -353,35 +356,36 @@ mod test {
             tx_digest: random_32_bytes(),
             event_index: rand::random::<u32>(),
         };
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
-            operators.clone(),
+            verifier_set.clone(),
         )
         .unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.workerset, operators);
+        assert_eq!(event.verifier_set, verifier_set);
     }
 
     #[test]
     fn make_verifier_set_confirmation_should_fail_with_invalid_message_id() {
         let msg_id = "foobar";
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
-            operators.clone(),
+            verifier_set,
         );
         assert!(event.is_err());
     }
@@ -392,15 +396,16 @@ mod test {
             tx_hash: random_32_bytes(),
             event_index: rand::random::<u32>(),
         };
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
-            operators.clone(),
+            verifier_set,
         );
         assert!(event.is_err());
     }
