@@ -23,7 +23,7 @@ fn require_governance(config: Config, sender: Addr) -> Result<(), ContractError>
 pub(crate) fn record_participation(
     storage: &mut dyn Storage,
     event_id: nonempty::String,
-    worker: Addr,
+    verifier: Addr,
     pool_id: PoolId,
     block_height: u64,
 ) -> Result<(), ContractError> {
@@ -34,7 +34,7 @@ pub(crate) fn record_participation(
 
     state::load_epoch_tally(storage, pool_id.clone(), event.epoch_num)?
         .unwrap_or(EpochTally::new(pool_id, cur_epoch, current_params.params))
-        .record_participation(worker)
+        .record_participation(verifier)
         .then(|mut tally| {
             if matches!(event, StorageState::New(_)) {
                 tally.event_count = tally.event_count.saturating_add(1)
@@ -108,7 +108,7 @@ fn cumulate_rewards(
     to: u64,
 ) -> Result<HashMap<Addr, Uint128>, ContractError> {
     iterate_epoch_tallies(storage, pool_id, from, to)
-        .map(|tally| tally.rewards_by_worker())
+        .map(|tally| tally.rewards_by_verifier())
         .try_fold(HashMap::new(), merge_rewards)
 }
 
@@ -326,21 +326,21 @@ mod test {
         };
 
         let mut simulated_participation = HashMap::new();
-        simulated_participation.insert(Addr::unchecked("worker_1"), 10);
-        simulated_participation.insert(Addr::unchecked("worker_2"), 5);
-        simulated_participation.insert(Addr::unchecked("worker_3"), 7);
+        simulated_participation.insert(Addr::unchecked("verifier_1"), 10);
+        simulated_participation.insert(Addr::unchecked("verifier_2"), 5);
+        simulated_participation.insert(Addr::unchecked("verifier_3"), 7);
 
         let event_count = 10;
         let mut cur_height = epoch_block_start;
         for i in 0..event_count {
-            for (worker, part_count) in &simulated_participation {
-                // simulates a worker participating in only part_count events
+            for (verifier, part_count) in &simulated_participation {
+                // simulates a verifier participating in only part_count events
                 if i < *part_count {
                     let event_id = i.to_string().try_into().unwrap();
                     record_participation(
                         mock_deps.as_mut().storage,
                         event_id,
-                        worker.clone(),
+                        verifier.clone(),
                         pool_id.clone(),
                         cur_height,
                     )
@@ -357,9 +357,9 @@ mod test {
         let tally = tally.unwrap();
         assert_eq!(tally.event_count, event_count);
         assert_eq!(tally.participation.len(), simulated_participation.len());
-        for (worker, part_count) in simulated_participation {
+        for (verifier, part_count) in simulated_participation {
             assert_eq!(
-                tally.participation.get(&worker.to_string()),
+                tally.participation.get(&verifier.to_string()),
                 Some(&part_count)
             );
         }
@@ -379,19 +379,19 @@ mod test {
             contract: Addr::unchecked("some contract"),
         };
 
-        let workers = vec![
-            Addr::unchecked("worker_1"),
-            Addr::unchecked("worker_2"),
-            Addr::unchecked("worker_3"),
+        let verifiers = vec![
+            Addr::unchecked("verifier_1"),
+            Addr::unchecked("verifier_2"),
+            Addr::unchecked("verifier_3"),
         ];
         // this is the height just before the next epoch starts
         let height_at_epoch_end = block_height_started + epoch_duration - 1;
-        // workers participate in consecutive blocks
-        for (i, workers) in workers.iter().enumerate() {
+        // verifiers participate in consecutive blocks
+        for (i, verifiers) in verifiers.iter().enumerate() {
             record_participation(
                 mock_deps.as_mut().storage,
                 "some event".to_string().try_into().unwrap(),
-                workers.clone(),
+                verifiers.clone(),
                 pool_id.clone(),
                 height_at_epoch_end + i as u64,
             )
@@ -416,8 +416,8 @@ mod test {
         let tally = tally.unwrap();
 
         assert_eq!(tally.event_count, 1);
-        assert_eq!(tally.participation.len(), workers.len());
-        for w in workers {
+        assert_eq!(tally.participation.len(), verifiers.len());
+        for w in verifiers {
             assert_eq!(tally.participation.get(&w.to_string()), Some(&1));
         }
 
@@ -438,7 +438,7 @@ mod test {
 
         let mut simulated_participation = HashMap::new();
         simulated_participation.insert(
-            Addr::unchecked("worker-1"),
+            Addr::unchecked("verifier-1"),
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
@@ -448,7 +448,7 @@ mod test {
             ),
         );
         simulated_participation.insert(
-            Addr::unchecked("worker-2"),
+            Addr::unchecked("verifier-2"),
             (
                 PoolId {
                     chain_name: "mock-chain-2".parse().unwrap(),
@@ -458,7 +458,7 @@ mod test {
             ),
         );
         simulated_participation.insert(
-            Addr::unchecked("worker-3"),
+            Addr::unchecked("verifier-3"),
             (
                 PoolId {
                     chain_name: "mock-chain".parse().unwrap(),
@@ -468,23 +468,23 @@ mod test {
             ),
         );
 
-        for (worker, (worker_contract, events_participated)) in &simulated_participation {
+        for (verifier, (pool_contract, events_participated)) in &simulated_participation {
             for i in 0..*events_participated {
                 let event_id = i.to_string().try_into().unwrap();
                 record_participation(
                     mock_deps.as_mut().storage,
                     event_id,
-                    worker.clone(),
-                    worker_contract.clone(),
+                    verifier.clone(),
+                    pool_contract.clone(),
                     block_height_started,
                 )
                 .unwrap();
             }
         }
-        for (worker, (worker_contract, events_participated)) in simulated_participation {
+        for (verifier, (pool_contract, events_participated)) in simulated_participation {
             let tally = state::load_epoch_tally(
                 mock_deps.as_ref().storage,
-                worker_contract.clone(),
+                pool_contract.clone(),
                 cur_epoch_num,
             )
             .unwrap();
@@ -495,7 +495,7 @@ mod test {
             assert_eq!(tally.event_count, events_participated);
             assert_eq!(tally.participation.len(), 1);
             assert_eq!(
-                tally.participation.get(&worker.to_string()),
+                tally.participation.get(&verifier.to_string()),
                 Some(&events_participated)
             );
         }
@@ -791,7 +791,7 @@ mod test {
         let epoch_duration = 100u64;
 
         let (mut mock_deps, _) = setup(cur_epoch_num, block_height_started, epoch_duration);
-        // a vector of (worker contract, rewards amounts) pairs
+        // a vector of (contract, rewards amounts) pairs
         let test_data = vec![
             (Addr::unchecked("contract_1"), vec![100, 200, 50]),
             (Addr::unchecked("contract_2"), vec![25, 500, 70]),
@@ -800,10 +800,10 @@ mod test {
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
 
-        for (worker_contract, rewards) in &test_data {
+        for (pool_contract, rewards) in &test_data {
             let pool_id = PoolId {
                 chain_name: chain_name.clone(),
-                contract: worker_contract.clone(),
+                contract: pool_contract.clone(),
             };
 
             for amount in rewards {
@@ -816,10 +816,10 @@ mod test {
             }
         }
 
-        for (worker_contract, rewards) in test_data {
+        for (pool_contract, rewards) in test_data {
             let pool_id = PoolId {
                 chain_name: chain_name.clone(),
-                contract: worker_contract.clone(),
+                contract: pool_contract.clone(),
             };
 
             let pool =
@@ -847,53 +847,53 @@ mod test {
             rewards_per_epoch,
             participation_threshold,
         );
-        let worker1 = Addr::unchecked("worker1");
-        let worker2 = Addr::unchecked("worker2");
-        let worker3 = Addr::unchecked("worker3");
-        let worker4 = Addr::unchecked("worker4");
+        let verifier1 = Addr::unchecked("verifier1");
+        let verifier2 = Addr::unchecked("verifier2");
+        let verifier3 = Addr::unchecked("verifier3");
+        let verifier4 = Addr::unchecked("verifier4");
         let epoch_count = 4;
-        // Simulate 4 epochs worth of events with 4 workers
+        // Simulate 4 epochs worth of events with 4 verifiers
         // Each epoch has 3 possible events to participate in
-        // The integer values represent which events a specific worker participated in during that epoch
+        // The integer values represent which events a specific verifier participated in during that epoch
         // Events in different epochs are considered distinct; we append the epoch number when generating the event id
         // The below participation corresponds to the following:
-        // 2 workers rewarded in epoch 0, no workers in epoch 1 (no events in that epoch), no workers in epoch 2 (but still some events), and then 4 (all) workers in epoch 3
-        let worker_participation_per_epoch = HashMap::from([
+        // 2 verifiers rewarded in epoch 0, no verifiers in epoch 1 (no events in that epoch), no verifiers in epoch 2 (but still some events), and then 4 (all) verifiers in epoch 3
+        let verifier_participation_per_epoch = HashMap::from([
             (
-                worker1.clone(),
-                [vec![1, 2, 3], vec![], vec![1], vec![2, 3]], // represents the worker participated in events 1,2 and 3 in epoch 0, no events in epoch 1, event 1 in epoch 2, and events 2 and 3 in epoch 3
+                verifier1.clone(),
+                [vec![1, 2, 3], vec![], vec![1], vec![2, 3]], // represents the verifier participated in events 1,2 and 3 in epoch 0, no events in epoch 1, event 1 in epoch 2, and events 2 and 3 in epoch 3
             ),
-            (worker2.clone(), [vec![], vec![], vec![2], vec![1, 2, 3]]),
-            (worker3.clone(), [vec![1, 2], vec![], vec![3], vec![1, 2]]),
-            (worker4.clone(), [vec![1], vec![], vec![2], vec![2, 3]]),
+            (verifier2.clone(), [vec![], vec![], vec![2], vec![1, 2, 3]]),
+            (verifier3.clone(), [vec![1, 2], vec![], vec![3], vec![1, 2]]),
+            (verifier4.clone(), [vec![1], vec![], vec![2], vec![2, 3]]),
         ]);
-        // The expected rewards per worker over all 4 epochs. Based on the above participation
-        let expected_rewards_per_worker: HashMap<Addr, u128> = HashMap::from([
+        // The expected rewards per verifier over all 4 epochs. Based on the above participation
+        let expected_rewards_per_verifier: HashMap<Addr, u128> = HashMap::from([
             (
-                worker1.clone(),
+                verifier1.clone(),
                 rewards_per_epoch / 2 + rewards_per_epoch / 4,
             ),
-            (worker2.clone(), rewards_per_epoch / 4),
+            (verifier2.clone(), rewards_per_epoch / 4),
             (
-                worker3.clone(),
+                verifier3.clone(),
                 rewards_per_epoch / 2 + rewards_per_epoch / 4,
             ),
-            (worker4.clone(), rewards_per_epoch / 4),
+            (verifier4.clone(), rewards_per_epoch / 4),
         ]);
 
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("worker_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
-        for (worker, events_participated) in worker_participation_per_epoch.clone() {
+        for (verifier, events_participated) in verifier_participation_per_epoch.clone() {
             for (epoch, events) in events_participated.iter().enumerate().take(epoch_count) {
                 for event in events {
                     let event_id = event.to_string() + &epoch.to_string() + "event";
                     let _ = record_participation(
                         mock_deps.as_mut().storage,
                         event_id.clone().try_into().unwrap(),
-                        worker.clone(),
+                        verifier.clone(),
                         pool_id.clone(),
                         block_height_started + epoch as u64 * epoch_duration,
                     );
@@ -918,10 +918,16 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(rewards_claimed.len(), worker_participation_per_epoch.len());
-        for (worker, rewards) in expected_rewards_per_worker {
-            assert!(rewards_claimed.contains_key(&worker));
-            assert_eq!(rewards_claimed.get(&worker), Some(&Uint128::from(rewards)));
+        assert_eq!(
+            rewards_claimed.len(),
+            verifier_participation_per_epoch.len()
+        );
+        for (verifier, rewards) in expected_rewards_per_verifier {
+            assert!(rewards_claimed.contains_key(&verifier));
+            assert_eq!(
+                rewards_claimed.get(&verifier),
+                Some(&Uint128::from(rewards))
+            );
         }
     }
 
@@ -941,10 +947,10 @@ mod test {
             rewards_per_epoch,
             participation_threshold,
         );
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("worker_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         for height in block_height_started..block_height_started + epoch_duration * 9 {
@@ -952,7 +958,7 @@ mod test {
             let _ = record_participation(
                 mock_deps.as_mut().storage,
                 event_id.try_into().unwrap(),
-                worker.clone(),
+                verifier.clone(),
                 pool_id.clone(),
                 height,
             );
@@ -979,9 +985,9 @@ mod test {
         )
         .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
-        assert!(rewards_claimed.contains_key(&worker));
+        assert!(rewards_claimed.contains_key(&verifier));
         assert_eq!(
-            rewards_claimed.get(&worker),
+            rewards_claimed.get(&verifier),
             Some(&(rewards_per_epoch * epochs_to_process as u128).into())
         );
 
@@ -994,9 +1000,9 @@ mod test {
         )
         .unwrap();
         assert_eq!(rewards_claimed.len(), 1);
-        assert!(rewards_claimed.contains_key(&worker));
+        assert!(rewards_claimed.contains_key(&verifier));
         assert_eq!(
-            rewards_claimed.get(&worker),
+            rewards_claimed.get(&verifier),
             Some(
                 &(rewards_per_epoch * (total_epochs_with_rewards - epochs_to_process) as u128)
                     .into()
@@ -1020,16 +1026,16 @@ mod test {
             rewards_per_epoch,
             participation_threshold,
         );
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("worker_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
             "event".try_into().unwrap(),
-            worker.clone(),
+            verifier.clone(),
             pool_id.clone(),
             block_height_started,
         );
@@ -1099,16 +1105,16 @@ mod test {
             rewards_per_epoch,
             participation_threshold,
         );
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("worker_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
             "event".try_into().unwrap(),
-            worker.clone(),
+            verifier.clone(),
             pool_id.clone(),
             block_height_started,
         );
@@ -1166,16 +1172,16 @@ mod test {
             rewards_per_epoch,
             participation_threshold,
         );
-        let worker = Addr::unchecked("worker");
+        let verifier = Addr::unchecked("verifier");
         let pool_id = PoolId {
             chain_name: "mock-chain".parse().unwrap(),
-            contract: Addr::unchecked("worker_contract"),
+            contract: Addr::unchecked("pool_contract"),
         };
 
         let _ = record_participation(
             mock_deps.as_mut().storage,
             "event".try_into().unwrap(),
-            worker.clone(),
+            verifier.clone(),
             pool_id.clone(),
             block_height_started,
         );
