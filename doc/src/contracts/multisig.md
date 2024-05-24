@@ -9,7 +9,7 @@ subgraph Axelar
   b[Prover]
   m[Multisig]
 end
-s[Signer worker]
+s[Verifier]
 
 b--StartSigningSession-->m
 s--SubmitSignature-->m
@@ -95,7 +95,8 @@ deactivate Multisig
 ```
 
 ## Authorization
-Prior to calling `StartSigningSession`, the prover contract must first be *authorized*.
+
+Prior to calling `StartSigningSession`, the prover contract must first be _authorized_.
 For a contract to become authorized, the governance account needs to call `AuthorizeCaller`, and specify the contract address to authorize.
 Similarly, the governance account can revoke authorization of a particular contract by calling `UnauthorizeCaller`.
 
@@ -104,7 +105,7 @@ Similarly, the governance account can revoke authorization of a particular contr
 ```Rust
 pub enum ExecuteMsg {
     StartSigningSession {
-        worker_set_id: String,
+        verifier_set_id: String,
         msg: HexBinary,
         chain_name: ChainName,
         sig_verifier: Option<String>,
@@ -113,8 +114,8 @@ pub enum ExecuteMsg {
         session_id: Uint64,
         signature: HexBinary,
     },
-    RegisterWorkerSet {
-        worker_set: WorkerSet,
+    RegisterVerifierSet {
+        verifier_set: VerifierSet,
     },
     // callable only by governance
     AuthorizeCaller {
@@ -151,9 +152,11 @@ pub enum Event {
     // Emitted when a new signing session is open
     SigningStarted {
         session_id: Uint64,
-        worker_set_id: String,
+        verifier_set_id: String,
         pub_keys: HashMap<String, PublicKey>,
         msg: MsgToSign,
+        chain_name: ChainName,
+        expires_at: u64,
     },
     // Emitted when a participant submits a signature
     SignatureSubmitted {
@@ -168,7 +171,7 @@ pub enum Event {
     },
     // Emitted when a PublicKey is registered
     PublicKeyRegistered {
-        worker: Addr,
+        verifier: Addr,
         public_key: PublicKey,
     },
     // Emitted when a contract is authorized by governance to create signing sessions
