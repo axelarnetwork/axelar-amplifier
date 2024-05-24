@@ -9,7 +9,7 @@ use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::{hash::Hash, operators::Operators};
-use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, worker_set::WorkerSet};
+use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, verifier_set::VerifierSet};
 use router_api::Message as RouterMessage;
 
 use crate::{error::ContractError, payload::Payload};
@@ -21,7 +21,7 @@ impl From<&Payload> for CommandType {
     fn from(payload: &Payload) -> Self {
         match payload {
             Payload::Messages(_) => CommandType::ApproveMessages,
-            Payload::WorkerSet(_) => CommandType::RotateSigners,
+            Payload::VerifierSet(_) => CommandType::RotateSigners,
         }
     }
 }
@@ -41,8 +41,8 @@ impl From<&Signer> for WeightedSigner {
     }
 }
 
-impl From<&WorkerSet> for WeightedSigners {
-    fn from(worker_set: &WorkerSet) -> Self {
+impl From<&VerifierSet> for WeightedSigners {
+    fn from(worker_set: &VerifierSet) -> Self {
         let mut signers = worker_set
             .signers
             .values()
@@ -84,7 +84,7 @@ impl TryFrom<&RouterMessage> for Message {
 
 pub fn payload_hash_to_sign(
     domain_separator: &Hash,
-    signer: &WorkerSet,
+    signer: &VerifierSet,
     payload: &Payload,
 ) -> Result<Hash, ContractError> {
     let signer_hash = WeightedSigners::from(signer).hash();
@@ -114,7 +114,7 @@ pub fn encode(payload: &Payload) -> Result<Vec<u8>, ContractError> {
 
             Ok((command_type, messages).abi_encode_sequence())
         }
-        Payload::WorkerSet(worker_set) => {
+        Payload::VerifierSet(worker_set) => {
             Ok((command_type, WeightedSigners::from(worker_set)).abi_encode_sequence())
         }
     }
@@ -134,8 +134,8 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
     }
 }
 
-pub fn make_operators(worker_set: WorkerSet) -> Operators {
-    let operators: Vec<(HexBinary, Uint128)> = worker_set
+pub fn make_operators(verifier_set: VerifierSet) -> Operators {
+    let operators: Vec<(HexBinary, Uint128)> = verifier_set
         .signers
         .values()
         .map(|signer| {
@@ -148,7 +148,7 @@ pub fn make_operators(worker_set: WorkerSet) -> Operators {
             )
         })
         .collect();
-    Operators::new(operators, worker_set.threshold, worker_set.created_at)
+    Operators::new(operators, verifier_set.threshold, verifier_set.created_at)
 }
 
 #[cfg(test)]
@@ -164,7 +164,8 @@ mod tests {
         },
         payload::Payload,
         test::test_data::{
-            curr_worker_set, domain_separator, messages, new_worker_set, worker_set_from_pub_keys,
+            curr_verifier_set, domain_separator, messages, new_verifier_set,
+            verifier_set_from_pub_keys,
         },
     };
 
@@ -176,7 +177,7 @@ mod tests {
             CommandType::ApproveMessages.as_u8()
         );
 
-        let payload = Payload::WorkerSet(new_worker_set());
+        let payload = Payload::VerifierSet(new_verifier_set());
         assert_eq!(
             CommandType::from(&payload).as_u8(),
             CommandType::RotateSigners.as_u8()
@@ -188,7 +189,7 @@ mod tests {
         let expected_hash =
             HexBinary::from_hex("e490c7e55a46b0e1e39a3034973b676eed044fed387f80f4e6377305313f8762")
                 .unwrap();
-        let worker_set = curr_worker_set();
+        let worker_set = curr_verifier_set();
 
         assert_eq!(WeightedSigners::from(&worker_set).hash(), expected_hash);
     }
@@ -208,12 +209,12 @@ mod tests {
             "02515a95a89320988ff96f5e990b6d4c0a6807072f9b01c9ae634cf846bae2bd08",
             "02464111b31e5d174ec44c172f5e3913d0a35344ef6c2cd8215494f23648ec3420",
         ];
-        let new_worker_set = worker_set_from_pub_keys(new_pub_keys);
+        let new_worker_set = verifier_set_from_pub_keys(new_pub_keys);
 
         let msg_to_sign = payload_hash_to_sign(
             &domain_separator,
-            &curr_worker_set(),
-            &Payload::WorkerSet(new_worker_set),
+            &curr_verifier_set(),
+            &Payload::VerifierSet(new_worker_set),
         )
         .unwrap();
         assert_eq!(msg_to_sign, expected_hash);
@@ -267,7 +268,7 @@ mod tests {
 
         let digest = payload_hash_to_sign(
             &domain_separator,
-            &curr_worker_set(),
+            &curr_verifier_set(),
             &Payload::Messages(messages()),
         )
         .unwrap();
@@ -277,7 +278,7 @@ mod tests {
 
     #[test]
     fn worker_set_to_operators() {
-        let worker_set = curr_worker_set();
+        let worker_set = curr_verifier_set();
         let operators = make_operators(worker_set);
 
         let expected = Operators::new(

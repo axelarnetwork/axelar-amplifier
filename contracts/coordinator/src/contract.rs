@@ -56,8 +56,8 @@ pub fn execute(
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
-            execute::set_active_worker_set(deps, info, next_worker_set)
+        ExecuteMsg::SetActiveVerifiers { next_verifier_set } => {
+            execute::set_active_worker_set(deps, info, next_verifier_set)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -68,7 +68,7 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_json_binary(&query::get_active_worker_set(deps, chain_name)?)
+            to_json_binary(&query::get_active_verifier_set(deps, chain_name)?)
                 .map_err(|err| err.into())
         }
     }
@@ -84,7 +84,7 @@ mod tests {
     };
     use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint128};
     use multisig::key::{KeyType, PublicKey};
-    use multisig::worker_set::WorkerSet;
+    use multisig::verifier_set::VerifierSet;
     use router_api::ChainName;
     use tofn::ecdsa::KeyPair;
 
@@ -143,7 +143,7 @@ mod tests {
         }
     }
 
-    fn create_worker_set_from_workers(workers: &Vec<Worker>, block_height: u64) -> WorkerSet {
+    fn create_worker_set_from_workers(workers: &Vec<Worker>, block_height: u64) -> VerifierSet {
         let mut pub_keys = vec![];
         for worker in workers {
             let encoded_verifying_key =
@@ -160,7 +160,7 @@ mod tests {
             })
             .collect();
 
-        WorkerSet::new(
+        VerifierSet::new(
             participants.clone().into_iter().zip(pub_keys).collect(),
             Uint128::from(participants.len() as u128).mul_ceil((2u64, 3u64)),
             block_height,
@@ -239,7 +239,7 @@ mod tests {
             Addr::unchecked("worker1"),
             vec![test_setup.chain_name.clone()],
         );
-        let new_worker_set =
+        let new_verifier_set =
             create_worker_set_from_workers(&vec![new_worker], test_setup.env.block.height);
 
         let res = execute(
@@ -258,16 +258,16 @@ mod tests {
             test_setup.env.clone(),
             mock_info(test_setup.prover.as_ref(), &[]),
             ExecuteMsg::SetActiveVerifiers {
-                next_worker_set: new_worker_set.clone(),
+                next_verifier_set: new_verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
 
         let eth_active_worker_set =
-            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::get_active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
-        assert_eq!(eth_active_worker_set, Some(new_worker_set));
+        assert_eq!(eth_active_worker_set, Some(new_verifier_set));
     }
 
     #[test]
@@ -286,7 +286,7 @@ mod tests {
         );
 
         let query_result =
-            query::get_active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::get_active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
         assert_eq!(query_result, None);

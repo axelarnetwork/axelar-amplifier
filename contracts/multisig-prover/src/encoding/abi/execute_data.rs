@@ -3,7 +3,7 @@ use alloy_sol_types::{sol, SolCall};
 use cosmwasm_std::HexBinary;
 
 use axelar_wasm_std::hash::Hash;
-use multisig::{key::Signature, msg::SignerWithSig, worker_set::WorkerSet};
+use multisig::{key::Signature, msg::SignerWithSig, verifier_set::VerifierSet};
 
 use crate::{
     encoding::abi::{evm_address, Message, Proof, WeightedSigners},
@@ -56,7 +56,7 @@ impl From<Message> for IAxelarAmplifierGateway::Message {
 
 impl Proof {
     /// Proof contains the entire worker set and optimized signatures. Signatures are sorted in ascending order based on the signer's address.
-    pub fn new(worker_set: &WorkerSet, mut signers_with_sigs: Vec<SignerWithSig>) -> Self {
+    pub fn new(worker_set: &VerifierSet, mut signers_with_sigs: Vec<SignerWithSig>) -> Self {
         signers_with_sigs.sort_by_key(|signer| {
             evm_address(&signer.signer.pub_key).expect("failed to convert pub key to evm address")
         });
@@ -74,7 +74,7 @@ impl Proof {
 }
 
 pub fn encode(
-    worker_set: &WorkerSet,
+    worker_set: &VerifierSet,
     signers: Vec<SignerWithSig>,
     payload_digest: &Hash,
     payload: &Payload,
@@ -94,7 +94,7 @@ pub fn encode(
                 .abi_encode()
                 .into()
         }
-        Payload::WorkerSet(new_worker_set) => {
+        Payload::VerifierSet(new_worker_set) => {
             let new_worker_set = WeightedSigners::from(new_worker_set);
 
             IAxelarAmplifierGateway::rotateSignersCall::new((new_worker_set.into(), proof.into()))
@@ -154,7 +154,9 @@ mod tests {
             payload_hash_to_sign,
         },
         payload::Payload,
-        test::test_data::{curr_worker_set, domain_separator, messages, worker_set_from_pub_keys},
+        test::test_data::{
+            curr_verifier_set, domain_separator, messages, verifier_set_from_pub_keys,
+        },
     };
 
     #[test]
@@ -174,8 +176,8 @@ mod tests {
             "03c55d66787c66f37257ef4b320ddcb64623d59e9bf0f3ec0f8ac7311b70cdd2c8",
         ];
 
-        let new_worker_set = worker_set_from_pub_keys(new_pub_keys);
-        let worker_set = curr_worker_set();
+        let new_worker_set = verifier_set_from_pub_keys(new_pub_keys);
+        let worker_set = curr_verifier_set();
 
         // Generated signatures are already sorted by weight and evm address
         let sigs: Vec<_> = vec![
@@ -186,7 +188,7 @@ mod tests {
 
         let signers_with_sigs = signers_with_sigs(worker_set.signers.values(), sigs);
 
-        let payload = Payload::WorkerSet(new_worker_set);
+        let payload = Payload::VerifierSet(new_worker_set);
         let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &worker_set, &payload)
             .unwrap()
             .as_slice()
@@ -244,7 +246,7 @@ mod tests {
                 .unwrap();
 
         let domain_separator = domain_separator();
-        let worker_set = curr_worker_set();
+        let worker_set = curr_verifier_set();
 
         // Generated signatures are already sorted by weight and evm address
         let sigs: Vec<_> = vec![

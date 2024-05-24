@@ -46,7 +46,7 @@ impl MultisigProverContract {
                         .unwrap(),
                     service_name: protocol.service_name.to_string(),
                     chain_name: chain_name.to_string(),
-                    worker_set_diff_threshold: 0,
+                    verifier_set_diff_threshold: 0,
                     encoder: Encoder::Abi,
                     key_type: KeyType::Ecdsa,
                     domain_separator: [0; 32],

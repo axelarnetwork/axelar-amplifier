@@ -1,12 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response};
+use cosmwasm_std::{
+    to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, Response,
+};
 use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
-    execute, migrations,
-    msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg},
+    execute,
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
 };
@@ -57,7 +59,7 @@ fn make_config(
             .chain_name
             .parse()
             .map_err(|_| ContractError::InvalidChainName)?,
-        worker_set_diff_threshold: msg.worker_set_diff_threshold,
+        verifier_set_diff_threshold: msg.verifier_set_diff_threshold,
         encoder: msg.encoder,
         key_type: msg.key_type,
         domain_separator: msg.domain_separator,
@@ -73,12 +75,12 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::ConstructProof { message_ids } => execute::construct_proof(deps, message_ids),
-        ExecuteMsg::UpdateWorkerSet {} => {
+        ExecuteMsg::UpdateVerifierSet {} => {
             execute::require_admin(&deps, info.clone())
                 .or_else(|_| execute::require_governance(&deps, info))?;
-            execute::update_worker_set(deps, env)
+            execute::update_verifier_set(deps, env)
         }
-        ExecuteMsg::ConfirmWorkerSet {} => execute::confirm_worker_set(deps, info.sender),
+        ExecuteMsg::ConfirmVerifierSet {} => execute::confirm_verifier_set(deps, info.sender),
         ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
         } => {
@@ -116,7 +118,7 @@ pub fn query(
         QueryMsg::GetProof {
             multisig_session_id,
         } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetWorkerSet {} => to_json_binary(&query::get_worker_set(deps)?),
+        QueryMsg::GetVerifierSet {} => to_json_binary(&query::get_verifier_set(deps)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::ContractError::from)
@@ -124,15 +126,12 @@ pub fn query(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    msg: MigrateMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    migrations::v_0_3::migrate_config(deps, msg.domain_separator)
+    // TODO migrate
+    Ok(Response::default())
 }
 
 #[cfg(test)]
@@ -140,17 +139,16 @@ mod tests {
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_json_vec, Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128,
-        Uint256, Uint64,
+        Addr, Empty, Fraction, OwnedDeps, SubMsgResponse, SubMsgResult, Uint128, Uint64,
     };
 
     use axelar_wasm_std::{MajorityThreshold, Threshold, VerificationStatus};
-    use multisig::{msg::Signer, worker_set::WorkerSet};
+    use multisig::{msg::Signer, verifier_set::VerifierSet};
     use prost::Message;
     use router_api::CrossChainId;
 
     use crate::{
-        contract::execute::should_update_worker_set,
+        contract::execute::should_update_verifier_set,
         test::test_utils::{
             mock_querier_handler, ADMIN, COORDINATOR_ADDRESS, GATEWAY_ADDRESS, GOVERNANCE,
             MULTISIG_ADDRESS, SERVICE_NAME, SERVICE_REGISTRY_ADDRESS, VOTING_VERIFIER_ADDRESS,
@@ -190,7 +188,7 @@ mod tests {
                 signing_threshold: test_data::threshold(),
                 service_name: SERVICE_NAME.to_string(),
                 chain_name: "ganache-0".to_string(),
-                worker_set_diff_threshold: 0,
+                verifier_set_diff_threshold: 0,
                 encoder: crate::encoding::Encoder::Abi,
                 key_type: multisig::key::KeyType::Ecdsa,
                 domain_separator: [0; 32],
@@ -201,18 +199,18 @@ mod tests {
         deps
     }
 
-    fn execute_update_worker_set(
+    fn execute_update_verifier_set(
         deps: DepsMut,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let msg = ExecuteMsg::UpdateWorkerSet {};
+        let msg = ExecuteMsg::UpdateVerifierSet {};
         execute(deps, mock_env(), mock_info(ADMIN, &[]), msg)
     }
 
-    fn confirm_worker_set(
+    fn confirm_verifier_set(
         deps: DepsMut,
         sender: Addr,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let msg = ExecuteMsg::ConfirmWorkerSet {};
+        let msg = ExecuteMsg::ConfirmVerifierSet {};
         execute(deps, mock_env(), mock_info(sender.as_str(), &[]), msg)
     }
 
@@ -294,10 +292,10 @@ mod tests {
         .map(|res| from_json(res).unwrap())
     }
 
-    fn query_get_worker_set(
+    fn query_get_verifier_set(
         deps: Deps,
-    ) -> Result<Option<WorkerSet>, axelar_wasm_std::ContractError> {
-        query(deps, mock_env(), QueryMsg::GetWorkerSet {}).map(|res| from_json(res).unwrap())
+    ) -> Result<Option<VerifierSet>, axelar_wasm_std::ContractError> {
+        query(deps, mock_env(), QueryMsg::GetVerifierSet {}).map(|res| from_json(res).unwrap())
     }
 
     #[test]
@@ -335,7 +333,7 @@ mod tests {
                 signing_threshold,
                 service_name: service_name.to_string(),
                 chain_name: "Ethereum".to_string(),
-                worker_set_diff_threshold: 0,
+                verifier_set_diff_threshold: 0,
                 encoder: encoding,
                 key_type: multisig::key::KeyType::Ecdsa,
                 domain_separator: [0; 32],
@@ -359,54 +357,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-
-        let initial_config = migrations::v_0_3::OldConfig {
-            admin: Addr::unchecked("admin"),
-            governance: Addr::unchecked("governance"),
-            gateway: Addr::unchecked("gateway"),
-            multisig: Addr::unchecked("multisig"),
-            coordinator: Addr::unchecked("coordinator"),
-            service_registry: Addr::unchecked("service_registry"),
-            voting_verifier: Addr::unchecked("voting_verifier"),
-            destination_chain_id: Uint256::from(1337u128),
-            signing_threshold: Threshold::try_from((2u64, 3u64))
-                .unwrap()
-                .try_into()
-                .unwrap(),
-            service_name: "validators".to_string(),
-            chain_name: "ganache-0".parse().unwrap(),
-            worker_set_diff_threshold: 0,
-            encoder: crate::encoding::Encoder::Abi,
-            key_type: multisig::key::KeyType::Ecdsa,
-        };
-        deps.as_mut()
-            .storage
-            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
-
-        migrate(
-            deps.as_mut(),
-            mock_env(),
-            MigrateMsg {
-                domain_separator: [0; 32],
-            },
-        )
-        .unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "multisig-prover");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
-    }
-
     #[allow(clippy::arithmetic_side_effects)]
-    fn test_operators_to_worker_set(operators: Vec<TestOperator>, nonce: u64) -> WorkerSet {
+    fn test_operators_to_verifier_set(operators: Vec<TestOperator>, nonce: u64) -> VerifierSet {
         let total_weight: Uint128 = operators
             .iter()
             .fold(Uint128::zero(), |acc, x| acc + x.weight);
         let quorum = total_weight.mul_ceil(test_data::threshold());
-        WorkerSet {
+        VerifierSet {
             signers: operators
                 .into_iter()
                 .map(|op| {
@@ -426,34 +383,34 @@ mod tests {
     }
 
     #[test]
-    fn test_update_worker_set_fresh() {
+    fn test_update_verifier_set_fresh() {
         let mut deps = setup_test_case();
-        let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_ok());
-        assert!(worker_set.unwrap().is_none());
-        let res = execute_update_worker_set(deps.as_mut());
+        let verifier_set = query_get_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
+        assert!(verifier_set.unwrap().is_none());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_ok());
+        let verifier_set = query_get_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
 
-        let worker_set = worker_set.unwrap().unwrap();
+        let verifier_set = verifier_set.unwrap().unwrap();
 
-        let expected_worker_set =
-            test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
+        let expected_verifier_set =
+            test_operators_to_verifier_set(test_data::operators(), mock_env().block.height);
 
-        assert_eq!(worker_set, expected_worker_set);
+        assert_eq!(verifier_set, expected_verifier_set);
     }
 
     #[test]
-    fn test_update_worker_set_from_non_admin_or_governance_should_fail() {
+    fn test_update_verifier_set_from_non_admin_or_governance_should_fail() {
         let mut deps = setup_test_case();
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info("some random address", &[]),
-            ExecuteMsg::UpdateWorkerSet {},
+            ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_err());
         assert_eq!(
@@ -463,72 +420,72 @@ mod tests {
     }
 
     #[test]
-    fn test_update_worker_set_from_governance_should_succeed() {
+    fn test_update_verifier_set_from_governance_should_succeed() {
         let mut deps = setup_test_case();
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(GOVERNANCE, &[]),
-            ExecuteMsg::UpdateWorkerSet {},
+            ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
     }
 
     #[test]
-    fn test_update_worker_set_from_admin_should_succeed() {
+    fn test_update_verifier_set_from_admin_should_succeed() {
         let mut deps = setup_test_case();
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN, &[]),
-            ExecuteMsg::UpdateWorkerSet {},
+            ExecuteMsg::UpdateVerifierSet {},
         );
         assert!(res.is_ok());
     }
 
     #[test]
-    fn test_update_worker_set_remove_one() {
+    fn test_update_verifier_set_remove_one() {
         let mut deps = setup_test_case();
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let mut new_worker_set = test_data::operators();
-        new_worker_set.pop();
+        let mut new_verifier_set = test_data::operators();
+        new_verifier_set.pop();
 
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set,
+            new_verifier_set,
             VerificationStatus::SucceededOnSourceChain,
         ));
 
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_ok());
+        let verifier_set = query_get_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
 
-        let worker_set = worker_set.unwrap().unwrap();
+        let verifier_set = verifier_set.unwrap().unwrap();
 
-        let expected_worker_set =
-            test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
+        let expected_verifier_set =
+            test_operators_to_verifier_set(test_data::operators(), mock_env().block.height);
 
-        assert_eq!(worker_set, expected_worker_set);
+        assert_eq!(verifier_set, expected_verifier_set);
     }
 
     #[test]
-    fn test_update_worker_set_add_one() {
+    fn test_update_verifier_set_add_one() {
         let mut deps = setup_test_case();
 
-        let mut new_worker_set = test_data::operators();
-        new_worker_set.pop();
+        let mut new_verifier_set = test_data::operators();
+        new_verifier_set.pop();
 
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set.clone(),
+            new_verifier_set.clone(),
             VerificationStatus::SucceededOnSourceChain,
         ));
 
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
         assert!(res.is_ok());
 
         deps.querier.update_wasm(mock_querier_handler(
@@ -536,128 +493,130 @@ mod tests {
             VerificationStatus::SucceededOnSourceChain,
         ));
 
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_ok());
+        let verifier_set = query_get_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
 
-        let worker_set = worker_set.unwrap().unwrap();
+        let verifier_set = verifier_set.unwrap().unwrap();
 
-        let expected_worker_set =
-            test_operators_to_worker_set(new_worker_set, mock_env().block.height);
+        let expected_verifier_set =
+            test_operators_to_verifier_set(new_verifier_set, mock_env().block.height);
 
-        assert_eq!(worker_set, expected_worker_set);
+        assert_eq!(verifier_set, expected_verifier_set);
     }
 
     #[test]
-    fn test_update_worker_set_change_public_key() {
+    fn test_update_verifier_set_change_public_key() {
         let mut deps = setup_test_case();
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let mut new_worker_set = test_data::operators();
+        let mut new_verifier_set = test_data::operators();
         let (a, b) = (
-            new_worker_set[0].pub_key.clone(),
-            new_worker_set[1].pub_key.clone(),
+            new_verifier_set[0].pub_key.clone(),
+            new_verifier_set[1].pub_key.clone(),
         );
-        new_worker_set[0].pub_key = b;
-        new_worker_set[1].pub_key = a;
+        new_verifier_set[0].pub_key = b;
+        new_verifier_set[1].pub_key = a;
 
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set,
+            new_verifier_set,
             VerificationStatus::SucceededOnSourceChain,
         ));
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref());
-        assert!(worker_set.is_ok());
+        let verifier_set = query_get_verifier_set(deps.as_ref());
+        assert!(verifier_set.is_ok());
 
-        let worker_set = worker_set.unwrap().unwrap();
+        let verifier_set = verifier_set.unwrap().unwrap();
 
-        let expected_worker_set =
-            test_operators_to_worker_set(test_data::operators(), mock_env().block.height);
+        let expected_verifier_set =
+            test_operators_to_verifier_set(test_data::operators(), mock_env().block.height);
 
-        assert_eq!(worker_set, expected_worker_set);
+        assert_eq!(verifier_set, expected_verifier_set);
     }
 
     #[test]
-    fn test_update_worker_set_unchanged() {
+    fn test_update_verifier_set_unchanged() {
         let mut deps = setup_test_case();
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::WorkerSetUnchanged).to_string()
+            axelar_wasm_std::ContractError::from(ContractError::VerifierSetUnchanged).to_string()
         );
     }
 
     #[test]
-    fn test_confirm_worker_set_unconfirmed() {
+    fn test_confirm_verifier_set_unconfirmed() {
         let mut deps = setup_test_case();
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let mut new_worker_set = test_data::operators();
-        new_worker_set.pop();
+        let mut new_verifier_set = test_data::operators();
+        new_verifier_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set,
+            new_verifier_set,
             VerificationStatus::Unknown,
         ));
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::WorkerSetNotConfirmed).to_string()
+            axelar_wasm_std::ContractError::from(ContractError::VerifierSetNotConfirmed)
+                .to_string()
         );
     }
 
     #[test]
-    fn test_confirm_worker_set_wrong_set() {
+    fn test_confirm_verifier_set_wrong_set() {
         let mut deps = setup_test_case();
-        let res = execute_update_worker_set(deps.as_mut());
+        let res = execute_update_verifier_set(deps.as_mut());
 
         assert!(res.is_ok());
 
-        let mut new_worker_set = test_data::operators();
-        new_worker_set.pop();
+        let mut new_verifier_set = test_data::operators();
+        new_verifier_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set.clone(),
+            new_verifier_set.clone(),
             VerificationStatus::SucceededOnSourceChain,
         ));
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        new_worker_set.pop();
+        new_verifier_set.pop();
         deps.querier.update_wasm(mock_querier_handler(
-            new_worker_set,
+            new_verifier_set,
             VerificationStatus::Unknown,
         ));
 
-        let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::WorkerSetNotConfirmed).to_string()
+            axelar_wasm_std::ContractError::from(ContractError::VerifierSetNotConfirmed)
+                .to_string()
         );
     }
 
     #[test]
     fn test_construct_proof() {
         let mut deps = setup_test_case();
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
         execute_construct_proof(deps.as_mut(), None).unwrap();
         let res = reply_construct_proof(deps.as_mut()).unwrap();
@@ -683,7 +642,7 @@ mod tests {
     #[test]
     fn test_query_proof() {
         let mut deps = setup_test_case();
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
         execute_construct_proof(deps.as_mut(), None).unwrap();
         reply_construct_proof(deps.as_mut()).unwrap(); // simulate reply from multisig
 
@@ -700,13 +659,13 @@ mod tests {
     }
 
     #[test]
-    fn test_construct_proof_no_worker_set() {
+    fn test_construct_proof_no_verifier_set() {
         let mut deps = setup_test_case();
         let res = execute_construct_proof(deps.as_mut(), None);
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::NoWorkerSet).to_string()
+            axelar_wasm_std::ContractError::from(ContractError::NoVerifierSet).to_string()
         );
     }
 
@@ -736,9 +695,9 @@ mod tests {
     /// Calls update_signing_threshold, increasing the threshold by one.
     /// Returns (initial threshold, new threshold)
     fn update_signing_threshold_increase_by_one(deps: DepsMut) -> (Uint128, Uint128) {
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
-        let initial_threshold = worker_set.threshold;
-        let total_weight = worker_set
+        let verifier_set = query_get_verifier_set(deps.as_ref()).unwrap().unwrap();
+        let initial_threshold = verifier_set.threshold;
+        let total_weight = verifier_set
             .signers
             .iter()
             .fold(Uint128::zero(), |acc, signer| {
@@ -765,103 +724,119 @@ mod tests {
     #[test]
     fn update_signing_threshold_should_not_change_current_threshold() {
         let mut deps = setup_test_case();
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
         let (initial_threshold, new_threshold) =
             update_signing_threshold_increase_by_one(deps.as_mut());
         assert_ne!(initial_threshold, new_threshold);
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
-        assert_eq!(worker_set.threshold, initial_threshold);
+        let verifier_set = query_get_verifier_set(deps.as_ref()).unwrap().unwrap();
+        assert_eq!(verifier_set.threshold, initial_threshold);
     }
 
     #[test]
     fn update_signing_threshold_should_change_future_threshold() {
         let mut deps = setup_test_case();
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
         let (initial_threshold, new_threshold) =
             update_signing_threshold_increase_by_one(deps.as_mut());
         assert_ne!(initial_threshold, new_threshold);
 
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
         let governance = Addr::unchecked(GOVERNANCE);
-        confirm_worker_set(deps.as_mut(), governance).unwrap();
+        confirm_verifier_set(deps.as_mut(), governance).unwrap();
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
-        assert_eq!(worker_set.threshold, new_threshold);
+        let verifier_set = query_get_verifier_set(deps.as_ref()).unwrap().unwrap();
+        assert_eq!(verifier_set.threshold, new_threshold);
     }
 
     #[test]
     fn should_confirm_new_threshold() {
         let mut deps = setup_test_case();
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
         let (initial_threshold, new_threshold) =
             update_signing_threshold_increase_by_one(deps.as_mut());
         assert_ne!(initial_threshold, new_threshold);
 
-        execute_update_worker_set(deps.as_mut()).unwrap();
+        execute_update_verifier_set(deps.as_mut()).unwrap();
 
-        let res = confirm_worker_set(deps.as_mut(), Addr::unchecked("relayer"));
+        let res = confirm_verifier_set(deps.as_mut(), Addr::unchecked("relayer"));
         assert!(res.is_ok());
 
-        let worker_set = query_get_worker_set(deps.as_ref()).unwrap().unwrap();
-        assert_eq!(worker_set.threshold, new_threshold);
+        let verifier_set = query_get_verifier_set(deps.as_ref()).unwrap().unwrap();
+        assert_eq!(verifier_set.threshold, new_threshold);
     }
 
     #[test]
-    fn should_update_worker_set_no_change() {
-        let worker_set = test_data::new_worker_set();
-        assert!(!should_update_worker_set(&worker_set, &worker_set, 0));
+    fn should_update_verifier_set_no_change() {
+        let verifier_set = test_data::new_verifier_set();
+        assert!(!should_update_verifier_set(&verifier_set, &verifier_set, 0));
     }
 
     #[test]
-    fn should_update_worker_set_one_more() {
-        let worker_set = test_data::new_worker_set();
-        let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop_first();
-        assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+    fn should_update_verifier_set_one_more() {
+        let verifier_set = test_data::new_verifier_set();
+        let mut new_verifier_set = verifier_set.clone();
+        new_verifier_set.signers.pop_first();
+        assert!(should_update_verifier_set(
+            &verifier_set,
+            &new_verifier_set,
+            0
+        ));
     }
 
     #[test]
-    fn should_update_worker_set_one_less() {
-        let worker_set = test_data::new_worker_set();
-        let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop_first();
-        assert!(should_update_worker_set(&new_worker_set, &worker_set, 0));
+    fn should_update_verifier_set_one_less() {
+        let verifier_set = test_data::new_verifier_set();
+        let mut new_verifier_set = verifier_set.clone();
+        new_verifier_set.signers.pop_first();
+        assert!(should_update_verifier_set(
+            &new_verifier_set,
+            &verifier_set,
+            0
+        ));
     }
 
     #[test]
-    fn should_update_worker_set_one_more_higher_threshold() {
-        let worker_set = test_data::new_worker_set();
-        let mut new_worker_set = worker_set.clone();
-        new_worker_set.signers.pop_first();
-        assert!(!should_update_worker_set(&worker_set, &new_worker_set, 1));
+    fn should_update_verifier_set_one_more_higher_threshold() {
+        let verifier_set = test_data::new_verifier_set();
+        let mut new_verifier_set = verifier_set.clone();
+        new_verifier_set.signers.pop_first();
+        assert!(!should_update_verifier_set(
+            &verifier_set,
+            &new_verifier_set,
+            1
+        ));
     }
 
     #[test]
-    fn should_update_worker_set_diff_pub_key() {
-        let worker_set = test_data::new_worker_set();
-        let mut new_worker_set = worker_set.clone();
-        let (first_key, first) = new_worker_set.signers.pop_first().unwrap();
-        let (last_key, last) = new_worker_set.signers.pop_last().unwrap();
-        new_worker_set.signers.insert(
+    fn should_update_verifier_set_diff_pub_key() {
+        let verifier_set = test_data::new_verifier_set();
+        let mut new_verifier_set = verifier_set.clone();
+        let (first_key, first) = new_verifier_set.signers.pop_first().unwrap();
+        let (last_key, last) = new_verifier_set.signers.pop_last().unwrap();
+        new_verifier_set.signers.insert(
             last_key,
             Signer {
                 pub_key: first.clone().pub_key,
                 ..last.clone()
             },
         );
-        new_worker_set.signers.insert(
+        new_verifier_set.signers.insert(
             first_key,
             Signer {
                 pub_key: last.pub_key,
                 ..first
             },
         );
-        assert!(should_update_worker_set(&worker_set, &new_worker_set, 0));
+        assert!(should_update_verifier_set(
+            &verifier_set,
+            &new_verifier_set,
+            0
+        ));
     }
 
     #[test]
