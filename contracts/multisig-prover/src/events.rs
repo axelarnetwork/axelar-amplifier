@@ -1,11 +1,12 @@
-use crate::types::BatchId;
 use cosmwasm_std::Uint64;
 use router_api::{ChainName, CrossChainId};
+
+use crate::payload::PayloadId;
 
 pub enum Event {
     ProofUnderConstruction {
         destination_chain: ChainName,
-        command_batch_id: BatchId,
+        payload_id: PayloadId,
         multisig_session_id: Uint64,
         msg_ids: Vec<CrossChainId>,
     },
@@ -16,7 +17,7 @@ impl From<Event> for cosmwasm_std::Event {
         match other {
             Event::ProofUnderConstruction {
                 destination_chain,
-                command_batch_id,
+                payload_id,
                 multisig_session_id,
                 msg_ids,
             } => cosmwasm_std::Event::new("proof_under_construction")
@@ -26,9 +27,9 @@ impl From<Event> for cosmwasm_std::Event {
                         .expect("violated invariant: destination_chain is not serializable"),
                 )
                 .add_attribute(
-                    "command_batch_id",
-                    serde_json::to_string(&command_batch_id)
-                        .expect("violated invariant: command_batch_id is not serializable"),
+                    "payload_id",
+                    serde_json::to_string(&payload_id)
+                        .expect("violated invariant: payload_id is not serializable"),
                 )
                 .add_attribute(
                     "multisig_session_id",
@@ -47,7 +48,6 @@ impl From<Event> for cosmwasm_std::Event {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::BatchId;
     use serde_json::to_string;
 
     #[test]
@@ -65,7 +65,7 @@ mod tests {
 
         let event = Event::ProofUnderConstruction {
             destination_chain: "avalanche".parse().unwrap(),
-            command_batch_id: BatchId::new(&msg_ids, None),
+            payload_id: (&msg_ids).into(),
             multisig_session_id: Uint64::new(2),
             msg_ids,
         };

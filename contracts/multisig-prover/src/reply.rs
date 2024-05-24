@@ -5,7 +5,7 @@ use crate::state::{CONFIG, PAYLOAD};
 use crate::{
     error::ContractError,
     events::Event,
-    state::{MULTISIG_SESSION_BATCH, REPLY_BATCH},
+    state::{MULTISIG_SESSION_PAYLOAD, REPLY_TRACKER},
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -13,21 +13,17 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let command_batch_id = REPLY_BATCH.load(deps.storage)?;
+            let payload_id = REPLY_TRACKER.load(deps.storage)?;
 
             let multisig_session_id: Uint64 =
                 from_json(data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
-            MULTISIG_SESSION_BATCH.save(
-                deps.storage,
-                multisig_session_id.u64(),
-                &command_batch_id,
-            )?;
+            MULTISIG_SESSION_PAYLOAD.save(deps.storage, multisig_session_id.u64(), &payload_id)?;
 
             let msg_ids = PAYLOAD
-                .load(deps.storage, &command_batch_id)?
+                .load(deps.storage, &payload_id)?
                 .message_ids()
                 .unwrap_or_default();
 
@@ -35,7 +31,7 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
                 Event::ProofUnderConstruction {
                     destination_chain: config.chain_name,
                     msg_ids,
-                    command_batch_id,
+                    payload_id,
                     multisig_session_id,
                 }
                 .into(),

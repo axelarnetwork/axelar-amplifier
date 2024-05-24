@@ -44,7 +44,7 @@ pub struct GetProofResponse {
 ```Rust
 pub enum Event {
     ProofUnderConstruction {
-        command_batch_id: BatchID,
+        payload_id: PayloadId,
         multisig_session_id: Uint64,
     },
 }

@@ -628,7 +628,7 @@ mod tests {
 
         assert!(event.is_some());
 
-        // test case where there is an existing batch
+        // test case where there is an existing payload
         execute_construct_proof(deps.as_mut(), None).unwrap();
         let res = reply_construct_proof(deps.as_mut()).unwrap(); // simulate reply from multisig
         let event = res
