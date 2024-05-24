@@ -1,5 +1,6 @@
 use axelar_wasm_std::voting::Vote;
 use bcs::to_bytes;
+use evm_gateway::make_operators;
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
@@ -61,11 +62,21 @@ impl PartialEq<&Message> for &SuiEvent {
 }
 
 impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
-    fn eq(&self, worker_set: &&VerifierSetConfirmation) -> bool {
+    fn eq(&self, verifier_set: &&VerifierSetConfirmation) -> bool {
         match serde_json::from_value::<OperatorshipTransferred>(self.parsed_json.clone()) {
             Ok(event) => {
-                // TODO: fix this
-                true
+                let (operators, weights) : (Vec<_>, Vec<_>) = make_operators(verifier_set.verifier_set.clone())
+                    .weights_by_addresses()
+                    .iter()
+                    .map(|(operator, weight)| {
+                        (operator.to_owned().to_vec(), weight.to_owned().u128())
+                    })
+                    .unzip();
+
+                event.payload
+                    == to_bytes(&(operators, weights, verifier_set.verifier_set.threshold.u128()))
+                        .expect("failed to serialize new operators data")
+
             }
             _ => false,
         }
