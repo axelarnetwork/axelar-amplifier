@@ -5,6 +5,7 @@ import "google/protobuf/any.proto";
 package ampd;
 
 message EventFilter {
+  // the subscription will return all events that match ANY of these filters
   repeated Event filters = 1;
   bool include_block_begin_end = 2;
 }
