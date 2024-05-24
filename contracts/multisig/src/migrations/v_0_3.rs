@@ -9,10 +9,12 @@ pub fn migrate_verifier_sets(deps: DepsMut) -> Result<Response, axelar_wasm_std:
     let all: Vec<_> = WORKER_SETS
         .range(deps.storage, None, None, Order::Ascending)
         .collect::<Result<Vec<_>, _>>()?;
+
     for v in all {
         VERIFIER_SETS.save(deps.storage, &v.0, &v.1)?;
         WORKER_SETS.remove(deps.storage, &v.0);
     }
+
     Ok(Response::default())
 }
 

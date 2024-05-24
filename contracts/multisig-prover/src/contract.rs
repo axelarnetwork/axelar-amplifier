@@ -131,8 +131,6 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
-
     let old_version = ensure_from_older_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     if old_version.minor < 3 {
         return Err(StdError::generic_err(format!(
@@ -141,6 +139,7 @@ pub fn migrate(
         ))
         .into());
     }
+
     migrations::v_0_5::migrate_verifier_sets(deps)
 }
 
