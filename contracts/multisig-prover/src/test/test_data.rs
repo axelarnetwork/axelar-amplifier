@@ -183,7 +183,7 @@ pub fn quorum() -> Uint128 {
     3u128.into()
 }
 
-// Generate a worker set matches axelar-gmp-sdk-solidity repo test data
+// Generate a verifier set matches axelar-gmp-sdk-solidity repo test data
 pub fn curr_verifier_set() -> VerifierSet {
     let pub_keys = vec![
         "038318535b54105d4a7aae60c08fc45f9687181b4fdfc625bd1a753fa7397fed75",
