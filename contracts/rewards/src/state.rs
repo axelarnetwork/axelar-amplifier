@@ -104,7 +104,7 @@ impl KeyDeserialize for TallyId {
 pub struct EpochTally {
     pub pool_id: PoolId,
     pub event_count: u64,
-    pub participation: HashMap<String, u64>, // maps a worker address to participation count. Can't use Addr as key else deserialization will fail
+    pub participation: HashMap<String, u64>, // maps a verifier address to participation count. Can't use Addr as key else deserialization will fail
     pub epoch: Epoch,
     pub params: Params,
 }
@@ -120,44 +120,44 @@ impl EpochTally {
         }
     }
 
-    /// IMPORTANT: worker address must be validated before calling this function
+    /// IMPORTANT: verifier address must be validated before calling this function
     /// TODO: panic if address is invalid?
-    pub fn record_participation(mut self, worker: Addr) -> Self {
+    pub fn record_participation(mut self, verifier: Addr) -> Self {
         self.participation
-            .entry(worker.to_string())
+            .entry(verifier.to_string())
             .and_modify(|count| *count = count.saturating_add(1))
             .or_insert(1);
         self
     }
 
-    pub fn rewards_by_worker(&self) -> HashMap<Addr, Uint128> {
-        let workers_to_reward = self.workers_to_reward();
+    pub fn rewards_by_verifier(&self) -> HashMap<Addr, Uint128> {
+        let verifiers_to_reward = self.verifiers_to_reward();
         let total_rewards: Uint128 = self.params.rewards_per_epoch.into();
 
-        let rewards_per_worker = total_rewards
-            .checked_div(Uint128::from(workers_to_reward.len() as u128))
+        let rewards_per_verifier = total_rewards
+            .checked_div(Uint128::from(verifiers_to_reward.len() as u128))
             .unwrap_or_default();
 
-        // A bit of a weird case. The rewards per epoch is too low to accommodate the number of workers to be rewarded
-        // This can't be checked when setting the rewards per epoch, as the number of workers to be rewarded is not known at that time.
-        if rewards_per_worker.is_zero() {
+        // A bit of a weird case. The rewards per epoch is too low to accommodate the number of verifiers to be rewarded
+        // This can't be checked when setting the rewards per epoch, as the number of verifiers to be rewarded is not known at that time.
+        if rewards_per_verifier.is_zero() {
             return HashMap::new();
         }
 
-        workers_to_reward
+        verifiers_to_reward
             .into_iter()
-            .map(|worker| (worker, rewards_per_worker))
+            .map(|verifier| (verifier, rewards_per_verifier))
             .collect()
     }
 
-    fn workers_to_reward(&self) -> Vec<Addr> {
+    fn verifiers_to_reward(&self) -> Vec<Addr> {
         self.participation
             .iter()
-            .filter_map(|(worker, participated)| {
+            .filter_map(|(verifier, participated)| {
                 Threshold::try_from((*participated, self.event_count))
                     .ok()
                     .filter(|participation| participation >= &self.params.participation_threshold)
-                    .map(|_| Addr::unchecked(worker)) // Ok to convert unchecked here, since we only store valid addresses
+                    .map(|_| Addr::unchecked(verifier)) // Ok to convert unchecked here, since we only store valid addresses
             })
             .collect()
     }
@@ -401,11 +401,11 @@ mod test {
     use std::collections::HashMap;
 
     /// Test that the rewards are
-    /// - distributed evenly to all workers that reach quorum
-    /// - no rewards if there are no workers
-    /// - no rewards if rewards per epoch is too low for number of workers
+    /// - distributed evenly to all verifiers that reach quorum
+    /// - no rewards if there are no verifiers
+    /// - no rewards if rewards per epoch is too low for number of verifiers
     #[test]
-    fn rewards_by_worker() {
+    fn rewards_by_verifier() {
         let tally = EpochTally {
             params: Params {
                 epoch_duration: 100u64.try_into().unwrap(),
@@ -414,13 +414,13 @@ mod test {
             },
             pool_id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: Addr::unchecked("worker contract"),
+                contract: Addr::unchecked("pool_contract"),
             },
             event_count: 101u64,
             participation: HashMap::from([
-                ("worker1".into(), 75u64),
-                ("worker2".into(), 50u64),
-                ("worker3".into(), 51u64),
+                ("verifier1".into(), 75u64),
+                ("verifier2".into(), 50u64),
+                ("verifier3".into(), 51u64),
             ]),
             epoch: Epoch {
                 epoch_num: 1u64,
@@ -430,15 +430,15 @@ mod test {
 
         let test_cases = vec![
             (
-                // distribute rewards evenly to all workers that reach quorum
+                // distribute rewards evenly to all verifiers that reach quorum
                 tally.clone(),
                 HashMap::from([
-                    (Addr::unchecked("worker1"), Uint128::from(500u128)),
-                    (Addr::unchecked("worker3"), Uint128::from(500u128)),
+                    (Addr::unchecked("verifier1"), Uint128::from(500u128)),
+                    (Addr::unchecked("verifier3"), Uint128::from(500u128)),
                 ]),
             ),
             (
-                // no rewards if there are no workers
+                // no rewards if there are no verifiers
                 EpochTally {
                     participation: HashMap::new(),
                     ..tally.clone()
@@ -446,7 +446,7 @@ mod test {
                 HashMap::new(),
             ),
             (
-                // no rewards if rewards per epoch is too low for number of workers
+                // no rewards if rewards per epoch is too low for number of verifiers
                 EpochTally {
                     params: Params {
                         rewards_per_epoch: Uint128::one().try_into().unwrap(),
@@ -459,7 +459,7 @@ mod test {
         ];
 
         for test_case in test_cases {
-            let rewards = test_case.0.rewards_by_worker();
+            let rewards = test_case.0.rewards_by_verifier();
             assert_eq!(rewards, test_case.1);
         }
     }
@@ -469,7 +469,7 @@ mod test {
         let pool = RewardsPool {
             id: PoolId {
                 chain_name: "mock-chain".parse().unwrap(),
-                contract: Addr::unchecked("worker contract"),
+                contract: Addr::unchecked("pool_contract"),
             },
             balance: Uint128::from(100u128),
         };
@@ -664,7 +664,7 @@ mod test {
             },
         );
 
-        tally = tally.record_participation(Addr::unchecked("worker"));
+        tally = tally.record_participation(Addr::unchecked("verifier"));
 
         let res = save_epoch_tally(mock_deps.as_mut().storage, &tally);
         assert!(res.is_ok());
