@@ -5,7 +5,6 @@ use cosmwasm_std::{
 
 use axelar_wasm_std::{
     nonempty,
-    operators::Operators,
     snapshot,
     voting::{PollId, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,

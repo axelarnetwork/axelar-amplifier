@@ -12,7 +12,7 @@ use multisig::{key::PublicKey, verifier_set::VerifierSet};
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
 
-use axelar_wasm_std::{hash::Hash, operators::Operators};
+use axelar_wasm_std::{hash::Hash};
 
 // Generates the bindings for the Axelar Amplifier Gateway contract.
 // This includes the defined structs: Messages, WeightedSigners, WeightedSigner, and Proofs.

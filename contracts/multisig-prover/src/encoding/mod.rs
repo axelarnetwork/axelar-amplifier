@@ -2,7 +2,6 @@ pub mod abi;
 
 use cosmwasm_schema::cw_serde;
 
-use axelar_wasm_std::operators::Operators;
 use multisig::verifier_set::VerifierSet;
 
 #[cw_serde]

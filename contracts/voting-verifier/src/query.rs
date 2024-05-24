@@ -1,5 +1,4 @@
 use axelar_wasm_std::{
-    operators::Operators,
     voting::{PollStatus, Vote},
     MajorityThreshold, VerificationStatus,
 };

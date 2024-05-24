@@ -7,7 +7,6 @@ use axelar_wasm_std::{
     hash::Hash,
     msg_id::MessageIdFormat,
     nonempty,
-    operators::Operators,
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };

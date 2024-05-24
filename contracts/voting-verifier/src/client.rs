@@ -1,6 +1,5 @@
 use axelar_wasm_std::{
     nonempty,
-    operators::Operators,
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
@@ -105,7 +104,7 @@ mod test {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::{
-        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, operators::Operators, Threshold,
+        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, Threshold,
         VerificationStatus,
     };
     use cosmwasm_std::{

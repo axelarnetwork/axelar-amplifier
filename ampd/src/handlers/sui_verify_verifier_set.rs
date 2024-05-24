@@ -173,7 +173,6 @@ mod tests {
     use tokio::sync::watch;
     use tokio::test as async_test;
 
-    use axelar_wasm_std::operators::Operators;
     use events::Event;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 

@@ -8,7 +8,7 @@ use cosmwasm_std::{HexBinary, Uint128, Uint256};
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
-use axelar_wasm_std::{hash::Hash, operators::Operators};
+use axelar_wasm_std::{hash::Hash};
 use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, verifier_set::VerifierSet};
 use router_api::Message as RouterMessage;
 
@@ -139,7 +139,6 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
 mod tests {
     use cosmwasm_std::HexBinary;
 
-    use axelar_wasm_std::operators::Operators;
     use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{

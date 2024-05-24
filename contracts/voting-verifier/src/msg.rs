@@ -3,7 +3,6 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     msg_id::MessageIdFormat,
     nonempty,
-    operators::Operators,
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };

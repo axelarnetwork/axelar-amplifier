@@ -110,7 +110,6 @@ mod test {
             tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
-        operators::Operators,
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
     };

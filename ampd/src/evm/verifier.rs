@@ -119,7 +119,7 @@ pub fn verify_worker_set(
 mod tests {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{operators::Operators, voting::Vote};
+    use axelar_wasm_std::{voting::Vote};
     use cosmwasm_std::{Addr, HexBinary, Uint128, Uint256};
     use ethers::{
         abi::{encode, Token},

@@ -8,7 +8,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 
 use axelar_wasm_std::nonempty;
-use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
@@ -232,7 +231,6 @@ mod test {
             tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
-        operators::Operators,
     };
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::verifier_set::VerifierSet;

@@ -13,7 +13,6 @@ use valuable::Valuable;
 
 use axelar_wasm_std::{
     msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
-    operators::Operators,
     voting::{PollId, Vote},
 };
 use events::Error::EventTypeMismatch;
@@ -211,7 +210,6 @@ mod tests {
     use tendermint::abci;
     use tokio::{sync::watch, test as async_test};
 
-    use axelar_wasm_std::operators::Operators;
     use events::Event;
     use router_api::ChainName;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
