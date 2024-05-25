@@ -55,8 +55,8 @@ impl From<Message> for IAxelarAmplifierGateway::Message {
 }
 
 impl Proof {
-    /// Proof contains the entire worker set and optimized signatures. Signatures are sorted in ascending order based on the signer's address.
-    pub fn new(worker_set: &VerifierSet, mut signers_with_sigs: Vec<SignerWithSig>) -> Self {
+    /// Proof contains the entire verifier set and optimized signatures. Signatures are sorted in ascending order based on the signer's address.
+    pub fn new(verifier_set: &VerifierSet, mut signers_with_sigs: Vec<SignerWithSig>) -> Self {
         signers_with_sigs.sort_by_key(|signer| {
             evm_address(&signer.signer.pub_key).expect("failed to convert pub key to evm address")
         });
@@ -67,21 +67,21 @@ impl Proof {
             .collect();
 
         Proof {
-            signers: WeightedSigners::from(worker_set),
+            signers: WeightedSigners::from(verifier_set),
             signatures,
         }
     }
 }
 
 pub fn encode(
-    worker_set: &VerifierSet,
+    verifier_set: &VerifierSet,
     signers: Vec<SignerWithSig>,
     payload_digest: &Hash,
     payload: &Payload,
 ) -> Result<HexBinary, ContractError> {
     let signers = to_recoverable(payload_digest.as_slice(), signers);
 
-    let proof = Proof::new(worker_set, signers);
+    let proof = Proof::new(verifier_set, signers);
 
     let data = match payload {
         Payload::Messages(messages) => {
@@ -94,10 +94,10 @@ pub fn encode(
                 .abi_encode()
                 .into()
         }
-        Payload::VerifierSet(new_worker_set) => {
-            let new_worker_set = WeightedSigners::from(new_worker_set);
+        Payload::VerifierSet(new_verifier_set) => {
+            let new_verifier_set = WeightedSigners::from(new_verifier_set);
 
-            IAxelarAmplifierGateway::rotateSignersCall::new((new_worker_set.into(), proof.into()))
+            IAxelarAmplifierGateway::rotateSignersCall::new((new_verifier_set.into(), proof.into()))
                 .abi_encode()
                 .into()
         }
@@ -176,8 +176,8 @@ mod tests {
             "03c55d66787c66f37257ef4b320ddcb64623d59e9bf0f3ec0f8ac7311b70cdd2c8",
         ];
 
-        let new_worker_set = verifier_set_from_pub_keys(new_pub_keys);
-        let worker_set = curr_verifier_set();
+        let new_verifier_set = verifier_set_from_pub_keys(new_pub_keys);
+        let verifier_set = curr_verifier_set();
 
         // Generated signatures are already sorted by weight and evm address
         let sigs: Vec<_> = vec![
@@ -186,16 +186,17 @@ mod tests {
             "7c685ecc8a42da4cd9d6de7860b0fddebb4e2e934357500257c1070b1a15be5e27f13b627cf9fa44f59d535af96be0a5ec214d988c48e2b5aaf3ba537d0215bb1b",
         ].into_iter().map(|sig| HexBinary::from_hex(sig).unwrap()).collect();
 
-        let signers_with_sigs = signers_with_sigs(worker_set.signers.values(), sigs);
+        let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
 
-        let payload = Payload::VerifierSet(new_worker_set);
-        let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &worker_set, &payload)
+        let payload = Payload::VerifierSet(new_verifier_set);
+        let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &verifier_set, &payload)
             .unwrap()
             .as_slice()
             .try_into()
             .unwrap();
 
-        let execute_data = encode(&worker_set, signers_with_sigs, &payload_hash, &payload).unwrap();
+        let execute_data =
+            encode(&verifier_set, signers_with_sigs, &payload_hash, &payload).unwrap();
         let data_hash = Keccak256::digest(execute_data.as_slice());
 
         assert_eq!(HexBinary::from(data_hash.as_slice()), expected_data_hash);
@@ -246,7 +247,7 @@ mod tests {
                 .unwrap();
 
         let domain_separator = domain_separator();
-        let worker_set = curr_verifier_set();
+        let verifier_set = curr_verifier_set();
 
         // Generated signatures are already sorted by weight and evm address
         let sigs: Vec<_> = vec![
@@ -255,16 +256,17 @@ mod tests {
             "4c9c52a99a3941a384c4a80b3c5a14c059020d3d2f29be210717bdb9270ed55937fcec824313c90c198188ea8eb3b47c2bafe5e96c11f79ec793d589358024191b",
         ].into_iter().map(|sig| HexBinary::from_hex(sig).unwrap()).collect();
 
-        let signers_with_sigs = signers_with_sigs(worker_set.signers.values(), sigs);
+        let signers_with_sigs = signers_with_sigs(verifier_set.signers.values(), sigs);
 
         let payload = Payload::Messages(messages());
-        let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &worker_set, &payload)
+        let payload_hash: Hash = payload_hash_to_sign(&domain_separator, &verifier_set, &payload)
             .unwrap()
             .as_slice()
             .try_into()
             .unwrap();
 
-        let execute_data = encode(&worker_set, signers_with_sigs, &payload_hash, &payload).unwrap();
+        let execute_data =
+            encode(&verifier_set, signers_with_sigs, &payload_hash, &payload).unwrap();
         let data_hash = Keccak256::digest(execute_data.as_slice());
 
         assert_eq!(HexBinary::from(data_hash.as_slice()), expected_data_hash);

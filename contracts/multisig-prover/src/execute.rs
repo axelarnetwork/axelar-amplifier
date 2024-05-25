@@ -18,7 +18,7 @@ use crate::{
     error::ContractError,
     payload::Payload,
     state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_BATCH},
-    types::{BatchId, WorkersInfo},
+    types::{BatchId, VerifiersInfo},
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -110,7 +110,7 @@ fn get_messages(
     Ok(messages)
 }
 
-fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, ContractError> {
+fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, ContractError> {
     let active_verifiers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
@@ -144,7 +144,7 @@ fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<WorkersInfo, Co
         pub_keys.push(pub_key);
     }
 
-    Ok(WorkersInfo {
+    Ok(VerifiersInfo {
         snapshot,
         pubkeys_by_participant: participants.into_iter().zip(pub_keys).collect(),
     })
@@ -168,7 +168,7 @@ fn get_next_verifier_set(
     env: &Env,
     config: &Config,
 ) -> Result<Option<VerifierSet>, ContractError> {
-    // if there's already a pending worker set update, just return it
+    // if there's already a pending verifiers set update, just return it
     if let Some(pending_verifier_set) = NEXT_VERIFIER_SET.may_load(deps.storage)? {
         return Ok(Some(pending_verifier_set));
     }

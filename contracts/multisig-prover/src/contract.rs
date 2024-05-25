@@ -7,7 +7,7 @@ use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
-    execute,
+    execute, migrations,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
@@ -126,12 +126,13 @@ pub fn query(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // TODO migrate
-    Ok(Response::default())
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    migrations::v_0_5::migrate_verifier_sets(deps)
 }
 
 #[cfg(test)]

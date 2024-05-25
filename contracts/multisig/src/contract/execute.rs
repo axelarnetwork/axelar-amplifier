@@ -218,7 +218,7 @@ fn signing_response(
                 .to_string()
                 .try_into()
                 .expect("couldn't convert session_id to nonempty string"),
-            worker_address: signer.to_string(),
+            verifier_address: signer.to_string(),
         })?,
         funds: vec![],
     };
