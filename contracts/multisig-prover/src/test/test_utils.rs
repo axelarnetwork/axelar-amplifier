@@ -18,7 +18,7 @@ pub const SERVICE_NAME: &str = "validators";
 
 pub fn mock_querier_handler(
     operators: Vec<TestOperator>,
-    worker_set_status: VerificationStatus,
+    verifier_set_status: VerificationStatus,
 ) -> impl Fn(&WasmQuery) -> QuerierResult {
     move |wq: &WasmQuery| match wq {
         WasmQuery::Smart { contract_addr, .. } if contract_addr == GATEWAY_ADDRESS => {
@@ -31,7 +31,7 @@ pub fn mock_querier_handler(
             service_registry_mock_querier_handler(operators.clone())
         }
         WasmQuery::Smart { contract_addr, .. } if contract_addr == VOTING_VERIFIER_ADDRESS => {
-            voting_verifier_mock_querier_handler(worker_set_status)
+            voting_verifier_mock_querier_handler(verifier_set_status)
         }
         _ => panic!("unexpected query: {:?}", wq),
     }
@@ -50,12 +50,12 @@ fn multisig_mock_querier_handler(
             to_json_binary(&mock_get_multisig(operators))
         }
         multisig::msg::QueryMsg::GetPublicKey {
-            verifier_address: worker_address,
+            verifier_address,
             key_type: _,
         } => to_json_binary(
             &operators
                 .iter()
-                .find(|op| op.address == worker_address)
+                .find(|op| op.address == verifier_address)
                 .unwrap()
                 .pub_key,
         ),
@@ -94,7 +94,7 @@ fn mock_get_multisig(operators: Vec<TestOperator>) -> Multisig {
         })
         .collect();
 
-    let worker_set = VerifierSet {
+    let verifier_set = VerifierSet {
         signers,
         threshold: quorum,
         created_at: 1,
@@ -104,7 +104,7 @@ fn mock_get_multisig(operators: Vec<TestOperator>) -> Multisig {
         state: MultisigState::Completed {
             completed_at: 12345,
         },
-        verifier_set: worker_set,
+        verifier_set,
         signatures,
     }
 }
