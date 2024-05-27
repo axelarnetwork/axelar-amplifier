@@ -38,8 +38,8 @@ end
 Relayer --"VerifyMessages([M1,M2])"-->G1
 G1 --"VerifyMessages([M1,M2])"--> Vr
 Vr --"VerifyMessages([M1,M2])"--> Vo
-Vo --"GetActiveWorkers"--> S
-Workers --"Vote(poll_id, votes)"--> Vo
+Vo --"GetActiveVerifiers"--> S
+Verifiers --"Vote(poll_id, votes)"--> Vo
 
 Relayer --"RouteMessages([M1,M2])"-->G1
 G1 --"RouteMessages([M1,M2])"-->R
@@ -59,9 +59,9 @@ end
 
 Relayer --"ConstructProof([M1.id,M2.id])"-->P
 P --"GetMessages([M1.id,M2.id])"-->G2
-P --"GetActiveWorkers"-->S
-P --"StartSigningSession(worker_set_id, payload_hash)"-->M
-Workers --"SubmitSignature(session_id, signature)"-->M
+P --"GetActiveVerifiers"-->S
+P --"StartSigningSession(verifier_set_id, payload_hash)"-->M
+Verifiers --"SubmitSignature(session_id, signature)"-->M
 Relayer --"GetProof(multisig_session_id)" --> P
 P --"GetSigningSession(session_id)"-->M
 ```
@@ -87,18 +87,18 @@ sequenceDiagram
     participant Voting Verifier
     participant Service Registry
     end
-    participant Worker
+    participant Verifier
     Relayer->>IncomingGateway: VerifyMessages([M1,M2])
     IncomingGateway->>Verifier: VerifyMessages([M1,M2])
     Verifier->>Voting Verifier: VerifyMessages([M1,M2])
-    Voting Verifier->>Service Registry: GetActiveWorkers
-    Voting Verifier->>Worker: emit PollStarted
+    Voting Verifier->>Service Registry: GetActiveVerifiers
+    Voting Verifier->>Verifier: emit PollStarted
     Voting Verifier-->>Verifier: [(M1.id,false),(M2.id,false)]
     Verifier-->>IncomingGateway: [(M1.id,false),(M2.id, false)]
     IncomingGateway-->>Relayer: [(M1.id,false),(M2.id, false)]
-    Worker->>Voting Verifier: Vote
-    Worker->>Voting Verifier: Vote
-    Worker->>Voting Verifier: EndPoll
+    Verifier->>Voting Verifier: Vote
+    Verifier->>Voting Verifier: Vote
+    Verifier->>Voting Verifier: EndPoll
 
 
 
@@ -122,7 +122,7 @@ sequenceDiagram
     participant Prover
     participant Multisig
     end
-    participant Worker
+    participant Verifier
 
 
     Router->>OutgoingGateway: RouteMessages([M1,M2])
@@ -133,8 +133,8 @@ sequenceDiagram
     Prover->>Multisig: StartSigningSession(snapshot, payload hash)
     Multisig-->>Prover: multisig_session_id
     Prover-->>Relayer: multisig_session_id
-    Worker->>Multisig: SubmitSignature(session_id, signature)
-    Worker->>Multisig: SubmitSignature(session_id, signature)
+    Verifier->>Multisig: SubmitSignature(session_id, signature)
+    Verifier->>Multisig: SubmitSignature(session_id, signature)
     Relayer->>Prover: GetProof(multisig_session_id)
     Prover->>Multisig: GetSigningSession(session_id)
     Multisig-->>Prover: signing session
@@ -195,4 +195,4 @@ associated with the key id sign messages when new signing sessions are created.
 [`service-registry`](contracts/service_registry.md) is responsible for tracking verifiers associated with specific
 services. Two example services are voting and signing. Verifiers must be authorized to join a service via governance
 vote. Once authorized, verifiers must also bond a sufficient amount of stake before becoming active in the service.
-Services query the service registry to create weighted snapshots of the active worker set.
+Services query the service registry to create weighted snapshots of the active verifier set.

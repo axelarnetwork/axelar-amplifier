@@ -13,7 +13,7 @@ slashes `///` for anchors in the code snippets, or they will be interpreted as p
 // ANCHOR: events
 
 pub struct MyEvent {
-  pub field: u32
+    pub field: u32
 }
 
 // ANCHOR_END: events
@@ -48,8 +48,8 @@ end
 Relayer --"VerifyMessages([M1,M2])"-->G1
 G1 --"VerifyMessages([M1,M2])"--> Vr
 Vr --"VerifyMessages([M1,M2])"--> Vo
-Vo --"GetActiveWorkers"--> S
-Workers --"Vote(poll_id, votes)"--> Vo
+Vo --"GetActiveVerifiers"--> S
+Verifiers --"Vote(poll_id, votes)"--> Vo
 
 Relayer --"RouteMessages([M1,M2])"-->G1
 G1 --"RouteMessages([M1,M2])"-->R
