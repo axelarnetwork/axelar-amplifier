@@ -7,10 +7,10 @@ use axelar_wasm_std::{
     hash::Hash,
     msg_id::MessageIdFormat,
     nonempty,
-    operators::Operators,
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };
+use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
 use crate::error::ContractError;
@@ -65,10 +65,10 @@ impl PollContent<Message> {
     }
 }
 
-impl PollContent<Operators> {
-    pub fn new(operators: Operators, poll_id: PollId) -> Self {
+impl PollContent<VerifierSet> {
+    pub fn new(workerset: VerifierSet, poll_id: PollId) -> Self {
         Self {
-            content: operators,
+            content: workerset,
             poll_id,
             index_in_poll: 0,
         }
@@ -83,5 +83,4 @@ pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messa
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-// TODO: do we need to migrate this or just drop it?
-pub const POLL_VERIFIER_SETS: Map<&Hash, PollContent<Operators>> = Map::new("poll_verifier_sets");
+pub const POLL_VERIFIER_SETS: Map<&Hash, PollContent<VerifierSet>> = Map::new("poll_verifier_sets");

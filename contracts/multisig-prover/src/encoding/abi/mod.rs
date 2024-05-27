@@ -1,14 +1,16 @@
+// TODO: remove this, use evm-gateway package for solidity type conversion and encoding
+
 pub mod execute_data;
 
 use std::str::FromStr;
 
 use alloy_primitives::{Address, FixedBytes};
 use alloy_sol_types::{sol, SolValue};
-use cosmwasm_std::{HexBinary, Uint128, Uint256};
+use cosmwasm_std::Uint256;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
-use axelar_wasm_std::{hash::Hash, operators::Operators};
+use axelar_wasm_std::hash::Hash;
 use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, verifier_set::VerifierSet};
 use router_api::Message as RouterMessage;
 
@@ -134,34 +136,14 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
     }
 }
 
-pub fn make_operators(verifier_set: VerifierSet) -> Operators {
-    let operators: Vec<(HexBinary, Uint128)> = verifier_set
-        .signers
-        .values()
-        .map(|signer| {
-            (
-                evm_address(&signer.pub_key)
-                    .expect("couldn't convert pubkey to evm address")
-                    .as_slice()
-                    .into(),
-                signer.weight,
-            )
-        })
-        .collect();
-    Operators::new(operators, verifier_set.threshold, verifier_set.created_at)
-}
-
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::HexBinary;
 
-    use axelar_wasm_std::operators::Operators;
     use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{
-        encoding::abi::{
-            make_operators, payload_hash_to_sign, CommandType, Message, WeightedSigners,
-        },
+        encoding::abi::{payload_hash_to_sign, CommandType, Message, WeightedSigners},
         payload::Payload,
         test::test_data::{
             curr_verifier_set, domain_separator, messages, new_verifier_set,
@@ -274,40 +256,5 @@ mod tests {
         .unwrap();
 
         assert_eq!(digest, expected_hash);
-    }
-
-    #[test]
-    fn verifier_set_to_operators() {
-        let verifier_set = curr_verifier_set();
-        let operators = make_operators(verifier_set);
-
-        let expected = Operators::new(
-            vec![
-                (
-                    HexBinary::from_hex("f39fd6e51aad88f6f4ce6ab8827279cfffb92266").unwrap(),
-                    1u128.into(),
-                ),
-                (
-                    HexBinary::from_hex("90f79bf6eb2c4f870365e785982e1f101e93b906").unwrap(),
-                    1u128.into(),
-                ),
-                (
-                    HexBinary::from_hex("70997970c51812dc3a010c7d01b50e0d17dc79c8").unwrap(),
-                    1u128.into(),
-                ),
-                (
-                    HexBinary::from_hex("3c44cdddb6a900fa2b585dd299e03d12fa4293bc").unwrap(),
-                    1u128.into(),
-                ),
-                (
-                    HexBinary::from_hex("15d34aaf54267db7d7c367839aaf71a00a2c6a65").unwrap(),
-                    1u128.into(),
-                ),
-            ],
-            3u128.into(),
-            0,
-        );
-
-        assert_eq!(operators, expected);
     }
 }

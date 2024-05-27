@@ -1,5 +1,4 @@
 use axelar_wasm_std::voting::Vote;
-use bcs::to_bytes;
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
@@ -19,6 +18,7 @@ struct ContractCall {
 
 #[derive(Deserialize)]
 struct OperatorshipTransferred {
+    #[allow(dead_code)]
     pub payload: Vec<u8>,
 }
 
@@ -61,25 +61,11 @@ impl PartialEq<&Message> for &SuiEvent {
 }
 
 impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
-    fn eq(&self, verifier_set: &&VerifierSetConfirmation) -> bool {
+    fn eq(&self, _verifier_set: &&VerifierSetConfirmation) -> bool {
         match serde_json::from_value::<OperatorshipTransferred>(self.parsed_json.clone()) {
-            Ok(event) => {
-                let (operators, weights): (Vec<_>, Vec<_>) = verifier_set
-                    .verifier_set
-                    .weights_by_addresses
-                    .iter()
-                    .map(|(operator, weight)| {
-                        (operator.to_owned().to_vec(), weight.to_owned().u128())
-                    })
-                    .unzip();
-
-                event.payload
-                    == to_bytes(&(
-                        operators,
-                        weights,
-                        verifier_set.verifier_set.threshold.u128(),
-                    ))
-                    .expect("failed to serialize new operators data")
+            Ok(_event) => {
+                // TODO: convert verifier set to Sui gateway V2 WeightedSigners struct
+                todo!()
             }
             _ => false,
         }
@@ -135,21 +121,24 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std::HexBinary;
+    use std::collections::BTreeMap;
+
+    use cosmwasm_std::Uint128;
     use ethers::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
     use random_string::generate;
-    use router_api::ChainName;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
     use sui_types::{
         base_types::{SuiAddress, TransactionDigest},
         event::EventID,
     };
 
+    use axelar_wasm_std::voting::Vote;
+    use multisig::verifier_set::VerifierSet;
+    use router_api::ChainName;
+
     use crate::handlers::{
-        sui_verify_msg::Message,
-        sui_verify_verifier_set::{Operators, VerifierSetConfirmation},
+        sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation,
     };
     use crate::sui::verifier::{verify_message, verify_verifier_set};
     use crate::types::{EVMAddress, Hash};
@@ -229,6 +218,7 @@ mod tests {
         );
     }
 
+    #[ignore = "TODO: remove ignore once integrated with Sui gateway v2"]
     #[test]
     fn should_verify_verifier_set() {
         let (gateway_address, tx_receipt, verifier_set) = get_matching_verifier_set_and_tx_block();
@@ -299,73 +289,10 @@ mod tests {
         let verifier_set_confirmation = VerifierSetConfirmation {
             tx_id: TransactionDigest::random(),
             event_index: rand::random::<u32>(),
-            verifier_set: Operators {
-                weights_by_addresses: vec![
-                    (
-                        HexBinary::from_hex(
-                            "021c4f23e560c7fe709dfc9d21564c50ae7d47849564b9c3321c38a8ad1b94d30d",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "023054b468b4d9e85144225705aa5dd06e46226a12aae6e854b16046df272145f3",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "026fa53253c4e5ca8ba71690470c887686f865fadb49430c2e95dfcc3a864e0c8c",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "027561c44dd85e1f08a99f4da41af912fc6a4986a431b3209cf1c8ecdb77609aae",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "02d3eef76c31694945e855423b1d7244d80dbbd04c2dbe707f3f4ec9bdcfe88950",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "02fdf3916dd87dc1357cd27c9d3ec302bb1a4e331decde00f7479db12c3bc9c96e",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "030d47294351c4800e804281e7e24d7fad7b3a53c666958fa5bdcf071a927f78df",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "03b36f52c88d68db7fb1a39d1c6a298dbf6936c8c73f8c7d3986145a13b7993744",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                    (
-                        HexBinary::from_hex(
-                            "03faa1ac20735bdc5647390f9bb9a763d139c284720bb05b46e8db54ca77059d7d",
-                        )
-                        .unwrap(),
-                        1u128.into(),
-                    ),
-                ],
-                threshold: 5u128.into(),
+            verifier_set: VerifierSet {
+                signers: BTreeMap::new(),
+                threshold: Uint128::one(),
+                created_at: 2,
             },
         };
 

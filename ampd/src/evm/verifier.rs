@@ -1,8 +1,9 @@
-use axelar_wasm_std::voting::Vote;
 use ethers::contract::EthLogDecode;
 use ethers::types::{Log, TransactionReceipt, H256};
-use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use num_traits::cast;
+
+use axelar_wasm_std::voting::Vote;
+use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
@@ -117,8 +118,8 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::{operators::Operators, voting::Vote};
-    use cosmwasm_std::{Uint128, Uint256};
+    use axelar_wasm_std::voting::Vote;
+    use cosmwasm_std::Uint128;
     use ethers::{
         abi::{encode, Token},
         contract::EthEvent,
@@ -126,7 +127,11 @@ mod tests {
     };
     use evm_gateway::{
         i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter},
-        WeightedSigner, WeightedSigners,
+        WeightedSigners,
+    };
+    use multisig::{
+        key::KeyType,
+        test::common::{build_verifier_set, ecdsa_test_data},
     };
 
     use super::{verify_message, verify_verifier_set};
@@ -296,35 +301,15 @@ mod tests {
         let log_index = 1;
         let gateway_address = EVMAddress::random();
 
-        let operators = Operators::new(
-            vec![
-                (EVMAddress::random().as_bytes().into(), Uint128::from(10u64)),
-                (EVMAddress::random().as_bytes().into(), Uint128::from(20u64)),
-                (EVMAddress::random().as_bytes().into(), Uint128::from(30u64)),
-            ],
-            Uint128::from(40u64),
-            1u64,
-        );
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
 
         let verifier_set = VerifierSetConfirmation {
             tx_id,
             event_index: log_index,
-            verifier_set: operators,
+            verifier_set,
         };
 
-        let weighted_signers = WeightedSigners {
-            threshold: 40,
-            nonce: Uint256::from(verifier_set.verifier_set.created_at).to_be_bytes(),
-            signers: verifier_set
-                .verifier_set
-                .weights_by_addresses()
-                .iter()
-                .map(|(operator, weight)| WeightedSigner {
-                    signer: operator.to_hex().parse().unwrap(),
-                    weight: weight.u128(),
-                })
-                .collect(),
-        };
+        let weighted_signers = WeightedSigners::try_from(&verifier_set.verifier_set).unwrap();
 
         let log = Log {
             transaction_hash: Some(tx_id),

@@ -1,9 +1,9 @@
 use axelar_wasm_std::{
-    operators::Operators,
     voting::{PollStatus, Vote},
     MajorityThreshold, VerificationStatus,
 };
 use cosmwasm_std::Deps;
+use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::{error::ContractError, state::CONFIG};
@@ -37,11 +37,14 @@ pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatu
 
 pub fn verifier_set_status(
     deps: Deps,
-    operators: &Operators,
+    verifier_set: &VerifierSet,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_VERIFIER_SETS.may_load(deps.storage, &operators.hash())?;
+    let loaded_poll_content = POLL_VERIFIER_SETS.may_load(
+        deps.storage,
+        &verifier_set.hash().as_slice().try_into().unwrap(),
+    )?;
 
-    Ok(verification_status(deps, loaded_poll_content, operators))
+    Ok(verification_status(deps, loaded_poll_content, verifier_set))
 }
 
 fn verification_status<T: PartialEq + std::fmt::Debug>(

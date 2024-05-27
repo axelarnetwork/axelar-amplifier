@@ -126,6 +126,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+#[cfg(feature = "test")]
 #[cfg(test)]
 mod tests {
     use std::vec;

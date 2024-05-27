@@ -16,7 +16,7 @@ mod secp256k1;
 #[cfg(feature = "ed25519")]
 mod ed25519;
 
-#[cfg(test)]
+#[cfg(feature = "test")]
 pub mod test;
 
 pub use crate::error::ContractError;
