@@ -101,17 +101,17 @@ pub fn verify_message(
     }
 }
 
-pub fn verify_worker_set(
+pub fn verify_verifier_set(
     gateway_address: &SuiAddress,
     transaction_block: &SuiTransactionBlockResponse,
-    worker_set: &VerifierSetConfirmation,
+    confirmation: &VerifierSetConfirmation,
 ) -> Vote {
-    match find_event(transaction_block, worker_set.event_index as u64) {
+    match find_event(transaction_block, confirmation.event_index as u64) {
         Some(event)
-            if transaction_block.digest == worker_set.tx_id
+            if transaction_block.digest == confirmation.tx_id
                 && event.type_
                     == EventType::OperatorshipTransferred.struct_tag(gateway_address)
-                && event == worker_set =>
+                && event == confirmation =>
         {
             Vote::SucceededOnChain
         }
@@ -140,7 +140,7 @@ mod tests {
     use crate::handlers::{
         sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation,
     };
-    use crate::sui::verifier::{verify_message, verify_worker_set};
+    use crate::sui::verifier::{verify_message, verify_verifier_set};
     use crate::types::{EVMAddress, Hash};
 
     #[test]
@@ -219,11 +219,11 @@ mod tests {
     }
 
     #[test]
-    fn should_verify_worker_set() {
-        let (gateway_address, tx_receipt, worker_set) = get_matching_worker_set_and_tx_block();
+    fn should_verify_verifier_set() {
+        let (gateway_address, tx_receipt, verifier_set) = get_matching_verifier_set_and_tx_block();
 
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::SucceededOnChain
         );
     }
@@ -278,14 +278,14 @@ mod tests {
         (gateway_address, tx_block, msg)
     }
 
-    fn get_matching_worker_set_and_tx_block() -> (
+    fn get_matching_verifier_set_and_tx_block() -> (
         SuiAddress,
         SuiTransactionBlockResponse,
         VerifierSetConfirmation,
     ) {
         let gateway_address = SuiAddress::random_for_testing_only();
 
-        let worker_set_confirmation = VerifierSetConfirmation {
+        let verifier_set_confirmation = VerifierSetConfirmation {
             tx_id: TransactionDigest::random(),
             event_index: rand::random::<u32>(),
             verifier_set: VerifierSet {
@@ -303,8 +303,8 @@ mod tests {
 
         let event = SuiEvent {
             id: EventID {
-                tx_digest: worker_set_confirmation.tx_id,
-                event_seq: worker_set_confirmation.event_index as u64,
+                tx_digest: verifier_set_confirmation.tx_id,
+                event_seq: verifier_set_confirmation.event_index as u64,
             },
             package_id: gateway_address.into(),
             transaction_module: "gateway".parse().unwrap(),
@@ -321,12 +321,12 @@ mod tests {
         };
 
         let tx_block = SuiTransactionBlockResponse {
-            digest: worker_set_confirmation.tx_id,
+            digest: verifier_set_confirmation.tx_id,
             events: Some(SuiTransactionBlockEvents { data: vec![event] }),
             ..Default::default()
         };
 
-        (gateway_address, tx_block, worker_set_confirmation)
+        (gateway_address, tx_block, verifier_set_confirmation)
     }
 
     fn rand_chain_name() -> ChainName {

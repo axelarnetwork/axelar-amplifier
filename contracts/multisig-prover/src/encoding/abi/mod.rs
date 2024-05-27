@@ -42,8 +42,8 @@ impl From<&Signer> for WeightedSigner {
 }
 
 impl From<&VerifierSet> for WeightedSigners {
-    fn from(worker_set: &VerifierSet) -> Self {
-        let mut signers = worker_set
+    fn from(verifier_set: &VerifierSet) -> Self {
+        let mut signers = verifier_set
             .signers
             .values()
             .map(WeightedSigner::from)
@@ -53,8 +53,8 @@ impl From<&VerifierSet> for WeightedSigners {
 
         WeightedSigners {
             signers,
-            threshold: worker_set.threshold.u128(),
-            nonce: Uint256::from(worker_set.created_at).to_be_bytes().into(),
+            threshold: verifier_set.threshold.u128(),
+            nonce: Uint256::from(verifier_set.created_at).to_be_bytes().into(),
         }
     }
 }
@@ -114,8 +114,8 @@ pub fn encode(payload: &Payload) -> Result<Vec<u8>, ContractError> {
 
             Ok((command_type, messages).abi_encode_sequence())
         }
-        Payload::VerifierSet(worker_set) => {
-            Ok((command_type, WeightedSigners::from(worker_set)).abi_encode_sequence())
+        Payload::VerifierSet(verifier_set) => {
+            Ok((command_type, WeightedSigners::from(verifier_set)).abi_encode_sequence())
         }
     }
 }
@@ -169,9 +169,9 @@ mod tests {
         let expected_hash =
             HexBinary::from_hex("e490c7e55a46b0e1e39a3034973b676eed044fed387f80f4e6377305313f8762")
                 .unwrap();
-        let worker_set = curr_verifier_set();
+        let verifier_set = curr_verifier_set();
 
-        assert_eq!(WeightedSigners::from(&worker_set).hash(), expected_hash);
+        assert_eq!(WeightedSigners::from(&verifier_set).hash(), expected_hash);
     }
 
     #[test]
@@ -189,12 +189,12 @@ mod tests {
             "02515a95a89320988ff96f5e990b6d4c0a6807072f9b01c9ae634cf846bae2bd08",
             "02464111b31e5d174ec44c172f5e3913d0a35344ef6c2cd8215494f23648ec3420",
         ];
-        let new_worker_set = verifier_set_from_pub_keys(new_pub_keys);
+        let new_verifier_set = verifier_set_from_pub_keys(new_pub_keys);
 
         let msg_to_sign = payload_hash_to_sign(
             &domain_separator,
             &curr_verifier_set(),
-            &Payload::VerifierSet(new_worker_set),
+            &Payload::VerifierSet(new_verifier_set),
         )
         .unwrap();
         assert_eq!(msg_to_sign, expected_hash);

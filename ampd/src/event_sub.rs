@@ -4,6 +4,7 @@ use std::time::Duration;
 use error_stack::ResultExt;
 use error_stack::{FutureExt, Report, Result};
 use futures::TryStreamExt;
+use mockall::automock;
 use tendermint::block;
 use thiserror::Error;
 use tokio::select;
@@ -20,12 +21,19 @@ use events::Event;
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::tm_client::TmClient;
 
+#[automock]
+pub trait EventSub {
+    fn subscribe(
+        &self,
+    ) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> + Send + 'static;
+}
+
 pub struct EventSubscriber {
     tx: Sender<Event>,
 }
 
-impl EventSubscriber {
-    pub fn subscribe(&self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> {
+impl EventSub for EventSubscriber {
+    fn subscribe(&self) -> impl Stream<Item = Result<Event, BroadcastStreamRecvError>> + 'static {
         BroadcastStream::new(self.tx.subscribe()).map_err(Report::from)
     }
 }
@@ -202,7 +210,7 @@ mod tests {
     use tokio_stream::wrappers::ReceiverStream;
     use tokio_util::sync::CancellationToken;
 
-    use crate::event_sub::{skip_to_block, Event, EventPublisher};
+    use crate::event_sub::{skip_to_block, Event, EventPublisher, EventSub};
     use crate::tm_client;
 
     #[test]

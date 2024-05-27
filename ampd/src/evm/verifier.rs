@@ -101,17 +101,17 @@ pub fn verify_message(
     verify(gateway_address, tx_receipt, msg, msg.tx_id, msg.event_index)
 }
 
-pub fn verify_worker_set(
+pub fn verify_verifier_set(
     gateway_address: &EVMAddress,
     tx_receipt: &TransactionReceipt,
-    worker_set: &VerifierSetConfirmation,
+    confirmation: &VerifierSetConfirmation,
 ) -> Vote {
     verify(
         gateway_address,
         tx_receipt,
-        worker_set,
-        worker_set.tx_id,
-        worker_set.event_index,
+        confirmation,
+        confirmation.tx_id,
+        confirmation.event_index,
     )
 }
 
@@ -132,87 +132,88 @@ mod tests {
     };
     use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
 
-    use super::{verify_message, verify_worker_set};
+    use super::{verify_message, verify_verifier_set};
     use crate::{
         handlers::{evm_verify_msg::Message, evm_verify_verifier_set::VerifierSetConfirmation},
         types::{EVMAddress, Hash},
     };
 
     #[test]
-    fn should_not_verify_worker_set_if_tx_id_does_not_match() {
-        let (gateway_address, tx_receipt, mut worker_set) =
-            get_matching_worker_set_and_tx_receipt();
+    fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
+        let (gateway_address, tx_receipt, mut verifier_set) =
+            get_matching_verifier_set_and_tx_receipt();
 
-        worker_set.tx_id = Hash::random();
+        verifier_set.tx_id = Hash::random();
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
     }
 
     #[test]
-    fn should_not_verify_worker_set_if_tx_failed() {
-        let (gateway_address, mut tx_receipt, worker_set) =
-            get_matching_worker_set_and_tx_receipt();
+    fn should_not_verify_verifier_set_if_tx_failed() {
+        let (gateway_address, mut tx_receipt, verifier_set) =
+            get_matching_verifier_set_and_tx_receipt();
 
         tx_receipt.status = Some(0u64.into());
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::FailedOnChain
         );
     }
 
     #[test]
-    fn should_not_verify_worker_set_if_gateway_address_does_not_match() {
-        let (_, tx_receipt, worker_set) = get_matching_worker_set_and_tx_receipt();
+    fn should_not_verify_verifier_set_if_gateway_address_does_not_match() {
+        let (_, tx_receipt, verifier_set) = get_matching_verifier_set_and_tx_receipt();
 
         let gateway_address = EVMAddress::random();
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
     }
 
     #[test]
-    fn should_not_verify_worker_set_if_log_index_does_not_match() {
-        let (gateway_address, tx_receipt, mut worker_set) =
-            get_matching_worker_set_and_tx_receipt();
+    fn should_not_verify_verifier_set_if_log_index_does_not_match() {
+        let (gateway_address, tx_receipt, mut verifier_set) =
+            get_matching_verifier_set_and_tx_receipt();
 
-        worker_set.event_index = 0;
+        verifier_set.event_index = 0;
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
-        worker_set.event_index = 2;
+        verifier_set.event_index = 2;
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
-        worker_set.event_index = 3;
+        verifier_set.event_index = 3;
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
-            Vote::NotFound
-        );
-    }
-
-    #[test]
-    fn should_not_verify_worker_set_if_worker_set_does_not_match() {
-        let (gateway_address, tx_receipt, mut worker_set) =
-            get_matching_worker_set_and_tx_receipt();
-
-        worker_set.verifier_set.threshold = Uint128::from(50u64);
-        assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::NotFound
         );
     }
 
     #[test]
-    fn should_verify_worker_set_if_correct() {
-        let (gateway_address, tx_receipt, worker_set) = get_matching_worker_set_and_tx_receipt();
+    fn should_not_verify_verifier_set_if_verifier_set_does_not_match() {
+        let (gateway_address, tx_receipt, mut verifier_set) =
+            get_matching_verifier_set_and_tx_receipt();
+
+        verifier_set.verifier_set.threshold = Uint128::from(50u64);
+        assert_eq!(
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
+            Vote::NotFound
+        );
+    }
+
+    #[test]
+    fn should_verify_verifier_set_if_correct() {
+        let (gateway_address, tx_receipt, verifier_set) =
+            get_matching_verifier_set_and_tx_receipt();
 
         assert_eq!(
-            verify_worker_set(&gateway_address, &tx_receipt, &worker_set),
+            verify_verifier_set(&gateway_address, &tx_receipt, &verifier_set),
             Vote::SucceededOnChain
         );
     }
@@ -358,7 +359,7 @@ mod tests {
         }
     }
 
-    fn get_matching_worker_set_and_tx_receipt(
+    fn get_matching_verifier_set_and_tx_receipt(
     ) -> (EVMAddress, TransactionReceipt, VerifierSetConfirmation) {
         let tx_id = Hash::random();
         let log_index = 1;

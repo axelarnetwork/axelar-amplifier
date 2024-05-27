@@ -16,9 +16,10 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
+use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
 use broadcaster::Broadcaster;
 use event_processor::EventHandler;
+use event_sub::EventSub;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
@@ -107,14 +108,14 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         }
     };
 
-    let worker: TMAddress = pub_key
+    let verifier: TMAddress = pub_key
         .account_id(PREFIX)
         .expect("failed to convert to account identifier")
         .into();
 
     let broadcaster = broadcaster::BroadcastClient::builder()
         .query_client(query_client)
-        .address(worker.clone())
+        .address(verifier.clone())
         .client(service_client)
         .signer(ecdsa_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
@@ -133,7 +134,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         block_height_monitor,
         health_check_server,
     )
-    .configure_handlers(worker, handlers, event_stream_timeout)
+    .configure_handlers(verifier, handlers, event_stream_timeout)
     .await
 }
 
@@ -218,7 +219,7 @@ where
 
     async fn configure_handlers(
         mut self,
-        worker: TMAddress,
+        verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         stream_timeout: Duration,
     ) -> Result<App<T>, Error> {
@@ -243,7 +244,7 @@ where
                     self.create_handler_task(
                         format!("{}-msg-verifier", chain.name),
                         handlers::evm_verify_msg::Handler::new(
-                            worker.clone(),
+                            verifier.clone(),
                             cosmwasm_contract,
                             chain.name,
                             chain.finalization,
@@ -253,7 +254,7 @@ where
                         stream_timeout,
                     )
                 }
-                handlers::config::Config::EvmWorkerSetVerifier {
+                handlers::config::Config::EvmVerifierSetVerifier {
                     chain,
                     cosmwasm_contract,
                     rpc_timeout,
@@ -270,9 +271,9 @@ where
                     check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
                     self.create_handler_task(
-                        format!("{}-worker-set-verifier", chain.name),
+                        format!("{}-verifier-set-verifier", chain.name),
                         handlers::evm_verify_verifier_set::Handler::new(
-                            worker.clone(),
+                            verifier.clone(),
                             cosmwasm_contract,
                             chain.name,
                             chain.finalization,
@@ -286,7 +287,7 @@ where
                     .create_handler_task(
                         "multisig-signer",
                         handlers::multisig::Handler::new(
-                            worker.clone(),
+                            verifier.clone(),
                             cosmwasm_contract,
                             self.ecdsa_client.clone(),
                             self.block_height_monitor.latest_block_height(),
@@ -300,7 +301,7 @@ where
                 } => self.create_handler_task(
                     "sui-msg-verifier",
                     handlers::sui_verify_msg::Handler::new(
-                        worker.clone(),
+                        verifier.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(
                             &rpc_url,
@@ -314,14 +315,14 @@ where
                     ),
                     stream_timeout,
                 ),
-                handlers::config::Config::SuiWorkerSetVerifier {
+                handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
                     rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
-                    "sui-worker-set-verifier",
+                    "sui-verifier-set-verifier",
                     handlers::sui_verify_verifier_set::Handler::new(
-                        worker.clone(),
+                        verifier.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(
                             &rpc_url,

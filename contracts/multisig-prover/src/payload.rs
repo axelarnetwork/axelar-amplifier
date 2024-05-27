@@ -1,5 +1,6 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::HexBinary;
+use cosmwasm_std::{from_json, HexBinary, StdResult};
+use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
@@ -10,7 +11,6 @@ use router_api::{CrossChainId, Message};
 use crate::{
     encoding::{abi, Encoder},
     error::ContractError,
-    types::BatchId,
 };
 
 #[cw_serde]
@@ -23,16 +23,15 @@ impl Payload {
     /// id returns the unique identifier for the payload, which can be either
     /// - the hash of comma separated sorted message ids
     /// - the hash of the verifier set
-    pub fn id(&self) -> BatchId {
+    pub fn id(&self) -> PayloadId {
         match self {
             Payload::Messages(msgs) => {
-                let mut message_ids = msgs
+                let message_ids = msgs
                     .iter()
-                    .map(|msg| msg.cc_id.to_string())
-                    .collect::<Vec<_>>();
-                message_ids.sort();
+                    .map(|msg| msg.cc_id.clone())
+                    .collect::<Vec<CrossChainId>>();
 
-                Keccak256::digest(message_ids.join(",")).as_slice().into()
+                (&message_ids).into()
             }
             Payload::VerifierSet(verifier_set) => verifier_set.hash().into(),
         }
@@ -72,5 +71,48 @@ impl Payload {
             }
             Encoder::Bcs => todo!(),
         }
+    }
+}
+
+#[cw_serde]
+pub struct PayloadId(HexBinary);
+
+impl From<HexBinary> for PayloadId {
+    fn from(id: HexBinary) -> Self {
+        Self(id)
+    }
+}
+
+impl From<&[u8]> for PayloadId {
+    fn from(id: &[u8]) -> Self {
+        Self(id.into())
+    }
+}
+
+impl<'a> PrimaryKey<'a> for PayloadId {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = PayloadId;
+    type SuperSuffix = PayloadId;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_slice())]
+    }
+}
+
+impl KeyDeserialize for PayloadId {
+    type Output = PayloadId;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        Ok(from_json(value).expect("violated invariant: PayloadId is not deserializable"))
+    }
+}
+
+impl From<&Vec<CrossChainId>> for PayloadId {
+    fn from(ids: &Vec<CrossChainId>) -> Self {
+        let mut message_ids = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+        message_ids.sort();
+
+        Keccak256::digest(message_ids.join(",")).as_slice().into()
     }
 }

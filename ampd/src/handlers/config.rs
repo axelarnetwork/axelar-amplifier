@@ -28,7 +28,7 @@ pub enum Config {
         chain: Chain,
         rpc_timeout: Option<Duration>,
     },
-    EvmWorkerSetVerifier {
+    EvmVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: Chain,
@@ -42,7 +42,7 @@ pub enum Config {
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
     },
-    SuiWorkerSetVerifier {
+    SuiVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         rpc_url: Url,
         rpc_timeout: Option<Duration>,
@@ -64,14 +64,14 @@ where
         _ => Ok(()),
     }
 }
-fn validate_evm_worker_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+fn validate_evm_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
 {
     if !configs
         .iter()
         .filter_map(|config| match config {
-            Config::EvmWorkerSetVerifier {
+            Config::EvmVerifierSetVerifier {
                 chain: Chain { name, .. },
                 ..
             } => Some(name),
@@ -80,7 +80,7 @@ where
         .all_unique()
     {
         return Err(de::Error::custom(
-            "the chain name EVM worker set verifier configs must be unique",
+            "the chain name EVM verifier set verifier configs must be unique",
         ));
     }
 
@@ -126,17 +126,17 @@ where
     }
 }
 
-fn validate_sui_worker_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+fn validate_sui_verifier_set_verifier_config<'de, D>(configs: &[Config]) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
 {
     match configs
         .iter()
-        .filter(|config| matches!(config, Config::SuiWorkerSetVerifier { .. }))
+        .filter(|config| matches!(config, Config::SuiVerifierSetVerifier { .. }))
         .count()
     {
         count if count > 1 => Err(de::Error::custom(
-            "only one Sui worker set verifier config is allowed",
+            "only one Sui verifier set verifier config is allowed",
         )),
         _ => Ok(()),
     }
@@ -149,10 +149,10 @@ where
     let configs: Vec<Config> = Deserialize::deserialize(deserializer)?;
 
     validate_evm_msg_verifier_configs::<D>(&configs)?;
-    validate_evm_worker_set_verifier_configs::<D>(&configs)?;
+    validate_evm_verifier_set_verifier_configs::<D>(&configs)?;
     validate_multisig_signer_config::<D>(&configs)?;
     validate_sui_msg_verifier_config::<D>(&configs)?;
-    validate_sui_worker_set_verifier_config::<D>(&configs)?;
+    validate_sui_verifier_set_verifier_config::<D>(&configs)?;
 
     Ok(configs)
 }

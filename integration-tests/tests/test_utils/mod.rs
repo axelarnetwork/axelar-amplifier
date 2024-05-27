@@ -607,7 +607,10 @@ pub fn create_worker_set_poll(
     get_worker_set_poll_id_and_expiry(response.unwrap())
 }
 
-pub fn verifiers_to_worker_set(protocol: &mut Protocol, verifiers: &Vec<Verifier>) -> VerifierSet {
+pub fn verifiers_to_verifier_set(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+) -> VerifierSet {
     // get public keys
     let mut pub_keys = vec![];
     for verifier in verifiers {
@@ -681,7 +684,7 @@ pub fn execute_worker_set_poll(
     new_verifiers: &Vec<Verifier>,
 ) {
     // Create worker set
-    let new_worker_set = verifiers_to_worker_set(protocol, new_verifiers);
+    let new_worker_set = verifiers_to_verifier_set(protocol, new_verifiers);
 
     // Create worker set poll
     let (poll_id, expiry) = create_worker_set_poll(

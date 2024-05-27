@@ -2,7 +2,6 @@ use cosmwasm_schema::cw_serde;
 use router_api::ChainName;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 use cosmwasm_std::{Addr, Storage, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
@@ -154,15 +153,12 @@ pub enum AuthorizationState {
     Jailed,
 }
 
-type ChainNames = HashSet<ChainName>;
 type ServiceName = str;
 type VerifierAddress = Addr;
 
 pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 pub const VERIFIERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &VerifierAddress), ()> =
     Map::new("verifiers_per_chain");
-pub const CHAINS_PER_VERIFIER: Map<(&ServiceName, &VerifierAddress), ChainNames> =
-    Map::new("chains_per_verifier");
 pub const VERIFIERS: Map<(&ServiceName, &VerifierAddress), Verifier> = Map::new("verifiers");
 
 pub fn register_chains_support(
@@ -171,12 +167,6 @@ pub fn register_chains_support(
     chains: Vec<ChainName>,
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_VERIFIER.update(storage, (&service_name, &verifier), |current_chains| {
-        let mut current_chains = current_chains.unwrap_or_default();
-        current_chains.extend(chains.iter().cloned());
-        Ok::<HashSet<ChainName>, ContractError>(current_chains)
-    })?;
-
     for chain in chains.iter() {
         VERIFIERS_PER_CHAIN.save(storage, (&service_name, chain, &verifier), &())?;
     }
@@ -190,31 +180,11 @@ pub fn deregister_chains_support(
     chains: Vec<ChainName>,
     verifier: VerifierAddress,
 ) -> Result<(), ContractError> {
-    CHAINS_PER_VERIFIER.update(storage, (&service_name, &verifier), |current_chains| {
-        Ok::<HashSet<ChainName>, ContractError>(
-            current_chains
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|chain| !chains.contains(chain))
-                .collect(),
-        )
-    })?;
-
     for chain in chains {
         VERIFIERS_PER_CHAIN.remove(storage, (&service_name, &chain, &verifier));
     }
 
     Ok(())
-}
-
-pub fn may_load_chains_per_verifier(
-    storage: &dyn Storage,
-    service_name: String,
-    verifier_address: VerifierAddress,
-) -> Result<HashSet<ChainName>, ContractError> {
-    CHAINS_PER_VERIFIER
-        .may_load(storage, (&service_name, &verifier_address))?
-        .ok_or(ContractError::VerifierNotFound)
 }
 
 #[cfg(test)]
@@ -237,11 +207,6 @@ mod tests {
             verifier.clone()
         )
         .is_ok());
-
-        let verifier_chains =
-            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
-                .unwrap();
-        assert!(verifier_chains.contains(&chain_name));
     }
 
     #[test]
@@ -261,14 +226,6 @@ mod tests {
             verifier.clone()
         )
         .is_ok());
-
-        let verifier_chains =
-            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
-                .unwrap();
-
-        for chain_name in chain_names {
-            assert!(verifier_chains.contains(&chain_name));
-        }
     }
 
     #[test]
@@ -296,25 +253,6 @@ mod tests {
             verifier.clone()
         )
         .is_ok());
-
-        let verifier_chains =
-            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
-                .unwrap();
-
-        assert!(verifier_chains.contains(&first_chain_name));
-        assert!(verifier_chains.contains(&second_chain_name));
-    }
-
-    #[test]
-    fn get_unregistered_verifier_chains_fails() {
-        let mut deps = mock_dependencies();
-        let verifier = Addr::unchecked("verifier");
-        let service_name = "validators";
-
-        let err =
-            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
-                .unwrap_err();
-        assert!(matches!(err, ContractError::VerifierNotFound));
     }
 
     #[test]
@@ -339,11 +277,6 @@ mod tests {
             verifier.clone()
         )
         .is_ok());
-
-        let verifier_chains =
-            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
-                .unwrap();
-        assert!(!verifier_chains.contains(&chain_name));
     }
 
     #[test]
@@ -370,12 +303,6 @@ mod tests {
             verifier.clone()
         )
         .is_ok());
-
-        let verifier_chains =
-            may_load_chains_per_verifier(deps.as_mut().storage, service_name.into(), verifier)
-                .unwrap();
-        assert!(verifier_chains.contains(&chain_names[1]));
-        assert!(!verifier_chains.contains(&chain_names[0]));
     }
 
     #[test]

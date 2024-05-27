@@ -57,7 +57,7 @@ pub fn execute(
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
         ExecuteMsg::SetActiveVerifiers { next_verifier_set } => {
-            execute::set_active_worker_set(deps, info, next_verifier_set)
+            execute::set_active_verifier_set(deps, info, next_verifier_set)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -120,42 +120,45 @@ mod tests {
         }
     }
 
-    pub struct Worker {
+    pub struct Verifier {
         pub addr: Addr,
         pub supported_chains: Vec<ChainName>,
         pub key_pair: KeyPair,
     }
 
-    fn create_worker(
+    fn create_verifier(
         keypair_seed: u32,
-        worker_address: Addr,
+        verifier_address: Addr,
         supported_chains: Vec<ChainName>,
-    ) -> Worker {
+    ) -> Verifier {
         let seed_bytes = keypair_seed.to_be_bytes();
         let mut result = [0; 64];
         result[0..seed_bytes.len()].copy_from_slice(seed_bytes.as_slice());
         let secret_recovery_key = result.as_slice().try_into().unwrap();
 
-        Worker {
-            addr: worker_address,
+        Verifier {
+            addr: verifier_address,
             supported_chains,
             key_pair: tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap(),
         }
     }
 
-    fn create_worker_set_from_workers(workers: &Vec<Worker>, block_height: u64) -> VerifierSet {
+    fn create_verifier_set_from_verifiers(
+        verifiers: &Vec<Verifier>,
+        block_height: u64,
+    ) -> VerifierSet {
         let mut pub_keys = vec![];
-        for worker in workers {
+        for verifier in verifiers {
             let encoded_verifying_key =
-                HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+                HexBinary::from(verifier.key_pair.encoded_verifying_key().to_vec());
             let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
             pub_keys.push(pub_key);
         }
 
-        let participants: Vec<Participant> = workers
+        let participants: Vec<Participant> = verifiers
             .iter()
-            .map(|worker| Participant {
-                address: worker.addr.clone(),
+            .map(|verifier| Participant {
+                address: verifier.addr.clone(),
                 weight: Uint128::one().try_into().unwrap(),
             })
             .collect();
@@ -230,17 +233,17 @@ mod tests {
     }
 
     #[test]
-    fn set_and_get_populated_active_worker_set_success() {
+    fn set_and_get_populated_active_verifier_set_success() {
         let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
-        let new_worker = create_worker(
+        let new_verifier = create_verifier(
             1,
-            Addr::unchecked("worker1"),
+            Addr::unchecked("verifier1"),
             vec![test_setup.chain_name.clone()],
         );
         let new_verifier_set =
-            create_worker_set_from_workers(&vec![new_worker], test_setup.env.block.height);
+            create_verifier_set_from_verifiers(&vec![new_verifier], test_setup.env.block.height);
 
         let res = execute(
             test_setup.deps.as_mut(),
@@ -263,15 +266,15 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        let eth_active_worker_set =
+        let eth_active_verifier_set =
             query::get_active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
-        assert_eq!(eth_active_worker_set, Some(new_verifier_set));
+        assert_eq!(eth_active_verifier_set, Some(new_verifier_set));
     }
 
     #[test]
-    fn set_and_get_empty_active_worker_set_success() {
+    fn set_and_get_empty_active_verifier_set_success() {
         let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
