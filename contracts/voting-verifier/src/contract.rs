@@ -95,14 +95,12 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
-
-    use std::collections::BTreeMap;
-
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_json_vec, Addr, Empty, Fraction, HexBinary, OwnedDeps, Uint128, Uint64, WasmQuery,
+        to_json_vec, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
+    use sha3::{Digest, Keccak256};
 
     use axelar_wasm_std::{
         msg_id::{
@@ -113,12 +111,14 @@ mod test {
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
     };
-    use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
+    use multisig::{
+        key::KeyType,
+        test::common::{build_verifier_set, ecdsa_test_data},
+    };
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
-    use sha3::{Digest, Keccak256};
 
     use crate::{error::ContractError, events::TxEventConfirmation, msg::MessageStatus};
 
@@ -840,7 +840,7 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let verifier_set = verifier_set();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
             new_verifier_set: verifier_set.clone(),
@@ -862,79 +862,13 @@ mod test {
         assert_eq!(res, VerificationStatus::InProgress);
     }
 
-    pub fn verifier_set() -> VerifierSet {
-        let signers = vec![
-            Signer {
-                address: Addr::unchecked("axelarvaloper1x86a8prx97ekkqej2x636utrdu23y8wupp9gk5"),
-                weight: Uint128::from(10u128),
-                pub_key: PublicKey::Ecdsa(
-                    HexBinary::from_hex(
-                        "03d123ce370b163acd576be0e32e436bb7e63262769881d35fa3573943bf6c6f81",
-                    )
-                    .unwrap(),
-                ),
-            },
-            Signer {
-                address: Addr::unchecked("axelarvaloper1ff675m593vve8yh82lzhdnqfpu7m23cxstr6h4"),
-                weight: Uint128::from(10u128),
-                pub_key: PublicKey::Ecdsa(
-                    HexBinary::from_hex(
-                        "03c6ddb0fcee7b528da1ef3c9eed8d51eeacd7cc28a8baa25c33037c5562faa6e4",
-                    )
-                    .unwrap(),
-                ),
-            },
-            Signer {
-                address: Addr::unchecked("axelarvaloper12cwre2gdhyytc3p97z9autzg27hmu4gfzz4rxc"),
-                weight: Uint128::from(10u128),
-                pub_key: PublicKey::Ecdsa(
-                    HexBinary::from_hex(
-                        "0274b5d2a4c55d7edbbf9cc210c4d25adbb6194d6b444816235c82984bee518255",
-                    )
-                    .unwrap(),
-                ),
-            },
-            Signer {
-                address: Addr::unchecked("axelarvaloper1vs9rdplntrf7ceqdkznjmanrr59qcpjq6le0yw"),
-                weight: Uint128::from(10u128),
-                pub_key: PublicKey::Ecdsa(
-                    HexBinary::from_hex(
-                        "02a670f57de55b8b39b4cb051e178ca8fb3fe3a78cdde7f8238baf5e6ce1893185",
-                    )
-                    .unwrap(),
-                ),
-            },
-            Signer {
-                address: Addr::unchecked("axelarvaloper1hz0slkejw96dukw87fztjkvwjdpcu20jewg6mw"),
-                weight: Uint128::from(10u128),
-                pub_key: PublicKey::Ecdsa(
-                    HexBinary::from_hex(
-                        "028584592624e742ba154c02df4c0b06e4e8a957ba081083ea9fe5309492aa6c7b",
-                    )
-                    .unwrap(),
-                ),
-            },
-        ];
-
-        let mut btree_signers = BTreeMap::new();
-        for signer in signers {
-            btree_signers.insert(signer.address.clone().to_string(), signer);
-        }
-
-        VerifierSet {
-            signers: btree_signers,
-            threshold: Uint128::from(30u128),
-            created_at: 1,
-        }
-    }
-
     #[test]
     fn should_confirm_worker_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let verifier_set = verifier_set();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
             new_verifier_set: verifier_set.clone(),
@@ -986,7 +920,7 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let verifier_set = verifier_set();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1041,7 +975,7 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let verifier_set = verifier_set();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
@@ -1143,7 +1077,7 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let verifier_set = verifier_set();
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),

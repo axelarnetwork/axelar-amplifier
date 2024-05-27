@@ -1,3 +1,5 @@
+// TODO: remove this, use evm-gateway package for solidity type conversion and encoding
+
 pub mod execute_data;
 
 use std::str::FromStr;
