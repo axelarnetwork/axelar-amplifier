@@ -66,9 +66,9 @@ impl PollContent<Message> {
 }
 
 impl PollContent<VerifierSet> {
-    pub fn new(workerset: VerifierSet, poll_id: PollId) -> Self {
+    pub fn new(verifier_set: VerifierSet, poll_id: PollId) -> Self {
         Self {
-            content: workerset,
+            content: verifier_set,
             poll_id,
             index_in_poll: 0,
         }
