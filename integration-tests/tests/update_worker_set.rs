@@ -10,7 +10,7 @@ use crate::test_utils::get_multisig_session_id;
 pub mod test_utils;
 
 #[test]
-fn worker_set_can_be_initialized_and_then_manually_updated() {
+fn verifier_set_can_be_initialized_and_then_manually_updated() {
     let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
@@ -24,13 +24,13 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
         ..
     } = test_utils::setup_test_case();
 
-    let simulated_worker_set =
+    let simulated_verifier_set =
         test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
-    let worker_set =
-        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    let verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
-    assert_eq!(worker_set, simulated_worker_set);
+    assert_eq!(verifier_set, simulated_verifier_set);
 
     // add third and fourth verifier
     let mut new_verifiers = Vec::new();
@@ -47,7 +47,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     };
     new_verifiers.push(new_verifier);
 
-    let expected_new_worker_set =
+    let expected_new_verifier_set =
         test_utils::verifiers_to_verifier_set(&mut protocol, &new_verifiers);
 
     test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
@@ -76,15 +76,15 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 
     assert_eq!(proof.message_ids.len(), 0);
 
-    let (poll_id, expiry) = test_utils::create_worker_set_poll(
+    let (poll_id, expiry) = test_utils::create_verifier_set_poll(
         &mut protocol.app,
         Addr::unchecked("relayer"),
         &ethereum.voting_verifier,
-        expected_new_worker_set.clone(),
+        expected_new_verifier_set.clone(),
     );
 
     // do voting
-    test_utils::vote_true_for_worker_set(
+    test_utils::vote_true_for_verifier_set(
         &mut protocol.app,
         &ethereum.voting_verifier,
         &new_verifiers,
@@ -95,26 +95,26 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
 
     test_utils::end_poll(&mut protocol.app, &ethereum.voting_verifier, poll_id);
 
-    test_utils::confirm_worker_set(
+    test_utils::confirm_verifier_set(
         &mut protocol.app,
         Addr::unchecked("relayer"),
         &ethereum.multisig_prover,
     );
 
-    let new_worker_set =
-        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
-    assert_eq!(new_worker_set, expected_new_worker_set);
+    let new_verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    assert_eq!(new_verifier_set, expected_new_verifier_set);
 
-    let coordinator_worker_set = test_utils::get_worker_set_from_coordinator(
+    let coordinator_verifier_set = test_utils::get_verifier_set_from_coordinator(
         &mut protocol.app,
         &protocol.coordinator,
         ethereum.chain_name,
     );
-    assert_eq!(coordinator_worker_set, expected_new_worker_set);
+    assert_eq!(coordinator_verifier_set, expected_new_verifier_set);
 }
 
 #[test]
-fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirmed() {
+fn verifier_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirmed() {
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
@@ -127,21 +127,21 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
         ..
     } = test_utils::setup_test_case();
 
-    let simulated_worker_set =
+    let simulated_verifier_set =
         test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
-    let worker_set =
-        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    let verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
-    assert_eq!(worker_set, simulated_worker_set);
+    assert_eq!(verifier_set, simulated_verifier_set);
 
-    // creating a new worker set that only consists of two new verifiers
+    // creating a new verifier set that only consists of two new verifiers
     let first_wave_of_new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
         vec![("verifier3".to_string(), 2), ("verifier4".to_string(), 3)],
     );
 
-    let expected_new_worker_set =
+    let expected_new_verifier_set =
         test_utils::verifiers_to_verifier_set(&mut protocol, &first_wave_of_new_verifiers);
 
     test_utils::register_verifiers(
@@ -174,8 +174,8 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
     ));
     assert_eq!(proof.message_ids.len(), 0);
 
-    // starting and ending a poll for the first worker set rotation
-    test_utils::execute_worker_set_poll(
+    // starting and ending a poll for the first verifier set rotation
+    test_utils::execute_verifier_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
         &ethereum.voting_verifier,
@@ -195,8 +195,8 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
     // Deregister old verifiers
     test_utils::deregister_verifiers(&mut protocol, &first_wave_of_new_verifiers);
 
-    // call update_worker_set again. This should just trigger resigning for the initial worker set update,
-    // ignoring any further changes to the worker set
+    // call update_verifier_set again. This should just trigger resigning for the initial verifier set update,
+    // ignoring any further changes to the verifier set
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
@@ -204,21 +204,21 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
     );
     assert!(response.is_ok());
 
-    test_utils::confirm_worker_set(
+    test_utils::confirm_verifier_set(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
         &ethereum.multisig_prover,
     );
 
-    let new_worker_set =
-        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    let new_verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
-    assert_eq!(new_worker_set, expected_new_worker_set);
+    assert_eq!(new_verifier_set, expected_new_verifier_set);
 
     // starting and ending a poll for the second verifier rotation
     // in reality, this shouldn't succeed, because the prover should have prevented another rotation while an existing rotation was in progress.
     // But even if there is a poll, the prover should ignore it
-    test_utils::execute_worker_set_poll(
+    test_utils::execute_verifier_set_poll(
         &mut protocol,
         &Addr::unchecked("relayer"),
         &ethereum.voting_verifier,
@@ -234,7 +234,7 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
 }
 
 #[test]
-fn worker_set_update_can_be_resigned() {
+fn verifier_set_update_can_be_resigned() {
     let chains = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
@@ -247,15 +247,15 @@ fn worker_set_update_can_be_resigned() {
         ..
     } = test_utils::setup_test_case();
 
-    let simulated_worker_set =
+    let simulated_verifier_set =
         test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
-    let worker_set =
-        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    let verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
-    assert_eq!(worker_set, simulated_worker_set);
+    assert_eq!(verifier_set, simulated_verifier_set);
 
-    // creating a new worker set that only consists of two new verifiers
+    // creating a new verifier set that only consists of two new verifiers
     let first_wave_of_new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
         vec![("verifier3".to_string(), 2), ("verifier4".to_string(), 3)],
@@ -329,7 +329,7 @@ fn worker_set_update_can_be_resigned() {
 }
 
 #[test]
-fn governance_should_confirm_new_worker_set_without_verification() {
+fn governance_should_confirm_new_verifier_set_without_verification() {
     let chains: Vec<router_api::ChainName> = vec!["Ethereum".to_string().try_into().unwrap()];
     let test_utils::TestCase {
         mut protocol,
@@ -348,7 +348,7 @@ fn governance_should_confirm_new_worker_set_without_verification() {
     };
     new_verifiers.push(new_verifier);
 
-    let expected_new_worker_set =
+    let expected_new_verifier_set =
         test_utils::verifiers_to_verifier_set(&mut protocol, &new_verifiers);
 
     test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
@@ -365,14 +365,14 @@ fn governance_should_confirm_new_worker_set_without_verification() {
         )
         .unwrap();
 
-    test_utils::confirm_worker_set(
+    test_utils::confirm_verifier_set(
         &mut protocol.app,
         protocol.governance_address.clone(),
         &ethereum.multisig_prover,
     );
 
-    let new_worker_set =
-        test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
+    let new_verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
-    assert_eq!(new_worker_set, expected_new_worker_set);
+    assert_eq!(new_verifier_set, expected_new_verifier_set);
 }

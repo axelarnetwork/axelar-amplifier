@@ -100,9 +100,3 @@ impl MessageStatus {
         Self { message, status }
     }
 }
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub source_gateway_address: nonempty::String,
-    pub msg_id_format: MessageIdFormat,
-}

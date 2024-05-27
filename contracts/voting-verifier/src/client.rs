@@ -44,7 +44,7 @@ impl<'a> Client<'a> {
         self.client.execute(&ExecuteMsg::EndPoll { poll_id })
     }
 
-    pub fn verify_worker_set(
+    pub fn verify_verifier_set(
         &self,
         message_id: nonempty::String,
         new_verifier_set: VerifierSet,
@@ -171,7 +171,7 @@ mod test {
     }
 
     #[test]
-    fn query_worker_set_status() {
+    fn query_verifier_set_status() {
         let (querier, _, addr) = setup();
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 

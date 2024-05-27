@@ -165,7 +165,7 @@ pub fn vote_success_for_all_messages(
     }
 }
 
-pub fn vote_true_for_worker_set(
+pub fn vote_true_for_verifier_set(
     app: &mut App,
     voting_verifier: &VotingVerifierContract,
     verifiers: &Vec<Verifier>,
@@ -310,7 +310,7 @@ pub fn get_proof(
     query_response.unwrap()
 }
 
-pub fn get_worker_set_from_prover(
+pub fn get_verifier_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
@@ -321,7 +321,7 @@ pub fn get_worker_set_from_prover(
     query_response.unwrap()
 }
 
-pub fn get_worker_set_from_coordinator(
+pub fn get_verifier_set_from_coordinator(
     app: &mut App,
     coordinator_contract: &CoordinatorContract,
     chain_name: ChainName,
@@ -551,7 +551,7 @@ pub fn claim_stakes(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
     }
 }
 
-pub fn confirm_worker_set(
+pub fn confirm_verifier_set(
     app: &mut App,
     relayer_addr: Addr,
     multisig_prover: &MultisigProverContract,
@@ -564,7 +564,7 @@ pub fn confirm_worker_set(
     assert!(response.is_ok());
 }
 
-fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
+fn get_verifier_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpiryBlock) {
     let poll_id = get_event_attribute(
         &response.events,
         "wasm-verifier_set_poll_started",
@@ -582,7 +582,7 @@ fn get_worker_set_poll_id_and_expiry(response: AppResponse) -> (PollId, PollExpi
     (poll_id, expiry)
 }
 
-pub fn create_worker_set_poll(
+pub fn create_verifier_set_poll(
     app: &mut App,
     relayer_addr: Addr,
     voting_verifier: &VotingVerifierContract,
@@ -604,7 +604,7 @@ pub fn create_worker_set_poll(
     );
     assert!(response.is_ok());
 
-    get_worker_set_poll_id_and_expiry(response.unwrap())
+    get_verifier_set_poll_id_and_expiry(response.unwrap())
 }
 
 pub fn verifiers_to_verifier_set(
@@ -654,7 +654,7 @@ pub fn create_new_verifiers_vec(
         .collect()
 }
 
-pub fn update_registry_and_construct_worker_set_update_proof(
+pub fn update_registry_and_construct_verifier_set_update_proof(
     protocol: &mut Protocol,
     new_verifiers: &Vec<Verifier>,
     verifiers_to_remove: &Vec<Verifier>,
@@ -677,25 +677,25 @@ pub fn update_registry_and_construct_worker_set_update_proof(
     sign_proof(protocol, current_verifiers, response.unwrap())
 }
 
-pub fn execute_worker_set_poll(
+pub fn execute_verifier_set_poll(
     protocol: &mut Protocol,
     relayer_addr: &Addr,
     voting_verifier: &VotingVerifierContract,
     new_verifiers: &Vec<Verifier>,
 ) {
-    // Create worker set
-    let new_worker_set = verifiers_to_verifier_set(protocol, new_verifiers);
+    // Create verifier set
+    let new_verifier_set = verifiers_to_verifier_set(protocol, new_verifiers);
 
-    // Create worker set poll
-    let (poll_id, expiry) = create_worker_set_poll(
+    // Create verifier set poll
+    let (poll_id, expiry) = create_verifier_set_poll(
         &mut protocol.app,
         relayer_addr.clone(),
         voting_verifier,
-        new_worker_set.clone(),
+        new_verifier_set.clone(),
     );
 
-    // Vote for the worker set
-    vote_true_for_worker_set(&mut protocol.app, voting_verifier, new_verifiers, poll_id);
+    // Vote for the verifier set
+    vote_true_for_verifier_set(&mut protocol.app, voting_verifier, new_verifiers, poll_id);
 
     // Advance to expiration height
     advance_at_least_to_height(&mut protocol.app, expiry);
@@ -831,7 +831,7 @@ pub struct TestCase {
     pub unbonding_period_days: u16,
 }
 
-// Creates an instance of Axelar Amplifier with an initial worker set registered, and returns a TestCase instance.
+// Creates an instance of Axelar Amplifier with an initial verifier set registered, and returns a TestCase instance.
 pub fn setup_test_case() -> TestCase {
     let mut protocol = setup_protocol("validators".to_string().try_into().unwrap());
     let chains = vec![
