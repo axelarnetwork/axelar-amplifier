@@ -1,12 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
+    StdResult,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, migrations, query};
+use crate::{execute, query};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -84,13 +85,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrateMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrations::v_0_3::migrate_config(deps, msg.source_gateway_address, msg.msg_id_format)
+    Ok(Response::default())
 }
 
 #[cfg(test)]
@@ -99,7 +100,7 @@ mod test {
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_json_vec, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
+        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
 
     use axelar_wasm_std::{
@@ -259,30 +260,7 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let initial_config = migrations::v_0_3::OldConfig {
-            governance: Addr::unchecked("governance"),
-            service_name: "service_name".parse().unwrap(),
-            service_registry_contract: Addr::unchecked("service_registry_address"),
-            source_gateway_address: "initial_source_gateway_address".parse().unwrap(),
-            voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
-            block_expiry: 100,
-            confirmation_height: 100,
-            source_chain: "source-chain".parse().unwrap(),
-            rewards_contract: Addr::unchecked("rewards_address"),
-        };
-        deps.as_mut()
-            .storage
-            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
-
-        migrate(
-            deps.as_mut(),
-            mock_env(),
-            MigrateMsg {
-                source_gateway_address: "new_source_gateway_address".parse().unwrap(),
-                msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-            },
-        )
-        .unwrap();
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, "voting-verifier");
