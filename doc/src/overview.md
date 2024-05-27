@@ -60,7 +60,7 @@ end
 Relayer --"ConstructProof([M1.id,M2.id])"-->P
 P --"GetMessages([M1.id,M2.id])"-->G2
 P --"GetActiveWorkers"-->S
-P --"StartSigningSession(worker_set_id, batch_hash)"-->M
+P --"StartSigningSession(worker_set_id, payload_hash)"-->M
 Workers --"SubmitSignature(session_id, signature)"-->M
 Relayer --"GetProof(multisig_session_id)" --> P
 P --"GetSigningSession(session_id)"-->M
@@ -129,8 +129,8 @@ sequenceDiagram
     Relayer->>Prover: ConstructProof([M1.id,M2.id])
     Prover->>OutgoingGateway: GetMessages([M1,M2])
     OutgoingGateway-->>Prover: [M1,M2]
-    Prover->>Prover: create batch of [M1,M2]
-    Prover->>Multisig: StartSigningSession(snapshot, batch hash)
+    Prover->>Prover: create payload of [M1,M2]
+    Prover->>Multisig: StartSigningSession(snapshot, payload hash)
     Multisig-->>Prover: multisig_session_id
     Prover-->>Relayer: multisig_session_id
     Worker->>Multisig: SubmitSignature(session_id, signature)
@@ -138,7 +138,7 @@ sequenceDiagram
     Relayer->>Prover: GetProof(multisig_session_id)
     Prover->>Multisig: GetSigningSession(session_id)
     Multisig-->>Prover: signing session
-    Prover-->>Relayer: signed batch
+    Prover-->>Relayer: signed payload
 
 ```
 
@@ -180,7 +180,7 @@ linked verification methods need to report a message as verified.
 ### Prover
 
 The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most
-common example of this is the [`multisig-prover`](contracts/multisig_prover.md) that constructs signed batches of routed
+common example of this is the [`multisig-prover`](contracts/multisig_prover.md) that constructs signed payload of routed
 messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the
 messages from the gateway, and interacts with the multisig contract to conduct the signing.
 

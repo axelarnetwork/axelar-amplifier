@@ -17,8 +17,8 @@ use crate::{
     encoding::make_operators,
     error::ContractError,
     payload::Payload,
-    state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_BATCH},
-    types::{BatchId, VerifiersInfo},
+    state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER},
+    types::VerifiersInfo,
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -40,7 +40,7 @@ pub fn construct_proof(
     message_ids: Vec<CrossChainId>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let payload_id = BatchId::new(&message_ids, None);
+    let payload_id = (&message_ids).into();
 
     let messages = get_messages(
         deps.querier,
@@ -60,7 +60,7 @@ pub fn construct_proof(
     };
 
     // keep track of the payload id to use during submessage reply
-    REPLY_BATCH.save(deps.storage, &payload_id)?;
+    REPLY_TRACKER.save(deps.storage, &payload_id)?;
 
     let verifier_set = CURRENT_VERIFIER_SET
         .may_load(deps.storage)?
@@ -230,7 +230,7 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
             let payload = Payload::VerifierSet(new_verifier_set);
             let payload_id = payload.id();
             PAYLOAD.save(deps.storage, &payload_id, &payload)?;
-            REPLY_BATCH.save(deps.storage, &payload_id)?;
+            REPLY_TRACKER.save(deps.storage, &payload_id)?;
 
             let digest =
                 payload.digest(config.encoder, &config.domain_separator, &cur_verifier_set)?;
