@@ -38,11 +38,11 @@ pub struct InstantiateMsg {
     /// of verifiers before calling UpdateVerifierSet. For example, if this is set to 1, UpdateVerifierSet
     /// will fail unless the registered verifier set and active verifier set differ by more than 1.
     pub verifier_set_diff_threshold: u32,
-    /// Type of encoding to use for signed batches. Blockchains can encode their execution payloads in various ways (ABI, BCS, etc).
+    /// Type of encoding to use for signed payload. Blockchains can encode their execution payloads in various ways (ABI, BCS, etc).
     /// This defines the specific encoding type to use for this prover, which should correspond to the encoding type used by the gateway
     /// deployed on the destination chain.
     pub encoder: Encoder,
-    /// Public key type verifiers use for signing batches. Different blockchains support different cryptographic signature algorithms (ECDSA, Ed25519, etc).
+    /// Public key type verifiers use for signing payload. Different blockchains support different cryptographic signature algorithms (ECDSA, Ed25519, etc).
     /// This defines the specific signature algorithm to use for this prover, which should correspond to the signature algorithm used by the gateway
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.

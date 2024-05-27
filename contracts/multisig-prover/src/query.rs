@@ -5,7 +5,7 @@ use multisig::{multisig::Multisig, types::MultisigState, verifier_set::VerifierS
 use crate::{
     error::ContractError,
     msg::{GetProofResponse, ProofStatus},
-    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_BATCH, PAYLOAD},
+    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, PAYLOAD},
 };
 
 pub fn get_proof(
@@ -14,7 +14,7 @@ pub fn get_proof(
 ) -> Result<GetProofResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let payload_id = MULTISIG_SESSION_BATCH.load(deps.storage, multisig_session_id.u64())?;
+    let payload_id = MULTISIG_SESSION_PAYLOAD.load(deps.storage, multisig_session_id.u64())?;
 
     let query_msg = multisig::msg::QueryMsg::GetMultisig {
         session_id: multisig_session_id,
