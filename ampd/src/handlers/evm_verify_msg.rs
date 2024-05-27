@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
@@ -13,6 +12,7 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;

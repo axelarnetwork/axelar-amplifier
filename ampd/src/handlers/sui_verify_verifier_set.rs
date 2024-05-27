@@ -160,10 +160,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
     use std::convert::TryInto;
 
-    use cosmwasm_std::{Addr, HexBinary, Uint128};
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};

@@ -218,6 +218,7 @@ mod tests {
         );
     }
 
+    #[ignore = "TODO: remove ignore once integrated with Sui gateway v2"]
     #[test]
     fn should_verify_verifier_set() {
         let (gateway_address, tx_receipt, verifier_set) = get_matching_verifier_set_and_tx_block();

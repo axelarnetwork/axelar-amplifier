@@ -1,8 +1,9 @@
-use axelar_wasm_std::voting::Vote;
 use ethers::contract::EthLogDecode;
 use ethers::types::{Log, TransactionReceipt, H256};
-use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 use num_traits::cast;
+
+use axelar_wasm_std::voting::Vote;
+use evm_gateway::{IAxelarAmplifierGatewayEvents, WeightedSigners};
 
 use crate::handlers::evm_verify_msg::Message;
 use crate::handlers::evm_verify_verifier_set::VerifierSetConfirmation;
@@ -208,7 +209,6 @@ mod tests {
         );
     }
 
-    #[ignore = "TODO: remove ignore when integrate with Sui gateway v2"]
     #[test]
     fn should_verify_verifier_set_if_correct() {
         let (gateway_address, tx_receipt, verifier_set) =
