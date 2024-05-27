@@ -1,19 +1,14 @@
 //! Migrate includes:
 //! - rename min_num_workers, max_num_workers and min_worker_bond fields in 'Service` struct
 //! - rename WORKERS_PER_CHAIN to VERIFIERS_PER_CHAIN
-//! - rename CHAINS_PER_WORKER to CHAINS_PER_VERIFIER
 //! - rename WORKERS to VERIFIERS
 
 use cosmwasm_std::{DepsMut, Order, Response, Storage};
 
 use crate::error::ContractError;
-use crate::state::{
-    Service, Verifier, CHAINS_PER_VERIFIER, SERVICES, VERIFIERS, VERIFIERS_PER_CHAIN,
-};
+use crate::state::{Service, Verifier, SERVICES, VERIFIERS, VERIFIERS_PER_CHAIN};
 
 mod v0_2_state {
-    use std::collections::HashSet;
-
     use cosmwasm_schema::cw_serde;
     use cosmwasm_std::{Addr, Uint128};
     use cw_storage_plus::Map;
@@ -41,22 +36,18 @@ mod v0_2_state {
         pub service_name: String,
     }
 
-    type ChainNames = HashSet<ChainName>;
     type ServiceName = str;
     type WorkerAddress = Addr;
 
     pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
     pub const WORKERS_PER_CHAIN: Map<(&ServiceName, &ChainName, &WorkerAddress), ()> =
         Map::new("workers_per_chain");
-    pub const CHAINS_PER_WORKER: Map<(&ServiceName, &WorkerAddress), ChainNames> =
-        Map::new("chains_per_worker");
     pub const WORKERS: Map<(&ServiceName, &WorkerAddress), Worker> = Map::new("workers");
 }
 
 pub fn migrate(deps: DepsMut) -> Result<Response, ContractError> {
     migrate_services(deps.storage)?;
     migrate_workers_per_chain(deps.storage)?;
-    migrate_chains_per_worker(deps.storage)?;
     migrate_workers(deps.storage)?;
 
     Ok(Response::new())
@@ -105,20 +96,6 @@ fn migrate_workers_per_chain(store: &mut dyn Storage) -> Result<(), ContractErro
     Ok(())
 }
 
-fn migrate_chains_per_worker(store: &mut dyn Storage) -> Result<(), ContractError> {
-    let keys_and_value_pairs = v0_2_state::CHAINS_PER_WORKER
-        .range(store, None, None, Order::Ascending)
-        .collect::<Result<Vec<_>, _>>()?;
-
-    for ((service_name, verifier_address), chain_name) in keys_and_value_pairs {
-        let key = (service_name.as_str(), &verifier_address);
-        CHAINS_PER_VERIFIER.save(store, key, &chain_name)?;
-        v0_2_state::CHAINS_PER_WORKER.remove(store, key);
-    }
-
-    Ok(())
-}
-
 fn migrate_workers(store: &mut dyn Storage) -> Result<(), ContractError> {
     let keys_and_workers = v0_2_state::WORKERS
         .range(store, None, None, Order::Ascending)
@@ -141,18 +118,14 @@ fn migrate_workers(store: &mut dyn Storage) -> Result<(), ContractError> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
-
     use cosmwasm_std::{testing::mock_dependencies, Addr, Storage, Uint128};
 
     use router_api::ChainName;
 
     use crate::{
-        error::ContractError,
         migrations::v_0_3::{migrate, v0_2_state},
         state::{
-            AuthorizationState, BondingState, Service, CHAINS_PER_VERIFIER, SERVICES, VERIFIERS,
-            VERIFIERS_PER_CHAIN,
+            AuthorizationState, BondingState, Service, SERVICES, VERIFIERS, VERIFIERS_PER_CHAIN,
         },
     };
 
@@ -218,12 +191,6 @@ mod test {
         );
 
         assert_eq!(
-            CHAINS_PER_VERIFIER
-                .range(&deps.storage, None, None, cosmwasm_std::Order::Ascending)
-                .count(),
-            chains.len()
-        );
-        assert_eq!(
             VERIFIERS
                 .range(&deps.storage, None, None, cosmwasm_std::Order::Ascending)
                 .count(),
@@ -249,14 +216,6 @@ mod test {
                     .unwrap();
             }
 
-            v0_2_state::CHAINS_PER_WORKER
-                .update(store, (&service.name, &verifier), |current_chains| {
-                    let mut current_chains = current_chains.unwrap_or_default();
-                    current_chains.extend(chains.iter().cloned());
-                    Ok::<HashSet<ChainName>, ContractError>(current_chains)
-                })
-                .unwrap();
-
             let worker = v0_2_state::Worker {
                 address: verifier.clone(),
                 bonding_state: BondingState::Bonded {
@@ -280,12 +239,6 @@ mod test {
                 .range(store, None, None, cosmwasm_std::Order::Ascending)
                 .count(),
             chains.len() * verifiers.len()
-        );
-        assert_eq!(
-            v0_2_state::CHAINS_PER_WORKER
-                .range(store, None, None, cosmwasm_std::Order::Ascending)
-                .count(),
-            chains.len()
         );
         assert_eq!(
             v0_2_state::WORKERS
