@@ -520,7 +520,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // 2. Workers cast votes, but only reach consensus on the first three messages
+        // 2. Verifiers cast votes, but only reach consensus on the first three messages
 
         verifiers.iter().enumerate().for_each(|(i, verifier)| {
             let msg = ExecuteMsg::Vote {
@@ -811,7 +811,7 @@ mod test {
     }
 
     #[test]
-    fn should_start_worker_set_confirmation() {
+    fn should_start_verifier_set_confirmation() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
@@ -840,7 +840,7 @@ mod test {
     }
 
     #[test]
-    fn should_confirm_worker_set() {
+    fn should_confirm_verifier_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
@@ -893,7 +893,7 @@ mod test {
     }
 
     #[test]
-    fn should_not_confirm_worker_set() {
+    fn should_not_confirm_verifier_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
@@ -949,7 +949,7 @@ mod test {
     }
 
     #[test]
-    fn should_confirm_worker_set_after_failed() {
+    fn should_confirm_verifier_set_after_failed() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);

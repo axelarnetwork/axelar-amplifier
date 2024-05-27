@@ -44,7 +44,7 @@ impl<'a> Client<'a> {
         self.client.execute(&ExecuteMsg::EndPoll { poll_id })
     }
 
-    pub fn verify_worker_set(
+    pub fn verify_verifier_set(
         &self,
         message_id: nonempty::String,
         new_operators: Operators,
@@ -77,7 +77,7 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn worker_set_status(&self, new_operators: Operators) -> Result<VerificationStatus> {
+    pub fn verifier_set_status(&self, new_operators: Operators) -> Result<VerificationStatus> {
         self.client
             .query(&QueryMsg::GetVerifierSetStatus { new_operators })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
@@ -169,13 +169,13 @@ mod test {
     }
 
     #[test]
-    fn query_worker_set_status() {
+    fn query_verifier_set_status() {
         let (querier, _, addr) = setup();
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 
         assert_eq!(
             client
-                .worker_set_status(Operators::new(vec![], Uint128::one(), 1))
+                .verifier_set_status(Operators::new(vec![], Uint128::one(), 1))
                 .unwrap(),
             VerificationStatus::Unknown
         );
