@@ -218,7 +218,7 @@ mod tests {
         event_processor::EventHandler,
         evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
         handlers::evm_verify_verifier_set::{self, PollStartedEvent},
-        types::{EVMAddress, Hash, TMAddress},
+        types::{Hash, TMAddress},
         PREFIX,
     };
 

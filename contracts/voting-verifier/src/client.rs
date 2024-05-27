@@ -104,8 +104,7 @@ mod test {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::{
-        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, Threshold,
-        VerificationStatus,
+        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, Threshold, VerificationStatus,
     };
     use cosmwasm_std::{
         from_json,

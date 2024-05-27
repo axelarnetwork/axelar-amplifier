@@ -4,11 +4,11 @@ use std::str::FromStr;
 
 use alloy_primitives::{Address, FixedBytes};
 use alloy_sol_types::{sol, SolValue};
-use cosmwasm_std::{HexBinary, Uint128, Uint256};
+use cosmwasm_std::Uint256;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, PublicKey};
 use sha3::{Digest, Keccak256};
 
-use axelar_wasm_std::{hash::Hash};
+use axelar_wasm_std::hash::Hash;
 use multisig::{key::PublicKey as MultisigPublicKey, msg::Signer, verifier_set::VerifierSet};
 use router_api::Message as RouterMessage;
 
@@ -134,7 +134,6 @@ fn evm_address(pub_key: &MultisigPublicKey) -> Result<Address, ContractError> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::HexBinary;
@@ -142,9 +141,7 @@ mod tests {
     use router_api::{CrossChainId, Message as RouterMessage};
 
     use crate::{
-        encoding::abi::{
-            payload_hash_to_sign, CommandType, Message, WeightedSigners,
-        },
+        encoding::abi::{payload_hash_to_sign, CommandType, Message, WeightedSigners},
         payload::Payload,
         test::test_data::{
             curr_verifier_set, domain_separator, messages, new_verifier_set,

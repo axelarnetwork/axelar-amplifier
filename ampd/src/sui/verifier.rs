@@ -1,5 +1,4 @@
 use axelar_wasm_std::voting::Vote;
-use bcs::to_bytes;
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
@@ -19,6 +18,7 @@ struct ContractCall {
 
 #[derive(Deserialize)]
 struct OperatorshipTransferred {
+    #[allow(dead_code)]
     pub payload: Vec<u8>,
 }
 
@@ -61,12 +61,11 @@ impl PartialEq<&Message> for &SuiEvent {
 }
 
 impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
-    fn eq(&self, verifier_set: &&VerifierSetConfirmation) -> bool {
+    fn eq(&self, _verifier_set: &&VerifierSetConfirmation) -> bool {
         match serde_json::from_value::<OperatorshipTransferred>(self.parsed_json.clone()) {
-            Ok(event) => {
-                // TODO: what is this supposed to be?
+            Ok(_event) => {
+                // TODO: convert verifier set to Sui gateway V2 WeightedSigners struct
                 todo!()
-
             }
             _ => false,
         }
@@ -124,22 +123,22 @@ pub fn verify_worker_set(
 mod tests {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::voting::Vote;
-    use cosmwasm_std::{HexBinary, Uint128};
+    use cosmwasm_std::Uint128;
     use ethers::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
-    use multisig::verifier_set::VerifierSet;
     use random_string::generate;
-    use router_api::ChainName;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};
     use sui_types::{
         base_types::{SuiAddress, TransactionDigest},
         event::EventID,
     };
 
+    use axelar_wasm_std::voting::Vote;
+    use multisig::verifier_set::VerifierSet;
+    use router_api::ChainName;
+
     use crate::handlers::{
-        sui_verify_msg::Message,
-        sui_verify_verifier_set::{Operators, VerifierSetConfirmation},
+        sui_verify_msg::Message, sui_verify_verifier_set::VerifierSetConfirmation,
     };
     use crate::sui::verifier::{verify_message, verify_worker_set};
     use crate::types::{EVMAddress, Hash};

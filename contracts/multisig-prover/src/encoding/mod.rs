@@ -2,15 +2,12 @@ pub mod abi;
 
 use cosmwasm_schema::cw_serde;
 
-use multisig::verifier_set::VerifierSet;
-
 #[cw_serde]
 #[derive(Copy)]
 pub enum Encoder {
     Abi,
     Bcs,
 }
-
 
 #[cfg(test)]
 mod test {

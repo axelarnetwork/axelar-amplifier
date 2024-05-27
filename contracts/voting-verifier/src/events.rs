@@ -232,7 +232,7 @@ mod test {
         },
         nonempty,
     };
-    use cosmwasm_std::{HexBinary, Uint128};
+    use cosmwasm_std::Uint128;
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 

@@ -3047,7 +3047,6 @@ dependencies = [
 name = "evm-gateway"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives",
  "axelar-wasm-std",
  "cosmwasm-std",
  "ethers",

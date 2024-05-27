@@ -119,8 +119,8 @@ pub fn verify_worker_set(
 mod tests {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{voting::Vote};
-    use cosmwasm_std::{Addr, HexBinary, Uint128, Uint256};
+    use axelar_wasm_std::voting::Vote;
+    use cosmwasm_std::{Addr, HexBinary, Uint128};
     use ethers::{
         abi::{encode, Token},
         contract::EthEvent,
@@ -128,7 +128,7 @@ mod tests {
     };
     use evm_gateway::{
         i_axelar_amplifier_gateway::{ContractCallFilter, SignersRotatedFilter},
-        WeightedSigner, WeightedSigners,
+        WeightedSigners,
     };
     use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
 

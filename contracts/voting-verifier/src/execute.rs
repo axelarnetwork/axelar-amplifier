@@ -4,8 +4,7 @@ use cosmwasm_std::{
 };
 
 use axelar_wasm_std::{
-    nonempty,
-    snapshot,
+    nonempty, snapshot,
     voting::{PollId, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,
 };
