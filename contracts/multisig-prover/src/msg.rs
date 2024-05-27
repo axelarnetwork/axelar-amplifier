@@ -82,11 +82,6 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {
-    pub domain_separator: Hash,
-}
-
-#[cw_serde]
 pub enum ProofStatus {
     Pending,
     Completed { execute_data: HexBinary }, // encoded data and proof sent to destination gateway
