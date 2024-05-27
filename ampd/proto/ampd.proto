@@ -4,13 +4,13 @@ import "google/protobuf/any.proto";
 
 package ampd;
 
-message EventFilter {
+message EventFilter {}
+
+message SubscribeRequest {
   // the subscription will return all events that match ANY of these filters
-  repeated Event filters = 1;
+  repeated Event event_filters = 1;
   bool include_block_begin_end = 2;
 }
-
-message SubscribeRequest { EventFilter event_filter = 1; }
 
 message EventBlockBegin { uint64 height = 1; }
 

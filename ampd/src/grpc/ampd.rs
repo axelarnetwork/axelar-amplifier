@@ -36,24 +36,21 @@ impl From<Event> for proto::subscribe_response::Event {
 
 impl proto::SubscribeRequest {
     fn matches(&self, event: &Event) -> bool {
-        self.event_filter
-            .as_ref()
-            .map(|event_filter| match event {
-                Event::BlockBegin(_) | Event::BlockEnd(_) => event_filter.include_block_begin_end,
-                Event::Abci {
-                    event_type,
-                    attributes,
-                } => {
-                    event_filter.filters.is_empty()
-                        || event_filter.filters.iter().any(|filter| {
-                            filter.event_type == *event_type
-                                && filter.event_attributes.iter().all(|(key, value)| {
-                                    attributes.get(key).map(|v| v == value).unwrap_or_default()
-                                })
-                        })
-                }
-            })
-            .unwrap_or(true)
+        match event {
+            Event::BlockBegin(_) | Event::BlockEnd(_) => self.include_block_begin_end,
+            Event::Abci {
+                event_type,
+                attributes,
+            } => {
+                self.event_filters.is_empty()
+                    || self.event_filters.iter().any(|filter| {
+                        filter.event_type == *event_type
+                            && filter.event_attributes.iter().all(|(key, value)| {
+                                attributes.get(key).map(|v| v == value).unwrap_or_default()
+                            })
+                    })
+            }
+        }
     }
 }
 
@@ -160,7 +157,7 @@ mod tests {
             .return_once(|| Box::pin(ReceiverStream::new(rx)));
         let server = Server::new(event_sub, MockBroadcasterClient::default());
 
-        let req = tonic::Request::new(proto::SubscribeRequest { event_filter: None });
+        let req = tonic::Request::new(proto::SubscribeRequest::default());
         let mut res = server.subscribe(req).await.unwrap().into_inner();
 
         tx.send(Err(Report::new(BroadcastStreamRecvError::Lagged(10))))
@@ -181,7 +178,10 @@ mod tests {
             .return_once(|| Box::pin(ReceiverStream::new(rx)));
         let server = Server::new(event_sub, MockBroadcasterClient::default());
 
-        let req = tonic::Request::new(proto::SubscribeRequest { event_filter: None });
+        let req = tonic::Request::new(proto::SubscribeRequest {
+            include_block_begin_end: true,
+            event_filters: vec![],
+        });
         let mut res = server.subscribe(req).await.unwrap().into_inner();
 
         let event = Event::Abci {
@@ -217,12 +217,7 @@ mod tests {
             .return_once(|| Box::pin(ReceiverStream::new(rx)));
         let server = Server::new(event_sub, MockBroadcasterClient::default());
 
-        let req = tonic::Request::new(proto::SubscribeRequest {
-            event_filter: Some(proto::EventFilter {
-                include_block_begin_end: false,
-                filters: vec![],
-            }),
-        });
+        let req = tonic::Request::new(proto::SubscribeRequest::default());
         let res = server
             .subscribe(req)
             .await
@@ -260,27 +255,25 @@ mod tests {
         let server = Server::new(event_sub, MockBroadcasterClient::default());
 
         let req = tonic::Request::new(proto::SubscribeRequest {
-            event_filter: Some(proto::EventFilter {
-                include_block_begin_end: true,
-                filters: vec![
-                    proto::Event {
-                        event_type: "some_event".into(),
-                        event_attributes: vec![("key_1".to_string(), "value_1".to_string())]
-                            .into_iter()
-                            .collect(),
-                    },
-                    proto::Event {
-                        event_type: "some_event".into(),
-                        event_attributes: vec![("key_2".to_string(), "value_2".to_string())]
-                            .into_iter()
-                            .collect(),
-                    },
-                    proto::Event {
-                        event_type: "some_other_event".into(),
-                        event_attributes: HashMap::new(),
-                    },
-                ],
-            }),
+            include_block_begin_end: true,
+            event_filters: vec![
+                proto::Event {
+                    event_type: "some_event".into(),
+                    event_attributes: vec![("key_1".to_string(), "value_1".to_string())]
+                        .into_iter()
+                        .collect(),
+                },
+                proto::Event {
+                    event_type: "some_event".into(),
+                    event_attributes: vec![("key_2".to_string(), "value_2".to_string())]
+                        .into_iter()
+                        .collect(),
+                },
+                proto::Event {
+                    event_type: "some_other_event".into(),
+                    event_attributes: HashMap::new(),
+                },
+            ],
         });
         let res = server
             .subscribe(req)
