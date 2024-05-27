@@ -1,10 +1,11 @@
+use cosmwasm_std::{Addr, WasmMsg};
+use error_stack::ResultExt;
+
 use axelar_wasm_std::{
     nonempty,
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use cosmwasm_std::{Addr, WasmMsg};
-use error_stack::ResultExt;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 

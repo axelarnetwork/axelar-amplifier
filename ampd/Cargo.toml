@@ -32,7 +32,7 @@ itertools = { workspace = true }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 mockall = "0.11.3"
 move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.14.2" }
-multisig = { workspace = true, features = ["test"] }
+multisig = { workspace = true, features = ["test", "library"] }
 num-traits = { workspace = true }
 prost = "0.11.9"
 prost-types = "0.11.9"
