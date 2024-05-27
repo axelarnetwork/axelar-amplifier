@@ -117,7 +117,7 @@ impl From<PollStarted> for Event {
 pub struct VerifierSetConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
-    pub operators: Operators,
+    pub verifier_set: Operators,
 }
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
@@ -144,14 +144,14 @@ impl VerifierSetConfirmation {
     pub fn new(
         message_id: nonempty::String,
         msg_id_format: MessageIdFormat,
-        operators: Operators,
+        verifier_set: Operators,
     ) -> Result<Self, ContractError> {
         let (tx_id, event_index) = parse_message_id(message_id, &msg_id_format)?;
 
         Ok(Self {
             tx_id,
             event_index,
-            operators,
+            verifier_set,
         })
     }
 }
@@ -343,7 +343,7 @@ mod test {
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.operators, operators);
+        assert_eq!(event.verifier_set, operators);
     }
 
     #[test]
@@ -366,7 +366,7 @@ mod test {
 
         assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.operators, operators);
+        assert_eq!(event.verifier_set, operators);
     }
 
     #[test]
