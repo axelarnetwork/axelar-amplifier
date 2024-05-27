@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 axelar-wasm-std = { workspace = true }
 cosmwasm-std = { workspace = true }
+error-stack = { workspace = true }
 ethers = { version = "2.0.14", features = ["abigen"] }
 k256 = { version = "0.13.1", features = ["ecdsa"] }
 multisig = { workspace = true }

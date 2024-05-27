@@ -83,5 +83,4 @@ pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messa
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-// TODO: do we need to migrate this or just drop it?
 pub const POLL_VERIFIER_SETS: Map<&Hash, PollContent<VerifierSet>> = Map::new("poll_verifier_sets");

@@ -1,4 +1,5 @@
 use cosmwasm_std::Uint256;
+use error_stack::{Report, ResultExt};
 use ethers::{
     abi::{encode, Token::Tuple, Tokenize},
     prelude::abigen,
@@ -21,16 +22,14 @@ abigen!(
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("address is invalid: {reason}")]
-    InvalidAddress { reason: String },
-    #[error("public key is invalid: {reason}")]
-    InvalidPublicKey { reason: String },
+    #[error("invalid public key")]
+    InvalidPublicKey,
 }
 
 impl TryFrom<&VerifierSet> for WeightedSigners {
-    type Error = Error;
+    type Error = Report<Error>;
 
-    fn try_from(verifier_set: &VerifierSet) -> Result<Self, Error> {
+    fn try_from(verifier_set: &VerifierSet) -> Result<Self, Self::Error> {
         let mut signers: Vec<_> = verifier_set
             .signers
             .values()
@@ -48,9 +47,9 @@ impl TryFrom<&VerifierSet> for WeightedSigners {
 }
 
 impl TryFrom<&Signer> for WeightedSigner {
-    type Error = Error;
+    type Error = Report<Error>;
 
-    fn try_from(signer: &Signer) -> Result<Self, Error> {
+    fn try_from(signer: &Signer) -> Result<Self, Self::Error> {
         Ok(WeightedSigner {
             signer: evm_address(&signer.pub_key)?,
             weight: signer.weight.u128(),
@@ -70,16 +69,12 @@ impl WeightedSigners {
     }
 }
 
-fn evm_address(pub_key: &PublicKey) -> Result<Address, Error> {
+fn evm_address(pub_key: &PublicKey) -> Result<Address, Report<Error>> {
     match pub_key {
         PublicKey::Ecdsa(pub_key) => VerifyingKey::from_sec1_bytes(pub_key)
             .map(|v| public_key_to_address(&v))
-            .map_err(|err| Error::InvalidPublicKey {
-                reason: err.to_string(),
-            }),
-        _ => Err(Error::InvalidPublicKey {
-            reason: "expect ECDSA public key".to_string(),
-        }),
+            .change_context(Error::InvalidPublicKey),
+        _ => Err(Report::new(Error::InvalidPublicKey).attach_printable("expect ECDSA public key")),
     }
 }
 

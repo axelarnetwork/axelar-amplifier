@@ -3040,6 +3040,7 @@ version = "0.1.0"
 dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
+ "error-stack",
  "ethers",
  "k256",
  "multisig",
