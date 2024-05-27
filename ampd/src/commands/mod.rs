@@ -20,27 +20,27 @@ use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, Error};
 use crate::{tofnd, PREFIX};
 
-pub mod bond_worker;
+pub mod bond_verifier;
 pub mod daemon;
 pub mod deregister_chain_support;
 pub mod register_chain_support;
 pub mod register_public_key;
-pub mod worker_address;
+pub mod verifier_address;
 
 #[derive(Debug, Subcommand, Valuable)]
 pub enum SubCommand {
     /// Run the ampd daemon process (default)
     Daemon,
-    /// Bond the worker to the service registry contract
-    BondWorker(bond_worker::Args),
+    /// Bond the verifier to the service registry contract
+    BondVerifier(bond_verifier::Args),
     /// Register chain support to the service registry contract
     RegisterChainSupport(register_chain_support::Args),
     /// Deregister chain support to the service registry contract
     DeregisterChainSupport(deregister_chain_support::Args),
     /// Register public key to the multisig contract
     RegisterPublicKey,
-    /// Query the worker address
-    WorkerAddress,
+    /// Query the verifier address
+    VerifierAddress,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -56,7 +56,7 @@ impl Default for ServiceRegistryConfig {
     }
 }
 
-async fn worker_pub_key(state_path: &Path, config: tofnd::Config) -> Result<PublicKey, Error> {
+async fn verifier_pub_key(state_path: &Path, config: tofnd::Config) -> Result<PublicKey, Error> {
     let state = state::load(state_path).change_context(Error::LoadConfig)?;
 
     match state.pub_key {
