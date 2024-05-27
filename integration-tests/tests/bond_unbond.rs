@@ -15,31 +15,31 @@ fn claim_stake_after_rotation_success() {
         mut protocol,
         chain1: ethereum,
         chain2: polygon,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         unbonding_period_days,
         ..
     } = test_utils::setup_test_case();
 
-    let before_balances = test_utils::query_balances(&protocol.app, &workers);
+    let before_balances = test_utils::query_balances(&protocol.app, &verifiers);
 
-    let new_workers = test_utils::create_new_workers_vec(
+    let new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
-        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+        vec![("verifier3".to_string(), 3), ("verifier4".to_string(), 4)],
     );
 
-    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
-    test_utils::deregister_workers(&mut protocol, &workers);
+    test_utils::deregister_verifiers(&mut protocol, &verifiers);
 
-    test_utils::rotate_active_worker_set(&mut protocol, ethereum, &workers, &new_workers);
-    test_utils::rotate_active_worker_set(&mut protocol, polygon, &workers, &new_workers);
+    test_utils::rotate_active_verifier_set(&mut protocol, ethereum, &verifiers, &new_verifiers);
+    test_utils::rotate_active_verifier_set(&mut protocol, polygon, &verifiers, &new_verifiers);
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
@@ -49,7 +49,7 @@ fn claim_stake_after_rotation_success() {
     // balances don't change after deregistering
     assert_eq!(
         before_balances,
-        test_utils::query_balances(&protocol.app, &workers)
+        test_utils::query_balances(&protocol.app, &verifiers)
     );
 
     let block = protocol.app.block_info();
@@ -63,20 +63,20 @@ fn claim_stake_after_rotation_success() {
         ..block
     });
 
-    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
     for claim_result in claim_results {
         assert!(claim_result.is_ok());
     }
 
-    let after_balances = test_utils::query_balances(&protocol.app, &workers);
+    let after_balances = test_utils::query_balances(&protocol.app, &verifiers);
 
     for (before_balance, after_balance) in before_balances.into_iter().zip(after_balances) {
-        assert_eq!(after_balance, before_balance + min_worker_bond);
+        assert_eq!(after_balance, before_balance + min_verifier_bond);
     }
 }
 
 #[test]
-fn claim_stake_when_in_all_active_worker_sets_fails() {
+fn claim_stake_when_in_all_active_verifier_sets_fails() {
     let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
@@ -84,39 +84,39 @@ fn claim_stake_when_in_all_active_worker_sets_fails() {
 
     let test_utils::TestCase {
         mut protocol,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         ..
     } = test_utils::setup_test_case();
 
-    let new_workers = test_utils::create_new_workers_vec(
+    let new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
-        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+        vec![("verifier3".to_string(), 3), ("verifier4".to_string(), 4)],
     );
 
-    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
-    test_utils::deregister_workers(&mut protocol, &workers);
+    test_utils::deregister_verifiers(&mut protocol, &verifiers);
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
         assert!(response.is_ok());
     }
 
-    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
     for claim_result in claim_results {
         assert!(claim_result.is_err());
     }
 }
 
 #[test]
-fn claim_stake_when_in_some_active_worker_sets_fails() {
+fn claim_stake_when_in_some_active_verifier_sets_fails() {
     let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
@@ -125,35 +125,35 @@ fn claim_stake_when_in_some_active_worker_sets_fails() {
     let test_utils::TestCase {
         mut protocol,
         chain1: ethereum,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         ..
     } = test_utils::setup_test_case();
 
-    let new_workers = test_utils::create_new_workers_vec(
+    let new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
-        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+        vec![("verifier3".to_string(), 3), ("verifier4".to_string(), 4)],
     );
 
-    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
-    test_utils::deregister_workers(&mut protocol, &workers);
+    test_utils::deregister_verifiers(&mut protocol, &verifiers);
 
-    // Only rotate the first chain's workerset
-    test_utils::rotate_active_worker_set(&mut protocol, ethereum, &workers, &new_workers);
+    // Only rotate the first chain's verifier set
+    test_utils::rotate_active_verifier_set(&mut protocol, ethereum, &verifiers, &new_verifiers);
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
         assert!(response.is_ok());
     }
 
-    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
     for claim_result in claim_results {
         assert!(claim_result.is_err());
     }
@@ -168,22 +168,22 @@ fn claim_stake_after_deregistering_before_rotation_fails() {
 
     let test_utils::TestCase {
         mut protocol,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         ..
     } = test_utils::setup_test_case();
 
-    let new_workers = test_utils::create_new_workers_vec(
+    let new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
-        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+        vec![("verifier3".to_string(), 3), ("verifier4".to_string(), 4)],
     );
 
-    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
+            verifier.addr.clone(),
             &ExecuteMsg::DeregisterChainSupport {
                 service_name: protocol.service_name.to_string(),
                 chains: chains.clone(),
@@ -192,18 +192,18 @@ fn claim_stake_after_deregistering_before_rotation_fails() {
         assert!(response.is_ok());
     }
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
         assert!(response.is_ok());
     }
 
-    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
     for claim_result in claim_results {
         assert!(claim_result.is_err());
     }
@@ -220,28 +220,28 @@ fn claim_stake_when_jailed_fails() {
         mut protocol,
         chain1: ethereum,
         chain2: polygon,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         ..
     } = test_utils::setup_test_case();
 
-    let new_workers = test_utils::create_new_workers_vec(
+    let new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
-        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+        vec![("verifier3".to_string(), 3), ("verifier4".to_string(), 4)],
     );
 
-    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
-    test_utils::deregister_workers(&mut protocol, &workers);
+    test_utils::deregister_verifiers(&mut protocol, &verifiers);
 
-    test_utils::rotate_active_worker_set(&mut protocol, ethereum, &workers, &new_workers);
-    test_utils::rotate_active_worker_set(&mut protocol, polygon, &workers, &new_workers);
+    test_utils::rotate_active_verifier_set(&mut protocol, ethereum, &verifiers, &new_verifiers);
+    test_utils::rotate_active_verifier_set(&mut protocol, polygon, &verifiers, &new_verifiers);
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
@@ -251,21 +251,21 @@ fn claim_stake_when_jailed_fails() {
     let response = protocol.service_registry.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &ExecuteMsg::JailWorkers {
+        &ExecuteMsg::JailVerifiers {
             service_name: protocol.service_name.to_string(),
-            workers: vec!["worker1".to_string(), "worker2".to_string()],
+            verifiers: vec!["verifier1".to_string(), "verifier2".to_string()],
         },
     );
     assert!(response.is_ok());
 
-    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
     for claim_result in claim_results {
         assert!(claim_result.clone().is_err());
     }
 }
 
 #[test]
-fn claim_stake_when_in_next_worker_sets_fails() {
+fn claim_stake_when_in_next_verifier_sets_fails() {
     let chains: Vec<router_api::ChainName> = vec![
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
@@ -275,46 +275,46 @@ fn claim_stake_when_in_next_worker_sets_fails() {
         mut protocol,
         chain1: ethereum,
         chain2: polygon,
-        workers,
-        min_worker_bond,
+        verifiers,
+        min_verifier_bond,
         ..
     } = test_utils::setup_test_case();
 
-    let new_workers = test_utils::create_new_workers_vec(
+    let new_verifiers = test_utils::create_new_verifiers_vec(
         chains.clone(),
-        vec![("worker3".to_string(), 3), ("worker4".to_string(), 4)],
+        vec![("verifier3".to_string(), 3), ("verifier4".to_string(), 4)],
     );
 
-    test_utils::register_workers(&mut protocol, &new_workers, min_worker_bond);
+    test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
-    test_utils::deregister_workers(&mut protocol, &workers);
+    test_utils::deregister_verifiers(&mut protocol, &verifiers);
 
     let response = ethereum.multisig_prover.execute(
         &mut protocol.app,
         ethereum.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
     let response = polygon.multisig_prover.execute(
         &mut protocol.app,
         polygon.multisig_prover.admin_addr.clone(),
-        &multisig_prover::msg::ExecuteMsg::UpdateWorkerSet,
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
     );
     assert!(response.is_ok());
 
-    for worker in &workers {
+    for verifier in &verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
-            worker.addr.clone(),
-            &ExecuteMsg::UnbondWorker {
+            verifier.addr.clone(),
+            &ExecuteMsg::UnbondVerifier {
                 service_name: protocol.service_name.to_string(),
             },
         );
         assert!(response.is_ok());
     }
 
-    let claim_results = test_utils::claim_stakes(&mut protocol, &workers);
+    let claim_results = test_utils::claim_stakes(&mut protocol, &verifiers);
     for claim_result in claim_results {
         assert!(claim_result.is_err());
     }

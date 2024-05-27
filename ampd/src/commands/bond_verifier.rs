@@ -9,7 +9,7 @@ use report::ResultCompatExt;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;
 
-use crate::commands::{broadcast_tx, worker_pub_key};
+use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
 use crate::{Error, PREFIX};
 
@@ -23,12 +23,12 @@ pub struct Args {
 pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
     let coin = Coin::new(args.amount, args.denom.as_str()).change_context(Error::InvalidInput)?;
 
-    let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
+    let pub_key = verifier_pub_key(state_path, config.tofnd_config.clone()).await?;
 
-    let msg = serde_json::to_vec(&ExecuteMsg::BondWorker {
+    let msg = serde_json::to_vec(&ExecuteMsg::BondVerifier {
         service_name: args.service_name.into(),
     })
-    .expect("bond worker msg should serialize");
+    .expect("bond verifier msg should serialize");
 
     let tx = MsgExecuteContract {
         sender: pub_key.account_id(PREFIX).change_context(Error::Tofnd)?,
@@ -42,7 +42,7 @@ pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option
     let tx_hash = broadcast_tx(config, tx, pub_key).await?.txhash;
 
     Ok(Some(format!(
-        "successfully broadcast bond worker transaction, tx hash: {}",
+        "successfully broadcast bond verifier transaction, tx hash: {}",
         tx_hash
     )))
 }

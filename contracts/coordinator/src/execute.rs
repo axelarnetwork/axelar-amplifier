@@ -1,11 +1,11 @@
 use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
 
-use multisig::worker_set::WorkerSet;
+use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 
 use crate::error::ContractError;
 use crate::state::{
-    ACTIVE_WORKERSET_FOR_PROVER, CONFIG, NEXT_WORKERSET_FOR_PROVER, PROVER_PER_CHAIN,
+    ACTIVE_VERIFIER_SET_FOR_PROVER, CONFIG, NEXT_VERIFIERSET_FOR_PROVER, PROVER_PER_CHAIN,
 };
 
 pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -25,20 +25,20 @@ pub fn register_prover(
     Ok(Response::new())
 }
 
-pub fn set_active_worker_set(
+pub fn set_active_verifier_set(
     deps: DepsMut,
     info: MessageInfo,
-    next_worker_set: WorkerSet,
+    next_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
-    ACTIVE_WORKERSET_FOR_PROVER.save(deps.storage, info.sender, &(next_worker_set))?;
+    ACTIVE_VERIFIER_SET_FOR_PROVER.save(deps.storage, info.sender, &(next_verifier_set))?;
     Ok(Response::new())
 }
 
-pub fn set_next_worker_set(
+pub fn set_next_verifier_set(
     deps: DepsMut,
     info: MessageInfo,
-    next_worker_set: WorkerSet,
+    next_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
-    NEXT_WORKERSET_FOR_PROVER.save(deps.storage, info.sender, &(next_worker_set))?;
+    NEXT_VERIFIERSET_FOR_PROVER.save(deps.storage, info.sender, &(next_verifier_set))?;
     Ok(Response::new())
 }

@@ -55,8 +55,8 @@ pub enum ExecuteMsg {
         messages: Vec<Message>,
     },
 
-    // Starts a poll to confirm a worker set update on the external evm gateway
-    VerifyWorkerSet {
+    // Starts a poll to confirm a verifier set update on the external gateway
+    VerifyVerifierSet {
         message_id: nonempty::String,
         new_operators: Operators,
     },
@@ -83,7 +83,7 @@ pub enum QueryMsg {
     GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]
-    GetWorkerSetStatus { new_operators: Operators },
+    GetVerifierSetStatus { new_operators: Operators },
 
     #[returns(MajorityThreshold)]
     GetCurrentThreshold,

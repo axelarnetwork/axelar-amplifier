@@ -2,7 +2,7 @@ use axelar_wasm_std::{Participant, Snapshot};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
-use multisig::{key::PublicKey, worker_set::WorkerSet};
+use multisig::{key::PublicKey, verifier_set::VerifierSet};
 use router_api::CrossChainId;
 use sha3::{Digest, Keccak256};
 
@@ -41,21 +41,21 @@ impl KeyDeserialize for BatchId {
 }
 
 impl BatchId {
-    pub fn new(message_ids: &[CrossChainId], new_worker_set: Option<WorkerSet>) -> BatchId {
+    pub fn new(message_ids: &[CrossChainId], new_verifier_set: Option<VerifierSet>) -> BatchId {
         let mut message_ids = message_ids
             .iter()
             .map(|id| id.to_string())
             .collect::<Vec<_>>();
         message_ids.sort();
 
-        if let Some(new_worker_set) = new_worker_set {
-            message_ids.push(new_worker_set.hash().to_string())
+        if let Some(new_verifier_set) = new_verifier_set {
+            message_ids.push(new_verifier_set.hash().to_string())
         }
         Keccak256::digest(message_ids.join(",")).as_slice().into()
     }
 }
 
-pub struct WorkersInfo {
+pub struct VerifiersInfo {
     pub snapshot: Snapshot,
     pub pubkeys_by_participant: Vec<(Participant, PublicKey)>,
 }

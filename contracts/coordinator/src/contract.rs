@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::execute;
 use crate::query;
 
-const CONTRACT_NAME: &str = "crates.io:coordinator";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -56,11 +56,11 @@ pub fn execute(
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::SetActiveVerifiers { next_worker_set } => {
-            execute::set_active_worker_set(deps, info, next_worker_set)
+        ExecuteMsg::SetActiveVerifiers { next_verifier_set } => {
+            execute::set_active_verifier_set(deps, info, next_verifier_set)
         }
-        ExecuteMsg::SetNextVerifiers { next_worker_set } => {
-            execute::set_next_worker_set(deps, info, next_worker_set)
+        ExecuteMsg::SetNextVerifiers { next_verifier_set } => {
+            execute::set_next_verifier_set(deps, info, next_verifier_set)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -71,12 +71,12 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_json_binary(&query::active_worker_set(deps, chain_name)?).map_err(|err| err.into())
+            to_json_binary(&query::active_verifier_set(deps, chain_name)?).map_err(|err| err.into())
         }
-        QueryMsg::ReadyToUnbond { worker_address } => {
-            to_json_binary(&query::check_worker_ready_to_unbond(deps, worker_address)?)
-                .map_err(|err| err.into())
-        }
+        QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
+            &query::check_verifier_ready_to_unbond(deps, worker_address)?,
+        )
+        .map_err(|err| err.into()),
     }
 }
 
@@ -90,7 +90,7 @@ mod tests {
     };
     use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint128};
     use multisig::key::{KeyType, PublicKey};
-    use multisig::worker_set::WorkerSet;
+    use multisig::verifier_set::VerifierSet;
     use router_api::ChainName;
     use tofn::ecdsa::KeyPair;
 
@@ -126,47 +126,50 @@ mod tests {
         }
     }
 
-    pub struct Worker {
+    pub struct Verifier {
         pub addr: Addr,
         pub supported_chains: Vec<ChainName>,
         pub key_pair: KeyPair,
     }
 
-    fn create_worker(
+    fn create_verifier(
         keypair_seed: u32,
-        worker_address: Addr,
+        verifier_address: Addr,
         supported_chains: Vec<ChainName>,
-    ) -> Worker {
+    ) -> Verifier {
         let seed_bytes = keypair_seed.to_be_bytes();
         let mut result = [0; 64];
         result[0..seed_bytes.len()].copy_from_slice(seed_bytes.as_slice());
         let secret_recovery_key = result.as_slice().try_into().unwrap();
 
-        Worker {
-            addr: worker_address,
+        Verifier {
+            addr: verifier_address,
             supported_chains,
             key_pair: tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap(),
         }
     }
 
-    fn create_worker_set_from_workers(workers: &Vec<Worker>, block_height: u64) -> WorkerSet {
+    fn create_verifier_set_from_verifiers(
+        verifiers: &Vec<Verifier>,
+        block_height: u64,
+    ) -> VerifierSet {
         let mut pub_keys = vec![];
-        for worker in workers {
+        for verifier in verifiers {
             let encoded_verifying_key =
-                HexBinary::from(worker.key_pair.encoded_verifying_key().to_vec());
+                HexBinary::from(verifier.key_pair.encoded_verifying_key().to_vec());
             let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
             pub_keys.push(pub_key);
         }
 
-        let participants: Vec<Participant> = workers
+        let participants: Vec<Participant> = verifiers
             .iter()
-            .map(|worker| Participant {
-                address: worker.addr.clone(),
+            .map(|verifier| Participant {
+                address: verifier.addr.clone(),
                 weight: Uint128::one().try_into().unwrap(),
             })
             .collect();
 
-        WorkerSet::new(
+        VerifierSet::new(
             participants.clone().into_iter().zip(pub_keys).collect(),
             Uint128::from(participants.len() as u128).mul_ceil((2u64, 3u64)),
             block_height,
@@ -181,6 +184,17 @@ mod tests {
 
         let config = CONFIG.load(test_setup.deps.as_ref().storage).unwrap();
         assert_eq!(config.governance, governance);
+    }
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "coordinator");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
@@ -225,17 +239,17 @@ mod tests {
     }
 
     #[test]
-    fn set_and_get_populated_active_worker_set_success() {
+    fn set_and_get_populated_active_verifier_set_success() {
         let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
-        let new_worker = create_worker(
+        let new_verifier = create_verifier(
             1,
-            Addr::unchecked("worker1"),
+            Addr::unchecked("verifier1"),
             vec![test_setup.chain_name.clone()],
         );
-        let new_worker_set =
-            create_worker_set_from_workers(&vec![new_worker], test_setup.env.block.height);
+        let new_verifier_set =
+            create_verifier_set_from_verifiers(&vec![new_verifier], test_setup.env.block.height);
 
         let res = execute(
             test_setup.deps.as_mut(),
@@ -253,20 +267,20 @@ mod tests {
             test_setup.env.clone(),
             mock_info(test_setup.prover.as_ref(), &[]),
             ExecuteMsg::SetActiveVerifiers {
-                next_worker_set: new_worker_set.clone(),
+                next_verifier_set: new_verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
 
-        let eth_active_worker_set =
-            query::active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+        let eth_active_verifier_set =
+            query::active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
-        assert_eq!(eth_active_worker_set, Some(new_worker_set));
+        assert_eq!(eth_active_verifier_set, Some(new_verifier_set));
     }
 
     #[test]
-    fn set_and_get_empty_active_worker_set_success() {
+    fn set_and_get_empty_active_verifier_set_success() {
         let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
@@ -281,7 +295,7 @@ mod tests {
         );
 
         let query_result =
-            query::active_worker_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
         assert_eq!(query_result, None);

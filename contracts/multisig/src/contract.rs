@@ -7,9 +7,10 @@ use cosmwasm_std::{
 
 use crate::{
     events::Event,
+    migrations,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{
-        get_worker_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, WORKER_SETS,
+        get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
     },
     types::{MsgToSign, MultisigState},
     ContractError,
@@ -18,7 +19,7 @@ use crate::{
 mod execute;
 mod query;
 
-const CONTRACT_NAME: &str = "crates.io:multisig";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -27,11 +28,9 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
-
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::default())
+    migrations::v_0_3::migrate_verifier_sets(deps)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -64,7 +63,7 @@ pub fn execute(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     match msg {
         ExecuteMsg::StartSigningSession {
-            worker_set_id,
+            verifier_set_id,
             msg,
             chain_name,
             sig_verifier,
@@ -77,7 +76,7 @@ pub fn execute(
             execute::start_signing_session(
                 deps,
                 env,
-                worker_set_id,
+                verifier_set_id,
                 msg.try_into()
                     .map_err(axelar_wasm_std::ContractError::from)?,
                 chain_name,
@@ -88,8 +87,8 @@ pub fn execute(
             session_id,
             signature,
         } => execute::submit_signature(deps, env, info, session_id, signature),
-        ExecuteMsg::RegisterWorkerSet { worker_set } => {
-            execute::register_worker_set(deps, worker_set)
+        ExecuteMsg::RegisterVerifierSet { verifier_set } => {
+            execute::register_verifier_set(deps, verifier_set)
         }
         ExecuteMsg::RegisterPublicKey {
             public_key,
@@ -113,15 +112,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetMultisig { session_id } => {
             to_json_binary(&query::get_multisig(deps, session_id)?)
         }
-        QueryMsg::GetWorkerSet { worker_set_id } => {
-            to_json_binary(&query::get_worker_set(deps, worker_set_id)?)
+        QueryMsg::GetVerifierSet { verifier_set_id } => {
+            to_json_binary(&query::get_verifier_set(deps, verifier_set_id)?)
         }
         QueryMsg::GetPublicKey {
-            worker_address,
+            verifier_address,
             key_type,
         } => to_json_binary(&query::get_public_key(
             deps,
-            deps.api.addr_validate(&worker_address)?,
+            deps.api.addr_validate(&verifier_address)?,
             key_type,
         )?),
     }
@@ -144,10 +143,10 @@ mod tests {
         key::{KeyType, PublicKey, Signature},
         multisig::Multisig,
         state::load_session_signatures,
-        test::common::{build_worker_set, TestSigner},
+        test::common::{build_verifier_set, TestSigner},
         test::common::{ecdsa_test_data, ed25519_test_data},
         types::MultisigState,
-        worker_set::WorkerSet,
+        verifier_set::VerifierSet,
     };
 
     use super::*;
@@ -171,10 +170,10 @@ mod tests {
         instantiate(deps, env, info, msg)
     }
 
-    fn generate_worker_set(
+    fn generate_verifier_set(
         key_type: KeyType,
         deps: DepsMut,
-    ) -> Result<(Response, WorkerSet), axelar_wasm_std::ContractError> {
+    ) -> Result<(Response, VerifierSet), axelar_wasm_std::ContractError> {
         let info = mock_info(PROVER, &[]);
         let env = mock_env();
 
@@ -183,21 +182,21 @@ mod tests {
             KeyType::Ed25519 => ed25519_test_data::signers(),
         };
 
-        let worker_set = build_worker_set(key_type, &signers);
-        let msg = ExecuteMsg::RegisterWorkerSet {
-            worker_set: worker_set.clone(),
+        let verifier_set = build_verifier_set(key_type, &signers);
+        let msg = ExecuteMsg::RegisterVerifierSet {
+            verifier_set: verifier_set.clone(),
         };
 
-        execute(deps, env, info.clone(), msg).map(|res| (res, worker_set))
+        execute(deps, env, info.clone(), msg).map(|res| (res, verifier_set))
     }
 
-    fn query_worker_set(worker_set_id: &str, deps: Deps) -> StdResult<Binary> {
+    fn query_verifier_set(verifier_set_id: &str, deps: Deps) -> StdResult<Binary> {
         let env = mock_env();
         query(
             deps,
             env,
-            QueryMsg::GetWorkerSet {
-                worker_set_id: worker_set_id.to_string(),
+            QueryMsg::GetVerifierSet {
+                verifier_set_id: verifier_set_id.to_string(),
             },
         )
     }
@@ -205,7 +204,7 @@ mod tests {
     fn do_start_signing_session(
         deps: DepsMut,
         sender: &str,
-        worker_set_id: &str,
+        verifier_set_id: &str,
         chain_name: ChainName,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let info = mock_info(sender, &[]);
@@ -213,7 +212,7 @@ mod tests {
 
         let message = ecdsa_test_data::message();
         let msg = ExecuteMsg::StartSigningSession {
-            worker_set_id: worker_set_id.to_string(),
+            verifier_set_id: verifier_set_id.to_string(),
             msg: message.clone(),
             chain_name,
             sig_verifier: None,
@@ -236,7 +235,7 @@ mod tests {
 
     fn do_register_key(
         deps: DepsMut,
-        worker: Addr,
+        verifier: Addr,
         public_key: PublicKey,
         signed_sender_address: HexBinary,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
@@ -244,7 +243,7 @@ mod tests {
             public_key,
             signed_sender_address,
         };
-        execute(deps, mock_env(), mock_info(worker.as_str(), &[]), msg)
+        execute(deps, mock_env(), mock_info(verifier.as_str(), &[]), msg)
     }
 
     fn do_authorize_caller(
@@ -273,7 +272,7 @@ mod tests {
 
     fn query_registered_public_key(
         deps: Deps,
-        worker: Addr,
+        verifier: Addr,
         key_type: KeyType,
     ) -> StdResult<Binary> {
         let env = mock_env();
@@ -281,7 +280,7 @@ mod tests {
             deps,
             env,
             QueryMsg::GetPublicKey {
-                worker_address: worker.to_string(),
+                verifier_address: verifier.to_string(),
                 key_type,
             },
         )
@@ -294,14 +293,14 @@ mod tests {
     ) {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
-        let worker_set_ecdsa = generate_worker_set(KeyType::Ecdsa, deps.as_mut())
+        let verifier_set_ecdsa = generate_verifier_set(KeyType::Ecdsa, deps.as_mut())
             .unwrap()
             .1;
-        let worker_set_ed25519 = generate_worker_set(KeyType::Ed25519, deps.as_mut())
+        let verifier_set_ed25519 = generate_verifier_set(KeyType::Ed25519, deps.as_mut())
             .unwrap()
             .1;
-        let ecdsa_subkey = worker_set_ecdsa.id();
-        let ed25519_subkey = worker_set_ed25519.id();
+        let ecdsa_subkey = verifier_set_ecdsa.id();
+        let ed25519_subkey = verifier_set_ed25519.id();
 
         (deps, ecdsa_subkey, ed25519_subkey)
     }
@@ -353,33 +352,33 @@ mod tests {
     }
 
     #[test]
-    fn update_worker_set() {
+    fn update_verifier_set() {
         let mut deps = mock_dependencies();
         do_instantiate(deps.as_mut()).unwrap();
 
-        let res = generate_worker_set(KeyType::Ecdsa, deps.as_mut());
+        let res = generate_verifier_set(KeyType::Ecdsa, deps.as_mut());
         assert!(res.is_ok());
-        let worker_set_1 = res.unwrap().1;
-        let worker_set_1_id = worker_set_1.id();
+        let verifier_set_1 = res.unwrap().1;
+        let verifier_set_1_id = verifier_set_1.id();
 
-        let res = generate_worker_set(KeyType::Ed25519, deps.as_mut());
+        let res = generate_verifier_set(KeyType::Ed25519, deps.as_mut());
         assert!(res.is_ok());
-        let worker_set_2 = res.unwrap().1;
-        let worker_set_2_id = worker_set_2.id();
+        let verifier_set_2 = res.unwrap().1;
+        let verifier_set_2_id = verifier_set_2.id();
 
-        let res = query_worker_set(&worker_set_1.id(), deps.as_ref());
+        let res = query_verifier_set(&verifier_set_1.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_1, from_json(res.unwrap()).unwrap());
+        assert_eq!(verifier_set_1, from_json(res.unwrap()).unwrap());
 
-        let res = query_worker_set(&worker_set_2.id(), deps.as_ref());
+        let res = query_verifier_set(&verifier_set_2.id(), deps.as_ref());
         assert!(res.is_ok());
-        assert_eq!(worker_set_2, from_json(res.unwrap()).unwrap());
+        assert_eq!(verifier_set_2, from_json(res.unwrap()).unwrap());
 
         for (key_type, _) in [
-            (KeyType::Ecdsa, worker_set_1_id),
-            (KeyType::Ed25519, worker_set_2_id),
+            (KeyType::Ecdsa, verifier_set_1_id),
+            (KeyType::Ed25519, verifier_set_2_id),
         ] {
-            let res = generate_worker_set(key_type, deps.as_mut());
+            let res = generate_verifier_set(key_type, deps.as_mut());
             assert!(res.is_ok());
         }
     }
@@ -406,8 +405,8 @@ mod tests {
                 .load(deps.as_ref().storage, i as u64 + 1)
                 .unwrap();
 
-            let worker_set_id = subkey.to_string();
-            let worker_set = get_worker_set(deps.as_ref().storage, &worker_set_id).unwrap();
+            let verifier_set_id = subkey.to_string();
+            let verifier_set = get_verifier_set(deps.as_ref().storage, &verifier_set_id).unwrap();
             let message = match subkey {
                 _ if subkey == ecdsa_subkey => ecdsa_test_data::message(),
                 _ if subkey == ed25519_subkey => ed25519_test_data::message(),
@@ -417,7 +416,7 @@ mod tests {
                 load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
 
             assert_eq!(session.id, Uint64::from(i as u64 + 1));
-            assert_eq!(session.worker_set_id, worker_set_id);
+            assert_eq!(session.verifier_set_id, verifier_set_id);
             assert_eq!(session.msg, message.clone().try_into().unwrap());
             assert!(signatures.is_empty());
             assert_eq!(session.state, MultisigState::Pending);
@@ -433,11 +432,11 @@ mod tests {
                 session.id.to_string()
             );
             assert_eq!(
-                get_event_attribute(event, "worker_set_id").unwrap(),
-                session.worker_set_id
+                get_event_attribute(event, "verifier_set_id").unwrap(),
+                session.verifier_set_id
             );
             assert_eq!(
-                worker_set.get_pub_keys(),
+                verifier_set.get_pub_keys(),
                 from_str(get_event_attribute(event, "pub_keys").unwrap()).unwrap()
             );
             assert_eq!(get_event_attribute(event, "msg").unwrap(), message.to_hex());
@@ -451,11 +450,11 @@ mod tests {
 
         let sender = "someone else";
 
-        for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
+        for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
                 sender,
-                &worker_set_id,
+                &verifier_set_id,
                 "mock-chain".parse().unwrap(),
             );
 
@@ -473,10 +472,10 @@ mod tests {
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
 
-        for (key_type, worker_set_id, signers, session_id) in
+        for (key_type, verifier_set_id, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
         {
-            do_start_signing_session(deps.as_mut(), PROVER, worker_set_id, chain_name.clone())
+            do_start_signing_session(deps.as_mut(), PROVER, verifier_set_id, chain_name.clone())
                 .unwrap();
 
             let signer = signers.first().unwrap().to_owned();
@@ -486,7 +485,7 @@ mod tests {
                 msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
-                    worker_address: signer.address.clone().into(),
+                    verifier_address: signer.address.clone().into(),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -614,7 +613,7 @@ mod tests {
                 msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
                     chain_name: chain_name.clone(),
                     event_id: session_id.to_string().try_into().unwrap(),
-                    worker_address: signer.address.clone().into(),
+                    verifier_address: signer.address.clone().into(),
                 })
                 .unwrap(),
                 funds: vec![],
@@ -724,8 +723,8 @@ mod tests {
             let session = SIGNING_SESSIONS
                 .load(deps.as_ref().storage, session_id.into())
                 .unwrap();
-            let worker_set = WORKER_SETS
-                .load(deps.as_ref().storage, session.worker_set_id.as_str())
+            let verifier_set = VERIFIER_SETS
+                .load(deps.as_ref().storage, session.verifier_set_id.as_str())
                 .unwrap();
             let signatures =
                 load_session_signatures(deps.as_ref().storage, session.id.u64()).unwrap();
@@ -737,7 +736,7 @@ mod tests {
                 }
             );
             assert_eq!(query_res.signatures, signatures);
-            assert_eq!(query_res.worker_set, worker_set);
+            assert_eq!(query_res.verifier_set, verifier_set);
         }
     }
 
@@ -971,11 +970,11 @@ mod tests {
         // authorize
         do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
 
-        for worker_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
+        for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(
                 deps.as_mut(),
                 PROVER,
-                &worker_set_id,
+                &verifier_set_id,
                 "mock-chain".parse().unwrap(),
             );
 
@@ -984,11 +983,11 @@ mod tests {
 
         // unauthorize
         do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
-        for worker_set_id in [ecdsa_subkey, ed25519_subkey] {
+        for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
                 PROVER,
-                &worker_set_id,
+                &verifier_set_id,
                 "mock-chain".parse().unwrap(),
             );
 

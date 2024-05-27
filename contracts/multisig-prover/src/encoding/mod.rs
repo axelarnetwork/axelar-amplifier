@@ -3,7 +3,7 @@ pub mod abi;
 use cosmwasm_schema::cw_serde;
 
 use axelar_wasm_std::operators::Operators;
-use multisig::worker_set::WorkerSet;
+use multisig::verifier_set::VerifierSet;
 
 #[cw_serde]
 #[derive(Copy)]
@@ -12,9 +12,9 @@ pub enum Encoder {
     Bcs,
 }
 
-pub fn make_operators(worker_set: WorkerSet, encoder: Encoder) -> Operators {
+pub fn make_operators(verifier_set: VerifierSet, encoder: Encoder) -> Operators {
     match encoder {
-        Encoder::Abi => abi::make_operators(worker_set),
+        Encoder::Abi => abi::make_operators(verifier_set),
         Encoder::Bcs => todo!(),
     }
 }

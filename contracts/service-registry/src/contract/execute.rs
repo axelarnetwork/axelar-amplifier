@@ -1,5 +1,5 @@
-use crate::state;
-use crate::state::{AuthorizationState, WORKERS};
+use crate::state::{self, Verifier};
+use crate::state::{AuthorizationState, VERIFIERS};
 use router_api::ChainName;
 
 use super::*;
@@ -17,9 +17,9 @@ pub fn register_service(
     deps: DepsMut,
     service_name: String,
     coordinator_contract: Addr,
-    min_num_workers: u16,
-    max_num_workers: Option<u16>,
-    min_worker_bond: Uint128,
+    min_num_verifiers: u16,
+    max_num_verifiers: Option<u16>,
+    min_verifier_bond: Uint128,
     bond_denom: String,
     unbonding_period_days: u16,
     description: String,
@@ -34,9 +34,9 @@ pub fn register_service(
                 None => Ok(Service {
                     name: service_name,
                     coordinator_contract,
-                    min_num_workers,
-                    max_num_workers,
-                    min_worker_bond,
+                    min_num_verifiers,
+                    max_num_verifiers,
+                    min_verifier_bond,
                     bond_denom,
                     unbonding_period_days,
                     description,
@@ -50,9 +50,9 @@ pub fn register_service(
     Ok(Response::new())
 }
 
-pub fn update_worker_authorization_status(
+pub fn update_verifier_authorization_status(
     deps: DepsMut,
-    workers: Vec<Addr>,
+    verifiers: Vec<Addr>,
     service_name: String,
     auth_state: AuthorizationState,
 ) -> Result<Response, ContractError> {
@@ -60,18 +60,18 @@ pub fn update_worker_authorization_status(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    for worker in workers {
-        WORKERS.update(
+    for verifier in verifiers {
+        VERIFIERS.update(
             deps.storage,
-            (&service_name, &worker.clone()),
-            |sw| -> Result<Worker, ContractError> {
+            (&service_name, &verifier.clone()),
+            |sw| -> Result<Verifier, ContractError> {
                 match sw {
-                    Some(mut worker) => {
-                        worker.authorization_state = auth_state.clone();
-                        Ok(worker)
+                    Some(mut verifier) => {
+                        verifier.authorization_state = auth_state.clone();
+                        Ok(verifier)
                     }
-                    None => Ok(Worker {
-                        address: worker,
+                    None => Ok(Verifier {
+                        address: verifier,
                         bonding_state: BondingState::Unbonded,
                         authorization_state: auth_state.clone(),
                         service_name: service_name.clone(),
@@ -84,7 +84,7 @@ pub fn update_worker_authorization_status(
     Ok(Response::new())
 }
 
-pub fn bond_worker(
+pub fn bond_verifier(
     deps: DepsMut,
     info: MessageInfo,
     service_name: String,
@@ -103,13 +103,13 @@ pub fn bond_worker(
         Uint128::zero() // sender can rebond currently unbonding funds by just sending no new funds
     };
 
-    WORKERS.update(
+    VERIFIERS.update(
         deps.storage,
         (&service_name.clone(), &info.sender.clone()),
-        |sw| -> Result<Worker, ContractError> {
+        |sw| -> Result<Verifier, ContractError> {
             match sw {
-                Some(worker) => Ok(worker.add_bond(bond)?),
-                None => Ok(Worker {
+                Some(verifier) => Ok(verifier.add_bond(bond)?),
+                None => Ok(Verifier {
                     address: info.sender,
                     bonding_state: BondingState::Bonded { amount: bond },
                     authorization_state: AuthorizationState::NotAuthorized,
@@ -132,9 +132,9 @@ pub fn register_chains_support(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    WORKERS
+    VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::WorkerNotFound)?;
+        .ok_or(ContractError::VerifierNotFound)?;
 
     state::register_chains_support(
         deps.storage,
@@ -156,16 +156,16 @@ pub fn deregister_chains_support(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    WORKERS
+    VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::WorkerNotFound)?;
+        .ok_or(ContractError::VerifierNotFound)?;
 
     state::deregister_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
 
     Ok(Response::new())
 }
 
-pub fn unbond_worker(
+pub fn unbond_verifier(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -175,21 +175,21 @@ pub fn unbond_worker(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    let worker = WORKERS
+    let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::WorkerNotFound)?;
+        .ok_or(ContractError::VerifierNotFound)?;
 
     let query = coordinator::msg::QueryMsg::ReadyToUnbond {
-        worker_address: worker.address.clone(),
+        worker_address: verifier.address.clone(),
     };
     let ready_to_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: service.coordinator_contract.into(),
         msg: to_json_binary(&query)?,
     }))?;
 
-    let worker = worker.unbond(ready_to_unbond, env.block.time)?;
+    let verifier = verifier.unbond(ready_to_unbond, env.block.time)?;
 
-    WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
+    VERIFIERS.save(deps.storage, (&service_name, &info.sender), &verifier)?;
 
     Ok(Response::new())
 }
@@ -204,14 +204,14 @@ pub fn claim_stake(
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
-    let worker = WORKERS
+    let verifier = VERIFIERS
         .may_load(deps.storage, (&service_name, &info.sender))?
-        .ok_or(ContractError::WorkerNotFound)?;
+        .ok_or(ContractError::VerifierNotFound)?;
 
-    let (worker, released_bond) =
-        worker.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
+    let (verifier, released_bond) =
+        verifier.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
 
-    WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
+    VERIFIERS.save(deps.storage, (&service_name, &info.sender), &verifier)?;
 
     Ok(Response::new().add_message(BankMsg::Send {
         to_address: info.sender.into(),

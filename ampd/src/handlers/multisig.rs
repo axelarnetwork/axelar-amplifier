@@ -67,7 +67,7 @@ where
 }
 
 pub struct Handler {
-    worker: TMAddress,
+    verifier: TMAddress,
     multisig: TMAddress,
     signer: SharableEcdsaClient,
     latest_block_height: Receiver<u64>,
@@ -75,13 +75,13 @@ pub struct Handler {
 
 impl Handler {
     pub fn new(
-        worker: TMAddress,
+        verifier: TMAddress,
         multisig: TMAddress,
         signer: SharableEcdsaClient,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
-            worker,
+            verifier,
             multisig,
             signer,
             latest_block_height,
@@ -94,7 +94,7 @@ impl Handler {
         signature: impl Into<HexBinary>,
     ) -> MsgExecuteContract {
         MsgExecuteContract {
-            sender: self.worker.as_ref().clone(),
+            sender: self.verifier.as_ref().clone(),
             contract: self.multisig.as_ref().clone(),
             msg: serde_json::to_vec(&ExecuteMsg::SubmitSignature {
                 session_id: session_id.into(),
@@ -142,7 +142,7 @@ impl EventHandler for Handler {
             return Ok(vec![]);
         }
 
-        match pub_keys.get(&self.worker) {
+        match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
                 let signature = self
                     .signer
@@ -158,7 +158,7 @@ impl EventHandler for Handler {
                     .expect("submit signature msg should serialize")])
             }
             None => {
-                info!("worker is not a participant");
+                info!("verifier is not a participant");
 
                 Ok(vec![])
             }
@@ -233,7 +233,7 @@ mod test {
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
-            worker_set_id: "worker_set_id".to_string(),
+            verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
             chain_name: rand_chain_name(),
@@ -264,7 +264,7 @@ mod test {
 
         let poll_started = SigningStarted {
             session_id: Uint64::one(),
-            worker_set_id: "worker_set_id".to_string(),
+            verifier_set_id: "verifier_set_id".to_string(),
             pub_keys,
             msg: MsgToSign::unchecked(rand_message()),
             chain_name: rand_chain_name(),
@@ -289,7 +289,7 @@ mod test {
     }
 
     fn get_handler(
-        worker: TMAddress,
+        verifier: TMAddress,
         multisig: TMAddress,
         signer: SharableEcdsaClient,
         latest_block_height: u64,
@@ -301,7 +301,7 @@ mod test {
 
         let (_, rx) = watch::channel(latest_block_height);
 
-        Handler::new(worker, multisig, signer, rx)
+        Handler::new(verifier, multisig, signer, rx)
     }
 
     #[test]
@@ -416,7 +416,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn should_not_handle_event_if_worker_is_not_a_participant() {
+    async fn should_not_handle_event_if_verifier_is_not_a_participant() {
         let mut client = MockEcdsaClient::new();
         client
             .expect_sign()
@@ -444,9 +444,9 @@ mod test {
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
-        let worker = signing_started.pub_keys.keys().next().unwrap().clone();
+        let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = get_handler(
-            worker,
+            verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             99u64,
@@ -467,9 +467,9 @@ mod test {
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
-        let worker = signing_started.pub_keys.keys().next().unwrap().clone();
+        let verifier = signing_started.pub_keys.keys().next().unwrap().clone();
         let handler = get_handler(
-            worker,
+            verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
             SharableEcdsaClient::new(client),
             101u64,
