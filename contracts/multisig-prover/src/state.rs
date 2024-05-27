@@ -7,7 +7,10 @@ use multisig::key::KeyType;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 
-use crate::{encoding::Encoder, payload::Payload, types::BatchId};
+use crate::{
+    encoding::Encoder,
+    payload::{Payload, PayloadId},
+};
 
 #[cw_serde]
 pub struct Config {
@@ -28,10 +31,10 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const PAYLOAD: Map<&BatchId, Payload> = Map::new("payload");
-pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
+pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
+pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
 
-pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");
+pub const REPLY_TRACKER: Item<PayloadId> = Item::new("reply_tracker");
 
 pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
 pub const NEXT_VERIFIER_SET: Item<VerifierSet> = Item::new("next_verifier_set");
