@@ -23,11 +23,11 @@ pub fn register_prover(
     Ok(Response::new())
 }
 
-pub fn set_active_worker_set(
+pub fn set_active_verifier_set(
     deps: DepsMut,
     info: MessageInfo,
-    next_worker_set: VerifierSet,
+    next_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
-    ACTIVE_VERIFIER_SET_FOR_PROVER.save(deps.storage, info.sender, &(next_worker_set))?;
+    ACTIVE_VERIFIER_SET_FOR_PROVER.save(deps.storage, info.sender, &(next_verifier_set))?;
     Ok(Response::new())
 }

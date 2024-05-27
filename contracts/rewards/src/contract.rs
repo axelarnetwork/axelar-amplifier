@@ -76,9 +76,9 @@ pub fn execute(
         ExecuteMsg::RecordParticipation {
             chain_name,
             event_id,
-            worker_address,
+            verifier_address,
         } => {
-            let worker_address = deps.api.addr_validate(&worker_address)?;
+            let verifier_address = deps.api.addr_validate(&verifier_address)?;
             let pool_id = PoolId {
                 chain_name,
                 contract: info.sender.clone(),
@@ -86,7 +86,7 @@ pub fn execute(
             execute::record_participation(
                 deps.storage,
                 event_id,
-                worker_address,
+                verifier_address,
                 pool_id,
                 env.block.height,
             )
@@ -191,8 +191,8 @@ mod tests {
     fn test_rewards_flow() {
         let chain_name: ChainName = "mock-chain".parse().unwrap();
         let user = Addr::unchecked("user");
-        let worker = Addr::unchecked("worker");
-        let worker_contract = Addr::unchecked("worker contract");
+        let verifier = Addr::unchecked("verifier");
+        let pool_contract = Addr::unchecked("pool_contract");
 
         const AXL_DENOMINATION: &str = "uaxl";
         let mut app = App::new(|router, _, storage| {
@@ -227,7 +227,7 @@ mod tests {
 
         let pool_id = PoolId {
             chain_name: chain_name.clone(),
-            contract: worker_contract.clone(),
+            contract: pool_contract.clone(),
         };
 
         let rewards = 200;
@@ -256,24 +256,24 @@ mod tests {
         assert!(res.is_ok());
 
         let res = app.execute_contract(
-            worker_contract.clone(),
+            pool_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
                 event_id: "some event".to_string().try_into().unwrap(),
-                worker_address: worker.to_string(),
+                verifier_address: verifier.to_string(),
             },
             &[],
         );
         assert!(res.is_ok());
 
         let res = app.execute_contract(
-            worker_contract.clone(),
+            pool_contract.clone(),
             contract_address.clone(),
             &ExecuteMsg::RecordParticipation {
                 chain_name: chain_name.clone(),
                 event_id: "some other event".to_string().try_into().unwrap(),
-                worker_address: worker.to_string(),
+                verifier_address: verifier.to_string(),
             },
             &[],
         );
@@ -308,7 +308,7 @@ mod tests {
             &ExecuteMsg::DistributeRewards {
                 pool_id: PoolId {
                     chain_name: chain_name.clone(),
-                    contract: worker_contract.clone(),
+                    contract: pool_contract.clone(),
                 },
                 epoch_count: None,
             },
@@ -316,8 +316,11 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        // worker should have been sent the appropriate rewards
-        let balance = app.wrap().query_balance(worker, AXL_DENOMINATION).unwrap();
+        // verifier should have been sent the appropriate rewards
+        let balance = app
+            .wrap()
+            .query_balance(verifier, AXL_DENOMINATION)
+            .unwrap();
         assert_eq!(balance.amount, Uint128::from(150u128));
     }
 }

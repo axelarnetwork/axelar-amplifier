@@ -12,9 +12,9 @@ pub enum Encoder {
     Bcs,
 }
 
-pub fn make_operators(worker_set: VerifierSet, encoder: Encoder) -> Operators {
+pub fn make_operators(verifier_set: VerifierSet, encoder: Encoder) -> Operators {
     match encoder {
-        Encoder::Abi => abi::make_operators(worker_set),
+        Encoder::Abi => abi::make_operators(verifier_set),
         Encoder::Bcs => todo!(),
     }
 }

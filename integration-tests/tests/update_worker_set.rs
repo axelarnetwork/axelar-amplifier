@@ -25,7 +25,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     } = test_utils::setup_test_case();
 
     let simulated_worker_set =
-        test_utils::verifiers_to_worker_set(&mut protocol, &initial_verifiers);
+        test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let worker_set =
         test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
@@ -48,7 +48,7 @@ fn worker_set_can_be_initialized_and_then_manually_updated() {
     new_verifiers.push(new_verifier);
 
     let expected_new_worker_set =
-        test_utils::verifiers_to_worker_set(&mut protocol, &new_verifiers);
+        test_utils::verifiers_to_verifier_set(&mut protocol, &new_verifiers);
 
     test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
@@ -128,7 +128,7 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
     } = test_utils::setup_test_case();
 
     let simulated_worker_set =
-        test_utils::verifiers_to_worker_set(&mut protocol, &initial_verifiers);
+        test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let worker_set =
         test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
@@ -142,7 +142,7 @@ fn worker_set_cannot_be_updated_again_while_pending_verifier_is_not_yet_confirme
     );
 
     let expected_new_worker_set =
-        test_utils::verifiers_to_worker_set(&mut protocol, &first_wave_of_new_verifiers);
+        test_utils::verifiers_to_verifier_set(&mut protocol, &first_wave_of_new_verifiers);
 
     test_utils::register_verifiers(
         &mut protocol,
@@ -248,7 +248,7 @@ fn worker_set_update_can_be_resigned() {
     } = test_utils::setup_test_case();
 
     let simulated_worker_set =
-        test_utils::verifiers_to_worker_set(&mut protocol, &initial_verifiers);
+        test_utils::verifiers_to_verifier_set(&mut protocol, &initial_verifiers);
 
     let worker_set =
         test_utils::get_worker_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
@@ -349,7 +349,7 @@ fn governance_should_confirm_new_worker_set_without_verification() {
     new_verifiers.push(new_verifier);
 
     let expected_new_worker_set =
-        test_utils::verifiers_to_worker_set(&mut protocol, &new_verifiers);
+        test_utils::verifiers_to_verifier_set(&mut protocol, &new_verifiers);
 
     test_utils::register_verifiers(&mut protocol, &new_verifiers, min_verifier_bond);
 
