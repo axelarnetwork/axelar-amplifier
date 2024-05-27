@@ -1,12 +1,15 @@
 # Ampd
 
 Ampd is the off chain daemon responsible for voting and signing within the amplifier protocol.
-The daemon listens to the Axelar blockchain for specific events, connects to external blockchains via JSON-RPC, and uses [tofnd](https://github.com/axelarnetwork/tofnd) for signing transactions and batches of messages.
+The daemon listens to the Axelar blockchain for specific events, connects to external blockchains via JSON-RPC, and
+uses [tofnd](https://github.com/axelarnetwork/tofnd) for signing transactions and batches of messages.
 
 ### How to run
 
 #### Configuration
+
 Below is the config file format, with explanations for each entry:
+
 ```
 tm_jsonrpc=[JSON-RPC URL of Axelar node]
 tm_grpc=[gRPC URL of Axelar node]
@@ -43,15 +46,17 @@ chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
 type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier]
 
-# workerset verifier handler. One per supported chain
+# handler to verify verifier set rotations. One per supported chain
 [[handlers]]
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmMsgWorkerSetVerifier | SuiWorkerSetVerifier]
+type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier]
 ```
 
-Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions from Avalanche testnet and Sui testnet.
+Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
+from Avalanche testnet and Sui testnet.
+
 ```
 health_check_bind_addr="0.0.0.0:3000"
 tm_jsonrpc="http://localhost:26657"
@@ -86,7 +91,7 @@ cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns
 rpc_url = "https://fullnode.testnet.sui.io:443"
 
 [[handlers]]
-type = 'SuiWorkerSetVerifier'
+type = 'SuiVerifierSetVerifier'
 cosmwasm_contract = 'axelar1hmdc9verjjfttcsav57nhcjm7hfcrpg08tqk9phcceulzurnfqns9yqsap'
 rpc_url = "https://fullnode.testnet.sui.io:443"
 
@@ -98,7 +103,7 @@ chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
 
 
 [[handlers]]
-type = 'EvmWorkerSetVerifier'
+type = 'EvmVerifierSetVerifier'
 cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
 chain_name = 'avalanche'
 chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
@@ -109,28 +114,37 @@ By default, ampd loads the config file from `~/.ampd/config.toml` when running a
 This can be overridden by passing `--config [path]`.
 
 ### Prerequisite: tofnd
-Ampd needs access to a running tofnd instance in order to onboard as a worker
+
+Ampd needs access to a running tofnd instance in order to onboard as a verifier
 or run the daemon. See the [tofnd repository](https://github.com/axelarnetwork/tofnd) for more info.
 
-### Worker Onboarding
-Prior to running the ampd daemon, workers need to perform the following onboarding steps.
-1. Determine your worker address: `ampd worker-address`
+### Verifier Onboarding
 
-2. Fund your worker address. This can be achieved in a number of ways and is dependent on the environment (mainnet, testnet or devnet).
+Prior to running the ampd daemon, verifiers need to perform the following onboarding steps.
 
-3. Bond your worker: `ampd bond-worker [service name] [amount] [denom]`
+1. Determine your verifier address: `ampd verifier-address`
+
+2. Fund your verifier address. This can be achieved in a number of ways and is dependent on the environment (mainnet,
+   testnet or devnet).
+
+3. Bond your verifier: `ampd bond-verifier [service name] [amount] [denom]`
 
 4. Register your public key: `ampd register-public-key`
 
-5. Authorize your worker. This is dependent on the environment, and can be done via governance, or by the network operators.
+5. Authorize your verifier. This is dependent on the environment, and can be done via governance, or by the network
+   operators.
 
-6. Register support for desired chains. This enables ampd to participate in voting and signing for the specified chains. Multiple chain names can be passed, separated by a space.
-`ampd register-chain-support [service name] [chains]...`
+6. Register support for desired chains. This enables ampd to participate in voting and signing for the specified chains.
+   Multiple chain names can be passed, separated by a space.
+   `ampd register-chain-support [service name] [chains]...`
 
 ### Run the daemon
+
 `ampd`
 
-A state file will be created if it doesn't yet exist. The default location of the state file is `~/.ampd/state.json`, which can be overridden by passing `--state [path]`.
+A state file will be created if it doesn't yet exist. The default location of the state file is `~/.ampd/state.json`,
+which can be overridden by passing `--state [path]`.
 
 ### Help
+
 For more info about the available commands and options, run `ampd --help`.

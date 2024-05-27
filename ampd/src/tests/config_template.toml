@@ -26,7 +26,7 @@ secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'EvmWorkerSetVerifier'
+type = 'EvmVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 chain_name = 'fantom'
 chain_rpc_url = 'http://127.0.0.1/'
@@ -50,7 +50,7 @@ secs = 3
 nanos = 0
 
 [[handlers]]
-type = 'SuiWorkerSetVerifier'
+type = 'SuiVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 rpc_url = 'http://127.0.0.1/'
 
