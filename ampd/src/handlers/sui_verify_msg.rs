@@ -63,7 +63,7 @@ where
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
-            verifier: verifier,
+            verifier,
             voting_verifier_contract,
             rpc_client,
             latest_block_height,
