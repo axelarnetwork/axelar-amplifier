@@ -5,6 +5,7 @@ use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
 use ethers::types::{TransactionReceipt, U64};
+use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
@@ -12,7 +13,6 @@ use valuable::Valuable;
 
 use axelar_wasm_std::{
     msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
-    operators::Operators,
     voting::{PollId, Vote},
 };
 use events::Error::EventTypeMismatch;
@@ -33,7 +33,7 @@ type Result<T> = error_stack::Result<T, Error>;
 pub struct VerifierSetConfirmation {
     pub tx_id: Hash,
     pub event_index: u32,
-    pub verifier_set: Operators,
+    pub verifier_set: VerifierSet,
 }
 
 #[derive(Deserialize, Debug)]
@@ -203,14 +203,17 @@ mod tests {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmwasm_std::HexBinary;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
+
     use tendermint::abci;
     use tokio::{sync::watch, test as async_test};
 
-    use axelar_wasm_std::operators::Operators;
     use events::Event;
+    use multisig::{
+        key::KeyType,
+        test::common::{build_verifier_set, ecdsa_test_data},
+    };
     use router_api::ChainName;
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
@@ -218,7 +221,7 @@ mod tests {
         event_processor::EventHandler,
         evm::{finalizer::Finalization, json_rpc::MockEthereumClient},
         handlers::evm_verify_verifier_set::PollStartedEvent,
-        types::{EVMAddress, Hash, TMAddress},
+        types::{Hash, TMAddress},
         PREFIX,
     };
 
@@ -276,24 +279,7 @@ mod tests {
             verifier_set: VerifierSetConfirmation {
                 tx_id: format!("0x{:x}", Hash::random()).parse().unwrap(),
                 event_index: 100,
-                verifier_set: Operators::new(
-                    vec![
-                        (
-                            HexBinary::from(EVMAddress::random().as_bytes()),
-                            10u64.into(),
-                        ),
-                        (
-                            HexBinary::from(EVMAddress::random().as_bytes()),
-                            20u64.into(),
-                        ),
-                        (
-                            HexBinary::from(EVMAddress::random().as_bytes()),
-                            30u64.into(),
-                        ),
-                    ],
-                    40u64.into(),
-                    1,
-                ),
+                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
             metadata: PollMetadata {
                 poll_id: "100".parse().unwrap(),

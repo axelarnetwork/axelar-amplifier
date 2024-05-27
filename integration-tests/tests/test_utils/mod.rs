@@ -28,7 +28,6 @@ use multisig::{
     key::{KeyType, PublicKey},
     verifier_set::VerifierSet,
 };
-use multisig_prover::encoding::{make_operators, Encoder};
 use rewards::state::PoolId;
 use service_registry::msg::ExecuteMsg;
 use tofn::ecdsa::KeyPair;
@@ -600,7 +599,7 @@ pub fn create_verifier_set_poll(
             .to_string()
             .parse()
             .unwrap(),
-            new_operators: make_operators(verifier_set.clone(), Encoder::Abi),
+            new_verifier_set: verifier_set,
         },
     );
     assert!(response.is_ok());

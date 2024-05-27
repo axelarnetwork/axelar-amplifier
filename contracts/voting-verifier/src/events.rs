@@ -8,8 +8,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 
 use axelar_wasm_std::nonempty;
-use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
+use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
 use crate::error::ContractError;
@@ -117,7 +117,7 @@ impl From<PollStarted> for Event {
 pub struct VerifierSetConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
-    pub verifier_set: Operators,
+    pub verifier_set: VerifierSet,
 }
 
 /// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
@@ -144,7 +144,7 @@ impl VerifierSetConfirmation {
     pub fn new(
         message_id: nonempty::String,
         msg_id_format: MessageIdFormat,
-        verifier_set: Operators,
+        verifier_set: VerifierSet,
     ) -> Result<Self, ContractError> {
         let (tx_id, event_index) = parse_message_id(message_id, &msg_id_format)?;
 
@@ -223,15 +223,17 @@ impl From<PollEnded> for Event {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::{
         msg_id::{
             base_58_event_index::Base58TxDigestAndEventIndex,
             tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
-        operators::Operators,
     };
-    use cosmwasm_std::{HexBinary, Uint128};
+    use cosmwasm_std::Uint128;
+    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use super::{TxEventConfirmation, VerifierSetConfirmation};
@@ -329,21 +331,21 @@ mod test {
             tx_hash: random_32_bytes(),
             event_index: rand::random::<u32>(),
         };
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::HexTxHashAndEventIndex,
-            operators.clone(),
+            verifier_set.clone(),
         )
         .unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.verifier_set, operators);
+        assert_eq!(event.verifier_set, verifier_set);
     }
 
     #[test]
@@ -352,35 +354,36 @@ mod test {
             tx_digest: random_32_bytes(),
             event_index: rand::random::<u32>(),
         };
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
-            operators.clone(),
+            verifier_set.clone(),
         )
         .unwrap();
 
         assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
         assert_eq!(event.event_index, msg_id.event_index);
-        assert_eq!(event.verifier_set, operators);
+        assert_eq!(event.verifier_set, verifier_set);
     }
 
     #[test]
     fn make_verifier_set_confirmation_should_fail_with_invalid_message_id() {
         let msg_id = "foobar";
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
-            operators.clone(),
+            verifier_set,
         );
         assert!(event.is_err());
     }
@@ -391,15 +394,16 @@ mod test {
             tx_hash: random_32_bytes(),
             event_index: rand::random::<u32>(),
         };
-        let operators = Operators::new(
-            vec![(HexBinary::from(&random_32_bytes()[0..20]), Uint128::one())],
-            Uint128::one(),
-            1,
-        );
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+
         let event = VerifierSetConfirmation::new(
             msg_id.to_string().parse().unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex,
-            operators.clone(),
+            verifier_set,
         );
         assert!(event.is_err());
     }

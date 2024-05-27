@@ -52,8 +52,8 @@ pub fn execute(
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyVerifierSet {
             message_id,
-            new_operators,
-        } => execute::verify_verifier_set(deps, env, message_id, new_operators),
+            new_verifier_set,
+        } => execute::verify_verifier_set(deps, env, message_id, new_verifier_set),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         } => {
@@ -74,8 +74,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetMessagesStatus { messages } => {
             to_json_binary(&query::messages_status(deps, &messages)?)
         }
-        QueryMsg::GetVerifierSetStatus { new_operators } => {
-            to_json_binary(&query::verifier_set_status(deps, &new_operators)?)
+        QueryMsg::GetVerifierSetStatus { new_verifier_set } => {
+            to_json_binary(&query::verifier_set_status(deps, &new_verifier_set)?)
         }
         QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
@@ -96,12 +96,12 @@ pub fn migrate(
 
 #[cfg(test)]
 mod test {
-
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
+    use sha3::{Digest, Keccak256};
 
     use axelar_wasm_std::{
         msg_id::{
@@ -109,15 +109,17 @@ mod test {
             tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
-        operators::Operators,
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
+    };
+    use multisig::{
+        key::KeyType,
+        test::common::{build_verifier_set, ecdsa_test_data},
     };
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
-    use sha3::{Digest, Keccak256};
 
     use crate::{error::ContractError, events::TxEventConfirmation, msg::MessageStatus};
 
@@ -816,11 +818,10 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
-            new_operators: operators.clone(),
+            new_verifier_set: verifier_set.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
@@ -830,7 +831,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -845,11 +846,10 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
-            new_operators: operators.clone(),
+            new_verifier_set: verifier_set.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
@@ -883,7 +883,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -898,15 +898,14 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -939,7 +938,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -954,15 +953,14 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -995,7 +993,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -1009,7 +1007,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1042,7 +1040,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -1057,15 +1055,14 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1099,7 +1096,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         )
         .unwrap();
