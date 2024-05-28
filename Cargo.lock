@@ -6851,7 +6851,7 @@ checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
 
 [[package]]
 name = "rewards"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
