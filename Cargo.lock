@@ -3500,7 +3500,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
