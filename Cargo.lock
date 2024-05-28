@@ -1672,7 +1672,7 @@ dependencies = [
 
 [[package]]
 name = "coordinator"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
