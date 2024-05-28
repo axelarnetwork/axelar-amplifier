@@ -7594,7 +7594,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
