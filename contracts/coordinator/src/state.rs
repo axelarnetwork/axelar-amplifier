@@ -24,5 +24,5 @@ type ChainNames = HashSet<ChainName>;
 type VerifierAddress = Addr;
 pub const CHAINS_OF_VERIFIER: Map<VerifierAddress, ChainNames> = Map::new("chains_of_verifier");
 
-pub const NEXT_VERIFIERSET_FOR_PROVER: Map<ProverAddress, VerifierSet> =
+pub const NEXT_VERIFIER_SET_FOR_PROVER: Map<ProverAddress, VerifierSet> =
     Map::new("next_prover_verifier");

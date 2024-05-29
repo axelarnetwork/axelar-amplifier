@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::state::{ACTIVE_VERIFIER_SET_FOR_PROVER, NEXT_VERIFIERSET_FOR_PROVER, PROVER_PER_CHAIN};
+use crate::state::{ACTIVE_VERIFIER_SET_FOR_PROVER, NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
@@ -42,7 +42,7 @@ fn is_verifier_in_verifier_set(deps: Deps, verifier_address: &Addr) -> StdResult
             }
 
             if let Ok(Some(verifier_set)) =
-                NEXT_VERIFIERSET_FOR_PROVER.may_load(deps.storage, prover_address)
+                NEXT_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address)
             {
                 if verifier_set
                     .signers
