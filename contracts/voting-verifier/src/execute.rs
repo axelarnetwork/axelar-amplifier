@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_json_binary, Addr, Deps, DepsMut, Env, MessageInfo, OverflowError, OverflowOperation,
+    to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
 
@@ -13,13 +13,16 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedVerifier};
 
-use crate::events::{
-    PollEnded, PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation, Voted,
-};
-use crate::query::verifier_set_status;
-use crate::state::{self, Poll, PollContent, POLL_MESSAGES, POLL_VERIFIER_SETS};
+use crate::state::{self, Poll, PollContent};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 use crate::{error::ContractError, query::message_status};
+use crate::{events::QuorumReached, query::verifier_set_status, state::poll_verifier_sets};
+use crate::{
+    events::{
+        PollEnded, PollMetadata, PollStarted, TxEventConfirmation, VerifierSetConfirmation, Voted,
+    },
+    state::poll_messages,
+};
 
 // TODO: this type of function exists in many contracts. Would be better to implement this
 // in one place, and then just include it
@@ -60,7 +63,7 @@ pub fn verify_verifier_set(
 
     let poll_id = create_verifier_set_poll(deps.storage, expires_at, snapshot)?;
 
-    POLL_VERIFIER_SETS.save(
+    poll_verifier_sets().save(
         deps.storage,
         &new_verifier_set.hash().as_slice().try_into().unwrap(),
         &PollContent::<VerifierSet>::new(new_verifier_set.clone(), poll_id),
@@ -134,7 +137,7 @@ pub fn verify_messages(
     let id = create_messages_poll(deps.storage, expires_at, snapshot, msgs_to_verify.len())?;
 
     for (idx, message) in msgs_to_verify.iter().enumerate() {
-        POLL_MESSAGES.save(
+        poll_messages().save(
             deps.storage,
             &message.hash(),
             &state::PollContent::<Message>::new(message.clone(), id, idx),
@@ -162,6 +165,62 @@ pub fn verify_messages(
     ))
 }
 
+/// Returns indices of items in the poll that have achieved quorum, along with the vote that acheived quorum for each
+fn get_indices_with_quorum(poll: &Poll) -> Vec<(u32, Vote)> {
+    let weighted_poll = match poll {
+        Poll::Messages(weighted_poll) => weighted_poll,
+        Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll,
+    };
+
+    weighted_poll
+        .state()
+        .results
+        .iter()
+        .enumerate()
+        .filter_map(|(e, v)| v.as_ref().map(|v| (e as u32, v.clone())))
+        .collect()
+}
+
+fn make_quorum_event(
+    vote: &Vote,
+    index_in_poll: u32,
+    poll_id: &PollId,
+    poll: &Poll,
+    deps: &DepsMut,
+) -> Result<Event, ContractError> {
+    let status = match vote {
+        Vote::SucceededOnChain => VerificationStatus::SucceededOnSourceChain,
+        Vote::FailedOnChain => VerificationStatus::FailedOnSourceChain,
+        Vote::NotFound => VerificationStatus::NotFoundOnSourceChain,
+    };
+
+    match poll {
+        Poll::Messages(_) => {
+            let msg = poll_messages()
+                .idx
+                .poll_idx
+                .load_message(deps.storage, *poll_id, index_in_poll)?
+                .expect("message not found in poll");
+            Ok(QuorumReached {
+                content: msg,
+                status,
+            }
+            .into())
+        }
+        Poll::ConfirmVerifierSet(_) => {
+            let verifier_set = poll_verifier_sets()
+                .idx
+                .poll_idx
+                .load_verifier_set(deps.storage, *poll_id)?
+                .expect("verifier set not found in poll");
+            Ok(QuorumReached {
+                content: verifier_set,
+                status,
+            }
+            .into())
+        }
+    }
+}
 pub fn vote(
     deps: DepsMut,
     env: Env,
@@ -171,21 +230,40 @@ pub fn vote(
 ) -> Result<Response, ContractError> {
     let poll = POLLS
         .may_load(deps.storage, poll_id)?
-        .ok_or(ContractError::PollNotFound)?
-        .try_map(|poll| {
-            poll.cast_vote(env.block.height, &info.sender, votes)
-                .map_err(ContractError::from)
-        })?;
+        .ok_or(ContractError::PollNotFound)?;
 
+    let initial_results = get_indices_with_quorum(&poll);
+
+    let poll = poll.try_map(|poll| {
+        poll.cast_vote(env.block.height, &info.sender, votes)
+            .map_err(ContractError::from)
+    })?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    Ok(Response::new().add_event(
-        Voted {
-            poll_id,
-            voter: info.sender,
-        }
-        .into(),
-    ))
+    let final_results = get_indices_with_quorum(&poll);
+
+    // we only want to emit a quorum reached event when quorum is first reached, and not subsequently
+    let reached_quorum: Vec<&(u32, Vote)> = final_results
+        .iter()
+        .filter(|e| !initial_results.contains(e))
+        .collect();
+
+    let events = reached_quorum
+        .iter()
+        .map(|(index_in_poll, vote)| {
+            make_quorum_event(vote, *index_in_poll, &poll_id, &poll, &deps)
+        })
+        .collect::<Result<Vec<Event>, _>>()?;
+
+    Ok(Response::new()
+        .add_event(
+            Voted {
+                poll_id,
+                voter: info.sender,
+            }
+            .into(),
+        )
+        .add_events(events))
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
