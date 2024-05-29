@@ -1,11 +1,12 @@
+use cosmwasm_std::{Addr, WasmMsg};
+use error_stack::ResultExt;
+
 use axelar_wasm_std::{
     nonempty,
-    operators::Operators,
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use cosmwasm_std::{Addr, WasmMsg};
-use error_stack::ResultExt;
+use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
 use crate::msg::{ExecuteMsg, MessageStatus, Poll, QueryMsg};
@@ -44,14 +45,14 @@ impl<'a> Client<'a> {
         self.client.execute(&ExecuteMsg::EndPoll { poll_id })
     }
 
-    pub fn verify_worker_set(
+    pub fn verify_verifier_set(
         &self,
         message_id: nonempty::String,
-        new_operators: Operators,
+        new_verifier_set: VerifierSet,
     ) -> WasmMsg {
         self.client.execute(&ExecuteMsg::VerifyVerifierSet {
             message_id,
-            new_operators,
+            new_verifier_set,
         })
     }
 
@@ -77,9 +78,9 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub fn worker_set_status(&self, new_operators: Operators) -> Result<VerificationStatus> {
+    pub fn verifier_set_status(&self, new_verifier_set: VerifierSet) -> Result<VerificationStatus> {
         self.client
-            .query(&QueryMsg::GetVerifierSetStatus { new_operators })
+            .query(&QueryMsg::GetVerifierSetStatus { new_verifier_set })
             .change_context_lazy(|| Error::QueryVotingVerifier(self.client.address.clone()))
     }
 
@@ -101,15 +102,17 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use axelar_wasm_std::{
-        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, operators::Operators, Threshold,
-        VerificationStatus,
+        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, Threshold, VerificationStatus,
     };
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
         Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
     };
+    use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
     use crate::{
@@ -169,13 +172,17 @@ mod test {
     }
 
     #[test]
-    fn query_worker_set_status() {
+    fn query_verifier_set_status() {
         let (querier, _, addr) = setup();
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 
         assert_eq!(
             client
-                .worker_set_status(Operators::new(vec![], Uint128::one(), 1))
+                .verifier_set_status(VerifierSet {
+                    signers: BTreeMap::new(),
+                    threshold: Uint128::one(),
+                    created_at: 0
+                })
                 .unwrap(),
             VerificationStatus::Unknown
         );

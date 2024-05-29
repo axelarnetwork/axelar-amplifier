@@ -1,12 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Event, MessageInfo, Response, StdResult,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo, Response,
+    StdResult,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use crate::{execute, migrations, query};
+use crate::{execute, query};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -51,8 +52,8 @@ pub fn execute(
         ExecuteMsg::EndPoll { poll_id } => execute::end_poll(deps, env, poll_id),
         ExecuteMsg::VerifyVerifierSet {
             message_id,
-            new_operators,
-        } => execute::verify_verifier_set(deps, env, message_id, new_operators),
+            new_verifier_set,
+        } => execute::verify_verifier_set(deps, env, message_id, new_verifier_set),
         ExecuteMsg::UpdateVotingThreshold {
             new_voting_threshold,
         } => {
@@ -73,8 +74,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetMessagesStatus { messages } => {
             to_json_binary(&query::messages_status(deps, &messages)?)
         }
-        QueryMsg::GetVerifierSetStatus { new_operators } => {
-            to_json_binary(&query::verifier_set_status(deps, &new_operators)?)
+        QueryMsg::GetVerifierSetStatus { new_verifier_set } => {
+            to_json_binary(&query::verifier_set_status(deps, &new_verifier_set)?)
         }
         QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
@@ -84,23 +85,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    msg: MigrateMsg,
+    _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     // any version checks should be done before here
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrations::v_0_3::migrate_config(deps, msg.source_gateway_address, msg.msg_id_format)
+    Ok(Response::default())
 }
 
 #[cfg(test)]
 mod test {
-
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-        to_json_vec, Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
+        Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
+    use sha3::{Digest, Keccak256};
 
     use axelar_wasm_std::{
         msg_id::{
@@ -108,15 +109,17 @@ mod test {
             tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
-        operators::Operators,
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
+    };
+    use multisig::{
+        key::KeyType,
+        test::common::{build_verifier_set, ecdsa_test_data},
     };
     use router_api::{ChainName, CrossChainId, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
-    use sha3::{Digest, Keccak256};
 
     use crate::{error::ContractError, events::TxEventConfirmation, msg::MessageStatus};
 
@@ -259,30 +262,7 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let initial_config = migrations::v_0_3::OldConfig {
-            governance: Addr::unchecked("governance"),
-            service_name: "service_name".parse().unwrap(),
-            service_registry_contract: Addr::unchecked("service_registry_address"),
-            source_gateway_address: "initial_source_gateway_address".parse().unwrap(),
-            voting_threshold: Threshold::try_from((2, 3)).unwrap().try_into().unwrap(),
-            block_expiry: 100,
-            confirmation_height: 100,
-            source_chain: "source-chain".parse().unwrap(),
-            rewards_contract: Addr::unchecked("rewards_address"),
-        };
-        deps.as_mut()
-            .storage
-            .set(CONFIG.as_slice(), &to_json_vec(&initial_config).unwrap());
-
-        migrate(
-            deps.as_mut(),
-            mock_env(),
-            MigrateMsg {
-                source_gateway_address: "new_source_gateway_address".parse().unwrap(),
-                msg_id_format: MessageIdFormat::HexTxHashAndEventIndex,
-            },
-        )
-        .unwrap();
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
 
         let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
         assert_eq!(contract_version.contract, "voting-verifier");
@@ -542,7 +522,7 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // 2. Workers cast votes, but only reach consensus on the first three messages
+        // 2. Verifiers cast votes, but only reach consensus on the first three messages
 
         verifiers.iter().enumerate().for_each(|(i, verifier)| {
             let msg = ExecuteMsg::Vote {
@@ -833,16 +813,15 @@ mod test {
     }
 
     #[test]
-    fn should_start_worker_set_confirmation() {
+    fn should_start_verifier_set_confirmation() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
-            new_operators: operators.clone(),
+            new_verifier_set: verifier_set.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
@@ -852,7 +831,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -862,16 +841,15 @@ mod test {
     }
 
     #[test]
-    fn should_confirm_worker_set() {
+    fn should_confirm_verifier_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let msg = ExecuteMsg::VerifyVerifierSet {
             message_id: message_id("id", 0, &msg_id_format),
-            new_operators: operators.clone(),
+            new_verifier_set: verifier_set.clone(),
         };
         let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg);
         assert!(res.is_ok());
@@ -905,7 +883,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -915,20 +893,19 @@ mod test {
     }
 
     #[test]
-    fn should_not_confirm_worker_set() {
+    fn should_not_confirm_verifier_set() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -961,7 +938,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -971,20 +948,19 @@ mod test {
     }
 
     #[test]
-    fn should_confirm_worker_set_after_failed() {
+    fn should_confirm_verifier_set_after_failed() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1017,7 +993,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -1031,7 +1007,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1064,7 +1040,7 @@ mod test {
                 deps.as_ref(),
                 mock_env(),
                 QueryMsg::GetVerifierSetStatus {
-                    new_operators: operators.clone(),
+                    new_verifier_set: verifier_set.clone(),
                 },
             )
             .unwrap(),
@@ -1079,15 +1055,14 @@ mod test {
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
 
-        let operators =
-            Operators::new(vec![(vec![0, 1, 0, 1].into(), 1u64.into())], 1u64.into(), 1);
+        let verifier_set = build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers());
         let res = execute(
             deps.as_mut(),
             mock_env(),
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         );
         assert!(res.is_ok());
@@ -1121,7 +1096,7 @@ mod test {
             mock_info(SENDER, &[]),
             ExecuteMsg::VerifyVerifierSet {
                 message_id: message_id("id", 0, &msg_id_format),
-                new_operators: operators.clone(),
+                new_verifier_set: verifier_set.clone(),
             },
         )
         .unwrap();

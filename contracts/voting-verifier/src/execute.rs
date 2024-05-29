@@ -4,13 +4,12 @@ use cosmwasm_std::{
 };
 
 use axelar_wasm_std::{
-    nonempty,
-    operators::Operators,
-    snapshot,
+    nonempty, snapshot,
     voting::{PollId, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,
 };
 
+use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedVerifier};
 
@@ -47,9 +46,9 @@ pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
     message_id: nonempty::String,
-    new_operators: Operators,
+    new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
-    let status = verifier_set_status(deps.as_ref(), &new_operators)?;
+    let status = verifier_set_status(deps.as_ref(), &new_verifier_set)?;
     if status.is_confirmed() {
         return Ok(Response::new());
     }
@@ -63,8 +62,8 @@ pub fn verify_verifier_set(
 
     POLL_VERIFIER_SETS.save(
         deps.storage,
-        &new_operators.hash(),
-        &PollContent::<Operators>::new(new_operators.clone(), poll_id),
+        &new_verifier_set.hash().as_slice().try_into().unwrap(),
+        &PollContent::<VerifierSet>::new(new_verifier_set.clone(), poll_id),
     )?;
 
     Ok(Response::new().add_event(
@@ -72,7 +71,7 @@ pub fn verify_verifier_set(
             verifier_set: VerifierSetConfirmation::new(
                 message_id,
                 config.msg_id_format,
-                new_operators,
+                new_verifier_set,
             )?,
             metadata: PollMetadata {
                 poll_id,

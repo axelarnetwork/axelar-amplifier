@@ -11,6 +11,7 @@
 - [Voting Verifier](contracts/voting_verifier.md)
 - [Multisig Prover](contracts/multisig_prover.md)
 - [Rewards](contracts/rewards.md)
+- [Coordinator](contracts/coordinator.md)
 
 # Contributing
 

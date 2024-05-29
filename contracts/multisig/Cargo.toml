@@ -1,6 +1,6 @@
 [package]
 name = "multisig"
-version = "0.2.1"
+version = "0.3.0"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Multisig contract"
@@ -29,6 +29,8 @@ library = []
 secp256k1 = []
 # use this feature to enable ed25519 for signature verification
 ed25519 = []
+# use this feature to enable test utils
+test = []
 
 [package.metadata.scripts]
 optimize = """docker run --rm -v "$(pwd)":/code \

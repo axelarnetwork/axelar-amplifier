@@ -3,10 +3,10 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     msg_id::MessageIdFormat,
     nonempty,
-    operators::Operators,
     voting::{PollId, Vote},
     MajorityThreshold, VerificationStatus,
 };
+use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 
 #[cw_serde]
@@ -58,7 +58,7 @@ pub enum ExecuteMsg {
     // Starts a poll to confirm a verifier set update on the external gateway
     VerifyVerifierSet {
         message_id: nonempty::String,
-        new_operators: Operators,
+        new_verifier_set: VerifierSet,
     },
 
     // Update the threshold used for new polls. Callable only by governance
@@ -83,7 +83,7 @@ pub enum QueryMsg {
     GetMessagesStatus { messages: Vec<Message> },
 
     #[returns(VerificationStatus)]
-    GetVerifierSetStatus { new_operators: Operators },
+    GetVerifierSetStatus { new_verifier_set: VerifierSet },
 
     #[returns(MajorityThreshold)]
     GetCurrentThreshold,
@@ -99,10 +99,4 @@ impl MessageStatus {
     pub fn new(message: Message, status: VerificationStatus) -> Self {
         Self { message, status }
     }
-}
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub source_gateway_address: nonempty::String,
-    pub msg_id_format: MessageIdFormat,
 }

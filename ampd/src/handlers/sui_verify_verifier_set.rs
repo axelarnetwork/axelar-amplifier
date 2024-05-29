@@ -6,6 +6,7 @@ use cosmrs::{tx::Msg, Any};
 use cosmwasm_std::HexBinary;
 use cosmwasm_std::Uint128;
 use error_stack::ResultExt;
+use multisig::verifier_set::VerifierSet;
 use serde::Deserialize;
 use sui_types::base_types::{SuiAddress, TransactionDigest};
 use tokio::sync::watch::Receiver;
@@ -34,7 +35,7 @@ pub struct Operators {
 pub struct VerifierSetConfirmation {
     pub tx_id: TransactionDigest,
     pub event_index: u32,
-    pub verifier_set: Operators,
+    pub verifier_set: VerifierSet,
 }
 
 #[derive(Deserialize, Debug)]
@@ -161,15 +162,17 @@ where
 mod tests {
     use std::convert::TryInto;
 
-    use cosmwasm_std::HexBinary;
     use error_stack::{Report, Result};
     use ethers::providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;
 
-    use axelar_wasm_std::operators::Operators;
     use events::Event;
+    use multisig::{
+        key::KeyType,
+        test::common::{build_verifier_set, ecdsa_test_data},
+    };
     use voting_verifier::events::{PollMetadata, PollStarted, VerifierSetConfirmation};
 
     use crate::event_processor::EventHandler;
@@ -250,24 +253,7 @@ mod tests {
             verifier_set: VerifierSetConfirmation {
                 tx_id: TransactionDigest::random().to_string().parse().unwrap(),
                 event_index: 0,
-                verifier_set: Operators::new(
-                    vec![
-                        (
-                            HexBinary::from(SuiAddress::random_for_testing_only().to_vec()),
-                            1u64.into(),
-                        ),
-                        (
-                            HexBinary::from(SuiAddress::random_for_testing_only().to_vec()),
-                            1u64.into(),
-                        ),
-                        (
-                            HexBinary::from(SuiAddress::random_for_testing_only().to_vec()),
-                            1u64.into(),
-                        ),
-                    ],
-                    2u64.into(),
-                    1,
-                ),
+                verifier_set: build_verifier_set(KeyType::Ecdsa, &ecdsa_test_data::signers()),
             },
         }
     }
