@@ -810,12 +810,12 @@ pub fn setup_chain(
     );
     assert!(response.is_ok());
 
-    let worker_set = verifiers_to_verifier_set(protocol, verifiers);
+    let verifier_set = verifiers_to_verifier_set(protocol, verifiers);
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         multisig_prover.contract_addr.clone(),
         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-            next_verifier_set: worker_set,
+            next_verifier_set: verifier_set,
         },
     );
     assert!(response.is_ok());
@@ -866,15 +866,15 @@ pub fn rotate_active_verifier_set(
     ));
     assert_eq!(proof.message_ids.len(), 0);
 
-    let new_worker_set = verifiers_to_verifier_set(protocol, new_verifiers);
-    let (poll_id, expiry) = create_worker_set_poll(
+    let new_verifier_set = verifiers_to_verifier_set(protocol, new_verifiers);
+    let (poll_id, expiry) = create_verifier_set_poll(
         &mut protocol.app,
         Addr::unchecked("relayer"),
         &chain.voting_verifier,
-        new_worker_set.clone(),
+        new_verifier_set.clone(),
     );
 
-    vote_true_for_worker_set(
+    vote_true_for_verifier_set(
         &mut protocol.app,
         &chain.voting_verifier,
         new_verifiers,

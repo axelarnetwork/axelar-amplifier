@@ -1,5 +1,7 @@
 use crate::error::ContractError;
-use crate::state::{ACTIVE_VERIFIER_SET_FOR_PROVER, NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN};
+use crate::state::{
+    ACTIVE_VERIFIER_SET_FOR_PROVER, NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN,
+};
 use cosmwasm_std::{Addr, Deps, StdResult};
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
