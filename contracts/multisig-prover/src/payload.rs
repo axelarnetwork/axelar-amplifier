@@ -9,7 +9,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
 
 use crate::{
-    encoding::{abi, Encoder},
+    encoding::{abi, mvx, Encoder},
     error::ContractError,
 };
 
@@ -46,7 +46,7 @@ impl Payload {
         match encoder {
             Encoder::Abi => abi::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
             Encoder::Bcs => todo!(),
-            Encoder::Mvx => todo!(),
+            Encoder::Mvx => mvx::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
         }
     }
 

@@ -1,4 +1,5 @@
 pub mod abi;
+pub mod mvx;
 
 use cosmwasm_schema::cw_serde;
 
