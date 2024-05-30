@@ -1359,15 +1359,13 @@ mod test {
 
             // should emit event when vote causes quorum to be reached
             assert_eq!(
-                res.events
-                    .iter()
-                    .find(|event| event.ty == "quorum_reached")
-                    .is_some(),
+                res.events.iter().any(|event| event.ty == "quorum_reached"),
                 i == votes_to_reach_quorum - 1
             );
 
             if i == votes_to_reach_quorum - 1 {
                 let mut iter = res.events.iter();
+
                 let first_event = iter.find(|event| event.ty == "quorum_reached").unwrap();
 
                 let msg: Message = serde_json::from_str(
@@ -1380,6 +1378,7 @@ mod test {
                 )
                 .unwrap();
                 assert_eq!(msg, messages[0]);
+
                 let status: VerificationStatus = serde_json::from_str(
                     &first_event
                         .attributes
@@ -1403,6 +1402,7 @@ mod test {
                 )
                 .unwrap();
                 assert_eq!(msg, messages[1]);
+
                 let status: VerificationStatus = serde_json::from_str(
                     &second_event
                         .attributes

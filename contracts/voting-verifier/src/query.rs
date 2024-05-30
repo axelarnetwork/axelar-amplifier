@@ -50,7 +50,7 @@ pub fn verifier_set_status(
     Ok(verification_status(deps, loaded_poll_content, verifier_set))
 }
 
-pub fn verification_status<T: PartialEq + std::fmt::Debug>(
+fn verification_status<T: PartialEq + std::fmt::Debug>(
     deps: Deps,
     stored_poll_content: Option<PollContent<T>>,
     content: &T,

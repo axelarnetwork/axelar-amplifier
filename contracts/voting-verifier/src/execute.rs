@@ -165,7 +165,7 @@ pub fn verify_messages(
     ))
 }
 
-/// Returns indices of items in the poll that have achieved quorum, along with the vote that acheived quorum for each
+/// Returns indices of items in the poll that have achieved quorum, along with their respective results
 fn get_indices_with_quorum(poll: &Poll) -> Vec<(u32, Vote)> {
     let weighted_poll = match poll {
         Poll::Messages(weighted_poll) => weighted_poll,
