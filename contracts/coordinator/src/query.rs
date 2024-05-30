@@ -23,13 +23,13 @@ pub fn active_verifier_set(deps: Deps, chain_name: ChainName) -> StdResult<Optio
     }
 }
 
-// TODO: Use the chain name to find out which provers to query.
 fn is_verifier_in_verifier_set(deps: Deps, verifier_address: &Addr) -> StdResult<bool> {
-    let chain_names: StdResult<Vec<ChainName>> = PROVER_PER_CHAIN
+    // TODO: Use map lookup for chain names to find out which provers to query (to have better performance).
+    let chain_names = PROVER_PER_CHAIN
         .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
-        .collect();
+        .collect::<StdResult<Vec<_>>>()?;
 
-    for chain_name in chain_names? {
+    for chain_name in chain_names {
         if let Ok(prover_address) = PROVER_PER_CHAIN.load(deps.storage, chain_name) {
             if let Ok(Some(verifier_set)) =
                 ACTIVE_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address.clone())

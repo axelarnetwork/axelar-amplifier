@@ -1,12 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
     QueryRequest, Response, Uint128, WasmQuery,
 };
 
 use crate::error::ContractError;
-use crate::migrations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
 
@@ -15,18 +14,6 @@ mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _msg: Empty,
-) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    migrations::v_0_3::migrate(deps).map_err(axelar_wasm_std::ContractError::from)
-}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -218,17 +205,6 @@ mod test {
         expected: impl Into<axelar_wasm_std::ContractError>,
     ) {
         assert_eq!(actual.into().to_string(), expected.into().to_string());
-    }
-
-    #[test]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "service-registry");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
