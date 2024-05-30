@@ -64,14 +64,14 @@ impl Payload {
         signers_with_sigs: Vec<SignerWithSig>,
         payload: &Payload,
     ) -> Result<HexBinary, ContractError> {
-        let payload_hash = payload.digest(encoder, domain_separator, verifier_set)?;
-
         match encoder {
             Encoder::Abi => {
+                let payload_hash = payload.digest(encoder, domain_separator, verifier_set)?;
+
                 abi::execute_data::encode(verifier_set, signers_with_sigs, &payload_hash, payload)
             }
             Encoder::Bcs => todo!(),
-            Encoder::Mvx => todo!(),
+            Encoder::Mvx => mvx::execute_data::encode(verifier_set, signers_with_sigs, payload)
         }
     }
 }
