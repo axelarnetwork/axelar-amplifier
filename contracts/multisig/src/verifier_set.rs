@@ -59,4 +59,8 @@ impl VerifierSet {
             .map(|(address, signer)| (address.clone(), signer.pub_key.clone()))
             .collect()
     }
+
+    pub fn includes(&self, given_address: &str) -> bool {
+        self.signers.contains_key(given_address)
+    }
 }

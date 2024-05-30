@@ -34,11 +34,7 @@ fn is_verifier_in_verifier_set(deps: Deps, verifier_address: &Addr) -> StdResult
             if let Ok(Some(verifier_set)) =
                 ACTIVE_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address.clone())
             {
-                if verifier_set
-                    .signers
-                    .values()
-                    .any(|signer| signer.address == *verifier_address)
-                {
+                if verifier_set.includes(verifier_address.as_ref()) {
                     return Ok(true);
                 }
             }
@@ -46,11 +42,7 @@ fn is_verifier_in_verifier_set(deps: Deps, verifier_address: &Addr) -> StdResult
             if let Ok(Some(verifier_set)) =
                 NEXT_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address)
             {
-                if verifier_set
-                    .signers
-                    .values()
-                    .any(|signer| signer.address == *verifier_address)
-                {
+                if verifier_set.includes(verifier_address.as_ref()) {
                     return Ok(true);
                 }
             }
