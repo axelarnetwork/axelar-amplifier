@@ -4,7 +4,9 @@ use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 
 use crate::error::ContractError;
-use crate::state::{ACTIVE_VERIFIER_SET_FOR_PROVER, CONFIG, PROVER_PER_CHAIN};
+use crate::state::{
+    ACTIVE_VERIFIER_SET_FOR_PROVER, CONFIG, NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN,
+};
 
 pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -29,5 +31,14 @@ pub fn set_active_verifier_set(
     next_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     ACTIVE_VERIFIER_SET_FOR_PROVER.save(deps.storage, info.sender, &(next_verifier_set))?;
+    Ok(Response::new())
+}
+
+pub fn set_next_verifier_set(
+    deps: DepsMut,
+    info: MessageInfo,
+    next_verifier_set: VerifierSet,
+) -> Result<Response, ContractError> {
+    NEXT_VERIFIER_SET_FOR_PROVER.save(deps.storage, info.sender, &(next_verifier_set))?;
     Ok(Response::new())
 }
