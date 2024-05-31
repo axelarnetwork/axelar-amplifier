@@ -344,23 +344,23 @@ where
                 } => self.create_handler_task(
                     "mvx-msg-verifier",
                     handlers::mvx_verify_msg::Handler::new(
-                        worker.clone(),
+                        verifier.clone(),
                         cosmwasm_contract,
                         CommunicationProxy::new(proxy_url.to_string()),
-                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
                 ),
-                handlers::config::Config::MvxWorkerSetVerifier {
+                handlers::config::Config::MvxVerifierSetVerifier {
                     cosmwasm_contract,
                     proxy_url,
                 } => self.create_handler_task(
                     "mvx-worker-set-verifier",
-                    handlers::mvx_verify_worker_set::Handler::new(
-                        worker.clone(),
+                    handlers::mvx_verify_verifier_set::Handler::new(
+                        verifier.clone(),
                         cosmwasm_contract,
                         CommunicationProxy::new(proxy_url.to_string()),
-                        self.broadcaster.client(),
+                        self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
                 ),

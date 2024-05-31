@@ -64,7 +64,7 @@ cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 proxy_url = 'http://127.0.0.1/'
 
 [[handlers]]
-type = 'MvxWorkerSetVerifier'
+type = 'MvxVerifierSetVerifier'
 cosmwasm_contract = 'axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6'
 proxy_url = 'http://127.0.0.1/'
 

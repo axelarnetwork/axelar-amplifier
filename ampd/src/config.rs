@@ -123,7 +123,7 @@ mod tests {
             proxy_url = 'http://localhost:7545'
 
             [[handlers]]
-            type = 'MvxWorkerSetVerifier'
+            type = 'MvxVerifierSetVerifier'
             cosmwasm_contract = '{}'
             proxy_url = 'http://localhost:7545'
             ",
@@ -324,7 +324,7 @@ mod tests {
                     ),
                     proxy_url: Url::from_str("http://127.0.0.1").unwrap(),
                 },
-                HandlerConfig::MvxWorkerSetVerifier {
+                HandlerConfig::MvxVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

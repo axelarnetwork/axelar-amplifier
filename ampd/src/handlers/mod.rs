@@ -8,7 +8,7 @@ pub mod multisig;
 pub mod sui_verify_msg;
 pub mod sui_verify_verifier_set;
 pub mod mvx_verify_msg;
-pub mod mvx_verify_worker_set;
+pub mod mvx_verify_verifier_set;
 
 #[cfg(test)]
 mod tests {

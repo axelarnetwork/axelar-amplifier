@@ -51,7 +51,7 @@ pub enum Config {
         cosmwasm_contract: TMAddress,
         proxy_url: Url,
     },
-    MvxWorkerSetVerifier {
+    MvxVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         proxy_url: Url,
     },
@@ -172,7 +172,7 @@ fn validate_mvx_worker_set_verifier_config<'de, D>(configs: &[Config]) -> Result
 {
     match configs
         .iter()
-        .filter(|config| matches!(config, Config::MvxWorkerSetVerifier { .. }))
+        .filter(|config| matches!(config, Config::MvxVerifierSetVerifier { .. }))
         .count()
     {
         count if count > 1 => Err(de::Error::custom(

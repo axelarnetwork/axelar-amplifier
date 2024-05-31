@@ -257,6 +257,7 @@ dependencies = [
  "mockall",
  "move-core-types",
  "multisig",
+ "multisig-prover",
  "multiversx-sc-codec",
  "multiversx-sdk",
  "num-traits",
