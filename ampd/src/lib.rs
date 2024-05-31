@@ -98,7 +98,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         Some(pub_key) => pub_key,
         None => {
             let pub_key = multisig_client
-                .keygen(&tofnd_config.key_uid)
+                .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
                 .await
                 .change_context(Error::Tofnd)?;
             state_updater.as_mut().pub_key = Some(pub_key);

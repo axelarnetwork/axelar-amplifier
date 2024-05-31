@@ -21,7 +21,7 @@ use multisig::msg::ExecuteMsg;
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
 use crate::tofnd::grpc::Multisig;
-use crate::tofnd::MessageDigest;
+use crate::tofnd::{self, MessageDigest};
 use crate::types::PublicKey;
 use crate::types::TMAddress;
 
@@ -152,7 +152,12 @@ where
             Some(pub_key) => {
                 let signature = self
                     .signer
-                    .sign(self.multisig.to_string().as_str(), msg.clone(), pub_key)
+                    .sign(
+                        self.multisig.to_string().as_str(),
+                        msg.clone(),
+                        pub_key,
+                        tofnd::Algorithm::Ecdsa,
+                    )
                     .await
                     .change_context(Error::Sign)?;
 
@@ -421,7 +426,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let handler = get_handler(
             rand_account(),
@@ -441,7 +446,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -464,7 +469,7 @@ mod test {
         let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();

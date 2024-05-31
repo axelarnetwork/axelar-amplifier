@@ -64,7 +64,7 @@ async fn verifier_pub_key(state_path: &Path, config: tofnd::Config) -> Result<Pu
         None => MultisigClient::new(config.party_uid, config.url)
             .await
             .change_context(Error::Connection)?
-            .keygen(&config.key_uid)
+            .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
             .await
             .change_context(Error::Tofnd),
     }
