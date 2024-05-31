@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{key::PublicKey, msg::Signer};
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint128};
+use cosmwasm_std::{Addr, HexBinary, Uint128};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
@@ -60,7 +60,7 @@ impl VerifierSet {
             .collect()
     }
 
-    pub fn includes(&self, given_address: &str) -> bool {
-        self.signers.contains_key(given_address)
+    pub fn includes(&self, signer: &Addr) -> bool {
+        self.signers.contains_key(signer.as_str())
     }
 }
