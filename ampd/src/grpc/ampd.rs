@@ -5,11 +5,8 @@ use events::Event;
 use futures::{Stream, StreamExt, TryStreamExt};
 use tonic::{Request, Response, Status};
 
+use super::proto;
 use crate::{event_sub::EventSub, queue::queued_broadcaster::BroadcasterClient};
-
-pub mod proto {
-    tonic::include_proto!("ampd");
-}
 
 impl From<Event> for proto::subscribe_response::Event {
     fn from(event: Event) -> Self {

@@ -29,7 +29,8 @@ use dec_coin::DecCoin;
 use report::LoggableError;
 use tx::Tx;
 
-use crate::tofnd::grpc::SharableEcdsaClient;
+use crate::tofnd;
+use crate::tofnd::grpc::Multisig;
 use crate::types::{PublicKey, TMAddress};
 
 pub mod accounts;
@@ -92,9 +93,9 @@ pub trait Broadcaster {
 }
 
 #[derive(TypedBuilder)]
-pub struct BroadcastClient<T, Q> {
+pub struct BroadcastClient<T, S, Q> {
     client: T,
-    signer: SharableEcdsaClient,
+    signer: S,
     query_client: Q,
     address: TMAddress,
     #[builder(default, setter(skip))]
@@ -104,9 +105,10 @@ pub struct BroadcastClient<T, Q> {
 }
 
 #[async_trait]
-impl<T, Q> Broadcaster for BroadcastClient<T, Q>
+impl<T, S, Q> Broadcaster for BroadcastClient<T, S, Q>
 where
     T: clients::BroadcastClient + Send,
+    S: Multisig + Send + Sync,
     Q: clients::AccountQueryClient + Send,
 {
     async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error> {
@@ -127,8 +129,12 @@ where
                     .try_into()
                     .expect("hash size must be 32");
 
-                self.signer
-                    .sign(self.pub_key.0.as_str(), sign_digest.into(), &self.pub_key.1)
+                self.signer.sign(
+                    self.pub_key.0.as_str(),
+                    sign_digest.into(),
+                    &self.pub_key.1,
+                    tofnd::Algorithm::Ecdsa,
+                )
             })
             .await
             .change_context(Error::TxBuilding)?;
@@ -168,7 +174,7 @@ where
     }
 }
 
-impl<T, Q> BroadcastClient<T, Q>
+impl<T, S, Q> BroadcastClient<T, S, Q>
 where
     T: clients::BroadcastClient,
     Q: clients::AccountQueryClient,
@@ -310,7 +316,7 @@ mod tests {
 
     use crate::broadcaster::clients::{MockAccountQueryClient, MockBroadcastClient};
     use crate::broadcaster::{BroadcastClient, Broadcaster, Config, Error};
-    use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
+    use crate::tofnd::grpc::MockMultisig;
     use crate::types::{PublicKey, TMAddress};
     use crate::PREFIX;
 
@@ -335,7 +341,7 @@ mod tests {
             .expect_simulate()
             .returning(|_| Err(Status::unavailable("unavailable service").into()));
 
-        let signer = MockEcdsaClient::new();
+        let signer = MockMultisig::default();
 
         let mut query_client = MockAccountQueryClient::new();
         query_client.expect_account().returning(move |_| {
@@ -346,7 +352,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
@@ -388,7 +394,7 @@ mod tests {
             })
         });
 
-        let signer = MockEcdsaClient::new();
+        let signer = MockMultisig::default();
 
         let mut query_client = MockAccountQueryClient::new();
         query_client.expect_account().returning(move |_| {
@@ -399,7 +405,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
@@ -447,11 +453,11 @@ mod tests {
             .expect_broadcast_tx()
             .returning(|_| Err(Status::aborted("failed").into()));
 
-        let mut signer = MockEcdsaClient::new();
+        let mut signer = MockMultisig::default();
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -471,7 +477,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
@@ -523,11 +529,11 @@ mod tests {
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
             .returning(|_| Err(Status::deadline_exceeded("time out").into()));
 
-        let mut signer = MockEcdsaClient::new();
+        let mut signer = MockMultisig::default();
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -547,7 +553,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
@@ -604,11 +610,11 @@ mod tests {
             })
         });
 
-        let mut signer = MockEcdsaClient::new();
+        let mut signer = MockMultisig::default();
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -628,7 +634,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
@@ -687,11 +693,11 @@ mod tests {
             })
         });
 
-        let mut signer = MockEcdsaClient::new();
+        let mut signer = MockMultisig::default();
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -711,7 +717,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
@@ -763,11 +769,11 @@ mod tests {
             })
         });
 
-        let mut signer = MockEcdsaClient::new();
+        let mut signer = MockMultisig::default();
         signer
             .expect_sign()
             .times(3)
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -802,7 +808,7 @@ mod tests {
 
         let mut broadcaster = BroadcastClient::builder()
             .client(client)
-            .signer(SharableEcdsaClient::new(signer))
+            .signer(signer)
             .query_client(query_client)
             .address(address)
             .pub_key((key_id.to_string(), pub_key))
