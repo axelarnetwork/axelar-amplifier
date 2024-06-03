@@ -4,11 +4,11 @@ use std::time::Duration;
 use std::{cmp, thread};
 
 use async_trait::async_trait;
-use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmos_sdk_proto::cosmos::tx::v1beta1::{
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest,
 };
-use cosmos_sdk_proto::traits::MessageExt;
+use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Coin, Gas};
@@ -297,11 +297,11 @@ enum ConfirmationResult {
 
 #[cfg(test)]
 mod tests {
-    use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
-    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
-    use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
-    use cosmos_sdk_proto::traits::MessageExt;
-    use cosmos_sdk_proto::Any;
+    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
+    use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
+    use cosmrs::proto::traits::MessageExt;
+    use cosmrs::proto::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use ecdsa::SigningKey;
     use rand::rngs::OsRng;
