@@ -14,6 +14,7 @@ use tracing::info;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
+use crate::tofnd;
 use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
@@ -29,7 +30,7 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
         .await
         .change_context(Error::Connection)?;
     let multisig_key = multisig_client
-        .keygen(&multisig_address.to_string())
+        .keygen(&multisig_address.to_string(), tofnd::Algorithm::Ecdsa)
         .await
         .change_context(Error::Tofnd)?;
     info!(key_id = multisig_address.to_string(), "keygen successful");
@@ -46,6 +47,7 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
             &multisig_address.to_string(),
             address_hash.into(),
             &multisig_key,
+            tofnd::Algorithm::Ecdsa,
         )
         .await
         .change_context(Error::Tofnd)?

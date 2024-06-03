@@ -11,6 +11,8 @@ mod proto {
     tonic::include_proto!("tofnd");
 }
 
+pub use proto::Algorithm;
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
     pub url: Url,
@@ -31,7 +33,7 @@ impl Default for Config {
 // Signature is an alias for signature in raw bytes
 pub type Signature = Vec<u8>;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct MessageDigest([u8; 32]);
 
 impl FromHex for MessageDigest {

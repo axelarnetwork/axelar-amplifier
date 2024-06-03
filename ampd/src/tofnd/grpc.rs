@@ -11,8 +11,8 @@ use tonic::{transport::Channel, Status};
 use crate::{types::PublicKey, url::Url};
 
 use super::proto::{
-    keygen_response::KeygenResponse, multisig_client, sign_response::SignResponse, KeygenRequest,
-    SignRequest,
+    keygen_response::KeygenResponse, multisig_client, sign_response::SignResponse, Algorithm,
+    KeygenRequest, SignRequest,
 };
 use super::{error::Error, error::TofndError, MessageDigest, Signature};
 
@@ -21,12 +21,13 @@ type Result<T> = error_stack::Result<T, Error>;
 #[automock]
 #[async_trait]
 pub trait Multisig {
-    async fn keygen(&self, key_uid: &str) -> Result<PublicKey>;
+    async fn keygen(&self, key_uid: &str, algorithm: Algorithm) -> Result<PublicKey>;
     async fn sign(
         &self,
         key_uid: &str,
         data: MessageDigest,
         pub_key: &PublicKey,
+        algorithm: Algorithm,
     ) -> Result<Signature>;
 }
 
@@ -51,10 +52,11 @@ impl MultisigClient {
 
 #[async_trait]
 impl Multisig for MultisigClient {
-    async fn keygen(&self, key_uid: &str) -> Result<PublicKey> {
+    async fn keygen(&self, key_uid: &str, algorithm: Algorithm) -> Result<PublicKey> {
         let request = KeygenRequest {
             key_uid: key_uid.to_string(),
             party_uid: self.party_uid.to_string(),
+            algorithm: algorithm.into(),
         };
 
         self.client
@@ -87,12 +89,14 @@ impl Multisig for MultisigClient {
         key_uid: &str,
         data: MessageDigest,
         pub_key: &PublicKey,
+        algorithm: Algorithm,
     ) -> Result<Signature> {
         let request = SignRequest {
             key_uid: key_uid.to_string(),
             msg_to_sign: data.into(),
             party_uid: self.party_uid.to_string(),
             pub_key: pub_key.to_bytes(),
+            algorithm: algorithm.into(),
         };
 
         self.client

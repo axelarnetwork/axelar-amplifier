@@ -29,6 +29,7 @@ use dec_coin::DecCoin;
 use report::LoggableError;
 use tx::Tx;
 
+use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
 use crate::types::{PublicKey, TMAddress};
 
@@ -128,8 +129,12 @@ where
                     .try_into()
                     .expect("hash size must be 32");
 
-                self.signer
-                    .sign(self.pub_key.0.as_str(), sign_digest.into(), &self.pub_key.1)
+                self.signer.sign(
+                    self.pub_key.0.as_str(),
+                    sign_digest.into(),
+                    &self.pub_key.1,
+                    tofnd::Algorithm::Ecdsa,
+                )
             })
             .await
             .change_context(Error::TxBuilding)?;
@@ -452,7 +457,7 @@ mod tests {
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -528,7 +533,7 @@ mod tests {
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -609,7 +614,7 @@ mod tests {
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -692,7 +697,7 @@ mod tests {
         signer
             .expect_sign()
             .once()
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
@@ -768,7 +773,7 @@ mod tests {
         signer
             .expect_sign()
             .times(3)
-            .returning(move |actual_key_uid, data, actual_pub_key| {
+            .returning(move |actual_key_uid, data, actual_pub_key, _| {
                 assert_eq!(actual_key_uid, key_id);
                 assert_eq!(actual_pub_key, &pub_key);
 
