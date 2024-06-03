@@ -14,7 +14,7 @@ use tracing::info;
 
 use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
-use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
+use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
@@ -25,12 +25,10 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
 
     let tofnd_config = config.tofnd_config.clone();
 
-    let ecdsa_client = SharableEcdsaClient::new(
-        MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
-            .await
-            .change_context(Error::Connection)?,
-    );
-    let multisig_key = ecdsa_client
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
+        .await
+        .change_context(Error::Connection)?;
+    let multisig_key = multisig_client
         .keygen(&multisig_address.to_string())
         .await
         .change_context(Error::Tofnd)?;
@@ -43,7 +41,7 @@ pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Er
         .try_into()
         .expect("wrong length");
 
-    let signed_sender_address = ecdsa_client
+    let signed_sender_address = multisig_client
         .sign(
             &multisig_address.to_string(),
             address_hash.into(),
