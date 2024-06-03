@@ -145,6 +145,7 @@ pub fn evm_address(pub_key: &PublicKey) -> Result<Address, Report<Error>> {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::{Addr, HexBinary, Uint128};
+    use ethers::utils::to_checksum;
 
     use axelar_wasm_std::{nonempty, snapshot::Participant};
     use multisig::{key::PublicKey, verifier_set::VerifierSet};
@@ -193,7 +194,7 @@ mod test {
         assert_eq!(gateway_message.message_id, message_id);
         assert_eq!(gateway_message.source_address, source_address);
         assert_eq!(
-            gateway_message.contract_address.to_string(),
+            to_checksum(&gateway_message.contract_address, None),
             destination_address
         );
         assert_eq!(gateway_message.payload_hash, router_messages.payload_hash);
