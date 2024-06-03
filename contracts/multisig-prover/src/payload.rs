@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use error_stack::Result;
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
@@ -55,6 +56,7 @@ impl Payload {
             Payload::VerifierSet(_) => None,
         }
     }
+
     pub fn execute_data(
         &self,
         encoder: Encoder,
