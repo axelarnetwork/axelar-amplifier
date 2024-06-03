@@ -244,7 +244,7 @@ pub fn update_verifier_set(
 
             save_next_verifier_set(deps.storage, &new_verifier_set)?;
 
-            let payload = Payload::VerifierSet(new_verifier_set);
+            let payload = Payload::VerifierSet(new_verifier_set.clone());
             let payload_id = payload.id();
             PAYLOAD
                 .save(deps.storage, &payload_id, &payload)
@@ -263,11 +263,22 @@ pub fn update_verifier_set(
                 chain_name: config.chain_name,
             };
 
-            Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-                wasm_execute(config.multisig, &start_sig_msg, vec![])
+            Ok(Response::new()
+                .add_submessage(SubMsg::reply_on_success(
+                    wasm_execute(config.multisig, &start_sig_msg, vec![])
+                        .map_err(ContractError::from)?,
+                    START_MULTISIG_REPLY_ID,
+                ))
+                .add_message(
+                    wasm_execute(
+                        config.coordinator.clone(),
+                        &coordinator::msg::ExecuteMsg::SetNextVerifiers {
+                            next_verifier_set: new_verifier_set,
+                        },
+                        vec![],
+                    )
                     .map_err(ContractError::from)?,
-                START_MULTISIG_REPLY_ID,
-            )))
+                ))
         }
     }
 }

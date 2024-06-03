@@ -7467,6 +7467,7 @@ version = "0.3.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
+ "coordinator",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test",

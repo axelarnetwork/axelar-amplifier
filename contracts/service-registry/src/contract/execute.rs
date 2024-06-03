@@ -16,7 +16,7 @@ pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Contr
 pub fn register_service(
     deps: DepsMut,
     service_name: String,
-    service_contract: Addr,
+    coordinator_contract: Addr,
     min_num_verifiers: u16,
     max_num_verifiers: Option<u16>,
     min_verifier_bond: Uint128,
@@ -33,7 +33,7 @@ pub fn register_service(
             match service {
                 None => Ok(Service {
                     name: service_name,
-                    service_contract,
+                    coordinator_contract,
                     min_num_verifiers,
                     max_num_verifiers,
                     min_verifier_bond,
@@ -136,7 +136,12 @@ pub fn register_chains_support(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::VerifierNotFound)?;
 
-    state::register_chains_support(deps.storage, service_name.clone(), chains, info.sender)?;
+    state::register_chains_support(
+        deps.storage,
+        service_name.clone(),
+        chains.clone(),
+        info.sender.clone(),
+    )?;
 
     Ok(Response::new())
 }
@@ -166,7 +171,7 @@ pub fn unbond_verifier(
     info: MessageInfo,
     service_name: String,
 ) -> Result<Response, ContractError> {
-    SERVICES
+    let service = SERVICES
         .may_load(deps.storage, &service_name)?
         .ok_or(ContractError::ServiceNotFound)?;
 
@@ -174,9 +179,15 @@ pub fn unbond_verifier(
         .may_load(deps.storage, (&service_name, &info.sender))?
         .ok_or(ContractError::VerifierNotFound)?;
 
-    let can_unbond = true; // TODO: actually query the service to determine this value
+    let query = coordinator::msg::QueryMsg::ReadyToUnbond {
+        worker_address: verifier.address.clone(),
+    };
+    let ready_to_unbond = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: service.coordinator_contract.into(),
+        msg: to_json_binary(&query)?,
+    }))?;
 
-    let verifier = verifier.unbond(can_unbond, env.block.time)?;
+    let verifier = verifier.unbond(ready_to_unbond, env.block.time)?;
 
     VERIFIERS.save(deps.storage, (&service_name, &info.sender), &verifier)?;
 

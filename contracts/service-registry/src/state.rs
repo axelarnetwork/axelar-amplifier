@@ -20,7 +20,7 @@ use crate::ContractError;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Service {
     pub name: String,
-    pub service_contract: Addr,
+    pub coordinator_contract: Addr,
     pub min_num_verifiers: u16,
     pub max_num_verifiers: Option<u16>,
     pub min_verifier_bond: Uint128,
