@@ -2,6 +2,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
+use std::collections::HashSet;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -20,6 +21,9 @@ pub enum ExecuteMsg {
     },
     SetNextVerifiers {
         next_verifier_set: VerifierSet,
+    },
+    UpdateVerifierUnionSet {
+        union_set: HashSet<Addr>,
     },
 }
 

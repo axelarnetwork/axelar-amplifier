@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
@@ -241,6 +241,8 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
                 chain_name: config.chain_name,
             };
 
+            let verifier_union_set = compute_union_of_verifier_sets(&deps)?;
+
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
                     wasm_execute(config.multisig, &start_sig_msg, vec![])?,
@@ -250,6 +252,13 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
                     config.coordinator.clone(),
                     &coordinator::msg::ExecuteMsg::SetNextVerifiers {
                         next_verifier_set: new_verifier_set,
+                    },
+                    vec![],
+                )?)
+                .add_message(wasm_execute(
+                    config.coordinator,
+                    &coordinator::msg::ExecuteMsg::UpdateVerifierUnionSet {
+                        union_set: verifier_union_set,
                     },
                     vec![],
                 )?))
@@ -290,6 +299,8 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
     CURRENT_VERIFIER_SET.save(deps.storage, &verifier_set)?;
     NEXT_VERIFIER_SET.remove(deps.storage);
 
+    let verifier_union_set = compute_union_of_verifier_sets(&deps)?;
+
     Ok(Response::new()
         .add_message(wasm_execute(
             config.multisig,
@@ -299,12 +310,43 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
             vec![],
         )?)
         .add_message(wasm_execute(
-            config.coordinator,
+            config.coordinator.clone(),
             &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
                 next_verifier_set: verifier_set,
             },
             vec![],
+        )?)
+        .add_message(wasm_execute(
+            config.coordinator,
+            &coordinator::msg::ExecuteMsg::UpdateVerifierUnionSet {
+                union_set: verifier_union_set,
+            },
+            vec![],
         )?))
+}
+
+fn compute_union_of_verifier_sets(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {
+    let mut union_set = HashSet::new();
+
+    if let Some(current_verifier_set) = CURRENT_VERIFIER_SET.may_load(deps.storage)? {
+        union_set.extend(
+            current_verifier_set
+                .signers
+                .values()
+                .map(|signer| signer.address.clone()),
+        );
+    }
+
+    if let Some(next_verifier_set) = NEXT_VERIFIER_SET.may_load(deps.storage)? {
+        union_set.extend(
+            next_verifier_set
+                .signers
+                .values()
+                .map(|signer| signer.address.clone()),
+        );
+    }
+
+    Ok(union_set)
 }
 
 pub fn should_update_verifier_set(

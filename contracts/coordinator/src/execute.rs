@@ -1,4 +1,5 @@
 use cosmwasm_std::{Addr, DepsMut, MessageInfo, Response};
+use std::collections::HashSet;
 
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
@@ -40,5 +41,12 @@ pub fn set_next_verifier_set(
     next_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     NEXT_VERIFIER_SET_FOR_PROVER.save(deps.storage, info.sender, &(next_verifier_set))?;
+    Ok(Response::new())
+}
+
+pub fn update_prover_union_set(
+    _deps: DepsMut,
+    _union_set: HashSet<Addr>,
+) -> Result<Response, ContractError> {
     Ok(Response::new())
 }

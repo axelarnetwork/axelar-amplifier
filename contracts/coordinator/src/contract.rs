@@ -63,6 +63,9 @@ pub fn execute(
         ExecuteMsg::SetNextVerifiers { next_verifier_set } => {
             execute::set_next_verifier_set(deps, info, next_verifier_set)
         }
+        ExecuteMsg::UpdateVerifierUnionSet { union_set } => {
+            execute::update_prover_union_set(deps, union_set)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
