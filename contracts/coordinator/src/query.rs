@@ -1,10 +1,12 @@
 use crate::error::ContractError;
 use crate::state::{
-    ACTIVE_VERIFIER_SET_FOR_PROVER, NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN,
+    VerifierAddress, ACTIVE_VERIFIER_SET_FOR_PROVER,
+    PROVER_PER_CHAIN, VERIFIER_PROVER_INDEXED_MAP,
 };
-use cosmwasm_std::{Addr, Deps, StdResult};
+use cosmwasm_std::{Addr, Deps, Order, StdResult};
 use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
+use std::collections::HashSet;
 
 pub fn prover(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
     PROVER_PER_CHAIN
@@ -31,24 +33,17 @@ fn is_verifier_in_verifier_set(deps: Deps, verifier_address: &Addr) -> StdResult
 
     for chain_name in chain_names {
         if let Ok(prover_address) = PROVER_PER_CHAIN.load(deps.storage, chain_name) {
-            if let Ok(Some(verifier_set)) =
-                ACTIVE_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address.clone())
-            {
-                if verifier_set.includes(verifier_address) {
-                    return Ok(true);
-                }
-            }
+            let existing_verifiers = VERIFIER_PROVER_INDEXED_MAP
+                .prefix(prover_address.clone())
+                .keys(deps.storage, None, None, Order::Ascending)
+                .filter_map(Result::ok)
+                .collect::<HashSet<VerifierAddress>>();
 
-            if let Ok(Some(verifier_set)) =
-                NEXT_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address)
-            {
-                if verifier_set.includes(verifier_address) {
-                    return Ok(true);
-                }
+            if existing_verifiers.contains(verifier_address) {
+                return Ok(true);
             }
         }
     }
-
     Ok(false)
 }
 

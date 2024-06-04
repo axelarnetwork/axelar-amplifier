@@ -9,6 +9,7 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, AppResponse, Executor};
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
+use std::collections::HashSet;
 
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
@@ -816,6 +817,17 @@ pub fn setup_chain(
         multisig_prover.contract_addr.clone(),
         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
             next_verifier_set: verifier_set,
+        },
+    );
+    assert!(response.is_ok());
+
+    let mut verifier_union_set = HashSet::new();
+    verifier_union_set.extend(verifiers.into_iter().map(|verifier| verifier.addr.clone()));
+    let response = protocol.coordinator.execute(
+        &mut protocol.app,
+        multisig_prover.contract_addr.clone(),
+        &coordinator::msg::ExecuteMsg::UpdateVerifierUnionSet {
+            union_set: verifier_union_set,
         },
     );
     assert!(response.is_ok());

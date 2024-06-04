@@ -6,7 +6,8 @@ use router_api::ChainName;
 
 use crate::error::ContractError;
 use crate::state::{
-    ACTIVE_VERIFIER_SET_FOR_PROVER, CONFIG, NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN,
+    update_verifier_set_for_prover, ACTIVE_VERIFIER_SET_FOR_PROVER, CONFIG,
+    NEXT_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN,
 };
 
 pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -45,8 +46,10 @@ pub fn set_next_verifier_set(
 }
 
 pub fn update_prover_union_set(
-    _deps: DepsMut,
-    _union_set: HashSet<Addr>,
+    deps: DepsMut,
+    info: MessageInfo,
+    union_set: HashSet<Addr>,
 ) -> Result<Response, ContractError> {
+    update_verifier_set_for_prover(deps.storage, info.sender, union_set)?;
     Ok(Response::new())
 }
