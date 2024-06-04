@@ -29,7 +29,7 @@ use crate::error::Error;
 // This includes the defined structs: Messages, WeightedSigners, WeightedSigner, and Proofs.
 abigen!(
     IAxelarAmplifierGateway,
-    "src/abi/$SOLIDITY_GATEWAY_VERSION/IAxelarAmplifierGateway.json"
+    "src/abi/IAxelarAmplifierGateway.json"
 );
 
 impl TryFrom<&VerifierSet> for WeightedSigners {
