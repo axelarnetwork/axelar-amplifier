@@ -1,7 +1,7 @@
 pub mod execute_data;
 
 use error_stack::{Result, ResultExt};
-use ethers::abi::{encode as abi_encode, Token, Tokenize};
+use ethers_core::abi::{encode as abi_encode, Token, Tokenize};
 use itertools::Itertools;
 use sha3::{Digest, Keccak256};
 

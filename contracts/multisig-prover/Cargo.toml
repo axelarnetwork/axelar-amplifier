@@ -43,8 +43,8 @@ cw-storage-plus = { workspace = true }
 cw-utils = "1.0.1"
 cw2 = { workspace = true }
 error-stack = { workspace = true }
-ethabi = { version = "18.0.0", default-features = false, features = [] }
-ethers = { workspace = true }
+ethers-contract = { workspace = true }
+ethers-core = { workspace = true }
 evm-gateway = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }

@@ -2,13 +2,13 @@ pub mod error;
 
 use cosmwasm_std::Uint256;
 use error_stack::{Report, ResultExt};
-use ethers::{
+use ethers_contract::abigen;
+use ethers_core::{
     abi::{
         encode,
         Token::{self, Tuple, Uint},
         Tokenize,
     },
-    prelude::abigen,
     types::{Address, Bytes, U256},
     utils::{parse_checksummed, public_key_to_address},
 };
@@ -145,7 +145,7 @@ pub fn evm_address(pub_key: &PublicKey) -> Result<Address, Report<Error>> {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use ethers::utils::to_checksum;
+    use ethers_core::utils::to_checksum;
 
     use axelar_wasm_std::{nonempty, snapshot::Participant};
     use multisig::{key::PublicKey, verifier_set::VerifierSet};

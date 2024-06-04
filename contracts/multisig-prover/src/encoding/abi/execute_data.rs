@@ -1,9 +1,7 @@
 use cosmwasm_std::HexBinary;
 use error_stack::ResultExt;
-use ethers::{
-    abi::{encode as abi_encode, Tokenize},
-    contract::EthCall,
-};
+use ethers_contract::contract::EthCall;
+use ethers_core::abi::{encode as abi_encode, Tokenize};
 
 use axelar_wasm_std::hash::Hash;
 use evm_gateway::{ApproveMessagesCall, Message, Proof, RotateSignersCall, WeightedSigners};
@@ -82,7 +80,7 @@ mod tests {
 
     use cosmwasm_std::HexBinary;
     use elliptic_curve::consts::U32;
-    use ethers::types::Signature as EthersSignature;
+    use ethers_core::types::Signature as EthersSignature;
     use generic_array::GenericArray;
     use hex::FromHex;
     use itertools::Itertools;
