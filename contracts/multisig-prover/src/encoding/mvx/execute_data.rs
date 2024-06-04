@@ -214,16 +214,12 @@ mod tests {
         // approveMessages - name of function
         // @ - separator of data in MultiversX format
         //
-        // Then we have the new signers passed as first argument to function:
-        // 00000003 - length of new signers
-        // 0139472eff6886771a982f3083da5d421f24c29181e63888228dc81ca60d69e1 - first new signer
-        // 00000001 01 - length of biguint weight followed by 1 as hex
-        // 8049d639e5a6980d1cd2392abcce41029cda74a1563523a202f09641cc2618f8 - second new signer
-        // 00000001 01 - length of biguint weight followed by 1 as hex
-        // b2a11555ce521e4944e09ab17549d85b487dcd26c84b5017a39e31a3670889ba - third new signer
-        // 00000001 01 - length of biguint weight followed by 1 as hex
-        // 00000001 03 - length of biguint threshold followed by 3 as hex
-        // 290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 - the nonce (keccak256 hash of Uin256 number 0, created_at date)
+        // Then we have the messages passed as first argument to function: (only one message
+        // 00000009 67616e616368652d31 - length of `ganache-1` source chain string followed by it as hex
+        // 00000044 3078666638323263383838303738353966663232366235386532346632343937346137306630346239343432353031616533386664363635623363363866333833342d30 - length of message id followed by `0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0` string encoded as hex
+        // 0000002a 307835323434346631383335416463303230383663333743623232363536313630356532453136393962 - length of source address followed by `0x52444f1835Adc02086c37Cb226561605e2E1699b` string as hex
+        // 000000000000000005006fbc99e58a82ef3c082afcd2679292693049c9371090 - destination address `erd1qqqqqqqqqqqqqpgqd77fnev2sthnczp2lnfx0y5jdycynjfhzzgq6p3rax` from bech32 to hex
+        // 8c3685dc41c2eca11426f8035742fb97ea9f14931152670a5703f18fe8b392f0 - payload hash as hex
         // @ - separator of data in MultiversX format
         //
         // Then we have the proof passed as second argument to function:
@@ -236,9 +232,9 @@ mod tests {
         // 00000001 03 - length of biguint threshold followed by 3 as hex
         // 290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 - the nonce (keccak256 hash of Uin256 number 0, created_at date)
         // 00000005 - length of signatures
-        // 01 5c98a98d1e47adecf83a10d4fdc542aae1cb13ab8e6d3f5e237ad75ccb6608631c0d3f8735e3f5f481e82f088fe5215d431ae8c6abf68b96797df4bbe610cd05 - first signature encoded as a Some option
-        // 01 ca0999eac93ee855ea88680b8094660635a06743e9acdb8d1987a9c48a60e9f794bd22a10748bb9c3c961ddc3068a96abfae00a9c38252a4b3ad99caeb060805 - second signature encoded as a Some option
-        // 01 deca8b224a38ad99ec4cb4f3d8e86778544c55ab0c4513ce8af834b81b3e934eef29727cc76c364f316a44c2eea82fa655f209f0c5205a209461d8a7fbbacf03 - third signature encoded as a Some option
+        // 01 9543286a58ded1c031fcf8e5fcdc7c5b48b6304c539bdf7a30a0b780451a64318420fe654a13be7a33cae4f221cd26e1e033d01da144901453474c73b520450d - first signature encoded as a Some option
+        // 01 199b7e0f25ff4c24637bbdfdc18d338f422793f492a81140afd080019061088ddf667f018d88928a28dcb77a2c253c66ee5a83be2d4134ff3ab3141f0fdb170d - second signature encoded as a Some option
+        // 01 4f883c316682c6e000bf4c92536a138f78c6af265f4f13d7210110e40350bb4d99e049677db13e7c12f8a4e617a5cb9bf32f5142cd58f7146505078e2d675703 - third signature encoded as a Some option
         // 00 - fourth signature encoded as a None option (the fourth signer didn't specify any signature)
         // 00 - fifth signature encoded as a None option (the fifth signer didn't specify any signature)
         assert_eq!(
