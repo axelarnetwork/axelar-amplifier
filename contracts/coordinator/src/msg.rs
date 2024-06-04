@@ -1,6 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
-use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use std::collections::HashSet;
 
@@ -16,12 +15,6 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
-    SetActiveVerifiers {
-        next_verifier_set: VerifierSet,
-    },
-    SetNextVerifiers {
-        next_verifier_set: VerifierSet,
-    },
     UpdateVerifierUnionSet {
         union_set: HashSet<Addr>,
     },
@@ -30,9 +23,6 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(VerifierSet)]
-    GetActiveVerifiers { chain_name: ChainName },
-
     #[returns(bool)]
     ReadyToUnbond { worker_address: Addr },
 }

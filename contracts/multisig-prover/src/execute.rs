@@ -249,13 +249,6 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
                     START_MULTISIG_REPLY_ID,
                 ))
                 .add_message(wasm_execute(
-                    config.coordinator.clone(),
-                    &coordinator::msg::ExecuteMsg::SetNextVerifiers {
-                        next_verifier_set: new_verifier_set,
-                    },
-                    vec![],
-                )?)
-                .add_message(wasm_execute(
                     config.coordinator,
                     &coordinator::msg::ExecuteMsg::UpdateVerifierUnionSet {
                         union_set: verifier_union_set,
@@ -306,13 +299,6 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
             config.multisig,
             &multisig::msg::ExecuteMsg::RegisterVerifierSet {
                 verifier_set: verifier_set.clone(),
-            },
-            vec![],
-        )?)
-        .add_message(wasm_execute(
-            config.coordinator.clone(),
-            &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                next_verifier_set: verifier_set,
             },
             vec![],
         )?)

@@ -1,10 +1,6 @@
 use crate::error::ContractError;
-use crate::state::{
-    VerifierAddress, ACTIVE_VERIFIER_SET_FOR_PROVER,
-    PROVER_PER_CHAIN, VERIFIER_PROVER_INDEXED_MAP,
-};
+use crate::state::{VerifierAddress, PROVER_PER_CHAIN, VERIFIER_PROVER_INDEXED_MAP};
 use cosmwasm_std::{Addr, Deps, Order, StdResult};
-use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use std::collections::HashSet;
 
@@ -12,17 +8,6 @@ pub fn prover(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> 
     PROVER_PER_CHAIN
         .may_load(deps.storage, chain_name.clone())?
         .ok_or(ContractError::NoProversRegisteredForChain(chain_name))
-}
-
-pub fn active_verifier_set(deps: Deps, chain_name: ChainName) -> StdResult<Option<VerifierSet>> {
-    match prover(deps, chain_name) {
-        Ok(prover_address) => {
-            let active_worker_set =
-                ACTIVE_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address)?;
-            Ok(active_worker_set)
-        }
-        Err(_err) => Ok(None),
-    }
 }
 
 fn is_verifier_in_verifier_set(deps: Deps, verifier_address: &Addr) -> StdResult<bool> {

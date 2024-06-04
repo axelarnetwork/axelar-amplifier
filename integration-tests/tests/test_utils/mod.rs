@@ -322,20 +322,6 @@ pub fn get_verifier_set_from_prover(
     query_response.unwrap()
 }
 
-pub fn get_verifier_set_from_coordinator(
-    app: &mut App,
-    coordinator_contract: &CoordinatorContract,
-    chain_name: ChainName,
-) -> VerifierSet {
-    let query_response: Result<VerifierSet, StdError> = coordinator_contract.query(
-        app,
-        &coordinator::msg::QueryMsg::GetActiveVerifiers { chain_name },
-    );
-    assert!(query_response.is_ok());
-
-    query_response.unwrap()
-}
-
 #[allow(clippy::arithmetic_side_effects)]
 pub fn advance_height(app: &mut App, increment: u64) {
     let cur_block = app.block_info();
@@ -724,7 +710,7 @@ pub struct Chain {
 pub fn setup_chain(
     protocol: &mut Protocol,
     chain_name: ChainName,
-    verifiers: &Vec<Verifier>,
+    verifiers: &[Verifier],
 ) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
@@ -811,18 +797,8 @@ pub fn setup_chain(
     );
     assert!(response.is_ok());
 
-    let verifier_set = verifiers_to_verifier_set(protocol, verifiers);
-    let response = protocol.coordinator.execute(
-        &mut protocol.app,
-        multisig_prover.contract_addr.clone(),
-        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-            next_verifier_set: verifier_set,
-        },
-    );
-    assert!(response.is_ok());
-
     let mut verifier_union_set = HashSet::new();
-    verifier_union_set.extend(verifiers.into_iter().map(|verifier| verifier.addr.clone()));
+    verifier_union_set.extend(verifiers.iter().map(|verifier| verifier.addr.clone()));
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         multisig_prover.contract_addr.clone(),

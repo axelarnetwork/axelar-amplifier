@@ -2,7 +2,6 @@ use crate::error::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-use multisig::verifier_set::VerifierSet;
 use router_api::ChainName;
 use std::collections::HashSet;
 
@@ -17,16 +16,9 @@ pub type ProverAddress = Addr;
 
 pub const PROVER_PER_CHAIN: Map<ChainName, ProverAddress> = Map::new("prover_per_chain");
 
-// TODO: migrate this?
-pub const ACTIVE_VERIFIER_SET_FOR_PROVER: Map<ProverAddress, VerifierSet> =
-    Map::new("active_prover_verifier_set");
-
 pub type ChainNames = HashSet<ChainName>;
 pub type VerifierAddress = Addr;
 pub const CHAINS_OF_VERIFIER: Map<VerifierAddress, ChainNames> = Map::new("chains_of_verifier");
-
-pub const NEXT_VERIFIER_SET_FOR_PROVER: Map<ProverAddress, VerifierSet> =
-    Map::new("next_prover_verifier");
 
 pub struct VerifierSetIndex<'a> {
     pub by_verifier: MultiIndex<'a, Addr, VerifierProverRecord, (Addr, Addr)>,
