@@ -51,7 +51,7 @@ pub enum Error {
     #[error("failed to confirm tx inclusion in block")]
     TxConfirmation,
     #[error("failed to execute tx")]
-    Execution { response: TxResponse },
+    Execution { response: Box<TxResponse> },
     #[error("failed to query account information for address {address}")]
     QueryAccount { address: TMAddress },
 }
@@ -290,7 +290,9 @@ fn evaluate_response(response: Result<GetTxResponse, Status>) -> ConfirmationRes
             ..
         }) => match response {
             TxResponse { code: 0, .. } => ConfirmationResult::Success,
-            _ => ConfirmationResult::Critical(Error::Execution { response }),
+            _ => ConfirmationResult::Critical(Error::Execution {
+                response: Box::new(response),
+            }),
         },
     }
 }
@@ -642,16 +644,11 @@ mod tests {
             .build();
         let msgs = vec![dummy_msg()];
 
-        assert!(matches!(
-            broadcaster
-                .broadcast(msgs)
-                .await
-                .unwrap_err()
-                .current_context(),
-            Error::Execution {
-                response: TxResponse { code: 32, .. }
-            }
-        ));
+        let report = broadcaster.broadcast(msgs).await.unwrap_err();
+        assert!(matches!(report.current_context(), Error::Execution { .. }));
+        if let Error::Execution { response } = report.current_context() {
+            assert_eq!(response.code, 32);
+        }
     }
 
     #[test]
