@@ -23,7 +23,7 @@ use event_sub::EventSub;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
-use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
+use tofnd::grpc::{Multisig, MultisigClient};
 use types::TMAddress;
 
 use crate::config::Config;
@@ -85,10 +85,9 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-    let multisig_client = MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
         .await
         .change_context(Error::Connection)?;
-    let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
     let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
         .await
@@ -98,8 +97,8 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     let pub_key = match state_updater.state().pub_key {
         Some(pub_key) => pub_key,
         None => {
-            let pub_key = ecdsa_client
-                .keygen(&tofnd_config.key_uid)
+            let pub_key = multisig_client
+                .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
                 .await
                 .change_context(Error::Tofnd)?;
             state_updater.as_mut().pub_key = Some(pub_key);
@@ -117,7 +116,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         .query_client(query_client)
         .address(verifier.clone())
         .client(service_client)
-        .signer(ecdsa_client.clone())
+        .signer(multisig_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
         .build();
@@ -128,7 +127,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         tm_client,
         broadcaster,
         state_updater,
-        ecdsa_client,
+        multisig_client,
         broadcast,
         event_buffer_cap,
         block_height_monitor,
@@ -165,7 +164,7 @@ where
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
-    ecdsa_client: SharableEcdsaClient,
+    multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
     token: CancellationToken,
@@ -180,7 +179,7 @@ where
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: T,
         state_updater: StateUpdater,
-        ecdsa_client: SharableEcdsaClient,
+        multisig_client: MultisigClient,
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -210,7 +209,7 @@ where
             broadcaster,
             broadcaster_driver,
             state_updater,
-            ecdsa_client,
+            multisig_client,
             block_height_monitor,
             health_check_server,
             token,
@@ -289,7 +288,7 @@ where
                         handlers::multisig::Handler::new(
                             verifier.clone(),
                             cosmwasm_contract,
-                            self.ecdsa_client.clone(),
+                            self.multisig_client.clone(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,

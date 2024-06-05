@@ -1,7 +1,8 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use cosmwasm_std::{entry_point, Empty};
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 
 use crate::error::ContractError;
 use crate::execute;
@@ -59,6 +60,9 @@ pub fn execute(
         ExecuteMsg::SetActiveVerifiers { next_verifier_set } => {
             execute::set_active_verifier_set(deps, info, next_verifier_set)
         }
+        ExecuteMsg::SetNextVerifiers { next_verifier_set } => {
+            execute::set_next_verifier_set(deps, info, next_verifier_set)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -68,9 +72,12 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_json_binary(&query::get_active_verifier_set(deps, chain_name)?)
-                .map_err(|err| err.into())
+            to_json_binary(&query::active_verifier_set(deps, chain_name)?).map_err(|err| err.into())
         }
+        QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
+            &query::check_verifier_ready_to_unbond(deps, worker_address)?,
+        )
+        .map_err(|err| err.into()),
     }
 }
 
@@ -208,7 +215,7 @@ mod tests {
         .unwrap();
 
         let chain_provers =
-            query::provers(test_setup.deps.as_ref(), test_setup.chain_name.clone()).unwrap();
+            query::prover(test_setup.deps.as_ref(), test_setup.chain_name.clone()).unwrap();
         assert_eq!(chain_provers, test_setup.prover);
     }
 
@@ -267,7 +274,7 @@ mod tests {
         assert!(res.is_ok());
 
         let eth_active_verifier_set =
-            query::get_active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
         assert_eq!(eth_active_verifier_set, Some(new_verifier_set));
@@ -289,7 +296,7 @@ mod tests {
         );
 
         let query_result =
-            query::get_active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
+            query::active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
                 .unwrap();
 
         assert_eq!(query_result, None);
