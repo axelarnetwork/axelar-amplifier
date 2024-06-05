@@ -265,7 +265,7 @@ pub fn register_service(
         protocol.governance_address.clone(),
         &ExecuteMsg::RegisterService {
             service_name: protocol.service_name.to_string(),
-            service_contract: Addr::unchecked("nowhere"),
+            coordinator_contract: protocol.coordinator.contract_addr.clone(),
             min_num_verifiers: 0,
             max_num_verifiers: Some(100),
             min_verifier_bond,
@@ -538,7 +538,12 @@ pub fn deregister_verifiers(protocol: &mut Protocol, verifiers: &Vec<Verifier>) 
     }
 }
 
-pub fn claim_stakes(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
+pub fn claim_stakes(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+) -> Vec<Result<AppResponse, String>> {
+    let mut responses = Vec::new();
+
     for verifier in verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
@@ -547,8 +552,11 @@ pub fn claim_stakes(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
                 service_name: protocol.service_name.to_string(),
             },
         );
-        assert!(response.is_ok());
+
+        responses.push(response.map_err(|e| e.to_string()));
     }
+
+    responses
 }
 
 pub fn confirm_verifier_set(
@@ -712,7 +720,11 @@ pub struct Chain {
     pub chain_name: ChainName,
 }
 
-pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+pub fn setup_chain(
+    protocol: &mut Protocol,
+    chain_name: ChainName,
+    verifiers: &Vec<Verifier>,
+) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         "doesn't matter".to_string().try_into().unwrap(),
@@ -798,6 +810,16 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    let verifier_set = verifiers_to_verifier_set(protocol, verifiers);
+    let response = protocol.coordinator.execute(
+        &mut protocol.app,
+        multisig_prover.contract_addr.clone(),
+        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+            next_verifier_set: verifier_set,
+        },
+    );
+    assert!(response.is_ok());
+
     Chain {
         gateway,
         voting_verifier,
@@ -820,6 +842,53 @@ pub fn query_balances(app: &App, verifiers: &Vec<Verifier>) -> Vec<Uint128> {
     }
 
     balances
+}
+
+pub fn rotate_active_verifier_set(
+    protocol: &mut Protocol,
+    chain: Chain,
+    previous_verifiers: &Vec<Verifier>,
+    new_verifiers: &Vec<Verifier>,
+) {
+    let response = chain.multisig_prover.execute(
+        &mut protocol.app,
+        chain.multisig_prover.admin_addr.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+    );
+    assert!(response.is_ok());
+
+    let session_id = sign_proof(protocol, previous_verifiers, response.unwrap());
+
+    let proof = get_proof(&mut protocol.app, &chain.multisig_prover, &session_id);
+    assert!(matches!(
+        proof.status,
+        multisig_prover::msg::ProofStatus::Completed { .. }
+    ));
+    assert_eq!(proof.message_ids.len(), 0);
+
+    let new_verifier_set = verifiers_to_verifier_set(protocol, new_verifiers);
+    let (poll_id, expiry) = create_verifier_set_poll(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        &chain.voting_verifier,
+        new_verifier_set.clone(),
+    );
+
+    vote_true_for_verifier_set(
+        &mut protocol.app,
+        &chain.voting_verifier,
+        new_verifiers,
+        poll_id,
+    );
+
+    advance_at_least_to_height(&mut protocol.app, expiry);
+    end_poll(&mut protocol.app, &chain.voting_verifier, poll_id);
+
+    confirm_verifier_set(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        &chain.multisig_prover,
+    );
 }
 
 pub struct TestCase {
@@ -855,8 +924,8 @@ pub fn setup_test_case() -> TestCase {
     register_service(&mut protocol, min_verifier_bond, unbonding_period_days);
 
     register_verifiers(&mut protocol, &verifiers, min_verifier_bond);
-    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
-    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
+    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone(), &verifiers);
+    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone(), &verifiers);
     TestCase {
         protocol,
         chain1,

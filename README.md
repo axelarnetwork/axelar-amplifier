@@ -35,3 +35,23 @@ The basic rules are as follows:
 - if no changes are detected in the watched directories, the release will not bump the version. For example, if since
   last release for the gateway contract no changes were made in the `contracts/gateway` or `packages/` directory. A new
   release will not bump the version.
+
+### Compatibility
+
+For the amplifier preview with version numbers < 1.0.0, please refer to the following compatibility table to select versions of 
+contracts and `ampd` that work well together.
+
+| Binary      | Version |
+|-------------|---------|
+| ampd              | 0.4.0 |
+| coordinator       | 0.1.2 |
+| gateway           | 0.2.2 |
+| multisig-prover   | 0.5.0 |
+| multisig          | 0.3.0 |
+| nexus-gateway     | 0.2.3 |
+| rewards           | 0.2.0 |
+| router            | 0.3.2 |
+| service-registry  | 0.3.0 |
+| voting-verifier   | 0.4.0 |
+| [tofnd](https://github.com/axelarnetwork/tofnd) | TBD |
+| [solidity-contracts](https://github.com/axelarnetwork/axelar-gmp-sdk-solidity) | 5.9.0 |

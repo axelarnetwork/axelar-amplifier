@@ -18,6 +18,9 @@ pub enum ExecuteMsg {
     SetActiveVerifiers {
         next_verifier_set: VerifierSet,
     },
+    SetNextVerifiers {
+        next_verifier_set: VerifierSet,
+    },
 }
 
 #[cw_serde]
@@ -25,4 +28,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(VerifierSet)]
     GetActiveVerifiers { chain_name: ChainName },
+
+    #[returns(bool)]
+    ReadyToUnbond { worker_address: Addr },
 }
