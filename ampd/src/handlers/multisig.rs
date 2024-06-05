@@ -184,7 +184,7 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
+    use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;

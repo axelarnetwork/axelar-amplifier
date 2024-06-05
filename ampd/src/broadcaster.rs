@@ -4,11 +4,11 @@ use std::time::Duration;
 use std::{cmp, thread};
 
 use async_trait::async_trait;
-use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmos_sdk_proto::cosmos::tx::v1beta1::{
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest,
 };
-use cosmos_sdk_proto::traits::MessageExt;
+use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Coin, Gas};
@@ -51,7 +51,7 @@ pub enum Error {
     #[error("failed to confirm tx inclusion in block")]
     TxConfirmation,
     #[error("failed to execute tx")]
-    Execution { response: TxResponse },
+    Execution { response: Box<TxResponse> },
     #[error("failed to query account information for address {address}")]
     QueryAccount { address: TMAddress },
 }
@@ -290,7 +290,9 @@ fn evaluate_response(response: Result<GetTxResponse, Status>) -> ConfirmationRes
             ..
         }) => match response {
             TxResponse { code: 0, .. } => ConfirmationResult::Success,
-            _ => ConfirmationResult::Critical(Error::Execution { response }),
+            _ => ConfirmationResult::Critical(Error::Execution {
+                response: Box::new(response),
+            }),
         },
     }
 }
@@ -303,11 +305,11 @@ enum ConfirmationResult {
 
 #[cfg(test)]
 mod tests {
-    use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
-    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
-    use cosmos_sdk_proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
-    use cosmos_sdk_proto::traits::MessageExt;
-    use cosmos_sdk_proto::Any;
+    use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountResponse};
+    use cosmrs::proto::cosmos::base::abci::v1beta1::{GasInfo, TxResponse};
+    use cosmrs::proto::cosmos::tx::v1beta1::{GetTxResponse, SimulateResponse};
+    use cosmrs::proto::traits::MessageExt;
+    use cosmrs::proto::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use ecdsa::SigningKey;
     use rand::rngs::OsRng;
@@ -642,16 +644,11 @@ mod tests {
             .build();
         let msgs = vec![dummy_msg()];
 
-        assert!(matches!(
-            broadcaster
-                .broadcast(msgs)
-                .await
-                .unwrap_err()
-                .current_context(),
-            Error::Execution {
-                response: TxResponse { code: 32, .. }
-            }
-        ));
+        let report = broadcaster.broadcast(msgs).await.unwrap_err();
+        assert!(matches!(report.current_context(), Error::Execution { .. }));
+        if let Error::Execution { response } = report.current_context() {
+            assert_eq!(response.code, 32);
+        }
     }
 
     #[test]

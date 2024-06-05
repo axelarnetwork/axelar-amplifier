@@ -98,7 +98,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use cosmos_sdk_proto::Any;
+    use cosmrs::proto::Any;
     use cosmrs::{
         bank::MsgSend,
         bip32::secp256k1::elliptic_curve::rand_core::OsRng,
