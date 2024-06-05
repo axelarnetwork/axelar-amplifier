@@ -15,7 +15,7 @@ use valuable::Valuable;
 use crate::broadcaster::Broadcaster;
 use crate::config::Config as AmpdConfig;
 use crate::state;
-use crate::tofnd::grpc::{MultisigClient, SharableEcdsaClient};
+use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, Error};
 use crate::{tofnd, PREFIX};
@@ -61,14 +61,12 @@ async fn verifier_pub_key(state_path: &Path, config: tofnd::Config) -> Result<Pu
 
     match state.pub_key {
         Some(pub_key) => Ok(pub_key),
-        None => SharableEcdsaClient::new(
-            MultisigClient::connect(config.party_uid, config.url)
-                .await
-                .change_context(Error::Connection)?,
-        )
-        .keygen(&config.key_uid)
-        .await
-        .change_context(Error::Tofnd),
+        None => MultisigClient::new(config.party_uid, config.url)
+            .await
+            .change_context(Error::Connection)?
+            .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
+            .await
+            .change_context(Error::Tofnd),
     }
 }
 
@@ -90,11 +88,9 @@ async fn broadcast_tx(
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-    let ecdsa_client = SharableEcdsaClient::new(
-        MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
-            .await
-            .change_context(Error::Connection)?,
-    );
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
+        .await
+        .change_context(Error::Connection)?;
     let address = pub_key
         .account_id(PREFIX)
         .expect("failed to convert to account identifier")
@@ -102,7 +98,7 @@ async fn broadcast_tx(
 
     broadcaster::BroadcastClient::builder()
         .client(service_client)
-        .signer(ecdsa_client)
+        .signer(multisig_client)
         .query_client(query_client)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast)
