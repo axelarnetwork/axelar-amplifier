@@ -1,5 +1,5 @@
-use cosmos_sdk_proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
-use cosmos_sdk_proto::traits::Message;
+use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
+use cosmrs::proto::traits::Message;
 use error_stack::{Result, ResultExt};
 use thiserror::Error;
 
@@ -54,9 +54,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use cosmos_sdk_proto::cosmos::auth::v1beta1::BaseAccount;
-    use cosmos_sdk_proto::cosmos::auth::v1beta1::QueryAccountResponse;
-    use cosmos_sdk_proto::traits::MessageExt;
+    use cosmrs::proto::cosmos::auth::v1beta1::BaseAccount;
+    use cosmrs::proto::cosmos::auth::v1beta1::QueryAccountResponse;
+    use cosmrs::proto::traits::MessageExt;
     use cosmrs::Any;
     use ecdsa::SigningKey;
     use rand::rngs::OsRng;
