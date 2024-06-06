@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use block_height_monitor::BlockHeightMonitor;
-use cosmos_sdk_proto::cosmos::{
+use cosmrs::proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{report, FutureExt, Result, ResultExt};
