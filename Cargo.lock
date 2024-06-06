@@ -9400,6 +9400,7 @@ dependencies = [
  "error-stack",
  "integration-tests",
  "multisig",
+ "num-traits",
  "rand",
  "report",
  "rewards",

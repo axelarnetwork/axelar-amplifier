@@ -226,7 +226,10 @@ pub struct QuorumReached<T> {
     pub status: VerificationStatus,
 }
 
-impl<T: cosmwasm_schema::serde::Serialize> From<QuorumReached<T>> for Event {
+impl<T> From<QuorumReached<T>> for Event
+where
+    T: cosmwasm_schema::serde::Serialize,
+{
     fn from(value: QuorumReached<T>) -> Self {
         Event::new("quorum_reached")
             .add_attribute(

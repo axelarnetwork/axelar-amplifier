@@ -81,14 +81,13 @@ pub const POLLS: Map<PollId, Poll> = Map::new("polls");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub struct PollMessagesIndexes<'a> {
-    pub poll_idx: PollIndexMessages<'a>,
-}
-
+/// A multi-index that indexes a message by (PollID, index in poll) pair. The primary key of the underlying
+/// map is the hash of the message (typed as Hash). This allows looking up a Message by it's hash,
+/// or by a (PollID, index in poll) pair. The PollID is stored as a String
 pub struct PollIndexMessages<'a>(MultiIndex<'a, (String, u32), PollContent<Message>, &'a Hash>);
 
 impl<'a> PollIndexMessages<'a> {
-    pub fn new(
+    fn new(
         idx_fn: fn(&[u8], &PollContent<Message>) -> (String, u32),
         pk_namespace: &'a str,
         idx_namespace: &'a str,
@@ -116,37 +115,35 @@ impl<'a> PollIndexMessages<'a> {
     }
 }
 
-const POLL_MESSAGES_PKEY: &str = "poll_messages";
+const POLL_MESSAGES_PKEY_NAMESPACE: &str = "poll_messages";
+const POLL_MESSAGES_IDX_NAMESPACE: &str = "poll_messages_idx";
 
-pub fn poll_messages<'a>() -> IndexedMap<'a, &'a Hash, PollContent<Message>, PollMessagesIndexes<'a>>
+pub fn poll_messages<'a>() -> IndexedMap<'a, &'a Hash, PollContent<Message>, PollIndexMessages<'a>>
 {
-    return IndexedMap::new(
-        POLL_MESSAGES_PKEY,
-        PollMessagesIndexes {
-            poll_idx: PollIndexMessages::new(
-                |_pk: &[u8], d: &PollContent<Message>| (d.poll_id.to_string(), d.index_in_poll),
-                POLL_MESSAGES_PKEY,
-                "polls",
-            ),
-        },
-    );
+    IndexedMap::new(
+        POLL_MESSAGES_PKEY_NAMESPACE,
+        PollIndexMessages::new(
+            |_pk: &[u8], d: &PollContent<Message>| (d.poll_id.to_string(), d.index_in_poll),
+            POLL_MESSAGES_PKEY_NAMESPACE,
+            POLL_MESSAGES_IDX_NAMESPACE,
+        ),
+    )
 }
 
-impl<'a> IndexList<PollContent<Message>> for PollMessagesIndexes<'a> {
+impl<'a> IndexList<PollContent<Message>> for PollIndexMessages<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<Message>>> + '_> {
-        let v: Vec<&dyn Index<PollContent<Message>>> = vec![&self.poll_idx.0];
+        let v: Vec<&dyn Index<PollContent<Message>>> = vec![&self.0];
         Box::new(v.into_iter())
     }
 }
 
-pub struct PollVerifierSetsIndexes<'a> {
-    pub poll_idx: PollIndexVerifierSets<'a>,
-}
-
+/// A multi-index that indexes a verifier set by PollID. The primary key of the underlying
+/// map is the hash of the verifier set (typed as Hash). This allows looking up a VerifierSet by it's hash,
+/// or by a PollID. PollIDs are stored as String.
 pub struct PollIndexVerifierSets<'a>(MultiIndex<'a, String, PollContent<VerifierSet>, &'a Hash>);
 
 impl<'a> PollIndexVerifierSets<'a> {
-    pub fn new(
+    fn new(
         idx_fn: fn(&[u8], &PollContent<VerifierSet>) -> String,
         pk_namespace: &'a str,
         idx_namespace: &'a str,
@@ -173,27 +170,26 @@ impl<'a> PollIndexVerifierSets<'a> {
     }
 }
 
-const POLL_VERIFIER_SETS_PKEY: &str = "poll_verifier_sets";
+const POLL_VERIFIER_SETS_PKEY_NAMESPACE: &str = "poll_verifier_sets";
+const POLL_VERIFIER_SETS_IDX_NAMESPACE: &str = "poll_verifier_sets_idx";
 
 pub fn poll_verifier_sets<'a>(
-) -> IndexedMap<'a, &'a Hash, PollContent<VerifierSet>, PollVerifierSetsIndexes<'a>> {
-    return IndexedMap::new(
-        POLL_VERIFIER_SETS_PKEY,
-        PollVerifierSetsIndexes {
-            poll_idx: PollIndexVerifierSets::new(
-                |_pk: &[u8], d: &PollContent<VerifierSet>| d.poll_id.to_string(),
-                POLL_VERIFIER_SETS_PKEY,
-                "polls",
-            ),
-        },
-    );
+) -> IndexedMap<'a, &'a Hash, PollContent<VerifierSet>, PollIndexVerifierSets<'a>> {
+    IndexedMap::new(
+        POLL_VERIFIER_SETS_PKEY_NAMESPACE,
+        PollIndexVerifierSets::new(
+            |_pk: &[u8], d: &PollContent<VerifierSet>| d.poll_id.to_string(),
+            POLL_VERIFIER_SETS_PKEY_NAMESPACE,
+            POLL_VERIFIER_SETS_IDX_NAMESPACE,
+        ),
+    )
 }
 
-impl<'a> IndexList<PollContent<VerifierSet>> for PollVerifierSetsIndexes<'a> {
+impl<'a> IndexList<PollContent<VerifierSet>> for PollIndexVerifierSets<'a> {
     fn get_indexes(
         &'_ self,
     ) -> Box<dyn Iterator<Item = &'_ dyn Index<PollContent<VerifierSet>>> + '_> {
-        let v: Vec<&dyn Index<PollContent<VerifierSet>>> = vec![&self.poll_idx.0];
+        let v: Vec<&dyn Index<PollContent<VerifierSet>>> = vec![&self.0];
         Box::new(v.into_iter())
     }
 }

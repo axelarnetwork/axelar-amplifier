@@ -164,21 +164,38 @@ pub fn verify_messages(
         .into(),
     ))
 }
+struct PollResults(Vec<Option<Vote>>);
 
-/// Returns indices of items in the poll that have achieved quorum, along with their respective results
-fn get_indices_with_quorum(poll: &Poll) -> Vec<(u32, Vote)> {
-    let weighted_poll = match poll {
-        Poll::Messages(weighted_poll) => weighted_poll,
-        Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll,
-    };
+// would be better to implement the Sub trait, but clippy is configured to not allow arithmetic operators
+impl PollResults {
+    /// Returns the elements in self that are Some, but in rhs are None. All other elements are converted to None.
+    /// This is used to determine which elements have quorum in self, but do not have quorum in rhs.
+    /// Vectors must be equal length.
+    fn sub(self, rhs: Self) -> Result<PollResults, ContractError> {
+        if self.0.len() != rhs.0.len() {
+            return Err(ContractError::PollResultsLengthUnequal);
+        }
+        Ok(PollResults(
+            self.0
+                .into_iter()
+                .zip(rhs.0)
+                .filter_map(|(lhs, rhs)| {
+                    if lhs.is_some() && rhs.is_none() {
+                        Some(lhs)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        ))
+    }
+}
 
-    weighted_poll
-        .state()
-        .results
-        .iter()
-        .enumerate()
-        .filter_map(|(e, v)| v.as_ref().map(|v| (e as u32, v.clone())))
-        .collect()
+fn get_poll_results(poll: &Poll) -> PollResults {
+    match poll {
+        Poll::Messages(weighted_poll) => PollResults(weighted_poll.state().results),
+        Poll::ConfirmVerifierSet(weighted_poll) => PollResults(weighted_poll.state().results),
+    }
 }
 
 fn make_quorum_event(
@@ -198,7 +215,6 @@ fn make_quorum_event(
         Poll::Messages(_) => {
             let msg = poll_messages()
                 .idx
-                .poll_idx
                 .load_message(deps.storage, *poll_id, index_in_poll)?
                 .expect("message not found in poll");
             Ok(QuorumReached {
@@ -210,7 +226,6 @@ fn make_quorum_event(
         Poll::ConfirmVerifierSet(_) => {
             let verifier_set = poll_verifier_sets()
                 .idx
-                .poll_idx
                 .load_verifier_set(deps.storage, *poll_id)?
                 .expect("verifier set not found in poll");
             Ok(QuorumReached {
@@ -232,7 +247,7 @@ pub fn vote(
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
 
-    let initial_results = get_indices_with_quorum(&poll);
+    let before_results = get_poll_results(&poll);
 
     let poll = poll.try_map(|poll| {
         poll.cast_vote(env.block.height, &info.sender, votes)
@@ -240,18 +255,16 @@ pub fn vote(
     })?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let final_results = get_indices_with_quorum(&poll);
+    let after_results = get_poll_results(&poll);
 
-    // we only want to emit a quorum reached event when quorum is first reached, and not subsequently
-    let reached_quorum: Vec<&(u32, Vote)> = final_results
-        .iter()
-        .filter(|e| !initial_results.contains(e))
-        .collect();
-
-    let events = reached_quorum
-        .iter()
+    let quorum_events = (after_results.sub(before_results))
+        .expect("failed to substract poll results")
+        .0
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, vote)| vote.map(|vote| (idx, vote)))
         .map(|(index_in_poll, vote)| {
-            make_quorum_event(vote, *index_in_poll, &poll_id, &poll, &deps)
+            make_quorum_event(&vote, index_in_poll as u32, &poll_id, &poll, &deps)
         })
         .collect::<Result<Vec<Event>, _>>()?;
 
@@ -263,7 +276,7 @@ pub fn vote(
             }
             .into(),
         )
-        .add_events(events))
+        .add_events(quorum_events))
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
