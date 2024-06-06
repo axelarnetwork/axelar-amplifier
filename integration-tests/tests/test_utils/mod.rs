@@ -802,8 +802,8 @@ pub fn setup_chain(
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         multisig_prover.contract_addr.clone(),
-        &coordinator::msg::ExecuteMsg::UpdateVerifierUnionSet {
-            union_set: verifier_union_set,
+        &coordinator::msg::ExecuteMsg::SetVerifiers {
+            verifiers: verifier_union_set,
         },
     );
     assert!(response.is_ok());

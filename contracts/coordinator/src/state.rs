@@ -55,7 +55,7 @@ pub const VERIFIER_PROVER_INDEXED_MAP: IndexedMap<
 pub fn update_verifier_set_for_prover(
     storage: &mut dyn Storage,
     prover_address: ProverAddress,
-    new_union_set: HashSet<VerifierAddress>,
+    new_verifiers: HashSet<VerifierAddress>,
 ) -> Result<(), ContractError> {
     let existing_verifiers = VERIFIER_PROVER_INDEXED_MAP
         .prefix(prover_address.clone())
@@ -63,12 +63,19 @@ pub fn update_verifier_set_for_prover(
         .filter_map(Result::ok)
         .collect::<HashSet<VerifierAddress>>();
 
-    for verifier in existing_verifiers.difference(&new_union_set) {
-        let _result =
-            VERIFIER_PROVER_INDEXED_MAP.remove(storage, (prover_address.clone(), verifier.clone()));
+    for verifier in existing_verifiers.difference(&new_verifiers) {
+        if VERIFIER_PROVER_INDEXED_MAP
+            .remove(storage, (prover_address.clone(), verifier.clone()))
+            .is_err()
+        {
+            return Err(ContractError::NoSuchVerifierRegisteredForProver(
+                verifier.clone(),
+                prover_address,
+            ));
+        }
     }
 
-    for verifier in new_union_set.difference(&existing_verifiers) {
+    for verifier in new_verifiers.difference(&existing_verifiers) {
         VERIFIER_PROVER_INDEXED_MAP.save(
             storage,
             (prover_address.clone(), verifier.clone()),

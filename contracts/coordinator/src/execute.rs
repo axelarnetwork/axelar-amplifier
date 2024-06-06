@@ -26,8 +26,8 @@ pub fn register_prover(
 pub fn update_prover_union_set(
     deps: DepsMut,
     info: MessageInfo,
-    union_set: HashSet<Addr>,
+    verifiers: HashSet<Addr>,
 ) -> Result<Response, ContractError> {
-    update_verifier_set_for_prover(deps.storage, info.sender, union_set)?;
+    update_verifier_set_for_prover(deps.storage, info.sender, verifiers)?;
     Ok(Response::new())
 }
