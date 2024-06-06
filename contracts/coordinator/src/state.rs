@@ -64,15 +64,14 @@ pub fn update_verifier_set_for_prover(
         .collect::<HashSet<VerifierAddress>>();
 
     for verifier in existing_verifiers.difference(&new_verifiers) {
-        if VERIFIER_PROVER_INDEXED_MAP
+        VERIFIER_PROVER_INDEXED_MAP
             .remove(storage, (prover_address.clone(), verifier.clone()))
-            .is_err()
-        {
-            return Err(ContractError::NoSuchVerifierRegisteredForProver(
-                verifier.clone(),
-                prover_address,
-            ));
-        }
+            .map_err(|_| {
+                ContractError::NoSuchVerifierRegisteredForProver(
+                    verifier.clone(),
+                    prover_address.clone(),
+                )
+            })?;
     }
 
     for verifier in new_verifiers.difference(&existing_verifiers) {
