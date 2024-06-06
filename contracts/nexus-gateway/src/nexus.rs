@@ -20,7 +20,7 @@ pub struct Message {
     pub payload_hash: [u8; 32],
     pub source_tx_id: nonempty::Vec<u8>,
     pub source_tx_index: u64,
-    pub msg_id: String,
+    pub id: String,
 }
 
 impl CustomMsg for Message {}
@@ -50,7 +50,7 @@ impl From<router_api::Message> for Message {
             payload_hash: msg.payload_hash,
             source_tx_id,
             source_tx_index,
-            msg_id: msg.cc_id.id.to_string(),
+            id: msg.cc_id.id.to_string(),
         }
     }
 }
@@ -62,8 +62,8 @@ impl TryFrom<Message> for router_api::Message {
         Ok(Self {
             cc_id: CrossChainId {
                 chain: msg.source_chain,
-                id: nonempty::String::try_from(msg.msg_id.clone())
-                    .change_context(ContractError::InvalidMessageId(msg.msg_id.to_string()))?,
+                id: nonempty::String::try_from(msg.id.clone())
+                    .change_context(ContractError::InvalidMessageId(msg.id.to_string()))?,
             },
             source_address: msg.source_address,
             destination_chain: msg.destination_chain,
@@ -101,13 +101,13 @@ mod test {
             payload_hash: [1; 32],
             source_tx_id: msg_id.tx_hash.to_vec().try_into().unwrap(),
             source_tx_index: msg_id.event_index as u64,
-            msg_id: msg_id.to_string(),
+            id: msg_id.to_string(),
         };
 
         let router_msg = router_api::Message::try_from(msg.clone());
         assert!(router_msg.is_ok());
         let router_msg = router_msg.unwrap();
         assert_eq!(router_msg.cc_id.chain, msg.source_chain);
-        assert_eq!(router_msg.cc_id.id.to_string(), msg.msg_id);
+        assert_eq!(router_msg.cc_id.id.to_string(), msg.id);
     }
 }

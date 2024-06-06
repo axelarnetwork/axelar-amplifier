@@ -147,7 +147,7 @@ mod test {
                 .unwrap(),
                 source_tx_id: msg_ids[0].tx_hash.to_vec().try_into().unwrap(),
                 source_tx_index: msg_ids[0].event_index as u64,
-                msg_id: msg_ids[0].to_string(),
+                id: msg_ids[0].to_string(),
             },
             nexus::Message {
                 source_chain: "sourceChain".parse().unwrap(),
@@ -162,7 +162,7 @@ mod test {
                 .unwrap(),
                 source_tx_id: msg_ids[1].tx_hash.to_vec().try_into().unwrap(),
                 source_tx_index: msg_ids[1].event_index as u64,
-                msg_id: msg_ids[1].to_string(),
+                id: msg_ids[1].to_string(),
             },
         ];
         let res = contract.route_to_router(Addr::unchecked("nexus"), msgs);
