@@ -55,4 +55,7 @@ pub enum ContractError {
 
     #[error("failed to serialize the response")]
     SerializeResponse,
+
+    #[error("not enough verifiers")]
+    NotEnoughVerifiers,
 }
