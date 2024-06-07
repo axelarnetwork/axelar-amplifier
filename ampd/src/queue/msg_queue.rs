@@ -44,7 +44,7 @@ impl MsgQueue {
 
 #[cfg(test)]
 mod test {
-    use cosmrs::proto::Any;
+    use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
 
     use super::MsgQueue;
