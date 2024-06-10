@@ -41,6 +41,11 @@ pub enum ContractError {
     #[error(transparent)]
     BcsError(#[from] bcs::Error),
 
+    /// Todo, Below error throws: binary operation `==` cannot be applied to type `EncodingError<1024>`
+    /// this is a workaround.
+    #[error("encoding/decoding failure: [0]")]
+    SolEncodingError(String),
+
     #[error("verifier set has not changed sufficiently since last update")]
     VerifierSetUnchanged,
 

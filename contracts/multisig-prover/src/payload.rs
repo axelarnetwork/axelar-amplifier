@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use itertools::Itertools;
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
@@ -9,7 +10,11 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
 
 use crate::{
-    encoding::{abi, Encoder},
+    encoding::{
+        abi,
+        sol::{to_weighted_signature, to_worker_set},
+        Encoder,
+    },
     error::ContractError,
 };
 
@@ -46,6 +51,11 @@ impl Payload {
         match encoder {
             Encoder::Abi => abi::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
             Encoder::Bcs => todo!(),
+            Encoder::Solana => Ok(axelar_encoding::hash_payload(
+                &domain_separator,
+                &to_worker_set(cur_verifier_set),
+                &axelar_encoding::types::Payload::from(self),
+            )),
         }
     }
 
@@ -70,6 +80,21 @@ impl Payload {
                 abi::execute_data::encode(verifier_set, signers_with_sigs, &payload_hash, payload)
             }
             Encoder::Bcs => todo!(),
+            Encoder::Solana => {
+                let enc_signatures = signers_with_sigs
+                    .iter()
+                    .map(to_weighted_signature)
+                    .collect_vec();
+
+                let bytes = axelar_encoding::encode::<1024>( // Todo reason about this "1024" magic number.
+                    &to_worker_set(&verifier_set),
+                    enc_signatures,
+                    axelar_encoding::types::Payload::from(payload),
+                )
+                .map_err(|e| ContractError::SolEncodingError(e.to_string()))?;
+
+                Ok(HexBinary::from(bytes)) // Todo, what kind of conversion if any comes from here. Can we expect hex repr directly ?
+            }
         }
     }
 }
