@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use axelar_wasm_std::{
     nonempty, snapshot,
-    voting::{PollId, Vote, WeightedPoll},
+    voting::{PollId, PollResults, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,
 };
 
@@ -164,37 +164,11 @@ pub fn verify_messages(
         .into(),
     ))
 }
-struct PollResults(Vec<Option<Vote>>);
-
-// would be better to implement the Sub trait, but clippy is configured to not allow arithmetic operators
-impl PollResults {
-    /// Returns the elements in self that are Some, but in rhs are None. All other elements are converted to None.
-    /// This is used to determine which elements have quorum in self, but do not have quorum in rhs.
-    /// Vectors must be equal length.
-    fn sub(self, rhs: Self) -> Result<PollResults, ContractError> {
-        if self.0.len() != rhs.0.len() {
-            return Err(ContractError::PollResultsLengthUnequal);
-        }
-        Ok(PollResults(
-            self.0
-                .into_iter()
-                .zip(rhs.0)
-                .filter_map(|(lhs, rhs)| {
-                    if lhs.is_some() && rhs.is_none() {
-                        Some(lhs)
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-        ))
-    }
-}
 
 fn get_poll_results(poll: &Poll) -> PollResults {
     match poll {
-        Poll::Messages(weighted_poll) => PollResults(weighted_poll.state().results),
-        Poll::ConfirmVerifierSet(weighted_poll) => PollResults(weighted_poll.state().results),
+        Poll::Messages(weighted_poll) => weighted_poll.state().results,
+        Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll.state().results,
     }
 }
 
@@ -247,7 +221,7 @@ pub fn vote(
         .may_load(deps.storage, poll_id)?
         .ok_or(ContractError::PollNotFound)?;
 
-    let before_results = get_poll_results(&poll);
+    let results_before_voting = get_poll_results(&poll);
 
     let poll = poll.try_map(|poll| {
         poll.cast_vote(env.block.height, &info.sender, votes)
@@ -255,9 +229,9 @@ pub fn vote(
     })?;
     POLLS.save(deps.storage, poll_id, &poll)?;
 
-    let after_results = get_poll_results(&poll);
+    let results_after_voting = get_poll_results(&poll);
 
-    let quorum_events = (after_results.sub(before_results))
+    let quorum_events = (results_after_voting.difference(results_before_voting))
         .expect("failed to substract poll results")
         .0
         .into_iter()
@@ -314,7 +288,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
     Ok(Response::new().add_messages(rewards_msgs).add_event(
         PollEnded {
             poll_id: poll_result.poll_id,
-            results: poll_result.results.clone(),
+            results: poll_result.results.0.clone(),
         }
         .into(),
     ))
