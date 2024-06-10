@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Uint128, Uint64};
+use cosmwasm_std::{Addr, Uint128, Uint64};
 use router_api::ChainName;
 
 use crate::state::{Epoch, PoolId};
@@ -88,7 +88,8 @@ pub struct RewardsPool {
 #[cw_serde]
 pub struct Participation {
     pub event_count: u64,
-    pub participation: HashMap<String, u64>, // maps a verifier address to participation count
+    pub participation: HashMap<Addr, u64>, // maps a verifier address to participation count
+    pub rewards_by_verifier: HashMap<Addr, Uint128>, // maps a verifier address to amount of rewards
     pub epoch: Epoch,
     pub params: Params,
 }

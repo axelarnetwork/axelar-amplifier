@@ -55,7 +55,8 @@ pub fn participation(
         None => Ok(None),
         Some(tally) => Ok(Some(msg::Participation {
             event_count: tally.event_count,
-            participation: tally.participation,
+            participation: tally.verifier_participation(),
+            rewards_by_verifier: tally.rewards_by_verifier(),
             epoch: tally.epoch,
             params: tally.params,
         })),
@@ -284,7 +285,8 @@ mod tests {
 
         let expected = Participation {
             event_count: tally.event_count,
-            participation: tally.participation,
+            participation: tally.verifier_participation(),
+            rewards_by_verifier: tally.rewards_by_verifier(),
             epoch: Epoch::current(&current_params.clone(), block_height).unwrap(),
             params: current_params.params.clone(),
         };
