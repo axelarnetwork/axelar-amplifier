@@ -1,4 +1,5 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
+use error_stack::Result;
 
 use multisig::{multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
 
@@ -12,20 +13,27 @@ pub fn get_proof(
     deps: Deps,
     multisig_session_id: Uint64,
 ) -> Result<GetProofResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
-    let payload_id = MULTISIG_SESSION_PAYLOAD.load(deps.storage, multisig_session_id.u64())?;
+    let payload_id = MULTISIG_SESSION_PAYLOAD
+        .load(deps.storage, multisig_session_id.u64())
+        .map_err(ContractError::from)?;
 
     let query_msg = multisig::msg::QueryMsg::GetMultisig {
         session_id: multisig_session_id,
     };
 
-    let multisig: Multisig = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.multisig.to_string(),
-        msg: to_json_binary(&query_msg)?,
-    }))?;
+    let multisig: Multisig = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.multisig.to_string(),
+            msg: to_json_binary(&query_msg).map_err(ContractError::from)?,
+        }))
+        .map_err(ContractError::from)?;
 
-    let payload = PAYLOAD.load(deps.storage, &payload_id)?;
+    let payload = PAYLOAD
+        .load(deps.storage, &payload_id)
+        .map_err(ContractError::from)?;
 
     let status = match multisig.state {
         MultisigState::Pending => ProofStatus::Pending,

@@ -1,5 +1,5 @@
-use ethers::contract::EthLogDecode;
-use ethers::types::{Log, TransactionReceipt, H256};
+use ethers_contract::EthLogDecode;
+use ethers_core::types::{Log, TransactionReceipt, H256};
 use num_traits::cast;
 
 use axelar_wasm_std::voting::Vote;
@@ -120,9 +120,9 @@ pub fn verify_verifier_set(
 mod tests {
     use axelar_wasm_std::voting::Vote;
     use cosmwasm_std::Uint128;
-    use ethers::{
+    use ethers_contract::EthEvent;
+    use ethers_core::{
         abi::{encode, Token},
-        contract::EthEvent,
         types::{Log, TransactionReceipt, H256},
     };
     use evm_gateway::{

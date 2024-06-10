@@ -33,8 +33,6 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-alloy-primitives = { version = "0.7.0", default-features = false }
-alloy-sol-types = { version = "0.7.0", default-features = false, features = ["json"] }
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
 bcs = "0.1.5"
@@ -45,7 +43,9 @@ cw-storage-plus = { workspace = true }
 cw-utils = "1.0.1"
 cw2 = { workspace = true }
 error-stack = { workspace = true }
-ethabi = { version = "18.0.0", default-features = false, features = [] }
+ethers-contract = { workspace = true }
+ethers-core = { workspace = true }
+evm-gateway = { workspace = true }
 gateway = { workspace = true }
 gateway-api = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = [] }
@@ -64,7 +64,6 @@ voting-verifier = { workspace = true, features = ["library"] }
 anyhow = "1.0"
 cw-multi-test = "0.15.1"
 elliptic-curve = "0.13.5"
-ethers = "2.0.8"
 generic-array = "0.14.7"
 prost = "0.12.4"
 

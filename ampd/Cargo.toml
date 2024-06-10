@@ -13,15 +13,16 @@ base64 = "0.21.2"
 bcs = "0.1.5"
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
-cosmos-sdk-proto = "0.16.0"
-cosmrs = { version = "0.14.0", features = ["cosmwasm"] }
+cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 deref-derive = "0.1.0"
 dirs = "5.0.1"
 ecdsa = { version = "0.16.6" }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
-ethers = { version = "2.0.8", features = ["rustls"] }
+ethers-contract = { workspace = true }
+ethers-core = { workspace = true }
+ethers-providers = { version = "2.0.13", default-features = false, features = ["rustls"] }
 events = { workspace = true }
 events-derive = { workspace = true }
 evm-gateway = { workspace = true }
@@ -58,7 +59,7 @@ tokio = { version = "1.22.0", features = ["signal"] }
 tokio-stream = { version = "0.1.11", features = ["sync"] }
 tokio-util = "0.7.8"
 toml = "0.5.9"
-tonic = "0.8.3"
+tonic = "0.9.2"
 tracing = { version = "0.1.37", features = ["valuable", "log"] }
 tracing-core = { version = "0.1.30", features = ["valuable"] }
 tracing-subscriber = { version = "0.3.16", features = ["json", "valuable"] }
@@ -76,7 +77,6 @@ rand = "0.8.5"
 random-string = "1.0.0"
 
 [build-dependencies]
-ethers = "2.0.8"
 tonic-build = "0.8.3"
 
 [lints]

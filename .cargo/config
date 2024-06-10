@@ -4,7 +4,3 @@ unit-test = "test --lib"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]
-
-[env]
-SOLIDITY_GATEWAY_VERSION = "v5.9.0"
-SOLIDITY_RELEASES_URL = "https://github.com/axelarnetwork/axelar-gmp-sdk-solidity/releases/download"
