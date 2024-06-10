@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 
-use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{snapshot, FnExt, MajorityThreshold, VerificationStatus};
 use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedVerifier;
@@ -338,33 +338,22 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
 }
 
 fn all_active_verifiers(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {
-    let verifiers = CURRENT_VERIFIER_SET
+    let current_signers = CURRENT_VERIFIER_SET
         .may_load(deps.storage)?
-        .map(|verifier_set| {
-            verifier_set
-                .signers
-                .values()
-                .map(|signer| signer.address.clone())
-                .collect::<HashSet<Addr>>()
-        })
-        .into_iter()
-        .flatten()
-        .chain(
-            NEXT_VERIFIER_SET
-                .may_load(deps.storage)?
-                .map(|next_verifier_set| {
-                    next_verifier_set
-                        .signers
-                        .values()
-                        .map(|signer| signer.address.clone())
-                        .collect::<HashSet<Addr>>()
-                })
-                .into_iter()
-                .flatten(),
-        )
-        .collect::<HashSet<Addr>>();
+        .map(|verifier_set| verifier_set.signers)
+        .unwrap_or_default();
 
-    Ok(verifiers)
+    let next_signers = NEXT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .map(|verifier_set| verifier_set.signers)
+        .unwrap_or_default();
+
+    current_signers
+        .values()
+        .chain(next_signers.values())
+        .map(|signer| signer.address.clone())
+        .collect::<HashSet<Addr>>()
+        .then(Ok)
 }
 
 pub fn should_update_verifier_set(
