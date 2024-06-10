@@ -66,12 +66,12 @@ pub fn update_verifier_set_for_prover(
     for verifier in existing_verifiers.difference(&new_verifiers) {
         VERIFIER_PROVER_INDEXED_MAP
             .remove(storage, (prover_address.clone(), verifier.clone()))
-            .map_err(|_| {
-                ContractError::NoSuchVerifierRegisteredForProver(
-                    verifier.clone(),
-                    prover_address.clone(),
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Failed to remove verifier {:?} for prover {:?}",
+                    verifier, prover_address
                 )
-            })?;
+            });
     }
 
     for verifier in new_verifiers.difference(&existing_verifiers) {

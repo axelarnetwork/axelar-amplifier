@@ -23,7 +23,7 @@ pub fn register_prover(
     Ok(Response::new())
 }
 
-pub fn update_prover_union_set(
+pub fn set_active_verifier_set(
     deps: DepsMut,
     info: MessageInfo,
     verifiers: HashSet<Addr>,

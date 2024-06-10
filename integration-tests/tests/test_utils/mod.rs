@@ -802,7 +802,7 @@ pub fn setup_chain(
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         multisig_prover.contract_addr.clone(),
-        &coordinator::msg::ExecuteMsg::SetVerifiers {
+        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
             verifiers: verifier_union_set,
         },
     );

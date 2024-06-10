@@ -9,24 +9,18 @@ pub fn prover(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> 
         .ok_or(ContractError::NoProversRegisteredForChain(chain_name))
 }
 
-fn is_verifier_in_any_verifier_set(
-    deps: Deps,
-    verifier_address: &VerifierAddress,
-) -> StdResult<bool> {
-    let verifier_present_in_sets = VERIFIER_PROVER_INDEXED_MAP
+fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &VerifierAddress) -> bool {
+    VERIFIER_PROVER_INDEXED_MAP
         .idx
         .by_verifier
         .prefix(verifier_address.clone())
         .range(deps.storage, None, None, Order::Ascending)
-        .next()
-        .is_some();
-
-    Ok(verifier_present_in_sets)
+        .any(|_| true)
 }
 
 pub fn check_verifier_ready_to_unbond(
     deps: Deps,
     verifier_address: VerifierAddress,
 ) -> StdResult<bool> {
-    Ok(!(is_verifier_in_any_verifier_set(deps, &verifier_address)?))
+    Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
 }

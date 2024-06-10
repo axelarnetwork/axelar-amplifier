@@ -250,7 +250,7 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
                 ))
                 .add_message(wasm_execute(
                     config.coordinator,
-                    &coordinator::msg::ExecuteMsg::SetVerifiers {
+                    &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
                         verifiers: verifier_union_set,
                     },
                     vec![],
@@ -304,7 +304,7 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
         )?)
         .add_message(wasm_execute(
             config.coordinator,
-            &coordinator::msg::ExecuteMsg::SetVerifiers {
+            &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
                 verifiers: verifier_union_set,
             },
             vec![],

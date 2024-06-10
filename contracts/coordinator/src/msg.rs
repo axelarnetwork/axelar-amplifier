@@ -15,7 +15,7 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
-    SetVerifiers {
+    SetActiveVerifiers {
         verifiers: HashSet<Addr>,
     },
 }

@@ -57,8 +57,8 @@ pub fn execute(
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::SetVerifiers { verifiers } => {
-            execute::update_prover_union_set(deps, info, verifiers)
+        ExecuteMsg::SetActiveVerifiers { verifiers } => {
+            execute::set_active_verifier_set(deps, info, verifiers)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
