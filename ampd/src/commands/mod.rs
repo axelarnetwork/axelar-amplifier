@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use clap::Subcommand;
-use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmos_sdk_proto::cosmos::{
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
-use cosmos_sdk_proto::Any;
+use cosmrs::proto::Any;
 use cosmrs::AccountId;
 use error_stack::Result;
 use error_stack::ResultExt;

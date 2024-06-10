@@ -127,7 +127,7 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
 
-    use cosmos_sdk_proto::Any;
+    use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
     use events::Event;
