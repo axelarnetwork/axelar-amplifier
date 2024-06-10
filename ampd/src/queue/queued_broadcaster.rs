@@ -174,7 +174,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
+    use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::tx::Fee;
     use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
