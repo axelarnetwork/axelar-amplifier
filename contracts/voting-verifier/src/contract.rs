@@ -1312,4 +1312,108 @@ mod test {
             )]
         );
     }
+
+    #[test]
+    fn should_emit_event_when_verification_succeeds() {
+        let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
+        let verifiers = verifiers(3);
+        let mut deps = setup(verifiers.clone(), &msg_id_format);
+        let threshold = initial_voting_threshold();
+        // this test depends on the threshold being 2/3
+        assert_eq!(
+            threshold,
+            Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
+        );
+        let votes_to_reach_quorum = 2;
+
+        let messages = messages(2, &msg_id_format);
+
+        // 1. First verification
+
+        let msg_verify = ExecuteMsg::VerifyMessages {
+            messages: messages.clone(),
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(SENDER, &[]),
+            msg_verify.clone(),
+        );
+        assert!(res.is_ok());
+
+        // 2. Verifiers cast votes, but only reach consensus on the first three messages
+        verifiers.iter().enumerate().for_each(|(i, verifier)| {
+            let msg = ExecuteMsg::Vote {
+                poll_id: 1u64.into(),
+                votes: vec![Vote::SucceededOnChain, Vote::NotFound],
+            };
+
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(verifier.address.as_str(), &[]),
+                msg,
+            )
+            .unwrap();
+
+            // should emit event when vote causes quorum to be reached
+            assert_eq!(
+                res.events.iter().any(|event| event.ty == "quorum_reached"),
+                i == votes_to_reach_quorum - 1
+            );
+
+            if i == votes_to_reach_quorum - 1 {
+                let mut iter = res.events.iter();
+
+                let first_event = iter.find(|event| event.ty == "quorum_reached").unwrap();
+
+                let msg: Message = serde_json::from_str(
+                    &first_event
+                        .attributes
+                        .iter()
+                        .find(|attr| attr.key == "content")
+                        .unwrap()
+                        .value,
+                )
+                .unwrap();
+                assert_eq!(msg, messages[0]);
+
+                let status: VerificationStatus = serde_json::from_str(
+                    &first_event
+                        .attributes
+                        .iter()
+                        .find(|attr| attr.key == "status")
+                        .unwrap()
+                        .value,
+                )
+                .unwrap();
+                assert_eq!(status, VerificationStatus::SucceededOnSourceChain);
+
+                let second_event = iter.find(|event| event.ty == "quorum_reached").unwrap();
+
+                let msg: Message = serde_json::from_str(
+                    &second_event
+                        .attributes
+                        .iter()
+                        .find(|attr| attr.key == "content")
+                        .unwrap()
+                        .value,
+                )
+                .unwrap();
+                assert_eq!(msg, messages[1]);
+
+                let status: VerificationStatus = serde_json::from_str(
+                    &second_event
+                        .attributes
+                        .iter()
+                        .find(|attr| attr.key == "status")
+                        .unwrap()
+                        .value,
+                )
+                .unwrap();
+                assert_eq!(status, VerificationStatus::NotFoundOnSourceChain);
+            }
+        });
+    }
 }

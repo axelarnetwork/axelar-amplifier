@@ -56,6 +56,9 @@ pub enum Error {
 
     #[error("message index out of bounds")]
     MessageIndexOutOfBounds,
+
+    #[error("poll results have different length")]
+    PollResultsLengthUnequal,
 }
 
 #[cw_serde]
@@ -205,9 +208,37 @@ impl Tallies {
 }
 
 #[cw_serde]
+pub struct PollResults(pub Vec<Option<Vote>>);
+
+// would be better to implement the Sub trait, but clippy is configured to not allow arithmetic operators
+impl PollResults {
+    /// Returns the elements in self that are Some, but in rhs are None. All other elements are converted to None.
+    /// This is used to determine which elements have quorum in self, but do not have quorum in rhs.
+    /// Vectors must be equal length.
+    pub fn difference(self, rhs: Self) -> Result<PollResults, Error> {
+        if self.0.len() != rhs.0.len() {
+            return Err(Error::PollResultsLengthUnequal);
+        }
+        Ok(PollResults(
+            self.0
+                .into_iter()
+                .zip(rhs.0)
+                .filter_map(|(lhs, rhs)| {
+                    if lhs.is_some() && rhs.is_none() {
+                        Some(lhs)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        ))
+    }
+}
+
+#[cw_serde]
 pub struct PollState {
     pub poll_id: PollId,
-    pub results: Vec<Option<Vote>>,
+    pub results: PollResults,
     /// List of participants who voted for the winning result
     pub consensus_participants: Vec<String>,
 }
@@ -306,7 +337,7 @@ impl WeightedPoll {
 
         PollState {
             poll_id: self.poll_id,
-            results,
+            results: PollResults(results),
             consensus_participants,
         }
     }
@@ -483,7 +514,10 @@ mod tests {
             result,
             PollState {
                 poll_id: PollId::from(Uint64::one()),
-                results: vec![Some(Vote::SucceededOnChain), Some(Vote::SucceededOnChain)],
+                results: PollResults(vec![
+                    Some(Vote::SucceededOnChain),
+                    Some(Vote::SucceededOnChain)
+                ]),
                 consensus_participants: vec!["addr1".to_string(), "addr2".to_string(),],
             }
         );
@@ -509,7 +543,10 @@ mod tests {
             result,
             PollState {
                 poll_id: PollId::from(Uint64::one()),
-                results: vec![Some(Vote::SucceededOnChain), Some(Vote::SucceededOnChain)],
+                results: PollResults(vec![
+                    Some(Vote::SucceededOnChain),
+                    Some(Vote::SucceededOnChain)
+                ]),
                 consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
             }
         );
