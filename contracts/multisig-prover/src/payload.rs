@@ -53,8 +53,8 @@ impl Payload {
             Encoder::Bcs => todo!(),
             Encoder::Solana => Ok(axelar_encoding::hash_payload(
                 &domain_separator,
-                &to_worker_set(cur_verifier_set),
-                &axelar_encoding::types::Payload::from(self),
+                &to_worker_set(cur_verifier_set)?,
+                &axelar_encoding::types::Payload::try_from(self)?,
             )),
         }
     }
@@ -81,15 +81,17 @@ impl Payload {
             }
             Encoder::Bcs => todo!(),
             Encoder::Solana => {
-                let enc_signatures = signers_with_sigs
-                    .iter()
-                    .map(to_weighted_signature)
-                    .collect_vec();
+                let mut enc_signatures = Vec::new();
 
-                let bytes = axelar_encoding::encode::<1024>( // Todo reason about this "1024" magic number.
-                    &to_worker_set(&verifier_set),
+                for s in signers_with_sigs {
+                    enc_signatures.push(to_weighted_signature(&s)?)
+                }
+
+                let bytes = axelar_encoding::encode::<1024>(
+                    // Todo reason about this "1024" magic number.
+                    &to_worker_set(&verifier_set)?,
                     enc_signatures,
-                    axelar_encoding::types::Payload::from(payload),
+                    axelar_encoding::types::Payload::try_from(payload)?,
                 )
                 .map_err(|e| ContractError::SolEncodingError(e.to_string()))?;
 
