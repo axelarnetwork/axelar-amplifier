@@ -9,6 +9,7 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{App, AppResponse, Executor};
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
+use std::collections::HashSet;
 
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
@@ -316,20 +317,6 @@ pub fn get_verifier_set_from_prover(
 ) -> VerifierSet {
     let query_response: Result<VerifierSet, StdError> =
         multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetVerifierSet);
-    assert!(query_response.is_ok());
-
-    query_response.unwrap()
-}
-
-pub fn get_verifier_set_from_coordinator(
-    app: &mut App,
-    coordinator_contract: &CoordinatorContract,
-    chain_name: ChainName,
-) -> VerifierSet {
-    let query_response: Result<VerifierSet, StdError> = coordinator_contract.query(
-        app,
-        &coordinator::msg::QueryMsg::GetActiveVerifiers { chain_name },
-    );
     assert!(query_response.is_ok());
 
     query_response.unwrap()
@@ -723,7 +710,7 @@ pub struct Chain {
 pub fn setup_chain(
     protocol: &mut Protocol,
     chain_name: ChainName,
-    verifiers: &Vec<Verifier>,
+    verifiers: &[Verifier],
 ) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
@@ -810,12 +797,13 @@ pub fn setup_chain(
     );
     assert!(response.is_ok());
 
-    let verifier_set = verifiers_to_verifier_set(protocol, verifiers);
+    let mut verifier_union_set = HashSet::new();
+    verifier_union_set.extend(verifiers.iter().map(|verifier| verifier.addr.clone()));
     let response = protocol.coordinator.execute(
         &mut protocol.app,
         multisig_prover.contract_addr.clone(),
         &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-            next_verifier_set: verifier_set,
+            verifiers: verifier_union_set,
         },
     );
     assert!(response.is_ok());

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 
-use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{snapshot, FnExt, MajorityThreshold, VerificationStatus};
 use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
 use router_api::{ChainName, CrossChainId, Message};
 use service_registry::state::WeightedVerifier;
@@ -263,6 +263,8 @@ pub fn update_verifier_set(
                 chain_name: config.chain_name,
             };
 
+            let verifier_union_set = all_active_verifiers(&deps)?;
+
             Ok(Response::new()
                 .add_submessage(SubMsg::reply_on_success(
                     wasm_execute(config.multisig, &start_sig_msg, vec![])
@@ -271,9 +273,9 @@ pub fn update_verifier_set(
                 ))
                 .add_message(
                     wasm_execute(
-                        config.coordinator.clone(),
-                        &coordinator::msg::ExecuteMsg::SetNextVerifiers {
-                            next_verifier_set: new_verifier_set,
+                        config.coordinator,
+                        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+                            verifiers: verifier_union_set,
                         },
                         vec![],
                     )
@@ -316,6 +318,8 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
     CURRENT_VERIFIER_SET.save(deps.storage, &verifier_set)?;
     NEXT_VERIFIER_SET.remove(deps.storage);
 
+    let verifier_union_set = all_active_verifiers(&deps)?;
+
     Ok(Response::new()
         .add_message(wasm_execute(
             config.multisig,
@@ -327,10 +331,29 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
         .add_message(wasm_execute(
             config.coordinator,
             &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                next_verifier_set: verifier_set,
+                verifiers: verifier_union_set,
             },
             vec![],
         )?))
+}
+
+fn all_active_verifiers(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {
+    let current_signers = CURRENT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .map(|verifier_set| verifier_set.signers)
+        .unwrap_or_default();
+
+    let next_signers = NEXT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .map(|verifier_set| verifier_set.signers)
+        .unwrap_or_default();
+
+    current_signers
+        .values()
+        .chain(next_signers.values())
+        .map(|signer| signer.address.clone())
+        .collect::<HashSet<Addr>>()
+        .then(Ok)
 }
 
 pub fn should_update_verifier_set(
