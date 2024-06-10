@@ -6,10 +6,13 @@ use cosmwasm_std::Deps;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
-use crate::{error::ContractError, state::CONFIG};
+use crate::{
+    error::ContractError,
+    state::{poll_messages, poll_verifier_sets, CONFIG},
+};
 use crate::{
     msg::MessageStatus,
-    state::{self, Poll, PollContent, POLLS, POLL_MESSAGES, POLL_VERIFIER_SETS},
+    state::{self, Poll, PollContent, POLLS},
 };
 
 pub fn voting_threshold(deps: Deps) -> Result<MajorityThreshold, ContractError> {
@@ -30,7 +33,7 @@ pub fn messages_status(
 }
 
 pub fn message_status(deps: Deps, message: &Message) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_MESSAGES.may_load(deps.storage, &message.hash())?;
+    let loaded_poll_content = poll_messages().may_load(deps.storage, &message.hash())?;
 
     Ok(verification_status(deps, loaded_poll_content, message))
 }
@@ -39,7 +42,7 @@ pub fn verifier_set_status(
     deps: Deps,
     verifier_set: &VerifierSet,
 ) -> Result<VerificationStatus, ContractError> {
-    let loaded_poll_content = POLL_VERIFIER_SETS.may_load(
+    let loaded_poll_content = poll_verifier_sets().may_load(
         deps.storage,
         &verifier_set.hash().as_slice().try_into().unwrap(),
     )?;
@@ -119,7 +122,7 @@ mod tests {
             .unwrap();
 
         let msg = message(1);
-        POLL_MESSAGES
+        poll_messages()
             .save(
                 deps.as_mut().storage,
                 &msg.hash(),
@@ -154,7 +157,7 @@ mod tests {
             .unwrap();
 
         let msg = message(1);
-        POLL_MESSAGES
+        poll_messages()
             .save(
                 deps.as_mut().storage,
                 &msg.hash(),
@@ -188,7 +191,7 @@ mod tests {
             .unwrap();
 
         let msg = message(1);
-        POLL_MESSAGES
+        poll_messages()
             .save(
                 deps.as_mut().storage,
                 &msg.hash(),

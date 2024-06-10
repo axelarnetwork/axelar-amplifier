@@ -39,6 +39,9 @@ pub enum ContractError {
 
     #[error("unauthorized")]
     Unauthorized,
+
+    #[error("poll results have different length")]
+    PollResultsLengthUnequal,
 }
 
 impl From<ContractError> for StdError {
