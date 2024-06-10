@@ -271,13 +271,16 @@ pub fn update_verifier_set(
                         .map_err(ContractError::from)?,
                     START_MULTISIG_REPLY_ID,
                 ))
-                .add_message(wasm_execute(
-                    config.coordinator,
-                    &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                        verifiers: verifier_union_set,
-                    },
-                    vec![],
-                )?))
+                .add_message(
+                    wasm_execute(
+                        config.coordinator,
+                        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+                            verifiers: verifier_union_set,
+                        },
+                        vec![],
+                    )
+                    .map_err(ContractError::from)?,
+                ))
         }
     }
 }
