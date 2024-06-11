@@ -1,22 +1,19 @@
 use std::{array::TryFromSliceError, collections::BTreeMap};
 
-use axelar_encoding::types::{
-    CrossChainId, Message, Payload, PublicKey, Signature, Signer, WeightedSignature, WorkerSet,
-    U256,
-};
 
 use itertools::Itertools;
-use multisig::{msg::SignerWithSig, verifier_set::VerifierSet};
+use multisig::{key::{PublicKey, Signature}, msg::SignerWithSig, verifier_set::VerifierSet};
+use router_api::Message;
 
-use crate::error::ContractError;
+use crate::{error::ContractError, payload::Payload};
 
 const ECDSA_COMPRESSED_PUBKEY_LEN: usize = 33; // this should be probably a public constant in axelar_encoding.
 const ED25519_PUBKEY_LEN: usize = 32; // this should be probably a public constant in axelar_encoding.
 
 type Result<T> = core::result::Result<T, ContractError>;
 
-pub fn to_worker_set(vs: &VerifierSet) -> Result<WorkerSet> {
-    let mut signers: BTreeMap<String, Signer> = BTreeMap::new();
+pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_encoding::types::WorkerSet> {
+    let mut signers: BTreeMap<String, axelar_encoding::types::Signer> = BTreeMap::new();
 
     vs.signers
         .iter()
@@ -24,29 +21,29 @@ pub fn to_worker_set(vs: &VerifierSet) -> Result<WorkerSet> {
             let enc_signer = signer.address.to_string();
             let enc_pubkey = to_pub_key(&signer.pub_key)?;
 
-            let enc_weight = U256::from_be(to_u256_be(signer.weight.u128()));
+            let enc_weight = axelar_encoding::types::U256::from_be(to_u256_be(signer.weight.u128()));
 
             signers.insert(
                 address.clone(),
-                Signer::new(enc_signer, enc_pubkey, enc_weight),
+                axelar_encoding::types::Signer::new(enc_signer, enc_pubkey, enc_weight),
             );
             Ok(())
         })?;
 
-    Ok(WorkerSet::new(
+    Ok(axelar_encoding::types::WorkerSet::new(
         vs.created_at,
         signers,
-        U256::from_be(to_u256_be(vs.threshold.u128())),
+        axelar_encoding::types::U256::from_be(to_u256_be(vs.threshold.u128())),
     ))
 }
 
-fn to_pub_key(pk: &multisig::key::PublicKey) -> Result<PublicKey> {
+fn to_pub_key(pk: &PublicKey) -> Result<axelar_encoding::types::PublicKey> {
     Ok(match pk {
-        multisig::key::PublicKey::Ecdsa(hb) => {
-            PublicKey::new_ecdsa(hb.to_array::<ECDSA_COMPRESSED_PUBKEY_LEN>()?)
+        PublicKey::Ecdsa(hb) => {
+            axelar_encoding::types::PublicKey::new_ecdsa(hb.to_array::<ECDSA_COMPRESSED_PUBKEY_LEN>()?)
         }
-        multisig::key::PublicKey::Ed25519(hb) => {
-            PublicKey::new_ed25519(hb.to_array::<ED25519_PUBKEY_LEN>()?)
+        PublicKey::Ed25519(hb) => {
+            axelar_encoding::types::PublicKey::new_ed25519(hb.to_array::<ED25519_PUBKEY_LEN>()?)
         }
     })
 }
@@ -58,24 +55,24 @@ fn to_u256_be(u: u128) -> [u8; 32] {
     uin256
 }
 
-impl TryFrom<&crate::payload::Payload> for Payload {
+impl TryFrom<&Payload> for axelar_encoding::types::Payload {
     type Error = ContractError;
-    fn try_from(value: &crate::payload::Payload) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &Payload) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
-            crate::payload::Payload::Messages(msgs) => {
-                Payload::new_messages(msgs.iter().map(to_msg).collect_vec())
+            Payload::Messages(msgs) => {
+                axelar_encoding::types::Payload::new_messages(msgs.iter().map(to_msg).collect_vec())
             }
-            crate::payload::Payload::VerifierSet(vs) => {
-                Payload::new_worker_set(to_worker_set(&vs)?)
+            Payload::VerifierSet(vs) => {
+                axelar_encoding::types::Payload::new_worker_set(to_worker_set(&vs)?)
             }
         })
     }
 }
 
-fn to_msg(msg: &router_api::Message) -> Message {
-    let enc_cc_id = CrossChainId::new(msg.cc_id.chain.to_string(), msg.cc_id.id.to_string());
+fn to_msg(msg: &Message) -> axelar_encoding::types::Message {
+    let enc_cc_id = axelar_encoding::types::CrossChainId::new(msg.cc_id.chain.to_string(), msg.cc_id.id.to_string());
 
-    Message::new(
+    axelar_encoding::types::Message::new(
         enc_cc_id,
         msg.source_address.to_string(),
         msg.destination_chain.to_string(),
@@ -84,38 +81,38 @@ fn to_msg(msg: &router_api::Message) -> Message {
     )
 }
 
-pub fn to_weighted_signature(sig: &SignerWithSig) -> Result<WeightedSignature> {
+pub fn to_weighted_signature(sig: &SignerWithSig) -> Result<axelar_encoding::types::WeightedSignature> {
     let enc_pub_key = to_pub_key(&sig.signer.pub_key)?;
     let enc_signature = to_signature(&sig.signature)?;
-    let enc_weight = U256::from_be(to_u256_be(sig.signer.weight.u128()));
+    let enc_weight = axelar_encoding::types::U256::from_be(to_u256_be(sig.signer.weight.u128()));
 
-    Ok(WeightedSignature::new(
+    Ok(axelar_encoding::types::WeightedSignature::new(
         enc_pub_key,
         enc_signature,
         enc_weight,
     ))
 }
 
-fn to_signature(sig: &multisig::key::Signature) -> Result<Signature> {
+fn to_signature(sig: &Signature) -> Result<axelar_encoding::types::Signature> {
     match sig {
-        multisig::key::Signature::Ecdsa(_) => unimplemented!(), // Todo: should we implement this in axelar_encoding ?
+        Signature::Ecdsa(_) => unimplemented!(), // Todo: should we implement this in axelar_encoding ?
 
         // Following 2: We are just moving the bytes around, hoping this conversions match. Not sure if `HexBinary`
         // representation will match here with the decoding part.
-        multisig::key::Signature::EcdsaRecoverable(r) => {
+        Signature::EcdsaRecoverable(r) => {
             let data = r
                 .as_ref()
                 .try_into()
                 .map_err(|e: TryFromSliceError| ContractError::SolEncodingError(e.to_string()))?;
-            Ok(Signature::EcdsaRecoverable(data))
+            Ok(axelar_encoding::types::Signature::EcdsaRecoverable(data))
         }
-        multisig::key::Signature::Ed25519(ed) => {
+        Signature::Ed25519(ed) => {
             let data = ed
                 .as_ref()
                 .try_into()
                 .map_err(|e: TryFromSliceError| ContractError::SolEncodingError(e.to_string()))?;
 
-            Ok(Signature::new_ed25519(data))
+            Ok(axelar_encoding::types::Signature::new_ed25519(data))
         }
     }
 }
