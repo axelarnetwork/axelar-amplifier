@@ -12,7 +12,7 @@ use router_api::{CrossChainId, Message};
 use crate::{
     encoding::{
         abi,
-        sol::{to_weighted_signature, to_worker_set},
+        rkyv::{to_weighted_signature, to_worker_set},
         Encoder,
     },
     error::ContractError,
@@ -93,7 +93,7 @@ impl Payload {
                     enc_signatures,
                     axelar_encoding::types::Payload::try_from(payload)?,
                 )
-                .map_err(|e| ContractError::SolEncodingError(e.to_string()))?;
+                .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
 
                 Ok(HexBinary::from(bytes)) // Todo, what kind of conversion if any comes from here. Can we expect hex repr directly ?
             }

@@ -1,5 +1,5 @@
 pub mod abi;
-pub mod sol;
+pub mod rkyv;
 
 use cosmwasm_schema::cw_serde;
 

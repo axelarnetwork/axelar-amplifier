@@ -44,7 +44,7 @@ pub enum ContractError {
     /// Todo, Below error throws: binary operation `==` cannot be applied to type `EncodingError<1024>`
     /// this is a workaround.
     #[error("encoding/decoding failure: [0]")]
-    SolEncodingError(String),
+    RkyvEncodingError(String),
 
     #[error("verifier set has not changed sufficiently since last update")]
     VerifierSetUnchanged,

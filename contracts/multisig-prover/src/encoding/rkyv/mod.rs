@@ -1,8 +1,11 @@
 use std::{array::TryFromSliceError, collections::BTreeMap};
 
-
 use itertools::Itertools;
-use multisig::{key::{PublicKey, Signature}, msg::SignerWithSig, verifier_set::VerifierSet};
+use multisig::{
+    key::{PublicKey, Signature},
+    msg::SignerWithSig,
+    verifier_set::VerifierSet,
+};
 use router_api::Message;
 
 use crate::{error::ContractError, payload::Payload};
@@ -21,7 +24,8 @@ pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_encoding::types::WorkerS
             let enc_signer = signer.address.to_string();
             let enc_pubkey = to_pub_key(&signer.pub_key)?;
 
-            let enc_weight = axelar_encoding::types::U256::from_be(to_u256_be(signer.weight.u128()));
+            let enc_weight =
+                axelar_encoding::types::U256::from_be(to_u256_be(signer.weight.u128()));
 
             signers.insert(
                 address.clone(),
@@ -39,9 +43,9 @@ pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_encoding::types::WorkerS
 
 fn to_pub_key(pk: &PublicKey) -> Result<axelar_encoding::types::PublicKey> {
     Ok(match pk {
-        PublicKey::Ecdsa(hb) => {
-            axelar_encoding::types::PublicKey::new_ecdsa(hb.to_array::<ECDSA_COMPRESSED_PUBKEY_LEN>()?)
-        }
+        PublicKey::Ecdsa(hb) => axelar_encoding::types::PublicKey::new_ecdsa(
+            hb.to_array::<ECDSA_COMPRESSED_PUBKEY_LEN>()?,
+        ),
         PublicKey::Ed25519(hb) => {
             axelar_encoding::types::PublicKey::new_ed25519(hb.to_array::<ED25519_PUBKEY_LEN>()?)
         }
@@ -70,7 +74,10 @@ impl TryFrom<&Payload> for axelar_encoding::types::Payload {
 }
 
 fn to_msg(msg: &Message) -> axelar_encoding::types::Message {
-    let enc_cc_id = axelar_encoding::types::CrossChainId::new(msg.cc_id.chain.to_string(), msg.cc_id.id.to_string());
+    let enc_cc_id = axelar_encoding::types::CrossChainId::new(
+        msg.cc_id.chain.to_string(),
+        msg.cc_id.id.to_string(),
+    );
 
     axelar_encoding::types::Message::new(
         enc_cc_id,
@@ -81,7 +88,9 @@ fn to_msg(msg: &Message) -> axelar_encoding::types::Message {
     )
 }
 
-pub fn to_weighted_signature(sig: &SignerWithSig) -> Result<axelar_encoding::types::WeightedSignature> {
+pub fn to_weighted_signature(
+    sig: &SignerWithSig,
+) -> Result<axelar_encoding::types::WeightedSignature> {
     let enc_pub_key = to_pub_key(&sig.signer.pub_key)?;
     let enc_signature = to_signature(&sig.signature)?;
     let enc_weight = axelar_encoding::types::U256::from_be(to_u256_be(sig.signer.weight.u128()));
@@ -103,14 +112,14 @@ fn to_signature(sig: &Signature) -> Result<axelar_encoding::types::Signature> {
             let data = r
                 .as_ref()
                 .try_into()
-                .map_err(|e: TryFromSliceError| ContractError::SolEncodingError(e.to_string()))?;
+                .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))?;
             Ok(axelar_encoding::types::Signature::EcdsaRecoverable(data))
         }
         Signature::Ed25519(ed) => {
             let data = ed
                 .as_ref()
                 .try_into()
-                .map_err(|e: TryFromSliceError| ContractError::SolEncodingError(e.to_string()))?;
+                .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))?;
 
             Ok(axelar_encoding::types::Signature::new_ed25519(data))
         }
