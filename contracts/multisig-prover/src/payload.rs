@@ -95,7 +95,7 @@ impl Payload {
                 )
                 .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
 
-                Ok(HexBinary::from(bytes)) // Todo, what kind of conversion if any comes from here. Can we expect hex repr directly ?
+                Ok(HexBinary::from(bytes))
             }
         }
     }
