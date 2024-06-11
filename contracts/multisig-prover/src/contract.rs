@@ -80,16 +80,19 @@ pub fn execute(
                 .or_else(|_| execute::require_governance(&deps, info))?;
             execute::update_verifier_set(deps, env)
         }
-        ExecuteMsg::ConfirmVerifierSet {} => execute::confirm_verifier_set(deps, info.sender),
+        ExecuteMsg::ConfirmVerifierSet {} => Ok(execute::confirm_verifier_set(deps, info.sender)?),
         ExecuteMsg::UpdateSigningThreshold {
             new_signing_threshold,
         } => {
             execute::require_governance(&deps, info)?;
-            execute::update_signing_threshold(deps, new_signing_threshold)
+            Ok(execute::update_signing_threshold(
+                deps,
+                new_signing_threshold,
+            )?)
         }
         ExecuteMsg::UpdateAdmin { new_admin_address } => {
             execute::require_governance(&deps, info)?;
-            execute::update_admin(deps, new_admin_address)
+            Ok(execute::update_admin(deps, new_admin_address)?)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
-use ethers::types::{TransactionReceipt, U64};
+use ethers_core::types::{TransactionReceipt, U64};
 use futures::future::join_all;
 use serde::Deserialize;
 use tokio::sync::watch::Receiver;
@@ -230,7 +230,7 @@ mod tests {
     use base64::Engine;
     use cosmwasm_std;
     use error_stack::{Report, Result};
-    use ethers::providers::ProviderError;
+    use ethers_providers::ProviderError;
     use tendermint::abci;
     use tokio::sync::watch;
     use tokio::test as async_test;

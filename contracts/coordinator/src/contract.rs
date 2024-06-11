@@ -57,11 +57,8 @@ pub fn execute(
             execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
-        ExecuteMsg::SetActiveVerifiers { next_verifier_set } => {
-            execute::set_active_verifier_set(deps, info, next_verifier_set)
-        }
-        ExecuteMsg::SetNextVerifiers { next_verifier_set } => {
-            execute::set_next_verifier_set(deps, info, next_verifier_set)
+        ExecuteMsg::SetActiveVerifiers { verifiers } => {
+            execute::set_active_verifier_set(deps, info, verifiers)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -71,9 +68,6 @@ pub fn execute(
 #[allow(dead_code)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::GetActiveVerifiers { chain_name } => {
-            to_json_binary(&query::active_verifier_set(deps, chain_name)?).map_err(|err| err.into())
-        }
         QueryMsg::ReadyToUnbond { worker_address } => to_json_binary(
             &query::check_verifier_ready_to_unbond(deps, worker_address)?,
         )
@@ -85,15 +79,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 mod tests {
 
     use crate::error::ContractError;
-    use axelar_wasm_std::Participant;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Addr, Empty, HexBinary, OwnedDeps, Uint128};
-    use multisig::key::{KeyType, PublicKey};
-    use multisig::verifier_set::VerifierSet;
+    use cosmwasm_std::{Addr, Empty, OwnedDeps};
     use router_api::ChainName;
-    use tofn::ecdsa::KeyPair;
 
     use super::*;
 
@@ -125,56 +115,6 @@ mod tests {
             prover: eth_prover,
             chain_name: eth,
         }
-    }
-
-    pub struct Verifier {
-        pub addr: Addr,
-        pub supported_chains: Vec<ChainName>,
-        pub key_pair: KeyPair,
-    }
-
-    fn create_verifier(
-        keypair_seed: u32,
-        verifier_address: Addr,
-        supported_chains: Vec<ChainName>,
-    ) -> Verifier {
-        let seed_bytes = keypair_seed.to_be_bytes();
-        let mut result = [0; 64];
-        result[0..seed_bytes.len()].copy_from_slice(seed_bytes.as_slice());
-        let secret_recovery_key = result.as_slice().try_into().unwrap();
-
-        Verifier {
-            addr: verifier_address,
-            supported_chains,
-            key_pair: tofn::ecdsa::keygen(&secret_recovery_key, b"tofn nonce").unwrap(),
-        }
-    }
-
-    fn create_verifier_set_from_verifiers(
-        verifiers: &Vec<Verifier>,
-        block_height: u64,
-    ) -> VerifierSet {
-        let mut pub_keys = vec![];
-        for verifier in verifiers {
-            let encoded_verifying_key =
-                HexBinary::from(verifier.key_pair.encoded_verifying_key().to_vec());
-            let pub_key = PublicKey::try_from((KeyType::Ecdsa, encoded_verifying_key)).unwrap();
-            pub_keys.push(pub_key);
-        }
-
-        let participants: Vec<Participant> = verifiers
-            .iter()
-            .map(|verifier| Participant {
-                address: verifier.addr.clone(),
-                weight: Uint128::one().try_into().unwrap(),
-            })
-            .collect();
-
-        VerifierSet::new(
-            participants.clone().into_iter().zip(pub_keys).collect(),
-            Uint128::from(participants.len() as u128).mul_ceil((2u64, 3u64)),
-            block_height,
-        )
     }
 
     #[test]
@@ -237,68 +177,5 @@ mod tests {
             res.unwrap_err().to_string(),
             axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
         );
-    }
-
-    #[test]
-    fn set_and_get_populated_active_verifier_set_success() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
-
-        let new_verifier = create_verifier(
-            1,
-            Addr::unchecked("verifier1"),
-            vec![test_setup.chain_name.clone()],
-        );
-        let new_verifier_set =
-            create_verifier_set_from_verifiers(&vec![new_verifier], test_setup.env.block.height);
-
-        let res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env.clone(),
-            mock_info(governance, &[]),
-            ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
-            },
-        );
-        assert!(res.is_ok());
-
-        let res = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env.clone(),
-            mock_info(test_setup.prover.as_ref(), &[]),
-            ExecuteMsg::SetActiveVerifiers {
-                next_verifier_set: new_verifier_set.clone(),
-            },
-        );
-        assert!(res.is_ok());
-
-        let eth_active_verifier_set =
-            query::active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
-                .unwrap();
-
-        assert_eq!(eth_active_verifier_set, Some(new_verifier_set));
-    }
-
-    #[test]
-    fn set_and_get_empty_active_verifier_set_success() {
-        let governance = "governance_for_coordinator";
-        let mut test_setup = setup(governance);
-
-        let _response = execute(
-            test_setup.deps.as_mut(),
-            test_setup.env,
-            mock_info(governance, &[]),
-            ExecuteMsg::RegisterProverContract {
-                chain_name: test_setup.chain_name.clone(),
-                new_prover_addr: test_setup.prover.clone(),
-            },
-        );
-
-        let query_result =
-            query::active_verifier_set(test_setup.deps.as_ref(), test_setup.chain_name.clone())
-                .unwrap();
-
-        assert_eq!(query_result, None);
     }
 }

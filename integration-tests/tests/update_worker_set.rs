@@ -104,13 +104,6 @@ fn verifier_set_can_be_initialized_and_then_manually_updated() {
     let new_verifier_set =
         test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
     assert_eq!(new_verifier_set, expected_new_verifier_set);
-
-    let coordinator_verifier_set = test_utils::get_verifier_set_from_coordinator(
-        &mut protocol.app,
-        &protocol.coordinator,
-        ethereum.chain_name,
-    );
-    assert_eq!(coordinator_verifier_set, expected_new_verifier_set);
 }
 
 #[test]
