@@ -3,7 +3,7 @@ use std::hash::{Hash as StdHash, Hasher};
 
 use cosmrs::crypto;
 use cosmrs::AccountId;
-use ethers::types::{Address, H256};
+use ethers_core::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
 pub type EVMAddress = Address;

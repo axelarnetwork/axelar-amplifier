@@ -157,6 +157,12 @@ pub fn query(
                 .change_context(ContractError::SerializeResponse)
                 .map_err(axelar_wasm_std::ContractError::from)
         }
+        QueryMsg::VerifierParticipation { pool_id, epoch_num } => {
+            let tally = query::participation(deps.storage, pool_id, epoch_num, env.block.height)?;
+            to_json_binary(&tally)
+                .change_context(ContractError::SerializeResponse)
+                .map_err(axelar_wasm_std::ContractError::from)
+        }
     }
 }
 

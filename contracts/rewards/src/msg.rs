@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::{nonempty, Threshold};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Uint128, Uint64};
+use cosmwasm_std::{Addr, Uint128, Uint64};
 use router_api::ChainName;
 
-use crate::state::PoolId;
+use crate::state::{Epoch, PoolId};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -65,6 +67,13 @@ pub enum QueryMsg {
     /// Gets the rewards pool details for the given `pool_id``
     #[returns(RewardsPool)]
     RewardsPool { pool_id: PoolId },
+
+    /// Gets verifier participation info for a given epoch (or the current epoch if unspecified) and pool. If no participation was recorded, returns None
+    #[returns(Option<Participation>)]
+    VerifierParticipation {
+        pool_id: PoolId,
+        epoch_num: Option<u64>,
+    },
 }
 
 #[cw_serde]
@@ -74,4 +83,13 @@ pub struct RewardsPool {
     pub rewards_per_epoch: Uint128,
     pub current_epoch_num: Uint64,
     pub last_distribution_epoch: Option<Uint64>,
+}
+
+#[cw_serde]
+pub struct Participation {
+    pub event_count: u64,
+    pub participation: HashMap<Addr, u64>, // maps a verifier address to participation count
+    pub rewards_by_verifier: HashMap<Addr, Uint128>, // maps a verifier address to amount of rewards
+    pub epoch: Epoch,
+    pub params: Params,
 }
