@@ -50,7 +50,7 @@ fn to_pub_key(pk: &PublicKey) -> Result<axelar_rkyv_encoding::types::PublicKey> 
     })
 }
 
-// Fits a u128 into a u256 in big endian representation.
+// Fits a u128 into a u256 in little endian representation.
 fn to_u256_le(u: u128) -> [u8; 32] {
     let mut uin256 = [0u8; 32];
     uin256[0..16].copy_from_slice(&u.to_le_bytes());
