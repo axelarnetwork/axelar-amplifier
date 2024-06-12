@@ -51,10 +51,10 @@ impl Payload {
         match encoder {
             Encoder::Abi => abi::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
             Encoder::Bcs => todo!(),
-            Encoder::Rkyv => Ok(axelar_encoding::hash_payload(
+            Encoder::Rkyv => Ok(axelar_rkyv_encoding::hash_payload(
                 &domain_separator,
                 &to_worker_set(cur_verifier_set)?,
-                &axelar_encoding::types::Payload::try_from(self)?,
+                &axelar_rkyv_encoding::types::Payload::try_from(self)?,
             )),
         }
     }
@@ -87,11 +87,11 @@ impl Payload {
                     enc_signatures.push(to_weighted_signature(&s)?)
                 }
 
-                let bytes = axelar_encoding::encode::<1024>(
+                let bytes = axelar_rkyv_encoding::encode::<1024>(
                     // Todo reason about this "1024" magic number.
                     &to_worker_set(&verifier_set)?,
                     enc_signatures,
-                    axelar_encoding::types::Payload::try_from(payload)?,
+                    axelar_rkyv_encoding::types::Payload::try_from(payload)?,
                 )
                 .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
 

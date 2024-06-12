@@ -747,9 +747,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
-name = "axelar-encoding"
+name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/solana-axelar-internal.git?branch=main#4321554e61d8f35fcb8b259b7c3be02ef01ec3b6"
+source = "git+ssh://git@github.com/eigerco/solana-axelar-internal.git?branch=gateway/axelar-encoding#bd7ffa32020a52d5fc13398338cef7f208fb2845"
 dependencies = [
  "rkyv",
  "sha3 0.10.8",
@@ -5149,7 +5149,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
- "axelar-encoding",
+ "axelar-rkyv-encoding",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "bcs",
