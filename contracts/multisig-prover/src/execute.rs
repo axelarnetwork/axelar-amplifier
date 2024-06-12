@@ -19,7 +19,6 @@ use crate::{
     error::ContractError,
     payload::Payload,
     state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER},
-    types::VerifiersInfo,
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -120,7 +119,11 @@ fn get_messages(
     Ok(messages)
 }
 
-fn collect_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, ContractError> {
+fn make_verifier_set(
+    deps: &DepsMut,
+    env: &Env,
+    config: &Config,
+) -> Result<VerifierSet, ContractError> {
     let active_verifiers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
@@ -173,21 +176,9 @@ fn collect_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersIn
             .try_into()?,
     );
 
-    Ok(VerifiersInfo {
-        snapshot,
-        pubkeys_by_participant: participants_with_pubkeys,
-    })
-}
-
-fn make_verifier_set(
-    deps: &DepsMut,
-    env: &Env,
-    config: &Config,
-) -> Result<VerifierSet, ContractError> {
-    let verifiers_info = collect_verifiers_info(deps, config)?;
     Ok(VerifierSet::new(
-        verifiers_info.pubkeys_by_participant,
-        verifiers_info.snapshot.quorum.into(),
+        participants_with_pubkeys,
+        snapshot.quorum.into(),
         env.block.height,
     ))
 }
