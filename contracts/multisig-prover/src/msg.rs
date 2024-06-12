@@ -79,6 +79,9 @@ pub enum QueryMsg {
 
     #[returns(Option<multisig::verifier_set::VerifierSet>)]
     GetVerifierSet,
+
+    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    NextVerifierSet,
 }
 
 #[cw_serde]

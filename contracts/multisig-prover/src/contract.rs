@@ -122,6 +122,7 @@ pub fn query(
             multisig_session_id,
         } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
         QueryMsg::GetVerifierSet {} => to_json_binary(&query::get_verifier_set(deps)?),
+        QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::ContractError::from)
