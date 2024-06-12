@@ -134,9 +134,8 @@ mod test {
             payload_hash: [1; 32],
         };
 
-        let nexus_msg = Message::try_from(msg.clone());
-        assert!(nexus_msg.is_ok());
-        let nexus_msg = nexus_msg.unwrap();
+        let nexus_msg = Message::from(msg.clone());
+
         assert_eq!(nexus_msg.id, msg.cc_id.id.to_string());
         assert_eq!(nexus_msg.destination_address, msg.destination_address);
         assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
@@ -165,9 +164,8 @@ mod test {
             payload_hash: [1; 32],
         };
 
-        let nexus_msg = Message::try_from(msg.clone());
-        assert!(nexus_msg.is_ok());
-        let nexus_msg = nexus_msg.unwrap();
+        let nexus_msg = Message::from(msg.clone());
+
         assert_eq!(nexus_msg.id, msg.cc_id.id.to_string());
         assert_eq!(nexus_msg.source_tx_id, vec![0; 32].try_into().unwrap());
         assert_eq!(nexus_msg.source_tx_index, 0);
