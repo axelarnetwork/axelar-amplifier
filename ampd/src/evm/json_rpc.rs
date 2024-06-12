@@ -1,7 +1,9 @@
 use async_trait::async_trait;
-use ethers::providers::{JsonRpcClient, ProviderError};
-use ethers::types::{Block, BlockNumber, TransactionReceipt, H256, U64};
-use ethers::utils::serialize;
+use ethers_core::{
+    types::{Block, BlockNumber, TransactionReceipt, H256, U64},
+    utils::serialize,
+};
+use ethers_providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
 
 use crate::json_rpc::Client;

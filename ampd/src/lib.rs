@@ -52,6 +52,8 @@ mod tofnd;
 mod types;
 mod url;
 
+pub use grpc::{client, proto};
+
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
 

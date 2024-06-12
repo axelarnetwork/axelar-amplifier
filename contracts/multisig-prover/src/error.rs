@@ -1,7 +1,8 @@
-use axelar_wasm_std::nonempty;
-use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::StdError;
 use thiserror::Error;
+
+use axelar_wasm_std::nonempty;
+use axelar_wasm_std_derive::IntoContractError;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
@@ -11,8 +12,8 @@ pub enum ContractError {
     #[error("caller is not authorized")]
     Unauthorized,
 
-    #[error("message is invalid: {reason}")]
-    InvalidMessage { reason: String },
+    #[error("message is invalid")]
+    InvalidMessage,
 
     #[error("public key is invalid: {reason}")]
     InvalidPublicKey { reason: String },
@@ -55,4 +56,10 @@ pub enum ContractError {
 
     #[error("failed to serialize the response")]
     SerializeResponse,
+
+    #[error("failed to create proof")]
+    Proof,
+
+    #[error("invalid verifier set")]
+    InvalidVerifierSet,
 }
