@@ -57,6 +57,8 @@ pub fn get_proof(
     })
 }
 
-pub fn get_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
-    CURRENT_VERIFIER_SET.may_load(deps.storage)
+pub fn get_verifier_set(deps: Deps) -> StdResult<Option<(String, VerifierSet)>> {
+    CURRENT_VERIFIER_SET
+        .may_load(deps.storage)
+        .map(|op| op.map(|set| (set.id(), set)))
 }

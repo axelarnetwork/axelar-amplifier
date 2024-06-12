@@ -77,7 +77,8 @@ pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
 
-    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    /// Returns a tuple of the current verifier set id and the verifier set itself.
+    #[returns(Option<(String, multisig::verifier_set::VerifierSet)>)]
     GetVerifierSet,
 }
 

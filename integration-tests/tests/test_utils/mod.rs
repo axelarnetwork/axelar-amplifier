@@ -315,11 +315,11 @@ pub fn get_verifier_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
-    let query_response: Result<VerifierSet, StdError> =
+    let query_response: Result<Option<(String, VerifierSet)>, StdError> =
         multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetVerifierSet);
     assert!(query_response.is_ok());
 
-    query_response.unwrap()
+    query_response.unwrap().unwrap().1
 }
 
 #[allow(clippy::arithmetic_side_effects)]
