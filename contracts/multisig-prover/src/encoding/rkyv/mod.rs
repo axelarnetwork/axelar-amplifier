@@ -23,7 +23,7 @@ pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::Wo
             let enc_pubkey = to_pub_key(&signer.pub_key)?;
 
             let enc_weight =
-                axelar_rkyv_encoding::types::U256::from_le(to_u256_be(signer.weight.u128()));
+                axelar_rkyv_encoding::types::U256::from_le(to_u256_le(signer.weight.u128()));
 
             signers.insert(
                 address.clone(),
@@ -35,7 +35,7 @@ pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::Wo
     Ok(axelar_rkyv_encoding::types::WorkerSet::new(
         vs.created_at,
         signers,
-        axelar_rkyv_encoding::types::U256::from_le(to_u256_be(vs.threshold.u128())),
+        axelar_rkyv_encoding::types::U256::from_le(to_u256_le(vs.threshold.u128())),
     ))
 }
 
@@ -51,7 +51,7 @@ fn to_pub_key(pk: &PublicKey) -> Result<axelar_rkyv_encoding::types::PublicKey> 
 }
 
 // Fits a u128 into a u256 in big endian representation.
-fn to_u256_be(u: u128) -> [u8; 32] {
+fn to_u256_le(u: u128) -> [u8; 32] {
     let mut uin256 = [0u8; 32];
     uin256[0..16].copy_from_slice(&u.to_le_bytes());
     uin256
@@ -92,7 +92,7 @@ pub fn to_weighted_signature(
     let enc_pub_key = to_pub_key(&sig.signer.pub_key)?;
     let enc_signature = to_signature(&sig.signature)?;
     let enc_weight =
-        axelar_rkyv_encoding::types::U256::from_le(to_u256_be(sig.signer.weight.u128()));
+        axelar_rkyv_encoding::types::U256::from_le(to_u256_le(sig.signer.weight.u128()));
 
     Ok(axelar_rkyv_encoding::types::WeightedSignature::new(
         enc_pub_key,
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn conversion_to_u256_le_works() {
-        let integer = to_u256_be(u128::MAX);
+        let integer = to_u256_le(u128::MAX);
         let expected = [
             255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
