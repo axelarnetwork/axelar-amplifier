@@ -30,14 +30,13 @@ use dec_coin::DecCoin;
 use report::{LoggableError, ResultCompatExt};
 use tx::Tx;
 
-use crate::broadcaster::chain_queries::balance;
 use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
 use crate::types::{PublicKey, TMAddress};
 
-pub mod queries;
 pub mod clients;
 mod dec_coin;
+pub mod queries;
 mod tx;
 
 #[derive(Error, Debug)]
@@ -136,7 +135,7 @@ where
             .change_context(Error::AddressEncoding)?
             .into();
 
-        balance(&mut self.bank_query_client, address.clone(), denom.clone())
+        queries::balance(&mut self.bank_query_client, address.clone(), denom.clone())
             .await
             .change_context(Error::QueryBalance {
                 address: address.clone(),
@@ -252,7 +251,7 @@ where
     Q: clients::AccountQueryClient + Send,
 {
     async fn acc_number_and_sequence(&mut self) -> Result<(u64, u64), Error> {
-        let account = chain_queries::account(&mut self.auth_query_client, &self.address)
+        let account = queries::account(&mut self.auth_query_client, &self.address)
             .await
             .change_context_lazy(|| Error::QueryAccount {
                 address: self.address.clone(),

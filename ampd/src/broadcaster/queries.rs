@@ -70,11 +70,13 @@ pub async fn balance(
         .change_context(Error::ResponseFailed {
             query_name: "balance".to_string(),
         })?
-        .balance.ok_or(report!(Error::BalanceNotFound)).and_then(|coin| {
-        Coin::try_from(coin)
-            .into_report()
-            .map_err(|report| report.change_context(Error::MalformedResponse))
-    })
+        .balance
+        .ok_or(report!(Error::BalanceNotFound))
+        .and_then(|coin| {
+            Coin::try_from(coin)
+                .into_report()
+                .map_err(|report| report.change_context(Error::MalformedResponse))
+        })
 }
 
 #[cfg(test)]
@@ -88,9 +90,9 @@ mod tests {
     use tokio::test;
     use tonic::Status;
 
-    use crate::broadcaster::chain_queries::account;
-    use crate::broadcaster::chain_queries::Error::*;
     use crate::broadcaster::clients::MockAccountQueryClient;
+    use crate::broadcaster::queries::account;
+    use crate::broadcaster::queries::Error::*;
     use crate::types::PublicKey;
     use crate::types::TMAddress;
 
