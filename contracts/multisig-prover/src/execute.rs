@@ -111,7 +111,7 @@ fn get_messages(
     Ok(messages)
 }
 
-fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, ContractError> {
+fn collect_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, ContractError> {
     let active_verifiers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
@@ -175,7 +175,7 @@ fn make_verifier_set(
     env: &Env,
     config: &Config,
 ) -> Result<VerifierSet, ContractError> {
-    let verifiers_info = get_verifiers_info(deps, config)?;
+    let verifiers_info = collect_verifiers_info(deps, config)?;
     Ok(VerifierSet::new(
         verifiers_info.pubkeys_by_participant,
         verifiers_info.snapshot.quorum.into(),
