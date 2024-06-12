@@ -38,9 +38,9 @@ fn parse_message_id(message_id: &str) -> Result<(nonempty::Vec<u8>, u64), Contra
 
 impl From<router_api::Message> for Message {
     fn from(msg: router_api::Message) -> Self {
-        // fallback to using the message ID as the tx ID if it's not in the expected format
+        // fallback to using all 0's as the tx ID if it's not in the expected format
         let (source_tx_id, source_tx_index) =
-            parse_message_id(&msg.cc_id.id).unwrap_or((msg.cc_id.id.clone().into(), u64::MAX));
+            parse_message_id(&msg.cc_id.id).unwrap_or((vec![0; 32].try_into().unwrap(), 0));
 
         Self {
             source_chain: msg.cc_id.chain.clone(),
@@ -83,7 +83,11 @@ impl From<Message> for CosmosMsg<Message> {
 mod test {
     use std::vec;
 
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::{
+        base_58_event_index::Base58TxDigestAndEventIndex,
+        tx_hash_event_index::HexTxHashAndEventIndex,
+    };
+    use router_api::CrossChainId;
 
     use super::Message;
 
@@ -109,5 +113,68 @@ mod test {
         let router_msg = router_msg.unwrap();
         assert_eq!(router_msg.cc_id.chain, msg.source_chain);
         assert_eq!(router_msg.cc_id.id.to_string(), msg.id);
+    }
+
+    #[test]
+    fn should_convert_router_message_to_nexus_message() {
+        let msg = router_api::Message {
+            cc_id: CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: HexTxHashAndEventIndex {
+                    tx_hash: [2; 32],
+                    event_index: 1,
+                }
+                .to_string()
+                .try_into()
+                .unwrap(),
+            },
+            source_address: "something".parse().unwrap(),
+            destination_chain: "polygon".parse().unwrap(),
+            destination_address: "something else".parse().unwrap(),
+            payload_hash: [1; 32],
+        };
+
+        let nexus_msg = Message::try_from(msg.clone());
+        assert!(nexus_msg.is_ok());
+        let nexus_msg = nexus_msg.unwrap();
+        assert_eq!(nexus_msg.id, msg.cc_id.id.to_string());
+        assert_eq!(nexus_msg.destination_address, msg.destination_address);
+        assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
+        assert_eq!(nexus_msg.source_address, msg.source_address);
+        assert_eq!(nexus_msg.source_chain, msg.cc_id.chain);
+        assert_eq!(nexus_msg.source_tx_id, vec![2; 32].try_into().unwrap());
+        assert_eq!(nexus_msg.source_tx_index, 1);
+    }
+
+    #[test]
+    fn should_convert_router_message_with_non_hex_msg_id_to_nexus_message() {
+        let msg = router_api::Message {
+            cc_id: CrossChainId {
+                chain: "ethereum".parse().unwrap(),
+                id: Base58TxDigestAndEventIndex {
+                    tx_digest: [2; 32],
+                    event_index: 1,
+                }
+                .to_string()
+                .try_into()
+                .unwrap(),
+            },
+            source_address: "something".parse().unwrap(),
+            destination_chain: "polygon".parse().unwrap(),
+            destination_address: "something else".parse().unwrap(),
+            payload_hash: [1; 32],
+        };
+
+        let nexus_msg = Message::try_from(msg.clone());
+        assert!(nexus_msg.is_ok());
+        let nexus_msg = nexus_msg.unwrap();
+        assert_eq!(nexus_msg.id, msg.cc_id.id.to_string());
+        assert_eq!(nexus_msg.source_tx_id, vec![0; 32].try_into().unwrap());
+        assert_eq!(nexus_msg.source_tx_index, 0);
+
+        assert_eq!(nexus_msg.destination_address, msg.destination_address);
+        assert_eq!(nexus_msg.destination_chain, msg.destination_chain);
+        assert_eq!(nexus_msg.source_address, msg.source_address);
+        assert_eq!(nexus_msg.source_chain, msg.cc_id.chain);
     }
 }
