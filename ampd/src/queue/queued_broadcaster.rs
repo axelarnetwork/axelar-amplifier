@@ -15,6 +15,7 @@ use super::msg_queue::MsgQueue;
 use crate::broadcaster::Broadcaster;
 
 type Result<T = ()> = error_stack::Result<T, Error>;
+type MsgAndResChan = (Any, oneshot::Sender<Result>);
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -33,7 +34,7 @@ pub trait BroadcasterClient {
 }
 
 pub struct QueuedBroadcasterClient {
-    sender: mpsc::Sender<(Any, oneshot::Sender<Result>)>,
+    sender: mpsc::Sender<MsgAndResChan>,
 }
 
 #[async_trait]
@@ -57,10 +58,7 @@ where
     queue: MsgQueue,
     batch_gas_limit: Gas,
     broadcast_interval: Duration,
-    channel: (
-        mpsc::Sender<(Any, oneshot::Sender<Result>)>,
-        mpsc::Receiver<(Any, oneshot::Sender<Result>)>,
-    ),
+    channel: (mpsc::Sender<MsgAndResChan>, mpsc::Receiver<MsgAndResChan>),
 }
 
 impl<T> QueuedBroadcaster<T>
@@ -202,20 +200,21 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let client = QueuedBroadcaster::new(
+        let queued_broadcaster = QueuedBroadcaster::new(
             broadcaster,
             batch_gas_limit,
             tx_count,
             Duration::from_secs(5),
         );
+        let client = queued_broadcaster.client();
+        let handle = tokio::spawn(queued_broadcaster.run());
 
-        let tx = client.client();
         for _ in 0..tx_count {
-            tx.broadcast(dummy_msg()).await.unwrap();
+            client.broadcast(dummy_msg()).await.unwrap();
         }
-        drop(tx);
+        drop(client);
 
-        assert!(client.run().await.is_ok());
+        assert!(handle.await.unwrap().is_ok());
     }
 
     #[test]
@@ -246,20 +245,19 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let client =
+        let queued_broadcaster =
             QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
-        let tx = client.client();
-
-        let handler = tokio::spawn(async move {
-            assert!(client.run().await.is_ok());
+        let client = queued_broadcaster.client();
+        let handle = tokio::spawn(async move {
+            assert!(queued_broadcaster.run().await.is_ok());
         });
 
         for _ in 0..tx_count {
-            tx.broadcast(dummy_msg()).await.unwrap();
+            client.broadcast(dummy_msg()).await.unwrap();
         }
         sleep(broadcast_interval).await;
 
-        handler.abort();
+        handle.abort();
     }
 
     #[test]
@@ -297,20 +295,21 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let client = QueuedBroadcaster::new(
+        let queued_broadcaster = QueuedBroadcaster::new(
             broadcaster,
             batch_gas_limit,
             tx_count,
             Duration::from_secs(5),
         );
+        let client = queued_broadcaster.client();
+        let handle = tokio::spawn(queued_broadcaster.run());
 
-        let tx = client.client();
         for _ in 0..tx_count {
-            tx.broadcast(dummy_msg()).await.unwrap();
+            client.broadcast(dummy_msg()).await.unwrap();
         }
-        drop(tx);
+        drop(client);
 
-        assert!(client.run().await.is_ok());
+        assert!(handle.await.unwrap().is_ok());
     }
 
     fn dummy_msg() -> Any {
