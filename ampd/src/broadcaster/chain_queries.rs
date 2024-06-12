@@ -61,7 +61,7 @@ pub async fn balance(
     address: TMAddress,
     denom: Denom,
 ) -> Result<Coin, Error> {
-    let x = client
+    client
         .balance(QueryBalanceRequest {
             address: address.to_string(),
             denom: denom.to_string(),
@@ -70,9 +70,7 @@ pub async fn balance(
         .change_context(Error::ResponseFailed {
             query_name: "balance".to_string(),
         })?
-        .balance;
-
-    x.ok_or(report!(Error::BalanceNotFound)).and_then(|coin| {
+        .balance.ok_or(report!(Error::BalanceNotFound)).and_then(|coin| {
         Coin::try_from(coin)
             .into_report()
             .map_err(|report| report.change_context(Error::MalformedResponse))

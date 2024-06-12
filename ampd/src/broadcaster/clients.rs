@@ -66,12 +66,11 @@ impl AccountQueryClient for AuthQueryClient<Channel> {
         &mut self,
         request: QueryAccountRequest,
     ) -> Result<QueryAccountResponse, Status> {
-        let x = self
+        return self
             .account(request)
             .await
             .map(Response::into_inner)
             .map_err(Report::from);
-        return x;
     }
 }
 
