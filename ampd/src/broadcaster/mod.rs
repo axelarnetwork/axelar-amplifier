@@ -35,7 +35,7 @@ use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
 use crate::types::{PublicKey, TMAddress};
 
-pub mod chain_queries;
+pub mod queries;
 pub mod clients;
 mod dec_coin;
 mod tx;
