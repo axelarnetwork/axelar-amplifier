@@ -1,17 +1,21 @@
 use cosmrs::proto::cosmos::auth::v1beta1::{BaseAccount, QueryAccountRequest};
+use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceRequest;
 use cosmrs::proto::traits::Message;
-use error_stack::{Result, ResultExt};
+use cosmrs::{Coin, Denom};
+use error_stack::{report, IntoReportCompat, Result, ResultExt};
 use thiserror::Error;
 
-use crate::broadcaster::clients::AccountQueryClient;
+use crate::broadcaster::clients::{AccountQueryClient, BalanceQueryClient};
 use crate::types::TMAddress;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("failed to retrieve the account information for address {address}")]
-    ResponseFailed { address: TMAddress },
+    #[error("failed to receive '{query_name}' query response")]
+    ResponseFailed { query_name: String },
     #[error("address {address} is unknown")]
     AccountNotFound { address: TMAddress },
+    #[error("balance not found")]
+    BalanceNotFound,
     #[error("received response could not be decoded")]
     MalformedResponse,
 }
@@ -32,7 +36,7 @@ where
             _ => report,
         })
         .change_context_lazy(|| Error::ResponseFailed {
-            address: address.clone(),
+            query_name: "account".to_string(),
         })?;
 
     let account = response
@@ -52,6 +56,29 @@ where
     Ok(account)
 }
 
+pub async fn balance(
+    client: &mut impl BalanceQueryClient,
+    address: TMAddress,
+    denom: Denom,
+) -> Result<Coin, Error> {
+    let x = client
+        .balance(QueryBalanceRequest {
+            address: address.to_string(),
+            denom: denom.to_string(),
+        })
+        .await
+        .change_context(Error::ResponseFailed {
+            query_name: "balance".to_string(),
+        })?
+        .balance;
+
+    x.ok_or(report!(Error::BalanceNotFound)).and_then(|coin| {
+        Coin::try_from(coin)
+            .into_report()
+            .map_err(|report| report.change_context(Error::MalformedResponse))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use cosmrs::proto::cosmos::auth::v1beta1::BaseAccount;
@@ -63,8 +90,8 @@ mod tests {
     use tokio::test;
     use tonic::Status;
 
-    use crate::broadcaster::accounts::account;
-    use crate::broadcaster::accounts::Error::*;
+    use crate::broadcaster::chain_queries::account;
+    use crate::broadcaster::chain_queries::Error::*;
     use crate::broadcaster::clients::MockAccountQueryClient;
     use crate::types::PublicKey;
     use crate::types::TMAddress;
@@ -83,7 +110,7 @@ mod tests {
                 .await
                 .unwrap_err()
                 .current_context(),
-            ResponseFailed { address: _ }
+            ResponseFailed { query_name: _ }
         ));
     }
 

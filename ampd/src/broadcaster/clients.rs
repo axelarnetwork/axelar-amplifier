@@ -1,6 +1,8 @@
 use async_trait::async_trait;
-use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient;
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{QueryAccountRequest, QueryAccountResponse};
+use cosmrs::proto::cosmos::bank::v1beta1::query_client::QueryClient as BankQueryClient;
+use cosmrs::proto::cosmos::bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse};
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::cosmos::tx::v1beta1::{
@@ -59,14 +61,38 @@ pub trait AccountQueryClient {
 }
 
 #[async_trait]
-impl AccountQueryClient for QueryClient<Channel> {
+impl AccountQueryClient for AuthQueryClient<Channel> {
     async fn account(
         &mut self,
         request: QueryAccountRequest,
     ) -> Result<QueryAccountResponse, Status> {
-        self.account(request)
+        let x = self
+            .account(request)
             .await
             .map(Response::into_inner)
+            .map_err(Report::from);
+        return x;
+    }
+}
+
+#[automock]
+#[async_trait]
+pub trait BalanceQueryClient {
+    async fn balance(
+        &mut self,
+        request: QueryBalanceRequest,
+    ) -> Result<QueryBalanceResponse, Status>;
+}
+
+#[async_trait]
+impl BalanceQueryClient for BankQueryClient<Channel> {
+    async fn balance(
+        &mut self,
+        request: QueryBalanceRequest,
+    ) -> Result<QueryBalanceResponse, Status> {
+        self.balance(request)
+            .await
+            .map(|response| response.into_inner())
             .map_err(Report::from)
     }
 }
