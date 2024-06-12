@@ -5,6 +5,7 @@ use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
 use thiserror::Error;
+use tokio::sync::oneshot;
 use tokio::time;
 use tokio::{select, sync::mpsc};
 use tracing::info;
@@ -25,21 +26,6 @@ pub enum Error {
     Queue,
 }
 
-pub struct QueuedBroadcasterDriver {
-    #[allow(dead_code)]
-    broadcast_tx: mpsc::Sender<()>,
-}
-
-impl QueuedBroadcasterDriver {
-    #[allow(dead_code)]
-    pub async fn force_broadcast(&self) -> Result {
-        self.broadcast_tx
-            .send(())
-            .await
-            .map_err(|_| Report::new(Error::Broadcast))
-    }
-}
-
 #[automock]
 #[async_trait]
 pub trait BroadcasterClient {
@@ -47,16 +33,19 @@ pub trait BroadcasterClient {
 }
 
 pub struct QueuedBroadcasterClient {
-    sender: mpsc::Sender<Any>,
+    sender: mpsc::Sender<(Any, oneshot::Sender<Result>)>,
 }
 
 #[async_trait]
 impl BroadcasterClient for QueuedBroadcasterClient {
     async fn broadcast(&self, msg: Any) -> Result {
+        let (tx, rx) = oneshot::channel();
         self.sender
-            .send(msg)
+            .send((msg, tx))
             .await
-            .map_err(|_| Report::new(Error::Broadcast))
+            .map_err(|_| Report::new(Error::Broadcast))?;
+
+        rx.await.expect("sender dropped")
     }
 }
 
@@ -68,8 +57,10 @@ where
     queue: MsgQueue,
     batch_gas_limit: Gas,
     broadcast_interval: Duration,
-    channel: (mpsc::Sender<Any>, mpsc::Receiver<Any>),
-    broadcast_rx: mpsc::Receiver<()>,
+    channel: (
+        mpsc::Sender<(Any, oneshot::Sender<Result>)>,
+        mpsc::Receiver<(Any, oneshot::Sender<Result>)>,
+    ),
 }
 
 impl<T> QueuedBroadcaster<T>
@@ -81,23 +72,17 @@ where
         batch_gas_limit: Gas,
         capacity: usize,
         broadcast_interval: Duration,
-    ) -> (Self, QueuedBroadcasterDriver) {
-        let (broadcast_tx, broadcast_rx) = mpsc::channel(1);
-
-        (
-            Self {
-                broadcaster,
-                queue: MsgQueue::default(),
-                batch_gas_limit,
-                broadcast_interval,
-                channel: mpsc::channel(capacity),
-                broadcast_rx,
-            },
-            QueuedBroadcasterDriver { broadcast_tx },
-        )
+    ) -> Self {
+        Self {
+            broadcaster,
+            queue: MsgQueue::default(),
+            batch_gas_limit,
+            broadcast_interval,
+            channel: mpsc::channel(capacity),
+        }
     }
 
-    pub async fn run(mut self) -> Result {
+    pub async fn run(self) -> Result {
         let (tx, mut rx) = self.channel;
         drop(tx);
 
@@ -108,35 +93,40 @@ where
 
         loop {
             select! {
-              msg = rx.recv() => match msg {
-                None => break,
-                Some(msg) => {
-                  let fee = broadcaster.estimate_fee(vec![msg.clone()]).await.change_context(Error::EstimateFee)?;
+                msg = rx.recv() => match msg {
+                    None => break,
+                    Some((msg, tx)) => {
+                        let fee = match broadcaster.estimate_fee(vec![msg.clone()]).await {
+                            Ok(fee) => {
+                                tx.send(Ok(())).expect("receiver dropped");
+                                fee
+                            },
+                            Err(err) => {
+                                tx.send(Err(err).change_context(Error::EstimateFee)).expect("receiver dropped");
+                                continue;
+                            }
+                        };
 
-                  if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
-                    warn!(queue_size = queue.len(), queue_gas_cost = queue.gas_cost(), "exceeded batch gas limit. gas limit can be adjusted in ampd config");
+                        if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
+                            warn!(queue_size = queue.len(), queue_gas_cost = queue.gas_cost(), "exceeded batch gas limit. gas limit can be adjusted in ampd config");
+                            broadcast_all(&mut queue, &mut broadcaster).await?;
+                            interval.reset();
+                        }
+
+                        let message_type = msg.type_url.clone();
+                        queue.push(msg, fee.gas_limit).change_context(Error::Queue)?;
+                        info!(
+                            message_type,
+                            queue_size = queue.len(),
+                            queue_gas_cost = queue.gas_cost(),
+                            "pushed a new message into the queue"
+                        );
+                    }
+                },
+                _ = interval.tick() => {
                     broadcast_all(&mut queue, &mut broadcaster).await?;
                     interval.reset();
-                  }
-
-                  let message_type = msg.type_url.clone();
-                  queue.push(msg, fee.gas_limit).change_context(Error::Queue)?;
-                  info!(
-                    message_type,
-                    queue_size = queue.len(),
-                    queue_gas_cost = queue.gas_cost(),
-                    "pushed a new message into the queue"
-                  );
-                }
-              },
-              _ = interval.tick() => {
-                broadcast_all(&mut queue, &mut broadcaster).await?;
-                interval.reset();
-              },
-              _ = self.broadcast_rx.recv() => {
-                broadcast_all(&mut queue, &mut broadcaster).await?;
-                interval.reset();
-              },
+                },
             }
         }
 
@@ -212,7 +202,7 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let (client, _driver) = QueuedBroadcaster::new(
+        let client = QueuedBroadcaster::new(
             broadcaster,
             batch_gas_limit,
             tx_count,
@@ -256,7 +246,7 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let (client, _driver) =
+        let client =
             QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let tx = client.client();
 
@@ -307,7 +297,7 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let (client, _driver) = QueuedBroadcaster::new(
+        let client = QueuedBroadcaster::new(
             broadcaster,
             batch_gas_limit,
             tx_count,
@@ -321,55 +311,6 @@ mod test {
         drop(tx);
 
         assert!(client.run().await.is_ok());
-    }
-
-    #[test]
-    async fn should_broadcast_when_forced_to() {
-        let tx_count = 10;
-        let batch_gas_limit = 100;
-        let gas_limit = 2;
-
-        let mut broadcaster = MockBroadcaster::new();
-        broadcaster
-            .expect_estimate_fee()
-            .times(tx_count)
-            .returning(move |_| {
-                Ok(Fee {
-                    gas_limit,
-                    amount: vec![],
-                    granter: None,
-                    payer: None,
-                })
-            });
-        broadcaster
-            .expect_broadcast()
-            .once()
-            .returning(move |msgs| {
-                assert!(msgs.len() == tx_count);
-
-                Ok(TxResponse::default())
-            });
-
-        let (client, driver) = QueuedBroadcaster::new(
-            broadcaster,
-            batch_gas_limit,
-            tx_count,
-            Duration::from_secs(5),
-        );
-
-        let tx = client.client();
-        for _ in 0..tx_count {
-            tx.broadcast(dummy_msg()).await.unwrap();
-        }
-        let handler = tokio::spawn(async move {
-            assert!(client.run().await.is_ok());
-        });
-
-        sleep(Duration::from_millis(100)).await;
-        driver.force_broadcast().await.unwrap();
-        drop(tx);
-
-        assert!(handler.await.is_ok());
     }
 
     fn dummy_msg() -> Any {

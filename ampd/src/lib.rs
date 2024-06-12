@@ -21,7 +21,7 @@ use broadcaster::Broadcaster;
 use event_processor::EventHandler;
 use event_sub::EventSub;
 use events::Event;
-use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
+use queue::queued_broadcaster::QueuedBroadcaster;
 use state::StateUpdater;
 use tofnd::grpc::{Multisig, MultisigClient};
 use types::TMAddress;
@@ -163,8 +163,6 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    #[allow(dead_code)]
-    broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -197,7 +195,7 @@ where
         };
 
         let event_processor = TaskGroup::new();
-        let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
+        let broadcaster = QueuedBroadcaster::new(
             broadcaster,
             broadcast_cfg.batch_gas_limit,
             broadcast_cfg.queue_cap,
@@ -209,7 +207,6 @@ where
             event_subscriber,
             event_processor,
             broadcaster,
-            broadcaster_driver,
             state_updater,
             multisig_client,
             block_height_monitor,
