@@ -627,7 +627,7 @@ mod tests {
         let known_denom: Denom = Config::default().gas_price.denom.clone().into();
 
         UnvalidatedBroadcastClient::builder()
-            .client(broadcast_client_override.unwrap_or_else(|| init_mock_broadcaster_client()))
+            .client(broadcast_client_override.unwrap_or_else(init_mock_broadcaster_client))
             .signer(init_mock_signer(key_id.clone(), priv_key))
             .auth_query_client(
                 auth_client_override.unwrap_or_else(|| init_mock_account_client(pub_key)),
