@@ -166,12 +166,38 @@ mod test {
     use cosmrs::tx::Fee;
     use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
+    use error_stack::Report;
     use tokio::test;
     use tokio::time::{sleep, Duration};
 
-    use super::QueuedBroadcaster;
-    use crate::broadcaster::MockBroadcaster;
+    use super::{Error, QueuedBroadcaster};
+    use crate::broadcaster::{self, MockBroadcaster};
     use crate::queue::queued_broadcaster::BroadcasterClient;
+
+    #[test]
+    async fn should_ignore_msg_when_fee_estimation_fails() {
+        let mut broadcaster = MockBroadcaster::new();
+        broadcaster
+            .expect_estimate_fee()
+            .return_once(|_| Err(Report::new(broadcaster::Error::FeeEstimation)));
+
+        let queued_broadcaster =
+            QueuedBroadcaster::new(broadcaster, 100, 10, Duration::from_secs(5));
+        let client = queued_broadcaster.client();
+        let handle = tokio::spawn(queued_broadcaster.run());
+
+        assert!(matches!(
+            client
+                .broadcast(dummy_msg())
+                .await
+                .unwrap_err()
+                .current_context(),
+            Error::EstimateFee
+        ));
+        drop(client);
+
+        assert!(handle.await.unwrap().is_ok());
+    }
 
     #[test]
     async fn should_not_broadcast_when_gas_limit_has_not_been_reached() {
