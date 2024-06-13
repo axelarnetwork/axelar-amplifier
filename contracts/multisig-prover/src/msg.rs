@@ -78,7 +78,10 @@ pub enum QueryMsg {
     GetProof { multisig_session_id: Uint64 },
 
     #[returns(Option<multisig::verifier_set::VerifierSet>)]
-    GetVerifierSet,
+    CurrentVerifierSet,
+
+    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    NextVerifierSet,
 }
 
 #[cw_serde]
