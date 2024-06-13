@@ -41,7 +41,7 @@ pub enum ContractError {
     #[error(transparent)]
     BcsError(#[from] bcs::Error),
 
-    #[error("encoding/decoding failure: [0]")]
+    #[error("Rkyv encoding/decoding failure: [0]")]
     RkyvEncodingError(String),
 
     #[error("verifier set has not changed sufficiently since last update")]
