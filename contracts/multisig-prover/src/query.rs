@@ -6,7 +6,7 @@ use multisig::{multisig::Multisig, types::MultisigState, verifier_set::VerifierS
 use crate::{
     error::ContractError,
     msg::{GetProofResponse, ProofStatus},
-    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, PAYLOAD},
+    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD},
 };
 
 pub fn get_proof(
@@ -57,6 +57,33 @@ pub fn get_proof(
     })
 }
 
-pub fn get_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
+pub fn current_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
     CURRENT_VERIFIER_SET.may_load(deps.storage)
+}
+
+pub fn next_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
+    NEXT_VERIFIER_SET.may_load(deps.storage)
+}
+
+#[cfg(test)]
+mod test {
+    use cosmwasm_std::testing::mock_dependencies;
+
+    use crate::{state, test::test_data::new_verifier_set};
+
+    #[test]
+    fn next_verifier_set() {
+        let mut deps = mock_dependencies();
+
+        assert_eq!(None, super::next_verifier_set(deps.as_ref()).unwrap());
+
+        state::NEXT_VERIFIER_SET
+            .save(deps.as_mut().storage, &new_verifier_set())
+            .unwrap();
+
+        assert_eq!(
+            Some(new_verifier_set()),
+            super::next_verifier_set(deps.as_ref()).unwrap()
+        );
+    }
 }
