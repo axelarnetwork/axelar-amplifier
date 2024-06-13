@@ -1,5 +1,3 @@
-use std::{array::TryFromSliceError, collections::BTreeMap};
-
 use axelar_rkyv_encoding::types::{ECDSA_COMPRESSED_PUBKEY_LEN, ED25519_PUBKEY_LEN};
 use itertools::Itertools;
 use multisig::{
@@ -8,6 +6,7 @@ use multisig::{
     verifier_set::VerifierSet,
 };
 use router_api::Message;
+use std::{array::TryFromSliceError, collections::BTreeMap};
 
 use crate::{error::ContractError, payload::Payload};
 
@@ -88,9 +87,10 @@ fn to_msg(msg: &Message) -> axelar_rkyv_encoding::types::Message {
 
 pub fn to_weighted_signature(
     sig: &SignerWithSig,
+    payload_hash: &[u8; 32],
 ) -> Result<axelar_rkyv_encoding::types::WeightedSignature> {
     let enc_pub_key = to_pub_key(&sig.signer.pub_key)?;
-    let enc_signature = to_signature(&sig.signature)?;
+    let enc_signature = to_signature(&sig.signature, &sig.signer.pub_key, payload_hash)?;
     let enc_weight =
         axelar_rkyv_encoding::types::U256::from_le(to_u256_le(sig.signer.weight.u128()));
 
@@ -101,9 +101,24 @@ pub fn to_weighted_signature(
     ))
 }
 
-fn to_signature(sig: &Signature) -> Result<axelar_rkyv_encoding::types::Signature> {
+fn to_signature(
+    sig: &Signature,
+    pub_key: &PublicKey,
+    payload_hash: &[u8; 32],
+) -> Result<axelar_rkyv_encoding::types::Signature> {
     match sig {
-        Signature::Ecdsa(_) => unimplemented!(), // Todo: should we implement this in axelar_encoding ?
+        Signature::Ecdsa(nonrec) => {
+            let recov = nonrec
+                .to_recoverable(payload_hash, pub_key, add27)
+                .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
+            let data = recov
+                .as_ref()
+                .try_into()
+                .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))?;
+            Ok(axelar_rkyv_encoding::types::Signature::EcdsaRecoverable(
+                data,
+            ))
+        }
 
         // Following 2: We are just moving the bytes around, hoping this conversions match. Not sure if `HexBinary`
         // representation will match here with the decoding part.
@@ -125,6 +140,13 @@ fn to_signature(sig: &Signature) -> Result<axelar_rkyv_encoding::types::Signatur
             Ok(axelar_rkyv_encoding::types::Signature::new_ed25519(data))
         }
     }
+}
+
+fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
+    recovery_byte
+        .to_byte()
+        .checked_add(27)
+        .expect("overflow when adding 27 to recovery byte")
 }
 
 #[cfg(test)]

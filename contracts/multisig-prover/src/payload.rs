@@ -84,7 +84,7 @@ impl Payload {
                 let mut enc_signatures = Vec::new();
 
                 for s in signers_with_sigs {
-                    enc_signatures.push(to_weighted_signature(&s)?)
+                    enc_signatures.push(to_weighted_signature(&s, &payload_hash)?)
                 }
 
                 let bytes = axelar_rkyv_encoding::encode::<1024>(
