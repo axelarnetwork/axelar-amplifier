@@ -1,7 +1,7 @@
 use axelar_rkyv_encoding::types::{ECDSA_COMPRESSED_PUBKEY_LEN, ED25519_PUBKEY_LEN};
 use itertools::Itertools;
 use multisig::{
-    key::{PublicKey, Signature},
+    key::{PublicKey, Recoverable, Signature},
     msg::SignerWithSig,
     verifier_set::VerifierSet,
 };
@@ -111,24 +111,16 @@ fn to_signature(
             let recov = nonrec
                 .to_recoverable(payload_hash, pub_key, add27)
                 .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
-            let data = recov
-                .as_ref()
-                .try_into()
-                .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))?;
             Ok(axelar_rkyv_encoding::types::Signature::EcdsaRecoverable(
-                data,
+                recoverable_ecdsa_to_array(&recov)?,
             ))
         }
 
         // Following 2: We are just moving the bytes around, hoping this conversions match. Not sure if `HexBinary`
         // representation will match here with the decoding part.
         Signature::EcdsaRecoverable(r) => {
-            let data = r
-                .as_ref()
-                .try_into()
-                .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))?;
             Ok(axelar_rkyv_encoding::types::Signature::EcdsaRecoverable(
-                data,
+                recoverable_ecdsa_to_array(r)?,
             ))
         }
         Signature::Ed25519(ed) => {
@@ -149,6 +141,11 @@ fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
         .expect("overflow when adding 27 to recovery byte")
 }
 
+fn recoverable_ecdsa_to_array(rec: &Recoverable) -> Result<[u8; 65]> {
+    rec.as_ref()
+        .try_into()
+        .map_err(|e: TryFromSliceError| ContractError::RkyvEncodingError(e.to_string()))
+}
 #[cfg(test)]
 mod tests {
     use super::*;
