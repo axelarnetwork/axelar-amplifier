@@ -115,9 +115,6 @@ fn to_signature(
                 recoverable_ecdsa_to_array(&recov)?,
             ))
         }
-
-        // Following 2: We are just moving the bytes around, hoping this conversions match. Not sure if `HexBinary`
-        // representation will match here with the decoding part.
         Signature::EcdsaRecoverable(r) => {
             Ok(axelar_rkyv_encoding::types::Signature::EcdsaRecoverable(
                 recoverable_ecdsa_to_array(r)?,
