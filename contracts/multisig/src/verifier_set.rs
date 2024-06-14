@@ -44,9 +44,18 @@ impl VerifierSet {
     }
 
     pub fn hash(&self) -> HexBinary {
-        Keccak256::digest(serde_json::to_vec(&self).expect("couldn't serialize verifier set"))
-            .as_slice()
-            .into()
+        let mut hasher = Keccak256::new();
+
+        self.signers.values().for_each(|signer| {
+            hasher.update(signer.address.as_bytes());
+            hasher.update(signer.pub_key.as_ref());
+            hasher.update(signer.weight.to_be_bytes());
+        });
+
+        hasher.update(self.threshold.to_be_bytes());
+        hasher.update(self.created_at.to_be_bytes());
+
+        hasher.finalize().as_slice().into()
     }
 
     pub fn id(&self) -> String {
