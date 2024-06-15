@@ -4,6 +4,10 @@ use std::time::Duration;
 use std::{cmp, thread};
 
 use async_trait::async_trait;
+use cosmrs::proto::cosmos::auth::v1beta1::{
+    BaseAccount, QueryAccountRequest, QueryAccountResponse,
+};
+use cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceRequest;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastMode, BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest,
@@ -12,14 +16,16 @@ use cosmrs::proto::traits::MessageExt;
 use cosmrs::tendermint::chain::Id;
 use cosmrs::tx::Fee;
 use cosmrs::{Amount, Coin, Denom, Gas};
-use error_stack::{report, FutureExt, Report, Result, ResultExt};
+use error_stack::{ensure, report, FutureExt, Report, Result, ResultExt};
 use futures::TryFutureExt;
 use k256::sha2::{Digest, Sha256};
 use mockall::automock;
 use num_traits::{cast, Zero};
+use prost::Message;
+use prost_types::Any;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tonic::Status;
+use tonic::{Code, Status};
 use tracing::debug;
 use tracing::info;
 use typed_builder::TypedBuilder;
@@ -34,9 +40,8 @@ use crate::tofnd;
 use crate::tofnd::grpc::Multisig;
 use crate::types::{PublicKey, TMAddress};
 
-pub mod clients;
+mod cosmos;
 mod dec_coin;
-pub mod queries;
 mod tx;
 
 #[derive(Error, Debug)]
@@ -49,18 +54,22 @@ pub enum Error {
     FeeEstimation,
     #[error("broadcast failed")]
     Broadcast,
-    #[error("failed to confirm tx inclusion in block")]
-    TxConfirmation,
+    #[error("failed to confirm inclusion in block for tx with hash '{tx_hash}'")]
+    TxConfirmation { tx_hash: String },
     #[error("failed to execute tx")]
     Execution { response: Box<TxResponse> },
-    #[error("failed to query account information for address {address}")]
+    #[error("failed to query balance for address '{address}' and denomination '{denom}'")]
+    QueryBalance { address: TMAddress, denom: Denom },
+    #[error("failed to query account for address '{address}'")]
     QueryAccount { address: TMAddress },
-    #[error("failed to query balance for address {address}")]
-    QueryBalance { address: TMAddress },
-    #[error("address {address} controls no tokens of denomination '{denom}' that are required to pay broadcast fees")]
+    #[error("address '{address}' controls no tokens of denomination '{denom}' that are required to pay broadcast fees")]
     NoTokensOfFeeDenom { address: TMAddress, denom: Denom },
     #[error("failed to encode broadcaster address from public key")]
     AddressEncoding,
+    #[error("received response for query '{query}' could not be decoded")]
+    MalformedResponse { query: String },
+    #[error("address {address} is unknown, please make sure it is funded")]
+    AccountNotFound { address: TMAddress },
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -95,17 +104,17 @@ impl Default for Config {
 #[automock]
 #[async_trait]
 pub trait Broadcaster {
-    async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error>;
-    async fn estimate_fee(&mut self, msgs: Vec<cosmrs::Any>) -> Result<Fee, Error>;
+    async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error>;
+    async fn estimate_fee(&mut self, msgs: Vec<Any>) -> Result<Fee, Error>;
 }
 
 #[derive(TypedBuilder)]
-pub struct UnvalidatedBroadcastClient<T, S, A, B>
+pub struct UnvalidatedBasicBroadcaster<T, S, A, B>
 where
-    T: clients::BroadcastClient + Send,
+    T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
-    A: clients::AccountQueryClient + Send,
-    B: clients::BalanceQueryClient + Send,
+    A: cosmos::AccountQueryClient + Send,
+    B: cosmos::BalanceQueryClient + Send,
 {
     client: T,
     signer: S,
@@ -118,39 +127,66 @@ where
     config: Config,
 }
 
-impl<T, S, A, B> UnvalidatedBroadcastClient<T, S, A, B>
+impl<T, S, A, B> UnvalidatedBasicBroadcaster<T, S, A, B>
 where
-    T: clients::BroadcastClient + Send,
+    T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
-    A: clients::AccountQueryClient + Send,
-    B: clients::BalanceQueryClient + Send,
+    A: cosmos::AccountQueryClient + Send,
+    B: cosmos::BalanceQueryClient + Send,
 {
-    pub async fn validate_fee_denomination(mut self) -> Result<BroadcastClient<T, S, A>, Error> {
+    pub async fn validate_fee_denomination(mut self) -> Result<BasicBroadcaster<T, S, A>, Error> {
         let denom: Denom = self.config.gas_price.denom.clone().into();
+        let address: TMAddress = self.derive_address()?;
 
-        let address: TMAddress = self
+        ensure!(
+            self.balance(address.clone(), denom.clone())
+                .await?
+                .then(extract_non_zero_amount)
+                .is_some(),
+            Error::NoTokensOfFeeDenom { denom, address }
+        );
+
+        Ok(BasicBroadcaster {
+            client: self.client,
+            signer: self.signer,
+            auth_query_client: self.auth_query_client,
+            address: address.clone(),
+            acc_sequence: self.acc_sequence,
+            pub_key: self.pub_key,
+            config: self.config,
+        })
+    }
+
+    fn derive_address(&mut self) -> Result<TMAddress, Error> {
+        Ok(self
             .pub_key
             .1
             .account_id(&self.address_prefix)
             .change_context(Error::AddressEncoding)?
-            .into();
+            .into())
+    }
 
-        queries::balance(&mut self.bank_query_client, address.clone(), denom.clone())
-            .await
-            .change_context(Error::QueryBalance {
-                address: address.clone(),
-            })?
-            .then(extract_non_zero_amount)
-            .map(|_| BroadcastClient {
-                client: self.client,
-                signer: self.signer,
-                auth_query_client: self.auth_query_client,
-                address: address.clone(),
-                acc_sequence: self.acc_sequence,
-                pub_key: self.pub_key,
-                config: self.config,
+    async fn balance(&mut self, address: TMAddress, denom: Denom) -> Result<Coin, Error> {
+        let coin = self
+            .bank_query_client
+            .balance(QueryBalanceRequest {
+                address: address.to_string(),
+                denom: denom.to_string(),
             })
-            .ok_or(report!(Error::NoTokensOfFeeDenom { denom, address }))
+            .await
+            .and_then(|response| {
+                response
+                    .balance
+                    .ok_or(Status::not_found("balance not found"))
+            })
+            .change_context(Error::QueryBalance { address, denom })?;
+
+        ResultCompatExt::change_context(
+            coin.try_into(),
+            Error::MalformedResponse {
+                query: "balance".to_string(),
+            },
+        )
     }
 }
 
@@ -159,11 +195,11 @@ fn extract_non_zero_amount(coin: Coin) -> Option<Amount> {
 }
 
 #[derive(Debug)]
-pub struct BroadcastClient<T, S, Q>
+pub struct BasicBroadcaster<T, S, Q>
 where
-    T: clients::BroadcastClient + Send,
+    T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
-    Q: clients::AccountQueryClient + Send,
+    Q: cosmos::AccountQueryClient + Send,
 {
     client: T,
     signer: S,
@@ -175,11 +211,11 @@ where
 }
 
 #[async_trait]
-impl<T, S, Q> Broadcaster for BroadcastClient<T, S, Q>
+impl<T, S, Q> Broadcaster for BasicBroadcaster<T, S, Q>
 where
-    T: clients::BroadcastClient + Send,
+    T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
-    Q: clients::AccountQueryClient + Send,
+    Q: cosmos::AccountQueryClient + Send,
 {
     async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error> {
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
@@ -237,25 +273,39 @@ where
         Ok(response)
     }
 
-    async fn estimate_fee(&mut self, msgs: Vec<cosmrs::Any>) -> Result<Fee, Error> {
+    async fn estimate_fee(&mut self, msgs: Vec<Any>) -> Result<Fee, Error> {
         let (_, acc_sequence) = self.acc_number_and_sequence().await?;
 
         self.estimate_fee(msgs, acc_sequence).await
     }
 }
 
-impl<T, S, Q> BroadcastClient<T, S, Q>
+impl<T, S, Q> BasicBroadcaster<T, S, Q>
 where
-    T: clients::BroadcastClient + Send,
+    T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
-    Q: clients::AccountQueryClient + Send,
+    Q: cosmos::AccountQueryClient + Send,
 {
     async fn acc_number_and_sequence(&mut self) -> Result<(u64, u64), Error> {
-        let account = queries::account(&mut self.auth_query_client, &self.address)
+        let request = QueryAccountRequest {
+            address: self.address.to_string(),
+        };
+
+        let response = self
+            .auth_query_client
+            .account(request)
             .await
-            .change_context_lazy(|| Error::QueryAccount {
+            .then(remap_account_not_found_error)
+            .change_context(Error::QueryAccount {
                 address: self.address.clone(),
             })?;
+
+        let account = response.account.map_or(
+            Err(report!(Error::AccountNotFound {
+                address: self.address.clone()
+            })),
+            decode_base_account,
+        )?;
 
         let acc_sequence = self.acc_sequence.insert(cmp::max(
             account.sequence,
@@ -324,7 +374,7 @@ where
                 })
                 .await;
 
-            match evaluate_response(response) {
+            match evaluate_tx_response(response) {
                 ConfirmationResult::Success => {
                     if let Err(report) = result {
                         debug!(
@@ -346,13 +396,25 @@ where
             };
         }
 
-        result.change_context(Error::TxConfirmation)
+        result.change_context(Error::TxConfirmation {
+            tx_hash: tx_hash.to_string(),
+        })
     }
 }
 
-fn evaluate_response(response: Result<GetTxResponse, Status>) -> ConfirmationResult {
+fn decode_base_account(account: Any) -> Result<BaseAccount, Error> {
+    BaseAccount::decode(&account.value[..])
+        .change_context(Error::MalformedResponse {
+            query: "account".to_string(),
+        })
+        .attach_printable_lazy(|| format!("{{ value = {:?} }}", account.value))
+}
+
+fn evaluate_tx_response(
+    response: core::result::Result<GetTxResponse, Status>,
+) -> ConfirmationResult {
     match response {
-        Err(err) => ConfirmationResult::Retriable(err),
+        Err(err) => ConfirmationResult::Retriable(report!(err)),
         Ok(GetTxResponse {
             tx_response: None, ..
         }) => ConfirmationResult::Retriable(Report::new(Status::not_found("tx not found"))),
@@ -365,6 +427,16 @@ fn evaluate_response(response: Result<GetTxResponse, Status>) -> ConfirmationRes
                 response: Box::new(response),
             }),
         },
+    }
+}
+
+fn remap_account_not_found_error(
+    response: core::result::Result<QueryAccountResponse, Status>,
+) -> core::result::Result<QueryAccountResponse, Status> {
+    if matches!(response.clone(), Err(status) if status.code() == Code::NotFound) {
+        Ok(QueryAccountResponse { account: None })
+    } else {
+        response
     }
 }
 
@@ -390,11 +462,11 @@ mod tests {
     use tokio::test;
     use tonic::Status;
 
-    use crate::broadcaster::clients::{
+    use crate::broadcaster::cosmos::{
         MockAccountQueryClient, MockBalanceQueryClient, MockBroadcastClient,
     };
     use crate::broadcaster::{
-        BroadcastClient, Broadcaster, Config, Error, UnvalidatedBroadcastClient,
+        BasicBroadcaster, Broadcaster, Config, Error, UnvalidatedBasicBroadcaster,
     };
     use crate::tofnd::grpc::MockMultisig;
     use crate::types::TMAddress;
@@ -524,7 +596,7 @@ mod tests {
                 .await
                 .unwrap_err()
                 .current_context(),
-            Error::TxConfirmation
+            Error::TxConfirmation { .. }
         ));
     }
 
@@ -611,11 +683,82 @@ mod tests {
         assert_eq!(broadcaster.acc_sequence, Some(12));
     }
 
+    #[test]
+    async fn account_query_failed_return_error() {
+        let mut client = MockAccountQueryClient::new();
+        client
+            .expect_account()
+            .returning(|_| Err(Status::aborted("aborted")));
+
+        let mut broadcaster = init_validated_broadcaster(None, Some(client), None).await;
+
+        for report in [
+            broadcaster.broadcast(vec![dummy_msg()]).await.unwrap_err(),
+            Broadcaster::estimate_fee(&mut broadcaster, vec![dummy_msg()])
+                .await
+                .unwrap_err(),
+        ] {
+            assert!(matches!(
+                report.current_context(),
+                Error::QueryAccount { .. }
+            ));
+        }
+    }
+
+    #[test]
+    async fn account_not_found_returns_error() {
+        let mut client = MockAccountQueryClient::new();
+        client
+            .expect_account()
+            .returning(|_| Ok(QueryAccountResponse { account: None }));
+
+        let mut broadcaster = init_validated_broadcaster(None, Some(client), None).await;
+
+        for report in [
+            broadcaster.broadcast(vec![dummy_msg()]).await.unwrap_err(),
+            Broadcaster::estimate_fee(&mut broadcaster, vec![dummy_msg()])
+                .await
+                .unwrap_err(),
+        ] {
+            assert!(matches!(
+                report.current_context(),
+                Error::AccountNotFound { .. }
+            ));
+        }
+    }
+
+    #[test]
+    async fn malformed_account_query_response_return_error() {
+        let mut client = MockAccountQueryClient::new();
+        client.expect_account().returning(|_| {
+            Ok(QueryAccountResponse {
+                account: Some(Any {
+                    type_url: "wrong_type".to_string(),
+                    value: vec![1, 2, 3, 4, 5],
+                }),
+            })
+        });
+
+        let mut broadcaster = init_validated_broadcaster(None, Some(client), None).await;
+
+        for report in [
+            broadcaster.broadcast(vec![dummy_msg()]).await.unwrap_err(),
+            Broadcaster::estimate_fee(&mut broadcaster, vec![dummy_msg()])
+                .await
+                .unwrap_err(),
+        ] {
+            assert!(matches!(
+                report.current_context(),
+                Error::MalformedResponse { .. }
+            ));
+        }
+    }
+
     fn init_unvalidated_broadcaster(
         balance_client_override: Option<MockBalanceQueryClient>,
         auth_client_override: Option<MockAccountQueryClient>,
         broadcast_client_override: Option<MockBroadcastClient>,
-    ) -> UnvalidatedBroadcastClient<
+    ) -> UnvalidatedBasicBroadcaster<
         MockBroadcastClient,
         MockMultisig,
         MockAccountQueryClient,
@@ -626,7 +769,7 @@ mod tests {
         let pub_key: PublicKey = priv_key.verifying_key().into();
         let known_denom: Denom = Config::default().gas_price.denom.clone().into();
 
-        UnvalidatedBroadcastClient::builder()
+        UnvalidatedBasicBroadcaster::builder()
             .client(broadcast_client_override.unwrap_or_else(init_mock_broadcaster_client))
             .signer(init_mock_signer(key_id.clone(), priv_key))
             .auth_query_client(
@@ -645,7 +788,7 @@ mod tests {
         balance_client_override: Option<MockBalanceQueryClient>,
         auth_client_override: Option<MockAccountQueryClient>,
         broadcast_client_override: Option<MockBroadcastClient>,
-    ) -> BroadcastClient<MockBroadcastClient, MockMultisig, MockAccountQueryClient> {
+    ) -> BasicBroadcaster<MockBroadcastClient, MockMultisig, MockAccountQueryClient> {
         init_unvalidated_broadcaster(
             balance_client_override,
             auth_client_override,

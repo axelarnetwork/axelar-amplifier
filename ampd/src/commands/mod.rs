@@ -97,7 +97,7 @@ async fn broadcast_tx(
         .await
         .change_context(Error::Connection)?;
 
-    broadcaster::UnvalidatedBroadcastClient::builder()
+    broadcaster::UnvalidatedBasicBroadcaster::builder()
         .client(service_client)
         .signer(multisig_client)
         .auth_query_client(auth_query_client)

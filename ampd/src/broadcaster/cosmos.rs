@@ -1,3 +1,10 @@
+//! Abstractions that decouple the broadcaster from the explicit clients of the cosmrs crate.
+//!
+//! In this module, new traits are defined and implemented for several cosmrs clients,
+//! so the broadcaster only needs to depend on the traits that it owns itself. This makes it less
+//! vulnerable to unexpected changes in the external crate and helps with unit testing,
+//! because the client traits also provide auto-mocks.  
+
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
 use cosmrs::proto::cosmos::auth::v1beta1::{QueryAccountRequest, QueryAccountResponse};
@@ -8,10 +15,9 @@ use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, SimulateResponse,
 };
-use error_stack::{Report, Result};
+
 use mockall::automock;
 use tonic::transport::Channel;
-
 use tonic::{Response, Status};
 
 #[automock]
@@ -25,29 +31,20 @@ pub trait BroadcastClient {
 #[async_trait]
 impl BroadcastClient for ServiceClient<Channel> {
     async fn broadcast_tx(&mut self, request: BroadcastTxRequest) -> Result<TxResponse, Status> {
-        self.broadcast_tx(request)
-            .await
-            .and_then(|response| {
-                response
-                    .into_inner()
-                    .tx_response
-                    .ok_or_else(|| Status::not_found("tx not found"))
-            })
-            .map_err(Report::from)
+        self.broadcast_tx(request).await.and_then(|response| {
+            response
+                .into_inner()
+                .tx_response
+                .ok_or_else(|| Status::not_found("tx not found"))
+        })
     }
 
     async fn simulate(&mut self, request: SimulateRequest) -> Result<SimulateResponse, Status> {
-        self.simulate(request)
-            .await
-            .map(Response::into_inner)
-            .map_err(Report::from)
+        self.simulate(request).await.map(Response::into_inner)
     }
 
     async fn get_tx(&mut self, request: GetTxRequest) -> Result<GetTxResponse, Status> {
-        self.get_tx(request)
-            .await
-            .map(Response::into_inner)
-            .map_err(Report::from)
+        self.get_tx(request).await.map(Response::into_inner)
     }
 }
 
@@ -56,7 +53,7 @@ impl BroadcastClient for ServiceClient<Channel> {
 pub trait AccountQueryClient {
     async fn account(
         &mut self,
-        request: QueryAccountRequest,
+        address: QueryAccountRequest,
     ) -> Result<QueryAccountResponse, Status>;
 }
 
@@ -66,11 +63,7 @@ impl AccountQueryClient for AuthQueryClient<Channel> {
         &mut self,
         request: QueryAccountRequest,
     ) -> Result<QueryAccountResponse, Status> {
-        return self
-            .account(request)
-            .await
-            .map(Response::into_inner)
-            .map_err(Report::from);
+        self.account(request).await.map(Response::into_inner)
     }
 }
 
@@ -92,6 +85,5 @@ impl BalanceQueryClient for BankQueryClient<Channel> {
         self.balance(request)
             .await
             .map(|response| response.into_inner())
-            .map_err(Report::from)
     }
 }

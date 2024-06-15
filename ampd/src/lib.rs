@@ -114,7 +114,7 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         }
     };
 
-    let broadcaster = broadcaster::UnvalidatedBroadcastClient::builder()
+    let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
         .auth_query_client(auth_query_client)
         .bank_query_client(bank_query_client)
         .address_prefix(PREFIX.to_string())
