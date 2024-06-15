@@ -114,7 +114,7 @@ where
     T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
     A: cosmos::AccountQueryClient + Send,
-    B: cosmos::BalanceQueryClient + Send,
+    B: cosmos::BalanceQueryClient,
 {
     client: T,
     signer: S,
@@ -132,7 +132,7 @@ where
     T: cosmos::BroadcastClient + Send,
     S: Multisig + Send + Sync,
     A: cosmos::AccountQueryClient + Send,
-    B: cosmos::BalanceQueryClient + Send,
+    B: cosmos::BalanceQueryClient,
 {
     pub async fn validate_fee_denomination(mut self) -> Result<BasicBroadcaster<T, S, A>, Error> {
         let denom: Denom = self.config.gas_price.denom.clone().into();
@@ -217,7 +217,7 @@ where
     S: Multisig + Send + Sync,
     Q: cosmos::AccountQueryClient + Send,
 {
-    async fn broadcast(&mut self, msgs: Vec<cosmrs::Any>) -> Result<TxResponse, Error> {
+    async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error> {
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
         let tx = Tx::builder()
             .msgs(msgs.clone())
@@ -315,11 +315,7 @@ where
         Ok((account.account_number, *acc_sequence))
     }
 
-    async fn estimate_fee(
-        &mut self,
-        msgs: Vec<cosmrs::Any>,
-        acc_sequence: u64,
-    ) -> Result<Fee, Error> {
+    async fn estimate_fee(&mut self, msgs: Vec<Any>, acc_sequence: u64) -> Result<Fee, Error> {
         let sim_tx = Tx::builder()
             .msgs(msgs)
             .pub_key(self.pub_key.1)
@@ -499,7 +495,7 @@ mod tests {
         let mut client = MockBroadcastClient::new();
         client
             .expect_simulate()
-            .returning(|_| Err(Status::unavailable("unavailable service").into()));
+            .returning(|_| Err(Status::unavailable("unavailable service")));
 
         let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
 
@@ -552,7 +548,7 @@ mod tests {
         });
         client
             .expect_broadcast_tx()
-            .returning(|_| Err(Status::aborted("failed").into()));
+            .returning(|_| Err(Status::aborted("failed")));
 
         let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
         let msgs = vec![dummy_msg()];
@@ -585,7 +581,7 @@ mod tests {
         client
             .expect_get_tx()
             .times((Config::default().tx_fetch_max_retries + 1) as usize)
-            .returning(|_| Err(Status::deadline_exceeded("time out").into()));
+            .returning(|_| Err(Status::deadline_exceeded("time out")));
 
         let mut broadcaster = init_validated_broadcaster(None, None, Some(client)).await;
         let msgs = vec![dummy_msg()];
