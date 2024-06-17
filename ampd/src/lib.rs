@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use block_height_monitor::BlockHeightMonitor;
 use cosmrs::proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
+    auth::v1beta1::query_client::QueryClient as AuthQueryClient,
+    bank::v1beta1::query_client::QueryClient as BankQueryClient,
+    tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{report, FutureExt, Result, ResultExt};
 use evm::finalizer::{pick, Finalization};
@@ -84,7 +86,10 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-    let query_client = QueryClient::connect(tm_grpc.to_string())
+    let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
+        .await
+        .change_context(Error::Connection)?;
+    let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
     let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
@@ -109,21 +114,25 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         }
     };
 
-    let verifier: TMAddress = pub_key
-        .account_id(PREFIX)
-        .expect("failed to convert to account identifier")
-        .into();
-
-    let broadcaster = broadcaster::BroadcastClient::builder()
-        .query_client(query_client)
-        .address(verifier.clone())
+    let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
+        .auth_query_client(auth_query_client)
+        .bank_query_client(bank_query_client)
+        .address_prefix(PREFIX.to_string())
         .client(service_client)
         .signer(multisig_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
-        .build();
+        .build()
+        .validate_fee_denomination()
+        .await
+        .change_context(Error::Broadcaster)?;
 
     let health_check_server = health_check::Server::new(health_check_bind_addr);
+
+    let verifier: TMAddress = pub_key
+        .account_id(PREFIX)
+        .expect("failed to convert to account identifier")
+        .into();
 
     App::new(
         tm_client,
