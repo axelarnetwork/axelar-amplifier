@@ -47,7 +47,10 @@ pub struct InstantiateMsg {
     /// deployed on the destination chain. The multisig contract supports multiple public keys per verifier (each a different type of key), and this
     /// parameter controls which registered public key to use for signing for each verifier registered to the destination chain.
     pub key_type: KeyType,
-    /// an opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+    /// An opaque value created to distinguish distinct chains that the external gateway should be initialized with.
+    /// Value must be in hex format.
+    #[serde(with = "axelar_wasm_std::hex")] // (de)serialization with hex module
+    #[schemars(with = "String")] // necessary attribute in conjunction with #[serde(with ...)]
     pub domain_separator: Hash,
 }
 
