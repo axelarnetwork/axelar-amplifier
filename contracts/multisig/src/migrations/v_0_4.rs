@@ -50,7 +50,6 @@ mod test {
         signing::SigningSession,
         state::{SIGNING_SESSIONS, VERIFIER_SETS},
         test::common::{build_verifier_set, ecdsa_test_data::signers},
-        types::MsgToSign,
     };
 
     use cosmwasm_std::{testing::mock_dependencies, HexBinary, Uint64};
@@ -84,7 +83,7 @@ mod test {
         migrate(&mut deps.as_mut()).unwrap();
 
         let new_verifier_set = VERIFIER_SETS
-            .load(&mut deps.storage, &verifier_set.id())
+            .load(&deps.storage, &verifier_set.id())
             .unwrap();
         assert_eq!(new_verifier_set, verifier_set);
 
@@ -93,7 +92,7 @@ mod test {
             ..signing_session
         };
         let new_signing_session = SIGNING_SESSIONS
-            .load(&mut deps.storage, expected_signing_session.id.u64())
+            .load(&deps.storage, expected_signing_session.id.u64())
             .unwrap();
         assert_eq!(new_signing_session, expected_signing_session);
     }
