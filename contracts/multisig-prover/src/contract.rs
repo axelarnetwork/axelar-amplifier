@@ -121,7 +121,8 @@ pub fn query(
         QueryMsg::GetProof {
             multisig_session_id,
         } => to_json_binary(&query::get_proof(deps, multisig_session_id)?),
-        QueryMsg::GetVerifierSet {} => to_json_binary(&query::get_verifier_set(deps)?),
+        QueryMsg::CurrentVerifierSet {} => to_json_binary(&query::current_verifier_set(deps)?),
+        QueryMsg::NextVerifierSet {} => to_json_binary(&query::next_verifier_set(deps)?),
     }
     .change_context(ContractError::SerializeResponse)
     .map_err(axelar_wasm_std::ContractError::from)
@@ -299,7 +300,7 @@ mod tests {
     fn query_get_verifier_set(
         deps: Deps,
     ) -> Result<Option<(String, VerifierSet)>, axelar_wasm_std::ContractError> {
-        query(deps, mock_env(), QueryMsg::GetVerifierSet {}).map(|res| from_json(res).unwrap())
+        query(deps, mock_env(), QueryMsg::CurrentVerifierSet {}).map(|res| from_json(res).unwrap())
     }
 
     #[test]

@@ -316,7 +316,7 @@ pub fn get_verifier_set_from_prover(
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
     let query_response: Result<Option<(String, VerifierSet)>, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetVerifierSet);
+        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::CurrentVerifierSet);
     assert!(query_response.is_ok());
 
     query_response.unwrap().unwrap().1

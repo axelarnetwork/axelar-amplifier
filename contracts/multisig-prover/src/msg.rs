@@ -79,7 +79,10 @@ pub enum QueryMsg {
 
     /// Returns a tuple of the current verifier set id and the verifier set itself.
     #[returns(Option<(String, multisig::verifier_set::VerifierSet)>)]
-    GetVerifierSet,
+    CurrentVerifierSet,
+
+    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    NextVerifierSet,
 }
 
 #[cw_serde]
