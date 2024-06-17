@@ -5,9 +5,9 @@ use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
 use thiserror::Error;
-use tokio::sync::oneshot;
+use tokio::select;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time;
-use tokio::{select, sync::mpsc};
 use tracing::info;
 use tracing::warn;
 
@@ -23,6 +23,8 @@ pub enum Error {
     EstimateFee,
     #[error("failed broadcasting messages in queue")]
     Broadcast,
+    #[error("failed returning response to client")]
+    Client,
     #[error("failed to queue message")]
     Queue,
 }
@@ -44,9 +46,9 @@ impl BroadcasterClient for QueuedBroadcasterClient {
         self.sender
             .send((msg, tx))
             .await
-            .map_err(|_| Report::new(Error::Broadcast))?;
+            .change_context(Error::Broadcast)?;
 
-        rx.await.expect("sender dropped")
+        rx.await.change_context(Error::Broadcast)?
     }
 }
 
@@ -93,33 +95,13 @@ where
             select! {
                 msg = rx.recv() => match msg {
                     None => break,
-                    Some((msg, tx)) => {
-                        let fee = match broadcaster.estimate_fee(vec![msg.clone()]).await {
-                            Ok(fee) => {
-                                tx.send(Ok(())).expect("receiver dropped");
-                                fee
-                            },
-                            Err(err) => {
-                                tx.send(Err(err).change_context(Error::EstimateFee)).expect("receiver dropped");
-                                continue;
-                            }
-                        };
-
-                        if fee.gas_limit.saturating_add(queue.gas_cost()) >= self.batch_gas_limit {
-                            warn!(queue_size = queue.len(), queue_gas_cost = queue.gas_cost(), "exceeded batch gas limit. gas limit can be adjusted in ampd config");
-                            broadcast_all(&mut queue, &mut broadcaster).await?;
-                            interval.reset();
-                        }
-
-                        let message_type = msg.type_url.clone();
-                        queue.push(msg, fee.gas_limit).change_context(Error::Queue)?;
-                        info!(
-                            message_type,
-                            queue_size = queue.len(),
-                            queue_gas_cost = queue.gas_cost(),
-                            "pushed a new message into the queue"
-                        );
-                    }
+                    Some(msg_and_res_chan) => handle_msg(
+                        self.batch_gas_limit,
+                        &mut queue,
+                        &mut broadcaster,
+                        &mut interval,
+                        msg_and_res_chan
+                    ).await?,
                 },
                 _ = interval.tick() => {
                     broadcast_all(&mut queue, &mut broadcaster).await?;
@@ -138,6 +120,52 @@ where
             sender: self.channel.0.clone(),
         }
     }
+}
+
+async fn handle_msg<T>(
+    batch_gas_limit: u64,
+    queue: &mut MsgQueue,
+    broadcaster: &mut T,
+    interval: &mut time::Interval,
+    msg_and_res_chan: MsgAndResChan,
+) -> Result
+where
+    T: Broadcaster,
+{
+    let (msg, tx) = msg_and_res_chan;
+
+    match broadcaster.estimate_fee(vec![msg.clone()]).await {
+        Ok(fee) => {
+            tx.send(Ok(())).map_err(|_| Report::new(Error::Client))?;
+
+            if fee.gas_limit.saturating_add(queue.gas_cost()) >= batch_gas_limit {
+                warn!(
+                    queue_size = queue.len(),
+                    queue_gas_cost = queue.gas_cost(),
+                    "exceeded batch gas limit. gas limit can be adjusted in ampd config"
+                );
+                broadcast_all(queue, broadcaster).await?;
+                interval.reset();
+            }
+
+            let message_type = msg.type_url.clone();
+            queue
+                .push(msg, fee.gas_limit)
+                .change_context(Error::Queue)?;
+            info!(
+                message_type,
+                queue_size = queue.len(),
+                queue_gas_cost = queue.gas_cost(),
+                "pushed a new message into the queue"
+            );
+        }
+        Err(err) => {
+            tx.send(Err(err).change_context(Error::EstimateFee))
+                .map_err(|_| Report::new(Error::Client))?;
+        }
+    }
+
+    Ok(())
 }
 
 async fn broadcast_all<T>(queue: &mut MsgQueue, broadcaster: &mut T) -> Result
