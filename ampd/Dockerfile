@@ -3,6 +3,7 @@ RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /ampd
 COPY ./Cargo.toml ./Cargo.toml
+COPY ./Cargo.lock ./Cargo.lock
 COPY ./ampd/Cargo.toml ./ampd/Cargo.toml
 COPY ./packages ./packages
 COPY ./contracts ./contracts
