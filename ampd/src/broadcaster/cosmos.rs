@@ -3,7 +3,7 @@
 //! In this module, new traits are defined and implemented for several cosmrs clients,
 //! so the broadcaster only needs to depend on the traits that it owns itself. This makes it less
 //! vulnerable to unexpected changes in the external crate and helps with unit testing,
-//! because the client traits also provide auto-mocks.  
+//! because the client traits also provide auto-mocks.
 
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient as AuthQueryClient;
@@ -82,8 +82,6 @@ impl BalanceQueryClient for BankQueryClient<Channel> {
         &mut self,
         request: QueryBalanceRequest,
     ) -> Result<QueryBalanceResponse, Status> {
-        self.balance(request)
-            .await
-            .map(|response| response.into_inner())
+        self.balance(request).await.map(Response::into_inner)
     }
 }
