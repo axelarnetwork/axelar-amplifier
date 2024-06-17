@@ -64,6 +64,15 @@ impl From<DecCoin> for proto::cosmos::base::v1beta1::DecCoin {
     }
 }
 
+impl From<&DecCoin> for proto::cosmos::base::v1beta1::DecCoin {
+    fn from(coin: &DecCoin) -> proto::cosmos::base::v1beta1::DecCoin {
+        proto::cosmos::base::v1beta1::DecCoin {
+            denom: coin.denom.to_string(),
+            amount: coin.amount.to_string(),
+        }
+    }
+}
+
 impl TryFrom<String> for DecCoin {
     type Error = Report<Error>;
 
@@ -88,15 +97,6 @@ impl TryFrom<&str> for DecCoin {
                 })
             }
             _ => Err(Report::from(ParsingFailed)),
-        }
-    }
-}
-
-impl From<&DecCoin> for proto::cosmos::base::v1beta1::DecCoin {
-    fn from(coin: &DecCoin) -> proto::cosmos::base::v1beta1::DecCoin {
-        proto::cosmos::base::v1beta1::DecCoin {
-            denom: coin.denom.to_string(),
-            amount: coin.amount.to_string(),
         }
     }
 }
