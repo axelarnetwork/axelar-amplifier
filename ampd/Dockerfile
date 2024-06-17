@@ -2,8 +2,7 @@ FROM rust:1.75-bookworm as builder
 RUN apt-get update && apt-get install -y clang protobuf-compiler cmake
 
 WORKDIR /ampd
-COPY ./Cargo.toml ./Cargo.toml
-COPY ./Cargo.lock ./Cargo.lock
+COPY ./Cargo.* ./
 COPY ./ampd/Cargo.toml ./ampd/Cargo.toml
 COPY ./packages ./packages
 COPY ./contracts ./contracts
