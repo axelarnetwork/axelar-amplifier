@@ -1,11 +1,11 @@
-use connection_router_api::ChainName;
 use cosmwasm_std::{OverflowError, OverflowOperation, WasmMsg};
+use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
 
 use crate::signing::validate_session_signature;
 use crate::state::{load_session_signatures, save_pub_key, save_signature};
-use crate::worker_set::WorkerSet;
+use crate::verifier_set::VerifierSet;
 use crate::{
     key::{KeyTyped, PublicKey, Signature},
     signing::SigningSession,
@@ -18,13 +18,13 @@ use super::*;
 pub fn start_signing_session(
     deps: DepsMut,
     env: Env,
-    worker_set_id: String,
+    verifier_set_id: String,
     msg: MsgToSign,
     chain_name: ChainName,
     sig_verifier: Option<Addr>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let worker_set = get_worker_set(deps.storage, &worker_set_id)?;
+    let verifier_set = get_verifier_set(deps.storage, &verifier_set_id)?;
 
     let session_id = SIGNING_SESSION_COUNTER.update(
         deps.storage,
@@ -50,7 +50,7 @@ pub fn start_signing_session(
 
     let signing_session = SigningSession::new(
         session_id,
-        worker_set_id.clone(),
+        verifier_set_id.clone(),
         chain_name.clone(),
         msg.clone(),
         expires_at,
@@ -61,15 +61,15 @@ pub fn start_signing_session(
 
     let event = Event::SigningStarted {
         session_id,
-        worker_set_id,
-        pub_keys: worker_set.get_pub_keys(),
+        verifier_set_id,
+        pub_keys: verifier_set.get_pub_keys(),
         msg,
         chain_name,
         expires_at,
     };
 
     Ok(Response::new()
-        .set_data(to_binary(&session_id)?)
+        .set_data(to_json_binary(&session_id)?)
         .add_event(event.into()))
 }
 
@@ -84,9 +84,9 @@ pub fn submit_signature(
     let mut session = SIGNING_SESSIONS
         .load(deps.storage, session_id.into())
         .map_err(|_| ContractError::SigningSessionNotFound { session_id })?;
-    let worker_set = WORKER_SETS.load(deps.storage, &session.worker_set_id)?;
+    let verifier_set = VERIFIER_SETS.load(deps.storage, &session.verifier_set_id)?;
 
-    let pub_key = match worker_set.signers.get(&info.sender.to_string()) {
+    let pub_key = match verifier_set.signers.get(&info.sender.to_string()) {
         Some(signer) => Ok(&signer.pub_key),
         None => Err(ContractError::NotAParticipant {
             session_id,
@@ -118,7 +118,7 @@ pub fn submit_signature(
 
     let old_state = session.state.clone();
 
-    session.recalculate_session_state(&signatures, &worker_set, env.block.height);
+    session.recalculate_session_state(&signatures, &verifier_set, env.block.height);
     SIGNING_SESSIONS.save(deps.storage, session.id.u64(), &session)?;
 
     let state_changed = old_state != session.state;
@@ -132,12 +132,12 @@ pub fn submit_signature(
     )
 }
 
-pub fn register_worker_set(
+pub fn register_verifier_set(
     deps: DepsMut,
-    worker_set: WorkerSet,
+    verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
-    let worker_set_id = worker_set.id();
-    WORKER_SETS.save(deps.storage, &worker_set_id, &worker_set)?;
+    let verifier_set_id = verifier_set.id();
+    VERIFIER_SETS.save(deps.storage, &verifier_set_id, &verifier_set)?;
 
     Ok(Response::default())
 }
@@ -163,7 +163,7 @@ pub fn register_pub_key(
 
     Ok(Response::new().add_event(
         Event::PublicKeyRegistered {
-            worker: info.sender,
+            verifier: info.sender,
             public_key,
         }
         .into(),
@@ -211,14 +211,14 @@ fn signing_response(
 ) -> Result<Response, ContractError> {
     let rewards_msg = WasmMsg::Execute {
         contract_addr: rewards_contract,
-        msg: to_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
+        msg: to_json_binary(&rewards::msg::ExecuteMsg::RecordParticipation {
             chain_name: session.chain_name,
             event_id: session
                 .id
                 .to_string()
                 .try_into()
                 .expect("couldn't convert session_id to nonempty string"),
-            worker_address: signer.to_string(),
+            verifier_address: signer.to_string(),
         })?,
         funds: vec![],
     };

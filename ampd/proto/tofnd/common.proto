@@ -1,20 +1,29 @@
 syntax = "proto3";
 
+option go_package = "tofnd;tofnd";
+
 package tofnd;
+
+enum Algorithm {
+  ALGORITHM_ECDSA = 0;
+  ALGORITHM_ED25519 = 1;
+}
 
 // Key presence check types
 message KeyPresenceRequest {
-    string key_uid = 1;
-    bytes pub_key = 2; // SEC1-encoded compressed pub key bytes to find the right mnemonic. Latest is used, if empty.
+  string key_uid = 1;
+  bytes pub_key = 2; // SEC1-encoded compressed pub key bytes to find the right
+                     // mnemonic. Latest is used, if empty.
+  Algorithm algorithm = 3;
 }
 
 message KeyPresenceResponse {
-    enum Response {
-        RESPONSE_UNSPECIFIED = 0;
-        RESPONSE_PRESENT = 1;
-        RESPONSE_ABSENT = 2;
-        RESPONSE_FAIL = 3;
-    }
+  enum Response {
+    RESPONSE_UNSPECIFIED = 0;
+    RESPONSE_PRESENT = 1;
+    RESPONSE_ABSENT = 2;
+    RESPONSE_FAIL = 3;
+  }
 
-    Response response = 1;
+  Response response = 1;
 }

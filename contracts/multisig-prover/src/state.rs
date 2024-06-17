@@ -1,43 +1,40 @@
-use axelar_wasm_std::MajorityThreshold;
-use connection_router_api::ChainName;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
-use multisig::key::KeyType;
-use multisig::worker_set::WorkerSet;
 
-use crate::encoding::Encoder;
-use crate::types::{BatchId, CommandBatch};
+use axelar_wasm_std::{hash::Hash, MajorityThreshold};
+use multisig::key::KeyType;
+use multisig::verifier_set::VerifierSet;
+use router_api::ChainName;
+
+use crate::{
+    encoding::Encoder,
+    payload::{Payload, PayloadId},
+};
 
 #[cw_serde]
 pub struct Config {
     pub admin: Addr,
-    #[serde(default = "default_governance")]
     pub governance: Addr,
     pub gateway: Addr,
     pub multisig: Addr,
-    pub monitoring: Addr,
+    pub coordinator: Addr,
     pub service_registry: Addr,
     pub voting_verifier: Addr,
-    pub destination_chain_id: Uint256,
     pub signing_threshold: MajorityThreshold,
     pub service_name: String,
     pub chain_name: ChainName,
-    pub worker_set_diff_threshold: u32,
+    pub verifier_set_diff_threshold: u32,
     pub encoder: Encoder,
     pub key_type: KeyType,
-}
-
-// temporary, so we can read the old config from storage (that doesn't have the governance field)
-fn default_governance() -> Addr {
-    Addr::unchecked("axelar10d07y265gmmuvt4z0w9aw880jnsr700j7v9daj")
+    pub domain_separator: Hash,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
-pub const COMMANDS_BATCH: Map<&BatchId, CommandBatch> = Map::new("command_batch");
-pub const MULTISIG_SESSION_BATCH: Map<u64, BatchId> = Map::new("multisig_session_batch");
+pub const PAYLOAD: Map<&PayloadId, Payload> = Map::new("payload");
+pub const MULTISIG_SESSION_PAYLOAD: Map<u64, PayloadId> = Map::new("multisig_session_payload");
 
-pub const REPLY_BATCH: Item<BatchId> = Item::new("reply_tracker");
+pub const REPLY_TRACKER: Item<PayloadId> = Item::new("reply_tracker");
 
-pub const CURRENT_WORKER_SET: Item<WorkerSet> = Item::new("current_worker_set");
-pub const NEXT_WORKER_SET: Item<WorkerSet> = Item::new("next_worker_set");
+pub const CURRENT_VERIFIER_SET: Item<VerifierSet> = Item::new("current_verifier_set");
+pub const NEXT_VERIFIER_SET: Item<VerifierSet> = Item::new("next_verifier_set");

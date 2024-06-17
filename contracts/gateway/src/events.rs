@@ -1,5 +1,5 @@
-use connection_router_api::Message;
 use cosmwasm_std::{Attribute, Event};
+use router_api::Message;
 
 pub enum GatewayEvent {
     Verifying { msg: Message },

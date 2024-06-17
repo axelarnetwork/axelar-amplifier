@@ -6,31 +6,32 @@ resolver = "2"
 rust-version = "1.75.0" # be sure there is an optimizer release supporting this version before updating. See https://github.com/CosmWasm/optimizer
 
 [workspace.dependencies]
-connection-router = { version = "^0.1.0", path = "contracts/connection-router" }
-cosmwasm-std = "1.3.4"
-cosmwasm-schema = "1.3.4"
-cw-storage-plus = "1.1.0"
+router = { version = "^0.3.2", path = "contracts/router" }
+cosmwasm-std = "1.5.5"
+cosmwasm-schema = "1.5.5"
+cw-storage-plus = "1.2.0"
+cw2 = "1.1.0"
 error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
+evm-gateway = { version = "^0.1.0", path = "packages/evm-gateway" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^0.1.0", path = "integration-tests" }
 itertools = "0.11.0"
-voting-verifier = { version = "^0.1.0", path = "contracts/voting-verifier" }
-monitoring = { version = "^0.1.0", path = "contracts/monitoring" }
-multisig = { version = "^0.1.0", path = "contracts/multisig" }
-multisig-prover = { version = "^0.1.0", path = "contracts/multisig-prover" }
+voting-verifier = { version = "^0.4.0", path = "contracts/voting-verifier" }
+coordinator = { version = "^0.1.2", path = "contracts/coordinator" }
+multisig = { version = "^0.3.0", path = "contracts/multisig" }
+multisig-prover = { version = "^0.5.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
-service-registry = { version = "^0.1.0", path = "contracts/service-registry" }
-aggregate-verifier = { version = "^0.1.0", path = "contracts/aggregate-verifier" }
-gateway = { version = "^0.1.0", path = "contracts/gateway" }
+service-registry = { version = "^0.3.0", path = "contracts/service-registry" }
+gateway = { version = "^0.2.2", path = "contracts/gateway" }
 gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
 
-connection-router-api = { version = "^0.1.0", path = "packages/connection-router-api" }
+router-api = { version = "^0.1.0", path = "packages/router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
 client = { version = "^0.1.0", path = "packages/client" }
-rewards = { version = "^0.1.0", path = "contracts/rewards" }
+rewards = { version = "^0.3.0", path = "contracts/rewards" }
 thiserror = "1.0.47"
 serde = { version = "1.0.145", default-features = false, features = ["derive"] }
 serde_json = "1.0.89"

@@ -1,7 +1,7 @@
 use axelar_wasm_std::{nonempty, voting};
 use axelar_wasm_std_derive::IntoContractError;
-use connection_router_api::ChainName;
 use cosmwasm_std::{OverflowError, StdError};
+use router_api::ChainName;
 use service_registry;
 use thiserror::Error;
 
@@ -14,7 +14,7 @@ pub enum ContractError {
     Overflow(#[from] OverflowError),
 
     #[error(transparent)]
-    RouterError(#[from] connection_router_api::error::Error),
+    RouterError(#[from] router_api::error::Error),
 
     #[error(transparent)]
     NonEmptyError(#[from] nonempty::Error),

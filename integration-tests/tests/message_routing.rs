@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
-use connection_router_api::{CrossChainId, Message};
 use integration_tests::contract::Contract;
+use router_api::{CrossChainId, Message};
 
 use crate::test_utils::AXL_DENOMINATION;
 
@@ -11,7 +11,13 @@ pub mod test_utils;
 /// and signs via multisig. Also tests that rewards are distributed as expected for voting and signing.
 #[test]
 fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distributed() {
-    let (mut protocol, chain1, chain2, workers, _) = test_utils::setup_test_case();
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        chain2,
+        verifiers,
+        ..
+    } = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
@@ -48,7 +54,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         &mut protocol.app,
         &chain1.voting_verifier,
         &msgs,
-        &workers,
+        &verifiers,
         poll_id,
     );
 
@@ -69,7 +75,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
         &mut protocol,
         &chain2.multisig_prover,
         &msgs,
-        &workers,
+        &verifiers,
     );
 
     let proof = test_utils::get_proof(&mut protocol.app, &chain2.multisig_prover, &session_id);
@@ -96,16 +102,16 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
     let protocol_multisig_address = protocol.multisig.contract_addr.clone();
     test_utils::distribute_rewards(&mut protocol, &chain2.chain_name, protocol_multisig_address);
 
-    // rewards split evenly amongst all workers, but there are two contracts that rewards should have been distributed for
+    // rewards split evenly amongst all verifiers, but there are two contracts that rewards should have been distributed for
     let expected_rewards = Uint128::from(protocol.rewards_params.rewards_per_epoch)
-        / Uint128::from(workers.len() as u64)
+        / Uint128::from(verifiers.len() as u64)
         * Uint128::from(2u64);
 
-    for worker in workers {
+    for verifier in verifiers {
         let balance = protocol
             .app
             .wrap()
-            .query_balance(worker.addr, AXL_DENOMINATION)
+            .query_balance(verifier.addr, AXL_DENOMINATION)
             .unwrap();
         assert_eq!(balance.amount, expected_rewards);
     }
@@ -113,7 +119,12 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
 #[test]
 fn routing_to_incorrect_gateway_interface() {
-    let (mut protocol, chain1, chain2, _, _) = test_utils::setup_test_case();
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        chain2,
+        ..
+    } = test_utils::setup_test_case();
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
@@ -143,7 +154,7 @@ fn routing_to_incorrect_gateway_interface() {
 
     test_utils::upgrade_gateway(
         &mut protocol.app,
-        &protocol.connection_router,
+        &protocol.router,
         &protocol.governance_address,
         &chain2.chain_name,
         Addr::unchecked("some random address")
@@ -152,10 +163,10 @@ fn routing_to_incorrect_gateway_interface() {
             .unwrap(), // gateway address does not implement required interface,
     );
 
-    let response = protocol.connection_router.execute(
+    let response = protocol.router.execute(
         &mut protocol.app,
         chain1.gateway.contract_addr.clone(),
-        &connection_router_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
+        &router_api::msg::ExecuteMsg::RouteMessages(msgs.to_vec()),
     );
     assert!(response.is_err())
 }

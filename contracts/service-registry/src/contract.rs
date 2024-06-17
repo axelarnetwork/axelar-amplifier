@@ -1,19 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    Uint128,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
+    QueryRequest, Response, Uint128, WasmQuery,
 };
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{AuthorizationState, BondingState, Config, Service, Worker, CONFIG, SERVICES};
+use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
 
-/*
-// version info for migration info
-const CONTRACT_NAME: &str = "crates.io:service-registry";
+mod execute;
+mod query;
+
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-*/
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -22,6 +22,8 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     CONFIG.save(
         deps.storage,
         &Config {
@@ -41,10 +43,10 @@ pub fn execute(
     match msg {
         ExecuteMsg::RegisterService {
             service_name,
-            service_contract,
-            min_num_workers,
-            max_num_workers,
-            min_worker_bond,
+            coordinator_contract,
+            min_num_verifiers,
+            max_num_verifiers,
+            min_verifier_bond,
             bond_denom,
             unbonding_period_days,
             description,
@@ -53,59 +55,59 @@ pub fn execute(
             execute::register_service(
                 deps,
                 service_name,
-                service_contract,
-                min_num_workers,
-                max_num_workers,
-                min_worker_bond,
+                coordinator_contract,
+                min_num_verifiers,
+                max_num_verifiers,
+                min_verifier_bond,
                 bond_denom,
                 unbonding_period_days,
                 description,
             )
         }
-        ExecuteMsg::AuthorizeWorkers {
-            workers,
+        ExecuteMsg::AuthorizeVerifiers {
+            verifiers,
             service_name,
         } => {
             execute::require_governance(&deps, info)?;
-            let workers = workers
+            let verifiers = verifiers
                 .into_iter()
-                .map(|worker| deps.api.addr_validate(&worker))
+                .map(|veriier| deps.api.addr_validate(&veriier))
                 .collect::<Result<Vec<_>, _>>()?;
-            execute::update_worker_authorization_status(
+            execute::update_verifier_authorization_status(
                 deps,
-                workers,
+                verifiers,
                 service_name,
                 AuthorizationState::Authorized,
             )
         }
-        ExecuteMsg::UnauthorizeWorkers {
-            workers,
+        ExecuteMsg::UnauthorizeVerifiers {
+            verifiers,
             service_name,
         } => {
             execute::require_governance(&deps, info)?;
-            let workers = workers
+            let verifiers = verifiers
                 .into_iter()
-                .map(|worker| deps.api.addr_validate(&worker))
+                .map(|verifier| deps.api.addr_validate(&verifier))
                 .collect::<Result<Vec<_>, _>>()?;
-            execute::update_worker_authorization_status(
+            execute::update_verifier_authorization_status(
                 deps,
-                workers,
+                verifiers,
                 service_name,
                 AuthorizationState::NotAuthorized,
             )
         }
-        ExecuteMsg::JailWorkers {
-            workers,
+        ExecuteMsg::JailVerifiers {
+            verifiers,
             service_name,
         } => {
             execute::require_governance(&deps, info)?;
-            let workers = workers
+            let verifiers = verifiers
                 .into_iter()
-                .map(|worker| deps.api.addr_validate(&worker))
+                .map(|verifier| deps.api.addr_validate(&verifier))
                 .collect::<Result<Vec<_>, _>>()?;
-            execute::update_worker_authorization_status(
+            execute::update_verifier_authorization_status(
                 deps,
-                workers,
+                verifiers,
                 service_name,
                 AuthorizationState::Jailed,
             )
@@ -118,9 +120,11 @@ pub fn execute(
             service_name,
             chains,
         } => execute::deregister_chains_support(deps, info, service_name, chains),
-        ExecuteMsg::BondWorker { service_name } => execute::bond_worker(deps, info, service_name),
-        ExecuteMsg::UnbondWorker { service_name } => {
-            execute::unbond_worker(deps, env, info, service_name)
+        ExecuteMsg::BondVerifier { service_name } => {
+            execute::bond_verifier(deps, info, service_name)
+        }
+        ExecuteMsg::UnbondVerifier { service_name } => {
+            execute::unbond_verifier(deps, env, info, service_name)
         }
         ExecuteMsg::ClaimStake { service_name } => {
             execute::claim_stake(deps, env, info, service_name)
@@ -129,299 +133,1891 @@ pub fn execute(
     .map_err(axelar_wasm_std::ContractError::from)
 }
 
-pub mod execute {
-    use crate::state;
-    use crate::state::{AuthorizationState, WORKERS, WORKERS_PER_CHAIN};
-    use connection_router_api::ChainName;
-
-    use super::*;
-
-    pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        if config.governance != info.sender {
-            return Err(ContractError::Unauthorized);
-        }
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn register_service(
-        deps: DepsMut,
-        service_name: String,
-        service_contract: Addr,
-        min_num_workers: u16,
-        max_num_workers: Option<u16>,
-        min_worker_bond: Uint128,
-        bond_denom: String,
-        unbonding_period_days: u16,
-        description: String,
-    ) -> Result<Response, ContractError> {
-        let key = &service_name.clone();
-
-        SERVICES.update(
-            deps.storage,
-            key,
-            |service| -> Result<Service, ContractError> {
-                match service {
-                    None => Ok(Service {
-                        name: service_name,
-                        service_contract,
-                        min_num_workers,
-                        max_num_workers,
-                        min_worker_bond,
-                        bond_denom,
-                        unbonding_period_days,
-                        description,
-                    }),
-                    _ => Err(ContractError::ServiceAlreadyExists),
-                }
-            },
-        )?;
-
-        // Response with attributes? event?
-        Ok(Response::new())
-    }
-
-    pub fn update_worker_authorization_status(
-        deps: DepsMut,
-        workers: Vec<Addr>,
-        service_name: String,
-        auth_state: AuthorizationState,
-    ) -> Result<Response, ContractError> {
-        SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
-
-        for worker in workers {
-            WORKERS.update(
-                deps.storage,
-                (&service_name, &worker.clone()),
-                |sw| -> Result<Worker, ContractError> {
-                    match sw {
-                        Some(mut worker) => {
-                            worker.authorization_state = auth_state.clone();
-                            Ok(worker)
-                        }
-                        None => Ok(Worker {
-                            address: worker,
-                            bonding_state: BondingState::Unbonded,
-                            authorization_state: auth_state.clone(),
-                            service_name: service_name.clone(),
-                        }),
-                    }
-                },
-            )?;
-        }
-
-        Ok(Response::new())
-    }
-
-    pub fn bond_worker(
-        deps: DepsMut,
-        info: MessageInfo,
-        service_name: String,
-    ) -> Result<Response, ContractError> {
-        let service = SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
-
-        let bond = if !info.funds.is_empty() {
-            info.funds
-                .iter()
-                .find(|coin| coin.denom == service.bond_denom)
-                .ok_or(ContractError::WrongDenom)?
-                .amount
-        } else {
-            Uint128::zero() // sender can rebond currently unbonding funds by just sending no new funds
-        };
-
-        WORKERS.update(
-            deps.storage,
-            (&service_name.clone(), &info.sender.clone()),
-            |sw| -> Result<Worker, ContractError> {
-                match sw {
-                    Some(worker) => Ok(worker.add_bond(bond)?),
-                    None => Ok(Worker {
-                        address: info.sender,
-                        bonding_state: BondingState::Bonded { amount: bond },
-                        authorization_state: AuthorizationState::NotAuthorized,
-                        service_name,
-                    }),
-                }
-            },
-        )?;
-
-        Ok(Response::new())
-    }
-
-    pub fn register_chains_support(
-        deps: DepsMut,
-        info: MessageInfo,
-        service_name: String,
-        chains: Vec<ChainName>,
-    ) -> Result<Response, ContractError> {
-        SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
-
-        WORKERS
-            .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound)?;
-
-        let _res =
-            state::register_chains_support(deps.storage, service_name.clone(), chains, info.sender);
-
-        Ok(Response::new())
-    }
-
-    pub fn deregister_chains_support(
-        deps: DepsMut,
-        info: MessageInfo,
-        service_name: String,
-        chains: Vec<ChainName>,
-    ) -> Result<Response, ContractError> {
-        SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
-
-        WORKERS
-            .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound)?;
-
-        for chain in chains {
-            WORKERS_PER_CHAIN.remove(deps.storage, (&service_name, &chain, &info.sender));
-        }
-
-        Ok(Response::new())
-    }
-
-    pub fn unbond_worker(
-        deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        service_name: String,
-    ) -> Result<Response, ContractError> {
-        SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
-
-        let worker = WORKERS
-            .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound)?;
-
-        let can_unbond = true; // TODO: actually query the service to determine this value
-
-        let worker = worker.unbond(can_unbond, env.block.time)?;
-
-        WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
-
-        Ok(Response::new())
-    }
-
-    pub fn claim_stake(
-        deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        service_name: String,
-    ) -> Result<Response, ContractError> {
-        let service = SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
-
-        let worker = WORKERS
-            .may_load(deps.storage, (&service_name, &info.sender))?
-            .ok_or(ContractError::WorkerNotFound)?;
-
-        let (worker, released_bond) =
-            worker.claim_stake(env.block.time, service.unbonding_period_days as u64)?;
-
-        WORKERS.save(deps.storage, (&service_name, &info.sender), &worker)?;
-
-        Ok(Response::new().add_message(BankMsg::Send {
-            to_address: info.sender.into(),
-            amount: [Coin {
-                denom: service.bond_denom,
-                amount: released_bond,
-            }]
-            .to_vec(), // TODO: isolate coins
-        }))
-    }
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::GetActiveWorkers {
+        QueryMsg::GetActiveVerifiers {
             service_name,
             chain_name,
-        } => to_binary(&query::get_active_workers(deps, service_name, chain_name)?)
-            .map_err(|err| err.into()),
-        QueryMsg::GetWorker {
+        } => to_json_binary(&query::get_active_verifiers(
+            deps,
             service_name,
-            worker,
-        } => to_binary(&query::get_worker(deps, service_name, worker)?).map_err(|err| err.into()),
+            chain_name,
+        )?)
+        .map_err(|err| err.into()),
+        QueryMsg::GetVerifier {
+            service_name,
+            verifier,
+        } => to_json_binary(&query::get_verifier(deps, service_name, verifier)?)
+            .map_err(|err| err.into()),
         QueryMsg::GetService { service_name } => {
-            to_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
+            to_json_binary(&query::get_service(deps, service_name)?).map_err(|err| err.into())
         }
     }
 }
 
-pub mod query {
-    use connection_router_api::ChainName;
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
 
-    use crate::state::{WeightedWorker, WORKERS, WORKERS_PER_CHAIN, WORKER_WEIGHT};
+    use cosmwasm_std::{
+        coins, from_json,
+        testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
+        CosmosMsg, Empty, OwnedDeps, StdResult,
+    };
+    use router_api::ChainName;
+
+    use crate::state::{WeightedVerifier, VERIFIER_WEIGHT};
 
     use super::*;
 
-    pub fn get_active_workers(
-        deps: Deps,
-        service_name: String,
-        chain_name: ChainName,
-    ) -> Result<Vec<WeightedWorker>, ContractError> {
-        let service = SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)?;
+    const GOVERNANCE_ADDRESS: &str = "governance";
+    const UNAUTHORIZED_ADDRESS: &str = "unauthorized";
+    const COORDINATOR_ADDRESS: &str = "coordinator_address";
+    const VERIFIER_ADDRESS: &str = "verifier";
+    const AXL_DENOMINATION: &str = "uaxl";
 
-        let workers: Vec<_> = WORKERS_PER_CHAIN
-            .prefix((&service_name, &chain_name))
-            .range(deps.storage, None, None, Order::Ascending)
-            .map(|res| res.and_then(|(addr, _)| WORKERS.load(deps.storage, (&service_name, &addr))))
-            .collect::<Result<Vec<Worker>, _>>()?
-            .into_iter()
-            .filter(|worker| match worker.bonding_state {
-                BondingState::Bonded { amount } => amount >= service.min_worker_bond,
-                _ => false,
-            })
-            .filter(|worker| worker.authorization_state == AuthorizationState::Authorized)
-            .map(|worker| WeightedWorker {
-                worker_info: worker,
-                weight: WORKER_WEIGHT, // all workers have an identical const weight for now
-            })
-            .collect();
+    fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+        let mut deps = mock_dependencies();
 
-        if workers.len() < service.min_num_workers.into() {
-            Err(ContractError::NotEnoughWorkers)
-        } else {
-            Ok(workers)
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("instantiator", &[]),
+            InstantiateMsg {
+                governance_account: GOVERNANCE_ADDRESS.to_string(),
+            },
+        )
+        .unwrap();
+
+        deps.querier.update_wasm(move |wq| match wq {
+            WasmQuery::Smart { contract_addr, .. } if contract_addr == COORDINATOR_ADDRESS => {
+                Ok(to_json_binary(&true).into()).into()
+            }
+            _ => panic!("no mock for this query"),
+        });
+
+        deps
+    }
+
+    pub fn assert_contract_err_strings_equal(
+        actual: impl Into<axelar_wasm_std::ContractError>,
+        expected: impl Into<axelar_wasm_std::ContractError>,
+    ) {
+        assert_eq!(actual.into().to_string(), expected.into().to_string());
+    }
+
+    #[test]
+    fn register_service() {
+        let mut deps = setup();
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: "validators".into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond: Uint128::zero(),
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: "validators".into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond: Uint128::zero(),
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::Unauthorized);
+    }
+
+    #[test]
+    fn authorize_verifier() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond: Uint128::zero(),
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![Addr::unchecked("verifier").into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(UNAUTHORIZED_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![Addr::unchecked("verifier").into()],
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::Unauthorized);
+    }
+
+    #[test]
+    fn bond_verifier() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn register_chain_support() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            verifiers,
+            vec![WeightedVerifier {
+                verifier_info: Verifier {
+                    address: Addr::unchecked(VERIFIER_ADDRESS),
+                    bonding_state: BondingState::Bonded {
+                        amount: min_verifier_bond
+                    },
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.into()
+                },
+                weight: VERIFIER_WEIGHT
+            }]
+        );
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name: ChainName::from_str("random chain").unwrap(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![]);
+    }
+
+    /// If a bonded and authorized verifier deregisters support for a chain they previously registered support for,
+    /// that verifier should no longer be part of the active verifier set for that chain
+    #[test]
+    fn register_and_deregister_support_for_single_chain() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked("nowhere"),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        // Deregister chain support
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![]);
+    }
+
+    /// Same setting and goal as register_and_deregister_support_for_single_chain() but for multiple chains.
+    #[test]
+    fn register_and_deregister_support_for_multiple_chains() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chains = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("binance").unwrap(),
+            ChainName::from_str("avalanche").unwrap(),
+        ];
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: chains.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: chains.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        for chain in chains {
+            let verifiers: Vec<WeightedVerifier> = from_json(
+                query(
+                    deps.as_ref(),
+                    mock_env(),
+                    QueryMsg::GetActiveVerifiers {
+                        service_name: service_name.into(),
+                        chain_name: chain,
+                    },
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(verifiers, vec![]);
         }
     }
 
-    pub fn get_worker(
-        deps: Deps,
-        service_name: String,
-        worker: String,
-    ) -> Result<Worker, ContractError> {
-        WORKERS
-            .may_load(
-                deps.storage,
-                (&service_name, &deps.api.addr_validate(&worker)?),
-            )?
-            .ok_or(ContractError::WorkerNotFound)
+    /// If a bonded and authorized verifier deregisters support for the first chain among multiple chains,
+    /// they should remain part of the active verifier set for all chains except the first one.
+    #[test]
+    fn register_for_multiple_chains_deregister_for_first_one() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chains = vec![
+            ChainName::from_str("ethereum").unwrap(),
+            ChainName::from_str("binance").unwrap(),
+            ChainName::from_str("avalanche").unwrap(),
+        ];
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: chains.clone(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // Deregister only the first chain
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chains[0].clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        // Verify that verifier is not associated with the deregistered chain
+        let deregistered_chain = chains[0].clone();
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name: deregistered_chain,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![]);
+
+        // Verify that verifier is still associated with other chains
+        for chain in chains.iter().skip(1) {
+            let verifiers: Vec<WeightedVerifier> = from_json(
+                query(
+                    deps.as_ref(),
+                    mock_env(),
+                    QueryMsg::GetActiveVerifiers {
+                        service_name: service_name.into(),
+                        chain_name: chain.clone(),
+                    },
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                verifiers,
+                vec![WeightedVerifier {
+                    verifier_info: Verifier {
+                        address: Addr::unchecked(VERIFIER_ADDRESS),
+                        bonding_state: BondingState::Bonded {
+                            amount: min_verifier_bond
+                        },
+                        authorization_state: AuthorizationState::Authorized,
+                        service_name: service_name.into()
+                    },
+                    weight: VERIFIER_WEIGHT
+                }]
+            );
+        }
     }
 
-    pub fn get_service(deps: Deps, service_name: String) -> Result<Service, ContractError> {
-        SERVICES
-            .may_load(deps.storage, &service_name)?
-            .ok_or(ContractError::ServiceNotFound)
+    /// If a bonded and authorized verifier registers support for one chain and later deregisters support for another chain,
+    /// the active verifier set for the original chain should remain unaffected by the deregistration.
+    #[test]
+    fn register_support_for_a_chain_deregister_support_for_another_chain() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let second_chain_name = ChainName::from_str("avalanche").unwrap();
+        // Deregister support for another chain
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![second_chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            verifiers,
+            vec![WeightedVerifier {
+                verifier_info: Verifier {
+                    address: Addr::unchecked(VERIFIER_ADDRESS),
+                    bonding_state: BondingState::Bonded {
+                        amount: min_verifier_bond
+                    },
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.into()
+                },
+                weight: VERIFIER_WEIGHT
+            }]
+        );
+    }
+
+    /// If a bonded and authorized verifier registers, deregisters, and again registers their support for a single chain,
+    /// the active verifier set of that chain should include the verifier.
+    #[test]
+    fn register_deregister_register_support_for_single_chain() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        // Second support declaration
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            verifiers,
+            vec![WeightedVerifier {
+                verifier_info: Verifier {
+                    address: Addr::unchecked(VERIFIER_ADDRESS),
+                    bonding_state: BondingState::Bonded {
+                        amount: min_verifier_bond
+                    },
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.into()
+                },
+                weight: VERIFIER_WEIGHT
+            }]
+        );
+    }
+
+    /// If a bonded and authorized verifier deregisters their support for a chain they have not previously registered
+    /// support for, the call should be ignored and the active verifier set of the chain should be intact.
+    #[test]
+    fn deregister_previously_unsupported_single_chain() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![])
+    }
+
+    /// If an unbonded but authorized verifier deregisters support for a chain they previously registered support for,
+    /// that verifier should not be part of the active verifier set for that chain.
+    #[test]
+    fn register_and_deregister_support_for_single_chain_unbonded() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![]);
+    }
+
+    /// If a verifier that is not part of a service deregisters support for a chain from that specific service,
+    /// process should return a contract error of type VerifierNotFound.
+    #[test]
+    fn deregister_from_unregistered_verifier_single_chain() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap_err();
+
+        assert_contract_err_strings_equal(err, ContractError::VerifierNotFound);
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![]);
+    }
+
+    /// If a verifier deregisters support for a chain of an unregistered service,
+    /// process should return a contract error of type ServiceNotFound.
+    #[test]
+    fn deregister_single_chain_for_nonexistent_service() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap_err();
+
+        assert_contract_err_strings_equal(err, ContractError::ServiceNotFound);
+    }
+
+    #[test]
+    fn unbond_verifier() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::UnbondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![])
+    }
+
+    #[test]
+    fn bond_wrong_denom() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), "funnydenom"),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+
+        assert_contract_err_strings_equal(err, ContractError::WrongDenom);
+    }
+
+    #[test]
+    fn bond_but_not_authorized() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![])
+    }
+
+    #[test]
+    fn bond_but_not_enough() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128() / 2, AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(verifiers, vec![])
+    }
+
+    #[test]
+    fn bond_before_authorize() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            verifiers,
+            vec![WeightedVerifier {
+                verifier_info: Verifier {
+                    address: Addr::unchecked(VERIFIER_ADDRESS),
+                    bonding_state: BondingState::Bonded {
+                        amount: min_verifier_bond
+                    },
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.into()
+                },
+                weight: VERIFIER_WEIGHT
+            }]
+        );
+    }
+
+    #[test]
+    fn unbond_then_rebond() {
+        let mut deps = setup();
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::UnbondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let verifiers: Vec<WeightedVerifier> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            verifiers,
+            vec![WeightedVerifier {
+                verifier_info: Verifier {
+                    address: Addr::unchecked(VERIFIER_ADDRESS),
+                    bonding_state: BondingState::Bonded {
+                        amount: min_verifier_bond
+                    },
+                    authorization_state: AuthorizationState::Authorized,
+                    service_name: service_name.into()
+                },
+                weight: VERIFIER_WEIGHT
+            }]
+        );
+    }
+
+    #[test]
+    fn unbonding_period() {
+        let mut deps = setup();
+
+        let min_verifier_bond = Uint128::new(100);
+        let service_name = "validators";
+        let unbonding_period_days = 1;
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: vec![VERIFIER_ADDRESS.into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                VERIFIER_ADDRESS,
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::RegisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name],
+            },
+        );
+        assert!(res.is_ok());
+
+        let mut unbond_request_env = mock_env();
+        unbond_request_env.block.time = unbond_request_env.block.time.plus_days(1);
+
+        let res = execute(
+            deps.as_mut(),
+            unbond_request_env.clone(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::UnbondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Response::new());
+
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::ClaimStake {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            axelar_wasm_std::ContractError::from(ContractError::InvalidBondingState(
+                BondingState::Unbonding {
+                    unbonded_at: unbond_request_env.block.time,
+                    amount: min_verifier_bond,
+                }
+            ))
+            .to_string()
+        );
+
+        let mut after_unbond_period_env = mock_env();
+        after_unbond_period_env.block.time = unbond_request_env
+            .block
+            .time
+            .plus_days((unbonding_period_days + 1).into());
+
+        let res = execute(
+            deps.as_mut(),
+            after_unbond_period_env,
+            mock_info(VERIFIER_ADDRESS, &[]),
+            ExecuteMsg::ClaimStake {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0].msg,
+            CosmosMsg::Bank(BankMsg::Send {
+                to_address: VERIFIER_ADDRESS.into(),
+                amount: coins(min_verifier_bond.u128(), AXL_DENOMINATION)
+            })
+        )
+    }
+
+    #[test]
+    fn get_active_verifiers_should_not_return_less_than_min() {
+        let mut deps = setup();
+
+        let verifiers = vec![Addr::unchecked("verifier1"), Addr::unchecked("verifier2")];
+        let min_num_verifiers = verifiers.len() as u16;
+
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days: 10,
+                description: "Some service".into(),
+            },
+        )
+        .unwrap();
+
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::AuthorizeVerifiers {
+                verifiers: verifiers.iter().map(|w| w.into()).collect(),
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap();
+
+        let chain_name = ChainName::from_str("ethereum").unwrap();
+
+        for verifier in &verifiers {
+            // should return err until all verifiers are registered
+            let res = query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            );
+            assert!(res.is_err());
+
+            let _ = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(
+                    verifier.as_str(),
+                    &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+                ),
+                ExecuteMsg::BondVerifier {
+                    service_name: service_name.into(),
+                },
+            )
+            .unwrap();
+
+            let _ = execute(
+                deps.as_mut(),
+                mock_env(),
+                mock_info(verifier.as_str(), &[]),
+                ExecuteMsg::RegisterChainSupport {
+                    service_name: service_name.into(),
+                    chains: vec![chain_name.clone()],
+                },
+            )
+            .unwrap();
+        }
+
+        // all verifiers registered, should not return err now
+        let res: StdResult<Vec<WeightedVerifier>> = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetActiveVerifiers {
+                    service_name: service_name.into(),
+                    chain_name: chain_name.clone(),
+                },
+            )
+            .unwrap(),
+        );
+        assert!(res.is_ok());
+
+        // remove one, should return err again
+        let _ = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(verifiers[0].as_str(), &[]),
+            ExecuteMsg::DeregisterChainSupport {
+                service_name: service_name.into(),
+                chains: vec![chain_name.clone()],
+            },
+        )
+        .unwrap();
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetActiveVerifiers {
+                service_name: service_name.into(),
+                chain_name: chain_name.clone(),
+            },
+        );
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn jail_verifier() {
+        let mut deps = setup();
+
+        // register a service
+        let service_name = "validators";
+        let min_verifier_bond = Uint128::new(100);
+        let unbonding_period_days = 10;
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::RegisterService {
+                service_name: service_name.into(),
+                coordinator_contract: Addr::unchecked(COORDINATOR_ADDRESS),
+                min_num_verifiers: 0,
+                max_num_verifiers: Some(100),
+                min_verifier_bond,
+                bond_denom: AXL_DENOMINATION.into(),
+                unbonding_period_days,
+                description: "Some service".into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // given a bonded verifier
+        let verifier1 = Addr::unchecked("verifier-1");
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                verifier1.as_str(),
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // when verifier is jailed
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::JailVerifiers {
+                verifiers: vec![verifier1.clone().into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // verifier cannot unbond
+        let err = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(verifier1.as_str(), &[]),
+            ExecuteMsg::UnbondVerifier {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::VerifierJailed);
+
+        // given a verifier passed unbonding period
+        let verifier2 = Addr::unchecked("verifier-2");
+
+        // bond verifier
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(
+                verifier2.as_str(),
+                &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+            ),
+            ExecuteMsg::BondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        let mut unbond_request_env = mock_env();
+        unbond_request_env.block.time = unbond_request_env.block.time.plus_days(1);
+
+        // unbond verifier
+        let res = execute(
+            deps.as_mut(),
+            unbond_request_env.clone(),
+            mock_info(verifier2.as_str(), &[]),
+            ExecuteMsg::UnbondVerifier {
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+        let verifier: Verifier = from_json(
+            query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetVerifier {
+                    service_name: service_name.into(),
+                    verifier: verifier2.to_string(),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            verifier.bonding_state,
+            BondingState::Unbonding {
+                amount: min_verifier_bond,
+                unbonded_at: unbond_request_env.block.time,
+            }
+        );
+
+        // when verifier is jailed
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(GOVERNANCE_ADDRESS, &[]),
+            ExecuteMsg::JailVerifiers {
+                verifiers: vec![verifier2.clone().into()],
+                service_name: service_name.into(),
+            },
+        );
+        assert!(res.is_ok());
+
+        // and unbonding period has passed
+        let mut after_unbond_period_env = mock_env();
+        after_unbond_period_env.block.time = unbond_request_env
+            .block
+            .time
+            .plus_days((unbonding_period_days + 1).into());
+
+        // verifier cannot claim stake
+        let err = execute(
+            deps.as_mut(),
+            after_unbond_period_env,
+            mock_info(verifier2.as_str(), &[]),
+            ExecuteMsg::ClaimStake {
+                service_name: service_name.into(),
+            },
+        )
+        .unwrap_err();
+        assert_contract_err_strings_equal(err, ContractError::VerifierJailed);
     }
 }

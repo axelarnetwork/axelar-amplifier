@@ -1,12 +1,12 @@
-use crate::types::BatchId;
-use axelar_wasm_std::event;
-use connection_router_api::{ChainName, CrossChainId};
 use cosmwasm_std::Uint64;
+use router_api::{ChainName, CrossChainId};
+
+use crate::payload::PayloadId;
 
 pub enum Event {
     ProofUnderConstruction {
         destination_chain: ChainName,
-        command_batch_id: BatchId,
+        payload_id: PayloadId,
         multisig_session_id: Uint64,
         msg_ids: Vec<CrossChainId>,
     },
@@ -17,28 +17,28 @@ impl From<Event> for cosmwasm_std::Event {
         match other {
             Event::ProofUnderConstruction {
                 destination_chain,
-                command_batch_id,
+                payload_id,
                 multisig_session_id,
                 msg_ids,
             } => cosmwasm_std::Event::new("proof_under_construction")
                 .add_attribute(
                     "destination_chain",
-                    event::attribute_value(&destination_chain)
+                    serde_json::to_string(&destination_chain)
                         .expect("violated invariant: destination_chain is not serializable"),
                 )
                 .add_attribute(
-                    "command_batch_id",
-                    event::attribute_value(&command_batch_id)
-                        .expect("violated invariant: command_batch_id is not serializable"),
+                    "payload_id",
+                    serde_json::to_string(&payload_id)
+                        .expect("violated invariant: payload_id is not serializable"),
                 )
                 .add_attribute(
                     "multisig_session_id",
-                    event::attribute_value(&multisig_session_id)
+                    serde_json::to_string(&multisig_session_id)
                         .expect("violated invariant: multisig_session_id is not serializable"),
                 )
                 .add_attribute(
                     "message_ids",
-                    event::attribute_value(&msg_ids)
+                    serde_json::to_string(&msg_ids)
                         .expect("violated invariant: message_ids is not serializable"),
                 ),
         }
@@ -48,7 +48,6 @@ impl From<Event> for cosmwasm_std::Event {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::BatchId;
     use serde_json::to_string;
 
     #[test]
@@ -66,7 +65,7 @@ mod tests {
 
         let event = Event::ProofUnderConstruction {
             destination_chain: "avalanche".parse().unwrap(),
-            command_batch_id: BatchId::new(&msg_ids, None),
+            payload_id: (&msg_ids).into(),
             multisig_session_id: Uint64::new(2),
             msg_ids,
         };

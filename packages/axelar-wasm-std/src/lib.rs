@@ -8,14 +8,12 @@ pub use crate::{
 
 pub mod counter;
 pub mod error;
-pub mod event;
 pub mod flagset;
 mod fn_ext;
 pub mod hash;
 pub mod hex;
 pub mod msg_id;
 pub mod nonempty;
-pub mod operators;
 pub mod snapshot;
 pub mod threshold;
 pub mod utils;

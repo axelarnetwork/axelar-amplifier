@@ -4,19 +4,20 @@ use std::fs::File;
 use std::iter;
 
 use axelar_wasm_std::{ContractError, VerificationStatus};
-use connection_router_api::{CrossChainId, Message};
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier};
 #[cfg(not(feature = "generate_golden_files"))]
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
+    from_json, to_json_binary, Addr, ContractResult, DepsMut, QuerierResult, WasmQuery,
 };
 use itertools::Itertools;
+use router_api::{CrossChainId, Message};
 use serde::Serialize;
 
 use gateway::contract::*;
 use gateway::msg::InstantiateMsg;
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use voting_verifier::msg::MessageStatus;
 
 #[test]
 fn instantiate_works() {
@@ -146,7 +147,7 @@ fn successful_route_outgoing() {
         if msgs.is_empty() {
             assert_eq!(
                 query_response.unwrap(),
-                to_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
+                to_json_binary::<Vec<CrossChainId>>(&vec![]).unwrap()
             )
         } else {
             assert!(query_response.is_err());
@@ -173,7 +174,7 @@ fn successful_route_outgoing() {
         // check all outgoing messages are stored because the router (sender) is implicitly trusted
         iter::repeat(query(deps.as_ref(), mock_env().clone(), query_msg).unwrap())
             .take(2)
-            .for_each(|response| assert_eq!(response, to_binary(&msgs).unwrap()));
+            .for_each(|response| assert_eq!(response, to_json_binary(&msgs).unwrap()));
     }
 
     let golden_file = "tests/test_route_outgoing.json";
@@ -282,15 +283,11 @@ fn route_duplicate_ids_should_fail() {
 
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
-    impl Fn(
-            aggregate_verifier::msg::QueryMsg,
-        ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>
-        + Clone
-        + Sized,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + Sized,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
-    let status_by_id = map_status_by_msg_id(all_messages.clone());
-    let handler = correctly_working_verifier_handler(status_by_id);
+    let status_by_msg = map_status_by_msg(all_messages.clone());
+    let handler = correctly_working_verifier_handler(status_by_msg);
     let all_messages = sort_msgs_by_status(all_messages).collect::<Vec<_>>();
 
     let mut test_cases = vec![];
@@ -311,15 +308,11 @@ fn test_cases_for_correct_verifier() -> (
 
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
-    impl Fn(
-            aggregate_verifier::msg::QueryMsg,
-        ) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>
-        + Clone
-        + Sized,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + Sized,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
-    let status_by_id = map_status_by_msg_id(all_messages.clone());
-    let handler = correctly_working_verifier_handler(status_by_id);
+    let status_by_msg = map_status_by_msg(all_messages.clone());
+    let handler = correctly_working_verifier_handler(status_by_msg);
     let all_messages = sort_msgs_by_status(all_messages)
         .flatten()
         .collect::<Vec<_>>();
@@ -367,24 +360,24 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
 #[allow(clippy::arithmetic_side_effects)]
 fn all_statuses() -> Vec<VerificationStatus> {
     let statuses = vec![
-        VerificationStatus::None,
-        VerificationStatus::NotFound,
+        VerificationStatus::Unknown,
+        VerificationStatus::NotFoundOnSourceChain,
         VerificationStatus::FailedToVerify,
         VerificationStatus::InProgress,
-        VerificationStatus::SucceededOnChain,
-        VerificationStatus::FailedOnChain,
+        VerificationStatus::SucceededOnSourceChain,
+        VerificationStatus::FailedOnSourceChain,
     ];
 
     // we need to make sure that if the variants change, the tests cover all of them
     let mut status_count: usize = 0;
     for status in &statuses {
         match status {
-            VerificationStatus::None
-            | VerificationStatus::NotFound
+            VerificationStatus::Unknown
+            | VerificationStatus::NotFoundOnSourceChain
             | VerificationStatus::FailedToVerify
             | VerificationStatus::InProgress
-            | VerificationStatus::SucceededOnChain
-            | VerificationStatus::FailedOnChain => status_count += 1,
+            | VerificationStatus::SucceededOnSourceChain
+            | VerificationStatus::FailedOnSourceChain => status_count += 1,
         };
     }
 
@@ -393,38 +386,46 @@ fn all_statuses() -> Vec<VerificationStatus> {
     statuses
 }
 
-fn map_status_by_msg_id(
+fn map_status_by_msg(
     messages_by_status: HashMap<VerificationStatus, Vec<Message>>,
-) -> HashMap<CrossChainId, VerificationStatus> {
+) -> HashMap<Message, VerificationStatus> {
     messages_by_status
         .into_iter()
-        .flat_map(|(status, msgs)| msgs.into_iter().map(move |msg| (msg.cc_id, status)))
+        .flat_map(|(status, msgs)| msgs.into_iter().map(move |msg| (msg, status)))
         .collect()
 }
 
 fn correctly_working_verifier_handler(
-    status_by_id: HashMap<CrossChainId, VerificationStatus>,
-) -> impl Fn(
-    aggregate_verifier::msg::QueryMsg,
-) -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError>
-       + Clone
-       + 'static {
-    move |msg: aggregate_verifier::msg::QueryMsg| -> Result<Vec<(CrossChainId, VerificationStatus)>, ContractError> {
-            match msg {
-                aggregate_verifier::msg::QueryMsg::GetMessagesStatus { messages } =>
-                    Ok(messages.into_iter().map(|msg| (msg.cc_id.clone(), status_by_id.get(&msg.cc_id).copied().expect("there is a status for every message"))).collect())
-            }
+    status_by_msg: HashMap<Message, VerificationStatus>,
+) -> impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + 'static
+{
+    move |msg: voting_verifier::msg::QueryMsg| -> Result<Vec<MessageStatus>, ContractError> {
+        match msg {
+            voting_verifier::msg::QueryMsg::GetMessagesStatus { messages } => Ok(messages
+                .into_iter()
+                .map(|msg| {
+                    MessageStatus::new(
+                        msg.clone(),
+                        status_by_msg
+                            .get(&msg)
+                            .copied()
+                            .expect("there is a status for every message"),
+                    )
+                })
+                .collect()),
+            _ => unimplemented!("unsupported query"),
         }
+    }
 }
 
 fn update_query_handler<U: Serialize>(
     querier: &mut MockQuerier,
-    handler: impl Fn(aggregate_verifier::msg::QueryMsg) -> Result<U, ContractError> + 'static,
+    handler: impl Fn(voting_verifier::msg::QueryMsg) -> Result<U, ContractError> + 'static,
 ) {
     let handler = move |msg: &WasmQuery| match msg {
         WasmQuery::Smart { msg, .. } => {
-            let result = handler(from_binary(msg).expect("should not fail to deserialize"))
-                .map(|response| to_binary(&response).expect("should not fail to serialize"));
+            let result = handler(from_json(msg).expect("should not fail to deserialize"))
+                .map(|response| to_json_binary(&response).expect("should not fail to serialize"));
 
             QuerierResult::Ok(ContractResult::from(result))
         }

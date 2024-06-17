@@ -1,15 +1,15 @@
 use std::path::Path;
 
 use axelar_wasm_std::nonempty;
-use connection_router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
 use error_stack::Result;
 use report::ResultCompatExt;
+use router_api::ChainName;
 use service_registry::msg::ExecuteMsg;
 use valuable::Valuable;
 
-use crate::commands::{broadcast_tx, worker_pub_key};
+use crate::commands::{broadcast_tx, verifier_pub_key};
 use crate::config::Config;
 use crate::{Error, PREFIX};
 
@@ -20,7 +20,7 @@ pub struct Args {
 }
 
 pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
-    let pub_key = worker_pub_key(state_path, config.tofnd_config.clone()).await?;
+    let pub_key = verifier_pub_key(state_path, config.tofnd_config.clone()).await?;
 
     let msg = serde_json::to_vec(&ExecuteMsg::DeregisterChainSupport {
         service_name: args.service_name.into(),

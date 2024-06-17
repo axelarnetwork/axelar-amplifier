@@ -41,15 +41,18 @@ pub enum ContractError {
     #[error(transparent)]
     BcsError(#[from] bcs::Error),
 
-    #[error("worker set has not changed sufficiently since last update")]
-    WorkerSetUnchanged,
+    #[error("verifier set has not changed sufficiently since last update")]
+    VerifierSetUnchanged,
 
-    #[error("worker set not confirmed")]
-    WorkerSetNotConfirmed,
+    #[error("verifier set not confirmed")]
+    VerifierSetNotConfirmed,
 
-    #[error("a worker set confirmation already in progress")]
-    WorkerSetConfirmationInProgress,
+    #[error("a verifier set confirmation already in progress")]
+    VerifierSetConfirmationInProgress,
 
-    #[error("no worker set stored")]
-    NoWorkerSet,
+    #[error("no verifier set stored")]
+    NoVerifierSet,
+
+    #[error("failed to serialize the response")]
+    SerializeResponse,
 }

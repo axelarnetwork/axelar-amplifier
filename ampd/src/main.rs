@@ -11,8 +11,8 @@ use tracing::{error, info};
 use valuable::Valuable;
 
 use ampd::commands::{
-    bond_worker, daemon, deregister_chain_support, register_chain_support, register_public_key,
-    worker_address, SubCommand,
+    bond_verifier, daemon, deregister_chain_support, register_chain_support, register_public_key,
+    verifier_address, SubCommand,
 };
 use ampd::config::Config;
 use ampd::Error;
@@ -62,7 +62,7 @@ async fn main() -> ExitCode {
                 result
             })
         }
-        Some(SubCommand::BondWorker(args)) => bond_worker::run(cfg, &state_path, args).await,
+        Some(SubCommand::BondVerifier(args)) => bond_verifier::run(cfg, &state_path, args).await,
         Some(SubCommand::RegisterChainSupport(args)) => {
             register_chain_support::run(cfg, &state_path, args).await
         }
@@ -70,7 +70,9 @@ async fn main() -> ExitCode {
             deregister_chain_support::run(cfg, &state_path, args).await
         }
         Some(SubCommand::RegisterPublicKey) => register_public_key::run(cfg, &state_path).await,
-        Some(SubCommand::WorkerAddress) => worker_address::run(cfg.tofnd_config, &state_path).await,
+        Some(SubCommand::VerifierAddress) => {
+            verifier_address::run(cfg.tofnd_config, &state_path).await
+        }
     };
 
     match result {

@@ -1,6 +1,6 @@
-use connection_router_api::ChainName;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Uint128};
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -12,50 +12,50 @@ pub enum ExecuteMsg {
     // Can only be called by governance account
     RegisterService {
         service_name: String,
-        service_contract: Addr,
-        min_num_workers: u16,
-        max_num_workers: Option<u16>,
-        min_worker_bond: Uint128,
+        coordinator_contract: Addr,
+        min_num_verifiers: u16,
+        max_num_verifiers: Option<u16>,
+        min_verifier_bond: Uint128,
         bond_denom: String,
         unbonding_period_days: u16, // number of days to wait after starting unbonding before allowed to claim stake
         description: String,
     },
-    // Authorizes workers to join a service. Can only be called by governance account. Workers must still bond sufficient stake to participate.
-    AuthorizeWorkers {
-        workers: Vec<String>,
+    // Authorizes verifiers to join a service. Can only be called by governance account. Verifiers must still bond sufficient stake to participate.
+    AuthorizeVerifiers {
+        verifiers: Vec<String>,
         service_name: String,
     },
-    // Revoke authorization for specified workers. Can only be called by governance account. Workers bond remains unchanged
-    UnauthorizeWorkers {
-        workers: Vec<String>,
+    // Revoke authorization for specified verifiers. Can only be called by governance account. Verifiers bond remains unchanged
+    UnauthorizeVerifiers {
+        verifiers: Vec<String>,
         service_name: String,
     },
-    // Jail workers. Can only be called by governance account. Jailed workers are not allowed to unbond or claim stake.
-    JailWorkers {
-        workers: Vec<String>,
+    // Jail verifiers. Can only be called by governance account. Jailed verifiers are not allowed to unbond or claim stake.
+    JailVerifiers {
+        verifiers: Vec<String>,
         service_name: String,
     },
 
-    // Register support for the specified chains. Called by the worker.
+    // Register support for the specified chains. Called by the verifier.
     RegisterChainSupport {
         service_name: String,
         chains: Vec<ChainName>,
     },
-    // Deregister support for the specified chains. Called by the worker.
+    // Deregister support for the specified chains. Called by the verifier.
     DeregisterChainSupport {
         service_name: String,
         chains: Vec<ChainName>,
     },
 
-    // Locks up any funds sent with the message as stake. Called by the worker.
-    BondWorker {
+    // Locks up any funds sent with the message as stake. Called by the verifier.
+    BondVerifier {
         service_name: String,
     },
-    // Initiates unbonding of staked funds. Called by the worker.
-    UnbondWorker {
+    // Initiates unbonding of staked funds. Called by the verifier.
+    UnbondVerifier {
         service_name: String,
     },
-    // Claim previously staked funds that have finished unbonding. Called by the worker.
+    // Claim previously staked funds that have finished unbonding. Called by the verifier.
     ClaimStake {
         service_name: String,
     },
@@ -64,8 +64,8 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Vec<crate::state::WeightedWorker>)]
-    GetActiveWorkers {
+    #[returns(Vec<crate::state::WeightedVerifier>)]
+    GetActiveVerifiers {
         service_name: String,
         chain_name: ChainName,
     },
@@ -73,9 +73,9 @@ pub enum QueryMsg {
     #[returns(crate::state::Service)]
     GetService { service_name: String },
 
-    #[returns(crate::state::Worker)]
-    GetWorker {
+    #[returns(crate::state::Verifier)]
+    GetVerifier {
         service_name: String,
-        worker: String,
+        verifier: String,
     },
 }

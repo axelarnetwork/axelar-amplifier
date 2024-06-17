@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint256};
+use cosmwasm_std::{Addr, Uint128};
 
 use crate::{nonempty, threshold::MajorityThreshold};
 
 #[cw_serde]
 pub struct Participant {
     pub address: Addr,
-    pub weight: nonempty::Uint256,
+    pub weight: nonempty::Uint128,
 }
 
 #[cw_serde]
 pub struct Snapshot {
-    pub quorum: nonempty::Uint256,
+    pub quorum: nonempty::Uint128,
     pub participants: HashMap<String, Participant>,
 }
 
@@ -22,7 +22,7 @@ impl Snapshot {
         quorum_threshold: MajorityThreshold,
         participants: nonempty::Vec<Participant>,
     ) -> Self {
-        let mut total_weight = Uint256::zero();
+        let mut total_weight = Uint128::zero();
 
         let participants: Vec<Participant> = participants.into();
         let participants: HashMap<String, Participant> = participants
@@ -35,19 +35,13 @@ impl Snapshot {
             .collect();
 
         // Shouldn't panic here since it's impossible to have zero values when using nonempty::Vec of Participants with NonZero weight
-        let quorum = nonempty::Uint256::try_from(total_weight.mul_ceil(quorum_threshold))
+        let quorum = nonempty::Uint128::try_from(total_weight.mul_ceil(quorum_threshold))
             .expect("violated invariant: quorum is zero");
 
         Self {
             quorum,
             participants,
         }
-    }
-
-    pub fn get_participant_weight(&self, participant: &Addr) -> Option<&Uint256> {
-        self.participants
-            .get(participant.as_str())
-            .map(|p| p.weight.as_ref())
     }
 
     pub fn get_participants(&self) -> Vec<Addr> {
@@ -65,13 +59,13 @@ impl Snapshot {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{from_binary, to_binary, Uint64};
+    use cosmwasm_std::{from_json, to_json_binary, Uint64};
 
     use crate::Threshold;
 
     use super::*;
 
-    fn mock_participant(address: &str, weight: nonempty::Uint256) -> Participant {
+    fn mock_participant(address: &str, weight: nonempty::Uint128) -> Participant {
         Participant {
             address: Addr::unchecked(address),
             weight,
@@ -79,7 +73,7 @@ mod tests {
     }
 
     fn mock_participants(
-        participants: Vec<(&str, nonempty::Uint256)>,
+        participants: Vec<(&str, nonempty::Uint128)>,
     ) -> nonempty::Vec<Participant> {
         let participants: Vec<Participant> = participants
             .into_iter()
@@ -89,22 +83,22 @@ mod tests {
         nonempty::Vec::try_from(participants).unwrap()
     }
 
-    fn non_zero_256(value: impl Into<Uint256>) -> nonempty::Uint256 {
-        nonempty::Uint256::try_from(value.into()).unwrap()
+    fn non_zero_128(value: impl Into<Uint128>) -> nonempty::Uint128 {
+        nonempty::Uint128::try_from(value.into()).unwrap()
     }
 
     fn default_participants() -> nonempty::Vec<Participant> {
         mock_participants(vec![
-            ("participant0", non_zero_256(100u16)),
-            ("participant1", non_zero_256(100u16)),
-            ("participant2", non_zero_256(100u16)),
-            ("participant3", non_zero_256(100u16)),
-            ("participant4", non_zero_256(200u16)),
-            ("participant5", non_zero_256(200u16)),
-            ("participant6", non_zero_256(300u16)),
-            ("participant7", non_zero_256(300u16)),
-            ("participant8", non_zero_256(300u16)),
-            ("participant9", non_zero_256(300u16)),
+            ("participant0", non_zero_128(100u16)),
+            ("participant1", non_zero_128(100u16)),
+            ("participant2", non_zero_128(100u16)),
+            ("participant3", non_zero_128(100u16)),
+            ("participant4", non_zero_128(200u16)),
+            ("participant5", non_zero_128(200u16)),
+            ("participant6", non_zero_128(300u16)),
+            ("participant7", non_zero_128(300u16)),
+            ("participant8", non_zero_128(300u16)),
+            ("participant9", non_zero_128(300u16)),
         ])
     }
 
@@ -118,7 +112,7 @@ mod tests {
 
         assert_eq!(
             result.quorum,
-            nonempty::Uint256::try_from(Uint256::from(1334u16)).unwrap()
+            nonempty::Uint128::try_from(Uint128::from(1334u16)).unwrap()
         );
         assert_eq!(result.participants.len(), 10);
     }
@@ -133,8 +127,8 @@ mod tests {
             default_participants(),
         );
 
-        let serialized = to_binary(&snapshot).unwrap();
-        let deserialized: Snapshot = from_binary(&serialized).unwrap();
+        let serialized = to_json_binary(&snapshot).unwrap();
+        let deserialized: Snapshot = from_json(serialized).unwrap();
 
         assert_eq!(snapshot, deserialized);
     }
@@ -151,7 +145,7 @@ mod tests {
 
         assert_eq!(
             snapshot.quorum,
-            nonempty::Uint256::try_from(Uint256::from(1334u32)).unwrap()
+            nonempty::Uint128::try_from(Uint128::from(1334u32)).unwrap()
         );
     }
 
@@ -159,7 +153,7 @@ mod tests {
     fn test_quorum_is_total_weight() {
         let total_weight = Into::<Vec<Participant>>::into(default_participants())
             .iter()
-            .fold(Uint256::zero(), |acc, p| acc + Uint256::from(p.weight))
+            .fold(Uint128::zero(), |acc, p| acc + Uint128::from(p.weight))
             .try_into()
             .unwrap();
 
@@ -178,12 +172,12 @@ mod tests {
     fn test_quorum_ceil() {
         // (total_weight, quorum)
         let test_data = [
-            (Uint256::from(300u16), Uint256::from(200u16)),
-            (Uint256::from(299u16), Uint256::from(200u16)),
-            (Uint256::from(301u16), Uint256::from(201u16)),
-            (Uint256::from(297u16), Uint256::from(198u16)),
-            (Uint256::from(298u16), Uint256::from(199u16)),
-            (Uint256::from(302u16), Uint256::from(202u16)),
+            (Uint128::from(300u16), Uint128::from(200u16)),
+            (Uint128::from(299u16), Uint128::from(200u16)),
+            (Uint128::from(301u16), Uint128::from(201u16)),
+            (Uint128::from(297u16), Uint128::from(198u16)),
+            (Uint128::from(298u16), Uint128::from(199u16)),
+            (Uint128::from(302u16), Uint128::from(202u16)),
         ];
 
         test_data
@@ -191,7 +185,7 @@ mod tests {
             .for_each(|(total_weight, expected_quorum)| {
                 let participants = mock_participants(vec![(
                     "participant",
-                    nonempty::Uint256::try_from(total_weight).unwrap(),
+                    nonempty::Uint128::try_from(total_weight).unwrap(),
                 )]);
 
                 let snapshot = Snapshot::new(
@@ -204,7 +198,7 @@ mod tests {
 
                 assert_eq!(
                     snapshot.quorum,
-                    nonempty::Uint256::try_from(expected_quorum).unwrap(),
+                    nonempty::Uint128::try_from(expected_quorum).unwrap(),
                     "total_weight: {}, expected_quorum: {}",
                     total_weight,
                     expected_quorum
@@ -216,7 +210,7 @@ mod tests {
     fn test_quorum_no_overflow() {
         let participants = mock_participants(vec![(
             "participant",
-            nonempty::Uint256::try_from(Uint256::MAX).unwrap(),
+            nonempty::Uint128::try_from(Uint128::MAX).unwrap(),
         )]);
 
         let snapshot = Snapshot::new(
@@ -227,6 +221,6 @@ mod tests {
             participants,
         );
 
-        assert_eq!(Uint256::from(snapshot.quorum), Uint256::MAX);
+        assert_eq!(Uint128::from(snapshot.quorum), Uint128::MAX);
     }
 }

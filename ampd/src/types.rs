@@ -3,37 +3,12 @@ use std::hash::{Hash as StdHash, Hasher};
 
 use cosmrs::crypto;
 use cosmrs::AccountId;
-use cosmwasm_std::Uint256;
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
 pub type EVMAddress = Address;
 pub type Hash = H256;
 pub type PublicKey = crypto::PublicKey;
-
-#[derive(Deserialize, Debug, Clone, Copy)]
-#[serde(from = "Uint256")]
-pub struct U256(ethers::types::U256);
-
-impl U256 {
-    pub fn to_little_endian(&self, bytes: &mut [u8]) {
-        self.0.to_little_endian(bytes)
-    }
-}
-
-impl From<Uint256> for U256 {
-    fn from(value: Uint256) -> Self {
-        Self(ethers::types::U256::from_big_endian(
-            value.to_be_bytes().as_slice(),
-        ))
-    }
-}
-
-impl AsRef<ethers::types::U256> for U256 {
-    fn as_ref(&self) -> &ethers::types::U256 {
-        &self.0
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TMAddress(AccountId);

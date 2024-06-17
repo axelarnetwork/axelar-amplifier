@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+package ampd;
+
+enum Algorithm {
+  ALGORITHM_ECDSA = 0;
+  ALGORITHM_ED25519 = 1;
+}
+
+message SubscribeRequest {
+  // the subscription will return all events that match ANY of these filters
+  repeated Event event_filters = 1;
+  bool include_block_begin_end = 2;
+}
+
+message EventBlockBegin { uint64 height = 1; }
+
+message EventBlockEnd { uint64 height = 1; }
+
+message Event {
+  string event_type = 1;
+  map<string, string> event_attributes = 2;
+}
+
+message SubscribeResponse {
+  oneof event {
+    EventBlockBegin block_begin = 1;
+    EventBlockEnd block_end = 2;
+    Event abci = 3;
+  }
+}
+
+message BroadcastRequest { google.protobuf.Any msg = 1; }
+
+message BroadcastResponse {}
+
+service Ampd {
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {}
+  rpc Broadcast(BroadcastRequest) returns (BroadcastResponse) {}
+}
+
+message SignRequest {
+  string key_id = 1;
+  bytes msg = 2;
+  Algorithm algorithm = 3;
+}
+
+message SignResponse { bytes signature = 1; }
+
+message GetKeyRequest {
+  string key_id = 1;
+  Algorithm algorithm = 2;
+}
+
+message GetKeyResponse { bytes pub_key = 1; }
+
+service Crypto {
+  rpc Sign(SignRequest) returns (SignResponse) {}
+  rpc GetKey(GetKeyRequest) returns (GetKeyResponse) {}
+}

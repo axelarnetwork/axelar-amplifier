@@ -1,13 +1,15 @@
 use std::marker::PhantomData;
 
-use cosmwasm_std::{to_binary, Addr, QuerierWrapper, QueryRequest, WasmMsg, WasmQuery};
-use error_stack::{Result, ResultExt};
+use cosmwasm_std::{
+    to_json_binary, Addr, QuerierWrapper, QueryRequest, StdError, WasmMsg, WasmQuery,
+};
+use error_stack::{Report, Result};
 use serde::{de::DeserializeOwned, Serialize};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("could not query the contract")]
-    Query,
+    #[error(transparent)]
+    QueryFailed(#[from] StdError),
 }
 
 pub struct Client<'a, M, Q>
@@ -38,7 +40,7 @@ where
     pub fn execute(&self, msg: &M) -> WasmMsg {
         WasmMsg::Execute {
             contract_addr: self.address.to_string(),
-            msg: to_binary(msg).expect("msg should always be serializable"),
+            msg: to_json_binary(msg).expect("msg should always be serializable"),
             funds: vec![],
         }
     }
@@ -50,8 +52,9 @@ where
         self.querier
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.address.to_string(),
-                msg: to_binary(msg).expect("msg should always be serializable"),
+                msg: to_json_binary(msg).expect("msg should always be serializable"),
             }))
-            .change_context(Error::Query)
+            .map_err(Into::into)
+            .map_err(Report::new)
     }
 }

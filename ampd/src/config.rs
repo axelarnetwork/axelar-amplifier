@@ -52,7 +52,7 @@ mod tests {
 
     use cosmrs::AccountId;
 
-    use connection_router_api::ChainName;
+    use router_api::ChainName;
 
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
@@ -85,7 +85,7 @@ mod tests {
             chain_rpc_url = 'http://localhost:7546/'
 
             [[handlers]]
-            type = 'EvmWorkerSetVerifier'
+            type = 'EvmVerifierSetVerifier'
             cosmwasm_contract = '{}'
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7545/'
@@ -95,7 +95,7 @@ mod tests {
             nanos = 0
 
             [[handlers]]
-            type = 'EvmWorkerSetVerifier'
+            type = 'EvmVerifierSetVerifier'
             cosmwasm_contract = '{}'
             chain_name = 'Polygon'
             chain_rpc_url = 'http://localhost:7546/'
@@ -153,17 +153,17 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_handlers_evm_worker_set_verifiers_with_the_same_chain_name() {
+    fn deserialize_handlers_evm_verifier_set_verifiers_with_the_same_chain_name() {
         let config_str = format!(
             "
             [[handlers]]
-            type = 'EvmWorkerSetVerifier'
+            type = 'EvmVerifierSetVerifier'
             cosmwasm_contract = '{}'
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7545/'
 
             [[handlers]]
-            type = 'EvmWorkerSetVerifier'
+            type = 'EvmVerifierSetVerifier'
             cosmwasm_contract = '{}'
             chain_name = 'Ethereum'
             chain_rpc_url = 'http://localhost:7546/'
@@ -276,7 +276,7 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                 },
-                HandlerConfig::EvmWorkerSetVerifier {
+                HandlerConfig::EvmVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
@@ -299,7 +299,7 @@ mod tests {
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
-                HandlerConfig::SuiWorkerSetVerifier {
+                HandlerConfig::SuiVerifierSetVerifier {
                     cosmwasm_contract: TMAddress::from(
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),

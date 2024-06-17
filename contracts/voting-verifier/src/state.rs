@@ -5,12 +5,13 @@ use cw_storage_plus::{Item, Map};
 use axelar_wasm_std::{
     counter,
     hash::Hash,
+    msg_id::MessageIdFormat,
     nonempty,
-    operators::Operators,
     voting::{PollId, WeightedPoll},
     MajorityThreshold,
 };
-use connection_router_api::{ChainName, Message};
+use multisig::verifier_set::VerifierSet;
+use router_api::{ChainName, Message};
 
 use crate::error::ContractError;
 
@@ -25,12 +26,13 @@ pub struct Config {
     pub confirmation_height: u64,
     pub source_chain: ChainName,
     pub rewards_contract: Addr,
+    pub msg_id_format: MessageIdFormat,
 }
 
 #[cw_serde]
 pub enum Poll {
     Messages(WeightedPoll),
-    ConfirmWorkerSet(WeightedPoll),
+    ConfirmVerifierSet(WeightedPoll),
 }
 
 impl Poll {
@@ -41,7 +43,7 @@ impl Poll {
     {
         match self {
             Poll::Messages(poll) => Ok(Poll::Messages(func(poll)?)),
-            Poll::ConfirmWorkerSet(poll) => Ok(Poll::ConfirmWorkerSet(func(poll)?)),
+            Poll::ConfirmVerifierSet(poll) => Ok(Poll::ConfirmVerifierSet(func(poll)?)),
         }
     }
 }
@@ -63,10 +65,10 @@ impl PollContent<Message> {
     }
 }
 
-impl PollContent<Operators> {
-    pub fn new(operators: Operators, poll_id: PollId) -> Self {
+impl PollContent<VerifierSet> {
+    pub fn new(verifier_set: VerifierSet, poll_id: PollId) -> Self {
         Self {
-            content: operators,
+            content: verifier_set,
             poll_id,
             index_in_poll: 0,
         }
@@ -81,4 +83,4 @@ pub const POLL_MESSAGES: Map<&Hash, PollContent<Message>> = Map::new("poll_messa
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const POLL_WORKER_SETS: Map<&Hash, PollContent<Operators>> = Map::new("poll_worker_sets");
+pub const POLL_VERIFIER_SETS: Map<&Hash, PollContent<VerifierSet>> = Map::new("poll_verifier_sets");

@@ -3,8 +3,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use block_height_monitor::BlockHeightMonitor;
-use connection_router_api::ChainName;
-use cosmos_sdk_proto::cosmos::{
+use cosmrs::proto::cosmos::{
     auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{report, FutureExt, Result, ResultExt};
@@ -13,6 +12,7 @@ use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
+use router_api::ChainName;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -20,13 +20,14 @@ use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::asyncutil::task::{CancellableTask, TaskError, TaskGroup};
-use broadcaster::{accounts::account, Broadcaster};
+use asyncutil::task::{CancellableTask, TaskError, TaskGroup};
+use broadcaster::Broadcaster;
 use event_processor::EventHandler;
+use event_sub::EventSub;
 use events::Event;
 use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
 use state::StateUpdater;
-use tofnd::grpc::{MultisigClient, SharableEcdsaClient};
+use tofnd::grpc::{Multisig, MultisigClient};
 use types::TMAddress;
 
 use crate::config::Config;
@@ -41,6 +42,7 @@ pub mod error;
 mod event_processor;
 mod event_sub;
 mod evm;
+mod grpc;
 mod handlers;
 mod health_check;
 mod json_rpc;
@@ -52,6 +54,8 @@ mod tm_client;
 mod tofnd;
 mod types;
 mod url;
+
+pub use grpc::{client, proto};
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -88,10 +92,9 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     let query_client = QueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-    let multisig_client = MultisigClient::connect(tofnd_config.party_uid, tofnd_config.url)
+    let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
         .await
         .change_context(Error::Connection)?;
-    let ecdsa_client = SharableEcdsaClient::new(multisig_client);
 
     let block_height_monitor = BlockHeightMonitor::connect(tm_client.clone())
         .await
@@ -101,8 +104,8 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     let pub_key = match state_updater.state().pub_key {
         Some(pub_key) => pub_key,
         None => {
-            let pub_key = ecdsa_client
-                .keygen(&tofnd_config.key_uid)
+            let pub_key = multisig_client
+                .keygen(&tofnd_config.key_uid, tofnd::Algorithm::Ecdsa)
                 .await
                 .change_context(Error::Tofnd)?;
             state_updater.as_mut().pub_key = Some(pub_key);
@@ -111,23 +114,19 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         }
     };
 
-    let worker = pub_key
+    let verifier: TMAddress = pub_key
         .account_id(PREFIX)
         .expect("failed to convert to account identifier")
         .into();
-    let account = account(query_client, &worker)
-        .await
-        .change_context(Error::Broadcaster)?;
 
-    let broadcaster = broadcaster::BroadcastClientBuilder::default()
+    let broadcaster = broadcaster::BroadcastClient::builder()
+        .query_client(query_client)
+        .address(verifier.clone())
         .client(service_client)
-        .signer(ecdsa_client.clone())
-        .acc_number(account.account_number)
-        .acc_sequence(account.sequence)
+        .signer(multisig_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
-        .build()
-        .change_context(Error::Broadcaster)?;
+        .build();
 
     let health_check_server = health_check::Server::new(health_check_bind_addr);
 
@@ -135,13 +134,13 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         tm_client,
         broadcaster,
         state_updater,
-        ecdsa_client,
+        multisig_client,
         broadcast,
         event_buffer_cap,
         block_height_monitor,
         health_check_server,
     )
-    .configure_handlers(worker, handlers, event_stream_timeout)
+    .configure_handlers(verifier, handlers, event_stream_timeout)
     .await
 }
 
@@ -166,12 +165,13 @@ where
     T: Broadcaster,
 {
     event_publisher: event_sub::EventPublisher<tendermint_rpc::HttpClient>,
+    event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
     #[allow(dead_code)]
     broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
-    ecdsa_client: SharableEcdsaClient,
+    multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
     health_check_server: health_check::Server,
     token: CancellationToken,
@@ -186,7 +186,7 @@ where
         tm_client: tendermint_rpc::HttpClient,
         broadcaster: T,
         state_updater: StateUpdater,
-        ecdsa_client: SharableEcdsaClient,
+        multisig_client: MultisigClient,
         broadcast_cfg: broadcaster::Config,
         event_buffer_cap: usize,
         block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -194,7 +194,8 @@ where
     ) -> Self {
         let token = CancellationToken::new();
 
-        let event_publisher = event_sub::EventPublisher::new(tm_client, event_buffer_cap);
+        let (event_publisher, event_subscriber) =
+            event_sub::EventPublisher::new(tm_client, event_buffer_cap);
         let event_publisher = match state_updater.state().min_handler_block_height() {
             Some(min_height) => event_publisher.start_from(min_height.increment()),
             None => event_publisher,
@@ -210,11 +211,12 @@ where
 
         Self {
             event_publisher,
+            event_subscriber,
             event_processor,
             broadcaster,
             broadcaster_driver,
             state_updater,
-            ecdsa_client,
+            multisig_client,
             block_height_monitor,
             health_check_server,
             token,
@@ -223,7 +225,7 @@ where
 
     async fn configure_handlers(
         mut self,
-        worker: TMAddress,
+        verifier: TMAddress,
         handler_configs: Vec<handlers::config::Config>,
         stream_timeout: Duration,
     ) -> Result<App<T>, Error> {
@@ -248,18 +250,17 @@ where
                     self.create_handler_task(
                         format!("{}-msg-verifier", chain.name),
                         handlers::evm_verify_msg::Handler::new(
-                            worker.clone(),
+                            verifier.clone(),
                             cosmwasm_contract,
                             chain.name,
                             chain.finalization,
                             rpc_client,
-                            self.broadcaster.client(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
                     )
                 }
-                handlers::config::Config::EvmWorkerSetVerifier {
+                handlers::config::Config::EvmVerifierSetVerifier {
                     chain,
                     cosmwasm_contract,
                     rpc_timeout,
@@ -276,14 +277,13 @@ where
                     check_finalizer(&chain.name, &chain.finalization, &rpc_client).await?;
 
                     self.create_handler_task(
-                        format!("{}-worker-set-verifier", chain.name),
-                        handlers::evm_verify_worker_set::Handler::new(
-                            worker.clone(),
+                        format!("{}-verifier-set-verifier", chain.name),
+                        handlers::evm_verify_verifier_set::Handler::new(
+                            verifier.clone(),
                             cosmwasm_contract,
                             chain.name,
                             chain.finalization,
                             rpc_client,
-                            self.broadcaster.client(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
@@ -293,10 +293,9 @@ where
                     .create_handler_task(
                         "multisig-signer",
                         handlers::multisig::Handler::new(
-                            worker.clone(),
+                            verifier.clone(),
                             cosmwasm_contract,
-                            self.broadcaster.client(),
-                            self.ecdsa_client.clone(),
+                            self.multisig_client.clone(),
                             self.block_height_monitor.latest_block_height(),
                         ),
                         stream_timeout,
@@ -308,7 +307,7 @@ where
                 } => self.create_handler_task(
                     "sui-msg-verifier",
                     handlers::sui_verify_msg::Handler::new(
-                        worker.clone(),
+                        verifier.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(
                             &rpc_url,
@@ -318,19 +317,18 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
-                        self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
                 ),
-                handlers::config::Config::SuiWorkerSetVerifier {
+                handlers::config::Config::SuiVerifierSetVerifier {
                     cosmwasm_contract,
                     rpc_url,
                     rpc_timeout,
                 } => self.create_handler_task(
-                    "sui-worker-set-verifier",
-                    handlers::sui_verify_worker_set::Handler::new(
-                        worker.clone(),
+                    "sui-verifier-set-verifier",
+                    handlers::sui_verify_verifier_set::Handler::new(
+                        verifier.clone(),
                         cosmwasm_contract,
                         json_rpc::Client::new_http(
                             &rpc_url,
@@ -340,7 +338,6 @@ where
                                 .build()
                                 .change_context(Error::Connection)?,
                         ),
-                        self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
@@ -406,20 +403,21 @@ where
         let (handler, rx) = handlers::end_block::with_block_height_notifier(handler);
         self.state_updater.register_event(label.as_ref(), rx);
 
+        let broadcaster = self.broadcaster.client();
         let sub: HandlerStream<_> = match self
             .state_updater
             .state()
             .handler_block_height(label.as_ref())
         {
-            None => Box::pin(self.event_publisher.subscribe()),
+            None => Box::pin(self.event_subscriber.subscribe()),
             Some(&completed_height) => Box::pin(event_sub::skip_to_block(
-                self.event_publisher.subscribe(),
+                self.event_subscriber.subscribe(),
                 completed_height.increment(),
             )),
         };
 
         CancellableTask::create(move |token| {
-            event_processor::consume_events(handler, sub, stream_timeout, token)
+            event_processor::consume_events(handler, broadcaster, sub, stream_timeout, token)
         })
     }
 

@@ -1,11 +1,11 @@
-use cosmwasm_std::{from_binary, DepsMut, Reply, Response, Uint64};
+use cosmwasm_std::{from_json, DepsMut, Reply, Response, Uint64};
 use cw_utils::{parse_reply_execute_data, MsgExecuteContractResponse};
 
-use crate::state::{COMMANDS_BATCH, CONFIG};
+use crate::state::{CONFIG, PAYLOAD};
 use crate::{
     error::ContractError,
     events::Event,
-    state::{MULTISIG_SESSION_BATCH, REPLY_BATCH},
+    state::{MULTISIG_SESSION_PAYLOAD, REPLY_TRACKER},
 };
 
 pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, ContractError> {
@@ -13,26 +13,25 @@ pub fn start_multisig_reply(deps: DepsMut, reply: Reply) -> Result<Response, Con
 
     match parse_reply_execute_data(reply) {
         Ok(MsgExecuteContractResponse { data: Some(data) }) => {
-            let command_batch_id = REPLY_BATCH.load(deps.storage)?;
+            let payload_id = REPLY_TRACKER.load(deps.storage)?;
 
             let multisig_session_id: Uint64 =
-                from_binary(&data).map_err(|_| ContractError::InvalidContractReply {
+                from_json(data).map_err(|_| ContractError::InvalidContractReply {
                     reason: "invalid multisig session ID".to_string(),
                 })?;
 
-            MULTISIG_SESSION_BATCH.save(
-                deps.storage,
-                multisig_session_id.u64(),
-                &command_batch_id,
-            )?;
+            MULTISIG_SESSION_PAYLOAD.save(deps.storage, multisig_session_id.u64(), &payload_id)?;
+
+            let msg_ids = PAYLOAD
+                .load(deps.storage, &payload_id)?
+                .message_ids()
+                .unwrap_or_default();
 
             Ok(Response::new().add_event(
                 Event::ProofUnderConstruction {
                     destination_chain: config.chain_name,
-                    msg_ids: COMMANDS_BATCH
-                        .load(deps.storage, &command_batch_id)?
-                        .message_ids,
-                    command_batch_id,
+                    msg_ids,
+                    payload_id,
                     multisig_session_id,
                 }
                 .into(),

@@ -1,14 +1,30 @@
-use connection_router_api::CrossChainId;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
+use router_api::CrossChainId;
 use std::fmt::Debug;
 
 use crate::msg::InstantiateMsg;
 
 mod execute;
 mod query;
+
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _msg: Empty,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    // any version checks should be done before here
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -17,6 +33,8 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(internal::instantiate(deps, env, info, msg)?)
 }
 
@@ -59,10 +77,10 @@ pub enum Error {
 
 mod internal {
     use client::Client;
-    use connection_router_api::client::Router;
-    use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
+    use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
     use gateway_api::msg::{ExecuteMsg, QueryMsg};
+    use router_api::client::Router;
 
     use crate::contract::Error;
     use crate::msg::InstantiateMsg;
@@ -122,8 +140,26 @@ mod internal {
         match msg {
             QueryMsg::GetOutgoingMessages { message_ids } => {
                 let msgs = contract::query::get_outgoing_messages(deps.storage, message_ids)?;
-                to_binary(&msgs).change_context(Error::SerializeResponse)
+                to_json_binary(&msgs).change_context(Error::SerializeResponse)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+
+    use super::*;
+
+    #[test]
+    fn migrate_sets_contract_version() {
+        let mut deps = mock_dependencies();
+
+        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
+        assert_eq!(contract_version.contract, "gateway");
+        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 }

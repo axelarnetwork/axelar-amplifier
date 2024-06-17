@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use cosmos_sdk_proto::cosmos::auth::v1beta1::query_client::QueryClient;
-use cosmos_sdk_proto::cosmos::auth::v1beta1::{QueryAccountRequest, QueryAccountResponse};
-use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
-use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
-use cosmos_sdk_proto::cosmos::tx::v1beta1::{
+use cosmrs::proto::cosmos::auth::v1beta1::query_client::QueryClient;
+use cosmrs::proto::cosmos::auth::v1beta1::{QueryAccountRequest, QueryAccountResponse};
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmrs::proto::cosmos::tx::v1beta1::{
     BroadcastTxRequest, GetTxRequest, GetTxResponse, SimulateRequest, SimulateResponse,
 };
 use error_stack::{Report, Result};

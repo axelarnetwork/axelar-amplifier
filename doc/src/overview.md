@@ -38,8 +38,8 @@ end
 Relayer --"VerifyMessages([M1,M2])"-->G1
 G1 --"VerifyMessages([M1,M2])"--> Vr
 Vr --"VerifyMessages([M1,M2])"--> Vo
-Vo --"GetActiveWorkers"--> S
-Workers --"Vote(poll_id, votes)"--> Vo
+Vo --"GetActiveVerifiers"--> S
+Verifiers --"Vote(poll_id, votes)"--> Vo
 
 Relayer --"RouteMessages([M1,M2])"-->G1
 G1 --"RouteMessages([M1,M2])"-->R
@@ -59,9 +59,9 @@ end
 
 Relayer --"ConstructProof([M1.id,M2.id])"-->P
 P --"GetMessages([M1.id,M2.id])"-->G2
-P --"GetActiveWorkers"-->S
-P --"StartSigningSession(worker_set_id, batch_hash)"-->M
-Workers --"SubmitSignature(session_id, signature)"-->M
+P --"GetActiveVerifiers"-->S
+P --"StartSigningSession(verifier_set_id, payload_hash)"-->M
+Verifiers --"SubmitSignature(session_id, signature)"-->M
 Relayer --"GetProof(multisig_session_id)" --> P
 P --"GetSigningSession(session_id)"-->M
 ```
@@ -87,18 +87,18 @@ sequenceDiagram
     participant Voting Verifier
     participant Service Registry
     end
-    participant Worker
+    participant Verifier
     Relayer->>IncomingGateway: VerifyMessages([M1,M2])
     IncomingGateway->>Verifier: VerifyMessages([M1,M2])
     Verifier->>Voting Verifier: VerifyMessages([M1,M2])
-    Voting Verifier->>Service Registry: GetActiveWorkers
-    Voting Verifier->>Worker: emit PollStarted
+    Voting Verifier->>Service Registry: GetActiveVerifiers
+    Voting Verifier->>Verifier: emit PollStarted
     Voting Verifier-->>Verifier: [(M1.id,false),(M2.id,false)]
     Verifier-->>IncomingGateway: [(M1.id,false),(M2.id, false)]
     IncomingGateway-->>Relayer: [(M1.id,false),(M2.id, false)]
-    Worker->>Voting Verifier: Vote
-    Worker->>Voting Verifier: Vote
-    Worker->>Voting Verifier: EndPoll
+    Verifier->>Voting Verifier: Vote
+    Verifier->>Voting Verifier: Vote
+    Verifier->>Voting Verifier: EndPoll
 
 
 
@@ -122,23 +122,23 @@ sequenceDiagram
     participant Prover
     participant Multisig
     end
-    participant Worker
+    participant Verifier
 
 
     Router->>OutgoingGateway: RouteMessages([M1,M2])
     Relayer->>Prover: ConstructProof([M1.id,M2.id])
     Prover->>OutgoingGateway: GetMessages([M1,M2])
     OutgoingGateway-->>Prover: [M1,M2]
-    Prover->>Prover: create batch of [M1,M2]
-    Prover->>Multisig: StartSigningSession(snapshot, batch hash)
+    Prover->>Prover: create payload of [M1,M2]
+    Prover->>Multisig: StartSigningSession(snapshot, payload hash)
     Multisig-->>Prover: multisig_session_id
     Prover-->>Relayer: multisig_session_id
-    Worker->>Multisig: SubmitSignature(session_id, signature)
-    Worker->>Multisig: SubmitSignature(session_id, signature)
+    Verifier->>Multisig: SubmitSignature(session_id, signature)
+    Verifier->>Multisig: SubmitSignature(session_id, signature)
     Relayer->>Prover: GetProof(multisig_session_id)
     Prover->>Multisig: GetSigningSession(session_id)
     Multisig-->>Prover: signing session
-    Prover-->>Relayer: signed batch
+    Prover-->>Relayer: signed payload
 
 ```
 
@@ -148,9 +148,9 @@ query the service registry for an updated snapshot.
 
 ## Contract Overview
 
-### Connection Router
+### Router
 
-[`connection-router`](contracts/connection_router.md) is the way messages are passed between different gateways. The
+[`router`](contracts/router.md) is the way messages are passed between different gateways. The
 router has methods for registering new chains and gateways, updating the address of the registered gateway, and freezing
 chains (preventing message flow). These methods are only callable by the router admin. Messages are passed to the router
 from registered gateways, and the router passes those messages to the appropriate gateway based on each message's
@@ -174,13 +174,13 @@ The verifier contracts are responsible for verifying whether a given message or 
 connected external chain. The verifier can take many different forms, such as
 a [`voting-verifier`](contracts/voting_verifier.md) that conducts stake weighted polls for batches of messages, a light
 client that accepts block headers and merkle tree proofs, a zk proof verifier, etc. The verifier can also be
-an [`aggregate-verifier`](contracts/aggregate_verifier.md), that is linked to 1 or more other verifiers, and defines a
-security policy such as 2 out of 3 linked verification methods need to report a message as verified.
+an aggregate verifier, that is linked to 1 or more other verifiers, and defines a security policy such as 2 out of 3
+linked verification methods need to report a message as verified.
 
 ### Prover
 
 The prover contract is responsible for constructing proofs of routed messages, to be passed to external chains. The most
-common example of this is the [`multisig-prover`](contracts/multisig_prover.md) that constructs signed batches of routed
+common example of this is the [`multisig-prover`](contracts/multisig_prover.md) that constructs signed payload of routed
 messages, which are then relayed (permissionlessly) to an external chain. In this example, the prover fetches the
 messages from the gateway, and interacts with the multisig contract to conduct the signing.
 
@@ -195,4 +195,4 @@ associated with the key id sign messages when new signing sessions are created.
 [`service-registry`](contracts/service_registry.md) is responsible for tracking verifiers associated with specific
 services. Two example services are voting and signing. Verifiers must be authorized to join a service via governance
 vote. Once authorized, verifiers must also bond a sufficient amount of stake before becoming active in the service.
-Services query the service registry to create weighted snapshots of the active worker set.
+Services query the service registry to create weighted snapshots of the active verifier set.

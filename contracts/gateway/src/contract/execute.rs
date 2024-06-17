@@ -1,16 +1,17 @@
 use axelar_wasm_std::{FnExt, VerificationStatus};
-use connection_router_api::client::Router;
-use connection_router_api::Message;
 use cosmwasm_std::{Event, Response, Storage, WasmMsg};
 use error_stack::{Result, ResultExt};
 use itertools::Itertools;
+use router_api::client::Router;
+use router_api::Message;
+use voting_verifier::msg::MessageStatus;
 
 use crate::contract::Error;
 use crate::events::GatewayEvent;
 use crate::state;
 
 pub fn verify_messages(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
     apply(verifier, msgs, |msgs_by_status| {
@@ -19,7 +20,7 @@ pub fn verify_messages(
 }
 
 pub(crate) fn route_incoming_messages(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     router: &Router,
     msgs: Vec<Message>,
 ) -> Result<Response, Error> {
@@ -47,7 +48,7 @@ pub(crate) fn route_outgoing_messages(
 }
 
 fn apply(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs: Vec<Message>,
     action: impl Fn(Vec<(VerificationStatus, Vec<Message>)>) -> (Option<WasmMsg>, Vec<Event>),
 ) -> Result<Response, Error> {
@@ -76,10 +77,11 @@ fn check_for_duplicates(msgs: Vec<Message>) -> Result<Vec<Message>, Error> {
 }
 
 fn group_by_status(
-    msgs_with_status: impl Iterator<Item = (Message, VerificationStatus)>,
+    msgs_with_status: impl IntoIterator<Item = MessageStatus>,
 ) -> Vec<(VerificationStatus, Vec<Message>)> {
     msgs_with_status
-        .map(|(msg, status)| (status, msg))
+        .into_iter()
+        .map(|msg_status| (msg_status.status, msg_status.message))
         .into_group_map()
         .into_iter()
         // sort by verification status so the order of messages is deterministic
@@ -88,7 +90,7 @@ fn group_by_status(
 }
 
 fn verify(
-    verifier: &aggregate_verifier::Client,
+    verifier: &voting_verifier::Client,
     msgs_by_status: Vec<(VerificationStatus, Vec<Message>)>,
 ) -> (Option<WasmMsg>, Vec<Event>) {
     msgs_by_status
@@ -123,8 +125,8 @@ fn route(
 // instead of requiring the caller to allocate a vector for every message
 fn filter_verifiable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec<Message> {
     match status {
-        VerificationStatus::None
-        | VerificationStatus::NotFound
+        VerificationStatus::Unknown
+        | VerificationStatus::NotFoundOnSourceChain
         | VerificationStatus::FailedToVerify => msgs.to_vec(),
         _ => vec![],
     }
@@ -132,16 +134,16 @@ fn filter_verifiable_messages(status: VerificationStatus, msgs: &[Message]) -> V
 
 fn into_verify_events(status: VerificationStatus, msgs: Vec<Message>) -> Vec<Event> {
     match status {
-        VerificationStatus::None
-        | VerificationStatus::NotFound
+        VerificationStatus::Unknown
+        | VerificationStatus::NotFoundOnSourceChain
         | VerificationStatus::FailedToVerify
         | VerificationStatus::InProgress => {
             messages_into_events(msgs, |msg| GatewayEvent::Verifying { msg })
         }
-        VerificationStatus::SucceededOnChain => {
+        VerificationStatus::SucceededOnSourceChain => {
             messages_into_events(msgs, |msg| GatewayEvent::AlreadyVerified { msg })
         }
-        VerificationStatus::FailedOnChain => {
+        VerificationStatus::FailedOnSourceChain => {
             messages_into_events(msgs, |msg| GatewayEvent::AlreadyRejected { msg })
         }
     }
@@ -150,7 +152,7 @@ fn into_verify_events(status: VerificationStatus, msgs: Vec<Message>) -> Vec<Eve
 // not all messages are routable, so it's better to only take a reference and allocate a vector on demand
 // instead of requiring the caller to allocate a vector for every message
 fn filter_routable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec<Message> {
-    if status == VerificationStatus::SucceededOnChain {
+    if status == VerificationStatus::SucceededOnSourceChain {
         msgs.to_vec()
     } else {
         vec![]
@@ -159,7 +161,7 @@ fn filter_routable_messages(status: VerificationStatus, msgs: &[Message]) -> Vec
 
 fn into_route_events(status: VerificationStatus, msgs: Vec<Message>) -> Vec<Event> {
     match status {
-        VerificationStatus::SucceededOnChain => {
+        VerificationStatus::SucceededOnSourceChain => {
             messages_into_events(msgs, |msg| GatewayEvent::Routing { msg })
         }
         _ => messages_into_events(msgs, |msg| GatewayEvent::UnfitForRouting { msg }),

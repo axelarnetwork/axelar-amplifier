@@ -1,15 +1,16 @@
+use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
+use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Attribute, Event, HexBinary};
+use cosmwasm_std::{Addr, Attribute, Event};
 
 use axelar_wasm_std::nonempty;
-use axelar_wasm_std::operators::Operators;
 use axelar_wasm_std::voting::{PollId, Vote};
-use connection_router_api::{Address, ChainName, Message};
-
-pub const TX_HASH_EVENT_INDEX_SEPARATOR: char = '-';
+use multisig::verifier_set::VerifierSet;
+use router_api::{Address, ChainName, Message};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -54,8 +55,8 @@ pub enum PollStarted {
         messages: Vec<TxEventConfirmation>,
         metadata: PollMetadata,
     },
-    WorkerSet {
-        worker_set: WorkerSetConfirmation,
+    VerifierSet {
+        verifier_set: VerifierSetConfirmation,
         metadata: PollMetadata,
     },
 }
@@ -98,14 +99,14 @@ impl From<PollStarted> for Event {
                     serde_json::to_string(&data).expect("failed to serialize messages"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
-            PollStarted::WorkerSet {
-                worker_set: data,
+            PollStarted::VerifierSet {
+                verifier_set: data,
                 metadata,
-            } => Event::new("worker_set_poll_started")
+            } => Event::new("verifier_set_poll_started")
                 .add_attribute(
-                    "worker_set",
+                    "verifier_set",
                     serde_json::to_string(&data)
-                        .expect("failed to serialize worker set confirmation"),
+                        .expect("failed to serialize verifier set confirmation"),
                 )
                 .add_attributes(Vec::<_>::from(metadata)),
         }
@@ -113,20 +114,44 @@ impl From<PollStarted> for Event {
 }
 
 #[cw_serde]
-pub struct WorkerSetConfirmation {
+pub struct VerifierSetConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
-    pub operators: Operators,
+    pub verifier_set: VerifierSet,
 }
 
-impl WorkerSetConfirmation {
-    pub fn new(message_id: nonempty::String, operators: Operators) -> Result<Self, ContractError> {
-        let (tx_id, event_index) = parse_message_id(&message_id)?;
+/// If parsing is successful, returns (tx_id, event_index). Otherwise returns ContractError::InvalidMessageID
+fn parse_message_id(
+    message_id: nonempty::String,
+    msg_id_format: &MessageIdFormat,
+) -> Result<(nonempty::String, u32), ContractError> {
+    match msg_id_format {
+        MessageIdFormat::Base58TxDigestAndEventIndex => {
+            let id = Base58TxDigestAndEventIndex::from_str(&message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+            Ok((id.tx_digest_as_base58(), id.event_index))
+        }
+        MessageIdFormat::HexTxHashAndEventIndex => {
+            let id = HexTxHashAndEventIndex::from_str(&message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+
+            Ok((id.tx_hash_as_hex(), id.event_index))
+        }
+    }
+}
+
+impl VerifierSetConfirmation {
+    pub fn new(
+        message_id: nonempty::String,
+        msg_id_format: MessageIdFormat,
+        verifier_set: VerifierSet,
+    ) -> Result<Self, ContractError> {
+        let (tx_id, event_index) = parse_message_id(message_id, &msg_id_format)?;
 
         Ok(Self {
             tx_id,
             event_index,
-            operators,
+            verifier_set,
         })
     }
 }
@@ -145,55 +170,20 @@ pub struct TxEventConfirmation {
     pub payload_hash: [u8; 32],
 }
 
-impl TryFrom<Message> for TxEventConfirmation {
+impl TryFrom<(Message, &MessageIdFormat)> for TxEventConfirmation {
     type Error = ContractError;
-
-    fn try_from(other: Message) -> Result<Self, Self::Error> {
-        let (tx_id, event_index) = parse_message_id(&other.cc_id.id)?;
+    fn try_from((msg, msg_id_format): (Message, &MessageIdFormat)) -> Result<Self, Self::Error> {
+        let (tx_id, event_index) = parse_message_id(msg.cc_id.id, msg_id_format)?;
 
         Ok(TxEventConfirmation {
             tx_id,
             event_index,
-            destination_address: other.destination_address,
-            destination_chain: other.destination_chain,
-            source_address: other.source_address,
-            payload_hash: other.payload_hash,
+            destination_address: msg.destination_address,
+            destination_chain: msg.destination_chain,
+            source_address: msg.source_address,
+            payload_hash: msg.payload_hash,
         })
     }
-}
-
-fn parse_message_id(
-    message_id: &nonempty::String,
-) -> Result<(nonempty::String, u32), ContractError> {
-    // expected format: <tx_id>:<index>
-    let components = message_id
-        .split(TX_HASH_EVENT_INDEX_SEPARATOR)
-        .collect::<Vec<_>>();
-
-    if components.len() != 2 {
-        return Err(ContractError::InvalidMessageID(message_id.to_string()));
-    }
-
-    let event_index = components[1];
-    if event_index != "0" && event_index.starts_with('0') {
-        return Err(ContractError::InvalidMessageID(message_id.to_string()));
-    }
-
-    Ok((
-        components[0].try_into()?,
-        event_index
-            .parse()
-            .map_err(|_| ContractError::InvalidMessageID(message_id.to_string()))?,
-    ))
-}
-
-pub fn construct_message_id(tx_hash: Hash, event_index: u32) -> String {
-    format!(
-        "{}{}{}",
-        HexBinary::from(tx_hash),
-        TX_HASH_EVENT_INDEX_SEPARATOR,
-        event_index
-    )
 }
 
 pub struct Voted {
@@ -233,72 +223,188 @@ impl From<PollEnded> for Event {
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::nonempty;
-    use cosmwasm_std::HexBinary;
+    use std::collections::BTreeMap;
 
-    use crate::events::{construct_message_id, parse_message_id, TX_HASH_EVENT_INDEX_SEPARATOR};
+    use axelar_wasm_std::{
+        msg_id::{
+            base_58_event_index::Base58TxDigestAndEventIndex,
+            tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
+        },
+        nonempty,
+    };
+    use cosmwasm_std::Uint128;
+    use multisig::verifier_set::VerifierSet;
+    use router_api::{CrossChainId, Message};
+
+    use super::{TxEventConfirmation, VerifierSetConfirmation};
+
+    fn random_32_bytes() -> [u8; 32] {
+        let mut bytes = [0; 32];
+        for b in &mut bytes {
+            *b = rand::random();
+        }
+        bytes
+    }
+
+    fn generate_msg(msg_id: nonempty::String) -> Message {
+        Message {
+            cc_id: CrossChainId {
+                chain: "source-chain".parse().unwrap(),
+                id: msg_id,
+            },
+            source_address: "source_address".parse().unwrap(),
+            destination_chain: "destination-chain".parse().unwrap(),
+            destination_address: "destination-address".parse().unwrap(),
+            payload_hash: [0; 32],
+        }
+    }
+
+    fn compare_event_to_message(event: TxEventConfirmation, msg: Message) {
+        assert_eq!(event.source_address, msg.source_address);
+        assert_eq!(event.destination_address, msg.destination_address);
+        assert_eq!(event.destination_chain, msg.destination_chain);
+        assert_eq!(event.payload_hash, msg.payload_hash);
+    }
 
     #[test]
-    fn should_be_able_to_parse_and_then_reconstruct_msg_id() {
-        let message_id: nonempty::String = format!(
-            "{}{}{}",
-            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af",
-            TX_HASH_EVENT_INDEX_SEPARATOR,
-            1
-        )
-        .try_into()
+    fn should_make_tx_event_confirmation_with_hex_msg_id() {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: random_32_bytes(),
+            event_index: 0,
+        };
+        let msg = generate_msg(msg_id.to_string().parse().unwrap());
+
+        let event =
+            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex))
+                .unwrap();
+
+        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
+        assert_eq!(event.event_index, msg_id.event_index);
+        compare_event_to_message(event, msg);
+    }
+
+    #[test]
+    fn should_make_tx_event_confirmation_with_base58_msg_id() {
+        let msg_id = Base58TxDigestAndEventIndex {
+            tx_digest: random_32_bytes(),
+            event_index: 0,
+        };
+        let msg = generate_msg(msg_id.to_string().parse().unwrap());
+
+        let event = TxEventConfirmation::try_from((
+            msg.clone(),
+            &MessageIdFormat::Base58TxDigestAndEventIndex,
+        ))
         .unwrap();
-        let (hash, event_index) = parse_message_id(&message_id).unwrap();
-        let reconstructed = construct_message_id(
-            HexBinary::from_hex(&hash)
-                .unwrap()
-                .as_slice()
-                .try_into()
-                .unwrap(),
-            event_index,
+
+        assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
+        assert_eq!(event.event_index, msg_id.event_index);
+        compare_event_to_message(event, msg);
+    }
+
+    #[test]
+    fn make_tx_event_confirmation_should_fail_with_invalid_message_id() {
+        let msg = generate_msg("foobar".parse().unwrap());
+        let event =
+            TxEventConfirmation::try_from((msg.clone(), &MessageIdFormat::HexTxHashAndEventIndex));
+        assert!(event.is_err());
+    }
+
+    #[test]
+    fn make_tx_event_confirmation_should_fail_with_wrong_format_message_id() {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: random_32_bytes(),
+            event_index: 0,
+        };
+        let msg = generate_msg(msg_id.to_string().parse().unwrap());
+
+        let event = TxEventConfirmation::try_from((
+            msg.clone(),
+            &MessageIdFormat::Base58TxDigestAndEventIndex,
+        ));
+        assert!(event.is_err());
+    }
+
+    #[test]
+    fn should_make_verifier_set_confirmation_with_hex_msg_id() {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: random_32_bytes(),
+            event_index: rand::random::<u32>(),
+        };
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+        let event = VerifierSetConfirmation::new(
+            msg_id.to_string().parse().unwrap(),
+            MessageIdFormat::HexTxHashAndEventIndex,
+            verifier_set.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(event.tx_id, msg_id.tx_hash_as_hex());
+        assert_eq!(event.event_index, msg_id.event_index);
+        assert_eq!(event.verifier_set, verifier_set);
+    }
+
+    #[test]
+    fn should_make_verifier_set_confirmation_with_base58_msg_id() {
+        let msg_id = Base58TxDigestAndEventIndex {
+            tx_digest: random_32_bytes(),
+            event_index: rand::random::<u32>(),
+        };
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+        let event = VerifierSetConfirmation::new(
+            msg_id.to_string().parse().unwrap(),
+            MessageIdFormat::Base58TxDigestAndEventIndex,
+            verifier_set.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(event.tx_id, msg_id.tx_digest_as_base58());
+        assert_eq!(event.event_index, msg_id.event_index);
+        assert_eq!(event.verifier_set, verifier_set);
+    }
+
+    #[test]
+    fn make_verifier_set_confirmation_should_fail_with_invalid_message_id() {
+        let msg_id = "foobar";
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
+
+        let event = VerifierSetConfirmation::new(
+            msg_id.to_string().parse().unwrap(),
+            MessageIdFormat::Base58TxDigestAndEventIndex,
+            verifier_set,
         );
-        assert_eq!(message_id.to_string(), reconstructed);
+        assert!(event.is_err());
     }
 
     #[test]
-    fn should_not_parse_msg_id_without_event_index() {
-        let message_id: nonempty::String =
-            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af"
-                .try_into()
-                .unwrap();
-        let res = parse_message_id(&message_id);
-        assert!(res.is_err());
-    }
+    fn make_verifier_set_confirmation_should_fail_with_different_msg_id_format() {
+        let msg_id = HexTxHashAndEventIndex {
+            tx_hash: random_32_bytes(),
+            event_index: rand::random::<u32>(),
+        };
+        let verifier_set = VerifierSet {
+            signers: BTreeMap::new(),
+            threshold: Uint128::one(),
+            created_at: 1,
+        };
 
-    #[test]
-    fn should_not_parse_msg_id_with_wrong_seperator() {
-        let message_id: nonempty::String = format!(
-            "{}{}{}",
-            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af", "+", 1
-        )
-        .try_into()
-        .unwrap();
-        let res = parse_message_id(&message_id);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn should_not_parse_msg_id_with_non_integer_event_index() {
-        let message_id: nonempty::String =
-            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af-foobar"
-                .try_into()
-                .unwrap();
-        let res = parse_message_id(&message_id);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn should_not_parse_event_index_with_leading_zeroes() {
-        let message_id: nonempty::String =
-            "a83c04cc4b86ae3095f2d0db4180db2c4065f1506955b244eda65d3a1ce733af-01"
-                .try_into()
-                .unwrap();
-        let res = parse_message_id(&message_id);
-        assert!(res.is_err());
+        let event = VerifierSetConfirmation::new(
+            msg_id.to_string().parse().unwrap(),
+            MessageIdFormat::Base58TxDigestAndEventIndex,
+            verifier_set,
+        );
+        assert!(event.is_err());
     }
 }
