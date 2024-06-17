@@ -3,7 +3,9 @@ use std::path::Path;
 use clap::Subcommand;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
+    auth::v1beta1::query_client::QueryClient as AuthQueryClient,
+    bank::v1beta1::query_client::QueryClient as BankQueryClient,
+    tx::v1beta1::service_client::ServiceClient,
 };
 use cosmrs::proto::Any;
 use cosmrs::AccountId;
@@ -85,25 +87,28 @@ async fn broadcast_tx(
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-    let query_client = QueryClient::connect(tm_grpc.to_string())
+    let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
+        .await
+        .change_context(Error::Connection)?;
+    let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
     let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
         .await
         .change_context(Error::Connection)?;
-    let address = pub_key
-        .account_id(PREFIX)
-        .expect("failed to convert to account identifier")
-        .into();
 
-    broadcaster::BroadcastClient::builder()
+    broadcaster::UnvalidatedBasicBroadcaster::builder()
         .client(service_client)
         .signer(multisig_client)
-        .query_client(query_client)
+        .auth_query_client(auth_query_client)
+        .bank_query_client(bank_query_client)
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast)
-        .address(address)
+        .address_prefix(PREFIX.to_string())
         .build()
+        .validate_fee_denomination()
+        .await
+        .change_context(Error::Broadcaster)?
         .broadcast(vec![tx])
         .await
         .change_context(Error::Broadcaster)
