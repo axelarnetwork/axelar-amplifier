@@ -79,12 +79,6 @@ impl Payload {
 #[cw_serde]
 pub struct PayloadId(HexBinary);
 
-impl From<HexBinary> for PayloadId {
-    fn from(id: HexBinary) -> Self {
-        Self(id)
-    }
-}
-
 impl From<&[u8]> for PayloadId {
     fn from(id: &[u8]) -> Self {
         Self(id.into())
