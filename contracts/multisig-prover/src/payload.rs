@@ -32,9 +32,9 @@ impl Payload {
                     .map(|msg| msg.cc_id.clone())
                     .collect::<Vec<CrossChainId>>();
 
-                (&message_ids).into()
+                message_ids.as_slice().into()
             }
-            Payload::VerifierSet(verifier_set) => verifier_set.hash().into(),
+            Payload::VerifierSet(verifier_set) => verifier_set.hash().as_slice().into(),
         }
     }
 
@@ -110,8 +110,8 @@ impl KeyDeserialize for PayloadId {
     }
 }
 
-impl From<&Vec<CrossChainId>> for PayloadId {
-    fn from(ids: &Vec<CrossChainId>) -> Self {
+impl From<&[CrossChainId]> for PayloadId {
+    fn from(ids: &[CrossChainId]) -> Self {
         let mut message_ids = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
         message_ids.sort();
 
