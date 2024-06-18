@@ -8,6 +8,7 @@ use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
+use multisig_prover::msg::VerifierSetResponse;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use std::collections::HashSet;
 
@@ -315,11 +316,11 @@ pub fn get_verifier_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
-    let query_response: Result<VerifierSet, StdError> =
+    let query_response: Result<Option<VerifierSetResponse>, StdError> =
         multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::CurrentVerifierSet);
     assert!(query_response.is_ok());
 
-    query_response.unwrap()
+    query_response.unwrap().unwrap().verifier_set
 }
 
 #[allow(clippy::arithmetic_side_effects)]

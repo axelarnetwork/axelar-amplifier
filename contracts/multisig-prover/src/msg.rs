@@ -80,10 +80,12 @@ pub enum QueryMsg {
     #[returns(GetProofResponse)]
     GetProof { multisig_session_id: Uint64 },
 
-    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    /// Returns a `VerifierSetResponse` with the current verifier set id and the verifier set itself.
+    #[returns(Option<VerifierSetResponse>)]
     CurrentVerifierSet,
 
-    #[returns(Option<multisig::verifier_set::VerifierSet>)]
+    /// Returns a `VerifierSetResponse` with the next verifier set id and the verifier set itself.
+    #[returns(Option<VerifierSetResponse>)]
     NextVerifierSet,
 }
 
@@ -99,4 +101,19 @@ pub struct GetProofResponse {
     pub message_ids: Vec<CrossChainId>,
     pub payload: Payload,
     pub status: ProofStatus,
+}
+
+#[cw_serde]
+pub struct VerifierSetResponse {
+    pub id: String,
+    pub verifier_set: multisig::verifier_set::VerifierSet,
+}
+
+impl From<multisig::verifier_set::VerifierSet> for VerifierSetResponse {
+    fn from(set: multisig::verifier_set::VerifierSet) -> Self {
+        VerifierSetResponse {
+            id: set.id(),
+            verifier_set: set,
+        }
+    }
 }
