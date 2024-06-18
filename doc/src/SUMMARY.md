@@ -1,6 +1,6 @@
 # Summary
 
-[Overview](overview.md)
+- [Overview](overview.md)
 
 # Contracts
 
@@ -16,3 +16,7 @@
 # Contributing
 
 - [Documentation](contributing/documentation.md)
+
+# Message Access Requirements
+
+- [Message Access](message_access.md)
