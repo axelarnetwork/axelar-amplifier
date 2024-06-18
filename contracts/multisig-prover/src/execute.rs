@@ -40,7 +40,7 @@ pub fn construct_proof(
     message_ids: Vec<CrossChainId>,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
-    let payload_id = (&message_ids).into();
+    let payload_id = message_ids.as_slice().into();
 
     let messages = get_messages(
         deps.querier,
