@@ -3,9 +3,11 @@ use cw_multi_test::Executor;
 
 use integration_tests::contract::Contract;
 use multisig_prover::msg::ExecuteMsg;
-use test_utils::Verifier;
-
-use crate::test_utils::get_multisig_session_id;
+use service_registry::{msg::QueryMsg as ServiceRegistryQueryMsg, state::WeightedVerifier};
+use test_utils::{
+    create_new_verifiers_vec, get_multisig_session_id, register_in_service_registry,
+    register_verifiers, rotate_active_verifier_set, Verifier,
+};
 
 pub mod test_utils;
 
@@ -368,4 +370,73 @@ fn governance_should_confirm_new_verifier_set_without_verification() {
         test_utils::get_verifier_set_from_prover(&mut protocol.app, &ethereum.multisig_prover);
 
     assert_eq!(new_verifier_set, expected_new_verifier_set);
+}
+
+#[test]
+fn rotate_signers_should_filter_out_signers_without_pubkey() {
+    let test_utils::TestCase {
+        mut protocol,
+        chain1,
+        verifiers: initial_verifiers,
+        min_verifier_bond,
+        ..
+    } = test_utils::setup_test_case();
+
+    let chains: Vec<router_api::ChainName> = vec![chain1.chain_name.clone()];
+
+    // add a third verifier to satisfy min verifier change threshold
+    register_verifiers(
+        &mut protocol,
+        &create_new_verifiers_vec(chains.clone(), vec![("verifier3".to_string(), 2)]),
+        min_verifier_bond,
+    );
+
+    // add a fourth verifier in service registry but does not submit a pubkey to multisig
+    register_in_service_registry(
+        &mut protocol,
+        &create_new_verifiers_vec(chains.clone(), vec![("verifier4".to_string(), 3)]),
+        min_verifier_bond,
+    );
+
+    // the fourth verifier should be filtered out in prover because it does not have a pubkey
+    let expect_new_verifiers = create_new_verifiers_vec(
+        chains.clone(),
+        vec![
+            ("verifier1".to_string(), 0),
+            ("verifier2".to_string(), 1),
+            ("verifier3".to_string(), 2),
+        ],
+    );
+    let expected_verifier_set =
+        test_utils::verifiers_to_verifier_set(&mut protocol, &expect_new_verifiers);
+
+    // should get initial + 2 active verifiers from service registry
+    let active_verifiers: Vec<WeightedVerifier> = protocol
+        .service_registry
+        .query(
+            &protocol.app,
+            &ServiceRegistryQueryMsg::GetActiveVerifiers {
+                service_name: protocol.service_name.to_string(),
+                chain_name: chains[0].clone(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        active_verifiers.len(),
+        initial_verifiers.len().checked_add(2).unwrap()
+    );
+
+    // rotate signers
+    rotate_active_verifier_set(
+        &mut protocol,
+        chain1.clone(),
+        &initial_verifiers,
+        &expect_new_verifiers,
+    );
+
+    let verifier_set =
+        test_utils::get_verifier_set_from_prover(&mut protocol.app, &chain1.multisig_prover);
+
+    assert_eq!(verifier_set, expected_verifier_set);
 }
