@@ -87,14 +87,14 @@ where
         let (_, mut rx) = self
             .channel
             .take()
-            .expect("channel must be set before running");
+            .expect("broadcast channel is expected to be set during initialization and must be available when running the broadcaster");
         let mut interval = time::interval(self.broadcast_interval);
 
         loop {
             select! {
                 msg = rx.recv() => match msg {
                     None => break,
-                    Some(msg_and_res_chan) => self.handle_msg(&mut interval, msg_and_res_chan).await?,
+                    Some(msg_and_res_chan) => interval = self.handle_msg(interval, msg_and_res_chan).await?,
                 },
                 _ = interval.tick() => self.broadcast_all().await?.then(|_| {interval.reset()}),
             }
@@ -110,7 +110,7 @@ where
             sender: self
                 .channel
                 .as_ref()
-                .expect("channel must be set before running")
+                .expect("broadcast channel is expected to be set during initialization and must be available when running the broadcaster")
                 .0
                 .clone(),
         }
@@ -135,9 +135,9 @@ where
 
     async fn handle_msg(
         &mut self,
-        interval: &mut time::Interval,
+        mut interval: time::Interval,
         msg_and_res_chan: MsgAndResChan,
-    ) -> Result {
+    ) -> Result<time::Interval> {
         let (msg, tx) = msg_and_res_chan;
 
         match self.broadcaster.estimate_fee(vec![msg.clone()]).await {
@@ -171,7 +171,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(interval)
     }
 }
 
@@ -289,16 +289,15 @@ mod test {
         let queued_broadcaster =
             QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(async move {
-            assert!(queued_broadcaster.run().await.is_ok());
-        });
+        let handle = tokio::spawn(queued_broadcaster.run());
 
         for _ in 0..tx_count {
             client.broadcast(dummy_msg()).await.unwrap();
         }
         sleep(broadcast_interval).await;
+        drop(client);
 
-        handle.abort();
+        assert!(handle.await.unwrap().is_ok());
     }
 
     #[test]
