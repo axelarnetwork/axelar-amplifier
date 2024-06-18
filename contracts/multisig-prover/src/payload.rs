@@ -131,10 +131,10 @@ mod test {
         let mut message_ids: Vec<CrossChainId> =
             messages.into_iter().map(|msg| msg.cc_id).collect();
 
-        let res: PayloadId = (&message_ids).into();
+        let res: PayloadId = message_ids.as_slice().into();
 
         message_ids.reverse();
-        let res2: PayloadId = (&message_ids).into();
+        let res2: PayloadId = message_ids.as_slice().into();
 
         assert_eq!(res, res2);
     }

@@ -65,7 +65,7 @@ mod tests {
 
         let event = Event::ProofUnderConstruction {
             destination_chain: "avalanche".parse().unwrap(),
-            payload_id: (&msg_ids).into(),
+            payload_id: msg_ids.as_slice().into(),
             multisig_session_id: Uint64::new(2),
             msg_ids,
         };
