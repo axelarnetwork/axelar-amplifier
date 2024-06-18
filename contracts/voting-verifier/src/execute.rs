@@ -65,7 +65,7 @@ pub fn verify_verifier_set(
 
     poll_verifier_sets().save(
         deps.storage,
-        &new_verifier_set.hash().as_slice().try_into().unwrap(),
+        &new_verifier_set.hash(),
         &PollContent::<VerifierSet>::new(new_verifier_set.clone(), poll_id),
     )?;
 
