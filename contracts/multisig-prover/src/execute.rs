@@ -6,17 +6,19 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 
-use axelar_wasm_std::{snapshot, FnExt, MajorityThreshold, VerificationStatus};
-use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
+use axelar_wasm_std::{
+    snapshot::{Participant, Snapshot},
+    FnExt, MajorityThreshold, VerificationStatus,
+};
+use multisig::{msg::Signer, verifier_set::VerifierSet};
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::WeightedVerifier;
+use service_registry::state::{Service, WeightedVerifier};
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
     error::ContractError,
     payload::Payload,
     state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER},
-    types::VerifiersInfo,
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -38,7 +40,7 @@ pub fn construct_proof(
     message_ids: Vec<CrossChainId>,
 ) -> error_stack::Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
-    let payload_id = (&message_ids).into();
+    let payload_id = message_ids.as_slice().into();
 
     let messages = get_messages(
         deps.querier,
@@ -117,7 +119,11 @@ fn get_messages(
     Ok(messages)
 }
 
-fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, ContractError> {
+fn make_verifier_set(
+    deps: &DepsMut,
+    env: &Env,
+    config: &Config,
+) -> Result<VerifierSet, ContractError> {
     let active_verifiers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
@@ -129,43 +135,50 @@ fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, 
             msg: to_json_binary(&active_verifiers_query)?,
         }))?;
 
-    let participants = verifiers
-        .clone()
+    let min_num_verifiers = deps
+        .querier
+        .query::<Service>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.service_registry.to_string(),
+            msg: to_json_binary(&service_registry::msg::QueryMsg::GetService {
+                service_name: config.service_name.clone(),
+            })?,
+        }))?
+        .min_num_verifiers;
+
+    let participants_with_pubkeys = verifiers
         .into_iter()
-        .map(WeightedVerifier::into)
-        .collect::<Vec<snapshot::Participant>>();
+        .filter_map(|verifier| {
+            let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
+                verifier_address: verifier.verifier_info.address.to_string(),
+                key_type: config.key_type,
+            };
 
-    let snapshot =
-        snapshot::Snapshot::new(config.signing_threshold, participants.clone().try_into()?);
+            match deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: config.multisig.to_string(),
+                msg: to_json_binary(&pub_key_query).ok()?,
+            })) {
+                Ok(pub_key) => Some((Participant::from(verifier), pub_key)),
+                Err(_) => None,
+            }
+        })
+        .collect::<Vec<_>>();
 
-    let mut pub_keys = vec![];
-    for participant in &participants {
-        let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
-            verifier_address: participant.address.to_string(),
-            key_type: config.key_type,
-        };
-        let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.multisig.to_string(),
-            msg: to_json_binary(&pub_key_query)?,
-        }))?;
-        pub_keys.push(pub_key);
+    if participants_with_pubkeys.len() < min_num_verifiers as usize {
+        return Err(ContractError::NotEnoughVerifiers);
     }
 
-    Ok(VerifiersInfo {
-        snapshot,
-        pubkeys_by_participant: participants.into_iter().zip(pub_keys).collect(),
-    })
-}
+    let snapshot = Snapshot::new(
+        config.signing_threshold,
+        participants_with_pubkeys
+            .iter()
+            .map(|(participant, _)| participant.clone())
+            .collect::<Vec<_>>()
+            .try_into()?,
+    );
 
-fn make_verifier_set(
-    deps: &DepsMut,
-    env: &Env,
-    config: &Config,
-) -> Result<VerifierSet, ContractError> {
-    let verifiers_info = get_verifiers_info(deps, config)?;
     Ok(VerifierSet::new(
-        verifiers_info.pubkeys_by_participant,
-        verifiers_info.snapshot.quorum.into(),
+        participants_with_pubkeys,
+        snapshot.quorum.into(),
         env.block.height,
     ))
 }

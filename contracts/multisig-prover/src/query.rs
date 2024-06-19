@@ -1,11 +1,11 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
 use error_stack::Result;
 
-use multisig::{multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
+use multisig::{multisig::Multisig, types::MultisigState};
 
 use crate::{
     error::ContractError,
-    msg::{GetProofResponse, ProofStatus},
+    msg::{GetProofResponse, ProofStatus, VerifierSetResponse},
     state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD},
 };
 
@@ -57,12 +57,16 @@ pub fn get_proof(
     })
 }
 
-pub fn current_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
-    CURRENT_VERIFIER_SET.may_load(deps.storage)
+pub fn current_verifier_set(deps: Deps) -> StdResult<Option<VerifierSetResponse>> {
+    CURRENT_VERIFIER_SET
+        .may_load(deps.storage)
+        .map(|op| op.map(|set| set.into()))
 }
 
-pub fn next_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
-    NEXT_VERIFIER_SET.may_load(deps.storage)
+pub fn next_verifier_set(deps: Deps) -> StdResult<Option<VerifierSetResponse>> {
+    NEXT_VERIFIER_SET
+        .may_load(deps.storage)
+        .map(|op| op.map(|set| set.into()))
 }
 
 #[cfg(test)]
@@ -82,7 +86,7 @@ mod test {
             .unwrap();
 
         assert_eq!(
-            Some(new_verifier_set()),
+            Some(new_verifier_set().into()),
             super::next_verifier_set(deps.as_ref()).unwrap()
         );
     }

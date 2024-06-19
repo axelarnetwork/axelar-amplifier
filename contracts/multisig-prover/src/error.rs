@@ -62,4 +62,7 @@ pub enum ContractError {
 
     #[error("invalid verifier set")]
     InvalidVerifierSet,
+
+    #[error("not enough verifiers")]
+    NotEnoughVerifiers,
 }
