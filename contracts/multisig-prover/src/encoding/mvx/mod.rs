@@ -165,13 +165,7 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
     }
 
     let bytes = value.to_be_bytes();
-    let mut slice_from = 0;
-    for (i, byte) in bytes.iter().enumerate() {
-        if *byte != 0 {
-            slice_from = i;
-            break;
-        }
-    }
+    let slice_from = bytes.iter().position(|byte| *byte != 0).unwrap_or(0);
 
     bytes[slice_from..].to_vec()
 }

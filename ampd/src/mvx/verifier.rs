@@ -23,102 +23,85 @@ macro_rules! unwrap_or_continue {
     };
 }
 
-macro_rules! unwrap_or_false {
-    ( $data:expr ) => {
-        match $data {
-            Some(x) => x,
-            None => return false,
-        }
-    };
-}
-
-macro_rules! unwrap_err_or_false {
-    ( $err:expr ) => {
-        match $err {
-            Ok(x) => x,
-            Err(_) => return false,
-        }
-    };
-}
-
-impl PartialEq<&Message> for &Events {
-    fn eq(&self, msg: &&Message) -> bool {
-        if self.identifier != CONTRACT_CALL_IDENTIFIER {
-            return false;
+impl Message {
+    fn eq_event(&self, event: &Events) -> Result<bool, Box<dyn std::error::Error>> {
+        if event.identifier != CONTRACT_CALL_IDENTIFIER {
+            return Ok(false);
         }
 
-        let topics = unwrap_or_false!(self.topics.as_ref());
+        let topics = event.topics.as_ref().ok_or("")?;
 
-        let event_name = unwrap_or_false!(topics.get(0));
-        let event_name = unwrap_err_or_false!(STANDARD.decode(event_name));
+        let event_name = topics.get(0).ok_or("")?;
+        let event_name = STANDARD.decode(event_name)?;
         if event_name.as_slice() != CONTRACT_CALL_EVENT.as_bytes() {
-            return false;
+            return Ok(false);
         }
 
-        let sender = unwrap_or_false!(topics.get(1));
-        let sender = unwrap_err_or_false!(STANDARD.decode(sender));
-        if sender.len() != 32 || &sender[0..32] != &msg.source_address.to_bytes() {
-            return false;
+        let sender = topics.get(1).ok_or("")?;
+        let sender = STANDARD.decode(sender)?;
+        if sender.len() != 32 || &sender[0..32] != &self.source_address.to_bytes() {
+            return Ok(false);
         }
 
-        let destination_chain = unwrap_or_false!(topics.get(2));
-        let destination_chain = unwrap_err_or_false!(STANDARD.decode(destination_chain));
-        let destination_chain = unwrap_err_or_false!(String::from_utf8(destination_chain));
-        if destination_chain != msg.destination_chain.to_string() {
-            return false;
+        let destination_chain = topics.get(2).ok_or("")?;
+        let destination_chain = STANDARD.decode(destination_chain)?;
+        let destination_chain = String::from_utf8(destination_chain)?;
+        if destination_chain != self.destination_chain.to_string() {
+            return Ok(false);
         }
 
-        let destination_address = unwrap_or_false!(topics.get(3));
-        let destination_address = unwrap_err_or_false!(STANDARD.decode(destination_address));
-        let destination_address = unwrap_err_or_false!(String::from_utf8(destination_address));
-        if destination_address != msg.destination_address {
-            return false;
+        let destination_address = topics.get(3).ok_or("")?;
+        let destination_address = STANDARD.decode(destination_address)?;
+        let destination_address = String::from_utf8(destination_address)?;
+        if destination_address != self.destination_address {
+            return Ok(false);
         }
 
-        let payload_hash = unwrap_or_false!(topics.get(4));
-        let payload_hash = unwrap_err_or_false!(STANDARD.decode(payload_hash));
-        if payload_hash.len() != 32 || Hash::from_slice(payload_hash.as_slice()) != msg.payload_hash
+        let payload_hash = topics.get(4).ok_or("")?;
+        let payload_hash = STANDARD.decode(payload_hash)?;
+        if payload_hash.len() != 32
+            || Hash::from_slice(payload_hash.as_slice()) != self.payload_hash
         {
-            return false;
+            return Ok(false);
         }
 
-        return true;
+        return Ok(true);
     }
 }
 
-impl PartialEq<VerifierSetConfirmation> for &Events {
-    fn eq(&self, verifier_set: &VerifierSetConfirmation) -> bool {
-        if self.identifier != ROTATE_SIGNERS_IDENTIFIER {
-            return false;
+impl VerifierSetConfirmation {
+    fn eq_event(&self, event: &Events) -> Result<bool, Box<dyn std::error::Error>> {
+        if event.identifier != ROTATE_SIGNERS_IDENTIFIER {
+            return Ok(false);
         }
 
-        let topics = unwrap_or_false!(self.topics.as_ref());
+        let topics = event.topics.as_ref().ok_or("")?;
 
-        let event_name = unwrap_or_false!(topics.get(0));
-        let event_name = unwrap_err_or_false!(STANDARD.decode(event_name));
+        let event_name = topics.get(0).ok_or("")?;
+        let event_name = STANDARD.decode(event_name)?;
         if event_name.as_slice() != SIGNERS_ROTATED_EVENT.as_bytes() {
-            return false;
+            return Ok(false);
         }
 
-        let signers_hash = unwrap_or_false!(topics.get(2));
-        let signers_hash = unwrap_err_or_false!(STANDARD.decode(signers_hash));
+        let signers_hash = topics.get(2).ok_or("")?;
+        let signers_hash = STANDARD.decode(signers_hash)?;
 
-        let data = unwrap_or_false!(self.data.as_ref());
-        let data = unwrap_err_or_false!(STANDARD.decode(data));
+        let data = event.data.as_ref().ok_or("")?;
+        let data = STANDARD.decode(data)?;
 
-        let weighted_signers = WeightedSigners::from(&verifier_set.verifier_set);
+        let weighted_signers = WeightedSigners::from(&self.verifier_set);
 
         if signers_hash.len() != 32 || signers_hash.as_slice() != weighted_signers.hash().as_slice()
         {
-            return false;
+            return Ok(false);
         }
 
-        let encoded = unwrap_err_or_false!(weighted_signers.encode());
+        let encoded = weighted_signers.encode()?;
         if encoded != data {
-            return false;
+            return Ok(false);
         }
 
-        return true;
+        return Ok(true);
     }
 }
 
@@ -133,40 +116,28 @@ fn find_event<'a>(
         return None;
     }
 
+    // We only support log index being 0, so one supported event per transaction because of MultiversX limitations
+    if log_index != 0 {
+        return None;
+    }
+
     // Because of current relayer limitation, if log_index is 0, we will search through the logs and get the first log
     // which corresponds to the gateway address, hence only supporting one cross chain call per transaction
-    if log_index == 0 {
-        for event in transaction.logs.as_ref().unwrap().events.iter() {
-            if event.address.to_bytes() == gateway_address.to_bytes()
-                && event.identifier == identifier
-            {
-                let topics = unwrap_or_continue!(event.topics.as_ref());
 
-                let event_name = unwrap_or_continue!(topics.get(0));
-                let event_name = STANDARD.decode(event_name).unwrap_or(Vec::new());
-                if event_name.as_slice() == needed_event_name {
-                    return Some(event);
-                }
+    for event in transaction.logs.as_ref().unwrap().events.iter() {
+        if event.address.to_bytes() == gateway_address.to_bytes() && event.identifier == identifier
+        {
+            let topics = unwrap_or_continue!(event.topics.as_ref());
+
+            let event_name = unwrap_or_continue!(topics.get(0));
+            let event_name = STANDARD.decode(event_name).unwrap_or(Vec::new());
+            if event_name.as_slice() == needed_event_name {
+                return Some(event);
             }
         }
-
-        return None;
     }
 
-    // Support normal log_index for the future when relayer can be properly implemented
-    let event = transaction.logs.as_ref().unwrap().events.get(log_index);
-
-    if event.is_none() {
-        return None;
-    }
-
-    let event: &Events = event.unwrap();
-
-    if event.address.to_bytes() != gateway_address.to_bytes() {
-        return None;
-    }
-
-    Some(event)
+    return None;
 }
 
 pub fn verify_message(
@@ -181,7 +152,10 @@ pub fn verify_message(
         CONTRACT_CALL_IDENTIFIER,
         CONTRACT_CALL_EVENT.as_bytes(),
     ) {
-        Some(event) if transaction.hash.as_ref().unwrap() == &message.tx_id && event == message => {
+        Some(event)
+            if transaction.hash.as_ref().unwrap() == &message.tx_id
+                && message.eq_event(event).unwrap_or(false) =>
+        {
             Vote::SucceededOnChain
         }
         _ => Vote::NotFound,
@@ -202,7 +176,7 @@ pub fn verify_verifier_set(
     ) {
         Some(event)
             if transaction.hash.as_ref().unwrap() == &verifier_set.tx_id
-                && event == verifier_set =>
+                && verifier_set.eq_event(event).unwrap_or(false) =>
         {
             Vote::SucceededOnChain
         }
@@ -217,7 +191,11 @@ mod tests {
     use multiversx_sdk::data::transaction::{ApiLogs, Events, TransactionOnNetwork};
 
     use crate::handlers::mvx_verify_msg::Message;
-    use crate::mvx::verifier::{verify_message, CONTRACT_CALL_EVENT, CONTRACT_CALL_IDENTIFIER, SIGNERS_ROTATED_EVENT, verify_verifier_set, ROTATE_SIGNERS_IDENTIFIER};
+    use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
+    use crate::mvx::verifier::{
+        verify_message, verify_verifier_set, CONTRACT_CALL_EVENT, CONTRACT_CALL_IDENTIFIER,
+        ROTATE_SIGNERS_IDENTIFIER, SIGNERS_ROTATED_EVENT,
+    };
     use crate::types::{EVMAddress, Hash};
     use axelar_wasm_std::voting::Vote;
     use base64::engine::general_purpose::STANDARD;
@@ -225,7 +203,6 @@ mod tests {
     use cosmwasm_std::{HexBinary, Uint128};
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
-    use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
 
     // test verify message
     #[test]
@@ -324,11 +301,11 @@ mod tests {
     }
 
     #[test]
-    fn should_verify_msg_if_correct() {
+    fn should_verify_msg_if_correct_unsupported_index() {
         let (gateway_address, tx, msg) = get_matching_msg_and_tx();
         assert_eq!(
             verify_message(&gateway_address, &tx, &msg),
-            Vote::SucceededOnChain
+            Vote::NotFound
         );
     }
 
@@ -434,11 +411,11 @@ mod tests {
     }
 
     #[test]
-    fn should_verify_verifier_set_if_correct() {
+    fn should_verify_verifier_set_if_correct_unsupported_index() {
         let (gateway_address, tx, verifier_set) = get_matching_verifier_set_and_tx();
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
-            Vote::SucceededOnChain
+            Vote::NotFound
         );
     }
 
@@ -540,7 +517,8 @@ mod tests {
         (gateway_address, tx_block, msg)
     }
 
-    fn get_matching_verifier_set_and_tx() -> (Address, TransactionOnNetwork, VerifierSetConfirmation) {
+    fn get_matching_verifier_set_and_tx() -> (Address, TransactionOnNetwork, VerifierSetConfirmation)
+    {
         let gateway_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
         )
@@ -564,7 +542,9 @@ mod tests {
         // 290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563 - the nonce (keccak256 hash of Uin256 number 0, created_at date)
         let data = HexBinary::from_hex("0000000345e67eaf446e6c26eb3a2b55b64339ecf3a4d1d03180bee20eb5afdd23fa644f0000000101c387253d29085a8036d6ae2cafb1b14699751417c0ce302cfe03da279e6b5c040000000101dd9822c7fa239dda9913ebee813ecbe69e35d88ff651548d5cc42c033a8a667b00000001010000000102290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563")
             .unwrap();
-        let signers_hash = HexBinary::from_hex("acc61d8597eaf76375dd9e34c50baab3c110d508ed4bd99c8d6000af503bf770").unwrap();
+        let signers_hash =
+            HexBinary::from_hex("acc61d8597eaf76375dd9e34c50baab3c110d508ed4bd99c8d6000af503bf770")
+                .unwrap();
 
         let wrong_event = Events {
             address: gateway_address.clone(),
@@ -579,7 +559,7 @@ mod tests {
             identifier: ROTATE_SIGNERS_IDENTIFIER.into(),
             topics: Some(vec![
                 STANDARD.encode(SIGNERS_ROTATED_EVENT),
-                STANDARD.encode("0"), // epoch (irrelevant here)
+                STANDARD.encode("0"),          // epoch (irrelevant here)
                 STANDARD.encode(signers_hash), // signers hash
             ]),
             data: Some(STANDARD.encode(data).into()),

@@ -26,31 +26,28 @@ impl Proof {
 
         signers_with_sigs.sort_by_key(|signer| signer.0);
 
-        let mut signatures = Vec::new();
-
         let mut signatures_index = 0;
-        for signer in signers.signers.iter() {
+        let signatures = signers.signers.iter().map(|signer| {
             let signer_with_sig = signers_with_sigs.get(signatures_index);
 
-            if signer_with_sig.is_some() {
-                let signer_with_sig = signer_with_sig.unwrap();
-
-                // Add correct signature if signer order is the same
-                if signer.signer == signer_with_sig.0 {
-                    signatures_index += 1;
-
-                    let signature = <[u8; 64]>::try_from(signer_with_sig.1.as_ref())
-                        .expect("couldn't convert signature to ed25519");
-
-                    signatures.push(Some(signature));
-
-                    continue;
-                }
+            if signer_with_sig.is_none() {
+                return None;
             }
 
-            // Add no signature for signer
-            signatures.push(None);
-        }
+            // Check if the current signer also has correct signature
+            // if not skip until correct signer is found
+            let signer_with_sig = signer_with_sig.unwrap();
+            if signer.signer != signer_with_sig.0 {
+                return None;
+            }
+
+            signatures_index += 1;
+
+            let signature = <[u8; 64]>::try_from(signer_with_sig.1.as_ref())
+                .expect("couldn't convert signature to ed25519");
+
+            Some(signature)
+        }).collect();
 
         Proof {
             signers,
