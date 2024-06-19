@@ -334,7 +334,7 @@ fn test_cases_for_duplicate_msgs() -> (
 }
 
 fn generate_msgs_with_all_statuses(
-    count_per_status: i32,
+    count_per_status: u8,
 ) -> HashMap<VerificationStatus, Vec<Message>> {
     all_statuses()
         .into_iter()
@@ -342,7 +342,7 @@ fn generate_msgs_with_all_statuses(
         .collect::<HashMap<VerificationStatus, Vec<Message>>>()
 }
 
-fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
+fn generate_msgs(namespace: impl Debug, count: u8) -> Vec<Message> {
     (0..count)
         .map(|i| Message {
             cc_id: CrossChainId {
@@ -352,7 +352,7 @@ fn generate_msgs(namespace: impl Debug, count: i32) -> Vec<Message> {
             destination_address: "idc".parse().unwrap(),
             destination_chain: "mock-chain-2".parse().unwrap(),
             source_address: "idc".parse().unwrap(),
-            payload_hash: [i as u8; 32],
+            payload_hash: [i; 32],
         })
         .collect()
 }
