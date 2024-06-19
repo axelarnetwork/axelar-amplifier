@@ -13,10 +13,10 @@
 - [Rewards](contracts/rewards.md)
 - [Coordinator](contracts/coordinator.md)
 
+## Message Access Requirements
+
+- [Amplifier Access Control](message_access.md)
+
 # Contributing
 
 - [Documentation](contributing/documentation.md)
-
-# Message Access Requirements
-
-- [Message Access](message_access.md)
