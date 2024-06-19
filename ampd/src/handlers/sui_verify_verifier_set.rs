@@ -25,6 +25,7 @@ use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Operators {
     pub weights_by_addresses: Vec<(HexBinary, Uint128)>,

@@ -19,6 +19,7 @@ pub trait EthereumClient {
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>>;
 }
 
+#[allow(dead_code)]
 #[async_trait]
 pub trait MoonbeamClient: EthereumClient {
     async fn finalized_block_hash(&self) -> Result<H256>;
