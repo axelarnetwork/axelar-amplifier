@@ -1,6 +1,6 @@
 # Summary
 
-- [Overview](overview.md)
+[Overview](overview.md)
 
 # Contracts
 
@@ -15,8 +15,8 @@
 
 ## Message Access Requirements
 
-- [Amplifier Access Control](message_access.md)
+[Amplifier Access Control](message_access.md)
 
 # Contributing
 
-- [Documentation](contributing/documentation.md)
+[Documentation](contributing/documentation.md)
