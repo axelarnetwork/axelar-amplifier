@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use error_stack::{self, Report, ResultExt};
-use ethers::types::U64;
+use ethers_core::types::U64;
 use mockall::automock;
 use serde::{Deserialize, Serialize};
 
@@ -118,7 +118,7 @@ where
 mod tests {
     use crate::evm::finalizer::{pick, ConfirmationHeightFinalizer, Finalization, Finalizer};
     use crate::evm::json_rpc::MockEthereumClient;
-    use ethers::{
+    use ethers_core::{
         abi::Hash,
         types::{Block, U64},
     };

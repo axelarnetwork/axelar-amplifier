@@ -913,7 +913,7 @@ mod test {
         let rewards_claimed = distribute_rewards(
             mock_deps.as_mut().storage,
             pool_id,
-            block_height_started + epoch_duration * (epoch_count + 2) as u64,
+            block_height_started + epoch_duration * (epoch_count as u64 + 2),
             None,
         )
         .unwrap();

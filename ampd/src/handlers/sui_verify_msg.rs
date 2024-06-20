@@ -154,7 +154,7 @@ mod tests {
     use cosmrs::tx::Msg;
     use cosmwasm_std;
     use error_stack::{Report, Result};
-    use ethers::providers::ProviderError;
+    use ethers_providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;

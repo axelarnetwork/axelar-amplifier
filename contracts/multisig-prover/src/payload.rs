@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{from_json, HexBinary, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, PrimaryKey};
+use error_stack::Result;
 use sha3::{Digest, Keccak256};
 
 use axelar_wasm_std::hash::Hash;
@@ -31,9 +32,9 @@ impl Payload {
                     .map(|msg| msg.cc_id.clone())
                     .collect::<Vec<CrossChainId>>();
 
-                (&message_ids).into()
+                message_ids.as_slice().into()
             }
-            Payload::VerifierSet(verifier_set) => verifier_set.hash().into(),
+            Payload::VerifierSet(verifier_set) => verifier_set.hash().as_slice().into(),
         }
     }
 
@@ -55,6 +56,7 @@ impl Payload {
             Payload::VerifierSet(_) => None,
         }
     }
+
     pub fn execute_data(
         &self,
         encoder: Encoder,
@@ -76,12 +78,6 @@ impl Payload {
 
 #[cw_serde]
 pub struct PayloadId(HexBinary);
-
-impl From<HexBinary> for PayloadId {
-    fn from(id: HexBinary) -> Self {
-        Self(id)
-    }
-}
 
 impl From<&[u8]> for PayloadId {
     fn from(id: &[u8]) -> Self {
@@ -108,8 +104,8 @@ impl KeyDeserialize for PayloadId {
     }
 }
 
-impl From<&Vec<CrossChainId>> for PayloadId {
-    fn from(ids: &Vec<CrossChainId>) -> Self {
+impl From<&[CrossChainId]> for PayloadId {
+    fn from(ids: &[CrossChainId]) -> Self {
         let mut message_ids = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
         message_ids.sort();
 
@@ -129,10 +125,10 @@ mod test {
         let mut message_ids: Vec<CrossChainId> =
             messages.into_iter().map(|msg| msg.cc_id).collect();
 
-        let res: PayloadId = (&message_ids).into();
+        let res: PayloadId = message_ids.as_slice().into();
 
         message_ids.reverse();
-        let res2: PayloadId = (&message_ids).into();
+        let res2: PayloadId = message_ids.as_slice().into();
 
         assert_eq!(res, res2);
     }

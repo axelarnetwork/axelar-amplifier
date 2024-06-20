@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
-use ethers::providers::{JsonRpcClient, ProviderError};
+use ethers_providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
 use sui_json_rpc_types::{SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions};
 use sui_types::digests::TransactionDigest;

@@ -112,7 +112,6 @@ where
         let req = req.into_inner();
         let msg = req.msg.ok_or(Status::invalid_argument("missing msg"))?;
 
-        // TODO: validate msg by estimating its gas cost before broadcasting?
         self.broadcaster
             .broadcast(msg)
             .await

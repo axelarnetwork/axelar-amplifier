@@ -7,8 +7,8 @@ use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
 
-use axelar_wasm_std::nonempty;
 use axelar_wasm_std::voting::{PollId, Vote};
+use axelar_wasm_std::{nonempty, VerificationStatus};
 use multisig::verifier_set::VerifierSet;
 use router_api::{Address, ChainName, Message};
 
@@ -217,6 +217,28 @@ impl From<PollEnded> for Event {
             .add_attribute(
                 "results",
                 serde_json::to_string(&other.results).expect("failed to serialize results"),
+            )
+    }
+}
+
+pub struct QuorumReached<T> {
+    pub content: T,
+    pub status: VerificationStatus,
+}
+
+impl<T> From<QuorumReached<T>> for Event
+where
+    T: cosmwasm_schema::serde::Serialize,
+{
+    fn from(value: QuorumReached<T>) -> Self {
+        Event::new("quorum_reached")
+            .add_attribute(
+                "content",
+                serde_json::to_string(&value.content).expect("failed to serialize content"),
+            )
+            .add_attribute(
+                "status",
+                serde_json::to_string(&value.status).expect("failed to serialize status"),
             )
     }
 }
