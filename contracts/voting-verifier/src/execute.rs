@@ -231,14 +231,17 @@ pub fn vote(
 
     let results_after_voting = get_poll_results(&poll);
 
-    let quorum_events = (results_after_voting.difference(results_before_voting))
+    let quorum_events = results_after_voting
+        .difference(results_before_voting)
         .expect("failed to substract poll results")
         .0
         .into_iter()
         .enumerate()
         .filter_map(|(idx, vote)| vote.map(|vote| (idx, vote)))
         .map(|(index_in_poll, vote)| {
-            make_quorum_event(&vote, index_in_poll as u32, &poll_id, &poll, &deps)
+            let idx = u32::try_from(index_in_poll)
+                .expect("the amount of votes should never overflow u32");
+            make_quorum_event(&vote, idx, &poll_id, &poll, &deps)
         })
         .collect::<Result<Vec<Event>, _>>()?;
 

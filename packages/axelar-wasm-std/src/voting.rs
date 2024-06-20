@@ -365,7 +365,7 @@ impl WeightedPoll {
             return Err(Error::PollExpired);
         }
 
-        if votes.len() != self.poll_size as usize {
+        if votes.len() as u64 != self.poll_size {
             return Err(Error::InvalidVoteSize);
         }
 

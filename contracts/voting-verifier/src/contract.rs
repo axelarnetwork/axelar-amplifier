@@ -207,19 +207,19 @@ mod test {
         deps
     }
 
-    fn message_id(id: &str, index: u64, msg_id_format: &MessageIdFormat) -> nonempty::String {
+    fn message_id(id: &str, index: u32, msg_id_format: &MessageIdFormat) -> nonempty::String {
         let tx_hash = Keccak256::digest(id.as_bytes()).into();
         match msg_id_format {
             MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
                 tx_hash,
-                event_index: index as u32,
+                event_index: index,
             }
             .to_string()
             .parse()
             .unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex => Base58TxDigestAndEventIndex {
                 tx_digest: tx_hash,
-                event_index: index as u32,
+                event_index: index,
             }
             .to_string()
             .parse()
@@ -227,7 +227,7 @@ mod test {
         }
     }
 
-    fn messages(len: u64, msg_id_format: &MessageIdFormat) -> Vec<Message> {
+    fn messages(len: u32, msg_id_format: &MessageIdFormat) -> Vec<Message> {
         (0..len)
             .map(|i| Message {
                 cc_id: CrossChainId {
@@ -362,7 +362,7 @@ mod test {
         let mut deps = setup(verifiers.clone(), &msg_id_format);
         let messages_count = 5;
         let messages_in_progress = 3;
-        let messages = messages(messages_count as u64, &msg_id_format);
+        let messages = messages(messages_count as u32, &msg_id_format);
 
         execute(
             deps.as_mut(),
@@ -1157,7 +1157,7 @@ mod test {
 
         // simulate a majority of verifiers voting for succeeded on chain
         verifiers.iter().enumerate().for_each(|(i, verifier)| {
-            if i >= majority as usize {
+            if i as u64 >= majority {
                 return;
             }
             let msg = ExecuteMsg::Vote {
@@ -1266,7 +1266,7 @@ mod test {
         // which is one less than the updated majority. The messages
         // should not receive enough votes to be considered verified
         verifiers.iter().enumerate().for_each(|(i, verifier)| {
-            if i >= old_majority as usize {
+            if i as u64 >= old_majority {
                 return;
             }
             let msg = ExecuteMsg::Vote {
