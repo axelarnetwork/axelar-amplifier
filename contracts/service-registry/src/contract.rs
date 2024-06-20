@@ -1763,6 +1763,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::cast_possible_truncation)]
     fn get_active_verifiers_should_not_return_less_than_min() {
         let mut deps = setup();
 

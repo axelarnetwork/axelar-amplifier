@@ -219,13 +219,13 @@ mod tests {
         );
     }
 
-    fn message(id: u64) -> Message {
+    fn message(id: u32) -> Message {
         Message {
             cc_id: CrossChainId {
                 chain: "source-chain".parse().unwrap(),
                 id: HexTxHashAndEventIndex {
                     tx_hash: [0; 32],
-                    event_index: id as u32,
+                    event_index: id,
                 }
                 .to_string()
                 .try_into()

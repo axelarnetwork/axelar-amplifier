@@ -196,7 +196,7 @@ mod test {
         .unwrap();
     }
 
-    #[allow(clippy::arithmetic_side_effects)]
+    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
     fn generate_messages(
         src_chain: &Chain,
         dest_chain: &Chain,
