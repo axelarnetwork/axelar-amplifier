@@ -346,7 +346,7 @@ where
                     handlers::mvx_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        CommunicationProxy::new(proxy_url.to_string()),
+                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches("/").into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
@@ -359,7 +359,7 @@ where
                     handlers::mvx_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
-                        CommunicationProxy::new(proxy_url.to_string()),
+                        CommunicationProxy::new(proxy_url.to_string().trim_end_matches("/").into()),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,

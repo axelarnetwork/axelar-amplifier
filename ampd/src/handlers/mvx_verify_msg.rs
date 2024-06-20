@@ -26,7 +26,7 @@ type Result<T> = error_stack::Result<T, Error>;
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
-    pub tx_id: String,
+    pub tx_id: Hash,
     pub event_index: u32,
     pub destination_address: String,
     pub destination_chain: router_api::ChainName,
@@ -126,11 +126,19 @@ where
             .collect();
         let transactions_info = self
             .blockchain
-            .transactions_info_with_results(tx_hashes)
+            .transactions_info_with_results(tx_hashes.clone())
             .await
             .change_context(Error::TxReceipts)?;
 
-        let votes = messages
+        // TODO: Remove this after debugging
+        info!(
+            "voting for message with hashes {:x?} and messages {:x?} and transactions info {:x?}",
+            tx_hashes,
+            &messages,
+            transactions_info.clone()
+        );
+
+        let votes: Vec<Vote> = messages
             .iter()
             .map(|msg| {
                 transactions_info
@@ -140,6 +148,9 @@ where
                     })
             })
             .collect();
+
+        // TODO: Remove after debugging
+        info!("Votes {}", votes.first().unwrap());
 
         Ok(vec![self
             .vote_msg(poll_id, votes)
@@ -166,8 +177,9 @@ mod tests {
     use crate::handlers::errors::Error;
     use crate::handlers::tests::get_event;
     use crate::mvx::proxy::MockMvxProxy;
-    use crate::PREFIX;
     use crate::types::{EVMAddress, Hash, TMAddress};
+    use crate::PREFIX;
+    use hex::ToHex;
 
     use super::PollStartedEvent;
 
@@ -192,7 +204,8 @@ mod tests {
         let message = event.messages.get(0).unwrap();
 
         assert!(
-            message.tx_id == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
+            message.tx_id.encode_hex::<String>()
+                == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312",
         );
         assert!(message.event_index == 1u32);
         assert!(message.destination_chain.to_string() == "ethereum");
@@ -269,8 +282,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, proxy, watch::channel(0).1);
+        let handler = super::Handler::new(worker, voting_verifier, proxy, watch::channel(0).1);
 
         assert!(matches!(
             *handler.handle(&event).await.unwrap_err().current_context(),
@@ -304,9 +316,7 @@ mod tests {
         let mut proxy = MockMvxProxy::new();
         proxy
             .expect_transactions_info_with_results()
-            .returning(|_| {
-                Err(Report::from(Error::Finalizer))
-            });
+            .returning(|_| Err(Report::from(Error::Finalizer)));
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);

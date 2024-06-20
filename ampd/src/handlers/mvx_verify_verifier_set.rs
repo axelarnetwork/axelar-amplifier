@@ -15,7 +15,7 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::types::TMAddress;
+use crate::types::{Hash, TMAddress};
 
 use crate::mvx::proxy::MvxProxy;
 use crate::mvx::verifier::verify_verifier_set;
@@ -27,7 +27,7 @@ use tracing::{info, info_span};
 
 #[derive(Deserialize, Debug)]
 pub struct VerifierSetConfirmation {
-    pub tx_id: String,
+    pub tx_id: Hash,
     pub event_index: u32,
     pub verifier_set: VerifierSet,
 }
@@ -163,6 +163,7 @@ mod tests {
     use cosmwasm_std;
     use cosmwasm_std::{HexBinary, Uint128};
     use error_stack::{Report, Result};
+    use hex::ToHex;
     use tokio::test as async_test;
 
     use events::Event;
@@ -198,7 +199,7 @@ mod tests {
         let verifier_set = event.verifier_set;
 
         assert!(
-            verifier_set.tx_id
+            verifier_set.tx_id.encode_hex::<String>()
                 == "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
         );
         assert!(verifier_set.event_index == 1u32);

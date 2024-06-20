@@ -7,6 +7,7 @@ use base64::Engine;
 use multisig_prover::encoding::mvx::WeightedSigners;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
+use hex::ToHex;
 
 const CONTRACT_CALL_IDENTIFIER: &str = "callContract";
 const CONTRACT_CALL_EVENT: &str = "contract_call_event";
@@ -153,7 +154,7 @@ pub fn verify_message(
         CONTRACT_CALL_EVENT.as_bytes(),
     ) {
         Some(event)
-            if transaction.hash.as_ref().unwrap() == &message.tx_id
+            if transaction.hash.as_ref().unwrap() == &message.tx_id.encode_hex::<String>()
                 && message.eq_event(event).unwrap_or(false) =>
         {
             Vote::SucceededOnChain
@@ -175,7 +176,7 @@ pub fn verify_verifier_set(
         SIGNERS_ROTATED_EVENT.as_bytes(),
     ) {
         Some(event)
-            if transaction.hash.as_ref().unwrap() == &verifier_set.tx_id
+            if transaction.hash.as_ref().unwrap() == &verifier_set.tx_id.encode_hex::<String>()
                 && verifier_set.eq_event(event).unwrap_or(false) =>
         {
             Vote::SucceededOnChain
@@ -186,7 +187,6 @@ pub fn verify_verifier_set(
 
 #[cfg(test)]
 mod tests {
-    use ethers::abi::AbiEncode;
     use multiversx_sdk::data::address::Address;
     use multiversx_sdk::data::transaction::{ApiLogs, Events, TransactionOnNetwork};
 
@@ -201,6 +201,7 @@ mod tests {
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
     use cosmwasm_std::{HexBinary, Uint128};
+    use hex::ToHex;
     use multisig::key::KeyType;
     use multisig::test::common::{build_verifier_set, ed25519_test_data};
 
@@ -209,7 +210,9 @@ mod tests {
     fn should_not_verify_msg_if_tx_id_does_not_match() {
         let (gateway_address, tx, mut msg) = get_matching_msg_and_tx();
 
-        msg.tx_id = "someotherid".into();
+        msg.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
+            .parse()
+            .unwrap();
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -303,10 +306,7 @@ mod tests {
     #[test]
     fn should_verify_msg_if_correct_unsupported_index() {
         let (gateway_address, tx, msg) = get_matching_msg_and_tx();
-        assert_eq!(
-            verify_message(&gateway_address, &tx, &msg),
-            Vote::NotFound
-        );
+        assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
     #[test]
@@ -325,7 +325,9 @@ mod tests {
     fn should_not_verify_verifier_set_if_tx_id_does_not_match() {
         let (gateway_address, tx, mut verifier_set) = get_matching_verifier_set_and_tx();
 
-        verifier_set.tx_id = "someotherid".into();
+        verifier_set.tx_id = "ffaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47313"
+            .parse()
+            .unwrap();
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -439,10 +441,12 @@ mod tests {
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
         .unwrap();
-        let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312";
+        let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
+            .parse()
+            .unwrap();
 
         let msg = Message {
-            tx_id: tx_id.to_string(),
+            tx_id,
             event_index: 1,
             source_address,
             destination_chain: "ethereum".parse().unwrap(),
@@ -451,7 +455,7 @@ mod tests {
         };
 
         // Only the first 32 bytes matter for data
-        let payload_hash = msg.payload_hash.encode();
+        let payload_hash = msg.payload_hash;
 
         let wrong_event = Events {
             address: gateway_address.clone(),
@@ -479,7 +483,7 @@ mod tests {
         )
         .unwrap();
         let tx_block = TransactionOnNetwork {
-            hash: Some(msg.tx_id.clone()),
+            hash: Some(msg.tx_id.encode_hex::<String>()),
             logs: Some(ApiLogs {
                 address: other_address.clone(),
                 events: vec![wrong_event, event],
@@ -523,10 +527,12 @@ mod tests {
             "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
         )
         .unwrap();
-        let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312";
+        let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
+            .parse()
+            .unwrap();
 
         let verifier_set_confirmation = VerifierSetConfirmation {
-            tx_id: tx_id.to_string(),
+            tx_id,
             event_index: 1,
             verifier_set: build_verifier_set(KeyType::Ed25519, &ed25519_test_data::signers()),
         };
@@ -570,7 +576,7 @@ mod tests {
         )
         .unwrap();
         let tx_block = TransactionOnNetwork {
-            hash: Some(tx_id.to_string()),
+            hash: Some(tx_id.encode_hex::<String>()),
             logs: Some(ApiLogs {
                 address: other_address.clone(),
                 events: vec![wrong_event, event],

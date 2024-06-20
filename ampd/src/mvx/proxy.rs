@@ -1,10 +1,14 @@
-use crate::handlers::errors::Error;
+use std::collections::{HashMap, HashSet};
+
 use async_trait::async_trait;
 use futures::future::join_all;
+use hex::ToHex;
 use mockall::automock;
 use multiversx_sdk::blockchain::CommunicationProxy;
 use multiversx_sdk::data::transaction::TransactionOnNetwork;
-use std::collections::{HashMap, HashSet};
+
+use crate::handlers::errors::Error;
+use crate::types::Hash;
 
 type Result<T> = error_stack::Result<T, Error>;
 
@@ -15,12 +19,12 @@ const STATUS_SUCCESS: &str = "success";
 pub trait MvxProxy {
     async fn transactions_info_with_results(
         &self,
-        tx_hashes: HashSet<String>,
-    ) -> Result<HashMap<String, TransactionOnNetwork>>;
+        tx_hashes: HashSet<Hash>,
+    ) -> Result<HashMap<Hash, TransactionOnNetwork>>;
 
     async fn transaction_info_with_results(
         &self,
-        tx_hash: &String,
+        tx_hash: &Hash,
     ) -> Result<Option<TransactionOnNetwork>>;
 
     fn is_valid_transaction(tx: &TransactionOnNetwork) -> bool;
@@ -30,8 +34,13 @@ pub trait MvxProxy {
 impl MvxProxy for CommunicationProxy {
     async fn transactions_info_with_results(
         &self,
-        tx_hashes: HashSet<String>,
-    ) -> Result<HashMap<String, TransactionOnNetwork>> {
+        tx_hashes: HashSet<Hash>,
+    ) -> Result<HashMap<Hash, TransactionOnNetwork>> {
+        let tx_hashes: Vec<String> = tx_hashes
+            .iter()
+            .map(|tx_hash| tx_hash.encode_hex::<String>())
+            .collect();
+
         Ok(join_all(
             tx_hashes
                 .iter()
@@ -50,17 +59,17 @@ impl MvxProxy for CommunicationProxy {
                 return None;
             }
 
-            Some((tx.hash.clone().unwrap(), tx))
+            Some((tx.hash.clone().unwrap().parse().unwrap(), tx))
         })
         .collect())
     }
 
     async fn transaction_info_with_results(
         &self,
-        tx_hash: &String,
+        tx_hash: &Hash,
     ) -> Result<Option<TransactionOnNetwork>> {
         let tx = self
-            .get_transaction_info_with_results(tx_hash.as_str())
+            .get_transaction_info_with_results(tx_hash.encode_hex::<String>().as_str())
             .await;
 
         if !tx.is_ok() {
