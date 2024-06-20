@@ -1,9 +1,10 @@
 use async_trait::async_trait;
-use connection_router_api::ChainName;
 use cosmrs::cosmwasm::MsgExecuteContract;
+use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
 use futures::stream::FuturesOrdered;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
+use router_api::ChainName;
 use serde::Deserialize;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::UiTransactionEncoding;
@@ -19,7 +20,6 @@ use voting_verifier::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error;
-use crate::queue::queued_broadcaster::BroadcasterClient;
 use crate::solana::msg_verifier::verify_message;
 use crate::solana::rpc::RpcCacheWrapper;
 use crate::types::TMAddress;
@@ -31,7 +31,7 @@ pub struct Message {
     pub tx_id: String,
     pub event_index: u64,
     pub destination_address: String,
-    pub destination_chain: connection_router_api::ChainName,
+    pub destination_chain: router_api::ChainName,
     pub source_address: String,
     #[serde(with = "axelar_wasm_std::hex")]
     pub payload_hash: [u8; 32],
@@ -50,53 +50,39 @@ struct PollStartedEvent {
     expires_at: u64,
 }
 
-pub struct Handler<B>
-where
-    B: BroadcasterClient,
-{
-    worker: TMAddress,
+pub struct Handler {
+    verifier: TMAddress,
     voting_verifier: TMAddress,
     rpc_client: RpcCacheWrapper,
     chain: ChainName,
-    broadcast_client: B,
     latest_block_height: Receiver<u64>,
 }
 
-impl<B> Handler<B>
-where
-    B: BroadcasterClient,
-{
+impl Handler {
     pub fn new(
-        worker: TMAddress,
+        verifier: TMAddress,
         voting_verifier: TMAddress,
         rpc_client: RpcCacheWrapper,
         chain: ChainName,
-        broadcast_client: B,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
-            worker,
+            verifier,
             voting_verifier,
             rpc_client,
             chain,
-            broadcast_client,
             latest_block_height,
         }
     }
-    async fn broadcast_votes(&self, poll_id: PollId, votes: Vec<Vote>) -> Result<()> {
-        let msg = serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
-            .expect("vote msg should serialize");
-        let tx = MsgExecuteContract {
-            sender: self.worker.as_ref().clone(),
-            contract: self.voting_verifier.as_ref().clone(),
-            msg,
-            funds: vec![],
-        };
 
-        self.broadcast_client
-            .broadcast(tx)
-            .await
-            .change_context(Error::Broadcaster)
+    fn vote_msg(&self, poll_id: PollId, votes: Vec<Vote>) -> MsgExecuteContract {
+        MsgExecuteContract {
+            sender: self.verifier.as_ref().clone(),
+            contract: self.voting_verifier.as_ref().clone(),
+            msg: serde_json::to_vec(&ExecuteMsg::Vote { poll_id, votes })
+                .expect("vote msg should serialize"), // This should serialize as inputs are controlled.
+            funds: vec![],
+        }
     }
 
     async fn process_message(
@@ -138,18 +124,15 @@ where
                 }
             },
         };
-        Ok(verify_message(source_gateway_address, sol_tx, &msg))
+        Ok(verify_message(source_gateway_address, sol_tx, msg))
     }
 }
 
 #[async_trait]
-impl<B> EventHandler for Handler<B>
-where
-    B: BroadcasterClient + Send + Sync,
-{
+impl EventHandler for Handler {
     type Err = Error;
 
-    async fn handle(&self, event: &Event) -> Result<()> {
+    async fn handle(&self, event: &Event) -> Result<Vec<Any>> {
         let PollStartedEvent {
             contract_address,
             poll_id,
@@ -161,32 +144,32 @@ where
             ..
         } = match event.try_into() as error_stack::Result<_, _> {
             Err(report) if matches!(report.current_context(), EventTypeMismatch(_)) => {
-                return Ok(());
+                return Ok(vec![]);
             }
             event => event.change_context(Error::DeserializeEvent)?,
         };
 
         if self.chain != source_chain {
-            return Ok(());
+            return Ok(vec![]);
         }
 
         if self.voting_verifier != contract_address {
-            return Ok(());
+            return Ok(vec![]);
         }
 
-        if !participants.contains(&self.worker) {
-            return Ok(());
+        if !participants.contains(&self.verifier) {
+            return Ok(vec![]);
         }
 
         let latest_block_height = *self.latest_block_height.borrow();
         if latest_block_height >= expires_at {
             info!(poll_id = poll_id.to_string(), "skipping expired poll");
-            return Ok(());
+            return Ok(vec![]);
         }
 
         let mut votes: Vec<Vote> = Vec::new();
 
-        let mut ord_fut: FuturesOrdered<_> =  messages
+        let mut ord_fut: FuturesOrdered<_> = messages
             .iter()
             .map(|msg| self.process_message(msg, &source_gateway_address))
             .collect();
@@ -195,7 +178,10 @@ where
             votes.push(vote_result?) // If there is a failure, its due to a network error, so we abort this handler operation and all messages need to be processed again.
         }
 
-        self.broadcast_votes(poll_id, votes).await
+        Ok(vec![self
+            .vote_msg(poll_id, votes)
+            .into_any()
+            .expect("vote msg should serialize")])
     }
 }
 
@@ -213,7 +199,6 @@ mod test {
     use voting_verifier::events::{PollMetadata, PollStarted, TxEventConfirmation};
 
     use crate::{
-        queue::queued_broadcaster::MockBroadcasterClient,
         solana::test_utils::rpc_client_with_recorder,
         types::{EVMAddress, Hash},
         PREFIX,
@@ -231,13 +216,7 @@ mod test {
         let (_, rx) = watch::channel(expiration - 1);
         let source_chain = ChainName::from_str("solana").unwrap();
 
-        // Prepare the message verifier and the vote broadcaster
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast::<MsgExecuteContract>()
-            .once()
-            .returning(|_| Ok(()));
-
+        // Prepare the message verifier
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
@@ -254,11 +233,11 @@ mod test {
             voting_verifier,
             RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            broadcast_client,
             rx,
         );
 
-        handler.handle(&event).await.unwrap();
+        let votes = handler.handle(&event).await.unwrap();
+        assert!(!votes.is_empty());
         assert_eq!(
             Some(&2),
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
@@ -273,14 +252,9 @@ mod test {
         let expiration = 100u64;
         let (_, rx) = watch::channel(expiration - 1);
         let source_chain = ChainName::from_str("solana").unwrap();
-        let poll_started_source_chain = ChainName::from_str("other_chain").unwrap(); // A different, unexpected source chain.
+        let poll_started_source_chain = ChainName::from_str("otherchain").unwrap(); // A different, unexpected source chain.
 
-        // Prepare the message verifier and the vote broadcaster
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast::<MsgExecuteContract>()
-            .never();
-
+        // Prepare the message verifier
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
@@ -297,12 +271,11 @@ mod test {
             voting_verifier,
             RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            broadcast_client,
             rx,
         );
 
-        handler.handle(&event).await.unwrap();
-
+        let handle_result = handler.handle(&event).await.unwrap();
+        assert!(handle_result.is_empty());
         assert_eq!(
             None,
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
@@ -318,13 +291,7 @@ mod test {
         let (_, rx) = watch::channel(expiration - 1);
         let source_chain = ChainName::from_str("solana").unwrap();
 
-        // Prepare the message verifier and the vote broadcaster
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast::<MsgExecuteContract>()
-            .once()
-            .returning(|_| Ok(()));
-
+        // Prepare the message verifier
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
@@ -337,12 +304,11 @@ mod test {
             voting_verifier,
             RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            broadcast_client,
             rx,
         );
 
-        handler.handle(&event).await.unwrap();
-
+        let handle_result = handler.handle(&event).await.unwrap();
+        assert!(!handle_result.is_empty());
         assert_eq!(
             Some(&1),
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
@@ -358,12 +324,7 @@ mod test {
         let (_, rx) = watch::channel(expiration - 1);
         let source_chain = ChainName::from_str("solana").unwrap();
 
-        // Prepare the message verifier and the vote broadcaster
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast::<MsgExecuteContract>()
-            .never();
-
+        // Prepare the message verifier
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
@@ -380,12 +341,11 @@ mod test {
             voting_verifier,
             RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            broadcast_client,
             rx,
         );
 
-        handler.handle(&event).await.unwrap();
-
+        let handler_result = handler.handle(&event).await.unwrap();
+        assert!(handler_result.is_empty());
         assert_eq!(
             None,
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
@@ -401,12 +361,7 @@ mod test {
         let (_, rx) = watch::channel(expiration - 1);
         let source_chain = ChainName::from_str("solana").unwrap();
 
-        // Prepare the message verifier and the vote broadcaster
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast::<MsgExecuteContract>()
-            .never();
-
+        // Prepare the message verifier
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
@@ -419,12 +374,11 @@ mod test {
             voting_verifier,
             RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            broadcast_client,
             rx,
         );
 
-        handler.handle(&event).await.unwrap();
-
+        let handler_result = handler.handle(&event).await.unwrap();
+        assert!(handler_result.is_empty());
         assert_eq!(
             None,
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)
@@ -440,12 +394,7 @@ mod test {
         let (_, rx) = watch::channel(expiration); // expired !
         let source_chain = ChainName::from_str("solana").unwrap();
 
-        // Prepare the message verifier and the vote broadcaster
-        let mut broadcast_client = MockBroadcasterClient::new();
-        broadcast_client
-            .expect_broadcast::<MsgExecuteContract>()
-            .never();
-
+        // Prepare the message verifier
         let (rpc_client, rpc_recorder) = rpc_client_with_recorder();
 
         let event: Event = get_event(
@@ -462,12 +411,11 @@ mod test {
             voting_verifier,
             RpcCacheWrapper::new(rpc_client, NonZeroUsize::new(10).unwrap()),
             source_chain,
-            broadcast_client,
             rx,
         );
 
-        handler.handle(&event).await.unwrap();
-
+        let handler_result = handler.handle(&event).await.unwrap();
+        assert!(handler_result.is_empty());
         assert_eq!(
             None,
             rpc_recorder.read().await.get(&RpcRequest::GetTransaction)

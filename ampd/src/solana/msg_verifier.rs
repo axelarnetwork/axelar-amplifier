@@ -1,23 +1,23 @@
 use axelar_wasm_std::voting::Vote;
-use gmp_gateway::events::GatewayEvent;
+use gmp_gateway::events::{CallContract, GatewayEvent};
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
 };
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 use tracing::error;
 
 use crate::handlers::solana_verify_msg::Message;
 
-impl PartialEq<&Message> for GatewayEvent {
+impl PartialEq<&Message> for GatewayEvent<'_> {
     fn eq(&self, msg: &&Message) -> bool {
         match self {
-            GatewayEvent::CallContract {
+            GatewayEvent::CallContract(Cow::Owned(CallContract {
                 sender,
                 destination_chain,
                 destination_address,
                 payload: _,
                 payload_hash,
-            } => {
+            })) => {
                 let event_dest_addr = String::from_utf8(destination_address.to_owned());
                 let event_dest_chain = String::from_utf8(destination_chain.to_owned());
 
@@ -111,9 +111,9 @@ pub fn verify_message(
 // When the first matching log message is found, its index will be returned.
 fn find_first_log_message_match(
     tx_id: &str,
-    log_messages: &Vec<String>,
+    log_messages: &[String],
     message: &Message,
-    account_keys: &Vec<String>,
+    account_keys: &[String],
     source_gateway_address: &String,
 ) -> Option<usize> {
     for (i, log) in log_messages.iter().enumerate() {
@@ -137,11 +137,10 @@ fn find_first_log_message_match(
 mod tests {
     use base64::{engine::general_purpose, Engine};
     use borsh::BorshSerialize;
-    use gmp_gateway::types::PubkeyWrapper;
 
     use std::str::FromStr;
 
-    use connection_router_api::ChainName;
+    use router_api::ChainName;
     use solana_program::pubkey::Pubkey;
 
     use super::*;
@@ -172,7 +171,7 @@ mod tests {
         let payload_hash: [u8; 32] = [0; 32];
         let source_gateway_address: String = "sol_gateway_addr".to_string();
         let source_pubkey = Pubkey::from([0; 32]);
-        let source_address = PubkeyWrapper::from(source_pubkey);
+        let source_address = source_pubkey;
 
         // Code below helps on generating the program log line for adding in the
         // tests/solana_tx.json file and use it as test fixture. See the "logMessages" field
@@ -207,19 +206,19 @@ mod tests {
     }
 
     fn get_tx_log_message(
-        sender: PubkeyWrapper,
+        sender: Pubkey,
         destination_chain: Vec<u8>,
         destination_address: Vec<u8>,
         payload: Vec<u8>,
         payload_hash: [u8; 32],
     ) -> String {
-        let event = gmp_gateway::events::GatewayEvent::CallContract {
+        let event = gmp_gateway::events::GatewayEvent::CallContract(Cow::Owned(CallContract {
             sender,
             destination_chain,
             destination_address,
             payload,
             payload_hash,
-        };
+        }));
 
         let mut event_data = Vec::new();
         event.serialize(&mut event_data).unwrap();
@@ -253,7 +252,7 @@ mod tests {
     #[test]
     fn should_not_verify_msg_if_destination_chain_does_not_match() {
         let (gateway_address, _, tx, mut msg) = get_matching_msg_and_tx_block();
-        msg.destination_chain = ChainName::from_str("bad_chain").unwrap();
+        msg.destination_chain = ChainName::from_str("badchain").unwrap();
         assert_eq!(
             Vote::FailedOnChain,
             verify_message(&gateway_address, Arc::new(tx), &msg)
@@ -263,7 +262,7 @@ mod tests {
     #[test]
     fn should_not_verify_msg_if_source_address_does_not_match() {
         let (source_gateway_address, _, tx, mut msg) = get_matching_msg_and_tx_block();
-        msg.source_address = PubkeyWrapper::from(Pubkey::from([13; 32])).to_string();
+        msg.source_address = Pubkey::from([13; 32]).to_string();
         assert_eq!(
             Vote::FailedOnChain,
             verify_message(&source_gateway_address, Arc::new(tx), &msg)
@@ -306,7 +305,7 @@ mod tests {
                 &tx_id,
                 &log_messages,
                 &msg,
-                &vec![gateway_address.clone()],
+                &[gateway_address.clone()],
                 &gateway_address
             )
         );
@@ -318,7 +317,7 @@ mod tests {
 
     fn not_matching_tx_log_message(msg: &Message) -> String {
         get_tx_log_message(
-            PubkeyWrapper::from(Pubkey::from_str(&msg.source_address).unwrap()),
+            Pubkey::from_str(&msg.source_address).unwrap(),
             "abr".as_bytes().to_vec(),
             msg.destination_address.clone().into_bytes(),
             Vec::new(),
@@ -328,7 +327,7 @@ mod tests {
 
     fn matching_tx_log_message(msg: &Message) -> String {
         get_tx_log_message(
-            PubkeyWrapper::from(Pubkey::from_str(&msg.source_address).unwrap()),
+            Pubkey::from_str(&msg.source_address).unwrap(),
             msg.destination_chain.to_string().into_bytes(),
             msg.destination_address.clone().into_bytes(),
             Vec::new(),
@@ -352,7 +351,7 @@ mod tests {
                 &tx_id,
                 &log_messages,
                 &msg,
-                &vec![gateway_address.clone()],
+                &[gateway_address.clone()],
                 &gateway_address
             )
         );
@@ -370,7 +369,7 @@ mod tests {
                 &tx_id,
                 &log_messages,
                 &msg,
-                &vec![gateway_address.clone()],
+                &[gateway_address.clone()],
                 &gateway_address
             )
         );

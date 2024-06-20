@@ -350,7 +350,7 @@ where
                 } => self.create_handler_task(
                     format!("{}-msg-verifier", chain.name),
                     handlers::solana_verify_msg::Handler::new(
-                        worker.clone(),
+                        verifier.clone(),
                         cosmwasm_contract,
                         RpcCacheWrapper::new(
                             RpcClient::new_with_commitment(
@@ -360,7 +360,6 @@ where
                             NonZeroUsize::new(max_tx_cache_entries).unwrap(),
                         ),
                         chain.name,
-                        self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,
@@ -370,15 +369,14 @@ where
                     chain,
                 } => self.create_handler_task(
                     format!("{}-worker-set-verifier", chain.name),
-                    handlers::solana_verify_worker_set::Handler::new(
-                        worker.clone(),
+                    handlers::solana_verify_verifier_set::Handler::new(
+                        verifier.clone(),
                         cosmwasm_contract,
                         chain.name,
                         RpcClient::new_with_commitment(
                             chain.rpc_url.to_string(),
                             CommitmentConfig::finalized(),
                         ),
-                        self.broadcaster.client(),
                         self.block_height_monitor.latest_block_height(),
                     ),
                     stream_timeout,

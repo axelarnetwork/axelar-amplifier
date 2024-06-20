@@ -39,7 +39,8 @@ impl RpcCacheWrapper {
 
         Ok(tx)
     }
-
+    
+    #[cfg(test)]
     pub async fn entries(&self) -> usize {
         self.tx_cache.read().await.len()
     }

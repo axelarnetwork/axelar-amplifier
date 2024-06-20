@@ -45,7 +45,7 @@ impl RpcSender for RpcRecorder {
 
         acquired_record
         .entry(request)
-        .and_modify(|count| *count += 1)
+        .and_modify(|count| *count = count.checked_add(1).unwrap())
         .or_insert(1);
 
         let method = &request.build_request_json(42, params.clone())["method"];      

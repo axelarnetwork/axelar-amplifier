@@ -20,7 +20,7 @@ pub struct Chain {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct GenericChain {
-    pub name: connection_router_api::ChainName,
+    pub name: ChainName,
     pub rpc_url: Url,
 }
 
