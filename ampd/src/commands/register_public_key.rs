@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::convert::TryInto;
-use std::path::Path;
 
 use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg};
 use error_stack::{Result, ResultExt};
@@ -19,8 +18,8 @@ use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::TMAddress;
 use crate::{handlers, Error, PREFIX};
 
-pub async fn run(config: Config, state_path: &Path) -> Result<Option<String>, Error> {
-    let pub_key = verifier_pub_key(state_path, config.tofnd_config.clone()).await?;
+pub async fn run(config: Config) -> Result<Option<String>, Error> {
+    let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let multisig_address = get_multisig_address(&config)?;
 

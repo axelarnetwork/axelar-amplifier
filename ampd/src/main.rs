@@ -26,10 +26,6 @@ struct Args {
     #[arg(short, long, default_values_os_t = vec![std::path::PathBuf::from("~/.ampd/config.toml"), std::path::PathBuf::from("config.toml")])]
     pub config: Vec<PathBuf>,
 
-    /// Set the paths for state file lookup
-    #[arg(short, long, default_value_os_t = std::path::PathBuf::from("~/.ampd/state.json"))]
-    pub state: PathBuf,
-
     /// Set the output style of the logs
     #[arg(short, long, value_enum, default_value_t = Output::Text)]
     pub output: Output,
@@ -50,28 +46,25 @@ async fn main() -> ExitCode {
     set_up_logger(&args.output);
 
     let cfg = init_config(&args.config);
-    let state_path = expand_home_dir(&args.state);
 
     let result = match args.cmd {
         Some(SubCommand::Daemon) | None => {
             info!(args = args.as_value(), "starting daemon");
 
-            daemon::run(cfg, &state_path).await.then(|result| {
+            daemon::run(cfg).await.then(|result| {
                 info!("shutting down");
                 result
             })
         }
-        Some(SubCommand::BondVerifier(args)) => bond_verifier::run(cfg, &state_path, args).await,
+        Some(SubCommand::BondVerifier(args)) => bond_verifier::run(cfg, args).await,
         Some(SubCommand::RegisterChainSupport(args)) => {
-            register_chain_support::run(cfg, &state_path, args).await
+            register_chain_support::run(cfg, args).await
         }
         Some(SubCommand::DeregisterChainSupport(args)) => {
-            deregister_chain_support::run(cfg, &state_path, args).await
+            deregister_chain_support::run(cfg, args).await
         }
-        Some(SubCommand::RegisterPublicKey) => register_public_key::run(cfg, &state_path).await,
-        Some(SubCommand::VerifierAddress) => {
-            verifier_address::run(cfg.tofnd_config, &state_path).await
-        }
+        Some(SubCommand::RegisterPublicKey) => register_public_key::run(cfg).await,
+        Some(SubCommand::VerifierAddress) => verifier_address::run(cfg.tofnd_config).await,
     };
 
     match result {
