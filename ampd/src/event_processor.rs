@@ -17,7 +17,6 @@ use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::handlers::chain;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -25,15 +24,6 @@ pub trait EventHandler {
     type Err: Context;
 
     async fn handle(&self, event: &Event) -> Result<Vec<Any>, Self::Err>;
-
-    #[allow(dead_code)]
-    fn chain<H>(self, handler: H) -> chain::Handler<Self, H>
-    where
-        Self: Sized,
-        H: EventHandler,
-    {
-        chain::Handler::new(self, handler)
-    }
 }
 
 #[derive(Error, Debug)]
