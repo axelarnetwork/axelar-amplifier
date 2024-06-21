@@ -133,10 +133,7 @@ fn signers_weight(signatures: &HashMap<String, Signature>, verifier_set: &Verifi
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{
-        testing::{MockQuerier, MockStorage},
-        to_json_binary, Addr, HexBinary, QuerierWrapper,
-    };
+    use cosmwasm_std::{testing::MockQuerier, to_json_binary, Addr, HexBinary, QuerierWrapper};
 
     use crate::{
         key::KeyType,
@@ -147,7 +144,6 @@ mod tests {
     use super::*;
 
     pub struct TestConfig {
-        pub store: MockStorage,
         pub verifier_set: VerifierSet,
         pub session: SigningSession,
         pub signatures: HashMap<String, Signature>,
@@ -155,8 +151,6 @@ mod tests {
     }
 
     fn ecdsa_setup() -> TestConfig {
-        let store = MockStorage::new();
-
         let signers = ecdsa_test_data::signers();
 
         let verifier_set_id = "subkey".to_string();
@@ -185,7 +179,6 @@ mod tests {
             .collect();
 
         TestConfig {
-            store,
             verifier_set,
             session,
             signatures,
@@ -194,8 +187,6 @@ mod tests {
     }
 
     fn ed25519_setup() -> TestConfig {
-        let store = MockStorage::new();
-
         let signers = ed25519_test_data::signers();
 
         let verifier_set_id = "subkey".to_string();
@@ -224,7 +215,6 @@ mod tests {
             .collect();
 
         TestConfig {
-            store,
             verifier_set,
             session,
             signatures,

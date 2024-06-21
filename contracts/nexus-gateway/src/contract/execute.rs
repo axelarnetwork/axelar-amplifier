@@ -123,7 +123,7 @@ mod test {
             .returning(move || Ok(config.clone()));
         let contract = Contract::new(store);
 
-        let msg_ids = vec![
+        let msg_ids = [
             HexTxHashAndEventIndex {
                 tx_hash: vec![0x2f; 32].try_into().unwrap(),
                 event_index: 100,

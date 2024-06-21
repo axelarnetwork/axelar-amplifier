@@ -20,10 +20,6 @@ pub trait EthereumClient {
 }
 
 #[async_trait]
-pub trait MoonbeamClient: EthereumClient {
-    async fn finalized_block_hash(&self) -> Result<H256>;
-}
-#[async_trait]
 impl<P> EthereumClient for Client<P>
 where
     P: JsonRpcClient + Send + Sync + 'static,
@@ -42,15 +38,5 @@ where
 
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>> {
         self.request("eth_getTransactionReceipt", [hash]).await
-    }
-}
-
-#[async_trait]
-impl<P> MoonbeamClient for Client<P>
-where
-    P: JsonRpcClient + Send + Sync + 'static,
-{
-    async fn finalized_block_hash(&self) -> Result<H256> {
-        self.request("chain_getFinalizedHead", ()).await
     }
 }

@@ -126,7 +126,7 @@ fn routing_to_incorrect_gateway_interface() {
         ..
     } = test_utils::setup_test_case();
 
-    let msgs = vec![Message {
+    let msgs = [Message {
         cc_id: CrossChainId {
             chain: chain1.chain_name.clone(),
             id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"

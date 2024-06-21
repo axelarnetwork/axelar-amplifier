@@ -283,7 +283,7 @@ fn route_duplicate_ids_should_fail() {
 
 fn test_cases_for_correct_verifier() -> (
     Vec<Vec<Message>>,
-    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + Sized,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
     let status_by_msg = map_status_by_msg(all_messages.clone());
@@ -308,7 +308,7 @@ fn test_cases_for_correct_verifier() -> (
 
 fn test_cases_for_duplicate_msgs() -> (
     Vec<Vec<Message>>,
-    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone + Sized,
+    impl Fn(voting_verifier::msg::QueryMsg) -> Result<Vec<MessageStatus>, ContractError> + Clone,
 ) {
     let all_messages = generate_msgs_with_all_statuses(10);
     let status_by_msg = map_status_by_msg(all_messages.clone());

@@ -44,7 +44,11 @@ jobs:
         id: compile-contracts
         run: |
           cd axelar-amplifier
-          docker run --rm -v "$(pwd)":/code --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry cosmwasm/rust-optimizer:0.15.1
+          docker run --rm -v "$(pwd)":/code \
+          --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+          --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+          cosmwasm/optimizer:0.16.0
+          
           commit_hash=$(git rev-parse --short HEAD)
           cd ..
           mkdir -p ./artifacts/$commit_hash/
