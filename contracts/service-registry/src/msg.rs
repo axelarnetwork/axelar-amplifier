@@ -79,8 +79,3 @@ pub enum QueryMsg {
         verifier: String,
     },
 }
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub coordinator_contract: Addr,
-}
