@@ -59,6 +59,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
         (publisher, subscriber)
     }
 
+    #[allow(dead_code)]
     pub fn start_from(mut self, height: block::Height) -> Self {
         self.start_from = Some(height);
         self
@@ -175,6 +176,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
     }
 }
 
+#[allow(dead_code)]
 pub fn skip_to_block<E>(
     stream: impl Stream<Item = Result<Event, E>>,
     height: block::Height,

@@ -24,6 +24,7 @@ impl Handler {
     }
 }
 
+#[allow(dead_code)]
 pub fn with_block_height_notifier(
     handler: impl EventHandler + Send + Sync,
 ) -> (impl EventHandler, Receiver<block::Height>) {
