@@ -1,11 +1,17 @@
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::time::Duration;
 
 use block_height_monitor::BlockHeightMonitor;
 use cosmrs::proto::cosmos::{
-    auth::v1beta1::query_client::QueryClient, tx::v1beta1::service_client::ServiceClient,
+    auth::v1beta1::query_client::QueryClient as AuthQueryClient,
+    bank::v1beta1::query_client::QueryClient as BankQueryClient,
+    tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{report, FutureExt, Result, ResultExt};
+use solana::rpc::RpcCacheWrapper;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use router_api::ChainName;
@@ -21,7 +27,7 @@ use broadcaster::Broadcaster;
 use event_processor::EventHandler;
 use event_sub::EventSub;
 use events::Event;
-use queue::queued_broadcaster::{QueuedBroadcaster, QueuedBroadcasterDriver};
+use queue::queued_broadcaster::QueuedBroadcaster;
 use state::StateUpdater;
 use tofnd::grpc::{Multisig, MultisigClient};
 use types::TMAddress;
@@ -43,12 +49,15 @@ mod handlers;
 mod health_check;
 mod json_rpc;
 mod queue;
+mod solana;
 pub mod state;
 mod sui;
 mod tm_client;
 mod tofnd;
 mod types;
 mod url;
+
+pub use grpc::{client, proto};
 
 const PREFIX: &str = "axelar";
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(3);
@@ -82,7 +91,10 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
     let service_client = ServiceClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
-    let query_client = QueryClient::connect(tm_grpc.to_string())
+    let auth_query_client = AuthQueryClient::connect(tm_grpc.to_string())
+        .await
+        .change_context(Error::Connection)?;
+    let bank_query_client = BankQueryClient::connect(tm_grpc.to_string())
         .await
         .change_context(Error::Connection)?;
     let multisig_client = MultisigClient::new(tofnd_config.party_uid, tofnd_config.url)
@@ -107,21 +119,25 @@ async fn prepare_app(cfg: Config, state: State) -> Result<App<impl Broadcaster>,
         }
     };
 
-    let verifier: TMAddress = pub_key
-        .account_id(PREFIX)
-        .expect("failed to convert to account identifier")
-        .into();
-
-    let broadcaster = broadcaster::BroadcastClient::builder()
-        .query_client(query_client)
-        .address(verifier.clone())
+    let broadcaster = broadcaster::UnvalidatedBasicBroadcaster::builder()
+        .auth_query_client(auth_query_client)
+        .bank_query_client(bank_query_client)
+        .address_prefix(PREFIX.to_string())
         .client(service_client)
         .signer(multisig_client.clone())
         .pub_key((tofnd_config.key_uid, pub_key))
         .config(broadcast.clone())
-        .build();
+        .build()
+        .validate_fee_denomination()
+        .await
+        .change_context(Error::Broadcaster)?;
 
     let health_check_server = health_check::Server::new(health_check_bind_addr);
+
+    let verifier: TMAddress = pub_key
+        .account_id(PREFIX)
+        .expect("failed to convert to account identifier")
+        .into();
 
     App::new(
         tm_client,
@@ -161,8 +177,6 @@ where
     event_subscriber: event_sub::EventSubscriber,
     event_processor: TaskGroup<event_processor::Error>,
     broadcaster: QueuedBroadcaster<T>,
-    #[allow(dead_code)]
-    broadcaster_driver: QueuedBroadcasterDriver,
     state_updater: StateUpdater,
     multisig_client: MultisigClient,
     block_height_monitor: BlockHeightMonitor<tendermint_rpc::HttpClient>,
@@ -195,7 +209,7 @@ where
         };
 
         let event_processor = TaskGroup::new();
-        let (broadcaster, broadcaster_driver) = QueuedBroadcaster::new(
+        let broadcaster = QueuedBroadcaster::new(
             broadcaster,
             broadcast_cfg.batch_gas_limit,
             broadcast_cfg.queue_cap,
@@ -207,7 +221,6 @@ where
             event_subscriber,
             event_processor,
             broadcaster,
-            broadcaster_driver,
             state_updater,
             multisig_client,
             block_height_monitor,
@@ -330,6 +343,45 @@ where
                                 .timeout(rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT))
                                 .build()
                                 .change_context(Error::Connection)?,
+                        ),
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    stream_timeout,
+                ),
+                handlers::config::Config::SolanaMsgVerifier {
+                    cosmwasm_contract,
+                    rpc_url,
+                    max_tx_cache_entries,
+                    chain,
+                } => self.create_handler_task(
+                    format!("{}-msg-verifier", chain.name),
+                    handlers::solana_verify_msg::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        RpcCacheWrapper::new(
+                            RpcClient::new_with_commitment(
+                                rpc_url.to_string(),
+                                CommitmentConfig::finalized(),
+                            ),
+                            NonZeroUsize::new(max_tx_cache_entries).unwrap(),
+                        ),
+                        chain.name,
+                        self.block_height_monitor.latest_block_height(),
+                    ),
+                    stream_timeout,
+                ),
+                handlers::config::Config::SolanaWorkerSetVerifier {
+                    cosmwasm_contract,
+                    chain,
+                } => self.create_handler_task(
+                    format!("{}-worker-set-verifier", chain.name),
+                    handlers::solana_verify_verifier_set::Handler::new(
+                        verifier.clone(),
+                        cosmwasm_contract,
+                        chain.name,
+                        RpcClient::new_with_commitment(
+                            chain.rpc_url.to_string(),
+                            CommitmentConfig::finalized(),
                         ),
                         self.block_height_monitor.latest_block_height(),
                     ),

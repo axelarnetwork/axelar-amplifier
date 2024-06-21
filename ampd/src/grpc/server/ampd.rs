@@ -112,7 +112,6 @@ where
         let req = req.into_inner();
         let msg = req.msg.ok_or(Status::invalid_argument("missing msg"))?;
 
-        // TODO: validate msg by estimating its gas cost before broadcasting?
         self.broadcaster
             .broadcast(msg)
             .await
@@ -127,7 +126,7 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
 
-    use cosmrs::proto::Any;
+    use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
     use events::Event;

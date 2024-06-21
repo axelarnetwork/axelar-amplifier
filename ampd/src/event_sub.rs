@@ -244,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_possible_truncation)]
     async fn start_from_should_work() {
         let block_count = 10;
         let block: tendermint::Block =
@@ -424,6 +425,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_possible_truncation)]
     async fn stream_should_work() {
         let block_count = 10;
         let block: tendermint::Block =

@@ -1,31 +1,39 @@
 use cosmwasm_std::{to_json_binary, Deps, QueryRequest, StdResult, Uint64, WasmQuery};
+use error_stack::Result;
 
-use multisig::{multisig::Multisig, types::MultisigState, verifier_set::VerifierSet};
+use multisig::{multisig::Multisig, types::MultisigState};
 
 use crate::{
     error::ContractError,
-    msg::{GetProofResponse, ProofStatus},
-    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, PAYLOAD},
+    msg::{GetProofResponse, ProofStatus, VerifierSetResponse},
+    state::{CONFIG, CURRENT_VERIFIER_SET, MULTISIG_SESSION_PAYLOAD, NEXT_VERIFIER_SET, PAYLOAD},
 };
 
 pub fn get_proof(
     deps: Deps,
     multisig_session_id: Uint64,
 ) -> Result<GetProofResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
 
-    let payload_id = MULTISIG_SESSION_PAYLOAD.load(deps.storage, multisig_session_id.u64())?;
+    let payload_id = MULTISIG_SESSION_PAYLOAD
+        .load(deps.storage, multisig_session_id.u64())
+        .map_err(ContractError::from)?;
 
     let query_msg = multisig::msg::QueryMsg::GetMultisig {
         session_id: multisig_session_id,
     };
 
-    let multisig: Multisig = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.multisig.to_string(),
-        msg: to_json_binary(&query_msg)?,
-    }))?;
+    let multisig: Multisig = deps
+        .querier
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.multisig.to_string(),
+            msg: to_json_binary(&query_msg).map_err(ContractError::from)?,
+        }))
+        .map_err(ContractError::from)?;
 
-    let payload = PAYLOAD.load(deps.storage, &payload_id)?;
+    let payload = PAYLOAD
+        .load(deps.storage, &payload_id)
+        .map_err(ContractError::from)?;
 
     let status = match multisig.state {
         MultisigState::Pending => ProofStatus::Pending,
@@ -49,6 +57,37 @@ pub fn get_proof(
     })
 }
 
-pub fn get_verifier_set(deps: Deps) -> StdResult<Option<VerifierSet>> {
-    CURRENT_VERIFIER_SET.may_load(deps.storage)
+pub fn current_verifier_set(deps: Deps) -> StdResult<Option<VerifierSetResponse>> {
+    CURRENT_VERIFIER_SET
+        .may_load(deps.storage)
+        .map(|op| op.map(|set| set.into()))
+}
+
+pub fn next_verifier_set(deps: Deps) -> StdResult<Option<VerifierSetResponse>> {
+    NEXT_VERIFIER_SET
+        .may_load(deps.storage)
+        .map(|op| op.map(|set| set.into()))
+}
+
+#[cfg(test)]
+mod test {
+    use cosmwasm_std::testing::mock_dependencies;
+
+    use crate::{state, test::test_data::new_verifier_set};
+
+    #[test]
+    fn next_verifier_set() {
+        let mut deps = mock_dependencies();
+
+        assert_eq!(None, super::next_verifier_set(deps.as_ref()).unwrap());
+
+        state::NEXT_VERIFIER_SET
+            .save(deps.as_mut().storage, &new_verifier_set())
+            .unwrap();
+
+        assert_eq!(
+            Some(new_verifier_set().into()),
+            super::next_verifier_set(deps.as_ref()).unwrap()
+        );
+    }
 }

@@ -9,7 +9,6 @@ pub mod payload;
 mod query;
 mod reply;
 pub mod state;
-pub mod types;
 
 #[cfg(test)]
 mod test;

@@ -12,7 +12,7 @@ use crate::{error::ContractError, payload::Payload};
 
 type Result<T> = core::result::Result<T, ContractError>;
 
-pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::WorkerSet> {
+pub fn to_verifier_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::VerifierSet> {
     let mut signers: BTreeMap<String, axelar_rkyv_encoding::types::Signer> = BTreeMap::new();
 
     vs.signers
@@ -31,7 +31,7 @@ pub fn to_worker_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::Wo
             Ok(())
         })?;
 
-    Ok(axelar_rkyv_encoding::types::WorkerSet::new(
+    Ok(axelar_rkyv_encoding::types::VerifierSet::new(
         vs.created_at,
         signers,
         axelar_rkyv_encoding::types::U256::from_le(to_u256_le(vs.threshold.u128())),
@@ -64,7 +64,7 @@ impl TryFrom<&Payload> for axelar_rkyv_encoding::types::Payload {
                 msgs.iter().map(to_msg).collect_vec(),
             ),
             Payload::VerifierSet(vs) => {
-                axelar_rkyv_encoding::types::Payload::new_worker_set(to_worker_set(&vs)?)
+                axelar_rkyv_encoding::types::Payload::new_verifier_set(to_verifier_set(&vs)?)
             }
         })
     }

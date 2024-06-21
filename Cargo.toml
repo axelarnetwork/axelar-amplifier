@@ -27,6 +27,7 @@ num-traits = { version = "0.2.14", default-features = false }
 service-registry = { version = "^0.3.0", path = "contracts/service-registry" }
 gateway = { version = "^0.2.2", path = "contracts/gateway" }
 gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
+
 router-api = { version = "^0.1.0", path = "packages/router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
 client = { version = "^0.1.0", path = "packages/client" }
@@ -37,10 +38,16 @@ serde_json = "1.0.89"
 schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^0.1.0", path = "packages/signature-verifier-api" }
-axelar-rkyv-encoding = { git = "ssh://git@github.com/eigerco/solana-axelar-internal.git", branch = "gateway/axelar-encoding"}
+axelar-rkyv-encoding = { git = "ssh://git@github.com/eigerco/solana-axelar-internal.git", branch = "main"}
+ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
+ethers-core = "2.0.14"
+tokio = "1.38.0"
+tokio-stream = "0.1.11"
+tokio-util = "0.7.11"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
+cast_possible_truncation = "deny"
 
 [profile.release]
 opt-level = 3
@@ -51,3 +58,17 @@ debug-assertions = false
 codegen-units = 1
 incremental = false
 overflow-checks = true
+
+[patch.crates-io]
+# aes-gcm-siv 0.10.3 and curve25519-dalek 3.x pin zeroize to <1.4
+# which conflicts with other dependencies requiring zeroize ^1.5.
+# We’re patching both crates to unpin zeroize.
+#
+# For aes-gcm-siv we’re using the same revision Solana uses in
+# an (as of now) unreleased commit, see
+# https://github.com/solana-labs/solana/commit/01f1bf27994d9813fadfcd134befd3a449aaa0bd
+#
+# For curve25519-dalek we’re using commit from a PR, see
+# https://github.com/dalek-cryptography/curve25519-dalek/pull/606
+aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
+curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
