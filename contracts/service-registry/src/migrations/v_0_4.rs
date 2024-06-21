@@ -28,30 +28,24 @@ mod v0_3_state {
 pub fn migrate_services(
     store: &mut dyn Storage,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let keys_and_services = v0_3_state::SERVICES
+   v0_3_state::SERVICES
         .range(store, None, None, Order::Ascending)
-        .map(|result| {
-            result.map(|(service_name, service)| {
-                (
-                    service_name,
-                    Service {
-                        name: service.name,
-                        coordinator_contract: service.service_contract,
-                        min_num_verifiers: service.min_num_verifiers,
-                        max_num_verifiers: service.max_num_verifiers,
-                        min_verifier_bond: service.min_verifier_bond,
-                        bond_denom: service.bond_denom,
-                        unbonding_period_days: service.unbonding_period_days,
-                        description: service.description,
-                    },
-                )
-            })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(|(service_name, service)| {
+            let service = Service {
+                name: service.name,
+                coordinator_contract: service.service_contract,
+                min_num_verifiers: service.min_num_verifiers,
+                max_num_verifiers: service.max_num_verifiers,
+                min_verifier_bond: service.min_verifier_bond,
+                bond_denom: service.bond_denom,
+                unbonding_period_days: service.unbonding_period_days,
+                description: service.description,
+            };
+            SERVICES.save(store, &service_name, &service)
         })
         .collect::<Result<Vec<_>, _>>()?;
-
-    for (service_name, new_service) in keys_and_services {
-        SERVICES.save(store, &service_name, &new_service)?;
-    }
 
     Ok(Response::default())
 }
