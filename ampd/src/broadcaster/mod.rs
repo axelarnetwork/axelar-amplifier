@@ -381,7 +381,7 @@ where
 
                     return Ok(());
                 }
-                ConfirmationResult::Critical(err) => return Err(err.into()),
+                ConfirmationResult::Critical(err) => return Err(err),
                 ConfirmationResult::Retriable(err) => {
                     if let Err(result) = result.as_mut() {
                         result.extend_one(err);
