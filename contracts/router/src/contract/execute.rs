@@ -1,7 +1,9 @@
 use std::vec;
 
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
-use cosmwasm_std::{to_json_binary, Addr, DepsMut, MessageInfo, Response, StdResult, WasmMsg};
+use cosmwasm_std::{
+    to_json_binary, Addr, DepsMut, Event, MessageInfo, Order, Response, StdResult, Storage, WasmMsg,
+};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
@@ -81,20 +83,44 @@ pub fn freeze_chain(
     chain: ChainName,
     direction: GatewayDirection,
 ) -> Result<Response, Error> {
-    chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
+    freeze_specific_chain(deps.storage, chain, direction)
+        .map(|event| Response::new().add_event(event.into()))
+}
+
+fn freeze_specific_chain(
+    storage: &mut dyn Storage,
+    chain: ChainName,
+    direction: GatewayDirection,
+) -> Result<ChainFrozen, Error> {
+    chain_endpoints().update(storage, chain.clone(), |chain| match chain {
         None => Err(Error::ChainNotFound),
         Some(mut chain) => {
             *chain.frozen_status |= direction;
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(
-        ChainFrozen {
-            name: chain,
-            direction,
-        }
-        .into(),
-    ))
+
+    Ok(ChainFrozen {
+        name: chain,
+        direction,
+    })
+}
+
+pub fn freeze_all_chains(deps: DepsMut, chains: Option<Vec<ChainName>>) -> Result<Response, Error> {
+    let chain_names = match chains {
+        Some(chains) => Ok(chains),
+        None => chain_endpoints()
+            .keys(deps.storage, None, None, Order::Ascending)
+            .try_collect(),
+    }?;
+
+    let events: Vec<_> = chain_names
+        .into_iter()
+        .map(|chain| freeze_specific_chain(deps.storage, chain, GatewayDirection::Bidirectional))
+        .map_ok(Event::from)
+        .try_collect()?;
+
+    Ok(Response::new().add_events(events))
 }
 
 #[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows

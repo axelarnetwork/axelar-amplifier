@@ -91,8 +91,13 @@ pub fn execute(
             execute::require_admin(&deps, info)?;
             execute::freeze_chain(deps, chain, direction)
         }
-        ExecuteMsg::UnfreezeChain { chain, direction } => {
+        ExecuteMsg::FreezeAllChains { chains } => {
             execute::require_admin(&deps, info)?;
+            execute::freeze_all_chains(deps, chains)
+        }
+        ExecuteMsg::UnfreezeChain { chain, direction } => {
+            execute::require_admin(&deps, info.clone())
+                .or_else(|_| execute::require_governance(&deps, info))?;
             execute::unfreeze_chain(deps, chain, direction)
         }
         ExecuteMsg::RouteMessages(msgs) => Ok(contract.route_messages(info.sender, msgs)?),
@@ -144,12 +149,15 @@ mod test {
     use super::*;
 
     use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::FnExt;
     use cosmwasm_std::{
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
     };
     use router_api::{
-        error::Error, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
+        error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
+        CHAIN_NAME_DELIMITER,
     };
 
     const ADMIN_ADDRESS: &str = "admin";
@@ -972,6 +980,78 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         );
         assert!(res.is_ok());
+    }
+
+    // generate test for FreezeAllChains
+    #[test]
+    fn freeze_all_chains() {
+        let test_cases = vec![
+            None,
+            Some(vec![
+                "ethereum".parse().unwrap(),
+                "polygon".parse().unwrap(),
+            ]),
+        ];
+
+        for test_case in test_cases.into_iter() {
+            let mut deps = setup();
+            let eth = make_chain("ethereum");
+            let polygon = make_chain("polygon");
+            register_chain(deps.as_mut(), &eth);
+            register_chain(deps.as_mut(), &polygon);
+
+            let chains = query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Chains {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+            .then(|chains| from_json::<Vec<ChainEndpoint>>(&chains))
+            .unwrap();
+
+            for chain in chains.iter() {
+                assert!(!chain.incoming_frozen() && !chain.outgoing_frozen())
+            }
+
+            // try sender without permission
+            let permission_control: Vec<(&str, fn(&Result<_, _>) -> bool)> = vec![
+                (UNAUTHORIZED_ADDRESS, Result::is_err),
+                (GOVERNANCE_ADDRESS, Result::is_err),
+                (ADMIN_ADDRESS, Result::is_ok),
+            ];
+
+            for permission_case in permission_control.iter() {
+                let (sender, result_check) = permission_case;
+                let res = execute(
+                    deps.as_mut(),
+                    mock_env(),
+                    mock_info(sender, &[]),
+                    ExecuteMsg::FreezeAllChains {
+                        chains: test_case.clone(),
+                    },
+                );
+                assert!(result_check(&res));
+            }
+
+            let chains = query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Chains {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+            .then(|chains| from_json::<Vec<ChainEndpoint>>(&chains))
+            .unwrap();
+
+            for chain in chains.iter() {
+                assert!(chain.incoming_frozen() && chain.outgoing_frozen())
+            }
+        }
     }
 
     #[test]
