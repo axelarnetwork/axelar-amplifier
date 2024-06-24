@@ -123,7 +123,6 @@ pub fn freeze_all_chains(deps: DepsMut, chains: Option<Vec<ChainName>>) -> Resul
     Ok(Response::new().add_events(events))
 }
 
-#[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
 pub fn unfreeze_chain(
     deps: DepsMut,
     chain: ChainName,
@@ -133,6 +132,7 @@ pub fn unfreeze_chain(
         .map(|event| Response::new().add_event(event.into()))
 }
 
+#[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
 fn unfreeze_specific_chain(
     storage: &mut dyn Storage,
     chain: ChainName,
