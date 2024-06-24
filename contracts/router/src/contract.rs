@@ -1016,8 +1016,10 @@ mod test {
                 assert!(!chain.incoming_frozen() && !chain.outgoing_frozen())
             }
 
+            type Check = fn(&Result<_, _>) -> bool; // clippy complains without the alias about complex types
+
             // try sender without permission
-            let permission_control: Vec<(&str, fn(&Result<_, _>) -> bool)> = vec![
+            let permission_control: Vec<(&str, Check)> = vec![
                 (UNAUTHORIZED_ADDRESS, Result::is_err),
                 (GOVERNANCE_ADDRESS, Result::is_err),
                 (ADMIN_ADDRESS, Result::is_ok),
