@@ -42,6 +42,7 @@ use crate::types::{PublicKey, TMAddress};
 
 mod cosmos;
 mod dec_coin;
+mod proto;
 mod tx;
 
 #[derive(Error, Debug)]
@@ -218,10 +219,17 @@ where
     Q: cosmos::AccountQueryClient + Send,
 {
     async fn broadcast(&mut self, msgs: Vec<Any>) -> Result<TxResponse, Error> {
+        let batch_req = proto::axelar::auxiliary::v1beta1::BatchRequest {
+            sender: self.address.as_ref().to_bytes(),
+            messages: msgs,
+        }
+        .to_any()
+        .expect("failed to serialize proto message for batch request");
+
         let (acc_number, acc_sequence) = self.acc_number_and_sequence().await?;
         let tx = Tx::builder()
-            .msgs(msgs.clone())
-            .fee(self.estimate_fee(msgs, acc_sequence).await?)
+            .msgs(vec![batch_req.clone()])
+            .fee(self.estimate_fee(vec![batch_req], acc_sequence).await?)
             .pub_key(self.pub_key.1)
             .acc_sequence(acc_sequence)
             .build()
