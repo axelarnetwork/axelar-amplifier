@@ -2925,7 +2925,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
