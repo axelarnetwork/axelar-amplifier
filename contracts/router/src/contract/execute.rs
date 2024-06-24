@@ -129,20 +129,40 @@ pub fn unfreeze_chain(
     chain: ChainName,
     direction: GatewayDirection,
 ) -> Result<Response, Error> {
-    chain_endpoints().update(deps.storage, chain.clone(), |chain| match chain {
+    unfreeze_specific_chain(deps.storage, chain, direction)
+        .map(|event| Response::new().add_event(event.into()))
+}
+
+fn unfreeze_specific_chain(
+    storage: &mut dyn Storage,
+    chain: ChainName,
+    direction: GatewayDirection,
+) -> Result<ChainUnfrozen, Error> {
+    chain_endpoints().update(storage, chain.clone(), |chain| match chain {
         None => Err(Error::ChainNotFound),
         Some(mut chain) => {
             *chain.frozen_status -= direction;
             Ok(chain)
         }
     })?;
-    Ok(Response::new().add_event(
-        ChainUnfrozen {
-            name: chain,
-            direction,
-        }
-        .into(),
-    ))
+
+    Ok(ChainUnfrozen {
+        name: chain,
+        direction,
+    })
+}
+
+pub fn unfreeze_chains(
+    deps: DepsMut,
+    chains: Vec<(ChainName, GatewayDirection)>,
+) -> Result<Response, Error> {
+    let events: Vec<_> = chains
+        .into_iter()
+        .map(|(chain, direction)| unfreeze_specific_chain(deps.storage, chain, direction))
+        .map_ok(Event::from)
+        .try_collect()?;
+
+    Ok(Response::new().add_events(events))
 }
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {

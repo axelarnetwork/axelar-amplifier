@@ -68,7 +68,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     let contract = Contract::new(RouterStore::new(deps.storage));
-
     match msg {
         ExecuteMsg::RegisterChain {
             chain,
@@ -99,6 +98,11 @@ pub fn execute(
             execute::require_admin(&deps, info.clone())
                 .or_else(|_| execute::require_governance(&deps, info))?;
             execute::unfreeze_chain(deps, chain, direction)
+        }
+        ExecuteMsg::UnfreezeChains { chains } => {
+            execute::require_admin(&deps, info.clone())
+                .or_else(|_| execute::require_governance(&deps, info))?;
+            execute::unfreeze_chains(deps, chains)
         }
         ExecuteMsg::RouteMessages(msgs) => Ok(contract.route_messages(info.sender, msgs)?),
     }
@@ -142,13 +146,10 @@ pub fn query(
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, str::FromStr};
-
-    use crate::state::CONFIG;
-
     use super::*;
-
+    use crate::state::CONFIG;
     use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::ContractError;
     use axelar_wasm_std::FnExt;
     use cosmwasm_std::{
         from_json,
@@ -159,6 +160,7 @@ mod test {
         error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
         CHAIN_NAME_DELIMITER,
     };
+    use std::{collections::HashMap, str::FromStr};
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -984,19 +986,17 @@ mod test {
 
     // generate test for FreezeAllChains
     #[test]
-    fn freeze_all_chains() {
+    fn freeze_and_unfreeze_all_chains() {
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
         let test_cases = vec![
             None,
-            Some(vec![
-                "ethereum".parse().unwrap(),
-                "polygon".parse().unwrap(),
-            ]),
+            Some(vec![eth.chain_name.clone(), polygon.chain_name.clone()]),
         ];
 
         for test_case in test_cases.into_iter() {
             let mut deps = setup();
-            let eth = make_chain("ethereum");
-            let polygon = make_chain("polygon");
+
             register_chain(deps.as_mut(), &eth);
             register_chain(deps.as_mut(), &polygon);
 
@@ -1016,7 +1016,7 @@ mod test {
                 assert!(!chain.incoming_frozen() && !chain.outgoing_frozen())
             }
 
-            type Check = fn(&Result<_, _>) -> bool; // clippy complains without the alias about complex types
+            type Check = fn(&Result<Response, ContractError>) -> bool; // clippy complains without the alias about complex types
 
             // try sender without permission
             let permission_control: Vec<(&str, Check)> = vec![
@@ -1052,6 +1052,45 @@ mod test {
 
             for chain in chains.iter() {
                 assert!(chain.incoming_frozen() && chain.outgoing_frozen())
+            }
+
+            // try sender without permission
+            let permission_control: Vec<(&str, Check)> = vec![
+                (UNAUTHORIZED_ADDRESS, Result::is_err),
+                (GOVERNANCE_ADDRESS, Result::is_ok),
+                (ADMIN_ADDRESS, Result::is_ok),
+            ];
+
+            for permission_case in permission_control.iter() {
+                let (sender, result_check) = permission_case;
+                let res = execute(
+                    deps.as_mut(),
+                    mock_env(),
+                    mock_info(sender, &[]),
+                    ExecuteMsg::UnfreezeChains {
+                        chains: vec![
+                            (eth.chain_name.clone(), GatewayDirection::Bidirectional),
+                            (polygon.chain_name.clone(), GatewayDirection::Bidirectional),
+                        ],
+                    },
+                );
+                assert!(result_check(&res));
+            }
+
+            let chains = query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::Chains {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+            .then(|chains| from_json::<Vec<ChainEndpoint>>(&chains))
+            .unwrap();
+
+            for chain in chains.iter() {
+                assert!(!chain.incoming_frozen() && !chain.outgoing_frozen())
             }
         }
     }

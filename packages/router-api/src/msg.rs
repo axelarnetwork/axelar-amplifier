@@ -34,6 +34,13 @@ pub enum ExecuteMsg {
     /// If the filter is set, only the specified chains will be frozen.
     FreezeAllChains { chains: Option<Vec<ChainName>> },
 
+    /// Unfreezes the specified chains in the specified directions. In contrast to FreezeAllChains,
+    /// this does not allow unfreezing all chains, because that command is too dangerous.
+    /// It would make it too easy to accidentally unfreeze a chain that should not be unfrozen.
+    UnfreezeChains {
+        chains: Vec<(ChainName, GatewayDirection)>,
+    },
+
     /// Unfreezes a chain, in the specified direction.
     UnfreezeChain {
         chain: ChainName,
