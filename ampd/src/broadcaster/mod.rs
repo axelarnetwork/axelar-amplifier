@@ -57,7 +57,7 @@ pub enum Error {
     #[error("failed to confirm inclusion in block for tx with hash '{tx_hash}'")]
     TxConfirmation { tx_hash: String },
     #[error("failed to execute tx")]
-    Execution { response: Box<TxResponse> },
+    Execution,
     #[error("failed to query balance for address '{address}' and denomination '{denom}'")]
     QueryBalance { address: TMAddress, denom: Denom },
     #[error("failed to query account for address '{address}'")]
@@ -381,7 +381,7 @@ where
 
                     return Ok(());
                 }
-                ConfirmationResult::Critical(err) => return Err(err.into()),
+                ConfirmationResult::Critical(err) => return Err(err),
                 ConfirmationResult::Retriable(err) => {
                     if let Err(result) = result.as_mut() {
                         result.extend_one(err);
@@ -419,9 +419,10 @@ fn evaluate_tx_response(
             ..
         }) => match response {
             TxResponse { code: 0, .. } => ConfirmationResult::Success,
-            _ => ConfirmationResult::Critical(Error::Execution {
-                response: Box::new(response),
-            }),
+            _ => ConfirmationResult::Critical(
+                report!(Error::Execution)
+                    .attach_printable(format!("{{ response = {response:?} }}")),
+            ),
         },
     }
 }
@@ -439,7 +440,7 @@ fn remap_account_not_found_error(
 enum ConfirmationResult {
     Success,
     Retriable(Report<Status>),
-    Critical(Error),
+    Critical(Report<Error>),
 }
 
 #[cfg(test)]
@@ -626,9 +627,7 @@ mod tests {
 
         let report = broadcaster.broadcast(msgs).await.unwrap_err();
 
-        assert!(
-            matches!(report.current_context(), Error::Execution { response } if response.code == 32)
-        );
+        assert!(matches!(report.current_context(), Error::Execution));
     }
 
     #[test]

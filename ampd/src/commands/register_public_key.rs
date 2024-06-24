@@ -1,7 +1,4 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    path::Path,
-};
+use std::convert::{TryFrom, TryInto};
 
 use cosmrs::{cosmwasm::MsgExecuteContract, tx::Msg};
 use error_stack::{Result, ResultExt};
@@ -52,8 +49,8 @@ pub struct Args {
     key_type: KeyType,
 }
 
-pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
-    let pub_key = verifier_pub_key(state_path, config.tofnd_config.clone()).await?;
+pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
+    let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let multisig_address = get_multisig_address(&config)?;
 
