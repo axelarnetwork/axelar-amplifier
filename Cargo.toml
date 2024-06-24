@@ -11,7 +11,7 @@ cosmwasm-std = "1.5.5"
 cosmwasm-schema = "1.5.5"
 cw-storage-plus = "1.2.0"
 cw2 = "1.1.0"
-ed25519-dalek = { version = "2.1.1", default-features = false}
+ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
