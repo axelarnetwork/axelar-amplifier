@@ -1,5 +1,5 @@
 use axelar_wasm_std::permission_control::Permission;
-use axelar_wasm_std::{ensure_permission, permission_control};
+use axelar_wasm_std::{ensure_any_permission, ensure_permission, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
@@ -102,7 +102,7 @@ pub fn execute(
             execute::unfreeze_chain(deps, chain, direction)
         }
         ExecuteMsg::RouteMessages(msgs) => {
-            ensure_permission!(Permission::Any, deps.storage, &info.sender);
+            ensure_any_permission!();
 
             Ok(execute::route_messages(
                 RouterStore::new(deps.storage),

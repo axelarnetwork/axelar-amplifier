@@ -22,9 +22,38 @@ pub enum Error {
     PermissionDenied,
 }
 
+/// Ensure that the sender of a message has the correct permissions to perform following actions.
+/// Returns an error if not.
+/// # Example
+/// ```
+/// # use cosmwasm_std::testing::mock_dependencies;
+/// use cosmwasm_std::Addr;
+/// use axelar_wasm_std::ensure_permission;
+/// use axelar_wasm_std::permission_control::Permission;
+///# use axelar_wasm_std::permission_control::Error;
+///
+///# fn main() -> Result<(),Box<dyn std::error::Error>>{
+///# use axelar_wasm_std::permission_control;
+///# let mut deps = mock_dependencies();
+///# let deps = deps.as_mut();
+/// let admin = Addr::unchecked("admin");
+/// let governance = Addr::unchecked("governance");
+///
+/// // set these before checking permissions
+/// permission_control::set_admin(deps.storage, &admin)?;
+/// permission_control::set_governance(deps.storage, &governance)?;
+///
+/// ensure_permission!(Permission::Elevated, deps.storage, &admin);
+/// ensure_permission!(Permission::Elevated, deps.storage, &governance);
+///
+/// do_something();
+/// # Ok(())}
+///
+/// #    fn do_something() {}
+/// ```
 #[macro_export]
 macro_rules! ensure_permission {
-    ($permission_variant:expr, $storage:expr, $sender:expr) => {{
+    ($permission_variant:expr, $storage:expr, $sender:expr) => {
         let permission = $crate::flagset::FlagSet::from($permission_variant);
         if !permission.contains($crate::permission_control::Permission::Any)
             && (*permission
@@ -36,7 +65,24 @@ macro_rules! ensure_permission {
         {
             return Err($crate::permission_control::Error::PermissionDenied.into());
         }
-    }};
+    };
+}
+
+/// This macro should be used as a marker to signify that the call is deliberately without checks
+///
+/// # Example
+/// ```
+///# fn main() -> Result<(),Box<dyn std::error::Error>>{
+///# use axelar_wasm_std::{ensure_any_permission};
+/// ensure_any_permission!();
+/// do_something();
+/// # Ok(())}
+///
+/// #    fn do_something() {}
+/// ```
+#[macro_export]
+macro_rules! ensure_any_permission {
+    () => {};
 }
 
 const ADMIN: Item<Addr> = Item::new("permission_control_contract_admin_addr");
