@@ -8,6 +8,9 @@ pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
 
+    #[error("caller not unauthorized to perform this action")]
+    Unauthorized,
+
     #[error("no provers registered for chain {0}")]
     NoProversRegisteredForChain(ChainName),
 }

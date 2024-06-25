@@ -1,7 +1,5 @@
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
-use axelar_wasm_std::permission_control::Permission;
-use axelar_wasm_std::{ensure_permission, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
@@ -35,10 +33,12 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    CONFIG.save(deps.storage, &Config { governance })?;
-    permission_control::set_governance(deps.storage, &governance)?;
-
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            governance: deps.api.addr_validate(&msg.governance_address)?,
+        },
+    )?;
     Ok(Response::default())
 }
 
@@ -54,11 +54,10 @@ pub fn execute(
             chain_name,
             new_prover_addr,
         } => {
-            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
+            execute::check_governance(&deps, info)?;
             execute::register_prover(deps, chain_name, new_prover_addr)
         }
         ExecuteMsg::SetActiveVerifiers { verifiers } => {
-            ensure_permission!(Permission::Any)
             execute::set_active_verifier_set(deps, info, verifiers)
         }
     }
