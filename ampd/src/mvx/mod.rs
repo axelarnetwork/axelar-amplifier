@@ -1,11 +1,12 @@
+use crate::mvx::error::Error;
 use axelar_wasm_std::hash::Hash;
 use cosmwasm_std::Uint256;
 use multisig::key::PublicKey;
 use multisig::msg::Signer;
 use multisig::verifier_set::VerifierSet;
 use sha3::{Digest, Keccak256};
-use crate::handlers::errors::Error;
 
+pub mod error;
 pub mod proxy;
 pub mod verifier;
 
@@ -75,13 +76,9 @@ fn uint256_to_compact_vec(value: Uint256) -> Vec<u8> {
 }
 
 pub fn ed25519_key(pub_key: &PublicKey) -> Result<[u8; 32], Error> {
-    match pub_key {
-        PublicKey::Ed25519(ed25519_key) => {
-            return Ok(<[u8; 32]>::try_from(ed25519_key.as_ref())
-                .expect("couldn't convert pubkey to ed25519 public key"));
-        }
-        _ => {
-            return Err(Error::DeserializeEvent);
-        }
-    }
+    return match pub_key {
+        PublicKey::Ed25519(ed25519_key) => Ok(<[u8; 32]>::try_from(ed25519_key.as_ref())
+            .expect("couldn't convert pubkey to ed25519 public key")),
+        _ => Err(Error::NotEd25519Key),
+    };
 }

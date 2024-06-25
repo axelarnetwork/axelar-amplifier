@@ -1,7 +1,7 @@
 pub mod chain;
 pub mod config;
 pub mod end_block;
-pub mod errors;
+mod errors;
 pub mod evm_verify_msg;
 pub mod evm_verify_verifier_set;
 pub mod multisig;

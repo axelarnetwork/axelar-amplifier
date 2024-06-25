@@ -123,8 +123,7 @@ where
         let transaction_info = self
             .blockchain
             .transaction_info_with_results(&verifier_set.tx_id)
-            .await
-            .change_context(Error::TxReceipts)?;
+            .await;
 
         let vote = info_span!(
             "verify a new verifier set for MultiversX",
@@ -154,15 +153,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
     use cosmrs::cosmwasm::MsgExecuteContract;
     use cosmrs::tx::Msg;
+    use std::convert::TryInto;
 
-    use crate::handlers::errors::Error;
     use crate::mvx::proxy::MockMvxProxy;
     use cosmwasm_std;
     use cosmwasm_std::{HexBinary, Uint128};
-    use error_stack::{Report, Result};
+    use error_stack::Result;
     use hex::ToHex;
     use tokio::test as async_test;
 
@@ -280,7 +278,7 @@ mod tests {
         let mut proxy = MockMvxProxy::new();
         proxy
             .expect_transaction_info_with_results()
-            .returning(|_| Err(Report::from(Error::DeserializeEvent)));
+            .returning(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
         let verifier = TMAddress::random(PREFIX);
@@ -297,37 +295,14 @@ mod tests {
 
         let handler = super::Handler::new(verifier, voting_verifier, proxy, rx);
 
-        // poll is not expired yet, should hit rpc error
-        assert!(handler.handle(&event).await.is_err());
+        // poll is not expired yet, should hit proxy
+        let actual = handler.handle(&event).await.unwrap();
+        assert_eq!(actual.len(), 1);
 
         let _ = tx.send(expiration + 1);
 
-        // poll is expired, should not hit rpc error now
+        // poll is expired
         assert_eq!(handler.handle(&event).await.unwrap(), vec![]);
-    }
-
-    #[async_test]
-    async fn failed_to_get_transaction_info_with_results() {
-        let mut proxy = MockMvxProxy::new();
-        proxy
-            .expect_transaction_info_with_results()
-            .returning(|_| Err(Report::from(Error::DeserializeEvent)));
-
-        let voting_verifier = TMAddress::random(PREFIX);
-        let worker = TMAddress::random(PREFIX);
-
-        let event = get_event(
-            verifier_set_poll_started_event(participants(5, Some(worker.clone())), 100),
-            &voting_verifier,
-        );
-
-        let handler =
-            super::Handler::new(worker, voting_verifier, proxy, watch::channel(0).1);
-
-        assert!(matches!(
-            *handler.handle(&event).await.unwrap_err().current_context(),
-            Error::TxReceipts
-        ));
     }
 
     #[async_test]
@@ -335,7 +310,7 @@ mod tests {
         let mut proxy = MockMvxProxy::new();
         proxy
             .expect_transaction_info_with_results()
-            .returning(|_| Ok(None));
+            .returning(|_| None);
 
         let voting_verifier = TMAddress::random(PREFIX);
         let worker = TMAddress::random(PREFIX);
@@ -345,8 +320,7 @@ mod tests {
             &voting_verifier,
         );
 
-        let handler =
-            super::Handler::new(worker, voting_verifier, proxy, watch::channel(0).1);
+        let handler = super::Handler::new(worker, voting_verifier, proxy, watch::channel(0).1);
 
         let actual = handler.handle(&event).await.unwrap();
         assert_eq!(actual.len(), 1);

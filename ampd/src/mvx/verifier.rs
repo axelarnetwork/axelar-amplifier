@@ -1,13 +1,14 @@
 use crate::handlers::mvx_verify_msg::Message;
 use crate::handlers::mvx_verify_verifier_set::VerifierSetConfirmation;
+use crate::mvx::error::Error;
+use crate::mvx::WeightedSigners;
 use crate::types::Hash;
 use axelar_wasm_std::voting::Vote;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use hex::ToHex;
 use multiversx_sdk::data::address::Address;
 use multiversx_sdk::data::transaction::{Events, TransactionOnNetwork};
-use hex::ToHex;
-use crate::mvx::WeightedSigners;
 
 const CONTRACT_CALL_IDENTIFIER: &str = "callContract";
 const CONTRACT_CALL_EVENT: &str = "contract_call_event";
@@ -15,50 +16,41 @@ const CONTRACT_CALL_EVENT: &str = "contract_call_event";
 const ROTATE_SIGNERS_IDENTIFIER: &str = "rotateSigners";
 const SIGNERS_ROTATED_EVENT: &str = "signers_rotated_event";
 
-macro_rules! unwrap_or_continue {
-    ( $data:expr ) => {
-        match $data {
-            Some(x) => x,
-            None => continue,
-        }
-    };
-}
-
 impl Message {
     fn eq_event(&self, event: &Events) -> Result<bool, Box<dyn std::error::Error>> {
         if event.identifier != CONTRACT_CALL_IDENTIFIER {
             return Ok(false);
         }
 
-        let topics = event.topics.as_ref().ok_or("")?;
+        let topics = event.topics.as_ref().ok_or(Error::PropertyEmpty)?;
 
-        let event_name = topics.get(0).ok_or("")?;
+        let event_name = topics.get(0).ok_or(Error::PropertyEmpty)?;
         let event_name = STANDARD.decode(event_name)?;
         if event_name.as_slice() != CONTRACT_CALL_EVENT.as_bytes() {
             return Ok(false);
         }
 
-        let sender = topics.get(1).ok_or("")?;
+        let sender = topics.get(1).ok_or(Error::PropertyEmpty)?;
         let sender = STANDARD.decode(sender)?;
         if sender.len() != 32 || &sender[0..32] != &self.source_address.to_bytes() {
             return Ok(false);
         }
 
-        let destination_chain = topics.get(2).ok_or("")?;
+        let destination_chain = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let destination_chain = STANDARD.decode(destination_chain)?;
         let destination_chain = String::from_utf8(destination_chain)?;
         if destination_chain != self.destination_chain.to_string() {
             return Ok(false);
         }
 
-        let destination_address = topics.get(3).ok_or("")?;
+        let destination_address = topics.get(3).ok_or(Error::PropertyEmpty)?;
         let destination_address = STANDARD.decode(destination_address)?;
         let destination_address = String::from_utf8(destination_address)?;
         if destination_address != self.destination_address {
             return Ok(false);
         }
 
-        let payload_hash = topics.get(4).ok_or("")?;
+        let payload_hash = topics.get(4).ok_or(Error::PropertyEmpty)?;
         let payload_hash = STANDARD.decode(payload_hash)?;
         if payload_hash.len() != 32
             || Hash::from_slice(payload_hash.as_slice()) != self.payload_hash
@@ -76,15 +68,15 @@ impl VerifierSetConfirmation {
             return Ok(false);
         }
 
-        let topics = event.topics.as_ref().ok_or("")?;
+        let topics = event.topics.as_ref().ok_or(Error::PropertyEmpty)?;
 
-        let event_name = topics.get(0).ok_or("")?;
+        let event_name = topics.get(0).ok_or(Error::PropertyEmpty)?;
         let event_name = STANDARD.decode(event_name)?;
         if event_name.as_slice() != SIGNERS_ROTATED_EVENT.as_bytes() {
             return Ok(false);
         }
 
-        let signers_hash = topics.get(2).ok_or("")?;
+        let signers_hash = topics.get(2).ok_or(Error::PropertyEmpty)?;
         let signers_hash = STANDARD.decode(signers_hash)?;
 
         let weighted_signers = WeightedSigners::from(&self.verifier_set);
@@ -105,10 +97,6 @@ fn find_event<'a>(
     identifier: &str,
     needed_event_name: &[u8],
 ) -> Option<&'a Events> {
-    if transaction.logs.is_none() {
-        return None;
-    }
-
     // We only support log index being 0, so one supported event per transaction because of MultiversX limitations
     if log_index != 0 {
         return None;
@@ -116,21 +104,25 @@ fn find_event<'a>(
 
     // Because of current relayer limitation, if log_index is 0, we will search through the logs and get the first log
     // which corresponds to the gateway address, hence only supporting one cross chain call per transaction
-
-    for event in transaction.logs.as_ref().unwrap().events.iter() {
-        if event.address.to_bytes() == gateway_address.to_bytes() && event.identifier == identifier
-        {
-            let topics = unwrap_or_continue!(event.topics.as_ref());
-
-            let event_name = unwrap_or_continue!(topics.get(0));
-            let event_name = STANDARD.decode(event_name).unwrap_or(Vec::new());
+    transaction
+        .logs
+        .as_ref()?
+        .events
+        .iter()
+        .filter(|events| {
+            events.address.to_bytes() == gateway_address.to_bytes()
+                && events.identifier == identifier
+        })
+        .filter_map(|events| {
+            let event_name = events.topics.as_ref()?.get(0)?;
+            let event_name = STANDARD.decode(event_name).ok()?;
             if event_name.as_slice() == needed_event_name {
-                return Some(event);
+                Some(events)
+            } else {
+                None
             }
-        }
-    }
-
-    return None;
+        })
+        .next()
 }
 
 pub fn verify_message(
@@ -138,6 +130,16 @@ pub fn verify_message(
     transaction: &TransactionOnNetwork,
     message: &Message,
 ) -> Vote {
+    let hash = transaction
+        .hash
+        .as_ref()
+        .map(String::as_str)
+        .unwrap_or_default();
+
+    if hash.is_empty() {
+        return Vote::NotFound;
+    }
+
     match find_event(
         transaction,
         gateway_address,
@@ -146,11 +148,11 @@ pub fn verify_message(
         CONTRACT_CALL_EVENT.as_bytes(),
     ) {
         Some(event)
-        if transaction.hash.as_ref().unwrap() == &message.tx_id.encode_hex::<String>()
-            && message.eq_event(event).unwrap_or(false) =>
-            {
-                Vote::SucceededOnChain
-            }
+            if hash == message.tx_id.encode_hex::<String>().as_str()
+                && message.eq_event(event).unwrap_or(false) =>
+        {
+            Vote::SucceededOnChain
+        }
         _ => Vote::NotFound,
     }
 }
@@ -160,6 +162,16 @@ pub fn verify_verifier_set(
     transaction: &TransactionOnNetwork,
     verifier_set: VerifierSetConfirmation,
 ) -> Vote {
+    let hash = transaction
+        .hash
+        .as_ref()
+        .map(String::as_str)
+        .unwrap_or_default();
+
+    if hash.is_empty() {
+        return Vote::NotFound;
+    }
+
     match find_event(
         transaction,
         gateway_address,
@@ -168,11 +180,11 @@ pub fn verify_verifier_set(
         SIGNERS_ROTATED_EVENT.as_bytes(),
     ) {
         Some(event)
-        if transaction.hash.as_ref().unwrap() == &verifier_set.tx_id.encode_hex::<String>()
-            && verifier_set.eq_event(event).unwrap_or(false) =>
-            {
-                Vote::SucceededOnChain
-            }
+            if hash == verifier_set.tx_id.encode_hex::<String>().as_str()
+                && verifier_set.eq_event(event).unwrap_or(false) =>
+        {
+            Vote::SucceededOnChain
+        }
         _ => Vote::NotFound,
     }
 }
@@ -233,7 +245,7 @@ mod tests {
         event.address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -267,7 +279,7 @@ mod tests {
         msg.source_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(verify_message(&gateway_address, &tx, &msg), Vote::NotFound);
     }
 
@@ -357,7 +369,7 @@ mod tests {
         event.address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(
             verify_verifier_set(&gateway_address, &tx, verifier_set),
             Vote::NotFound
@@ -428,11 +440,11 @@ mod tests {
         let gateway_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
         )
-            .unwrap();
+        .unwrap();
         let source_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
-            .unwrap();
+        .unwrap();
         let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
             .parse()
             .unwrap();
@@ -473,7 +485,7 @@ mod tests {
         let other_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
-            .unwrap();
+        .unwrap();
         let tx_block = TransactionOnNetwork {
             hash: Some(msg.tx_id.encode_hex::<String>()),
             logs: Some(ApiLogs {
@@ -518,7 +530,7 @@ mod tests {
         let gateway_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqsvzyz88e8v8j6x3wquatxuztnxjwnw92kkls6rdtzx",
         )
-            .unwrap();
+        .unwrap();
         let tx_id = "dfaf64de66510723f2efbacd7ead3c4f8c856aed1afc2cb30254552aeda47312"
             .parse()
             .unwrap();
@@ -566,7 +578,7 @@ mod tests {
         let other_address = Address::from_bech32_string(
             "erd1qqqqqqqqqqqqqpgqzqvm5ywqqf524efwrhr039tjs29w0qltkklsa05pk7",
         )
-            .unwrap();
+        .unwrap();
         let tx_block = TransactionOnNetwork {
             hash: Some(tx_id.encode_hex::<String>()),
             logs: Some(ApiLogs {
