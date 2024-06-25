@@ -10,7 +10,7 @@ use cosmwasm_std::{
 use cw_multi_test::{App, AppResponse, Executor};
 use multisig_prover::msg::VerifierSetResponse;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
@@ -88,16 +88,15 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 pub fn freeze_chain(
     app: &mut App,
     router: &RouterContract,
-    chain_name: &ChainName,
+    chain_name: ChainName,
     direction: GatewayDirection,
     admin: &Addr,
 ) {
     let response = router.execute(
         app,
         admin.clone(),
-        &router_api::msg::ExecuteMsg::FreezeChain {
-            chain: chain_name.clone(),
-            direction,
+        &router_api::msg::ExecuteMsg::FreezeChains {
+            chains: Some(HashMap::from([(chain_name, direction)])),
         },
     );
     assert!(response.is_ok(), "{:?}", response);
@@ -113,9 +112,8 @@ pub fn unfreeze_chain(
     let response = router.execute(
         app,
         admin.clone(),
-        &router_api::msg::ExecuteMsg::UnfreezeChain {
-            chain: chain_name.clone(),
-            direction,
+        &router_api::msg::ExecuteMsg::UnfreezeChains {
+            chains: HashMap::from([(chain_name.clone(), direction)]),
         },
     );
     assert!(response.is_ok(), "{:?}", response);

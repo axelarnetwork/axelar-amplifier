@@ -86,18 +86,9 @@ pub fn execute(
             let contract_address = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_gateway(deps, chain, contract_address)
         }
-        ExecuteMsg::FreezeChain { chain, direction } => {
+        ExecuteMsg::FreezeChains { chains } => {
             execute::require_admin(&deps, info)?;
-            execute::freeze_chain(deps, chain, direction)
-        }
-        ExecuteMsg::FreezeAllChains { chains } => {
-            execute::require_admin(&deps, info)?;
-            execute::freeze_all_chains(deps, chains)
-        }
-        ExecuteMsg::UnfreezeChain { chain, direction } => {
-            execute::require_admin(&deps, info.clone())
-                .or_else(|_| execute::require_governance(&deps, info))?;
-            execute::unfreeze_chain(deps, chain, direction)
+            execute::freeze_chains(deps, chains)
         }
         ExecuteMsg::UnfreezeChains { chains } => {
             execute::require_admin(&deps, info.clone())
@@ -440,9 +431,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: chain.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    chain.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         )
         .unwrap_err();
@@ -452,9 +445,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: chain.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    chain.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         )
         .unwrap_err();
@@ -464,9 +459,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: chain.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    chain.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -475,9 +472,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(UNAUTHORIZED_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: chain.chain_name.clone(),
-                direction: GatewayDirection::None,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    chain.chain_name.clone(),
+                    GatewayDirection::None,
+                )])),
             },
         )
         .unwrap_err();
@@ -487,9 +486,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: chain.chain_name.clone(),
-                direction: GatewayDirection::None,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    chain.chain_name.clone(),
+                    GatewayDirection::None,
+                )])),
             },
         )
         .unwrap_err();
@@ -499,9 +500,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: chain.chain_name.clone(),
-                direction: GatewayDirection::None,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    chain.chain_name.clone(),
+                    GatewayDirection::None,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -764,9 +767,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Incoming,
+                )])),
             },
         )
         .unwrap();
@@ -808,9 +813,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
         );
         assert!(res.is_ok());
@@ -838,9 +842,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Outgoing,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -865,9 +871,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
         );
         assert!(res.is_ok());
@@ -912,9 +917,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -956,9 +963,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )]),
             },
         )
         .unwrap();
@@ -984,14 +993,16 @@ mod test {
         assert!(res.is_ok());
     }
 
-    // generate test for FreezeAllChains
     #[test]
     fn freeze_and_unfreeze_all_chains() {
         let eth = make_chain("ethereum");
         let polygon = make_chain("polygon");
         let test_cases = vec![
             None,
-            Some(vec![eth.chain_name.clone(), polygon.chain_name.clone()]),
+            Some(HashMap::from([
+                (eth.chain_name.clone(), GatewayDirection::Bidirectional),
+                (polygon.chain_name.clone(), GatewayDirection::Bidirectional),
+            ])),
         ];
 
         for test_case in test_cases.into_iter() {
@@ -1031,7 +1042,7 @@ mod test {
                     deps.as_mut(),
                     mock_env(),
                     mock_info(sender, &[]),
-                    ExecuteMsg::FreezeAllChains {
+                    ExecuteMsg::FreezeChains {
                         chains: test_case.clone(),
                     },
                 );
@@ -1068,10 +1079,10 @@ mod test {
                     mock_env(),
                     mock_info(sender, &[]),
                     ExecuteMsg::UnfreezeChains {
-                        chains: vec![
+                        chains: HashMap::from([
                             (eth.chain_name.clone(), GatewayDirection::Bidirectional),
                             (polygon.chain_name.clone(), GatewayDirection::Bidirectional),
-                        ],
+                        ]),
                     },
                 );
                 assert!(result_check(&res));
@@ -1107,9 +1118,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -1121,9 +1134,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
         )
         .unwrap();
@@ -1167,9 +1179,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -1181,9 +1195,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
         )
         .unwrap();
@@ -1227,9 +1240,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Incoming,
+                )])),
             },
         )
         .unwrap();
@@ -1238,9 +1253,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Outgoing,
+                )])),
             },
         )
         .unwrap();
@@ -1291,9 +1308,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Outgoing,
+                )])),
             },
         )
         .unwrap();
@@ -1302,9 +1321,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Incoming,
+                )])),
             },
         )
         .unwrap();
@@ -1355,9 +1376,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -1367,9 +1390,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
         )
         .unwrap();
@@ -1379,9 +1401,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
         )
         .unwrap();
@@ -1420,9 +1441,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -1432,9 +1455,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Outgoing,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Outgoing)]),
             },
         )
         .unwrap();
@@ -1444,9 +1466,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Incoming,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::Incoming)]),
             },
         )
         .unwrap();
@@ -1485,9 +1506,11 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::FreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::Bidirectional,
+            ExecuteMsg::FreezeChains {
+                chains: Some(HashMap::from([(
+                    polygon.chain_name.clone(),
+                    GatewayDirection::Bidirectional,
+                )])),
             },
         );
         assert!(res.is_ok());
@@ -1497,9 +1520,8 @@ mod test {
             deps.as_mut(),
             mock_env(),
             mock_info(ADMIN_ADDRESS, &[]),
-            ExecuteMsg::UnfreezeChain {
-                chain: polygon.chain_name.clone(),
-                direction: GatewayDirection::None,
+            ExecuteMsg::UnfreezeChains {
+                chains: HashMap::from([(polygon.chain_name.clone(), GatewayDirection::None)]),
             },
         )
         .unwrap();

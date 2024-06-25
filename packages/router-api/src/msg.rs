@@ -1,5 +1,6 @@
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use std::collections::HashMap;
 
 use crate::primitives::*;
 
@@ -25,26 +26,17 @@ pub enum ExecuteMsg {
      * Router Admin Methods
      * All the below messages should only be called by the router admin
      */
-    /// Freezes a chain, in the specified direction.
-    FreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
-    },
     /// If no filter is provided, freezes all chain connections in every direction. Should only be called in emergencies.
-    /// If the filter is set, only the specified chains will be frozen.
-    FreezeAllChains { chains: Option<Vec<ChainName>> },
+    /// If the filter is set, only the specified chains will be frozen in the specified directions.
+    FreezeChains {
+        chains: Option<HashMap<ChainName, GatewayDirection>>,
+    },
 
     /// Unfreezes the specified chains in the specified directions. In contrast to FreezeAllChains,
     /// this does not allow unfreezing all chains, because that command is too dangerous.
     /// It would make it too easy to accidentally unfreeze a chain that should not be unfrozen.
     UnfreezeChains {
-        chains: Vec<(ChainName, GatewayDirection)>,
-    },
-
-    /// Unfreezes a chain, in the specified direction.
-    UnfreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+        chains: HashMap<ChainName, GatewayDirection>,
     },
 
     /*

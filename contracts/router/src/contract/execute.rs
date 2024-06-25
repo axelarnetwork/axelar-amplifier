@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::vec;
 
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
@@ -78,15 +79,6 @@ pub fn upgrade_gateway(
     ))
 }
 
-pub fn freeze_chain(
-    deps: DepsMut,
-    chain: ChainName,
-    direction: GatewayDirection,
-) -> Result<Response, Error> {
-    freeze_specific_chain(deps.storage, chain, direction)
-        .map(|event| Response::new().add_event(event.into()))
-}
-
 fn freeze_specific_chain(
     storage: &mut dyn Storage,
     chain: ChainName,
@@ -106,30 +98,25 @@ fn freeze_specific_chain(
     })
 }
 
-pub fn freeze_all_chains(deps: DepsMut, chains: Option<Vec<ChainName>>) -> Result<Response, Error> {
+pub fn freeze_chains(
+    deps: DepsMut,
+    chains: Option<HashMap<ChainName, GatewayDirection>>,
+) -> Result<Response, Error> {
     let chain_names = match chains {
         Some(chains) => Ok(chains),
         None => chain_endpoints()
             .keys(deps.storage, None, None, Order::Ascending)
+            .map_ok(|key| (key, GatewayDirection::Bidirectional))
             .try_collect(),
     }?;
 
     let events: Vec<_> = chain_names
         .into_iter()
-        .map(|chain| freeze_specific_chain(deps.storage, chain, GatewayDirection::Bidirectional))
+        .map(|(chain, direction)| freeze_specific_chain(deps.storage, chain, direction))
         .map_ok(Event::from)
         .try_collect()?;
 
     Ok(Response::new().add_events(events))
-}
-
-pub fn unfreeze_chain(
-    deps: DepsMut,
-    chain: ChainName,
-    direction: GatewayDirection,
-) -> Result<Response, Error> {
-    unfreeze_specific_chain(deps.storage, chain, direction)
-        .map(|event| Response::new().add_event(event.into()))
 }
 
 #[allow(clippy::arithmetic_side_effects)] // flagset operations don't cause under/overflows
@@ -154,7 +141,7 @@ fn unfreeze_specific_chain(
 
 pub fn unfreeze_chains(
     deps: DepsMut,
-    chains: Vec<(ChainName, GatewayDirection)>,
+    chains: HashMap<ChainName, GatewayDirection>,
 ) -> Result<Response, Error> {
     let events: Vec<_> = chains
         .into_iter()
@@ -277,7 +264,8 @@ mod test {
     use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use cosmwasm_std::Addr;
     use mockall::predicate;
-    use rand::{Rng, RngCore};
+    use rand::{random, RngCore};
+    use std::collections::HashMap;
 
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::testing::mock_dependencies;
@@ -285,6 +273,7 @@ mod test {
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
 
+    use super::{freeze_chains, unfreeze_chains};
     use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::state::chain_endpoints;
     use crate::{
@@ -292,15 +281,13 @@ mod test {
         state::{Config, MockStore},
     };
 
-    use super::{freeze_chain, unfreeze_chain};
-
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
         rand::thread_rng().fill_bytes(&mut bytes);
 
         let id = HexTxHashAndEventIndex {
             tx_hash: bytes,
-            event_index: rand::thread_rng().gen::<u32>(),
+            event_index: random::<u32>(),
         }
         .to_string();
 
@@ -823,8 +810,16 @@ mod test {
             .unwrap();
 
         // freezing twice produces same result
-        freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
-        freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+        freeze_chains(
+            deps.as_mut(),
+            Some(HashMap::from([(chain.clone(), GatewayDirection::Incoming)])),
+        )
+        .unwrap();
+        freeze_chains(
+            deps.as_mut(),
+            Some(HashMap::from([(chain.clone(), GatewayDirection::Incoming)])),
+        )
+        .unwrap();
 
         assert_chain_endpoint_frozen_status(
             deps.as_mut().storage,
@@ -832,16 +827,20 @@ mod test {
             FlagSet::from(GatewayDirection::Incoming),
         );
 
-        freeze_chain(
+        freeze_chains(
             deps.as_mut(),
-            chain.clone(),
-            GatewayDirection::Bidirectional,
+            Some(HashMap::from([(
+                chain.clone(),
+                GatewayDirection::Bidirectional,
+            )])),
         )
         .unwrap();
-        freeze_chain(
+        freeze_chains(
             deps.as_mut(),
-            chain.clone(),
-            GatewayDirection::Bidirectional,
+            Some(HashMap::from([(
+                chain.clone(),
+                GatewayDirection::Bidirectional,
+            )])),
         )
         .unwrap();
 
@@ -852,8 +851,16 @@ mod test {
         );
 
         // unfreezing twice produces same result
-        unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Outgoing).unwrap();
-        unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Outgoing).unwrap();
+        unfreeze_chains(
+            deps.as_mut(),
+            HashMap::from([(chain.clone(), GatewayDirection::Outgoing)]),
+        )
+        .unwrap();
+        unfreeze_chains(
+            deps.as_mut(),
+            HashMap::from([(chain.clone(), GatewayDirection::Outgoing)]),
+        )
+        .unwrap();
 
         assert_chain_endpoint_frozen_status(
             deps.as_mut().storage,
@@ -861,16 +868,14 @@ mod test {
             FlagSet::from(GatewayDirection::Incoming),
         );
 
-        unfreeze_chain(
+        unfreeze_chains(
             deps.as_mut(),
-            chain.clone(),
-            GatewayDirection::Bidirectional,
+            HashMap::from([(chain.clone(), GatewayDirection::Bidirectional)]),
         )
         .unwrap();
-        unfreeze_chain(
+        unfreeze_chains(
             deps.as_mut(),
-            chain.clone(),
-            GatewayDirection::Bidirectional,
+            HashMap::from([(chain.clone(), GatewayDirection::Bidirectional)]),
         )
         .unwrap();
 
@@ -901,7 +906,11 @@ mod test {
             )
             .unwrap();
 
-        let res = freeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+        let res = freeze_chains(
+            deps.as_mut(),
+            Some(HashMap::from([(chain.clone(), GatewayDirection::Incoming)])),
+        )
+        .unwrap();
 
         assert_eq!(res.events.len(), 1);
         assert!(res.events.contains(
@@ -912,7 +921,11 @@ mod test {
             .into()
         ));
 
-        let res = unfreeze_chain(deps.as_mut(), chain.clone(), GatewayDirection::Incoming).unwrap();
+        let res = unfreeze_chains(
+            deps.as_mut(),
+            HashMap::from([(chain.clone(), GatewayDirection::Incoming)]),
+        )
+        .unwrap();
 
         assert_eq!(res.events.len(), 1);
         assert!(res.events.contains(
