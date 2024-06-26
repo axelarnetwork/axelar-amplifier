@@ -2,9 +2,11 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use axelar_wasm_std::FnExt;
+use cosmrs::tx::MessageExt;
 use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
+use prost::Message;
 use thiserror::Error;
 use tokio::select;
 use tokio::sync::{mpsc, oneshot};
@@ -13,6 +15,8 @@ use tracing::info;
 use tracing::warn;
 
 use super::msg_queue::MsgQueue;
+use super::proto;
+use crate::broadcaster::tx_confirmer::TxResponse;
 use crate::broadcaster::Broadcaster;
 
 type Result<T = ()> = error_stack::Result<T, Error>;
@@ -28,6 +32,10 @@ pub enum Error {
     Client,
     #[error("failed to queue message")]
     Queue,
+    #[error("failed to confirm transaction")]
+    TxConfirmation,
+    #[error("failed to decode tx response")]
+    DecodeTxResponse(#[from] prost::DecodeError),
 }
 
 #[automock]
@@ -62,6 +70,8 @@ where
     batch_gas_limit: Gas,
     broadcast_interval: Duration,
     channel: Option<(mpsc::Sender<MsgAndResChan>, mpsc::Receiver<MsgAndResChan>)>,
+    tx_confirmer_sender: mpsc::Sender<String>,
+    tx_confirmer_receiver: mpsc::Receiver<TxResponse>,
 }
 
 impl<T> QueuedBroadcaster<T>
@@ -73,6 +83,8 @@ where
         batch_gas_limit: Gas,
         capacity: usize,
         broadcast_interval: Duration,
+        tx_confirmer_sender: mpsc::Sender<String>,
+        tx_res_receiver: mpsc::Receiver<TxResponse>,
     ) -> Self {
         Self {
             broadcaster,
@@ -80,6 +92,8 @@ where
             batch_gas_limit,
             broadcast_interval,
             channel: Some(mpsc::channel(capacity)),
+            tx_confirmer_sender,
+            tx_confirmer_receiver: tx_res_receiver,
         }
     }
 
@@ -96,6 +110,7 @@ where
                     None => break,
                     Some(msg_and_res_chan) => interval = self.handle_msg(interval, msg_and_res_chan).await?,
                 },
+                Some(tx_res) = self.tx_confirmer_receiver.recv() => self.handle_tx_res(tx_res).await?,
                 _ = interval.tick() => self.broadcast_all().await?.then(|_| {interval.reset()}),
             }
         }
@@ -116,6 +131,41 @@ where
         }
     }
 
+    async fn handle_tx_res(&self, tx_res: TxResponse) -> Result {
+        let tx_hash = tx_res.response.txhash;
+
+        if !tx_res.status {
+            warn!(tx_hash, "tx failed");
+            return Ok(());
+        }
+
+        let batch_res = proto::axelar::auxiliary::v1beta1::BatchResponse::decode(
+            tx_res.response.data.as_bytes(),
+        )
+        .map_err(Into::into)
+        .map_err(Report::new)?;
+
+        for (index, res) in batch_res
+            .responses
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, res)| res.res.map(|res| (i, res)))
+        {
+            match res {
+                proto::axelar::auxiliary::v1beta1::batch_response::response::Res::Err(err) => {
+                    warn!(tx_hash, index, "msg in batch failed: {0}", err);
+                }
+                proto::axelar::auxiliary::v1beta1::batch_response::response::Res::Result(
+                    result,
+                ) => {
+                    info!(tx_hash, index, "msg in batch succeeded: {0}", result.log);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     async fn broadcast_all(&mut self) -> Result {
         let msgs = self.queue.pop_all();
 
@@ -124,11 +174,25 @@ where
             n => {
                 info!(message_count = n, "ready to broadcast messages");
 
-                self.broadcaster
-                    .broadcast(msgs)
+                let batch_req = proto::axelar::auxiliary::v1beta1::BatchRequest {
+                    sender: self.broadcaster.sender_address().as_ref().to_bytes(),
+                    messages: msgs,
+                }
+                .to_any()
+                .expect("failed to serialize proto message for batch request");
+
+                let tx_hash = self
+                    .broadcaster
+                    .broadcast(vec![batch_req])
                     .await
-                    .map(|_| ())
-                    .change_context(Error::Broadcast)
+                    .change_context(Error::Broadcast)?
+                    .txhash;
+                self.tx_confirmer_sender
+                    .send(tx_hash)
+                    .await
+                    .change_context(Error::TxConfirmation)?;
+
+                Ok(())
             }
         }
     }
@@ -178,16 +242,19 @@ where
 #[cfg(test)]
 mod test {
     use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-    use cosmrs::tx::Fee;
+    use cosmrs::tx::{Fee, MessageExt};
     use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
+    use tokio::sync::mpsc;
     use tokio::test;
     use tokio::time::{sleep, Duration};
 
     use super::{Error, QueuedBroadcaster};
     use crate::broadcaster::{self, MockBroadcaster};
+    use crate::queue::proto;
     use crate::queue::queued_broadcaster::BroadcasterClient;
+    use crate::PREFIX;
 
     #[test]
     async fn should_ignore_msg_when_fee_estimation_fails() {
@@ -196,8 +263,17 @@ mod test {
             .expect_estimate_fee()
             .return_once(|_| Err(Report::new(broadcaster::Error::FeeEstimation)));
 
-        let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, 100, 10, Duration::from_secs(5));
+        let (tx_confirmer_sender, _tx_confirmer_receiver) = mpsc::channel(1000);
+        let (_tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
+
+        let queued_broadcaster = QueuedBroadcaster::new(
+            broadcaster,
+            100,
+            10,
+            Duration::from_secs(5),
+            tx_confirmer_sender,
+            tx_res_receiver,
+        );
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
 
@@ -233,19 +309,31 @@ mod test {
                 })
             });
         broadcaster
+            .expect_sender_address()
+            .once()
+            .returning(|| AccountId::new(PREFIX, &[1, 2, 3]).unwrap().into());
+        broadcaster
             .expect_broadcast()
             .once()
             .returning(move |msgs| {
-                assert!(msgs.len() == tx_count);
+                assert_eq!(msgs.len(), 1);
+                let msg = msgs.first().unwrap();
+                let msg = proto::axelar::auxiliary::v1beta1::BatchRequest::from_any(msg).unwrap();
+                assert_eq!(msg.messages.len(), tx_count);
 
                 Ok(TxResponse::default())
             });
+
+        let (tx_confirmer_sender, _tx_confirmer_receiver) = mpsc::channel(1000);
+        let (_tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
 
         let queued_broadcaster = QueuedBroadcaster::new(
             broadcaster,
             batch_gas_limit,
             tx_count,
             Duration::from_secs(5),
+            tx_confirmer_sender,
+            tx_res_receiver,
         );
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
@@ -278,16 +366,32 @@ mod test {
                 })
             });
         broadcaster
+            .expect_sender_address()
+            .once()
+            .returning(|| AccountId::new(PREFIX, &[1, 2, 3]).unwrap().into());
+        broadcaster
             .expect_broadcast()
             .once()
             .returning(move |msgs| {
-                assert!(msgs.len() == tx_count);
+                assert_eq!(msgs.len(), 1);
+                let msg = msgs.first().unwrap();
+                let msg = proto::axelar::auxiliary::v1beta1::BatchRequest::from_any(msg).unwrap();
+                assert_eq!(msg.messages.len(), tx_count);
 
                 Ok(TxResponse::default())
             });
 
-        let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
+        let (tx_confirmer_sender, _tx_confirmer_receiver) = mpsc::channel(1000);
+        let (_tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
+
+        let queued_broadcaster = QueuedBroadcaster::new(
+            broadcaster,
+            batch_gas_limit,
+            tx_count,
+            broadcast_interval,
+            tx_confirmer_sender,
+            tx_res_receiver,
+        );
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
 
@@ -319,27 +423,39 @@ mod test {
                 })
             });
         broadcaster
-            .expect_broadcast()
-            .once()
-            .returning(move |msgs| {
-                assert!(msgs.len() == tx_count - 1);
-
-                Ok(TxResponse::default())
-            });
+            .expect_sender_address()
+            .times(2)
+            .returning(|| AccountId::new(PREFIX, &[1, 2, 3]).unwrap().into());
+        let mut broadcast_count = 0;
         broadcaster
             .expect_broadcast()
-            .once()
+            .times(2)
             .returning(move |msgs| {
-                assert!(msgs.len() == 1);
+                broadcast_count += 1;
+
+                assert_eq!(msgs.len(), 1);
+                let msg = msgs.first().unwrap();
+                let msg = proto::axelar::auxiliary::v1beta1::BatchRequest::from_any(msg).unwrap();
+
+                if broadcast_count == 1 {
+                    assert_eq!(msg.messages.len(), tx_count - 1);
+                } else {
+                    assert_eq!(msg.messages.len(), 1);
+                }
 
                 Ok(TxResponse::default())
             });
+
+        let (tx_confirmer_sender, _tx_confirmer_receiver) = mpsc::channel(1000);
+        let (_tx_res_sender, tx_res_receiver) = mpsc::channel(1000);
 
         let queued_broadcaster = QueuedBroadcaster::new(
             broadcaster,
             batch_gas_limit,
             tx_count,
             Duration::from_secs(5),
+            tx_confirmer_sender,
+            tx_res_receiver,
         );
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());

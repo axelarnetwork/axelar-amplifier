@@ -19,6 +19,7 @@ mod cosmos {
 }
 
 mod tendermint {
+    #[allow(clippy::large_enum_variant)]
     pub mod abci {
         tonic::include_proto!("tendermint.abci");
     }
