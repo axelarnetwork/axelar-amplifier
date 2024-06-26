@@ -7,7 +7,7 @@ use error_stack::ResultExt;
 
 use crate::{
     error::ContractError,
-    execute, migrations,
+    execute,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     query, reply,
     state::{Config, CONFIG},
@@ -136,7 +136,7 @@ pub fn migrate(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrations::v_0_5::migrate_verifier_sets(deps)
+    Ok(Response::default())
 }
 
 #[cfg(test)]
