@@ -32,6 +32,7 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 bs58 = "0.5.1"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
+cw2 = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }

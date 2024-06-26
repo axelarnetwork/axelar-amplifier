@@ -17,6 +17,8 @@ pub enum ContractError {
     Structured(#[from] LoggableError),
     #[error(transparent)]
     Unauthorized(#[from] permission_control::Error),
+    #[error(transparent)]
+    WrongVersion(#[from] cw2::VersionError),
 }
 
 impl<T> From<Report<T>> for ContractError

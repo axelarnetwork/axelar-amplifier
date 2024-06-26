@@ -3,10 +3,12 @@ use axelar_wasm_std::{ensure_any_permission, ensure_permission, permission_contr
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cw2::VersionError;
 
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
+use crate::migrations;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, RouterStore, Store};
 
@@ -22,11 +24,19 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
+    let current_version = cw2::get_contract_version(deps.storage)?;
+    if current_version.version != "0.3.3" {
+        Err(VersionError::WrongVersion {
+            expected: "0.3.3".into(),
+            found: current_version.version.into(),
+        }
+        .into())
+    } else {
+        migrations::v0_3_3::set_generalized_permission_control(deps.storage)?;
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default())
+        Ok(Response::default())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
