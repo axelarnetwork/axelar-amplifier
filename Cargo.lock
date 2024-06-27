@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "ampd"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "axelar-wasm-std",
@@ -1427,7 +1427,7 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "coordinator"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -2927,7 +2927,7 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -4548,7 +4548,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -4578,7 +4578,7 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "axelar-wasm-std",
@@ -4735,7 +4735,7 @@ dependencies = [
 
 [[package]]
 name = "nexus-gateway"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6089,7 +6089,7 @@ dependencies = [
 
 [[package]]
 name = "rewards"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6199,7 +6199,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -6794,7 +6794,7 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
@@ -8464,7 +8464,7 @@ checksum = "2e4fe92cfc1bad19c19925d5eee4b30584dbbdee4ff10183b261acccbef74e2d"
 
 [[package]]
 name = "voting-verifier"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
