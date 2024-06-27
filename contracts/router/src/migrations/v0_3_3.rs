@@ -8,7 +8,7 @@ pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     if current_version.version != "0.3.3" {
         Err(VersionError::WrongVersion {
             expected: "0.3.3".into(),
-            found: current_version.version.into(),
+            found: current_version.version,
         }
         .into())
     } else {
