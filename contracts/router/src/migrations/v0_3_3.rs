@@ -1,8 +1,23 @@
 use crate::state::CONFIG;
-use axelar_wasm_std::permission_control;
+use axelar_wasm_std::{permission_control, ContractError};
 use cosmwasm_std::{StdResult, Storage};
+use cw2::VersionError;
 
-pub fn set_generalized_permission_control(storage: &mut dyn Storage) -> StdResult<()> {
+pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+    let current_version = cw2::get_contract_version(storage)?;
+    if current_version.version != "0.3.3" {
+        Err(VersionError::WrongVersion {
+            expected: "0.3.3".into(),
+            found: current_version.version.into(),
+        }
+        .into())
+    } else {
+        set_generalized_permission_control(storage)?;
+        Ok(())
+    }
+}
+
+fn set_generalized_permission_control(storage: &mut dyn Storage) -> StdResult<()> {
     let config = CONFIG.load(storage)?;
     permission_control::set_admin(storage, &config.admin)?;
     permission_control::set_governance(storage, &config.governance)?;

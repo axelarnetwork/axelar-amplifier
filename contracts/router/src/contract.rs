@@ -3,7 +3,6 @@ use axelar_wasm_std::{ensure_any_permission, ensure_permission, permission_contr
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-use cw2::VersionError;
 
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
@@ -24,19 +23,8 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let current_version = cw2::get_contract_version(deps.storage)?;
-    if current_version.version != "0.3.3" {
-        Err(VersionError::WrongVersion {
-            expected: "0.3.3".into(),
-            found: current_version.version.into(),
-        }
-        .into())
-    } else {
-        migrations::v0_3_3::set_generalized_permission_control(deps.storage)?;
-        cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-        Ok(Response::default())
-    }
+    migrations::v0_3_3::migrate(deps.storage)?;
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -255,14 +243,28 @@ mod test {
     }
 
     #[test]
-    fn migrate_sets_contract_version() {
+    fn migrate_checks_contract_version() {
         let mut deps = mock_dependencies();
+        CONFIG
+            .save(
+                deps.as_mut().storage,
+                &Config {
+                    admin: Addr::unchecked("admin"),
+                    governance: Addr::unchecked("governance"),
+                    nexus_gateway: Addr::unchecked("nexus_gateway"),
+                },
+            )
+            .unwrap();
 
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
 
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "router");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
+
+        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
+
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, CONTRACT_VERSION).unwrap();
+
+        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_ok());
     }
 
     #[test]
@@ -405,7 +407,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -418,7 +426,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::Admin.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -442,7 +456,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -454,7 +474,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::Governance.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -477,7 +503,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -489,7 +521,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::Governance.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -515,7 +553,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -530,7 +574,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, permission_control::Error::PermissionDenied);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::Admin.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
