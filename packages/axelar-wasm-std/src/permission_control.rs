@@ -77,26 +77,24 @@ pub enum Error {
 #[macro_export]
 macro_rules! ensure_permission {
     ($permission_variant:expr, $storage:expr, $sender:expr) => {
-        let permission: FlagSet<Permission> = $crate::flagset::FlagSet::from($permission_variant);
+        let permission = $crate::flagset::FlagSet::from($permission_variant);
 
-        if permission.contains($crate::permission_control::Permission::Any) {
-            return Ok(());
-        }
+        if !permission.contains($crate::permission_control::Permission::Any) {
+            let role = error_stack::ResultExt::change_context(
+                $crate::permission_control::sender_role($storage, $sender),
+                $crate::permission_control::Error::PermissionDenied {
+                    expected: permission.clone(),
+                    actual: Permission::NoPrivilege.into(),
+                },
+            )?;
 
-        let role = error_stack::ResultExt::change_context(
-            $crate::permission_control::sender_role($storage, $sender),
-            $crate::permission_control::Error::PermissionDenied {
-                expected: permission.clone(),
-                actual: Permission::NoPrivilege.into(),
-            },
-        )?;
-
-        if (*permission & *role).is_empty() {
-            return Err($crate::permission_control::Error::PermissionDenied {
-                expected: permission,
-                actual: role,
+            if (*permission & *role).is_empty() {
+                return Err($crate::permission_control::Error::PermissionDenied {
+                    expected: permission,
+                    actual: role,
+                }
+                .into());
             }
-            .into());
         }
     };
 }
