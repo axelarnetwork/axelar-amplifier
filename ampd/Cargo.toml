@@ -15,9 +15,12 @@ clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
+der = "0.7.9"
 deref-derive = "0.1.0"
 dirs = "5.0.1"
 ecdsa = { version = "0.16.6" }
+ed25519 ={ version = "2.2.3", features = ["pem"], default-features = false }
+ed25519-dalek = { workspace = true }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
