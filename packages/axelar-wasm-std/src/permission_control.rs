@@ -130,6 +130,7 @@ pub fn set_governance(storage: &mut dyn cosmwasm_std::Storage, addr: &Addr) -> S
 
 // this is an implementation detail of the macro and shouldn't be called on its own
 #[doc(hidden)]
+#[allow(clippy::arithmetic_side_effects)] // flagset is safe
 pub fn sender_role(
     storage: &dyn cosmwasm_std::Storage,
     sender: &Addr,
