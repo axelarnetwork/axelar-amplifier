@@ -369,7 +369,7 @@ where
                     ),
                     stream_timeout,
                 ),
-                handlers::config::Config::SolanaWorkerSetVerifier {
+                handlers::config::Config::SolanaVerifierSetVerifier {
                     cosmwasm_contract,
                     chain,
                 } => self.create_handler_task(

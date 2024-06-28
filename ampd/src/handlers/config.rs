@@ -59,7 +59,7 @@ pub enum Config {
         #[serde(flatten, with = "chain")]
         chain: GenericChain,
     },
-    SolanaWorkerSetVerifier {
+    SolanaVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: GenericChain,
@@ -191,14 +191,14 @@ where
     }
 }
 
-fn validate_solana_worker_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
+fn validate_solana_verifier_set_verifier_configs<'de, D>(configs: &[Config]) -> Result<(), D::Error>
 where
     D: Deserializer<'de>,
 {
     if !configs
         .iter()
         .filter_map(|config| match config {
-            Config::SolanaWorkerSetVerifier {
+            Config::SolanaVerifierSetVerifier {
                 chain: GenericChain { name, .. },
                 ..
             } => Some(name),
@@ -226,7 +226,7 @@ where
     validate_sui_msg_verifier_config::<D>(&configs)?;
     validate_sui_verifier_set_verifier_config::<D>(&configs)?;
     validate_solana_msg_verifier_config::<D>(&configs)?;
-    validate_solana_worker_set_verifier_configs::<D>(&configs)?;
+    validate_solana_verifier_set_verifier_configs::<D>(&configs)?;
 
     Ok(configs)
 }
