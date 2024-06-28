@@ -131,6 +131,7 @@ pub fn query(
         QueryMsg::Chains { start_after, limit } => {
             to_json_binary(&query::chains(deps, start_after, limit)?)
         }
+        QueryMsg::IsEnabled => to_json_binary(&query::is_enabled(deps)),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }

@@ -65,4 +65,6 @@ pub enum QueryMsg {
         start_after: Option<ChainName>,
         limit: Option<u32>,
     },
+    #[returns(bool)]
+    IsEnabled,
 }

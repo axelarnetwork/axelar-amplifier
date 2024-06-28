@@ -5,7 +5,7 @@ use error_stack::{Result, ResultExt};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
 
-use crate::state::chain_endpoints;
+use crate::state::{chain_endpoints, State, STATE};
 
 // Pagination limits
 const DEFAULT_LIMIT: u32 = u32::MAX;
@@ -33,6 +33,10 @@ pub fn chains(
                 .change_context(Error::StoreFailure)
         })
         .collect()
+}
+
+pub fn is_enabled(deps: Deps) -> bool {
+    STATE.load(deps.storage).unwrap_or(State::Disabled) == State::Enabled
 }
 
 #[cfg(test)]
@@ -130,5 +134,21 @@ mod test {
         let result =
             super::chains(deps.as_ref(), Some("e-chain".parse().unwrap()), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn is_enabled() {
+        let mut deps = mock_dependencies();
+        assert!(!super::is_enabled(deps.as_ref()));
+
+        super::STATE
+            .save(deps.as_mut().storage, &super::State::Disabled)
+            .unwrap();
+        assert!(!super::is_enabled(deps.as_ref()));
+
+        super::STATE
+            .save(deps.as_mut().storage, &super::State::Enabled)
+            .unwrap();
+        assert!(super::is_enabled(deps.as_ref()));
     }
 }
