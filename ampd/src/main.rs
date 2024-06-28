@@ -63,7 +63,7 @@ async fn main() -> ExitCode {
         Some(SubCommand::DeregisterChainSupport(args)) => {
             deregister_chain_support::run(cfg, args).await
         }
-        Some(SubCommand::RegisterPublicKey) => register_public_key::run(cfg).await,
+        Some(SubCommand::RegisterPublicKey(args)) => register_public_key::run(cfg, args).await,
         Some(SubCommand::VerifierAddress) => verifier_address::run(cfg.tofnd_config).await,
     };
 

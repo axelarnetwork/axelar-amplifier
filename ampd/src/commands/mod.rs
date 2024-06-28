@@ -37,7 +37,7 @@ pub enum SubCommand {
     /// Deregister chain support to the service registry contract
     DeregisterChainSupport(deregister_chain_support::Args),
     /// Register public key to the multisig contract
-    RegisterPublicKey,
+    RegisterPublicKey(register_public_key::Args),
     /// Query the verifier address
     VerifierAddress,
 }
