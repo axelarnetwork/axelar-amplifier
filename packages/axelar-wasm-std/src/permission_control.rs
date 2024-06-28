@@ -45,77 +45,6 @@ pub enum Error {
     },
 }
 
-/// Ensure that the sender of a message has the correct permissions to perform following actions.
-/// Returns an error if not.
-/// # Example
-/// ```
-/// # use cosmwasm_std::testing::mock_dependencies;
-/// use cosmwasm_std::Addr;
-/// use axelar_wasm_std::ensure_permission;
-/// use axelar_wasm_std::permission_control::Permission;
-///# use axelar_wasm_std::permission_control::Error;
-///
-///# fn main() -> Result<(),Box<dyn std::error::Error>>{
-///# use axelar_wasm_std::permission_control;
-///# let mut deps = mock_dependencies();
-///# let deps = deps.as_mut();
-/// let admin = Addr::unchecked("admin");
-/// let governance = Addr::unchecked("governance");
-///
-/// // set these before checking permissions
-/// permission_control::set_admin(deps.storage, &admin)?;
-/// permission_control::set_governance(deps.storage, &governance)?;
-///
-/// ensure_permission!(Permission::Elevated, deps.storage, &admin);
-/// ensure_permission!(Permission::Elevated, deps.storage, &governance);
-///
-/// do_something();
-/// # Ok(())}
-///
-/// #    fn do_something() {}
-/// ```
-#[macro_export]
-macro_rules! ensure_permission {
-    ($permission_variant:expr, $storage:expr, $sender:expr) => {
-        let permission = $crate::flagset::FlagSet::from($permission_variant);
-
-        if !permission.contains($crate::permission_control::Permission::Any) {
-            let role = error_stack::ResultExt::change_context(
-                $crate::permission_control::sender_role($storage, $sender),
-                $crate::permission_control::Error::PermissionDenied {
-                    expected: permission.clone(),
-                    actual: Permission::NoPrivilege.into(),
-                },
-            )?;
-
-            if (*permission & *role).is_empty() {
-                return Err($crate::permission_control::Error::PermissionDenied {
-                    expected: permission,
-                    actual: role,
-                }
-                .into());
-            }
-        }
-    };
-}
-
-/// This macro should be used as a marker to signify that the call is deliberately without checks
-///
-/// # Example
-/// ```
-///# fn main() -> Result<(),Box<dyn std::error::Error>>{
-///# use axelar_wasm_std::{ensure_any_permission};
-/// ensure_any_permission!();
-/// do_something();
-/// # Ok(())}
-///
-/// #    fn do_something() {}
-/// ```
-#[macro_export]
-macro_rules! ensure_any_permission {
-    () => {};
-}
-
 const ADMIN: Item<Addr> = Item::new("permission_control_contract_admin_addr");
 
 const GOVERNANCE: Item<Addr> = Item::new("permission_control_governance_addr");
@@ -128,7 +57,7 @@ pub fn set_governance(storage: &mut dyn cosmwasm_std::Storage, addr: &Addr) -> S
     GOVERNANCE.save(storage, addr)
 }
 
-// this is an implementation detail of the macro and shouldn't be called on its own
+// this is an implementation detail of the derived ensure_permission macro and shouldn't be called on its own
 #[doc(hidden)]
 #[allow(clippy::arithmetic_side_effects)] // flagset is safe
 pub fn sender_role(
@@ -160,137 +89,9 @@ pub fn sender_role(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::MockStorage;
-    use cosmwasm_std::Addr;
-    use error_stack::Report;
-    use flagset::Flags;
 
     #[test]
-    fn test_ensure_permission() {
-        let no_privilege = Addr::unchecked("regular user");
-        let admin = Addr::unchecked("admin");
-        let governance = Addr::unchecked("governance");
-
-        let check = |permission, user, storage| {
-            ensure_permission!(permission, storage, user);
-            Ok::<(), Report<Error>>(())
-        };
-
-        // no addresses set: all addresses should be treated as not privileged
-        let storage = MockStorage::new();
-        for permission in Permission::LIST {
-            match permission {
-                Permission::NoPrivilege | Permission::Any => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-                // none of these can be called if no addresses are set
-                Permission::Admin | Permission::Governance | Permission::Elevated => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_err());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-            }
-        }
-
-        // admin set: only admin should be allowed to call admin and elevated commands
-        let mut storage = MockStorage::new();
-        set_admin(&mut storage, &admin).unwrap();
-
-        for permission in Permission::LIST {
-            match permission {
-                Permission::NoPrivilege => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_err()); //
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-                Permission::Admin | Permission::Elevated => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-                // gov address is not set, so these should all fail
-                Permission::Governance => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_err());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-                Permission::Any => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-            }
-        }
-
-        // governance set: only governance should be allowed to call governance and elevated commands
-        let mut storage = MockStorage::new();
-        set_governance(&mut storage, &governance).unwrap();
-
-        for permission in Permission::LIST {
-            match permission {
-                Permission::NoPrivilege => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-                // admin address is not set, so these should all fail
-                Permission::Admin => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_err());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-                Permission::Governance | Permission::Elevated => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_err());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-                Permission::Any => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-            }
-        }
-
-        // admin and governance set: both should be allowed to call admin, governance, and elevated commands
-        let mut storage = MockStorage::new();
-        set_admin(&mut storage, &admin).unwrap();
-        set_governance(&mut storage, &governance).unwrap();
-
-        for permission in Permission::LIST {
-            match permission {
-                Permission::NoPrivilege => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_err());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-                Permission::Admin => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_err());
-                }
-                Permission::Governance => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_err());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-                Permission::Elevated => {
-                    assert!(check(*permission, &no_privilege, &storage).is_err());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-                Permission::Any => {
-                    assert!(check(*permission, &no_privilege, &storage).is_ok());
-                    assert!(check(*permission, &admin, &storage).is_ok());
-                    assert!(check(*permission, &governance, &storage).is_ok());
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test() {
+    fn display_permissions() {
         assert_eq!(format!("{}", FlagSet::from(Permission::Admin)), "Admin");
         assert_eq!(
             format!(
@@ -306,5 +107,55 @@ mod tests {
             ),
             "Any"
         );
+    }
+
+    #[test]
+    fn sender_role_from_storage() {
+        let admin = Addr::unchecked("admin");
+        let governance = Addr::unchecked("governance");
+        let regular_user = Addr::unchecked("regular user");
+
+        let mut storage = MockStorage::new();
+        set_admin(&mut storage, &admin).unwrap();
+        set_governance(&mut storage, &governance).unwrap();
+
+        assert_eq!(
+            sender_role(&storage, &admin).unwrap(),
+            FlagSet::from(Permission::Admin)
+        );
+        assert_eq!(
+            sender_role(&storage, &governance).unwrap(),
+            FlagSet::from(Permission::Governance)
+        );
+        assert_eq!(
+            sender_role(&storage, &regular_user).unwrap(),
+            FlagSet::from(Permission::NoPrivilege)
+        );
+
+        set_governance(&mut storage, &admin).unwrap();
+        assert_eq!(
+            sender_role(&storage, &admin).unwrap(),
+            FlagSet::from(Permission::Elevated)
+        );
+    }
+
+    #[test]
+    fn permission_level_correctly_defined() {
+        assert!(!FlagSet::from(Permission::NoPrivilege).contains(Permission::Admin));
+        assert!(!FlagSet::from(Permission::NoPrivilege).contains(Permission::Governance));
+
+        assert!(!FlagSet::from(Permission::Admin).contains(Permission::NoPrivilege));
+        assert!(!FlagSet::from(Permission::Admin).contains(Permission::Governance));
+
+        assert!(!FlagSet::from(Permission::Governance).contains(Permission::NoPrivilege));
+        assert!(!FlagSet::from(Permission::Governance).contains(Permission::Admin));
+
+        assert!(!FlagSet::from(Permission::Elevated).contains(Permission::NoPrivilege));
+        assert!(FlagSet::from(Permission::Elevated).contains(Permission::Admin));
+        assert!(FlagSet::from(Permission::Elevated).contains(Permission::Governance));
+
+        assert!(FlagSet::from(Permission::Any).contains(Permission::NoPrivilege));
+        assert!(FlagSet::from(Permission::Any).contains(Permission::Admin));
+        assert!(FlagSet::from(Permission::Any).contains(Permission::Governance));
     }
 }

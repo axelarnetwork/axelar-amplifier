@@ -1,36 +1,32 @@
+use crate::primitives::*;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-
-use crate::primitives::*;
+use msgs_derive::EnsurePermissions;
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    /*
-     * Governance Methods
-     * All the below messages should only be called by governance
-     */
     // Registers a new chain with the router
+    #[permission(Governance)]
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
     },
     // Changes the gateway address associated with a particular chain
+    #[permission(Governance)]
     UpgradeGateway {
         chain: ChainName,
         contract_address: Address,
     },
-
-    /*
-     * Router Admin Methods
-     * All the below messages should only be called by the router admin
-     */
     // Freezes a chain, in the specified direction.
+    #[permission(Admin)]
     FreezeChain {
         chain: ChainName,
         direction: GatewayDirection,
     },
     // Unfreezes a chain, in the specified direction.
+    #[permission(Elevated)]
     UnfreezeChain {
         chain: ChainName,
         direction: GatewayDirection,
@@ -42,6 +38,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
+    #[permission(Any)]
     RouteMessages(Vec<Message>),
 }
 

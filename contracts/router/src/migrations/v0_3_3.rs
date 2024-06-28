@@ -1,7 +1,9 @@
-use crate::state::CONFIG;
-use axelar_wasm_std::{permission_control, ContractError};
 use cosmwasm_std::{StdResult, Storage};
 use cw2::VersionError;
+
+use axelar_wasm_std::{permission_control, ContractError};
+
+use crate::state::CONFIG;
 
 pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     let current_version = cw2::get_contract_version(storage)?;
@@ -26,13 +28,14 @@ fn set_generalized_permission_control(storage: &mut dyn Storage) -> StdResult<()
 
 #[cfg(test)]
 mod test {
+    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::Addr;
+
+    use router_api::msg::ExecuteMsg;
+    use router_api::GatewayDirection;
+
     use crate::state::Config;
     use crate::state::CONFIG;
-    use axelar_wasm_std::ensure_permission;
-    use axelar_wasm_std::permission_control::{Error, Permission};
-    use cosmwasm_std::testing::MockStorage;
-    use cosmwasm_std::{Addr, Storage};
-    use error_stack::Report;
 
     #[test]
     fn set_generalized_permission_control() {
@@ -45,21 +48,29 @@ mod test {
         let mut storage = MockStorage::new();
         CONFIG.save(&mut storage, &config).unwrap();
 
-        let check_admin = |storage: &mut dyn Storage| {
-            ensure_permission!(Permission::Admin, storage, &config.admin);
-            Ok::<(), Report<Error>>(())
+        let msg = ExecuteMsg::UnfreezeChain {
+            chain: "chain".parse().unwrap(),
+            direction: GatewayDirection::Bidirectional,
         };
-
-        let check_governance = |storage: &mut dyn Storage| {
-            ensure_permission!(Permission::Governance, storage, &config.governance);
-            Ok::<(), Report<Error>>(())
-        };
-        assert!(check_admin(&mut storage).is_err());
-        assert!(check_governance(&mut storage).is_err());
+        assert!(msg
+            .clone()
+            .ensure_permission(&mut storage, &config.admin)
+            .is_err());
+        assert!(msg
+            .clone()
+            .ensure_permission(&mut storage, &config.governance)
+            .is_err());
 
         super::set_generalized_permission_control(&mut storage).unwrap();
 
-        assert!(check_admin(&mut storage).is_ok());
-        assert!(check_governance(&mut storage).is_ok());
+        assert!(msg
+            .clone()
+            .ensure_permission(&mut storage, &config.admin)
+            .is_ok());
+
+        assert!(msg
+            .clone()
+            .ensure_permission(&mut storage, &config.governance)
+            .is_ok());
     }
 }

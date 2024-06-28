@@ -1,15 +1,13 @@
-use axelar_wasm_std::permission_control::Permission;
-use axelar_wasm_std::{ensure_any_permission, ensure_permission, permission_control};
+use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-
-use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
 use crate::migrations;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, RouterStore, Store};
+use router_api::msg::{ExecuteMsg, QueryMsg};
 
 mod execute;
 mod query;
@@ -71,14 +69,12 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg {
+    match msg.ensure_permission(deps.storage, &info.sender)? {
         ExecuteMsg::RegisterChain {
             chain,
             gateway_address,
             msg_id_format,
         } => {
-            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
-
             let gateway_address = deps.api.addr_validate(&gateway_address)?;
             execute::register_chain(deps, chain, gateway_address, msg_id_format)
         }
@@ -86,30 +82,20 @@ pub fn execute(
             chain,
             contract_address,
         } => {
-            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
-
             let contract_address = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_gateway(deps, chain, contract_address)
         }
         ExecuteMsg::FreezeChain { chain, direction } => {
-            ensure_permission!(Permission::Admin, deps.storage, &info.sender);
-
             execute::freeze_chain(deps, chain, direction)
         }
         ExecuteMsg::UnfreezeChain { chain, direction } => {
-            ensure_permission!(Permission::Admin, deps.storage, &info.sender);
-
             execute::unfreeze_chain(deps, chain, direction)
         }
-        ExecuteMsg::RouteMessages(msgs) => {
-            ensure_any_permission!();
-
-            Ok(execute::route_messages(
-                RouterStore::new(deps.storage),
-                info.sender,
-                msgs,
-            )?)
-        }
+        ExecuteMsg::RouteMessages(msgs) => Ok(execute::route_messages(
+            RouterStore::new(deps.storage),
+            info.sender,
+            msgs,
+        )?),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -131,20 +117,18 @@ pub fn query(
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, str::FromStr};
-
-    use crate::state::CONFIG;
-
     use super::*;
-
+    use crate::state::CONFIG;
     use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
     };
+    use permission_control::Permission;
     use router_api::{
         error::Error, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
     };
+    use std::{collections::HashMap, str::FromStr};
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
