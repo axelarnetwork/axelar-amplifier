@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use axelar_wasm_std::FnExt;
 use cosmrs::{Any, Gas};
 use error_stack::{self, Report, ResultExt};
 use mockall::automock;
@@ -94,9 +93,8 @@ where
                     Some(msg_and_res_chan) => self.handle_msg(msg_and_res_chan).await?,
                 },
                 _ = self.broadcast_interval.tick() => {
-                    self.broadcast_all().await?.then(|_| {
-                        self.broadcast_interval.reset();
-                    });
+                    self.broadcast_all().await?;
+                    self.broadcast_interval.reset();
                 },
             }
         }
