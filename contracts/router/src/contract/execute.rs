@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::vec;
 
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
-use cosmwasm_std::{
-    to_json_binary, Addr, DepsMut, Event, MessageInfo, Order, Response, StdResult, Storage, WasmMsg,
-};
+use cosmwasm_std::{to_json_binary, Addr, DepsMut, Response, StdResult, WasmMsg};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
@@ -15,9 +13,7 @@ use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
-use crate::state::{chain_endpoints, Store, CONFIG};
-
-use super::Contract;
+use crate::state::{chain_endpoints, Config, Store};
 
 pub fn register_chain(
     deps: DepsMut,
@@ -152,22 +148,6 @@ pub fn unfreeze_chains(
     Ok(Response::new().add_events(events))
 }
 
-pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.admin != info.sender {
-        return Err(Error::Unauthorized);
-    }
-    Ok(())
-}
-
-pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Error> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != info.sender {
-        return Err(Error::Unauthorized);
-    }
-    Ok(())
-}
-
 fn verify_msg_ids(
     msgs: &[Message],
     expected_format: &MessageIdFormat,
@@ -177,86 +157,81 @@ fn verify_msg_ids(
         .change_context(Error::InvalidMessageId)
 }
 
-impl<S> Contract<S>
-where
-    S: Store,
-{
-    fn validate_msgs(
-        &self,
-        sender: &Addr,
-        msgs: Vec<Message>,
-    ) -> error_stack::Result<Vec<Message>, Error> {
-        // If sender is the nexus gateway, we cannot validate the source chain
-        // because the source chain is registered in the core nexus module.
-        // All messages received from the nexus gateway must adhere to the
-        // HexTxHashAndEventIndex message ID format.
-        if sender == self.config.nexus_gateway {
-            verify_msg_ids(&msgs, &MessageIdFormat::HexTxHashAndEventIndex)?;
-            return Ok(msgs);
-        }
-
-        let source_chain = self
-            .store
-            .load_chain_by_gateway(sender)?
-            .ok_or(Error::GatewayNotRegistered)?;
-        if source_chain.incoming_frozen() {
-            return Err(report!(Error::ChainFrozen {
-                chain: source_chain.name,
-            }));
-        }
-
-        if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
-            return Err(report!(Error::WrongSourceChain));
-        }
-
-        verify_msg_ids(&msgs, &source_chain.msg_id_format)?;
-
-        Ok(msgs)
+fn validate_msgs(
+    store: &impl Store,
+    config: Config,
+    sender: &Addr,
+    msgs: Vec<Message>,
+) -> error_stack::Result<Vec<Message>, Error> {
+    // If sender is the nexus gateway, we cannot validate the source chain
+    // because the source chain is registered in the core nexus module.
+    // All messages received from the nexus gateway must adhere to the
+    // HexTxHashAndEventIndex message ID format.
+    if sender == config.nexus_gateway {
+        verify_msg_ids(&msgs, &MessageIdFormat::HexTxHashAndEventIndex)?;
+        return Ok(msgs);
     }
 
-    pub fn route_messages(
-        self,
-        sender: Addr,
-        msgs: Vec<Message>,
-    ) -> error_stack::Result<Response, Error> {
-        let msgs = self.validate_msgs(&sender, msgs)?;
+    let source_chain = store
+        .load_chain_by_gateway(sender)?
+        .ok_or(Error::GatewayNotRegistered)?;
+    if source_chain.incoming_frozen() {
+        return Err(report!(Error::ChainFrozen {
+            chain: source_chain.name,
+        }));
+    }
 
-        let wasm_msgs = msgs
-            .iter()
-            .group_by(|msg| msg.destination_chain.to_owned())
-            .into_iter()
-            .map(|(destination_chain, msgs)| {
-                let gateway = match self.store.load_chain_by_chain_name(&destination_chain)? {
-                    Some(destination_chain) if destination_chain.outgoing_frozen() => {
-                        return Err(report!(Error::ChainFrozen {
-                            chain: destination_chain.name,
-                        }));
-                    }
-                    Some(destination_chain) => destination_chain.gateway.address,
-                    // messages with unknown destination chains are routed to
-                    // the nexus gateway if the sender is not the nexus gateway
-                    // itself
-                    None if sender != self.config.nexus_gateway => {
-                        self.config.nexus_gateway.clone()
-                    }
-                    _ => return Err(report!(Error::ChainNotFound)),
-                };
+    if msgs.iter().any(|msg| msg.cc_id.chain != source_chain.name) {
+        return Err(report!(Error::WrongSourceChain));
+    }
 
-                Ok(WasmMsg::Execute {
-                    contract_addr: gateway.to_string(),
-                    msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
-                        msgs.cloned().collect(),
-                    ))
-                    .expect("must serialize message"),
-                    funds: vec![],
-                })
+    verify_msg_ids(&msgs, &source_chain.msg_id_format)?;
+
+    Ok(msgs)
+}
+
+pub fn route_messages(
+    store: impl Store,
+    sender: Addr,
+    msgs: Vec<Message>,
+) -> error_stack::Result<Response, Error> {
+    let config = store.load_config()?;
+
+    let msgs = validate_msgs(&store, config.clone(), &sender, msgs)?;
+
+    let wasm_msgs = msgs
+        .iter()
+        .group_by(|msg| msg.destination_chain.to_owned())
+        .into_iter()
+        .map(|(destination_chain, msgs)| {
+            let gateway = match store.load_chain_by_chain_name(&destination_chain)? {
+                Some(destination_chain) if destination_chain.outgoing_frozen() => {
+                    return Err(report!(Error::ChainFrozen {
+                        chain: destination_chain.name,
+                    }));
+                }
+                Some(destination_chain) => destination_chain.gateway.address,
+                // messages with unknown destination chains are routed to
+                // the nexus gateway if the sender is not the nexus gateway
+                // itself
+                None if sender != config.nexus_gateway => config.nexus_gateway.clone(),
+                _ => return Err(report!(Error::ChainNotFound)),
+            };
+
+            Ok(WasmMsg::Execute {
+                contract_addr: gateway.to_string(),
+                msg: to_json_binary(&gateway_api::msg::ExecuteMsg::RouteMessages(
+                    msgs.cloned().collect(),
+                ))
+                .expect("must serialize message"),
+                funds: vec![],
             })
-            .collect::<Result<Vec<_>, _>>()?;
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(Response::new()
-            .add_messages(wasm_msgs)
-            .add_events(msgs.into_iter().map(|msg| MessageRouted { msg }.into())))
-    }
+    Ok(Response::new()
+        .add_messages(wasm_msgs)
+        .add_events(msgs.into_iter().map(|msg| MessageRouted { msg }.into())))
 }
 
 #[cfg(test)]
@@ -276,10 +251,7 @@ mod test {
     use super::{freeze_chains, unfreeze_chains};
     use crate::events::{ChainFrozen, ChainUnfrozen};
     use crate::state::chain_endpoints;
-    use crate::{
-        contract::Contract,
-        state::{Config, MockStore},
-    };
+    use crate::state::{Config, MockStore};
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
         let mut bytes = [0; 32];
@@ -335,13 +307,12 @@ mod test {
             .with(predicate::eq(sender.clone()))
             .return_once(|_| Ok(None));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(sender, vec![rand_message(source_chain, destination_chain)])
-            .is_err_and(move |err| {
-                matches!(err.current_context(), Error::GatewayNotRegistered)
-            }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![rand_message(source_chain, destination_chain)]
+        )
+        .is_err_and(move |err| { matches!(err.current_context(), Error::GatewayNotRegistered) }));
     }
 
     #[test]
@@ -373,13 +344,14 @@ mod test {
             .with(predicate::eq(sender.clone()))
             .return_once(|_| Ok(Some(chain_endpoint)));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(sender, vec![rand_message(source_chain.clone(), destination_chain)])
-            .is_err_and(move |err| {
-                matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == source_chain)
-            }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![rand_message(source_chain.clone(), destination_chain)]
+        )
+        .is_err_and(move |err| {
+            matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == source_chain)
+        }));
     }
 
     #[test]
@@ -411,14 +383,12 @@ mod test {
             .with(predicate::eq(sender.clone()))
             .return_once(|_| Ok(Some(chain_endpoint)));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(
-                sender,
-                vec![rand_message("polygon".parse().unwrap(), destination_chain)]
-            )
-            .is_err_and(|err| { matches!(err.current_context(), Error::WrongSourceChain) }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![rand_message("polygon".parse().unwrap(), destination_chain)]
+        )
+        .is_err_and(|err| { matches!(err.current_context(), Error::WrongSourceChain) }));
     }
 
     #[test]
@@ -463,10 +433,7 @@ mod test {
             .with(predicate::eq(destination_chain.clone()))
             .return_once(|_| Ok(Some(destination_chain_endpoint)));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(sender, vec![rand_message(source_chain, destination_chain.clone())])
+        assert!(route_messages(store, sender, vec![rand_message(source_chain, destination_chain.clone())])
             .is_err_and(move |err| {
                 matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == destination_chain)
             }));
@@ -501,12 +468,9 @@ mod test {
             .with(predicate::eq(sender.clone()))
             .return_once(|_| Ok(Some(source_chain_endpoint)));
 
-        let contract = Contract::new(store);
-
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = "foobar".try_into().unwrap();
-        assert!(contract
-            .route_messages(sender, vec![msg])
+        assert!(route_messages(store, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
@@ -526,12 +490,9 @@ mod test {
             .expect_load_config()
             .returning(move || Ok(config.clone()));
 
-        let contract = Contract::new(store);
-
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = "foobar".try_into().unwrap();
-        assert!(contract
-            .route_messages(sender, vec![msg])
+        assert!(route_messages(store, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
@@ -564,8 +525,6 @@ mod test {
             .with(predicate::eq(sender.clone()))
             .return_once(|_| Ok(Some(source_chain_endpoint)));
 
-        let contract = Contract::new(store);
-
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = HexTxHashAndEventIndex {
             tx_hash: [0; 32],
@@ -574,8 +533,7 @@ mod test {
         .to_string()
         .try_into()
         .unwrap();
-        assert!(contract
-            .route_messages(sender, vec![msg])
+        assert!(route_messages(store, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
@@ -635,19 +593,17 @@ mod test {
             .with(predicate::eq(destination_chain_2.clone()))
             .return_once(|_| Ok(Some(destination_chain_endpoint_2)));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(
-                sender,
-                vec![
-                    rand_message(source_chain.clone(), destination_chain_1.clone()),
-                    rand_message(source_chain.clone(), destination_chain_1.clone()),
-                    rand_message(source_chain.clone(), destination_chain_1.clone()),
-                    rand_message(source_chain.clone(), destination_chain_2.clone()),
-                ]
-            )
-            .is_ok_and(|res| { res.messages.len() == 2 }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![
+                rand_message(source_chain.clone(), destination_chain_1.clone()),
+                rand_message(source_chain.clone(), destination_chain_1.clone()),
+                rand_message(source_chain.clone(), destination_chain_1.clone()),
+                rand_message(source_chain.clone(), destination_chain_2.clone()),
+            ]
+        )
+        .is_ok_and(|res| { res.messages.len() == 2 }));
     }
 
     #[test]
@@ -693,19 +649,17 @@ mod test {
             .with(predicate::eq(destination_chain_2.clone()))
             .return_once(|_| Ok(Some(destination_chain_endpoint_2)));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(
-                sender,
-                vec![
-                    rand_message(source_chain.clone(), destination_chain_1.clone()),
-                    rand_message(source_chain.clone(), destination_chain_1.clone()),
-                    rand_message(source_chain.clone(), destination_chain_1.clone()),
-                    rand_message(source_chain.clone(), destination_chain_2.clone()),
-                ]
-            )
-            .is_ok_and(|res| { res.messages.len() == 2 }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![
+                rand_message(source_chain.clone(), destination_chain_1.clone()),
+                rand_message(source_chain.clone(), destination_chain_1.clone()),
+                rand_message(source_chain.clone(), destination_chain_1.clone()),
+                rand_message(source_chain.clone(), destination_chain_2.clone()),
+            ]
+        )
+        .is_ok_and(|res| { res.messages.len() == 2 }));
     }
 
     #[test]
@@ -729,17 +683,15 @@ mod test {
             .with(predicate::eq(destination_chain.clone()))
             .return_once(|_| Ok(None));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(
-                sender,
-                vec![rand_message(
-                    source_chain.clone(),
-                    destination_chain.clone()
-                )]
-            )
-            .is_err_and(|err| { matches!(err.current_context(), Error::ChainNotFound) }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![rand_message(
+                source_chain.clone(),
+                destination_chain.clone()
+            )]
+        )
+        .is_err_and(|err| { matches!(err.current_context(), Error::ChainNotFound) }));
     }
 
     #[test]
@@ -776,17 +728,15 @@ mod test {
             .with(predicate::eq(destination_chain.clone()))
             .return_once(|_| Ok(None));
 
-        let contract = Contract::new(store);
-
-        assert!(contract
-            .route_messages(
-                sender,
-                vec![rand_message(
-                    source_chain.clone(),
-                    destination_chain.clone()
-                )]
-            )
-            .is_ok_and(|res| { res.messages.len() == 1 }));
+        assert!(route_messages(
+            store,
+            sender,
+            vec![rand_message(
+                source_chain.clone(),
+                destination_chain.clone()
+            )]
+        )
+        .is_ok_and(|res| { res.messages.len() == 1 }));
     }
 
     #[test]

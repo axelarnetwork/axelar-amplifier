@@ -1,3 +1,5 @@
+use axelar_wasm_std::permission_control::Permission;
+use axelar_wasm_std::{ensure_any_permission, ensure_permission, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
@@ -5,6 +7,7 @@ use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInf
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
+use crate::migrations;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, RouterStore, Store};
 
@@ -20,10 +23,9 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    // any version checks should be done before here
+    migrations::v0_3_3::migrate(deps.storage)?;
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
     Ok(Response::default())
 }
 
@@ -45,6 +47,8 @@ pub fn instantiate(
         governance: governance.clone(),
         nexus_gateway: nexus_gateway.clone(),
     };
+    permission_control::set_admin(deps.storage, &admin)?;
+    permission_control::set_governance(deps.storage, &governance)?;
 
     RouterStore::new(deps.storage)
         .save_config(config)
@@ -67,14 +71,14 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let contract = Contract::new(RouterStore::new(deps.storage));
     match msg {
         ExecuteMsg::RegisterChain {
             chain,
             gateway_address,
             msg_id_format,
         } => {
-            execute::require_governance(&deps, info)?;
+            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
+
             let gateway_address = deps.api.addr_validate(&gateway_address)?;
             execute::register_chain(deps, chain, gateway_address, msg_id_format)
         }
@@ -82,42 +86,30 @@ pub fn execute(
             chain,
             contract_address,
         } => {
-            execute::require_governance(&deps, info)?;
+            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
+
             let contract_address = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_gateway(deps, chain, contract_address)
         }
         ExecuteMsg::FreezeChains { chains } => {
-            execute::require_admin(&deps, info)?;
+            ensure_permission!(Permission::Admin, deps.storage, &info.sender);
             execute::freeze_chains(deps, chains)
         }
         ExecuteMsg::UnfreezeChains { chains } => {
-            execute::require_admin(&deps, info.clone())
-                .or_else(|_| execute::require_governance(&deps, info))?;
+            ensure_permission!(Permission::Elevated, deps.storage, &info.sender);
             execute::unfreeze_chains(deps, chains)
         }
-        ExecuteMsg::RouteMessages(msgs) => Ok(contract.route_messages(info.sender, msgs)?),
+        ExecuteMsg::RouteMessages(msgs) => {
+            ensure_any_permission!();
+
+            Ok(execute::route_messages(
+                RouterStore::new(deps.storage),
+                info.sender,
+                msgs,
+            )?)
+        }
     }
     .map_err(axelar_wasm_std::ContractError::from)
-}
-
-struct Contract<S>
-where
-    S: Store,
-{
-    store: S,
-    #[allow(unused)]
-    config: Config,
-}
-
-impl<S> Contract<S>
-where
-    S: Store,
-{
-    pub fn new(store: S) -> Self {
-        let config = store.load_config().expect("config must be loaded");
-
-        Self { store, config }
-    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -167,6 +159,8 @@ mod test {
             nexus_gateway: Addr::unchecked(NEXUS_GATEWAY_ADDRESS),
         };
         CONFIG.save(deps.as_mut().storage, &config).unwrap();
+        permission_control::set_admin(deps.as_mut().storage, &config.admin).unwrap();
+        permission_control::set_governance(deps.as_mut().storage, &config.governance).unwrap();
 
         deps
     }
@@ -250,14 +244,28 @@ mod test {
     }
 
     #[test]
-    fn migrate_sets_contract_version() {
+    fn migrate_checks_contract_version() {
         let mut deps = mock_dependencies();
+        CONFIG
+            .save(
+                deps.as_mut().storage,
+                &Config {
+                    admin: Addr::unchecked("admin"),
+                    governance: Addr::unchecked("governance"),
+                    nexus_gateway: Addr::unchecked("nexus_gateway"),
+                },
+            )
+            .unwrap();
 
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
 
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "router");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
+
+        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
+
+        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, CONTRACT_VERSION).unwrap();
+
+        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_ok());
     }
 
     #[test]
@@ -400,7 +408,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -413,7 +427,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::Admin.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -439,7 +459,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -453,7 +479,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::Governance.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -480,7 +512,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -494,7 +532,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Admin.into(),
+                actual: Permission::Governance.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -522,7 +566,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::NoPrivilege.into(),
+            },
+        );
 
         let err = execute(
             deps.as_mut(),
@@ -537,7 +587,13 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::Unauthorized);
+        assert_contract_err_strings_equal(
+            err,
+            permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::Admin.into(),
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
