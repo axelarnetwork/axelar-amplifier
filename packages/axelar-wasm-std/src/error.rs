@@ -1,3 +1,4 @@
+use crate::permission_control;
 use cosmwasm_std::StdError;
 use error_stack::{Context, Report};
 use report::LoggableError;
@@ -14,6 +15,10 @@ pub enum ContractError {
     Std(#[from] StdError),
     #[error(transparent)]
     Structured(#[from] LoggableError),
+    #[error(transparent)]
+    Unauthorized(#[from] permission_control::Error),
+    #[error(transparent)]
+    WrongVersion(#[from] cw2::VersionError),
 }
 
 impl<T> From<Report<T>> for ContractError
