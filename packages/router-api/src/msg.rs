@@ -26,19 +26,21 @@ pub enum ExecuteMsg {
      * Router Admin Methods
      * All the below messages should only be called by the router admin
      */
-    /// If no filter is provided, freezes all chain connections in every direction. Should only be called in emergencies.
-    /// If the filter is set, only the specified chains will be frozen in the specified directions.
+    /// Freezes the specified chains in the specified directions.
     FreezeChains {
-        chains: Option<HashMap<ChainName, GatewayDirection>>,
+        chains: HashMap<ChainName, GatewayDirection>,
     },
 
-    /// Unfreezes the specified chains in the specified directions. In contrast to FreezeAllChains,
-    /// this does not allow unfreezing all chains, because that command is too dangerous.
-    /// It would make it too easy to accidentally unfreeze a chain that should not be unfrozen.
+    /// Unfreezes the specified chains in the specified directions.
     UnfreezeChains {
         chains: HashMap<ChainName, GatewayDirection>,
     },
 
+    /// Emergency command to stop all amplifier routing.
+    DisableRouting,
+
+    /// Resumes routing after an emergency shutdown.
+    EnableRouting,
     /*
      * Gateway Messages
      * The below messages can only be called by registered gateways

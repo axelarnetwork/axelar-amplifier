@@ -96,7 +96,7 @@ pub fn freeze_chain(
         app,
         admin.clone(),
         &router_api::msg::ExecuteMsg::FreezeChains {
-            chains: Some(HashMap::from([(chain_name, direction)])),
+            chains: HashMap::from([(chain_name, direction)]),
         },
     );
     assert!(response.is_ok(), "{:?}", response);

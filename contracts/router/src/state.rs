@@ -8,8 +8,7 @@ use router_api::{ChainEndpoint, ChainName};
 
 #[automock]
 pub trait Store {
-    fn save_config(&mut self, config: Config) -> error_stack::Result<(), Error>;
-    fn load_config(&self) -> error_stack::Result<Config, Error>;
+    fn storage(&mut self) -> &mut dyn Storage;
     fn load_chain_by_gateway(
         &self,
         gateway: &Addr,
@@ -25,16 +24,8 @@ pub struct RouterStore<'a> {
 }
 
 impl Store for RouterStore<'_> {
-    fn save_config(&mut self, config: Config) -> error_stack::Result<(), Error> {
-        CONFIG
-            .save(self.storage, &config)
-            .change_context(Error::StoreFailure)
-    }
-
-    fn load_config(&self) -> error_stack::Result<Config, Error> {
-        CONFIG
-            .load(self.storage)
-            .change_context(Error::StoreFailure)
+    fn storage(&mut self) -> &mut dyn Storage {
+        self.storage
     }
 
     fn load_chain_by_gateway(
@@ -72,6 +63,13 @@ pub struct Config {
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
+
+#[cw_serde]
+pub enum State {
+    Enabled,
+    Disabled,
+}
+pub const STATE: Item<State> = Item::new("state");
 
 pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,
