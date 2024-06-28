@@ -68,6 +68,9 @@ pub enum QueryMsg {
         verifier_address: String,
         key_type: KeyType,
     },
+
+    #[returns(bool)]
+    IsCallerAuthorized { contract_address: Addr },
 }
 
 #[cw_serde]
