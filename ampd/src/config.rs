@@ -57,6 +57,7 @@ mod tests {
     use crate::evm::finalizer::Finalization;
     use crate::handlers::config::Chain;
     use crate::handlers::config::Config as HandlerConfig;
+    use crate::handlers::config::GenericChain;
     use crate::types::TMAddress;
     use crate::url::Url;
 
@@ -116,7 +117,22 @@ mod tests {
             [handlers.rpc_timeout]
             secs = 3
             nanos = 0
+
+            [[handlers]]
+            chain_name = 'solana'
+            chain_rpc_url = 'http://127.0.0.1'
+            cosmwasm_contract = '{}'
+            max_tx_cache_entries = 6
+            type = 'SolanaMsgVerifier'
+
+            [[handlers]]
+            chain_name = 'solana'
+            chain_rpc_url = 'http://127.0.0.1'
+            cosmwasm_contract = '{}'
+            type = 'SolanaVerifierSetVerifier' 
             ",
+            TMAddress::random(PREFIX),
+            TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
             TMAddress::random(PREFIX),
@@ -126,7 +142,7 @@ mod tests {
         );
 
         let cfg: Config = toml::from_str(config_str.as_str()).unwrap();
-        assert_eq!(cfg.handlers.len(), 6);
+        assert_eq!(cfg.handlers.len(), 8);
     }
 
     #[test]
@@ -304,6 +320,27 @@ mod tests {
                         AccountId::new("axelar", &[0u8; 32]).unwrap(),
                     ),
                     rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::SolanaMsgVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    max_tx_cache_entries: 6,
+                    chain: GenericChain {
+                        name: ChainName::from_str("solana").unwrap(),
+                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    },
+                    rpc_timeout: Some(Duration::from_secs(3)),
+                },
+                HandlerConfig::SolanaVerifierSetVerifier {
+                    cosmwasm_contract: TMAddress::from(
+                        AccountId::new("axelar", &[0u8; 32]).unwrap(),
+                    ),
+                    chain: GenericChain {
+                        name: ChainName::from_str("solana").unwrap(),
+                        rpc_url: Url::from_str("http://127.0.0.1").unwrap(),
+                    },
                     rpc_timeout: Some(Duration::from_secs(3)),
                 },
             ],

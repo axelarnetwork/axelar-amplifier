@@ -58,11 +58,14 @@ pub enum Config {
         max_tx_cache_entries: usize,
         #[serde(flatten, with = "chain")]
         chain: GenericChain,
+        rpc_timeout: Option<Duration>,
+
     },
     SolanaVerifierSetVerifier {
         cosmwasm_contract: TMAddress,
         #[serde(flatten, with = "chain")]
         chain: GenericChain,
+        rpc_timeout: Option<Duration>,
     },
 }
 
