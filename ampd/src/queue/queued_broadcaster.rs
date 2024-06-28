@@ -89,11 +89,9 @@ where
 
         loop {
             select! {
-                 msg = rx.recv() => match msg {
+                msg = rx.recv() => match msg {
                     None => break,
-                    Some(msg_and_res_chan) => {
-                        self.handle_msg(msg_and_res_chan).await?;
-                    },
+                    Some(msg_and_res_chan) => self.handle_msg(msg_and_res_chan).await?,
                 },
                 _ = self.broadcast_interval.tick() => {
                     self.broadcast_all().await?.then(|_| {
@@ -181,8 +179,8 @@ mod test {
     use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
-    use tokio::time::{advance, interval, sleep, Duration};
-    use tokio::{select, test};
+    use tokio::test;
+    use tokio::time::{interval, Duration};
 
     use super::{Error, QueuedBroadcaster};
     use crate::broadcaster::{self, MockBroadcaster};
@@ -195,8 +193,8 @@ mod test {
             .expect_estimate_fee()
             .return_once(|_| Err(Report::new(broadcaster::Error::FeeEstimation)));
 
-        let desired_interval = interval(Duration::from_secs(5));
-        let queued_broadcaster = QueuedBroadcaster::new(broadcaster, 100, 10, desired_interval);
+        let broadcast_interval = interval(Duration::from_secs(5));
+        let queued_broadcaster = QueuedBroadcaster::new(broadcaster, 100, 10, broadcast_interval);
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
 
@@ -240,14 +238,12 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let mut desired_interval = interval(Duration::from_secs(5));
-        select! {
-            _ = desired_interval.tick() => {
-            },
-        }
+        let mut broadcast_interval = interval(Duration::from_secs(5));
+        // get rid of tick on startup
+        broadcast_interval.tick().await;
 
         let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, desired_interval);
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
 
@@ -259,11 +255,10 @@ mod test {
         assert!(handle.await.unwrap().is_ok());
     }
 
-    #[test]
+    #[test(start_paused = true)]
     async fn should_broadcast_when_broadcast_interval_has_been_reached() {
         let tx_count = 9;
         let batch_gas_limit = 100;
-        let broadcast_interval = Duration::from_millis(100);
         let gas_limit = 10;
 
         let mut broadcaster = MockBroadcaster::new();
@@ -286,17 +281,18 @@ mod test {
 
                 Ok(TxResponse::default())
             });
-        let desired_interval = interval(Duration::from_millis(100));
+        let mut broadcast_interval = interval(Duration::from_millis(100));
+        // get rid of tick on startup
+        broadcast_interval.tick().await;
 
         let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, desired_interval);
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
 
         for _ in 0..tx_count {
             client.broadcast(dummy_msg()).await.unwrap();
         }
-        sleep(broadcast_interval).await;
         drop(client);
 
         assert!(handle.await.unwrap().is_ok());
@@ -336,23 +332,18 @@ mod test {
                 Ok(TxResponse::default())
             });
 
-        let mut desired_interval = interval(Duration::from_secs(5));
-        select! {
-            _ = desired_interval.tick() => {
-            },
-        }
+        let mut broadcast_interval = interval(Duration::from_secs(5));
+        // get rid of tick on startup
+        broadcast_interval.tick().await;
 
         let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, desired_interval);
+            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
         let handle = tokio::spawn(queued_broadcaster.run());
 
         for _ in 0..tx_count {
             client.broadcast(dummy_msg()).await.unwrap();
         }
-
-        // Advance time to cause the last message broadcast
-        advance(Duration::from_secs(7)).await;
 
         drop(client);
 
