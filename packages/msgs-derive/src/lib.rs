@@ -114,8 +114,14 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
         .attrs
         .iter()
         .filter(|attr| attr.path().is_ident("permission"))
-        .filter_map(|attr| attr.parse_args_with(Punctuated::parse_terminated).ok())
-        .flat_map(|expr: Punctuated<Expr, Token![,]>| expr)
+        .flat_map(|attr|
+        {
+            match attr.
+                parse_args_with(Punctuated::<Expr, Token![,]>::parse_terminated){
+                Ok(expr) => expr, 
+                _=> panic!("wrong format of 'permission' attribute for variant {}", variant.ident)
+            }
+        })
         .map(|expr| match expr {
             Expr::Path(path) => (None, Some(path.path)),
             Expr::Call(ExprCall { args, func, .. }) => {
@@ -128,10 +134,11 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
                 }
                 (Some(paths), None)
             }
-            _ => panic!(
-                "unrecognized permission attribute for variant {}",
-                variant.ident
-            ),
+            expr =>
+                panic!(
+                    "unrecognized permission attribute '{}' for variant {}",
+                    quote! {#expr}, variant.ident
+                )
         })
         .unzip();
 
@@ -170,7 +177,7 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
 fn is_specific_attribute(func: &Expr) -> bool {
     match func {
         Expr::Path(path) => path.path.is_ident("Specific"),
-        _ => panic!("test"),
+        _ => false,
     }
 }
 
@@ -199,8 +206,10 @@ fn build_specific_permissions_check(
         let specific_permissions: &[_] = permission.specific.as_ref();
 
         if permission.specific.is_empty() {
+            // don't do anything if there are no specific permissions
             quote! {();}
         } else {
+            // load all whitelisted addresses from storage and check if the sender is whitelisted
             quote! {
                 #(
                     let stored_addr = error_stack::ResultExt::change_context(
@@ -215,6 +224,7 @@ fn build_specific_permissions_check(
         }
     });
 
+    // map enum variants to specific permission checks
     quote! {
         let mut whitelisted = Vec::new();
         match self {
@@ -232,6 +242,7 @@ fn build_general_permissions_check(
         let general_permissions: &[_] = permission.general.as_ref();
 
         if general_permissions.is_empty() && !permission.specific.is_empty() {
+            // getting to this point means the specific check has failed, so we return an error
             quote! {
                 return Err(axelar_wasm_std::permission_control::Error::AddressNotWhitelisted {
                     expected: whitelisted.clone(),
@@ -239,10 +250,13 @@ fn build_general_permissions_check(
                 }.into())
             }
         } else {
+            // specific permissions have either failed or there were none, so check general permissions
             quote! {(#(axelar_wasm_std::permission_control::Permission::#general_permissions )|*).into()}
         }
     });
 
+    // map enum variants to general permission checks. Exclude checks for the 'Any' case, 
+    // because it allows any address, compare permissions to the sender's role otherwise.
     quote! {
         let permission : axelar_wasm_std::flagset::FlagSet<_> = match self {
             #(#enum_type::#variants {..}=> {#general_permissions_quote})*
@@ -280,6 +294,7 @@ fn build_full_check_function(
         .unique()
         .collect::<Vec<_>>();
 
+    // the function signature is different depending on how many specific permissions are defined
     if unique_specific_permissions.is_empty() {
         quote! {
             pub fn ensure_permissions(self, storage: &dyn cosmwasm_std::Storage, sender: &cosmwasm_std::Addr)
@@ -289,6 +304,8 @@ fn build_full_check_function(
             }
         }
     } else {
+        // due to how rust handles closures, the easiest way to define functions as parameters is with independent generic types,
+        // one function with one return value for each specific permission
         let fs: Vec<_> = (0..unique_specific_permissions.len())
             .map(|i| format_ident!("F{}", i))
             .collect();
