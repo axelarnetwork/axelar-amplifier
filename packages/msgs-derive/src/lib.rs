@@ -14,7 +14,7 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 /// - `#[permission(Specific(Addr1, Addr2, ...))]` requires the sender to be one of the specified
 /// addresses. The macro will generate a function signature that takes closures as arguments to determine
 /// the whitelisted addresses.
-/// 
+///
 /// Both attributes can be used together, in which case the sender must have at least one of the
 /// specified permissions or be one of the specified addresses.
 /// The `ensure_permissions` method will return an error if the sender does not have the required
@@ -119,7 +119,7 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
         {
             match attr.
                 parse_args_with(Punctuated::<Expr, Token![,]>::parse_terminated){
-                Ok(expr) => expr, 
+                Ok(expr) => expr,
                 _=> panic!("wrong format of 'permission' attribute for variant {}", variant.ident)
             }
         })
@@ -256,7 +256,7 @@ fn build_general_permissions_check(
         }
     });
 
-    // map enum variants to general permission checks. Exclude checks for the 'Any' case, 
+    // map enum variants to general permission checks. Exclude checks for the 'Any' case,
     // because it allows any address, compare permissions to the sender's role otherwise.
     quote! {
         let permission : axelar_wasm_std::flagset::FlagSet<_> = match self {
