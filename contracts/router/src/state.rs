@@ -82,7 +82,7 @@ impl<'a> GatewayIndex<'a> {
         {
             [] => Ok(None),
             [(_, chain)] => Ok(Some(chain.to_owned())),
-            x => panic!("More than one gateway for chain {:?}", x),
+            _ => panic!("More than one gateway for chain"),
         }
     }
 }
