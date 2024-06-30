@@ -1,0 +1,22 @@
+[package]
+name = "msgs-derive"
+version = "0.1.0"
+edition = "2021"
+rust-version = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+axelar-wasm-std = { workspace = true }
+cosmwasm-std = { workspace = true }
+error-stack = { workspace = true }
+itertools = { workspace = true }
+proc-macro2 = "1.0.85"
+quote = { workspace = true }
+syn = { workspace = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

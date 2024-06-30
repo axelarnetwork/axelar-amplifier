@@ -1,15 +1,17 @@
-use axelar_wasm_std::permission_control::Permission;
-use axelar_wasm_std::{ensure_any_permission, ensure_permission, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
+};
 
+use axelar_wasm_std::{permission_control, FnExt};
+use router_api::error::Error;
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
-use crate::migrations;
 use crate::msg::InstantiateMsg;
-use crate::state::{Config, RouterStore, Store};
+use crate::state::{load_chain_by_gateway, Config};
+use crate::{migrations, state};
 
 mod execute;
 mod query;
@@ -27,6 +29,36 @@ pub fn migrate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())
+}
+#[deprecated(since = "0.3.3", note = "only used to test the migration")]
+pub fn instantiate_old(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, axelar_wasm_std::ContractError> {
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+    let nexus_gateway = deps.api.addr_validate(&msg.nexus_gateway)?;
+
+    let config = Config {
+        admin: admin.clone(),
+        governance: governance.clone(),
+        nexus_gateway: nexus_gateway.clone(),
+    };
+
+    state::save_config(deps.storage, &config).expect("must save the config");
+
+    Ok(Response::new().add_event(
+        RouterInstantiated {
+            admin,
+            governance,
+            nexus_gateway,
+        }
+        .into(),
+    ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -50,9 +82,7 @@ pub fn instantiate(
     permission_control::set_admin(deps.storage, &admin)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    RouterStore::new(deps.storage)
-        .save_config(config)
-        .expect("must save the config");
+    state::save_config(deps.storage, &config).expect("must save the config");
 
     Ok(Response::new().add_event(
         RouterInstantiated {
@@ -71,14 +101,16 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg {
+    match msg.ensure_permissions(
+        deps.storage,
+        &info.sender,
+        find_gateway_address(&info.sender),
+    )? {
         ExecuteMsg::RegisterChain {
             chain,
             gateway_address,
             msg_id_format,
         } => {
-            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
-
             let gateway_address = deps.api.addr_validate(&gateway_address)?;
             execute::register_chain(deps, chain, gateway_address, msg_id_format)
         }
@@ -86,32 +118,31 @@ pub fn execute(
             chain,
             contract_address,
         } => {
-            ensure_permission!(Permission::Governance, deps.storage, &info.sender);
-
             let contract_address = deps.api.addr_validate(&contract_address)?;
             execute::upgrade_gateway(deps, chain, contract_address)
         }
         ExecuteMsg::FreezeChain { chain, direction } => {
-            ensure_permission!(Permission::Admin, deps.storage, &info.sender);
-
             execute::freeze_chain(deps, chain, direction)
         }
         ExecuteMsg::UnfreezeChain { chain, direction } => {
-            ensure_permission!(Permission::Admin, deps.storage, &info.sender);
-
             execute::unfreeze_chain(deps, chain, direction)
         }
         ExecuteMsg::RouteMessages(msgs) => {
-            ensure_any_permission!();
-
-            Ok(execute::route_messages(
-                RouterStore::new(deps.storage),
-                info.sender,
-                msgs,
-            )?)
+            Ok(execute::route_messages(deps.storage, info.sender, msgs)?)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
+}
+
+fn find_gateway_address(
+    sender: &Addr,
+) -> impl FnOnce(&dyn Storage) -> error_stack::Result<Addr, Error> + '_ {
+    |storage| {
+        load_chain_by_gateway(storage, sender)?
+            .gateway
+            .address
+            .then(Ok)
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -133,18 +164,18 @@ pub fn query(
 mod test {
     use std::{collections::HashMap, str::FromStr};
 
-    use crate::state::CONFIG;
-
-    use super::*;
-
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
     };
+
+    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use permission_control::Permission;
     use router_api::{
         error::Error, ChainName, CrossChainId, GatewayDirection, Message, CHAIN_NAME_DELIMITER,
     };
+
+    use super::*;
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -159,7 +190,7 @@ mod test {
             governance: Addr::unchecked(GOVERNANCE_ADDRESS),
             nexus_gateway: Addr::unchecked(NEXUS_GATEWAY_ADDRESS),
         };
-        CONFIG.save(deps.as_mut().storage, &config).unwrap();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         permission_control::set_admin(deps.as_mut().storage, &config.admin).unwrap();
         permission_control::set_governance(deps.as_mut().storage, &config.governance).unwrap();
 
@@ -221,11 +252,14 @@ mod test {
         msgs
     }
 
-    pub fn assert_contract_err_strings_equal(
+    pub fn assert_contract_err_string_contains(
         actual: impl Into<axelar_wasm_std::ContractError>,
         expected: impl Into<axelar_wasm_std::ContractError>,
     ) {
-        assert_eq!(actual.into().to_string(), expected.into().to_string());
+        assert!(actual
+            .into()
+            .to_string()
+            .contains(&expected.into().to_string()));
     }
 
     pub fn assert_messages_in_cosmos_msg(
@@ -247,16 +281,15 @@ mod test {
     #[test]
     fn migrate_checks_contract_version() {
         let mut deps = mock_dependencies();
-        CONFIG
-            .save(
-                deps.as_mut().storage,
-                &Config {
-                    admin: Addr::unchecked("admin"),
-                    governance: Addr::unchecked("governance"),
-                    nexus_gateway: Addr::unchecked("nexus_gateway"),
-                },
-            )
-            .unwrap();
+        state::save_config(
+            deps.as_mut().storage,
+            &Config {
+                admin: Addr::unchecked("admin"),
+                governance: Addr::unchecked("governance"),
+                nexus_gateway: Addr::unchecked("nexus_gateway"),
+            },
+        )
+        .unwrap();
 
         assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
 
@@ -326,7 +359,7 @@ mod test {
         )
         .unwrap_err();
 
-        assert_contract_err_strings_equal(err, Error::WrongSourceChain);
+        assert_contract_err_string_contains(err, Error::WrongSourceChain);
     }
 
     #[test]
@@ -409,7 +442,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Governance.into(),
@@ -428,7 +461,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Governance.into(),
@@ -458,7 +491,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Admin.into(),
@@ -476,7 +509,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Admin.into(),
@@ -505,7 +538,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Admin.into(),
@@ -523,7 +556,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Admin.into(),
@@ -555,7 +588,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Governance.into(),
@@ -576,7 +609,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
                 expected: Permission::Governance.into(),
@@ -666,7 +699,7 @@ mod test {
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::GatewayNotRegistered);
+        assert_contract_err_string_contains(err, Error::GatewayNotRegistered);
 
         let res = execute(
             deps.as_mut(),
@@ -698,7 +731,12 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::GatewayNotRegistered);
+        assert_contract_err_string_contains(
+            err,
+            permission_control::Error::WhitelistNotFound {
+                sender: eth.gateway.clone(),
+            },
+        );
 
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
@@ -732,7 +770,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::ChainAlreadyExists);
+        assert_contract_err_string_contains(err, Error::ChainAlreadyExists);
 
         // case insensitive
         let err = execute(
@@ -749,17 +787,17 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::ChainAlreadyExists);
+        assert_contract_err_string_contains(err, Error::ChainAlreadyExists);
     }
 
     #[test]
     fn invalid_chain_name() {
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             ChainName::from_str(format!("bad{}", CHAIN_NAME_DELIMITER).as_str()).unwrap_err(),
             Error::InvalidChainName,
         );
 
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             ChainName::from_str("").unwrap_err(),
             Error::InvalidChainName,
         );
@@ -783,7 +821,7 @@ mod test {
             },
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(err, Error::GatewayAlreadyRegistered);
+        assert_contract_err_string_contains(err, Error::GatewayAlreadyRegistered);
 
         register_chain(deps.as_mut(), &polygon);
         let err = execute(
@@ -797,7 +835,7 @@ mod test {
         )
         .unwrap_err();
 
-        assert_contract_err_strings_equal(err, Error::GatewayAlreadyRegistered);
+        assert_contract_err_string_contains(err, Error::GatewayAlreadyRegistered);
     }
 
     #[test]
@@ -828,7 +866,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -902,7 +940,7 @@ mod test {
             ExecuteMsg::RouteMessages(messages.clone()),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -976,7 +1014,7 @@ mod test {
         )
         .unwrap_err();
         // can't route to frozen chain
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -992,7 +1030,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1084,7 +1122,7 @@ mod test {
         )
         .unwrap_err();
         // can't route to the chain
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1134,7 +1172,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1192,7 +1230,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1208,7 +1246,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1256,7 +1294,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1272,7 +1310,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1450,7 +1488,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
@@ -1466,7 +1504,7 @@ mod test {
             ExecuteMsg::RouteMessages(vec![message.clone()]),
         )
         .unwrap_err();
-        assert_contract_err_strings_equal(
+        assert_contract_err_string_contains(
             err,
             Error::ChainFrozen {
                 chain: polygon.chain_name.clone(),
