@@ -25,7 +25,7 @@ enum TestMsg {
 enum TestMsg2 {
     #[permission(Any)]
     Any,
-    #[permission(Any)]
+    #[permission(Specific(gateway1))]
     Specific1,
     #[permission(Elevated, Specific(gateway1))]
     Specific2,
