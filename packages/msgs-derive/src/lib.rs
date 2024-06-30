@@ -6,6 +6,75 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Variant};
 
+/// This macro derives the `ensure_permissions` method for an enum. The method checks if the sender
+/// has the required permissions to execute the variant. The permissions are defined using the
+/// `#[permission]` attribute. The attribute can be used in two ways:
+/// - `#[permission(Permission1, Permission2, ...)]` - requires the sender to have at least one of
+/// the specified permissions. These permissions are defined in the [axelar_wasm_std::permission_control::Permission] enum.
+/// - `#[permission(Specific(Addr1, Addr2, ...))]` - requires the sender to be one of the specified
+/// addresses. The macro will generate a function signature that takes closures as arguments to determine
+/// the whitelisted addresses.
+/// Both attributes can be used together, in which case the sender must have at least one of the
+/// specified permissions or be one of the specified addresses.
+/// The `ensure_permissions` method will return an error if the sender does not have the required
+/// permissions.
+///
+/// # Example
+/// ```
+/// use cosmwasm_std::{Addr, Deps, Env, MessageInfo};
+/// use axelar_wasm_std::permission_control::Permission;
+/// use msgs_derive::EnsurePermissions;
+///
+/// #[derive(EnsurePermissions)]
+/// pub enum ExecuteMsg {
+///     #[permission(NoPrivilege, Admin)]
+///     AnyoneButGovernanceCanCallThis,
+///     #[permission(Governance)]
+///     OnlyGovernanceCanCallThis,
+///     #[permission(Admin, Specific(gateway))]
+///     AdminOrGatewayCanCallThis,
+///     #[permission(Specific(gateway))]
+///     OnlyGatewayCanCallThis
+/// }
+///
+/// fn execute(deps: Deps, env: Env, info: MessageInfo, msg: ExecuteMsg) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
+///     // check permissions before handling the message
+///     match msg.ensure_permissions(deps.storage, &info.sender, |storage| GATEWAY.load(storage))? {
+///         ExecuteMsg::AnyoneButGovernanceCanCallThis => Ok(()),
+///         ExecuteMsg::OnlyGovernanceCanCallThis => Ok(()),
+///         ExecuteMsg::AdminOrGatewayCanCallThis => Ok(()),
+///         ExecuteMsg::OnlyGatewayCanCallThis => Ok(()),
+///     }
+/// }
+///
+/// # // mock to make the example compile
+/// # struct Store;
+/// # impl Store {
+/// #     fn load(&self, storage: &dyn cosmwasm_std::Storage) -> error_stack::Result<Addr, axelar_wasm_std::permission_control::Error> {
+/// #         Ok(Addr::unchecked("gateway"))
+/// #     }
+/// # }
+/// # const GATEWAY:Store = Store;
+/// # use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+/// # fn main() {
+/// # let mocks = mock_dependencies();
+/// # let deps = mocks.as_ref();
+/// # let env = mock_env();
+/// // example how to call the execute function
+/// let info = MessageInfo{
+///    sender: Addr::unchecked("sender"),
+///    funds: vec![],
+/// };
+///
+/// # let info_root = info;   
+/// # let info = info_root.clone();
+/// assert!(execute(deps, env, info, ExecuteMsg::AnyoneButGovernanceCanCallThis).is_ok());
+/// # let env = mock_env();
+/// # let info = info_root.clone();
+/// assert!(execute(deps, env, info, ExecuteMsg::OnlyGatewayCanCallThis).is_err());
+/// # }
+/// ```
+
 #[proc_macro_derive(EnsurePermissions, attributes(permission))]
 pub fn derive_ensure_permissions(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
