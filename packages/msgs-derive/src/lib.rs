@@ -118,8 +118,14 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
         .flat_map(|expr: Punctuated<Expr, Token![,]>| expr)
         .map(|expr| match expr {
             Expr::Path(path) => (None, Some(path.path)),
-            Expr::Call(ExprCall { args, func, .. }) if is_specific_attribute(&func) => {
+            Expr::Call(ExprCall { args, func, .. }) => {
                 let paths = parse_specific_permissions(&variant, args);
+                if !is_specific_attribute(&func) {
+                    panic!(
+                        "unrecognized permission attribute for variant {}, suggestion: 'Specific(...)'?",
+                        variant.ident
+                    );
+                }
                 (Some(paths), None)
             }
             _ => panic!(
@@ -130,7 +136,6 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
         .unzip();
 
     let specific: Vec<Path> = specific.into_iter().flatten().flatten().collect();
-
     let general: Vec<Path> = general.into_iter().flatten().collect();
 
     if !general.iter().all_unique() {
@@ -165,7 +170,7 @@ fn find_permissions(variant: Variant) -> Option<(Ident, MsgPermissions)> {
 fn is_specific_attribute(func: &Expr) -> bool {
     match func {
         Expr::Path(path) => path.path.is_ident("Specific"),
-        _ => false,
+        _ => panic!("test"),
     }
 }
 
