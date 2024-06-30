@@ -13,6 +13,8 @@ syn = { workspace = true }
 axelar-wasm-std = { workspace = true }
 cosmwasm-std = { workspace = true }
 error-stack = { workspace = true }
+itertools = { workspace = true }
+proc-macro2 = "1.0.85"
 
 [dev-dependencies]
 

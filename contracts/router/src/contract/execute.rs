@@ -1,7 +1,7 @@
 use std::vec;
 
 use axelar_wasm_std::msg_id::{self, MessageIdFormat};
-use cosmwasm_std::{to_json_binary, Addr, DepsMut, Response, StdResult, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, DepsMut, Response, StdResult, Storage, WasmMsg};
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
 
@@ -12,7 +12,8 @@ use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
-use crate::state::{chain_endpoints, Config, Store};
+use crate::state;
+use crate::state::{chain_endpoints, Config};
 
 pub fn register_chain(
     deps: DepsMut,
@@ -127,7 +128,7 @@ fn verify_msg_ids(
 }
 
 fn validate_msgs(
-    store: &impl Store,
+    storage: &dyn Storage,
     config: Config,
     sender: &Addr,
     msgs: Vec<Message>,
@@ -141,9 +142,7 @@ fn validate_msgs(
         return Ok(msgs);
     }
 
-    let source_chain = store
-        .load_chain_by_gateway(sender)?
-        .ok_or(Error::GatewayNotRegistered)?;
+    let source_chain = state::load_chain_by_gateway(storage, sender)?;
     if source_chain.incoming_frozen() {
         return Err(report!(Error::ChainFrozen {
             chain: source_chain.name,
@@ -160,20 +159,20 @@ fn validate_msgs(
 }
 
 pub fn route_messages(
-    store: impl Store,
+    storage: &dyn Storage,
     sender: Addr,
     msgs: Vec<Message>,
 ) -> error_stack::Result<Response, Error> {
-    let config = store.load_config()?;
+    let config = state::load_config(storage)?;
 
-    let msgs = validate_msgs(&store, config.clone(), &sender, msgs)?;
+    let msgs = validate_msgs(storage, config.clone(), &sender, msgs)?;
 
     let wasm_msgs = msgs
         .iter()
         .group_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .map(|(destination_chain, msgs)| {
-            let gateway = match store.load_chain_by_chain_name(&destination_chain)? {
+            let gateway = match state::load_chain_by_chain_name(storage, &destination_chain)? {
                 Some(destination_chain) if destination_chain.outgoing_frozen() => {
                     return Err(report!(Error::ChainFrozen {
                         chain: destination_chain.name,
@@ -207,7 +206,6 @@ pub fn route_messages(
 mod test {
     use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use cosmwasm_std::Addr;
-    use mockall::predicate;
     use rand::{Rng, RngCore};
 
     use axelar_wasm_std::flagset::FlagSet;
@@ -217,8 +215,9 @@ mod test {
     use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
 
     use crate::events::{ChainFrozen, ChainUnfrozen};
+    use crate::state;
     use crate::state::chain_endpoints;
-    use crate::state::{Config, MockStore};
+    use crate::state::Config;
 
     use super::{freeze_chain, route_messages, unfreeze_chain};
 
@@ -266,18 +265,11 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(None));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![rand_message(source_chain, destination_chain)]
         )
@@ -295,10 +287,9 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
+
         let chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -307,14 +298,12 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::Incoming),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(chain_endpoint)));
+        chain_endpoints()
+            .save(deps.as_mut().storage, source_chain.clone(), &chain_endpoint)
+            .unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![rand_message(source_chain.clone(), destination_chain)]
         )
@@ -334,10 +323,8 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -346,14 +333,12 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(chain_endpoint)));
+        chain_endpoints()
+            .save(deps.as_mut().storage, source_chain.clone(), &chain_endpoint)
+            .unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![rand_message("polygon".parse().unwrap(), destination_chain)]
         )
@@ -371,10 +356,8 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let source_chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -383,26 +366,30 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                source_chain.clone(),
+                &source_chain_endpoint,
+            )
+            .unwrap();
         let destination_chain_endpoint = ChainEndpoint {
             name: destination_chain.clone(),
             gateway: Gateway {
-                address: sender.clone(),
+                address: Addr::unchecked("destination"),
             },
             frozen_status: FlagSet::from(GatewayDirection::Bidirectional),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain.clone()))
-            .return_once(|_| Ok(Some(destination_chain_endpoint)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                destination_chain.clone(),
+                &destination_chain_endpoint,
+            )
+            .unwrap();
 
-        assert!(route_messages(store, sender, vec![rand_message(source_chain, destination_chain.clone())])
+        assert!(route_messages(deps.as_mut().storage, sender, vec![rand_message(source_chain, destination_chain.clone())])
             .is_err_and(move |err| {
                 matches!(err.current_context(), Error::ChainFrozen { chain } if *chain == destination_chain)
             }));
@@ -419,10 +406,8 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let source_chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -431,15 +416,17 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                source_chain.clone(),
+                &source_chain_endpoint,
+            )
+            .unwrap();
 
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = "foobar".try_into().unwrap();
-        assert!(route_messages(store, sender, vec![msg])
+        assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
@@ -454,14 +441,12 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
 
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = "foobar".try_into().unwrap();
-        assert!(route_messages(store, sender, vec![msg])
+        assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
@@ -476,10 +461,8 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let source_chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -488,11 +471,13 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::Base58TxDigestAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                source_chain.clone(),
+                &source_chain_endpoint,
+            )
+            .unwrap();
 
         let mut msg = rand_message(source_chain, destination_chain.clone());
         msg.cc_id.id = HexTxHashAndEventIndex {
@@ -502,7 +487,7 @@ mod test {
         .to_string()
         .try_into()
         .unwrap();
-        assert!(route_messages(store, sender, vec![msg])
+        assert!(route_messages(deps.as_mut().storage, sender, vec![msg])
             .is_err_and(move |err| { matches!(err.current_context(), Error::InvalidMessageId) }));
     }
 
@@ -518,10 +503,8 @@ mod test {
         let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
         let destination_chain_2: ChainName = "polygon".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let source_chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -530,40 +513,46 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(source_chain_endpoint)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                source_chain.clone(),
+                &source_chain_endpoint,
+            )
+            .unwrap();
         let destination_chain_endpoint_1 = ChainEndpoint {
             name: destination_chain_1.clone(),
             gateway: Gateway {
-                address: sender.clone(),
+                address: Addr::unchecked("destination_1"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain_1.clone()))
-            .return_once(|_| Ok(Some(destination_chain_endpoint_1)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                destination_chain_1.clone(),
+                &destination_chain_endpoint_1,
+            )
+            .unwrap();
         let destination_chain_endpoint_2 = ChainEndpoint {
             name: destination_chain_2.clone(),
             gateway: Gateway {
-                address: sender.clone(),
+                address: Addr::unchecked("destination_2"),
             },
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain_2.clone()))
-            .return_once(|_| Ok(Some(destination_chain_endpoint_2)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                destination_chain_2.clone(),
+                &destination_chain_endpoint_2,
+            )
+            .unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![
                 rand_message(source_chain.clone(), destination_chain_1.clone()),
@@ -587,10 +576,8 @@ mod test {
         let destination_chain_1: ChainName = "bitcoin".parse().unwrap();
         let destination_chain_2: ChainName = "polygon".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let destination_chain_endpoint_1 = ChainEndpoint {
             name: destination_chain_1.clone(),
             gateway: Gateway {
@@ -599,11 +586,13 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain_1.clone()))
-            .return_once(|_| Ok(Some(destination_chain_endpoint_1)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                destination_chain_1.clone(),
+                &destination_chain_endpoint_1,
+            )
+            .unwrap();
         let destination_chain_endpoint_2 = ChainEndpoint {
             name: destination_chain_2.clone(),
             gateway: Gateway {
@@ -612,14 +601,16 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain_2.clone()))
-            .return_once(|_| Ok(Some(destination_chain_endpoint_2)));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                destination_chain_2.clone(),
+                &destination_chain_endpoint_2,
+            )
+            .unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![
                 rand_message(source_chain.clone(), destination_chain_1.clone()),
@@ -642,18 +633,11 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain.clone()))
-            .return_once(|_| Ok(None));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![rand_message(
                 source_chain.clone(),
@@ -674,10 +658,8 @@ mod test {
         let source_chain: ChainName = "ethereum".parse().unwrap();
         let destination_chain: ChainName = "bitcoin".parse().unwrap();
 
-        let mut store = MockStore::new();
-        store
-            .expect_load_config()
-            .returning(move || Ok(config.clone()));
+        let mut deps = mock_dependencies();
+        state::save_config(deps.as_mut().storage, &config).unwrap();
         let source_chain_endpoint = ChainEndpoint {
             name: source_chain.clone(),
             gateway: Gateway {
@@ -686,19 +668,16 @@ mod test {
             frozen_status: FlagSet::from(GatewayDirection::None),
             msg_id_format: axelar_wasm_std::msg_id::MessageIdFormat::HexTxHashAndEventIndex,
         };
-        store
-            .expect_load_chain_by_gateway()
-            .once()
-            .with(predicate::eq(sender.clone()))
-            .return_once(|_| Ok(Some(source_chain_endpoint)));
-        store
-            .expect_load_chain_by_chain_name()
-            .once()
-            .with(predicate::eq(destination_chain.clone()))
-            .return_once(|_| Ok(None));
+        chain_endpoints()
+            .save(
+                deps.as_mut().storage,
+                source_chain.clone(),
+                &source_chain_endpoint,
+            )
+            .unwrap();
 
         assert!(route_messages(
-            store,
+            deps.as_mut().storage,
             sender,
             vec![rand_message(
                 source_chain.clone(),

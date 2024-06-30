@@ -43,6 +43,10 @@ pub enum Error {
         expected: FlagSet<Permission>,
         actual: FlagSet<Permission>,
     },
+    #[error("sender '{actual}' must be one of the addresses {expected:?}")]
+    AddressNotWhitelisted { expected: Vec<Addr>, actual: Addr },
+    #[error("no whitelisting condition found for sender address '{sender}'")]
+    WhitelistNotFound { sender: Addr },
 }
 
 const ADMIN: Item<Addr> = Item::new("permission_control_contract_admin_addr");

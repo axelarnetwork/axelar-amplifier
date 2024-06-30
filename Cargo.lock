@@ -4483,6 +4483,8 @@ dependencies = [
  "axelar-wasm-std",
  "cosmwasm-std",
  "error-stack",
+ "itertools 0.11.0",
+ "proc-macro2 1.0.85",
  "quote 1.0.36",
  "syn 2.0.68",
 ]

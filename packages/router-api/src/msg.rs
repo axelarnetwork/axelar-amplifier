@@ -38,7 +38,7 @@ pub enum ExecuteMsg {
      */
     // Routes a message to all outgoing gateways registered to the destination domain.
     // Called by an incoming gateway
-    #[permission(Any)]
+    #[permission(Specific(gateway))]
     RouteMessages(Vec<Message>),
 }
 

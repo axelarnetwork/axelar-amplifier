@@ -1,67 +1,38 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
-use error_stack::ResultExt;
-use mockall::automock;
+use error_stack::{report, ResultExt};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
 
-#[automock]
-pub trait Store {
-    fn save_config(&mut self, config: Config) -> error_stack::Result<(), Error>;
-    fn load_config(&self) -> error_stack::Result<Config, Error>;
-    fn load_chain_by_gateway(
-        &self,
-        gateway: &Addr,
-    ) -> error_stack::Result<Option<ChainEndpoint>, Error>;
-    fn load_chain_by_chain_name(
-        &self,
-        chain_name: &ChainName,
-    ) -> error_stack::Result<Option<ChainEndpoint>, Error>;
+pub fn save_config(storage: &mut dyn Storage, config: &Config) -> error_stack::Result<(), Error> {
+    CONFIG
+        .save(storage, config)
+        .change_context(Error::StoreFailure)
 }
 
-pub struct RouterStore<'a> {
-    storage: &'a mut dyn Storage,
+pub fn load_config(storage: &dyn Storage) -> error_stack::Result<Config, Error> {
+    CONFIG.load(storage).change_context(Error::StoreFailure)
 }
 
-impl Store for RouterStore<'_> {
-    fn save_config(&mut self, config: Config) -> error_stack::Result<(), Error> {
-        CONFIG
-            .save(self.storage, &config)
-            .change_context(Error::StoreFailure)
-    }
-
-    fn load_config(&self) -> error_stack::Result<Config, Error> {
-        CONFIG
-            .load(self.storage)
-            .change_context(Error::StoreFailure)
-    }
-
-    fn load_chain_by_gateway(
-        &self,
-        gateway: &Addr,
-    ) -> error_stack::Result<Option<ChainEndpoint>, Error> {
-        chain_endpoints()
-            .idx
-            .gateway
-            .load_chain_by_gateway(self.storage, gateway)
-            .change_context(Error::StoreFailure)
-    }
-
-    fn load_chain_by_chain_name(
-        &self,
-        chain_name: &ChainName,
-    ) -> error_stack::Result<Option<ChainEndpoint>, Error> {
-        chain_endpoints()
-            .may_load(self.storage, chain_name.clone())
-            .change_context(Error::StoreFailure)
-    }
+pub fn load_chain_by_chain_name(
+    storage: &dyn Storage,
+    chain_name: &ChainName,
+) -> error_stack::Result<Option<ChainEndpoint>, Error> {
+    chain_endpoints()
+        .may_load(storage, chain_name.clone())
+        .change_context(Error::StoreFailure)
 }
-
-impl<'a> RouterStore<'a> {
-    pub fn new(storage: &'a mut dyn Storage) -> Self {
-        Self { storage }
-    }
+pub fn load_chain_by_gateway(
+    storage: &dyn Storage,
+    gateway: &Addr,
+) -> error_stack::Result<ChainEndpoint, Error> {
+    chain_endpoints()
+        .idx
+        .gateway
+        .load_chain_by_gateway(storage, gateway)
+        .change_context(Error::StoreFailure)?
+        .ok_or(report!(Error::GatewayNotRegistered))
 }
 
 #[cw_serde]
@@ -71,7 +42,7 @@ pub struct Config {
     pub nexus_gateway: Addr,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+const CONFIG: Item<Config> = Item::new("config");
 
 pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,
@@ -111,7 +82,7 @@ impl<'a> GatewayIndex<'a> {
         {
             [] => Ok(None),
             [(_, chain)] => Ok(Some(chain.to_owned())),
-            _ => panic!("More than one gateway for chain"),
+            x => panic!("More than one gateway for chain {:?}", x),
         }
     }
 }
