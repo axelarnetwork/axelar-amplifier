@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::vec::Vec;
 
 use axelar_wasm_std::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
