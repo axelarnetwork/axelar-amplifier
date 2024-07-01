@@ -1,5 +1,4 @@
-use crate::state::{self, Verifier};
-use crate::state::{AuthorizationState, VERIFIERS};
+use crate::state::{self, VERIFIERS};
 use router_api::ChainName;
 
 use super::*;
