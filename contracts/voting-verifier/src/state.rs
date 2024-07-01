@@ -7,7 +7,7 @@ use axelar_wasm_std::{
     hash::Hash,
     msg_id::MessageIdFormat,
     nonempty,
-    voting::{PollId, WeightedPoll},
+    voting::{PollId, Vote, WeightedPoll},
     MajorityThreshold,
 };
 use multisig::verifier_set::VerifierSet;
@@ -78,6 +78,7 @@ impl PollContent<VerifierSet> {
 pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollId, Poll> = Map::new("polls");
+pub const VOTES: Map<(String, String), Vec<Vote>> = Map::new("votes");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 
