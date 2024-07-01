@@ -223,9 +223,9 @@ impl PollResults {
             self.0
                 .into_iter()
                 .zip(rhs.0)
-                .filter_map(|(lhs, rhs)| {
+                .map(|(lhs, rhs)| {
                     if lhs.is_some() && rhs.is_none() {
-                        Some(lhs)
+                        lhs
                     } else {
                         None
                     }
@@ -549,7 +549,7 @@ mod tests {
         let poll = new_poll(2, 2, vec!["addr1", "addr2", "addr3"]);
         let votes = vec![Vote::SucceededOnChain, Vote::SucceededOnChain];
         let wrong_votes = vec![Vote::FailedOnChain, Vote::FailedOnChain];
-        let voters = vec![
+        let voters = [
             Addr::unchecked("addr1"),
             Addr::unchecked("addr2"),
             Addr::unchecked("addr3"),
