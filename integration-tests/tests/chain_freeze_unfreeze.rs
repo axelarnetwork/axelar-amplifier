@@ -64,7 +64,7 @@ fn chain_can_be_freezed_unfreezed() {
     test_utils::freeze_chain(
         &mut protocol.app,
         &protocol.router,
-        &chain1.chain_name,
+        chain1.chain_name.clone(),
         router_api::GatewayDirection::Bidirectional,
         &protocol.router_admin_address,
     );

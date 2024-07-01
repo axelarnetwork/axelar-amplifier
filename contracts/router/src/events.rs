@@ -21,14 +21,6 @@ pub struct GatewayUpgraded {
     pub gateway: GatewayInfo,
 }
 
-pub struct GatewayFrozen {
-    pub gateway: GatewayInfo,
-}
-
-pub struct GatewayUnfrozen {
-    pub gateway: GatewayInfo,
-}
-
 pub struct ChainFrozen {
     pub name: ChainName,
     pub direction: GatewayDirection,
@@ -42,6 +34,9 @@ pub struct ChainUnfrozen {
 pub struct MessageRouted {
     pub msg: Message,
 }
+
+pub struct RoutingDisabled;
+pub struct RoutingEnabled;
 
 impl From<RouterInstantiated> for Event {
     fn from(other: RouterInstantiated) -> Self {
@@ -75,17 +70,15 @@ impl From<GatewayUpgraded> for Event {
     }
 }
 
-impl From<GatewayFrozen> for Event {
-    fn from(other: GatewayFrozen) -> Self {
-        let attrs: Vec<Attribute> = other.gateway.into();
-        Event::new("gateway_frozen").add_attributes(attrs)
+impl From<RoutingDisabled> for Event {
+    fn from(_: RoutingDisabled) -> Self {
+        Event::new("routing_disabled")
     }
 }
 
-impl From<GatewayUnfrozen> for Event {
-    fn from(other: GatewayUnfrozen) -> Self {
-        let attrs: Vec<Attribute> = other.gateway.into();
-        Event::new("gateway_unfrozen").add_attributes(attrs)
+impl From<RoutingEnabled> for Event {
+    fn from(_: RoutingEnabled) -> Self {
+        Event::new("routing_enabled")
     }
 }
 
