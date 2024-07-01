@@ -44,14 +44,14 @@ type="MultisigSigner"
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier]
+type=[handler type. Could be EvmMsgVerifier | SuiMsgVerifier | SolanaMsgVerifier]
 
 # handler to verify verifier set rotations. One per supported chain
 [[handlers]]
 chain_name=[chain name. Not necessary in the Sui case]
 chain_rpc_url=[URL of JSON-RPC endpoint for external chain]
 cosmwasm_contract=[verifier contract address]
-type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier]
+type=[handler type. Could be EvmVerifierSetVerifier | SuiVerifierSetVerifier | SolanaVerifierSetVerifier]
 ```
 
 Below is an example config for connecting to a local axelard node and local tofnd process, and verifying transactions
@@ -107,6 +107,19 @@ type = 'EvmVerifierSetVerifier'
 cosmwasm_contract = 'axelar14lh98gp06zdqh5r9qj3874hdmfzs4sh5tkfzg3cyty4xeqsufdjqedt3q8'
 chain_name = 'avalanche'
 chain_rpc_url = "https://api.avax-test.network/ext/bc/C/rpc"
+
+[[handlers]]
+type = "SolanaMsgVerifier"
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+chain_name = "solana"
+chain_rpc_url = "https://api.devnet.solana.com"
+max_tx_cache_entries = 6
+
+[[handlers]]
+cosmwasm_contract = "axelar1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqecnww6"
+type = "SolanaVerifierSetVerifier"
+chain_name = "solana"
+chain_rpc_url = "https://api.devnet.solana.com"
 
 ```
 
