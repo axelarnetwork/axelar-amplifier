@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use axelar_message_primitives::command::TransferOperatorshipCommand;
+use axelar_message_primitives::command::RotateSignersCommand;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::{tx::Msg, Any};
 use error_stack::ResultExt;
@@ -173,14 +173,14 @@ impl EventHandler for Handler {
         let gw_event = parse_gateway_event(&sol_tx).map_err(|_| Error::DeserializeEvent)?;
 
         match gw_event {
-            GatewayEvent::OperatorshipTransferred(Cow::Owned(TransferOperatorshipCommand {
+            GatewayEvent::SignersRotated(Cow::Owned(RotateSignersCommand {
                 command_id: _,
                 destination_chain: _,
-                operators,
+                signer_set,
                 weights,
                 quorum,
             })) => {
-                let vote = verify_verifier_set(&verifier_set, &operators, &weights, quorum);
+                let vote = verify_verifier_set(&verifier_set, &signer_set, &weights, quorum);
                 Ok(vec![self
                     .vote_msg(poll_id, vec![vote])
                     .into_any()

@@ -109,28 +109,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aggregate-verifier"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "connection-router",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "cw-utils 1.0.3",
- "error-stack",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "voting-verifier 0.1.0",
-]
-
-[[package]]
 name = "ahash"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -196,7 +174,7 @@ version = "0.4.0"
 dependencies = [
  "async-trait",
  "axelar-message-primitives",
- "axelar-wasm-std 0.1.0",
+ "axelar-wasm-std",
  "axum 0.7.5",
  "base64 0.21.7",
  "bcs",
@@ -227,23 +205,23 @@ dependencies = [
  "lru 0.12.3",
  "mockall",
  "move-core-types",
- "multisig 0.3.0",
+ "multisig",
  "num-traits",
  "prost 0.11.9",
  "prost-types",
  "rand 0.8.5",
  "random-string",
- "report 0.1.0",
+ "report",
  "reqwest",
  "router-api",
  "serde",
  "serde_json",
  "serde_with 3.8.1",
- "service-registry 0.3.0",
+ "service-registry",
  "sha3 0.10.8",
  "solana-account-decoder",
  "solana-client",
- "solana-program",
+ "solana-program 1.18.17",
  "solana-rpc-client-api",
  "solana-sdk",
  "solana-transaction-status",
@@ -266,7 +244,7 @@ dependencies = [
  "url",
  "valuable",
  "valuable-serde",
- "voting-verifier 0.4.0",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -780,21 +758,35 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#1249561eb1da88b1e89d8c6cb085db6054f5d0fd"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
 dependencies = [
  "anyhow",
  "bcs",
  "bnum",
  "borsh 1.5.1",
  "bytemuck",
- "connection-router",
  "cosmwasm-schema 2.0.4",
  "ethers-core",
  "hex",
  "itertools 0.12.1",
  "libsecp256k1 0.7.1",
  "sha3 0.10.8",
- "solana-program",
+ "solana-program 2.0.1",
+ "thiserror",
+]
+
+[[package]]
+name = "axelar-rkyv-encoding"
+version = "0.1.0"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
+dependencies = [
+ "bnum",
+ "bs58 0.5.1",
+ "ed25519-dalek 2.1.1",
+ "hex",
+ "k256",
+ "rkyv",
+ "sha3 0.10.8",
  "thiserror",
 ]
 
@@ -814,29 +806,7 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
  "regex",
- "report 0.1.0",
- "schemars",
- "serde",
- "serde_json",
- "sha3 0.10.8",
- "strum 0.25.0",
- "thiserror",
- "valuable",
-]
-
-[[package]]
-name = "axelar-wasm-std"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "error-stack",
- "flagset",
- "num-traits",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -850,23 +820,10 @@ dependencies = [
 name = "axelar-wasm-std-derive"
 version = "0.1.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
+ "axelar-wasm-std",
  "error-stack",
  "quote 1.0.36",
- "report 0.1.0",
- "syn 2.0.66",
- "thiserror",
-]
-
-[[package]]
-name = "axelar-wasm-std-derive"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "error-stack",
- "quote 1.0.36",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
+ "report",
  "syn 2.0.66",
  "thiserror",
 ]
@@ -1538,6 +1495,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
 
 [[package]]
+name = "bytecheck"
+version = "0.6.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23cdc57ce23ac53c931e88a43d06d070a6fd142f2617be5855eb75efc9beb1c2"
+dependencies = [
+ "bytecheck_derive",
+ "ptr_meta",
+ "simdutf8",
+]
+
+[[package]]
+name = "bytecheck_derive"
+version = "0.6.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3db406d29fbcd95542e92559bed4d8ad92636d1ca8b3b72ede10b4bcc010e659"
+dependencies = [
+ "proc-macro2 1.0.85",
+ "quote 1.0.36",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "bytecount"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1856,30 +1835,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "connection-router"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "error-stack",
- "flagset",
- "itertools 0.11.0",
- "mockall",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "schemars",
- "serde",
- "serde_json",
- "sha3 0.10.8",
- "thiserror",
- "valuable",
-]
-
-[[package]]
 name = "consensus-config"
 version = "0.1.0"
 source = "git+https://github.com/mystenlabs/sui?tag=mainnet-v1.26.2#f531168c745260b60a4ec4906c9f2b22240d872d"
@@ -1965,8 +1920,8 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 name = "coordinator"
 version = "0.1.2"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
  "cw-multi-test",
@@ -1974,8 +1929,8 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
- "multisig 0.3.0",
- "report 0.1.0",
+ "multisig",
+ "report",
  "router-api",
  "thiserror",
  "tofn",
@@ -3223,7 +3178,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 name = "events"
 version = "0.1.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
+ "axelar-wasm-std",
  "base64 0.21.7",
  "cosmrs",
  "error-stack",
@@ -3248,13 +3203,13 @@ dependencies = [
 name = "evm-gateway"
 version = "0.1.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
+ "axelar-wasm-std",
  "cosmwasm-std",
  "error-stack",
  "ethers-contract",
  "ethers-core",
  "k256",
- "multisig 0.3.0",
+ "multisig",
  "router-api",
  "sha3 0.10.8",
  "thiserror",
@@ -3661,33 +3616,10 @@ dependencies = [
 
 [[package]]
 name = "gateway"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "aggregate-verifier",
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "connection-router",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "error-stack",
- "itertools 0.11.0",
- "mockall",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "gateway"
 version = "0.2.2"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
@@ -3697,12 +3629,12 @@ dependencies = [
  "error-stack",
  "gateway-api",
  "itertools 0.11.0",
- "report 0.1.0",
+ "report",
  "router-api",
  "serde",
  "serde_json",
  "thiserror",
- "voting-verifier 0.4.0",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -3811,30 +3743,19 @@ dependencies = [
 [[package]]
 name = "gmp-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#1249561eb1da88b1e89d8c6cb085db6054f5d0fd"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
 dependencies = [
- "anyhow",
  "axelar-message-primitives",
+ "axelar-rkyv-encoding",
  "base64 0.21.7",
- "bcs",
  "bimap",
- "bnum",
+ "bincode",
  "borsh 1.5.1",
- "bytemuck",
- "connection-router",
- "cosmwasm-schema 2.0.4",
- "cosmwasm-std",
- "hex",
  "itertools 0.12.1",
- "libsecp256k1 0.7.1",
- "multisig 0.1.0",
- "multisig-prover 0.1.0",
  "num-derive 0.4.2",
  "num-traits",
  "program-utils",
- "serde",
- "sha3 0.10.8",
- "solana-program",
+ "solana-program 2.0.1",
  "thiserror",
 ]
 
@@ -4483,27 +4404,27 @@ dependencies = [
 name = "integration-tests"
 version = "0.1.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
+ "axelar-wasm-std",
  "coordinator",
  "cosmwasm-std",
  "cw-multi-test",
  "error-stack",
- "gateway 0.2.2",
+ "gateway",
  "gateway-api",
  "k256",
- "multisig 0.3.0",
- "multisig-prover 0.5.0",
+ "multisig",
+ "multisig-prover",
  "rand 0.8.5",
- "report 0.1.0",
- "rewards 0.3.0",
+ "report",
+ "rewards",
  "router",
  "router-api",
  "serde",
  "serde_json",
- "service-registry 0.3.0",
+ "service-registry",
  "sha3 0.10.8",
  "tofn",
- "voting-verifier 0.4.0",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -5496,36 +5417,10 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "multisig"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "connection-router",
- "cosmwasm-crypto",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "enum-display-derive",
- "error-stack",
- "getrandom 0.2.15",
- "k256",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "rewards 0.1.0",
- "schemars",
- "serde",
- "serde_json",
- "sha3 0.10.8",
- "thiserror",
-]
-
-[[package]]
-name = "multisig"
 version = "0.3.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-crypto",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
@@ -5540,8 +5435,8 @@ dependencies = [
  "getrandom 0.2.15",
  "itertools 0.11.0",
  "k256",
- "report 0.1.0",
- "rewards 0.3.0",
+ "report",
+ "rewards",
  "router-api",
  "serde",
  "serde_json",
@@ -5552,43 +5447,11 @@ dependencies = [
 
 [[package]]
 name = "multisig-prover"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "bcs",
- "connection-router",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "cw-utils 1.0.3",
- "either",
- "error-stack",
- "ethabi",
- "gateway 0.1.0",
- "hex",
- "itertools 0.11.0",
- "k256",
- "multisig 0.1.0",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "schemars",
- "serde",
- "serde_json",
- "service-registry 0.1.0",
- "sha3 0.10.8",
- "thiserror",
- "voting-verifier 0.1.0",
-]
-
-[[package]]
-name = "multisig-prover"
 version = "0.5.0"
 dependencies = [
  "anyhow",
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "bcs",
  "coordinator",
  "cosmwasm-schema 1.5.5",
@@ -5602,21 +5465,21 @@ dependencies = [
  "ethers-contract",
  "ethers-core",
  "evm-gateway",
- "gateway 0.2.2",
+ "gateway",
  "gateway-api",
  "generic-array",
  "hex",
  "itertools 0.11.0",
  "k256",
- "multisig 0.3.0",
+ "multisig",
  "prost 0.12.6",
- "report 0.1.0",
+ "report",
  "router-api",
  "serde_json",
- "service-registry 0.3.0",
+ "service-registry",
  "sha3 0.10.8",
  "thiserror",
- "voting-verifier 0.4.0",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -5743,8 +5606,8 @@ dependencies = [
 name = "nexus-gateway"
 version = "0.2.3"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -5752,12 +5615,12 @@ dependencies = [
  "error-stack",
  "hex",
  "mockall",
- "report 0.1.0",
+ "report",
  "router-api",
  "schemars",
  "serde",
  "thiserror",
- "voting-verifier 0.4.0",
+ "voting-verifier",
 ]
 
 [[package]]
@@ -6791,10 +6654,10 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#1249561eb1da88b1e89d8c6cb085db6054f5d0fd"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
 dependencies = [
  "borsh 1.5.1",
- "solana-program",
+ "solana-program 2.0.1",
  "thiserror",
 ]
 
@@ -6970,6 +6833,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5787f7cda34e3033a72192c018bc5883100330f362ef279a8cbccfce8bb4e874"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "ptr_meta"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0738ccf7ea06b608c10564b31debd4f5bc5e197fc8bfe088f68ae5ce81e7a4f1"
+dependencies = [
+ "ptr_meta_derive",
+]
+
+[[package]]
+name = "ptr_meta_derive"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16b845dbfca988fa33db069c0e230574d15a3088f147a87b64c7589eb662c9ac"
+dependencies = [
+ "proc-macro2 1.0.85",
+ "quote 1.0.36",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -7300,20 +7183,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
-name = "report"
-version = "0.1.0"
+name = "rend"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71fe3824f5629716b1589be05dacd749f6aa084c87e00e016714a8cdfccc997c"
 dependencies = [
- "error-stack",
- "eyre",
- "itertools 0.11.0",
- "thiserror",
- "valuable",
+ "bytecheck",
 ]
 
 [[package]]
 name = "report"
 version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
 dependencies = [
  "error-stack",
  "eyre",
@@ -7367,28 +7247,10 @@ dependencies = [
 
 [[package]]
 name = "rewards"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cw-storage-plus 1.2.0",
- "error-stack",
- "itertools 0.11.0",
- "mockall",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "rewards"
 version = "0.3.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
  "cw-multi-test",
@@ -7396,7 +7258,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "itertools 0.11.0",
- "report 0.1.0",
+ "report",
  "router-api",
  "thiserror",
 ]
@@ -7451,6 +7313,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "rkyv"
+version = "0.7.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cba464629b3394fc4dbc6f940ff8f5b4ff5c7aef40f29166fd4ad12acbc99c0"
+dependencies = [
+ "bitvec 1.0.1",
+ "bytecheck",
+ "bytes",
+ "hashbrown 0.12.3",
+ "ptr_meta",
+ "rend",
+ "rkyv_derive",
+ "seahash",
+ "tinyvec",
+ "uuid 1.8.0",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.7.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7dddfff8de25e6f62b9d64e6e432bf1c6736c57d20323e15ee10435fbda7c65"
+dependencies = [
+ "proc-macro2 1.0.85",
+ "quote 1.0.36",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "rlp"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7497,8 +7388,8 @@ dependencies = [
 name = "router"
 version = "0.3.2"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
  "cw-multi-test",
@@ -7512,7 +7403,7 @@ dependencies = [
  "itertools 0.11.0",
  "mockall",
  "rand 0.8.5",
- "report 0.1.0",
+ "report",
  "router-api",
  "serde_json",
 ]
@@ -7521,8 +7412,8 @@ dependencies = [
 name = "router-api"
 version = "0.1.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -7530,7 +7421,7 @@ dependencies = [
  "flagset",
  "hex",
  "rand 0.8.5",
- "report 0.1.0",
+ "report",
  "schemars",
  "serde",
  "serde_json",
@@ -7858,6 +7749,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "seahash"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
+
+[[package]]
 name = "sec1"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8140,29 +8037,10 @@ dependencies = [
 
 [[package]]
 name = "service-registry"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "connection-router",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "error-stack",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "service-registry"
 version = "0.3.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "coordinator",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
@@ -8171,7 +8049,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
- "report 0.1.0",
+ "report",
  "router-api",
  "schemars",
  "serde",
@@ -8319,6 +8197,12 @@ dependencies = [
  "error-stack",
  "thiserror",
 ]
+
+[[package]]
+name = "simdutf8"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f27f6278552951f1f2b8cf9da965d10969b2efdea95a6ec47987ab46edfe263a"
 
 [[package]]
 name = "similar"
@@ -8684,11 +8568,57 @@ dependencies = [
  "sha3 0.10.8",
  "solana-frozen-abi",
  "solana-frozen-abi-macro",
- "solana-sdk-macro",
+ "solana-sdk-macro 1.18.17",
  "thiserror",
  "tiny-bip39",
  "wasm-bindgen",
  "zeroize",
+]
+
+[[package]]
+name = "solana-program"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9164e89e655a4689de62f0c8066f4a9496e16e5d38ca27c821fc812bac79fa34"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-serialize",
+ "base64 0.22.1",
+ "bincode",
+ "bitflags 2.5.0",
+ "blake3",
+ "borsh 0.10.3",
+ "borsh 1.5.1",
+ "bs58 0.5.1",
+ "bv",
+ "bytemuck",
+ "bytemuck_derive",
+ "console_error_panic_hook",
+ "console_log",
+ "curve25519-dalek 3.2.1",
+ "getrandom 0.2.15",
+ "js-sys",
+ "lazy_static",
+ "libsecp256k1 0.6.0",
+ "log",
+ "memoffset 0.9.1",
+ "num-bigint 0.4.5",
+ "num-derive 0.4.2",
+ "num-traits",
+ "parking_lot",
+ "rand 0.8.5",
+ "rustc_version",
+ "rustversion",
+ "serde",
+ "serde_bytes",
+ "serde_derive",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "solana-sdk-macro 2.0.1",
+ "thiserror",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -8909,8 +8839,8 @@ dependencies = [
  "solana-frozen-abi",
  "solana-frozen-abi-macro",
  "solana-logger",
- "solana-program",
- "solana-sdk-macro",
+ "solana-program 1.18.17",
+ "solana-sdk-macro 1.18.17",
  "thiserror",
  "uriparse",
  "wasm-bindgen",
@@ -8923,6 +8853,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86c76414183a325038ff020b22c07d1e9d2da0703ddc0244acfed37ee2921d96"
 dependencies = [
  "bs58 0.4.0",
+ "proc-macro2 1.0.85",
+ "quote 1.0.36",
+ "rustversion",
+ "syn 2.0.66",
+]
+
+[[package]]
+name = "solana-sdk-macro"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b34e8a090f0572191388412636f7682370ad944894dd2d20a8e616159fd8e1b6"
+dependencies = [
+ "bs58 0.5.1",
  "proc-macro2 1.0.85",
  "quote 1.0.36",
  "rustversion",
@@ -9079,7 +9022,7 @@ dependencies = [
  "solana-frozen-abi",
  "solana-frozen-abi-macro",
  "solana-metrics",
- "solana-program",
+ "solana-program 1.18.17",
  "solana-program-runtime",
  "solana-sdk",
  "thiserror",
@@ -9107,7 +9050,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3 0.9.1",
- "solana-program",
+ "solana-program 1.18.17",
  "solana-sdk",
  "subtle",
  "thiserror",
@@ -9185,7 +9128,7 @@ dependencies = [
  "borsh 0.10.3",
  "num-derive 0.4.2",
  "num-traits",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-token",
  "spl-token-2022",
  "thiserror",
@@ -9193,12 +9136,12 @@ dependencies = [
 
 [[package]]
 name = "spl-discriminator"
-version = "0.1.1"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daa600f2fe56f32e923261719bae640d873edadbc5237681a39b8e37bfd4d263"
+checksum = "cce5d563b58ef1bb2cdbbfe0dfb9ffdc24903b10ae6a4df2d8f425ece375033f"
 dependencies = [
  "bytemuck",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-discriminator-derive",
 ]
 
@@ -9232,31 +9175,31 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f180b03318c3dbab3ef4e1e4d46d5211ae3c780940dd0a28695aba4b59a75a"
 dependencies = [
- "solana-program",
+ "solana-program 1.18.17",
 ]
 
 [[package]]
 name = "spl-pod"
-version = "0.1.1"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85a5db7e4efb1107b0b8e52a13f035437cdcb36ef99c58f6d467f089d9b2915a"
+checksum = "2881dddfca792737c0706fa0175345ab282b1b0879c7d877bad129645737c079"
 dependencies = [
  "borsh 0.10.3",
  "bytemuck",
- "solana-program",
+ "solana-program 1.18.17",
  "solana-zk-token-sdk",
  "spl-program-error",
 ]
 
 [[package]]
 name = "spl-program-error"
-version = "0.3.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e0657b6490196971d9e729520ba934911ff41fbb2cb9004463dbe23cf8b4b4f"
+checksum = "249e0318493b6bcf27ae9902600566c689b7dfba9f1bdff5893e92253374e78c"
 dependencies = [
  "num-derive 0.4.2",
  "num-traits",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-program-error-derive",
  "thiserror",
 ]
@@ -9275,12 +9218,12 @@ dependencies = [
 
 [[package]]
 name = "spl-tlv-account-resolution"
-version = "0.5.2"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56f335787add7fa711819f9e7c573f8145a5358a709446fe2d24bf2a88117c90"
+checksum = "615d381f48ddd2bb3c57c7f7fb207591a2a05054639b18a62e785117dd7a8683"
 dependencies = [
  "bytemuck",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-discriminator",
  "spl-pod",
  "spl-program-error",
@@ -9298,7 +9241,7 @@ dependencies = [
  "num-derive 0.3.3",
  "num-traits",
  "num_enum 0.6.1",
- "solana-program",
+ "solana-program 1.18.17",
  "thiserror",
 ]
 
@@ -9313,7 +9256,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "num_enum 0.7.2",
- "solana-program",
+ "solana-program 1.18.17",
  "solana-security-txt",
  "solana-zk-token-sdk",
  "spl-memo",
@@ -9333,7 +9276,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b889509d49fa74a4a033ca5dae6c2307e9e918122d97e58562f5c4ffa795c75d"
 dependencies = [
  "bytemuck",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-discriminator",
  "spl-pod",
  "spl-program-error",
@@ -9346,7 +9289,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c16ce3ba6979645fb7627aa1e435576172dd63088dc7848cb09aa331fa1fe4f"
 dependencies = [
  "borsh 0.10.3",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-discriminator",
  "spl-pod",
  "spl-program-error",
@@ -9361,7 +9304,7 @@ checksum = "7aabdb7c471566f6ddcee724beb8618449ea24b399e58d464d6b5bc7db550259"
 dependencies = [
  "arrayref",
  "bytemuck",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-discriminator",
  "spl-pod",
  "spl-program-error",
@@ -9371,12 +9314,12 @@ dependencies = [
 
 [[package]]
 name = "spl-type-length-value"
-version = "0.3.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f9ebd75d29c5f48de5f6a9c114e08531030b75b8ac2c557600ac7da0b73b1e8"
+checksum = "a468e6f6371f9c69aae760186ea9f1a01c2908351b06a5e0026d21cfc4d7ecac"
 dependencies = [
  "bytemuck",
- "solana-program",
+ "solana-program 1.18.17",
  "spl-discriminator",
  "spl-pod",
  "spl-program-error",
@@ -10867,34 +10810,10 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "voting-verifier"
-version = "0.1.0"
-source = "git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f#c0904e1c72c99a174a93b5f6c18b30f52d20b71f"
-dependencies = [
- "axelar-wasm-std 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "axelar-wasm-std-derive 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "connection-router",
- "cosmwasm-schema 1.5.5",
- "cosmwasm-std",
- "cosmwasm-storage",
- "cw-storage-plus 1.2.0",
- "either",
- "error-stack",
- "report 0.1.0 (git+https://github.com/axelarnetwork/axelar-amplifier?rev=c0904e1c72c99a174a93b5f6c18b30f52d20b71f)",
- "rewards 0.1.0",
- "schemars",
- "serde",
- "serde_json",
- "service-registry 0.1.0",
- "sha3 0.10.8",
- "thiserror",
-]
-
-[[package]]
-name = "voting-verifier"
 version = "0.4.0"
 dependencies = [
- "axelar-wasm-std 0.1.0",
- "axelar-wasm-std-derive 0.1.0",
+ "axelar-wasm-std",
+ "axelar-wasm-std-derive",
  "client",
  "cosmwasm-schema 1.5.5",
  "cosmwasm-std",
@@ -10903,13 +10822,13 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
- "multisig 0.3.0",
+ "multisig",
  "rand 0.8.5",
- "report 0.1.0",
- "rewards 0.3.0",
+ "report",
+ "rewards",
  "router-api",
  "serde_json",
- "service-registry 0.3.0",
+ "service-registry",
  "sha3 0.10.8",
  "thiserror",
 ]
