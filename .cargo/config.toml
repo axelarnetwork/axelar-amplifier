@@ -4,3 +4,6 @@ unit-test = "test --lib"
 
 [build]
 rustflags = ["--cfg", "tracing_unstable"]
+
+[net]
+git-fetch-with-cli = true
