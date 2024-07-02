@@ -40,7 +40,7 @@ use syn::{Data, DataEnum, DeriveInput, Expr, ExprCall, Ident, Path, Token, Varia
 ///
 /// fn execute(deps: Deps, env: Env, info: MessageInfo, msg: ExecuteMsg) -> error_stack::Result<(), axelar_wasm_std::permission_control::Error> {
 ///     // check permissions before handling the message
-///     match msg.ensure_permissions(deps.storage, &info.sender, |storage| GATEWAY.load(storage))? {
+///     match msg.ensure_permissions(deps.storage, &info.sender, |storage, message | GATEWAY.load(storage))? {
 ///         ExecuteMsg::AnyoneButGovernanceCanCallThis => Ok(()),
 ///         ExecuteMsg::OnlyGovernanceCanCallThis => Ok(()),
 ///         ExecuteMsg::AdminOrGatewayCanCallThis => Ok(()),
