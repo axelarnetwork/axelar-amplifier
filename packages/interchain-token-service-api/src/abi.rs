@@ -1,9 +1,13 @@
-use alloy_sol_types::{sol, SolValue};
 use alloy_primitives::{Bytes, FixedBytes, U256};
+use alloy_sol_types::{sol, SolValue};
 use cosmwasm_std::{HexBinary, Uint256};
-use error_stack::{Report};
+use error_stack::Report;
 
-use crate::{error::Error, primitives::{ITSMessage, ITSRoutedMessage}, TokenId, TokenManagerType};
+use crate::{
+    error::Error,
+    primitives::{ITSMessage, ITSRoutedMessage},
+    TokenId, TokenManagerType,
+};
 
 sol! {
     enum MessageType {
@@ -54,51 +58,50 @@ impl ITSRoutedMessage {
                 destination_address,
                 amount,
                 data,
-            } => {
-                InterchainTransfer {
-                    messageType: U256::from(0u64),
-                    tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
-                    sourceAddress: Bytes::copy_from_slice(source_address.as_slice()),
-                    destinationAddress: Bytes::copy_from_slice(destination_address.as_slice()),
-                    amount: U256::from_le_bytes(amount.to_le_bytes()),
-                    data: Bytes::copy_from_slice(data.as_slice()),
-                }.abi_encode()
+            } => InterchainTransfer {
+                messageType: U256::from(0u64),
+                tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
+                sourceAddress: Bytes::copy_from_slice(source_address.as_slice()),
+                destinationAddress: Bytes::copy_from_slice(destination_address.as_slice()),
+                amount: U256::from_le_bytes(amount.to_le_bytes()),
+                data: Bytes::copy_from_slice(data.as_slice()),
             }
+            .abi_encode(),
             ITSMessage::DeployInterchainToken {
                 token_id,
                 name,
                 symbol,
                 decimals,
                 minter,
-            } => {
-                DeployInterchainToken {
-                    messageType: U256::from(1u64),
-                    tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
-                    name: name.clone(),
-                    symbol: symbol.clone(),
-                    decimals,
-                    minter: Bytes::copy_from_slice(minter.as_slice()),
-                }.abi_encode()
+            } => DeployInterchainToken {
+                messageType: U256::from(1u64),
+                tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
+                name: name.clone(),
+                symbol: symbol.clone(),
+                decimals,
+                minter: Bytes::copy_from_slice(minter.as_slice()),
             }
+            .abi_encode(),
             ITSMessage::DeployTokenManager {
                 token_id,
                 token_manager_type,
                 params,
-            } => {
-                DeployTokenManager {
-                    messageType: U256::from(2u64),
-                    tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
-                    tokenManagerType: U256::from(token_manager_type as u64),
-                    params: Bytes::copy_from_slice(params.as_slice()),
-                }.abi_encode()
+            } => DeployTokenManager {
+                messageType: U256::from(2u64),
+                tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
+                tokenManagerType: U256::from(token_manager_type as u64),
+                params: Bytes::copy_from_slice(params.as_slice()),
             }
+            .abi_encode(),
         };
 
         RoutedCall {
             messageType: U256::from(MessageType::RoutedCall as u64),
             chain: self.remote_chain.clone(),
             message: Bytes::copy_from_slice(&message),
-        }.abi_encode().into()
+        }
+        .abi_encode()
+        .into()
     }
 
     pub fn abi_decode(payload: &[u8]) -> Result<Self, Report<Error>> {
@@ -106,9 +109,12 @@ impl ITSRoutedMessage {
             .map_err(|e| Error::InvalidMessage(e.to_string()))?;
 
         if u8::try_from(wrapped_message.messageType)
-            .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))? != MessageType::RoutedCall as u8
+            .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?
+            != MessageType::RoutedCall as u8
         {
-            return Err(Report::new(Error::InvalidMessage("invalid routed call".into())));
+            return Err(Report::new(Error::InvalidMessage(
+                "invalid routed call".into(),
+            )));
         }
 
         let message_type = MessageType::abi_decode(&wrapped_message.message[32..64], true)
@@ -120,25 +126,29 @@ impl ITSRoutedMessage {
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ITSMessage::InterchainTransfer {
-                    token_id: TokenId { id: decoded.tokenId.into() },
+                    token_id: TokenId {
+                        id: decoded.tokenId.into(),
+                    },
                     source_address: HexBinary::from(decoded.sourceAddress.to_vec()),
                     destination_address: HexBinary::from(decoded.destinationAddress.as_ref()),
                     amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
                     data: HexBinary::from(decoded.data.as_ref()),
                 })
-            },
+            }
             MessageType::DeployInterchainToken => {
                 let decoded = DeployInterchainToken::abi_decode(&wrapped_message.message, true)
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ITSMessage::DeployInterchainToken {
-                    token_id: TokenId { id: decoded.tokenId.into() },
+                    token_id: TokenId {
+                        id: decoded.tokenId.into(),
+                    },
                     name: decoded.name,
                     symbol: decoded.symbol,
                     decimals: decoded.decimals,
                     minter: HexBinary::from(decoded.minter.as_ref()),
                 })
-            },
+            }
             MessageType::DeployTokenManager => {
                 let decoded = DeployTokenManager::abi_decode(&wrapped_message.message, true)
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
@@ -147,12 +157,16 @@ impl ITSRoutedMessage {
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ITSMessage::DeployTokenManager {
-                    token_id: TokenId { id: decoded.tokenId.into() },
+                    token_id: TokenId {
+                        id: decoded.tokenId.into(),
+                    },
                     token_manager_type: TokenManagerType::try_from(token_manager_type)?,
                     params: HexBinary::from(decoded.params.as_ref()),
                 })
-            },
-            _ => Err(Report::new(Error::InvalidMessage("unsupported inner message".into()))),
+            }
+            _ => Err(Report::new(Error::InvalidMessage(
+                "unsupported inner message".into(),
+            ))),
         }?;
 
         Ok(ITSRoutedMessage {
@@ -323,11 +337,15 @@ mod tests {
             messageType: U256::from((MessageType::RoutedCall as u8) + 1),
             chain: "chain".to_string(),
             message: Bytes::copy_from_slice(&[0u8; 0]),
-        }.abi_encode();
+        }
+        .abi_encode();
 
         let result = ITSRoutedMessage::abi_decode(&invalid_payload);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("invalid routed call"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid routed call"));
     }
 
     #[test]

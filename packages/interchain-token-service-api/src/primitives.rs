@@ -1,7 +1,7 @@
+use crate::error::Error;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
-use error_stack::{Report};
-use crate::error::Error;
+use error_stack::Report;
 
 #[cw_serde]
 #[derive(Eq)]
