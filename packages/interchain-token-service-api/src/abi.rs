@@ -44,7 +44,9 @@ sol! {
 
     struct RoutedCall {
         uint256 messageType;
-        string chain;
+        /// Remote chain name. This is set to the true destination chain when ITS edge contract sends the GMP call to the ITS hub.
+        /// And it's set to the true source chain, when ITS edge contract receives a GMP call from the ITS hub.
+        string remote_chain;
         bytes message;
     }
 }
@@ -97,7 +99,7 @@ impl ITSRoutedMessage {
 
         RoutedCall {
             messageType: U256::from(MessageType::RoutedCall as u64),
-            chain: self.remote_chain.clone(),
+            remote_chain: self.remote_chain.clone(),
             message: Bytes::copy_from_slice(&message),
         }
         .abi_encode()
@@ -170,7 +172,7 @@ impl ITSRoutedMessage {
         }?;
 
         Ok(ITSRoutedMessage {
-            remote_chain: wrapped_message.chain,
+            remote_chain: wrapped_message.remote_chain,
             message,
         })
     }
@@ -335,7 +337,7 @@ mod tests {
     fn invalid_message_type() {
         let invalid_payload = RoutedCall {
             messageType: U256::from((MessageType::RoutedCall as u8) + 1),
-            chain: "chain".to_string(),
+            remote_chain: "remote_chain".to_string(),
             message: Bytes::copy_from_slice(&[0u8; 0]),
         }
         .abi_encode();
