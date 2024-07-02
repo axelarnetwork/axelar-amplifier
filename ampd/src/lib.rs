@@ -14,6 +14,7 @@ use router_api::ChainName;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
+use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::info;
@@ -187,7 +188,7 @@ where
             broadcaster,
             broadcast_cfg.batch_gas_limit,
             broadcast_cfg.queue_cap,
-            broadcast_cfg.broadcast_interval,
+            interval(broadcast_cfg.broadcast_interval),
             tx_confirmer_sender,
             tx_res_receiver,
         );
