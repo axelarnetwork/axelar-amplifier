@@ -1,4 +1,5 @@
 pub mod abi;
+pub mod rkyv;
 
 use cosmwasm_schema::cw_serde;
 
@@ -7,4 +8,5 @@ use cosmwasm_schema::cw_serde;
 pub enum Encoder {
     Abi,
     Bcs,
+    Rkyv,
 }

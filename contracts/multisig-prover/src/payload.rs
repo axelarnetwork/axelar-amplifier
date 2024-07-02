@@ -10,7 +10,11 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{CrossChainId, Message};
 
 use crate::{
-    encoding::{abi, Encoder},
+    encoding::{
+        abi,
+        rkyv::{to_verifier_set, to_weighted_signature},
+        Encoder,
+    },
     error::ContractError,
 };
 
@@ -47,6 +51,11 @@ impl Payload {
         match encoder {
             Encoder::Abi => abi::payload_hash_to_sign(domain_separator, cur_verifier_set, self),
             Encoder::Bcs => todo!(),
+            Encoder::Rkyv => Ok(axelar_rkyv_encoding::hash_payload(
+                &domain_separator,
+                &to_verifier_set(cur_verifier_set)?,
+                &axelar_rkyv_encoding::types::Payload::try_from(self)?,
+            )),
         }
     }
 
@@ -72,6 +81,23 @@ impl Payload {
                 abi::execute_data::encode(verifier_set, signers_with_sigs, &payload_hash, payload)
             }
             Encoder::Bcs => todo!(),
+            Encoder::Rkyv => {
+                let mut enc_signatures = Vec::new();
+
+                for s in signers_with_sigs {
+                    enc_signatures.push(to_weighted_signature(&s, &payload_hash)?)
+                }
+
+                let bytes = axelar_rkyv_encoding::encode::<1024>(
+                    // Todo reason about this "1024" magic number.
+                    &to_verifier_set(&verifier_set)?,
+                    enc_signatures,
+                    axelar_rkyv_encoding::types::Payload::try_from(payload)?,
+                )
+                .map_err(|e| ContractError::RkyvEncodingError(e.to_string()))?;
+
+                Ok(HexBinary::from(bytes))
+            }
         }
     }
 }

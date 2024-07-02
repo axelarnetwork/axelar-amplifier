@@ -59,6 +59,7 @@ service-registry = { workspace = true }
 sha3 = { workspace = true }
 thiserror = { workspace = true }
 voting-verifier = { workspace = true, features = ["library"] }
+axelar-rkyv-encoding = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1.0"
