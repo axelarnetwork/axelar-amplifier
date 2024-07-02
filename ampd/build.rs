@@ -8,5 +8,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .compile(&["proto/ampd.proto"], &["proto"])?;
 
+    tonic_build::configure()
+        .build_server(false)
+        .build_client(false)
+        .compile(
+            &["proto/axelar/auxiliary/v1beta1/tx.proto"],
+            &["proto", "proto/third_party"],
+        )?;
+
     Ok(())
 }
