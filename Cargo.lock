@@ -759,7 +759,7 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+ssh://git@github.com/eigerco/solana-axelar-internal.git?branch=main#eb9d5a7fcf2469256b275befa9ca4d4aaa21743c"
+source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
@@ -5342,7 +5342,7 @@ name = "multisig-prover"
 version = "0.5.0"
 dependencies = [
  "anyhow",
- "axelar-rkyv-encoding 0.1.0 (git+ssh://git@github.com/eigerco/solana-axelar-internal.git?branch=main)",
+ "axelar-rkyv-encoding 0.1.0 (git+https://git@github.com/eigerco/solana-axelar.git?branch=main)",
  "axelar-wasm-std",
  "axelar-wasm-std-derive",
  "bcs",

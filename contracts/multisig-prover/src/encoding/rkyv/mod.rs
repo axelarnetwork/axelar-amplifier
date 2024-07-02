@@ -13,21 +13,19 @@ use crate::{error::ContractError, payload::Payload};
 type Result<T> = core::result::Result<T, ContractError>;
 
 pub fn to_verifier_set(vs: &VerifierSet) -> Result<axelar_rkyv_encoding::types::VerifierSet> {
-    let mut signers: BTreeMap<String, axelar_rkyv_encoding::types::Signer> = BTreeMap::new();
+    let mut signers: BTreeMap<
+        axelar_rkyv_encoding::types::PublicKey,
+        axelar_rkyv_encoding::types::U256,
+    > = BTreeMap::new();
 
     vs.signers
         .iter()
-        .try_for_each(|(address, signer)| -> Result<()> {
-            let enc_signer = signer.address.to_string();
+        .try_for_each(|(_, signer)| -> Result<()> {
             let enc_pubkey = to_pub_key(&signer.pub_key)?;
-
             let enc_weight =
                 axelar_rkyv_encoding::types::U256::from_le(to_u256_le(signer.weight.u128()));
 
-            signers.insert(
-                address.clone(),
-                axelar_rkyv_encoding::types::Signer::new(enc_signer, enc_pubkey, enc_weight),
-            );
+            signers.insert(enc_pubkey, enc_weight);
             Ok(())
         })?;
 
