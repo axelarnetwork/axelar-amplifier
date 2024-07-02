@@ -45,13 +45,15 @@ serde = { version = "1.0.147", features = ["derive"] }
 serde_json = { workspace = true }
 serde_with = "3.2.0"
 service-registry = { workspace = true }
-solana-account-decoder = "1.18.1"
-solana-client = "1.18.1"
-solana-program = "1.18.1"
-solana-sdk = "1.18.1"
-solana-rpc-client-api = "1.18.1"
-solana-version = "1.18.1"
-solana-transaction-status = "1.18.1"
+solana-account-decoder = "2.0.1"
+solana-client = "2.0.1"
+solana-program = "2.0.1"
+solana-sdk = "2.0.1"
+solana-rpc-client-api = "2.0.1"
+solana-version = "2.0.1"
+solana-zk-token-sdk = "2.0.1"
+solana-transaction-status = "2.0.1"
+
 sha3 = { workspace = true }
 sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
 sui-types = { git = "https://github.com/mystenlabs/sui", features = ["test-utils"], tag = "mainnet-v1.26.2" }
@@ -93,17 +95,12 @@ tokio = { workspace = true, features = ["test-util"] }
 tonic-build = "0.8.3"
 
 [patch.crates-io]
-# aes-gcm-siv 0.10.3 and curve25519-dalek 3.x pin zeroize to <1.4
+# curve25519-dalek 3.x pin zeroize to <1.4
 # which conflicts with other dependencies requiring zeroize ^1.5.
 # We’re patching both crates to unpin zeroize.
 #
-# For aes-gcm-siv we’re using the same revision Solana uses in
-# an (as of now) unreleased commit, see
-# https://github.com/solana-labs/solana/commit/01f1bf27994d9813fadfcd134befd3a449aaa0bd
-#
 # For curve25519-dalek we’re using commit from a PR, see
 # https://github.com/dalek-cryptography/curve25519-dalek/pull/606
-aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
 curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
 ahash = "=0.8.6"
 [lints]
