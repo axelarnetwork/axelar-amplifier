@@ -214,7 +214,7 @@ fn build_specific_permissions_check(
             quote! {
                 #(
                     let stored_addr = error_stack::ResultExt::change_context(
-                        #specific_permissions(storage).map_err(|err| error_stack::Report::from(err)),
+                        #specific_permissions(storage, &self).map_err(|err| error_stack::Report::from(err)),
                         axelar_wasm_std::permission_control::Error::WhitelistNotFound{sender: sender.clone()})?;
                     if sender == stored_addr {
                         return Ok(self);
@@ -295,9 +295,18 @@ fn build_full_check_function(
         .unique()
         .collect::<Vec<_>>();
 
+    let comments = quote! {
+        /// Ensure the annotated permissions are met by the sender.
+        /// If the sender does not have the required permissions, an error is returned.
+    };
+
     // the function signature is different depending on how many specific permissions are defined
     if unique_specific_permissions.is_empty() {
         quote! {
+            #comments
+            /// # Arguments
+            /// * `storage` - The storage to load the sender's role from.
+            /// * `sender` - The sender's address to check for whitelisting.
             pub fn ensure_permissions(self, storage: &dyn cosmwasm_std::Storage, sender: &cosmwasm_std::Addr)
                 -> error_stack::Result<Self, axelar_wasm_std::permission_control::Error> {
 
@@ -315,7 +324,17 @@ fn build_full_check_function(
             .map(|i| format_ident!("C{}", i))
             .collect();
 
+        let args = quote!(#(#unique_specific_permissions),*);
+        let format = format!(
+            "* `{}` - The function(s) to load whitelisted addresses from storage.",
+            args
+        );
         quote! {
+            #comments
+            /// # Arguments
+            /// * `storage` - The storage to load the whitelisted addresses and the sender's role from.
+            /// * `sender` - The sender's address to check for whitelisting.
+            #[doc = #format]
             pub fn ensure_permissions<#(#fs),*, #(#cs),*>(
                 self,
                 storage: &dyn cosmwasm_std::Storage,
@@ -323,7 +342,7 @@ fn build_full_check_function(
                 #(#unique_specific_permissions: #fs),*)
                 -> error_stack::Result<Self,axelar_wasm_std::permission_control::Error>
                     where
-                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
+                        #(#fs:FnOnce(&dyn cosmwasm_std::Storage, &Self) -> error_stack::Result<cosmwasm_std::Addr, #cs>),*,
                         #(#cs: error_stack::Context),*
                     {
                 #specific_permission_body

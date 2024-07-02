@@ -144,9 +144,12 @@ fn ensure_specific_permissions() {
     let gateway2_addr = Addr::unchecked("gateway2");
     let gateway3_addr = Addr::unchecked("gateway3");
 
-    let gateway1 = |_: &dyn Storage| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway1"));
-    let gateway2 = |_: &dyn Storage| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway2"));
-    let gateway3 = |_: &dyn Storage| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway3"));
+    let gateway1 =
+        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway1"));
+    let gateway2 =
+        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway2"));
+    let gateway3 =
+        |_: &dyn Storage, _: &TestMsg2| Ok::<Addr, Report<Error>>(Addr::unchecked("gateway3"));
 
     let mut storage = MockStorage::new();
     permission_control::set_admin(&mut storage, &admin).unwrap();
@@ -295,7 +298,7 @@ fn ensure_specific_permissions() {
         .ensure_permissions(&storage, &gateway3_addr, gateway1, gateway2, gateway3)
         .is_ok());
 
-    let gateway3 = |_: &dyn Storage| Err(report!(Error));
+    let gateway3 = |_: &dyn Storage, _: &TestMsg2| Err(report!(Error));
 
     assert!(matches!(
         TestMsg2::Specific4

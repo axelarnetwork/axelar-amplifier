@@ -136,8 +136,8 @@ pub fn execute(
 
 fn find_gateway_address(
     sender: &Addr,
-) -> impl FnOnce(&dyn Storage) -> error_stack::Result<Addr, Error> + '_ {
-    |storage| {
+) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
+    |storage, _| {
         load_chain_by_gateway(storage, sender)?
             .gateway
             .address
