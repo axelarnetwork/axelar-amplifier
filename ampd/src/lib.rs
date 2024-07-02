@@ -9,12 +9,12 @@ use cosmrs::proto::cosmos::{
     tx::v1beta1::service_client::ServiceClient,
 };
 use error_stack::{report, FutureExt, Result, ResultExt};
-use solana::rpc::RpcCacheWrapper;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
 use evm::finalizer::{pick, Finalization};
 use evm::json_rpc::EthereumClient;
 use router_api::ChainName;
+use solana::rpc::RpcCacheWrapper;
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
 use thiserror::Error;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::oneshot;
@@ -350,17 +350,18 @@ where
                 ),
                 handlers::config::Config::SolanaMsgVerifier {
                     cosmwasm_contract,
-                    rpc_url,
                     max_tx_cache_entries,
                     chain,
+                    rpc_timeout,
                 } => self.create_handler_task(
                     format!("{}-msg-verifier", chain.name),
                     handlers::solana_verify_msg::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
                         RpcCacheWrapper::new(
-                            RpcClient::new_with_commitment(
-                                rpc_url.to_string(),
+                            RpcClient::new_with_timeout_and_commitment(
+                                chain.rpc_url.to_string(),
+                                rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
                                 CommitmentConfig::finalized(),
                             ),
                             NonZeroUsize::new(max_tx_cache_entries).unwrap(),
@@ -370,17 +371,19 @@ where
                     ),
                     stream_timeout,
                 ),
-                handlers::config::Config::SolanaWorkerSetVerifier {
+                handlers::config::Config::SolanaVerifierSetVerifier {
                     cosmwasm_contract,
                     chain,
+                    rpc_timeout,
                 } => self.create_handler_task(
                     format!("{}-worker-set-verifier", chain.name),
                     handlers::solana_verify_verifier_set::Handler::new(
                         verifier.clone(),
                         cosmwasm_contract,
                         chain.name,
-                        RpcClient::new_with_commitment(
+                        RpcClient::new_with_timeout_and_commitment(
                             chain.rpc_url.to_string(),
+                            rpc_timeout.unwrap_or(DEFAULT_RPC_TIMEOUT),
                             CommitmentConfig::finalized(),
                         ),
                         self.block_height_monitor.latest_block_height(),
