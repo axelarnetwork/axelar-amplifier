@@ -137,11 +137,11 @@ fn find_first_log_message_match(
 mod tests {
     use base64::{engine::general_purpose, Engine};
     use borsh::BorshSerialize;
+    use gmp_gateway::solana_program::pubkey::Pubkey;
 
     use std::str::FromStr;
 
     use router_api::ChainName;
-    use solana_program::pubkey::Pubkey;
 
     use super::*;
 
@@ -206,7 +206,7 @@ mod tests {
     }
 
     fn get_tx_log_message(
-        sender: Pubkey,
+        sender: gmp_gateway::solana_program::pubkey::Pubkey,
         destination_chain: Vec<u8>,
         destination_address: Vec<u8>,
         payload: Vec<u8>,
