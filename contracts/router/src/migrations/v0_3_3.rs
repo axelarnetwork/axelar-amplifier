@@ -15,6 +15,7 @@ pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
         .into())
     } else {
         set_generalized_permission_control(storage)?;
+        set_router_state(storage)?;
         Ok(())
     }
 }
@@ -25,6 +26,10 @@ fn set_generalized_permission_control(storage: &mut dyn Storage) -> error_stack:
         .and_then(|_| permission_control::set_governance(storage, &config.governance))
         .map_err(Error::from)?;
     Ok(())
+}
+
+fn set_router_state(storage: &mut dyn Storage) -> StdResult<()> {
+    STATE.save(storage, &State::Enabled)
 }
 
 #[cfg(test)]
@@ -39,6 +44,18 @@ mod test {
     use crate::msg::InstantiateMsg;
     use router_api::msg::ExecuteMsg;
     use router_api::GatewayDirection;
+
+    #[test]
+    fn set_router_state() {
+        let mut storage = MockStorage::new();
+
+        assert!(STATE.load(&storage).is_err());
+
+        super::set_router_state(&mut storage).unwrap();
+
+        let state = STATE.load(&storage).unwrap();
+        assert_eq!(state, State::Enabled);
+    }
 
     #[test]
     #[allow(deprecated)]

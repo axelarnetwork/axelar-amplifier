@@ -14,6 +14,9 @@ pub enum Error {
     #[error(transparent)]
     Std(#[from] StdError),
 
+    #[error("amplifier routing is disabled")]
+    RoutingDisabled,
+
     #[error("chain already exists")]
     ChainAlreadyExists,
 

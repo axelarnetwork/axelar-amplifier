@@ -6,38 +6,40 @@ use msgs_derive::EnsurePermissions;
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    // Registers a new chain with the router
+    /// Registers a new chain with the router
     #[permission(Governance)]
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
     },
-    // Changes the gateway address associated with a particular chain
+    /// Changes the gateway address associated with a particular chain
     #[permission(Governance)]
     UpgradeGateway {
         chain: ChainName,
         contract_address: Address,
     },
-    // Freezes a chain, in the specified direction.
+    /// Freezes the specified chains in the specified directions.
     #[permission(Admin)]
-    FreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+    FreezeChains {
+        chains: HashMap<ChainName, GatewayDirection>,
     },
-    // Unfreezes a chain, in the specified direction.
+    /// Unfreezes the specified chains in the specified directions.
     #[permission(Elevated)]
-    UnfreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+    UnfreezeChains {
+        chains: HashMap<ChainName, GatewayDirection>,
     },
 
-    /*
-     * Gateway Messages
-     * The below messages can only be called by registered gateways
-     */
-    // Routes a message to all outgoing gateways registered to the destination domain.
-    // Called by an incoming gateway
+    /// Emergency command to stop all amplifier routing.
+    #[permission(Elevated)]
+    DisableRouting,
+
+    /// Resumes routing after an emergency shutdown.
+    #[permission(Governance)]
+    EnableRouting,
+
+    /// Routes a message to all outgoing gateways registered to the destination domain.
+    /// Called by an incoming gateway
     #[permission(Specific(gateway))]
     RouteMessages(Vec<Message>),
 }
@@ -57,4 +59,6 @@ pub enum QueryMsg {
         start_after: Option<ChainName>,
         limit: Option<u32>,
     },
+    #[returns(bool)]
+    IsEnabled,
 }

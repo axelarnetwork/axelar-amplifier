@@ -44,6 +44,17 @@ pub struct Config {
 
 const CONFIG: Item<Config> = Item::new("config");
 
+#[cw_serde]
+pub enum State {
+    Enabled,
+    Disabled,
+}
+pub const STATE: Item<State> = Item::new("state");
+
+pub fn is_enabled(storage: &dyn Storage) -> bool {
+    STATE.load(storage).unwrap_or(State::Disabled) == State::Enabled
+}
+
 pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,
 }

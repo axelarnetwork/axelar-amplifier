@@ -138,7 +138,7 @@ impl<T: TmClient + Sync> EventPublisher<T> {
             },
             RetryPolicy::RepeatConstant {
                 sleep: Duration::from_secs(1),
-                max_attempts: 3,
+                max_attempts: 15,
             },
         )
         .await?;
