@@ -2,6 +2,8 @@ use crate::error::Error;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::Report;
+use router_api::Address;
+use strum::EnumIter;
 
 #[cw_serde]
 #[derive(Eq)]
@@ -12,7 +14,7 @@ pub struct TokenId(
 );
 
 #[cw_serde]
-#[derive(Eq, Copy)]
+#[derive(Eq, Copy, EnumIter)]
 #[repr(u8)]
 pub enum TokenManagerType {
     NativeInterchainToken = 0,
@@ -50,7 +52,10 @@ pub enum ITSMessage {
 #[cw_serde]
 #[derive(Eq)]
 pub struct ITSRoutedMessage {
-    pub remote_chain: String,
+    /// Remote chain name.
+    /// ITS edge source contract -> ITS Hub GMP call: Set to the true destination chain name.
+    /// ITS Hub -> ITS edge destination contract: Set to the true source chain name.
+    pub remote_chain: Address,
     pub message: ITSMessage,
 }
 
