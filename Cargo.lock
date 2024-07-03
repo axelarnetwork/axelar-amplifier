@@ -8516,6 +8516,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
+ "itertools 0.11.0",
  "multisig",
  "rand",
  "report",

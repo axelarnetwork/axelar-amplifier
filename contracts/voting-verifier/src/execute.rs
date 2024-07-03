@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cosmwasm_std::{
     to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
@@ -13,7 +15,7 @@ use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedVerifier};
 
-use crate::state::{self, Poll, PollContent};
+use crate::state::{self, Poll, PollContent, VOTES};
 use crate::state::{CONFIG, POLLS, POLL_ID};
 use crate::{error::ContractError, query::message_status};
 use crate::{events::QuorumReached, query::verifier_set_status, state::poll_verifier_sets};
@@ -23,6 +25,8 @@ use crate::{
     },
     state::poll_messages,
 };
+
+use itertools::Itertools;
 
 // TODO: this type of function exists in many contracts. Would be better to implement this
 // in one place, and then just include it
@@ -167,23 +171,23 @@ pub fn verify_messages(
 
 fn get_poll_results(poll: &Poll) -> PollResults {
     match poll {
-        Poll::Messages(weighted_poll) => weighted_poll.state().results,
-        Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll.state().results,
+        Poll::Messages(weighted_poll) => weighted_poll.results(),
+        Poll::ConfirmVerifierSet(weighted_poll) => weighted_poll.results(),
     }
 }
 
 fn make_quorum_event(
-    vote: &Vote,
+    vote: Option<Vote>,
     index_in_poll: u32,
     poll_id: &PollId,
     poll: &Poll,
     deps: &DepsMut,
-) -> Result<Event, ContractError> {
-    let status = match vote {
+) -> Result<Option<Event>, ContractError> {
+    let status = vote.map(|vote| match vote {
         Vote::SucceededOnChain => VerificationStatus::SucceededOnSourceChain,
         Vote::FailedOnChain => VerificationStatus::FailedOnSourceChain,
         Vote::NotFound => VerificationStatus::NotFoundOnSourceChain,
-    };
+    });
 
     match poll {
         Poll::Messages(_) => {
@@ -191,25 +195,32 @@ fn make_quorum_event(
                 .idx
                 .load_message(deps.storage, *poll_id, index_in_poll)?
                 .expect("message not found in poll");
-            Ok(QuorumReached {
-                content: msg,
-                status,
-            }
-            .into())
+
+            Ok(status.map(|status| {
+                QuorumReached {
+                    content: msg,
+                    status,
+                }
+                .into()
+            }))
         }
         Poll::ConfirmVerifierSet(_) => {
             let verifier_set = poll_verifier_sets()
                 .idx
                 .load_verifier_set(deps.storage, *poll_id)?
                 .expect("verifier set not found in poll");
-            Ok(QuorumReached {
-                content: verifier_set,
-                status,
-            }
-            .into())
+
+            Ok(status.map(|status| {
+                QuorumReached {
+                    content: verifier_set,
+                    status,
+                }
+                .into()
+            }))
         }
     }
 }
+
 pub fn vote(
     deps: DepsMut,
     env: Env,
@@ -224,7 +235,7 @@ pub fn vote(
     let results_before_voting = get_poll_results(&poll);
 
     let poll = poll.try_map(|poll| {
-        poll.cast_vote(env.block.height, &info.sender, votes)
+        poll.cast_vote(env.block.height, &info.sender, votes.clone())
             .map_err(ContractError::from)
     })?;
     POLLS.save(deps.storage, poll_id, &poll)?;
@@ -237,13 +248,14 @@ pub fn vote(
         .0
         .into_iter()
         .enumerate()
-        .filter_map(|(idx, vote)| vote.map(|vote| (idx, vote)))
         .map(|(index_in_poll, vote)| {
             let idx = u32::try_from(index_in_poll)
                 .expect("the amount of votes should never overflow u32");
-            make_quorum_event(&vote, idx, &poll_id, &poll, &deps)
+            make_quorum_event(vote, idx, &poll_id, &poll, &deps)
         })
-        .collect::<Result<Vec<Event>, _>>()?;
+        .collect::<Result<Vec<Option<Event>>, _>>()?;
+
+    VOTES.save(deps.storage, (poll_id, info.sender.to_string()), &votes)?;
 
     Ok(Response::new()
         .add_event(
@@ -253,7 +265,7 @@ pub fn vote(
             }
             .into(),
         )
-        .add_events(quorum_events))
+        .add_events(quorum_events.into_iter().flatten()))
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, ContractError> {
@@ -266,8 +278,15 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
 
     POLLS.save(deps.storage, poll_id, &poll)?;
 
+    let votes: Vec<(String, Vec<Vote>)> = VOTES
+        .prefix(poll_id)
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .try_collect()?;
+
     let poll_result = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => poll.state(),
+        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => {
+            poll.state(HashMap::from_iter(votes))
+        }
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
