@@ -123,6 +123,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deps.api.addr_validate(&verifier_address)?,
             key_type,
         )?),
+        QueryMsg::IsCallerAuthorized { contract_address } => {
+            to_json_binary(&query::caller_authorized(deps, contract_address)?)
+        }
     }
 }
 
@@ -967,9 +970,10 @@ mod tests {
     #[test]
     fn authorize_and_unauthorize_caller() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
+        let prover_address = Addr::unchecked(PROVER);
 
         // authorize
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_caller(deps.as_mut(), prover_address.clone()).unwrap();
 
         for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(
@@ -981,6 +985,10 @@ mod tests {
 
             assert!(res.is_ok());
         }
+
+        let caller_authorization_status =
+            query::caller_authorized(deps.as_ref(), prover_address.clone()).unwrap();
+        assert!(caller_authorization_status);
 
         // unauthorize
         do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
@@ -997,6 +1005,10 @@ mod tests {
                 .to_string()
                 .contains(&ContractError::Unauthorized.to_string()));
         }
+
+        let caller_authorization_status =
+            query::caller_authorized(deps.as_ref(), prover_address).unwrap();
+        assert!(!caller_authorization_status);
     }
 
     #[test]
