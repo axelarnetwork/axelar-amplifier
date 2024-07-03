@@ -1,7 +1,7 @@
 use crate::{
     key::{KeyType, PublicKey},
     multisig::Multisig,
-    state::{load_pub_key, load_session_signatures},
+    state::{load_pub_key, load_session_signatures, AUTHORIZED_CALLERS},
     verifier_set::VerifierSet,
 };
 
@@ -27,4 +27,11 @@ pub fn get_verifier_set(deps: Deps, verifier_set_id: String) -> StdResult<Verifi
 pub fn get_public_key(deps: Deps, verifier: Addr, key_type: KeyType) -> StdResult<PublicKey> {
     let raw = load_pub_key(deps.storage, verifier, key_type)?;
     Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
+}
+
+pub fn caller_authorized(deps: Deps, address: Addr) -> StdResult<bool> {
+    let is_authorized = AUTHORIZED_CALLERS
+        .may_load(deps.storage, &address)?
+        .is_some();
+    Ok(is_authorized)
 }
