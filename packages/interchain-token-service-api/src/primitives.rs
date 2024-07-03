@@ -87,13 +87,6 @@ impl TryFrom<u8> for TokenManagerType {
 
 impl From<TokenManagerType> for u8 {
     fn from(value: TokenManagerType) -> Self {
-        match value {
-            TokenManagerType::NativeInterchainToken => 0,
-            TokenManagerType::MintBurnFrom => 1,
-            TokenManagerType::LockUnlock => 2,
-            TokenManagerType::LockUnlockFee => 3,
-            TokenManagerType::MintBurn => 4,
-            TokenManagerType::Gateway => 5,
-        }
+        value as u8
     }
 }
