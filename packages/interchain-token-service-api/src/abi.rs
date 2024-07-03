@@ -62,7 +62,7 @@ impl ITSRoutedMessage {
                 data,
             } => InterchainTransfer {
                 messageType: U256::from(0u64),
-                tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
+                tokenId: FixedBytes::<32>::new(token_id.to_bytes()),
                 sourceAddress: Bytes::copy_from_slice(source_address.as_slice()),
                 destinationAddress: Bytes::copy_from_slice(destination_address.as_slice()),
                 amount: U256::from_le_bytes(amount.to_le_bytes()),
@@ -77,7 +77,7 @@ impl ITSRoutedMessage {
                 minter,
             } => DeployInterchainToken {
                 messageType: U256::from(1u64),
-                tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
+                tokenId: FixedBytes::<32>::new(token_id.to_bytes()),
                 name: name.clone(),
                 symbol: symbol.clone(),
                 decimals,
@@ -90,7 +90,7 @@ impl ITSRoutedMessage {
                 params,
             } => DeployTokenManager {
                 messageType: U256::from(2u64),
-                tokenId: FixedBytes::<32>::from_slice(token_id.id.as_slice()),
+                tokenId: FixedBytes::<32>::new(token_id.to_bytes()),
                 tokenManagerType: U256::from(token_manager_type as u64),
                 params: Bytes::copy_from_slice(params.as_slice()),
             }
@@ -128,9 +128,7 @@ impl ITSRoutedMessage {
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ITSMessage::InterchainTransfer {
-                    token_id: TokenId {
-                        id: decoded.tokenId.into(),
-                    },
+                    token_id: TokenId::new(decoded.tokenId.into()),
                     source_address: HexBinary::from(decoded.sourceAddress.to_vec()),
                     destination_address: HexBinary::from(decoded.destinationAddress.as_ref()),
                     amount: Uint256::from_le_bytes(decoded.amount.to_le_bytes()),
@@ -142,9 +140,7 @@ impl ITSRoutedMessage {
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ITSMessage::DeployInterchainToken {
-                    token_id: TokenId {
-                        id: decoded.tokenId.into(),
-                    },
+                    token_id: TokenId::new(decoded.tokenId.into()),
                     name: decoded.name,
                     symbol: decoded.symbol,
                     decimals: decoded.decimals,
@@ -159,9 +155,7 @@ impl ITSRoutedMessage {
                     .map_err(|e| Report::new(Error::InvalidMessage(e.to_string())))?;
 
                 Ok(ITSMessage::DeployTokenManager {
-                    token_id: TokenId {
-                        id: decoded.tokenId.into(),
-                    },
+                    token_id: TokenId::new(decoded.tokenId.into()),
                     token_manager_type: TokenManagerType::try_from(token_manager_type)?,
                     params: HexBinary::from(decoded.params.as_ref()),
                 })

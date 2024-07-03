@@ -5,11 +5,11 @@ use error_stack::Report;
 
 #[cw_serde]
 #[derive(Eq)]
-pub struct TokenId {
+pub struct TokenId(
     #[serde(with = "axelar_wasm_std::hex")]
     #[schemars(with = "String")]
-    pub id: [u8; 32],
-}
+    [u8; 32],
+);
 
 #[cw_serde]
 #[derive(Eq, Copy)]
@@ -56,7 +56,11 @@ pub struct ITSRoutedMessage {
 
 impl TokenId {
     pub fn new(id: [u8; 32]) -> Self {
-        Self { id }
+        Self(id)
+    }
+
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0
     }
 }
 
