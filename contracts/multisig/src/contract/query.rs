@@ -29,7 +29,7 @@ pub fn get_public_key(deps: Deps, verifier: Addr, key_type: KeyType) -> StdResul
     Ok(PublicKey::try_from((key_type, raw)).expect("could not decode pub key"))
 }
 
-pub fn check_caller_authorized(deps: Deps, address: Addr) -> StdResult<bool> {
+pub fn caller_authorized(deps: Deps, address: Addr) -> StdResult<bool> {
     let is_authorized = AUTHORIZED_CALLERS
         .may_load(deps.storage, &address)?
         .is_some();

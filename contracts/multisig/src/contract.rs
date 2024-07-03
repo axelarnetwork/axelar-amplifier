@@ -123,7 +123,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             key_type,
         )?),
         QueryMsg::IsCallerAuthorized { contract_address } => {
-            to_json_binary(&query::check_caller_authorized(deps, contract_address)?)
+            to_json_binary(&query::caller_authorized(deps, contract_address)?)
         }
     }
 }
@@ -986,7 +986,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::check_caller_authorized(deps.as_ref(), prover_address.clone()).unwrap();
+            query::caller_authorized(deps.as_ref(), prover_address.clone()).unwrap();
         assert!(caller_authorization_status);
 
         // unauthorize
@@ -1006,7 +1006,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::check_caller_authorized(deps.as_ref(), prover_address).unwrap();
+            query::caller_authorized(deps.as_ref(), prover_address).unwrap();
         assert!(!caller_authorization_status);
     }
 
