@@ -342,7 +342,10 @@ mod tests {
 
         let result = ITSRoutedMessage::abi_decode(&payload);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("failed to convert enum"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("failed to convert enum"));
     }
 
     #[test]
