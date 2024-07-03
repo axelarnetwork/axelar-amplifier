@@ -145,7 +145,7 @@ pub fn update_tx_status(
         XRPLUnsignedTx::TicketCreate(tx) => {
             mark_tickets_available(
                 storage,
-                (tx_sequence_number + 1)..(tx_sequence_number + tx.ticket_count),
+                (tx_sequence_number + 1)..(tx_sequence_number + tx.ticket_count + 1)
             )?;
             Response::default()
         }
