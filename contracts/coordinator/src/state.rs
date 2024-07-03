@@ -1,16 +1,9 @@
 use crate::error::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 use router_api::ChainName;
 use std::collections::HashSet;
-
-#[cw_serde]
-pub struct Config {
-    pub governance: Addr,
-}
-
-pub const CONFIG: Item<Config> = Item::new("config");
 
 pub type ProverAddress = Addr;
 
