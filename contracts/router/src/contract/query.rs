@@ -5,7 +5,7 @@ use error_stack::{Result, ResultExt};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
 
-use crate::state::{chain_endpoints, State, STATE};
+use crate::state::chain_endpoints;
 
 // Pagination limits
 const DEFAULT_LIMIT: u32 = u32::MAX;
@@ -35,18 +35,14 @@ pub fn chains(
         .collect()
 }
 
-pub fn is_enabled(deps: Deps) -> bool {
-    STATE.load(deps.storage).unwrap_or(State::Disabled) == State::Enabled
-}
-
 #[cfg(test)]
 mod test {
+    use crate::state;
+    use crate::state::{chain_endpoints, State, STATE};
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::{testing::mock_dependencies, Addr};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
-
-    use crate::state::chain_endpoints;
 
     use super::get_chain_info;
 
@@ -139,16 +135,12 @@ mod test {
     #[test]
     fn is_enabled() {
         let mut deps = mock_dependencies();
-        assert!(!super::is_enabled(deps.as_ref()));
+        assert!(!state::is_enabled(deps.as_ref().storage));
 
-        super::STATE
-            .save(deps.as_mut().storage, &super::State::Disabled)
-            .unwrap();
-        assert!(!super::is_enabled(deps.as_ref()));
+        STATE.save(deps.as_mut().storage, &State::Disabled).unwrap();
+        assert!(!state::is_enabled(deps.as_ref().storage));
 
-        super::STATE
-            .save(deps.as_mut().storage, &super::State::Enabled)
-            .unwrap();
-        assert!(super::is_enabled(deps.as_ref()));
+        STATE.save(deps.as_mut().storage, &State::Enabled).unwrap();
+        assert!(state::is_enabled(deps.as_ref().storage));
     }
 }

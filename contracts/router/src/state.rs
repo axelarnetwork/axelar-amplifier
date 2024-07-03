@@ -71,6 +71,10 @@ pub enum State {
 }
 pub const STATE: Item<State> = Item::new("state");
 
+pub fn is_enabled(storage: &dyn Storage) -> bool {
+    STATE.load(storage).unwrap_or(State::Disabled) == State::Enabled
+}
+
 pub struct ChainEndpointIndexes<'a> {
     pub gateway: GatewayIndex<'a>,
 }

@@ -7,9 +7,9 @@ use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInf
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
-use crate::migrations;
 use crate::msg::InstantiateMsg;
 use crate::state::{Config, RouterStore, State, CONFIG, STATE};
+use crate::{migrations, state};
 
 mod execute;
 mod query;
@@ -131,7 +131,7 @@ pub fn query(
         QueryMsg::Chains { start_after, limit } => {
             to_json_binary(&query::chains(deps, start_after, limit)?)
         }
-        QueryMsg::IsEnabled => to_json_binary(&query::is_enabled(deps)),
+        QueryMsg::IsEnabled => to_json_binary(&state::is_enabled(deps.storage)),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }

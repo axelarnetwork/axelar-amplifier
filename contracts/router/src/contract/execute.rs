@@ -7,16 +7,15 @@ use cosmwasm_std::{
 use error_stack::{ensure, report, ResultExt};
 use itertools::Itertools;
 
-use axelar_wasm_std::flagset::FlagSet;
-use axelar_wasm_std::msg_id::{self, MessageIdFormat};
-use router_api::error::Error;
-use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
-
-use crate::events;
 use crate::events::{
     ChainFrozen, ChainRegistered, ChainUnfrozen, GatewayInfo, GatewayUpgraded, MessageRouted,
 };
 use crate::state::{chain_endpoints, Config, State, Store, CONFIG, STATE};
+use crate::{events, state};
+use axelar_wasm_std::flagset::FlagSet;
+use axelar_wasm_std::msg_id::{self, MessageIdFormat};
+use router_api::error::Error;
+use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection, Message};
 
 pub fn register_chain(
     deps: DepsMut,
@@ -227,10 +226,7 @@ pub fn route_messages(
     sender: Addr,
     msgs: Vec<Message>,
 ) -> error_stack::Result<Response, Error> {
-    let router_state = STATE
-        .load(store.storage())
-        .change_context(Error::StoreFailure)?;
-    ensure!(router_state == State::Disabled, Error::RoutingDisabled);
+    ensure!(state::is_enabled(store.storage()), Error::RoutingDisabled);
 
     let config = CONFIG
         .load(store.storage())
