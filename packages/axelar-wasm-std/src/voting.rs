@@ -15,6 +15,7 @@
 */
 use std::array::TryFromSliceError;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::Add;
 use std::ops::Mul;
@@ -22,6 +23,7 @@ use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, StdResult, Uint128, Uint64};
+use cw_storage_plus::Prefixer;
 use cw_storage_plus::{IntKey, Key, KeyDeserialize, PrimaryKey};
 use num_traits::CheckedAdd;
 use num_traits::One;
@@ -129,6 +131,12 @@ impl<'a> PrimaryKey<'a> for PollId {
     type SuperSuffix = Self;
 
     fn key(&self) -> Vec<Key> {
+        vec![Key::Val64(self.0.to_be_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for PollId {
+    fn prefix(&self) -> Vec<Key> {
         vec![Key::Val64(self.0.to_be_bytes())]
     }
 }
@@ -319,7 +327,7 @@ impl WeightedPoll {
         )
     }
 
-    pub fn state(&self, voting_history: Vec<(String, Vec<Vote>)>) -> PollState {
+    pub fn state(&self, voting_history: HashMap<String, Vec<Vote>>) -> PollState {
         let quorum: Uint128 = self.quorum.into();
         let results: Vec<Option<Vote>> = self
             .tallies
@@ -331,22 +339,18 @@ impl WeightedPoll {
             .participation
             .iter()
             .filter_map(|(address, _)| {
-                voting_history
-                    .iter()
-                    .find(|(voter, _)| voter == address)
-                    .and_then(|(_, votes)| {
-                        let voted_consensus =
-                            votes.iter().zip(results.iter()).all(|(vote, result)| {
-                                result.is_none() || Some(vote) == result.as_ref()
-                                // if there was no consensus, we don't care about the vote
-                            });
+                voting_history.get(address).and_then(|votes| {
+                    let voted_consensus = votes.iter().zip(results.iter()).all(|(vote, result)| {
+                        result.is_none() || Some(vote) == result.as_ref()
+                        // if there was no consensus, we don't care about the vote
+                    });
 
-                        if voted_consensus {
-                            Some(address.to_owned())
-                        } else {
-                            None
-                        }
-                    })
+                    if voted_consensus {
+                        Some(address.to_owned())
+                    } else {
+                        None
+                    }
+                })
             })
             .collect();
 

@@ -78,7 +78,9 @@ impl PollContent<VerifierSet> {
 pub const POLL_ID: counter::Counter<PollId> = counter::Counter::new("poll_id");
 
 pub const POLLS: Map<PollId, Poll> = Map::new("polls");
-pub const VOTES: Map<(String, String), Vec<Vote>> = Map::new("votes");
+
+type VerifierAddr = String;
+pub const VOTES: Map<(PollId, VerifierAddr), Vec<Vote>> = Map::new("votes");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 

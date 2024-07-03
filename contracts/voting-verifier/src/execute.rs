@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cosmwasm_std::{
     to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
@@ -253,11 +255,7 @@ pub fn vote(
         })
         .collect::<Result<Vec<Option<Event>>, _>>()?;
 
-    VOTES.save(
-        deps.storage,
-        (poll_id.to_string(), info.sender.to_string()),
-        &votes,
-    )?;
+    VOTES.save(deps.storage, (poll_id, info.sender.to_string()), &votes)?;
 
     Ok(Response::new()
         .add_event(
@@ -281,12 +279,14 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
     POLLS.save(deps.storage, poll_id, &poll)?;
 
     let votes: Vec<(String, Vec<Vote>)> = VOTES
-        .prefix(poll_id.to_string())
+        .prefix(poll_id)
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending)
         .try_collect()?;
 
     let poll_result = match &poll {
-        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => poll.state(votes),
+        Poll::Messages(poll) | Poll::ConfirmVerifierSet(poll) => {
+            poll.state(HashMap::from_iter(votes))
+        }
     };
 
     // TODO: change rewards contract interface to accept a list of addresses to avoid creating multiple wasm messages
