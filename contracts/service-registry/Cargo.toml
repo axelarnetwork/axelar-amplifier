@@ -43,12 +43,12 @@ cw2 = { workspace = true }
 error-stack = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
-schemars = "0.8.10"
-serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 integration-tests = { workspace = true }
 
 [lints]

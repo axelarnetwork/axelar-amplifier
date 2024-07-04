@@ -12,7 +12,7 @@ cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 error-stack = { workspace = true }
-flagset = { version = "0.4.3", features = ["serde"] }
+flagset = { workspace = true, features = ["serde"] }
 msgs-derive = { workspace = true }
 report = { workspace = true }
 schemars = { workspace = true }
@@ -20,11 +20,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
 thiserror = { workspace = true }
-valuable = "0.1.0"
+valuable = { workspace = true }
 
 [dev-dependencies]
-hex = "0.4.3"
-rand = "0.8.5"
+hex = { workspace = true }
+rand = { workspace = true }
 
 [lints]
 workspace = true

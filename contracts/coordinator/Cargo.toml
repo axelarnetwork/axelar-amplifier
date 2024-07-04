@@ -47,9 +47,9 @@ router-api = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = "0.15.1"
+cw-multi-test = { workspace = true }
 integration-tests = { workspace = true }
-tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
+tofn = { workspace = true }
 
 [lints]
 workspace = true

@@ -55,8 +55,8 @@ where
             .try_into()
             .expect("hash size must be 32");
 
-        let algorithm = proto::Algorithm::from_i32(req.algorithm)
-            .ok_or(Status::invalid_argument("invalid algorithm"))?;
+        let algorithm = proto::Algorithm::try_from(req.algorithm)
+            .map_err(|_| Status::invalid_argument("invalid algorithm"))?;
         let key = self.key(&req.key_id, algorithm).await?;
         let signature = self
             .multisig_client
@@ -73,8 +73,8 @@ where
     ) -> Result<Response<proto::GetKeyResponse>, Status> {
         let req = req.into_inner();
 
-        let algorithm = proto::Algorithm::from_i32(req.algorithm)
-            .ok_or(Status::invalid_argument("invalid algorithm"))?;
+        let algorithm = proto::Algorithm::try_from(req.algorithm)
+            .map_err(|_| Status::invalid_argument("invalid algorithm"))?;
         let key = self.key(&req.key_id, algorithm).await?;
 
         Ok(Response::new(proto::GetKeyResponse {
