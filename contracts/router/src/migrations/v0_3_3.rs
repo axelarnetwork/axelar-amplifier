@@ -8,7 +8,7 @@ use router_api::error::Error;
 
 use crate::state::{Config, State, CONFIG, STATE};
 
-const BASE_VERSION: &'static str = "0.3.3";
+const BASE_VERSION: &str = "0.3.3";
 
 pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     let current_version = cw2::get_contract_version(storage)?;
