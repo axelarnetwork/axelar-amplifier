@@ -3,7 +3,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::Report;
 use router_api::Address;
-use strum::EnumIter;
 
 #[cw_serde]
 #[derive(Eq)]
@@ -14,7 +13,7 @@ pub struct TokenId(
 );
 
 #[cw_serde]
-#[derive(Eq, Copy, EnumIter)]
+#[derive(Eq, Copy)]
 #[repr(u8)]
 pub enum TokenManagerType {
     NativeInterchainToken = 0,
@@ -60,11 +59,13 @@ pub struct ITSRoutedMessage {
 }
 
 impl TokenId {
-    pub fn new(id: [u8; 32]) -> Self {
+    #[inline]
+    pub const fn new(id: [u8; 32]) -> Self {
         Self(id)
     }
 
-    pub fn to_bytes(&self) -> [u8; 32] {
+    #[inline]
+    pub const fn to_bytes(&self) -> [u8; 32] {
         self.0
     }
 }
@@ -82,11 +83,5 @@ impl TryFrom<u8> for TokenManagerType {
             5 => TokenManagerType::Gateway,
             _ => return Err(Report::new(Error::InvalidEnum)),
         })
-    }
-}
-
-impl From<TokenManagerType> for u8 {
-    fn from(value: TokenManagerType) -> Self {
-        value as u8
     }
 }
