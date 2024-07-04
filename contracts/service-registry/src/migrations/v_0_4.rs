@@ -1,6 +1,6 @@
 //! Migrate the `Service` struct and rename `service_contract` field to `coordinator_contract`.
 
-use cosmwasm_std::{Order, Response, Storage};
+use cosmwasm_std::{Addr, Order, Response, Storage};
 
 use crate::state::{Service, SERVICES};
 
@@ -27,6 +27,7 @@ mod v0_3_state {
 
 pub fn migrate_services(
     store: &mut dyn Storage,
+    coordinator_contract: Addr,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     v0_3_state::SERVICES
         .range(store, None, None, Order::Ascending)
@@ -35,7 +36,7 @@ pub fn migrate_services(
         .map(|(service_name, service)| {
             let service = Service {
                 name: service.name,
-                coordinator_contract: service.service_contract,
+                coordinator_contract: coordinator_contract.clone(),
                 min_num_verifiers: service.min_num_verifiers,
                 max_num_verifiers: service.max_num_verifiers,
                 min_verifier_bond: service.min_verifier_bond,
@@ -88,7 +89,8 @@ mod test {
                 .unwrap();
         }
 
-        migrate_services(&mut deps.storage).unwrap();
+        let coordinator_contract = Addr::unchecked("coordinator");
+        migrate_services(&mut deps.storage, coordinator_contract.clone()).unwrap();
 
         for service in &initial_services {
             let migrated_service: Service =
@@ -96,7 +98,7 @@ mod test {
 
             let expected_service = Service {
                 name: service.name.clone(),
-                coordinator_contract: service.service_contract.clone(),
+                coordinator_contract: coordinator_contract.clone(),
                 min_num_verifiers: service.min_num_verifiers,
                 max_num_verifiers: service.max_num_verifiers,
                 min_verifier_bond: service.min_verifier_bond,
