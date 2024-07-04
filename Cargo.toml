@@ -23,6 +23,7 @@ itertools = "0.11.0"
 voting-verifier = { version = "^0.5.0", path = "contracts/voting-verifier" }
 coordinator = { version = "^0.2.0", path = "contracts/coordinator" }
 multisig = { version = "^0.4.1", path = "contracts/multisig" }
+msgs-derive = { version = "^0.1.0", path = "packages/msgs-derive" }
 multisig-prover = { version = "^0.6.0", path = "contracts/multisig-prover" }
 num-traits = { version = "0.2.14", default-features = false }
 service-registry = { version = "^0.4.1", path = "contracts/service-registry" }
@@ -31,6 +32,7 @@ gateway-api = { version = "^0.1.0", path = "packages/gateway-api" }
 router-api = { version = "^0.1.0", path = "packages/router-api" }
 report = { version = "^0.1.0", path = "packages/report" }
 client = { version = "^0.1.0", path = "packages/client" }
+quote = "1.0.36"
 rewards = { version = "^0.4.0", path = "contracts/rewards" }
 thiserror = "1.0.61"
 mockall = "0.12.1"
@@ -39,6 +41,7 @@ serde_json = "1.0.89"
 schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^0.1.0", path = "packages/signature-verifier-api" }
+syn = "2.0.68"
 ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
 ethers-core = "2.0.14"
 tokio = "1.38.0"
