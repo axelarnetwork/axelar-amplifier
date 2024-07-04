@@ -1,9 +1,12 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, Order, StdResult, Storage};
+use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 use error_stack::{report, ResultExt};
 use router_api::error::Error;
 use router_api::{ChainEndpoint, ChainName};
+
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn save_config(storage: &mut dyn Storage, config: &Config) -> error_stack::Result<(), Error> {
     CONFIG
@@ -37,12 +40,10 @@ pub fn load_chain_by_gateway(
 
 #[cw_serde]
 pub struct Config {
-    pub admin: Addr,
-    pub governance: Addr,
     pub nexus_gateway: Addr,
 }
 
-const CONFIG: Item<Config> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("config");
 
 #[cw_serde]
 pub enum State {
@@ -70,16 +71,7 @@ impl<'a> GatewayIndex<'a> {
         GatewayIndex(MultiIndex::new(idx_fn, pk_namespace, idx_namespace))
     }
 
-    #[deprecated(note = "use load_chain_by_gateway instead")]
-    pub fn find_chain(
-        &self,
-        deps: &DepsMut,
-        contract_address: &Addr,
-    ) -> StdResult<Option<ChainEndpoint>> {
-        self.load_chain_by_gateway(deps.storage, contract_address)
-    }
-
-    fn load_chain_by_gateway(
+    pub fn load_chain_by_gateway(
         &self,
         storage: &dyn Storage,
         contract_address: &Addr,

@@ -263,23 +263,26 @@ fn build_general_permissions_check(
             #(#enum_type::#variants {..}=> {#general_permissions_quote})*
         };
 
-        if !permission.contains(axelar_wasm_std::permission_control::Permission::Any) {
-            let role = error_stack::ResultExt::change_context(
-                axelar_wasm_std::permission_control::sender_role(storage, sender),
-                axelar_wasm_std::permission_control::Error::PermissionDenied {
-                    expected: permission.clone(),
-                    actual: axelar_wasm_std::permission_control::Permission::NoPrivilege.into(),
-                },
-            )?;
-
-            if (*permission & *role).is_empty() {
-                return Err(axelar_wasm_std::permission_control::Error::PermissionDenied {
-                    expected: permission,
-                    actual: role,
-                }
-                .into());
-            }
+        if permission.contains(axelar_wasm_std::permission_control::Permission::Any) {
+            return Ok(self);
         }
+
+        let role = error_stack::ResultExt::change_context(
+            axelar_wasm_std::permission_control::sender_role(storage, sender),
+            axelar_wasm_std::permission_control::Error::PermissionDenied {
+                expected: permission.clone(),
+                actual: axelar_wasm_std::permission_control::Permission::NoPrivilege.into(),
+            },
+        )?;
+
+        if (*permission & *role).is_empty() {
+            return Err(axelar_wasm_std::permission_control::Error::PermissionDenied {
+                expected: permission,
+                actual: role,
+            }
+            .into());
+        }
+
         Ok(self)
     }
 }

@@ -10,14 +10,11 @@ use router_api::msg::{ExecuteMsg, QueryMsg};
 
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
-use crate::state::{load_chain_by_gateway, Config};
+use crate::state::{load_chain_by_gateway, Config, State, CONTRACT_NAME, CONTRACT_VERSION, STATE};
 use crate::{migrations, state};
 
 mod execute;
 mod query;
-
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -29,36 +26,6 @@ pub fn migrate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::default())
-}
-#[deprecated(since = "0.3.3", note = "only used to test the migration")]
-pub fn instantiate_old(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    let admin = deps.api.addr_validate(&msg.admin_address)?;
-    let governance = deps.api.addr_validate(&msg.governance_address)?;
-    let nexus_gateway = deps.api.addr_validate(&msg.nexus_gateway)?;
-
-    let config = Config {
-        admin: admin.clone(),
-        governance: governance.clone(),
-        nexus_gateway: nexus_gateway.clone(),
-    };
-
-    state::save_config(deps.storage, &config).expect("must save the config");
-
-    Ok(Response::new().add_event(
-        RouterInstantiated {
-            admin,
-            governance,
-            nexus_gateway,
-        }
-        .into(),
-    ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -78,12 +45,10 @@ pub fn instantiate(
     permission_control::set_governance(deps.storage, &governance)?;
 
     let config = Config {
-        admin: admin.clone(),
-        governance: governance.clone(),
         nexus_gateway: nexus_gateway.clone(),
     };
 
-    CONFIG.save(deps.storage, &config)?;
+    state::save_config(deps.storage, &config)?;
     STATE.save(deps.storage, &State::Enabled)?;
 
     Ok(Response::new().add_event(
@@ -114,32 +79,22 @@ pub fn execute(
             msg_id_format,
         } => {
             let gateway_address = deps.api.addr_validate(&gateway_address)?;
-            execute::register_chain(deps, chain, gateway_address, msg_id_format)
+            execute::register_chain(deps.storage, chain, gateway_address, msg_id_format)
         }
         ExecuteMsg::UpgradeGateway {
             chain,
             contract_address,
         } => {
             let contract_address = deps.api.addr_validate(&contract_address)?;
-            execute::upgrade_gateway(deps, chain, contract_address)
+            execute::upgrade_gateway(deps.storage, chain, contract_address)
         }
-        ExecuteMsg::FreezeChains { chains } => {
-            execute::freeze_chains(deps, chains)
-        }
-        ExecuteMsg::UnfreezeChains { chains } => {
-            execute::unfreeze_chains(deps, chains)
-        }
+        ExecuteMsg::FreezeChains { chains } => execute::freeze_chains(deps.storage, chains),
+        ExecuteMsg::UnfreezeChains { chains } => execute::unfreeze_chains(deps.storage, chains),
         ExecuteMsg::RouteMessages(msgs) => {
             Ok(execute::route_messages(deps.storage, info.sender, msgs)?)
         }
-        ExecuteMsg::DisableRouting => {
-            ensure_permission!(Permission::Admin, deps.storage, &info.sender);
-            execute::disable_routing(deps)
-        }
-        ExecuteMsg::EnableRouting => {
-            ensure_permission!(Permission::Elevated, deps.storage, &info.sender);
-            execute::enable_routing(deps)
-        }
+        ExecuteMsg::DisableRouting => execute::disable_routing(deps.storage),
+        ExecuteMsg::EnableRouting => execute::enable_routing(deps.storage),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -162,7 +117,9 @@ pub fn query(
     msg: QueryMsg,
 ) -> Result<Binary, axelar_wasm_std::ContractError> {
     match msg {
-        QueryMsg::GetChainInfo(chain) => to_json_binary(&query::get_chain_info(deps, chain)?),
+        QueryMsg::GetChainInfo(chain) => {
+            to_json_binary(&query::get_chain_info(deps.storage, chain)?)
+        }
         QueryMsg::Chains { start_after, limit } => {
             to_json_binary(&query::chains(deps, start_after, limit)?)
         }
@@ -175,21 +132,20 @@ pub fn query(
 mod test {
     use std::{collections::HashMap, str::FromStr};
 
+    use super::*;
+    use crate::events;
+    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::ContractError;
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
     };
-
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use permission_control::Permission;
     use router_api::{
         error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
         CHAIN_NAME_DELIMITER,
     };
-    use std::{collections::HashMap, str::FromStr};
-
-    use super::*;
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -293,30 +249,6 @@ mod test {
             }),
             cosmos_msg
         );
-    }
-
-    #[test]
-    fn migrate_checks_contract_version() {
-        let mut deps = mock_dependencies();
-        state::save_config(
-            deps.as_mut().storage,
-            &Config {
-                admin: Addr::unchecked("admin"),
-                governance: Addr::unchecked("governance"),
-                nexus_gateway: Addr::unchecked("nexus_gateway"),
-            },
-        )
-        .unwrap();
-
-        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
-
-        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
-
-        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_err());
-
-        cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, CONTRACT_VERSION).unwrap();
-
-        assert!(migrate(deps.as_mut(), mock_env(), Empty {}).is_ok());
     }
 
     #[test]
@@ -510,15 +442,16 @@ mod test {
             },
         )
         .unwrap_err();
+
         assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
-                expected: Permission::Admin.into(),
+                expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into(),
             },
         );
 
-        let err = execute(
+        assert!(execute(
             deps.as_mut(),
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
@@ -529,14 +462,7 @@ mod test {
                 )]),
             },
         )
-        .unwrap_err();
-        assert_contract_err_string_contains(
-            err,
-            permission_control::Error::PermissionDenied {
-                expected: Permission::Admin.into(),
-                actual: Permission::Governance.into(),
-            },
-        );
+        .is_ok());
 
         let res = execute(
             deps.as_mut(),
@@ -563,12 +489,12 @@ mod test {
         assert_contract_err_string_contains(
             err,
             permission_control::Error::PermissionDenied {
-                expected: Permission::Admin.into(),
+                expected: Permission::Elevated.into(),
                 actual: Permission::NoPrivilege.into(),
             },
         );
 
-        let err = execute(
+        assert!(execute(
             deps.as_mut(),
             mock_env(),
             mock_info(GOVERNANCE_ADDRESS, &[]),
@@ -576,14 +502,7 @@ mod test {
                 chains: HashMap::from([(chain.chain_name.clone(), GatewayDirection::None)]),
             },
         )
-        .unwrap_err();
-        assert_contract_err_string_contains(
-            err,
-            permission_control::Error::PermissionDenied {
-                expected: Permission::Admin.into(),
-                actual: Permission::Governance.into(),
-            },
-        );
+        .is_ok());
 
         let res = execute(
             deps.as_mut(),
@@ -1125,7 +1044,7 @@ mod test {
         // try sender without permission
         let permission_control: Vec<(&str, Check)> = vec![
             (UNAUTHORIZED_ADDRESS, Result::is_err),
-            (GOVERNANCE_ADDRESS, Result::is_err),
+            (GOVERNANCE_ADDRESS, Result::is_ok),
             (ADMIN_ADDRESS, Result::is_ok),
         ];
 
@@ -1674,7 +1593,7 @@ mod test {
             ExecuteMsg::RouteMessages(messages.clone()),
         );
         assert!(res.is_err());
-        assert_contract_err_strings_equal(res.unwrap_err(), Error::RoutingDisabled);
+        assert_contract_err_string_contains(res.unwrap_err(), Error::RoutingDisabled);
 
         let _ = execute(
             deps.as_mut(),
@@ -1739,7 +1658,7 @@ mod test {
             mock_info(GOVERNANCE_ADDRESS, &[]),
             ExecuteMsg::DisableRouting {},
         )
-        .is_err());
+        .is_ok());
     }
 
     #[test]

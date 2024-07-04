@@ -2,6 +2,7 @@ use crate::primitives::*;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use msgs_derive::EnsurePermissions;
+use std::collections::HashMap;
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
@@ -20,7 +21,7 @@ pub enum ExecuteMsg {
         contract_address: Address,
     },
     /// Freezes the specified chains in the specified directions.
-    #[permission(Admin)]
+    #[permission(Elevated)]
     FreezeChains {
         chains: HashMap<ChainName, GatewayDirection>,
     },
@@ -35,7 +36,7 @@ pub enum ExecuteMsg {
     DisableRouting,
 
     /// Resumes routing after an emergency shutdown.
-    #[permission(Governance)]
+    #[permission(Elevated)]
     EnableRouting,
 
     /// Routes a message to all outgoing gateways registered to the destination domain.
