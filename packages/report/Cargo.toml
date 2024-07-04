@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 error-stack = { workspace = true }
-eyre = { workspace = true }
+eyre = "0.6.8"
 itertools = { workspace = true }
 thiserror = { workspace = true }
-valuable = { workspace = true, features = ["derive"] }
+valuable = { version = "0.1.0", features = ["derive"] }
 
 [lints]
 workspace = true

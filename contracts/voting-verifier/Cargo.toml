@@ -51,10 +51,10 @@ service-registry = { workspace = true, features = ["library"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-cw-multi-test = { workspace = true }
+cw-multi-test = "0.15.1"
 integration-tests = { workspace = true }
 multisig = { workspace = true, features = ["test", "library"] }
-rand = { workspace = true }
+rand = "0.8.5"
 sha3 = { workspace = true }
 
 [lints]

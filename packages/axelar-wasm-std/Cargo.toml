@@ -29,29 +29,30 @@ optimize = """docker run --rm -v "$(pwd)":/code \
 """
 
 [dependencies]
-bs58 = { workspace = true }
+bs58 = "0.5.1"
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }
 cw2 = { workspace = true }
 error-stack = { workspace = true }
-flagset = { workspace = true, features = ["serde"] }
+flagset = { version = "0.4.3", features = ["serde"] }
 itertools = { workspace = true }
-lazy_static = { workspace = true }
+lazy_static = "1.4.0"
 num-traits = { workspace = true }
-regex = { workspace = true, features = ["perf", "std"] }
+regex = { version = "1.10.0", default-features = false, features = ["perf", "std"] }
 report = { workspace = true }
-schemars = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-strum = { workspace = true, features = ["derive"] }
+schemars = "0.8.10"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+serde_json = "1.0.89"
+sha3 = { workspace = true }
+strum = { version = "0.25", default-features = false, features = ["derive"] }
 thiserror = { workspace = true }
-valuable = { workspace = true, features = ["derive"] }
+valuable = { version = "0.1.0", features = ["derive"] }
 
 [dev-dependencies]
-cw-multi-test = { workspace = true }
-hex = { workspace = true }
-rand = { workspace = true }
+cw-multi-test = "0.15.1"
+hex = { version = "0.4.3", default-features = false }
+rand = "0.8.5"
 
 [lints]
 workspace = true

@@ -12,14 +12,14 @@ cosmwasm-schema = "1.5.5"
 cw-storage-plus = "1.2.0"
 cw2 = "1.1.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
-error-stack = { version = "0.4.1", features = ["eyre"] }
+error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
 evm-gateway = { version = "^0.1.0", path = "packages/evm-gateway" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^0.1.0", path = "integration-tests" }
-itertools = "0.13.0"
+itertools = "0.11.0"
 voting-verifier = { version = "^0.5.0", path = "contracts/voting-verifier" }
 coordinator = { version = "^0.2.0", path = "contracts/coordinator" }
 multisig = { version = "^0.4.0", path = "contracts/multisig" }
@@ -36,72 +36,17 @@ quote = "1.0.36"
 rewards = { version = "^0.4.0", path = "contracts/rewards" }
 thiserror = "1.0.61"
 mockall = "0.12.1"
-serde = { version = "1.0.203", default-features = false, features = ["derive"] }
-serde_json = "1.0.120"
-schemars = "0.8.21"
+serde = { version = "1.0.145", default-features = false, features = ["derive"] }
+serde_json = "1.0.89"
+schemars = "0.8.10"
 sha3 = { version = "0.10.8", default-features = false, features = [] }
 signature-verifier-api = { version = "^0.1.0", path = "packages/signature-verifier-api" }
 syn = "2.0.68"
 ethers-contract = { version = "2.0.14", default-features = false, features = ["abigen"] }
 ethers-core = "2.0.14"
 tokio = "1.38.0"
-tokio-stream = "0.1.15"
+tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
-anyhow = "1.0.86"
-async-trait = "0.1.80"
-axum = "0.7.5"
-base64 = "0.22.1"
-bcs = "0.1.6"
-bs58 = "0.5.1"
-clap = "4.5.8"
-config = "0.14.0"
-cosmrs = "0.17.0"
-cosmwasm-crypto = "1.5.5"
-curve25519-dalek = "4.1.3"
-cw-multi-test = "1.2.0"
-cw-utils = "1.0.3"
-der = "0.7.9"
-deref-derive = "0.1.0"
-dirs = "5.0.1"
-ecdsa = "0.16.9"
-ed25519 = { version = "2.2.3", default-features = false }
-elliptic-curve = "0.13.5"
-enum-display-derive = "0.1.1"
-ethers-providers = { version = "2.0.14", default-features = false }
-eyre = "0.6.12"
-flagset = "0.4.5"
-futures = "0.3.30"
-generic-array = "1.0.1"
-getrandom = { version = "0.2.15", default-features = false }
-hex = { version = "0.4.3", default-features = false }
-humantime-serde = "1.1.1"
-k256 = "0.13.1"
-lazy_static = "1.5.0"
-move-core-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
-proc-macro2 = "1.0.86"
-prost-types = "0.12.6"
-rand = "0.8.5"
-random-string = "1.1.0"
-regex = { version = "1.10.5", default-features = false }
-reqwest = { version = "^0.11.24", default-features = false }
-serde_with = "3.8.3"
-strum = { version = "0.26.3", default-features = false }
-sui-json-rpc-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
-sui-types = { git = "https://github.com/mystenlabs/sui", tag = "mainnet-v1.26.2" }
-tendermint = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
-tendermint-rpc = { git = "https://github.com/axelarnetwork/tendermint-rs.git", branch = "v0.33.x" }
-tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
-toml = "0.8.14"
-tonic = "0.11.0"
-tonic-build = "0.11.0"
-tracing = "0.1.40"
-tracing-core = "0.1.32"
-tracing-subscriber = "0.3.18"
-typed-builder = "0.18.2"
-url = "2.5.2"
-valuable = "0.1.0"
-valuable-serde = "0.1.0"
-prost = "0.12.6"
 
 [workspace.lints.clippy]
 arithmetic_side_effects = "deny"
