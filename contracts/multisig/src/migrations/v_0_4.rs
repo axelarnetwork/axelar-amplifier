@@ -1,7 +1,4 @@
-use crate::{
-    signing::SigningSession,
-    state::{SIGNING_SESSIONS, VERIFIER_SETS},
-};
+use crate::state::{SIGNING_SESSIONS, VERIFIER_SETS};
 use cosmwasm_std::{DepsMut, Order, Response};
 
 pub fn migrate_verifier_set_ids(
@@ -22,18 +19,7 @@ pub fn migrate_verifier_set_ids(
 pub fn migrate_signing_sessions(
     deps: &mut DepsMut,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    let all: Vec<_> = SIGNING_SESSIONS
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<Result<Vec<_>, _>>()?;
-
-    for (session_id, session) in all {
-        let verifier_set = VERIFIER_SETS.load(deps.storage, &session.verifier_set_id)?;
-        let new_session = SigningSession {
-            verifier_set_id: verifier_set.id(),
-            ..session
-        };
-        SIGNING_SESSIONS.save(deps.storage, session_id, &new_session)?;
-    }
+    SIGNING_SESSIONS.clear(deps.storage);
 
     Ok(Response::default())
 }
@@ -87,13 +73,7 @@ mod test {
             .unwrap();
         assert_eq!(new_verifier_set, verifier_set);
 
-        let expected_signing_session = SigningSession {
-            verifier_set_id: verifier_set.id(),
-            ..signing_session
-        };
-        let new_signing_session = SIGNING_SESSIONS
-            .load(&deps.storage, expected_signing_session.id.u64())
-            .unwrap();
-        assert_eq!(new_signing_session, expected_signing_session);
+        let loaded_signing_session = SIGNING_SESSIONS.load(&deps.storage, signing_session.id.u64());
+        assert!(loaded_signing_session.is_err());
     }
 }
