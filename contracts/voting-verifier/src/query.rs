@@ -1,4 +1,7 @@
-use axelar_wasm_std::{voting::Vote, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{
+    voting::{PollStatus, Vote},
+    MajorityThreshold, VerificationStatus,
+};
 use cosmwasm_std::Deps;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
@@ -90,7 +93,9 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
                 Some(Vote::SucceededOnChain) => VerificationStatus::SucceededOnSourceChain,
                 Some(Vote::FailedOnChain) => VerificationStatus::FailedOnSourceChain,
                 Some(Vote::NotFound) => VerificationStatus::NotFoundOnSourceChain,
-                None if is_finished(&poll, cur_block_height) => VerificationStatus::FailedToVerify,
+                None if voting_completed(&poll, cur_block_height) => {
+                    VerificationStatus::FailedToVerify
+                }
                 None => VerificationStatus::InProgress,
             }
         }
@@ -98,10 +103,13 @@ fn verification_status<T: PartialEq + std::fmt::Debug>(
     }
 }
 
-fn is_finished(poll: &state::Poll, cur_block_height: u64) -> bool {
+fn voting_completed(poll: &state::Poll, cur_block_height: u64) -> bool {
     match poll {
         state::Poll::Messages(poll) | state::Poll::ConfirmVerifierSet(poll) => {
-            cur_block_height >= poll.expires_at
+            matches!(
+                poll.status(cur_block_height),
+                PollStatus::Expired | PollStatus::Finished
+            )
         }
     }
 }
