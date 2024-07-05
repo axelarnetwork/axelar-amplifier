@@ -23,7 +23,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    return set_version_after_migration(deps.storage, |storage| v0_3_3::migrate(storage));
+    set_version_after_migration(deps.storage, |storage| v0_3_3::migrate(storage))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
