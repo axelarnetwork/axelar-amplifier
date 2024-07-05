@@ -286,7 +286,7 @@ mod test {
         let queued_broadcaster =
             QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
+        let _handle = tokio::spawn(queued_broadcaster.run());
 
         let start_time = Instant::now();
 
@@ -338,7 +338,7 @@ mod test {
         let queued_broadcaster =
             QueuedBroadcaster::new(broadcaster, batch_gas_limit, batch_size, broadcast_interval);
         let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
+        let _handle = tokio::spawn(queued_broadcaster.run());
 
         let start_time = Instant::now();
 
