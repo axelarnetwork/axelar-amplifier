@@ -4,16 +4,17 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
 
+use crate::contract::migrations::{set_version_after_migration, v0_3_3};
+use crate::events::RouterInstantiated;
+use crate::msg::InstantiateMsg;
+use crate::state;
+use crate::state::{load_chain_by_gateway, Config, State, CONTRACT_NAME, CONTRACT_VERSION, STATE};
 use axelar_wasm_std::{permission_control, FnExt};
 use router_api::error::Error;
 use router_api::msg::{ExecuteMsg, QueryMsg};
 
-use crate::events::RouterInstantiated;
-use crate::msg::InstantiateMsg;
-use crate::state::{load_chain_by_gateway, Config, State, CONTRACT_NAME, CONTRACT_VERSION, STATE};
-use crate::{migrations, state};
-
 mod execute;
+mod migrations;
 mod query;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -22,10 +23,7 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    migrations::v0_3_3::migrate(deps.storage)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default())
+    set_version_after_migration(deps.storage, |storage| v0_3_3::migrate(storage))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
