@@ -3,10 +3,10 @@ use cosmwasm_std::{Addr, StdResult, Storage};
 use cw2::VersionError;
 use cw_storage_plus::Item;
 
+use crate::state;
+use crate::state::{State, STATE};
 use axelar_wasm_std::{permission_control, ContractError};
 use router_api::error::Error;
-
-use crate::state::{Config, State, CONFIG, STATE};
 
 const BASE_VERSION: &str = "0.3.3";
 
@@ -26,7 +26,7 @@ pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
 #[cw_serde]
-struct ConfigOld {
+struct Config {
     pub admin: Addr,
     pub governance: Addr,
     pub nexus_gateway: Addr,
@@ -34,15 +34,15 @@ struct ConfigOld {
 
 #[allow(deprecated)]
 fn set_generalized_permission_control(storage: &mut dyn Storage) -> Result<(), Error> {
-    let old_config = CONFIG_OLD.load(storage)?;
+    let old_config = CONFIG.load(storage)?;
     permission_control::set_admin(storage, &old_config.admin)
         .and_then(|_| permission_control::set_governance(storage, &old_config.governance))
         .map_err(Error::from)?;
 
-    let new_config = &Config {
+    let new_config = &state::Config {
         nexus_gateway: old_config.nexus_gateway,
     };
-    CONFIG.save(storage, new_config)?;
+    state::CONFIG.save(storage, new_config)?;
     Ok(())
 }
 
@@ -52,13 +52,12 @@ fn set_router_state(storage: &mut dyn Storage) -> StdResult<()> {
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
 #[allow(deprecated)]
-const CONFIG_OLD: Item<ConfigOld> = Item::new("config");
+const CONFIG: Item<Config> = Item::new("config");
 
 #[cfg(test)]
 #[allow(deprecated)]
 mod test {
     use std::collections::HashMap;
-    use std::env;
 
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
@@ -69,46 +68,47 @@ mod test {
 
     use crate::contract::execute;
     use crate::events::RouterInstantiated;
+    use crate::migrations::v0_3_3;
+    use crate::migrations::v0_3_3::BASE_VERSION;
     use crate::msg::InstantiateMsg;
-    use crate::state::{State, CONFIG, CONTRACT_NAME, CONTRACT_VERSION, STATE};
-
-    use super::{migrate, ConfigOld, BASE_VERSION, CONFIG_OLD};
+    use crate::state;
+    use crate::state::{State, CONTRACT_NAME, STATE};
 
     #[test]
     fn migrate_checks_contract_version() {
         let mut deps = mock_dependencies();
-        let _ = instantiate_old_contract(deps.as_mut()).unwrap();
+        let _ = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
-        assert!(migrate(deps.as_mut().storage).is_err());
+        assert!(v0_3_3::migrate(deps.as_mut().storage).is_err());
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, BASE_VERSION).unwrap();
 
-        assert!(migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_3_3::migrate(deps.as_mut().storage).is_ok());
     }
 
     #[test]
     fn config_gets_migrated() {
         let mut deps = mock_dependencies();
-        let instantiate_msg = instantiate_old_contract(deps.as_mut()).unwrap();
+        let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
 
-        assert!(CONFIG_OLD.load(deps.as_mut().storage).is_ok());
-        assert!(CONFIG.load(deps.as_mut().storage).is_err());
+        assert!(v0_3_3::CONFIG.load(deps.as_mut().storage).is_ok());
+        assert!(state::CONFIG.load(deps.as_mut().storage).is_err());
 
-        assert!(migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_3_3::migrate(deps.as_mut().storage).is_ok());
 
-        assert!(CONFIG_OLD.load(deps.as_mut().storage).is_err());
-        let config = CONFIG.load(deps.as_mut().storage);
+        assert!(v0_3_3::CONFIG.load(deps.as_mut().storage).is_err());
+        let config = state::CONFIG.load(deps.as_mut().storage);
         assert!(config.is_ok());
         assert!(config.unwrap().nexus_gateway == instantiate_msg.nexus_gateway);
     }
 
     #[test]
-    fn set_router_state() {
+    fn router_is_enabled() {
         let mut deps = mock_dependencies();
-        let _ = instantiate_old_contract(deps.as_mut()).unwrap();
+        let _ = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
 
-        assert!(migrate(deps.as_mut().storage).is_ok());
+        assert!(v0_3_3::migrate(deps.as_mut().storage).is_ok());
 
         let state = STATE.load(deps.as_ref().storage);
         assert!(state.is_ok());
@@ -119,7 +119,7 @@ mod test {
     #[allow(deprecated)]
     fn migration() {
         let mut deps = mock_dependencies();
-        let instantiate_msg = instantiate_old_contract(deps.as_mut()).unwrap();
+        let instantiate_msg = instantiate_0_3_3_contract(deps.as_mut()).unwrap();
 
         let msg = ExecuteMsg::RegisterChain {
             chain: "chain".parse().unwrap(),
@@ -145,9 +145,7 @@ mod test {
         )
         .is_err());
 
-        //set to future version
-        env::set_var("CARGO_PKG_VERSION", "0.4.0");
-        assert!(migrate(&mut deps.storage).is_ok());
+        assert!(v0_3_3::migrate(&mut deps.storage).is_ok());
 
         // after migration only governance should be able to register a chain
         assert!(execute(
@@ -198,7 +196,7 @@ mod test {
     }
 
     #[allow(deprecated)]
-    fn instantiate_old_contract(deps: DepsMut) -> Result<InstantiateMsg, ContractError> {
+    fn instantiate_0_3_3_contract(deps: DepsMut) -> Result<InstantiateMsg, ContractError> {
         let admin = "admin";
         let governance = "governance";
         let nexus_gateway = "nexus_gateway";
@@ -208,31 +206,31 @@ mod test {
             admin_address: admin.to_string(),
             governance_address: governance.to_string(),
         };
-        instantiate_old(deps, mock_env(), mock_info(admin, &[]), msg.clone())?;
+        instantiate(deps, mock_env(), mock_info(admin, &[]), msg.clone())?;
         Ok(msg)
     }
 
     #[deprecated(since = "0.3.3", note = "only used to test the migration")]
     #[allow(deprecated)]
-    pub fn instantiate_old(
+    fn instantiate(
         deps: DepsMut,
         _env: Env,
         _info: MessageInfo,
         msg: InstantiateMsg,
     ) -> Result<Response, ContractError> {
-        cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+        cw2::set_contract_version(deps.storage, CONTRACT_NAME, BASE_VERSION)?;
 
         let admin = deps.api.addr_validate(&msg.admin_address)?;
         let governance = deps.api.addr_validate(&msg.governance_address)?;
         let nexus_gateway = deps.api.addr_validate(&msg.nexus_gateway)?;
 
-        let config = ConfigOld {
+        let config = v0_3_3::Config {
             admin: admin.clone(),
             governance: governance.clone(),
             nexus_gateway: nexus_gateway.clone(),
         };
 
-        CONFIG_OLD
+        v0_3_3::CONFIG
             .save(deps.storage, &config)
             .expect("must save the config");
 

@@ -1,16 +1,15 @@
 mod execute;
 mod query;
 
+mod migrations;
+use crate::contract::migrations::{set_version_after_migration, v0_2_0};
 use crate::error::ContractError;
-use crate::migrations;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use axelar_wasm_std::permission_control;
+use crate::state::{CONTRACT_NAME, CONTRACT_VERSION};
+use axelar_wasm_std::{permission_control, FnExt};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
-
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -18,10 +17,10 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    migrations::v0_2_0::migrate(deps.storage)?;
-
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response::default())
+    set_version_after_migration(deps.storage, |storage| {
+        v0_2_0::migrate(storage).map(|_| Response::default())
+    })?
+    .then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -36,24 +35,6 @@ pub fn instantiate(
     let governance = deps.api.addr_validate(&msg.governance_address)?;
     permission_control::set_governance(deps.storage, &governance)?;
 
-    Ok(Response::default())
-}
-
-#[deprecated(since = "0.3.3", note = "only used to test the migration")]
-pub fn instantiate_old(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    msg: InstantiateMsg,
-) -> Result<Response, axelar_wasm_std::ContractError> {
-    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    migrations::v0_2_0::CONFIG.save(
-        deps.storage,
-        &migrations::v0_2_0::Config {
-            governance: deps.api.addr_validate(&msg.governance_address)?,
-        },
-    )?;
     Ok(Response::default())
 }
 
@@ -136,10 +117,6 @@ mod tests {
         let governance = "governance_for_coordinator";
         let mut test_setup = setup(governance);
 
-        ExecuteMsg::RegisterProverContract {
-            chain_name: test_setup.chain_name.clone(),
-            new_prover_addr: test_setup.prover.clone(),
-        };
         assert!(execute(
             test_setup.deps.as_mut(),
             test_setup.env.clone(),
@@ -161,28 +138,6 @@ mod tests {
             }
         )
         .is_ok());
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn migrate_sets_contract_version() {
-        let mut deps = mock_dependencies();
-
-        instantiate_old(
-            deps.as_mut(),
-            mock_env(),
-            mock_info("admin", &[]),
-            InstantiateMsg {
-                governance_address: "governance".to_string(),
-            },
-        )
-        .unwrap();
-
-        migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
-
-        let contract_version = cw2::get_contract_version(deps.as_mut().storage).unwrap();
-        assert_eq!(contract_version.contract, "coordinator");
-        assert_eq!(contract_version.version, CONTRACT_VERSION);
     }
 
     #[test]
