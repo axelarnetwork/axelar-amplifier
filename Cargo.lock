@@ -1440,6 +1440,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "integration-tests",
+ "msgs-derive",
  "multisig",
  "report",
  "router-api",
