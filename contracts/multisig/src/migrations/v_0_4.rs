@@ -1,33 +1,32 @@
 use crate::state::{SIGNING_SESSIONS, VERIFIER_SETS};
-use cosmwasm_std::{DepsMut, Order, Response};
+use cosmwasm_std::{DepsMut, Order, Response, Storage};
 
-pub fn migrate_verifier_set_ids(
-    deps: &mut DepsMut,
+fn migrate_verifier_set_ids(
+    store: &mut dyn Storage,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     let all: Vec<_> = VERIFIER_SETS
-        .range(deps.storage, None, None, Order::Ascending)
+        .range(store, None, None, Order::Ascending)
         .collect::<Result<Vec<_>, _>>()?;
 
     for v in all {
-        VERIFIER_SETS.remove(deps.storage, &v.0);
-        VERIFIER_SETS.save(deps.storage, &v.1.id(), &v.1)?;
+        VERIFIER_SETS.remove(store, &v.0);
+        VERIFIER_SETS.save(store, &v.1.id(), &v.1)?;
     }
 
     Ok(Response::default())
 }
 
-pub fn migrate_signing_sessions(
-    deps: &mut DepsMut,
+fn remove_all_signing_sessions(
+    store: &mut dyn Storage,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    SIGNING_SESSIONS.clear(deps.storage);
+    SIGNING_SESSIONS.clear(store);
 
     Ok(Response::default())
 }
 
-pub fn migrate(deps: &mut DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
-    // signing sessions should be migrated first, so that way the old ids still point to the verifier sets
-    migrate_signing_sessions(deps)?;
-    migrate_verifier_set_ids(deps)
+pub fn migrate(deps: DepsMut) -> Result<Response, axelar_wasm_std::ContractError> {
+    remove_all_signing_sessions(deps.storage)?;
+    migrate_verifier_set_ids(deps.storage)
 }
 
 #[cfg(test)]
@@ -66,12 +65,12 @@ mod test {
                 &signing_session,
             )
             .unwrap();
-        migrate(&mut deps.as_mut()).unwrap();
 
-        let new_verifier_set = VERIFIER_SETS
-            .load(&deps.storage, &verifier_set.id())
-            .unwrap();
-        assert_eq!(new_verifier_set, verifier_set);
+        migrate(deps.as_mut()).unwrap();
+
+        let new_verifier_set = VERIFIER_SETS.load(&deps.storage, &verifier_set.id());
+        assert!(new_verifier_set.is_ok(), "{:?}", new_verifier_set);
+        assert_eq!(new_verifier_set.unwrap(), verifier_set);
 
         let loaded_signing_session = SIGNING_SESSIONS.load(&deps.storage, signing_session.id.u64());
         assert!(loaded_signing_session.is_err());

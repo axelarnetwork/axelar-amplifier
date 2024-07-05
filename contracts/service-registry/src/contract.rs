@@ -164,7 +164,7 @@ pub fn migrate(
     msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    migrations::v_0_4::migrate_services(deps.storage, msg.coordinator_contract)
+    migrations::v_0_4::migrate_services_coordinator_contract(deps.storage, msg.coordinator_contract)
         .map_err(axelar_wasm_std::ContractError::from)
 }
 

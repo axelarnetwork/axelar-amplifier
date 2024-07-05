@@ -25,7 +25,7 @@ mod v0_3_state {
     pub const SERVICES: Map<&ServiceName, Service> = Map::new("services");
 }
 
-pub fn migrate_services(
+pub fn migrate_services_coordinator_contract(
     store: &mut dyn Storage,
     coordinator_contract: Addr,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
@@ -90,7 +90,8 @@ mod test {
         }
 
         let coordinator_contract = Addr::unchecked("coordinator");
-        migrate_services(&mut deps.storage, coordinator_contract.clone()).unwrap();
+        migrate_services_coordinator_contract(&mut deps.storage, coordinator_contract.clone())
+            .unwrap();
 
         for service in &initial_services {
             let migrated_service: Service =
