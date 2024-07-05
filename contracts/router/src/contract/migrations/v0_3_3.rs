@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdResult, Storage};
+use cosmwasm_std::{Addr, Response, StdResult, Storage};
 use cw2::VersionError;
 use cw_storage_plus::Item;
 
@@ -10,7 +10,7 @@ use router_api::error::Error;
 
 const BASE_VERSION: &str = "0.3.3";
 
-pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+pub fn migrate(storage: &mut dyn Storage) -> Result<Response, ContractError> {
     let current_version = cw2::get_contract_version(storage)?;
     if current_version.version != BASE_VERSION {
         Err(VersionError::WrongVersion {
@@ -20,7 +20,7 @@ pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     } else {
         set_generalized_permission_control(storage)?;
         set_router_state(storage)?;
-        Ok(())
+        Ok(Response::default())
     }
 }
 
@@ -67,9 +67,9 @@ mod test {
     use router_api::msg::ExecuteMsg;
 
     use crate::contract::execute;
+    use crate::contract::migrations::v0_3_3;
+    use crate::contract::migrations::v0_3_3::BASE_VERSION;
     use crate::events::RouterInstantiated;
-    use crate::migrations::v0_3_3;
-    use crate::migrations::v0_3_3::BASE_VERSION;
     use crate::msg::InstantiateMsg;
     use crate::state;
     use crate::state::{State, CONTRACT_NAME, STATE};
