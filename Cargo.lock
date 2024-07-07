@@ -754,6 +754,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "axelarnet-gateway-api"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "router-api",
+]
+
+[[package]]
 name = "axum"
 version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
