@@ -12,6 +12,7 @@ pub mod flagset;
 mod fn_ext;
 pub mod hash;
 pub mod hex;
+pub mod killswitch;
 pub mod msg_id;
 pub mod nonempty;
 pub mod permission_control;

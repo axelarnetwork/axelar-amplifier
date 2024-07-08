@@ -57,4 +57,7 @@ pub enum ContractError {
 
     #[error("caller is not authorized")]
     Unauthorized,
+
+    #[error("signing is disabled")]
+    SigningDisabled,
 }

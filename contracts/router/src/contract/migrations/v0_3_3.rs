@@ -4,8 +4,7 @@ use cw2::VersionError;
 use cw_storage_plus::Item;
 
 use crate::state;
-use crate::state::{State, STATE};
-use axelar_wasm_std::{permission_control, ContractError};
+use axelar_wasm_std::{killswitch, permission_control, ContractError};
 use router_api::error::Error;
 
 const BASE_VERSION: &str = "0.3.3";
@@ -47,7 +46,7 @@ fn set_generalized_permission_control(storage: &mut dyn Storage) -> Result<(), E
 }
 
 fn set_router_state(storage: &mut dyn Storage) -> StdResult<()> {
-    STATE.save(storage, &State::Enabled)
+    killswitch::init(storage, killswitch::State::Disengaged)
 }
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
@@ -63,7 +62,7 @@ mod test {
     use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
     use axelar_wasm_std::msg_id::MessageIdFormat;
-    use axelar_wasm_std::ContractError;
+    use axelar_wasm_std::{killswitch, ContractError};
     use router_api::msg::ExecuteMsg;
 
     use crate::contract::execute;
@@ -72,7 +71,7 @@ mod test {
     use crate::events::RouterInstantiated;
     use crate::msg::InstantiateMsg;
     use crate::state;
-    use crate::state::{State, CONTRACT_NAME, STATE};
+    use crate::state::CONTRACT_NAME;
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -110,9 +109,7 @@ mod test {
 
         assert!(v0_3_3::migrate(deps.as_mut().storage).is_ok());
 
-        let state = STATE.load(deps.as_ref().storage);
-        assert!(state.is_ok());
-        assert_eq!(state.unwrap(), State::Enabled);
+        assert!(killswitch::is_contract_active(deps.as_mut().storage));
     }
 
     #[test]
