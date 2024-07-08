@@ -179,19 +179,29 @@ pub fn require_authorized_caller(
         .change_context(ContractError::Unauthorized)
 }
 
-pub fn authorize_caller(deps: DepsMut, contract_address: Addr) -> Result<Response, ContractError> {
-    AUTHORIZED_CALLERS.save(deps.storage, &contract_address, &())?;
+pub fn authorize_callers(deps: DepsMut, contracts: Vec<Addr>) -> Result<Response, ContractError> {
+    contracts
+        .iter()
+        .map(|contract_address| AUTHORIZED_CALLERS.save(deps.storage, contract_address, &()))
+        .try_collect()?;
 
-    Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
+    Ok(Response::new().add_events(
+        contracts
+            .into_iter()
+            .map(|contract_address| Event::CallerAuthorized { contract_address }.into()),
+    ))
 }
 
-pub fn unauthorize_caller(
-    deps: DepsMut,
-    contract_address: Addr,
-) -> Result<Response, ContractError> {
-    AUTHORIZED_CALLERS.remove(deps.storage, &contract_address);
+pub fn unauthorize_callers(deps: DepsMut, contracts: Vec<Addr>) -> Result<Response, ContractError> {
+    contracts
+        .iter()
+        .for_each(|contract_address| AUTHORIZED_CALLERS.remove(deps.storage, contract_address));
 
-    Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
+    Ok(Response::new().add_events(
+        contracts
+            .into_iter()
+            .map(|contract_address| Event::CallerUnauthorized { contract_address }.into()),
+    ))
 }
 
 pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {

@@ -4,6 +4,7 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
     StdResult, Uint64,
 };
+use itertools::Itertools;
 
 use crate::{
     events::Event,
@@ -94,13 +95,21 @@ pub fn execute(
             public_key,
             signed_sender_address,
         } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
-        ExecuteMsg::AuthorizeCaller { contract_address } => {
+        ExecuteMsg::AuthorizeCallers { contracts } => {
             execute::require_governance(&deps, info.sender)?;
-            execute::authorize_caller(deps, contract_address)
+            let contracts = contracts
+                .iter()
+                .map(|addr| deps.api.addr_validate(addr))
+                .try_collect()?;
+            execute::authorize_callers(deps, contracts)
         }
-        ExecuteMsg::UnauthorizeCaller { contract_address } => {
+        ExecuteMsg::UnauthorizeCallers { contracts } => {
             execute::require_governance(&deps, info.sender)?;
-            execute::unauthorize_caller(deps, contract_address)
+            let contracts = contracts
+                .iter()
+                .map(|addr| deps.api.addr_validate(addr))
+                .try_collect()?;
+            execute::unauthorize_callers(deps, contracts)
         }
     }
     .map_err(axelar_wasm_std::ContractError::from)
@@ -123,9 +132,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deps.api.addr_validate(&verifier_address)?,
             key_type,
         )?),
-        QueryMsg::IsCallerAuthorized { contract_address } => {
-            to_json_binary(&query::caller_authorized(deps, contract_address)?)
-        }
+        QueryMsg::IsCallerAuthorized { contract_address } => to_json_binary(
+            &query::caller_authorized(deps, deps.api.addr_validate(&contract_address)?)?,
+        ),
     }
 }
 
@@ -250,27 +259,31 @@ mod tests {
         execute(deps, mock_env(), mock_info(verifier.as_str(), &[]), msg)
     }
 
-    fn do_authorize_caller(
+    fn do_authorize_callers(
         deps: DepsMut,
-        contract_address: Addr,
+        contracts: Vec<Addr>,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let config = CONFIG.load(deps.storage)?;
         let info = mock_info(config.governance.as_str(), &[]);
         let env = mock_env();
 
-        let msg = ExecuteMsg::AuthorizeCaller { contract_address };
+        let msg = ExecuteMsg::AuthorizeCallers {
+            contracts: contracts.into_iter().map(|addr| addr.to_string()).collect(),
+        };
         execute(deps, env, info, msg)
     }
 
     fn do_unauthorize_caller(
         deps: DepsMut,
-        contract_address: Addr,
+        contracts: Vec<Addr>,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
         let config = CONFIG.load(deps.storage)?;
         let info = mock_info(config.governance.as_str(), &[]);
         let env = mock_env();
 
-        let msg = ExecuteMsg::UnauthorizeCaller { contract_address };
+        let msg = ExecuteMsg::UnauthorizeCallers {
+            contracts: contracts.into_iter().map(|addr| addr.to_string()).collect(),
+        };
         execute(deps, env, info, msg)
     }
 
@@ -390,7 +403,7 @@ mod tests {
     #[test]
     fn start_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         for (i, subkey) in [ecdsa_subkey.clone(), ed25519_subkey.clone()]
             .into_iter()
@@ -450,7 +463,7 @@ mod tests {
     #[test]
     fn start_signing_session_wrong_sender() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         let sender = "someone else";
 
@@ -472,7 +485,7 @@ mod tests {
     #[test]
     fn submit_signature() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
 
@@ -540,7 +553,7 @@ mod tests {
     #[test]
     fn submit_signature_completes_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         for (key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
@@ -593,7 +606,7 @@ mod tests {
     #[test]
     fn submit_signature_before_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         let chain_name: ChainName = "mock-chain".parse().unwrap();
 
@@ -639,7 +652,7 @@ mod tests {
     #[test]
     fn submit_signature_after_expiry() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
@@ -673,7 +686,7 @@ mod tests {
     #[test]
     fn submit_signature_wrong_session_id() {
         let (mut deps, ecdsa_subkey, _) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
         do_start_signing_session(
             deps.as_mut(),
             PROVER,
@@ -698,7 +711,7 @@ mod tests {
     #[test]
     fn query_signing_session() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
-        do_authorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
 
         for (_key_type, subkey, signers, session_id) in
             signature_test_data(&ecdsa_subkey, &ed25519_subkey)
@@ -968,12 +981,12 @@ mod tests {
     }
 
     #[test]
-    fn authorize_and_unauthorize_caller() {
+    fn authorize_and_unauthorize_callers() {
         let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
         let prover_address = Addr::unchecked(PROVER);
 
         // authorize
-        do_authorize_caller(deps.as_mut(), prover_address.clone()).unwrap();
+        do_authorize_callers(deps.as_mut(), vec![prover_address.clone()]).unwrap();
 
         for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
             let res = do_start_signing_session(
@@ -991,7 +1004,7 @@ mod tests {
         assert!(caller_authorization_status);
 
         // unauthorize
-        do_unauthorize_caller(deps.as_mut(), Addr::unchecked(PROVER)).unwrap();
+        do_unauthorize_caller(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
         for verifier_set_id in [ecdsa_subkey, ed25519_subkey] {
             let res = do_start_signing_session(
                 deps.as_mut(),
@@ -1012,14 +1025,41 @@ mod tests {
     }
 
     #[test]
+    fn authorize_and_unauthorize_many_callers() {
+        let (mut deps, _, _) = setup();
+
+        let contracts = vec![
+            Addr::unchecked("addr1"),
+            Addr::unchecked("addr2"),
+            Addr::unchecked("addr3"),
+        ];
+        do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
+        assert!(contracts
+            .iter()
+            .all(|addr| query::caller_authorized(deps.as_ref(), addr.clone()).unwrap()));
+        let (authorized, unauthorized) = contracts.split_at(1);
+        do_unauthorize_caller(deps.as_mut(), unauthorized.to_vec()).unwrap();
+        assert!(unauthorized.iter().all(|addr| !query::caller_authorized(
+            deps.as_ref(),
+            addr.clone()
+        )
+        .unwrap()));
+        assert!(authorized.iter().all(|addr| query::caller_authorized(
+            deps.as_ref(),
+            addr.clone()
+        )
+        .unwrap()));
+    }
+
+    #[test]
     fn authorize_caller_wrong_caller() {
         let mut deps = setup().0;
 
         let info = mock_info("user", &[]);
         let env = mock_env();
 
-        let msg = ExecuteMsg::AuthorizeCaller {
-            contract_address: Addr::unchecked(PROVER),
+        let msg = ExecuteMsg::AuthorizeCallers {
+            contracts: vec![PROVER.to_string()],
         };
         let res = execute(deps.as_mut(), env, info, msg);
 
@@ -1036,8 +1076,8 @@ mod tests {
         let info = mock_info("user", &[]);
         let env = mock_env();
 
-        let msg = ExecuteMsg::UnauthorizeCaller {
-            contract_address: Addr::unchecked(PROVER),
+        let msg = ExecuteMsg::UnauthorizeCallers {
+            contracts: vec![PROVER.to_string()],
         };
         let res = execute(deps.as_mut(), env, info, msg);
 

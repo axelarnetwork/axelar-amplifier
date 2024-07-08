@@ -45,12 +45,12 @@ pub enum ExecuteMsg {
         signed_sender_address: HexBinary,
     },
     // Authorizes a contract to call StartSigningSession. Callable only by governance
-    AuthorizeCaller {
-        contract_address: Addr,
+    AuthorizeCallers {
+        contracts: Vec<String>,
     },
     // Unauthorizes a contract, so it can no longer call StartSigningSession. Callable only by governance
-    UnauthorizeCaller {
-        contract_address: Addr,
+    UnauthorizeCallers {
+        contracts: Vec<String>,
     },
 }
 
@@ -70,7 +70,7 @@ pub enum QueryMsg {
     },
 
     #[returns(bool)]
-    IsCallerAuthorized { contract_address: Addr },
+    IsCallerAuthorized { contract_address: String },
 }
 
 #[cw_serde]
