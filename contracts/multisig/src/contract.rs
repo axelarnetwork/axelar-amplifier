@@ -7,6 +7,7 @@ use cosmwasm_std::{
 
 use crate::{
     events::Event,
+    migrations,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{
         get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
@@ -29,7 +30,7 @@ pub fn migrate(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::default())
+    migrations::v_0_4::migrate(deps)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
