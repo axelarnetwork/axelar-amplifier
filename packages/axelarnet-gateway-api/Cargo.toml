@@ -5,8 +5,8 @@ rust-version = { workspace = true }
 edition = "2021"
 
 [dependencies]
-cosmwasm-std = { workspace = true }
 cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
 router-api = { workspace = true }
 
 [lints]
