@@ -11,6 +11,7 @@ impl MultisigContract {
     pub fn instantiate_contract(
         app: &mut App,
         governance: Addr,
+        admin: Addr,
         rewards_address: Addr,
         block_expiry: u64,
     ) -> Self {
@@ -28,6 +29,7 @@ impl MultisigContract {
                 &multisig::msg::InstantiateMsg {
                     rewards_address: rewards_address.to_string(),
                     governance_address: governance.to_string(),
+                    admin_address: admin.to_string(),
                     block_expiry,
                 },
                 &[],
