@@ -1,5 +1,5 @@
 use axelar_wasm_std::{
-    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
+    msg_id::HexTxHashAndEventIndex,
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,

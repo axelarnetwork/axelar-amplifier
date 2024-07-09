@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use axelar_wasm_std::{msg_id::tx_hash_event_index::HexTxHashAndEventIndex, nonempty};
+use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, nonempty};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
 use error_stack::{Report, Result, ResultExt};
 use router_api::{Address, ChainName, CrossChainId};
@@ -83,10 +83,7 @@ impl From<Message> for CosmosMsg<Message> {
 mod test {
     use std::vec;
 
-    use axelar_wasm_std::msg_id::{
-        base_58_event_index::Base58TxDigestAndEventIndex,
-        tx_hash_event_index::HexTxHashAndEventIndex,
-    };
+    use axelar_wasm_std::msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex};
     use router_api::CrossChainId;
 
     use super::Message;

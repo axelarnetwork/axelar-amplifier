@@ -3,12 +3,12 @@ use std::{fmt::Display, str::FromStr};
 use cosmwasm_schema::cw_serde;
 use error_stack::Report;
 
-use self::{
+pub use self::{
     base_58_event_index::Base58TxDigestAndEventIndex, tx_hash_event_index::HexTxHashAndEventIndex,
 };
 
-pub mod base_58_event_index;
-pub mod tx_hash_event_index;
+mod base_58_event_index;
+mod tx_hash_event_index;
 
 #[derive(thiserror::Error)]
 #[cw_serde]
