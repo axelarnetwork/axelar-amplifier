@@ -1300,10 +1300,12 @@ mod tests {
                 wrong_chain_name.clone(),
             );
 
-            assert!(res
-                .unwrap_err()
+            assert!(res.unwrap_err().to_string().contains(
+                &ContractError::WrongChainName {
+                    expected: chain_name.clone()
+                }
                 .to_string()
-                .contains(&ContractError::WrongChainName.to_string()));
+            ));
         }
     }
 }

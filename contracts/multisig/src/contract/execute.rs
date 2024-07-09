@@ -185,8 +185,11 @@ pub fn require_authorized_caller(
     contract_address: &Addr,
     chain_name: &ChainName,
 ) -> Result<Addr, ContractError> {
-    if AUTHORIZED_CALLERS.load(storage, contract_address)? != *chain_name {
-        return Err(ContractError::WrongChainName);
+    let expected_chain_name = AUTHORIZED_CALLERS.load(storage, contract_address)?;
+    if expected_chain_name != *chain_name {
+        return Err(ContractError::WrongChainName {
+            expected: expected_chain_name,
+        });
     }
     Ok(contract_address.clone())
 }

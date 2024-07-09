@@ -50,10 +50,10 @@ pub enum ExecuteMsg {
         to sign their own address using the private key */
         signed_sender_address: HexBinary,
     },
-    // Authorizes a contract to call StartSigningSession.
+    // Authorizes a set of contracts to call StartSigningSession.
     #[permission(Governance)]
     AuthorizeCallers { contracts: Vec<(String, ChainName)> },
-    // Unauthorizes a contract, so it can no longer call StartSigningSession.
+    // Unauthorizes a set of contracts, so they can no longer call StartSigningSession.
     #[permission(Elevated)]
     UnauthorizeCallers { contracts: Vec<(String, ChainName)> },
 

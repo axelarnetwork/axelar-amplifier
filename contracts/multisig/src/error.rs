@@ -1,5 +1,6 @@
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{OverflowError, StdError, Uint64};
+use router_api::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
@@ -61,6 +62,6 @@ pub enum ContractError {
     #[error("signing is disabled")]
     SigningDisabled,
 
-    #[error("signing session started with wrong chain name")]
-    WrongChainName,
+    #[error("specified chain name is incorrect. expected: {expected}")]
+    WrongChainName { expected: ChainName },
 }
