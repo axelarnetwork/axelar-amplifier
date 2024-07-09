@@ -5,8 +5,6 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 use router_api::ChainName;
 use std::collections::HashSet;
 
-pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
-pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 type ProverAddress = Addr;
 
 pub const PROVER_PER_CHAIN: Map<ChainName, ProverAddress> = Map::new("prover_per_chain");

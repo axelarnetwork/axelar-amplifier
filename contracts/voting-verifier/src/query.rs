@@ -95,7 +95,7 @@ fn is_finished(poll: &state::Poll) -> bool {
 #[cfg(test)]
 mod tests {
     use axelar_wasm_std::{
-        msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
+        msg_id::HexTxHashAndEventIndex,
         nonempty,
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,

@@ -104,10 +104,7 @@ mod test {
     use sha3::{Digest, Keccak256};
 
     use axelar_wasm_std::{
-        msg_id::{
-            base_58_event_index::Base58TxDigestAndEventIndex,
-            tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
-        },
+        msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat},
         nonempty,
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,

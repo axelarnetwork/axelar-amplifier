@@ -1,4 +1,5 @@
 use crate::contract::Contract;
+use axelar_wasm_std::nonempty;
 use cosmwasm_std::Addr;
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -13,7 +14,7 @@ impl MultisigContract {
         governance: Addr,
         admin: Addr,
         rewards_address: Addr,
-        block_expiry: u64,
+        block_expiry: nonempty::Uint64,
     ) -> Self {
         let code = ContractWrapper::new(
             multisig::contract::execute,
