@@ -12,7 +12,8 @@ use axelar_wasm_std::{killswitch, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult, Storage, Uint64
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    Storage, Uint64,
 };
 use error_stack::{report, ResultExt};
 use itertools::Itertools;
@@ -31,8 +32,18 @@ pub fn migrate(
     msg: MigrationMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let authorized_callers = msg
+        .authorized_callers
+        .into_iter()
+        .map(|(contract_address, chain_name)| {
+            deps.api
+                .addr_validate(&contract_address)
+                .map(|addr| (addr, chain_name))
+        })
+        .try_collect()?;
 
-    migrations::v0_4_1::migrate(deps.storage, admin).change_context(ContractError::Migration)?;
+    migrations::v0_4_1::migrate(deps.storage, admin, authorized_callers)
+        .change_context(ContractError::Migration)?;
 
     // this needs to be the last thing to do during migration,
     // because previous migration steps should check the old version
@@ -172,9 +183,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deps.api.addr_validate(&verifier_address)?,
             key_type,
         )?),
-        QueryMsg::IsCallerAuthorized { contract_address } => to_json_binary(
-            &query::caller_authorized(deps, deps.api.addr_validate(&contract_address)?)?,
-        ),
+        QueryMsg::IsCallerAuthorized {
+            contract_address,
+            chain_name,
+        } => to_json_binary(&query::caller_authorized(
+            deps,
+            deps.api.addr_validate(&contract_address)?,
+            chain_name,
+        )?),
     }
 }
 
@@ -1110,7 +1126,8 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::caller_authorized(deps.as_ref(), prover_address.clone()).unwrap();
+            query::caller_authorized(deps.as_ref(), prover_address.clone(), chain_name.clone())
+                .unwrap();
         assert!(caller_authorization_status);
 
         // unauthorize
@@ -1134,7 +1151,7 @@ mod tests {
         }
 
         let caller_authorization_status =
-            query::caller_authorized(deps.as_ref(), prover_address).unwrap();
+            query::caller_authorized(deps.as_ref(), prover_address, chain_name.clone()).unwrap();
         assert!(!caller_authorization_status);
     }
 
@@ -1148,21 +1165,32 @@ mod tests {
             (Addr::unchecked("addr3"), "chain3".parse().unwrap()),
         ];
         do_authorize_callers(deps.as_mut(), contracts.clone()).unwrap();
-        assert!(contracts.iter().all(|(addr, _)| query::caller_authorized(
-            deps.as_ref(),
-            addr.clone()
-        )
-        .unwrap()));
+        assert!(contracts
+            .iter()
+            .all(|(addr, chain_name)| query::caller_authorized(
+                deps.as_ref(),
+                addr.clone(),
+                chain_name.clone()
+            )
+            .unwrap()));
         let (authorized, unauthorized) = contracts.split_at(1);
         do_unauthorize_caller(deps.as_mut(), unauthorized.to_vec()).unwrap();
         assert!(unauthorized
             .iter()
-            .all(|(addr, _)| !query::caller_authorized(deps.as_ref(), addr.clone()).unwrap()));
-        assert!(authorized.iter().all(|(addr, _)| query::caller_authorized(
-            deps.as_ref(),
-            addr.clone()
-        )
-        .unwrap()));
+            .all(|(addr, chain_name)| !query::caller_authorized(
+                deps.as_ref(),
+                addr.clone(),
+                chain_name.clone()
+            )
+            .unwrap()));
+        assert!(authorized
+            .iter()
+            .all(|(addr, chain_name)| query::caller_authorized(
+                deps.as_ref(),
+                addr.clone(),
+                chain_name.clone()
+            )
+            .unwrap()));
     }
 
     #[test]

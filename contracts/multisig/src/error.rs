@@ -1,7 +1,7 @@
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{OverflowError, StdError, Uint64};
-use router_api::ChainName;
 use cw2::VersionError;
+use router_api::ChainName;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]

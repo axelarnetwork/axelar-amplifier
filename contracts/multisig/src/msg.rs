@@ -13,6 +13,7 @@ use crate::{
 #[cw_serde]
 pub struct MigrationMsg {
     pub admin_address: String,
+    pub authorized_callers: Vec<(String, ChainName)>,
 }
 
 #[cw_serde]
@@ -88,7 +89,10 @@ pub enum QueryMsg {
     },
 
     #[returns(bool)]
-    IsCallerAuthorized { contract_address: String },
+    IsCallerAuthorized {
+        contract_address: String,
+        chain_name: ChainName,
+    },
 }
 
 #[cw_serde]
