@@ -1,0 +1,17 @@
+[package]
+name = "golden-test-macro"
+version = "0.1.0"
+edition = "2021"
+rust-version = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+goldenfile = "*"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+[lints]
+workspace = true

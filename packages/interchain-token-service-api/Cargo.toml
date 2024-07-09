@@ -19,5 +19,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+golden-test-macro = { workspace = true }
+goldenfile = { version = "1" }
+
 [lints]
 workspace = true
