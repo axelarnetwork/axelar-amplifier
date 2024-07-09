@@ -106,6 +106,7 @@ mod test {
     use axelar_wasm_std::{
         msg_id::{
             base_58_event_index::Base58TxDigestAndEventIndex,
+            base_58_solana_event_index::Base58SolanaTxDigestAndEventIndex,
             tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
@@ -224,6 +225,15 @@ mod test {
             .to_string()
             .parse()
             .unwrap(),
+            MessageIdFormat::Base58SolanaTxDigestAndEventIndex => {
+                Base58SolanaTxDigestAndEventIndex::new_from_b58_encoded_signature_and_index(
+                    id, index,
+                )
+                .unwrap()
+                .to_string()
+                .parse()
+                .unwrap()
+            }
         }
     }
 
