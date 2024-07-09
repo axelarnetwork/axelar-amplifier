@@ -1,4 +1,4 @@
-use alloy_primitives::{Bytes, FixedBytes, U256};
+use alloy_primitives::{FixedBytes, U256};
 use alloy_sol_types::{sol, SolValue};
 use cosmwasm_std::{HexBinary, Uint256};
 use error_stack::{Report, ResultExt};
@@ -69,10 +69,10 @@ impl ITSRoutedMessage {
             } => InterchainTransfer {
                 messageType: MessageType::InterchainTransfer.into(),
                 tokenId: FixedBytes::<32>::new(token_id.to_bytes()),
-                sourceAddress: Bytes::copy_from_slice(source_address.as_slice()),
-                destinationAddress: Bytes::copy_from_slice(destination_address.as_slice()),
+                sourceAddress: Vec::<u8>::from(source_address).into(),
+                destinationAddress: Vec::<u8>::from(destination_address).into(),
                 amount: U256::from_le_bytes(amount.to_le_bytes()),
-                data: Bytes::copy_from_slice(data.as_slice()),
+                data: Vec::<u8>::from(data).into(),
             }
             .abi_encode_params(),
             ITSMessage::DeployInterchainToken {
@@ -84,10 +84,10 @@ impl ITSRoutedMessage {
             } => DeployInterchainToken {
                 messageType: MessageType::DeployInterchainToken.into(),
                 tokenId: FixedBytes::<32>::new(token_id.to_bytes()),
-                name: name.clone(),
-                symbol: symbol.clone(),
+                name,
+                symbol,
                 decimals,
-                minter: Bytes::copy_from_slice(minter.as_slice()),
+                minter: Vec::<u8>::from(minter).into(),
             }
             .abi_encode_params(),
             ITSMessage::DeployTokenManager {
@@ -98,7 +98,7 @@ impl ITSRoutedMessage {
                 messageType: MessageType::DeployTokenManager.into(),
                 tokenId: FixedBytes::<32>::new(token_id.to_bytes()),
                 tokenManagerType: token_manager_type.into(),
-                params: Bytes::copy_from_slice(params.as_slice()),
+                params: Vec::<u8>::from(params).into(),
             }
             .abi_encode_params(),
         };
@@ -106,7 +106,7 @@ impl ITSRoutedMessage {
         RoutedCall {
             messageType: MessageType::RoutedCall.into(),
             remote_chain: self.remote_chain.to_string(),
-            message: Bytes::copy_from_slice(&message),
+            message: message.into(),
         }
         .abi_encode_params()
         .into()
@@ -202,8 +202,15 @@ impl From<TokenManagerType> for U256 {
 mod tests {
     use std::str::FromStr;
 
-    use super::*;
+    use alloy_primitives::{FixedBytes, U256};
+    use alloy_sol_types::SolValue;
     use cosmwasm_std::{HexBinary, Uint256};
+    use router_api::Address;
+
+    use crate::{
+        abi::{DeployTokenManager, MessageType, RoutedCall},
+        ITSMessage, ITSRoutedMessage, TokenId, TokenManagerType,
+    };
 
     #[test]
     fn interchain_transfer_encode_decode() {
@@ -236,8 +243,10 @@ mod tests {
             },
         ];
 
-        let encoded: Vec<_> = cases.iter()
-            .map(|original| original.abi_encode().to_hex()).collect();
+        let encoded: Vec<_> = cases
+            .iter()
+            .map(|original| original.abi_encode().to_hex())
+            .collect();
 
         goldie::assert_json!(encoded);
 
@@ -285,8 +294,10 @@ mod tests {
             },
         ];
 
-        let encoded: Vec<_> = cases.iter()
-            .map(|original| original.abi_encode().to_hex()).collect();
+        let encoded: Vec<_> = cases
+            .iter()
+            .map(|original| original.abi_encode().to_hex())
+            .collect();
 
         goldie::assert_json!(encoded);
 
@@ -320,8 +331,10 @@ mod tests {
             },
         ];
 
-        let encoded: Vec<_> = cases.iter()
-            .map(|original| original.abi_encode().to_hex()).collect();
+        let encoded: Vec<_> = cases
+            .iter()
+            .map(|original| original.abi_encode().to_hex())
+            .collect();
 
         goldie::assert_json!(encoded);
 
@@ -337,7 +350,7 @@ mod tests {
         let invalid_payload = RoutedCall {
             messageType: U256::from(MessageType::RoutedCall as u8 + 1),
             remote_chain: "remote_chain".into(),
-            message: Bytes::new(),
+            message: vec![].into(),
         }
         .abi_encode_params();
 
@@ -375,13 +388,13 @@ mod tests {
             messageType: MessageType::DeployTokenManager.into(),
             tokenId: FixedBytes::<32>::new([0u8; 32]),
             tokenManagerType: TokenManagerType::NativeInterchainToken.into(),
-            params: Bytes::new(),
+            params: vec![].into(),
         };
 
         let payload = RoutedCall {
             messageType: MessageType::RoutedCall.into(),
             remote_chain: "".into(),
-            message: Bytes::copy_from_slice(&message.abi_encode_params()),
+            message: message.abi_encode_params().into(),
         }
         .abi_encode_params();
 
@@ -399,13 +412,13 @@ mod tests {
             messageType: MessageType::DeployTokenManager.into(),
             tokenId: FixedBytes::<32>::new([0u8; 32]),
             tokenManagerType: U256::from(TokenManagerType::Gateway as u8 + 1),
-            params: Bytes::new(),
+            params: vec![].into(),
         };
 
         let payload = RoutedCall {
             messageType: MessageType::RoutedCall.into(),
             remote_chain: "chain".into(),
-            message: Bytes::copy_from_slice(&message.abi_encode_params()),
+            message: message.abi_encode_params().into(),
         }
         .abi_encode_params();
 
