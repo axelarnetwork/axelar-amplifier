@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     // Can only be called by an authorized contract.
-    #[permission(Any)]
+    #[permission(Specific(authorized))]
     StartSigningSession {
         verifier_set_id: String,
         msg: HexBinary,
@@ -52,10 +52,10 @@ pub enum ExecuteMsg {
     },
     // Authorizes a contract to call StartSigningSession.
     #[permission(Governance)]
-    AuthorizeCallers { contracts: Vec<String> },
+    AuthorizeCallers { contracts: Vec<(String, ChainName)> },
     // Unauthorizes a contract, so it can no longer call StartSigningSession.
     #[permission(Elevated)]
-    UnauthorizeCallers { contracts: Vec<String> },
+    UnauthorizeCallers { contracts: Vec<(String, ChainName)> },
 
     /// Emergency command to stop all amplifier signing
     #[permission(Elevated)]

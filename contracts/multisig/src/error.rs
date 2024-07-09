@@ -60,4 +60,7 @@ pub enum ContractError {
 
     #[error("signing is disabled")]
     SigningDisabled,
+
+    #[error("signing session started with wrong chain name")]
+    WrongChainName,
 }

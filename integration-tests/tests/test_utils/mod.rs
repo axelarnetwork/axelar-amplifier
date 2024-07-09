@@ -685,7 +685,10 @@ pub fn setup_chain(
         &mut protocol.app,
         protocol.governance_address.clone(),
         &multisig::msg::ExecuteMsg::AuthorizeCallers {
-            contracts: vec![multisig_prover.contract_addr.to_string()],
+            contracts: vec![(
+                multisig_prover.contract_addr.to_string(),
+                chain_name.clone(),
+            )],
         },
     );
     assert!(response.is_ok());

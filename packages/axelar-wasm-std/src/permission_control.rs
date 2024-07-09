@@ -47,6 +47,10 @@ pub enum Error {
     AddressNotWhitelisted { expected: Vec<Addr>, actual: Addr },
     #[error("no whitelisting condition found for sender address '{sender}'")]
     WhitelistNotFound { sender: Addr },
+    #[error("specific check called on wrong enum variant")]
+    WrongVariant,
+    #[error("sender is not authorized")]
+    Unauthorized, // generic error to handle errors that don't fall into the above cases
 }
 
 const ADMIN: Item<Addr> = Item::new("permission_control_contract_admin_addr");
