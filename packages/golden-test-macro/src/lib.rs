@@ -1,8 +1,9 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::punctuated::Punctuated;
-use syn::Expr;
-use syn::{parse::Parse, parse::ParseStream, parse_macro_input, ExprLit, ItemFn, Lit, Meta, Token};
+use syn::{
+    parse::Parse, parse::ParseStream, parse_macro_input, punctuated::Punctuated, Expr, ExprLit,
+    ItemFn, Lit, Meta, Token,
+};
 
 struct MacroArgs {
     dir: Option<String>,
