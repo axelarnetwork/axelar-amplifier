@@ -1,14 +1,6 @@
-use axelar_wasm_std::{killswitch, permission_control};
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, HexBinary, MessageInfo, Response,
-    StdResult, Uint64,
-};
-
+use crate::msg::MigrationMsg;
 use crate::{
     events::Event,
-    migrations,
     msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::{
         get_verifier_set, Config, CONFIG, SIGNING_SESSIONS, SIGNING_SESSION_COUNTER, VERIFIER_SETS,
@@ -16,8 +8,17 @@ use crate::{
     types::{MsgToSign, MultisigState},
     ContractError,
 };
+use axelar_wasm_std::{killswitch, permission_control};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, HexBinary, MessageInfo, Response, StdResult,
+    Uint64,
+};
+use error_stack::ResultExt;
 
 mod execute;
+mod migrations;
 mod query;
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -27,11 +28,17 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrationMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+
+    migrations::v0_4_1::migrate(deps.storage, admin).change_context(ContractError::Migration)?;
+
+    // this needs to be the last thing to do during migration,
+    // because previous migration steps should check the old version
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    migrations::v_0_4::migrate(deps)
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -149,9 +156,8 @@ mod tests {
         Addr, Empty, OwnedDeps, WasmMsg,
     };
     use permission_control::Permission;
-    use serde_json::from_str;
-
     use router_api::ChainName;
+    use serde_json::from_str;
 
     use crate::{
         key::{KeyType, PublicKey, Signature},
@@ -181,7 +187,7 @@ mod tests {
             governance_address: GOVERNANCE.parse().unwrap(),
             admin_address: ADMIN.parse().unwrap(),
             rewards_address: REWARDS_CONTRACT.to_string(),
-            block_expiry: SIGNATURE_BLOCK_EXPIRY,
+            block_expiry: SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
         };
 
         instantiate(deps, env, info, msg)
@@ -384,6 +390,18 @@ mod tests {
         assert_eq!(0, res.unwrap().messages.len());
 
         let session_counter = SIGNING_SESSION_COUNTER.load(deps.as_ref().storage).unwrap();
+
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(ADMIN))
+                .unwrap(),
+            Permission::Admin.into()
+        );
+
+        assert_eq!(
+            permission_control::sender_role(deps.as_ref().storage, &Addr::unchecked(GOVERNANCE))
+                .unwrap(),
+            Permission::Governance.into()
+        );
 
         assert_eq!(session_counter, Uint64::zero());
     }

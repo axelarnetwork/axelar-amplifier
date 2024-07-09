@@ -1,26 +1,20 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Response, StdResult, Storage};
-use cw2::VersionError;
+use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::Item;
 
+use crate::contract::CONTRACT_NAME;
 use crate::state;
 use axelar_wasm_std::{killswitch, permission_control, ContractError};
 use router_api::error::Error;
 
 const BASE_VERSION: &str = "0.3.3";
 
-pub fn migrate(storage: &mut dyn Storage) -> Result<Response, ContractError> {
-    let current_version = cw2::get_contract_version(storage)?;
-    if current_version.version != BASE_VERSION {
-        Err(VersionError::WrongVersion {
-            expected: BASE_VERSION.into(),
-            found: current_version.version,
-        })?
-    } else {
-        set_generalized_permission_control(storage)?;
-        set_router_state(storage)?;
-        Ok(Response::default())
-    }
+pub fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
+    cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    set_generalized_permission_control(storage)?;
+    set_router_state(storage)?;
+    Ok(())
 }
 
 #[deprecated(since = "0.3.3", note = "only used during migration")]
@@ -65,13 +59,12 @@ mod test {
     use axelar_wasm_std::{killswitch, ContractError};
     use router_api::msg::ExecuteMsg;
 
-    use crate::contract::execute;
     use crate::contract::migrations::v0_3_3;
     use crate::contract::migrations::v0_3_3::BASE_VERSION;
+    use crate::contract::{execute, CONTRACT_NAME};
     use crate::events::RouterInstantiated;
     use crate::msg::InstantiateMsg;
     use crate::state;
-    use crate::state::CONTRACT_NAME;
 
     #[test]
     fn migrate_checks_contract_version() {

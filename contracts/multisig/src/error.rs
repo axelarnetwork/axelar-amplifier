@@ -1,11 +1,18 @@
 use axelar_wasm_std_derive::IntoContractError;
 use cosmwasm_std::{OverflowError, StdError, Uint64};
+use cw2::VersionError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, IntoContractError)]
 pub enum ContractError {
     #[error(transparent)]
     Std(#[from] StdError),
+
+    #[error(transparent)]
+    Version(#[from] VersionError),
+
+    #[error("failed to migrate contract state")]
+    Migration,
 
     #[error(transparent)]
     Overflow(#[from] OverflowError),

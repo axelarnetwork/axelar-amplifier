@@ -1,24 +1,17 @@
+use crate::contract::CONTRACT_NAME;
 use crate::error::ContractError;
 use axelar_wasm_std::permission_control;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
-use cw2::VersionError;
 use cw_storage_plus::Item;
 
 const BASE_VERSION: &str = "0.2.0";
 
 pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
-    let current_version = cw2::get_contract_version(storage)?;
-    if current_version.version != BASE_VERSION {
-        Err(VersionError::WrongVersion {
-            expected: BASE_VERSION.into(),
-            found: current_version.version,
-        }
-        .into())
-    } else {
-        migrate_config_to_permission_control(storage)?;
-        Ok(())
-    }
+    cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
+
+    migrate_config_to_permission_control(storage)?;
+    Ok(())
 }
 
 fn migrate_config_to_permission_control(storage: &mut dyn Storage) -> Result<(), ContractError> {
@@ -38,12 +31,11 @@ pub const CONFIG: Item<Config> = Item::new("config");
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
-    use crate::contract::execute;
     use crate::contract::migrations::v0_2_0;
     use crate::contract::migrations::v0_2_0::BASE_VERSION;
+    use crate::contract::{execute, CONTRACT_NAME};
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, InstantiateMsg};
-    use crate::state::CONTRACT_NAME;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
 

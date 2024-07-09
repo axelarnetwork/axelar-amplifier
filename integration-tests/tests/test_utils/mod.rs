@@ -391,7 +391,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         governance_address.clone(),
         admin_address.clone(),
         rewards.contract_addr.clone(),
-        SIGNATURE_BLOCK_EXPIRY,
+        SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
     );
 
     let coordinator =
