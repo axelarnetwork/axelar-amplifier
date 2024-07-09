@@ -13,7 +13,6 @@ use crate::{
 
 #[cw_serde]
 pub struct Config {
-    pub governance: Addr,
     pub rewards_contract: Addr,
     pub block_expiry: u64, // number of blocks after which a signing session expires
 }

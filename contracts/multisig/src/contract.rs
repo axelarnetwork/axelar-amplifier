@@ -1,3 +1,4 @@
+use axelar_wasm_std::{killswitch, permission_control};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -43,8 +44,15 @@ pub fn instantiate(
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let admin = deps.api.addr_validate(&msg.admin_address)?;
+    let governance = deps.api.addr_validate(&msg.governance_address)?;
+
+    permission_control::set_admin(deps.storage, &admin)?;
+    permission_control::set_governance(deps.storage, &governance)?;
+
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
+
     let config = Config {
-        governance: deps.api.addr_validate(&msg.governance_address)?,
         rewards_contract: deps.api.addr_validate(&msg.rewards_address)?,
         block_expiry: msg.block_expiry,
     };
@@ -62,13 +70,14 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    match msg {
+    match msg.ensure_permissions(deps.storage, &info.sender)? {
         ExecuteMsg::StartSigningSession {
             verifier_set_id,
             msg,
             chain_name,
             sig_verifier,
         } => {
+            // TODO: use new permission model
             execute::require_authorized_caller(&deps, info.sender)?;
 
             let sig_verifier = sig_verifier
@@ -96,7 +105,6 @@ pub fn execute(
             signed_sender_address,
         } => execute::register_pub_key(deps, info, public_key, signed_sender_address),
         ExecuteMsg::AuthorizeCallers { contracts } => {
-            execute::require_governance(&deps, info.sender)?;
             let contracts = contracts
                 .iter()
                 .map(|addr| deps.api.addr_validate(addr))
@@ -104,13 +112,14 @@ pub fn execute(
             execute::authorize_callers(deps, contracts)
         }
         ExecuteMsg::UnauthorizeCallers { contracts } => {
-            execute::require_governance(&deps, info.sender)?;
             let contracts = contracts
                 .iter()
                 .map(|addr| deps.api.addr_validate(addr))
                 .try_collect()?;
             execute::unauthorize_callers(deps, contracts)
         }
+        ExecuteMsg::DisableSigning => execute::disable_signing(deps),
+        ExecuteMsg::EnableSigning => execute::enable_signing(deps),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -148,6 +157,7 @@ mod tests {
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, OwnedDeps, WasmMsg,
     };
+    use permission_control::Permission;
     use serde_json::from_str;
 
     use router_api::ChainName;
@@ -167,6 +177,8 @@ mod tests {
     const INSTANTIATOR: &str = "inst";
     const PROVER: &str = "prover";
     const REWARDS_CONTRACT: &str = "rewards";
+    const GOVERNANCE: &str = "governance";
+    const ADMIN: &str = "admin";
 
     const SIGNATURE_BLOCK_EXPIRY: u64 = 100;
 
@@ -175,7 +187,8 @@ mod tests {
         let env = mock_env();
 
         let msg = InstantiateMsg {
-            governance_address: "governance".parse().unwrap(),
+            governance_address: GOVERNANCE.parse().unwrap(),
+            admin_address: ADMIN.parse().unwrap(),
             rewards_address: REWARDS_CONTRACT.to_string(),
             block_expiry: SIGNATURE_BLOCK_EXPIRY,
         };
@@ -263,8 +276,7 @@ mod tests {
         deps: DepsMut,
         contracts: Vec<Addr>,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        let info = mock_info(config.governance.as_str(), &[]);
+        let info = mock_info(GOVERNANCE, &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
@@ -277,13 +289,34 @@ mod tests {
         deps: DepsMut,
         contracts: Vec<Addr>,
     ) -> Result<Response, axelar_wasm_std::ContractError> {
-        let config = CONFIG.load(deps.storage)?;
-        let info = mock_info(config.governance.as_str(), &[]);
+        let info = mock_info(GOVERNANCE, &[]);
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
             contracts: contracts.into_iter().map(|addr| addr.to_string()).collect(),
         };
+        execute(deps, env, info, msg)
+    }
+
+    fn do_disable_signing(
+        deps: DepsMut,
+        sender: &str,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let info = mock_info(sender, &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::DisableSigning;
+        execute(deps, env, info, msg)
+    }
+
+    fn do_enable_signing(
+        deps: DepsMut,
+        sender: &str,
+    ) -> Result<Response, axelar_wasm_std::ContractError> {
+        let info = mock_info(sender, &[]);
+        let env = mock_env();
+
+        let msg = ExecuteMsg::EnableSigning;
         execute(deps, env, info, msg)
     }
 
@@ -1065,7 +1098,11 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+            axelar_wasm_std::permission_control::Error::PermissionDenied {
+                expected: Permission::Governance.into(),
+                actual: Permission::NoPrivilege.into()
+            }
+            .to_string()
         );
     }
 
@@ -1083,7 +1120,90 @@ mod tests {
 
         assert_eq!(
             res.unwrap_err().to_string(),
-            axelar_wasm_std::ContractError::from(ContractError::Unauthorized).to_string()
+            axelar_wasm_std::permission_control::Error::PermissionDenied {
+                expected: Permission::Elevated.into(),
+                actual: Permission::NoPrivilege.into()
+            }
+            .to_string()
         );
+    }
+
+    #[test]
+    fn disable_enable_signing() {
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
+        let prover_address = Addr::unchecked(PROVER);
+
+        // authorize
+        do_authorize_callers(deps.as_mut(), vec![prover_address.clone()]).unwrap();
+
+        do_disable_signing(deps.as_mut(), ADMIN).unwrap();
+
+        for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &verifier_set_id,
+                "mock-chain".parse().unwrap(),
+            );
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                ContractError::SigningDisabled.to_string()
+            );
+        }
+
+        do_enable_signing(deps.as_mut(), ADMIN).unwrap();
+
+        for verifier_set_id in [ecdsa_subkey.clone(), ed25519_subkey.clone()] {
+            let res = do_start_signing_session(
+                deps.as_mut(),
+                PROVER,
+                &verifier_set_id,
+                "mock-chain".parse().unwrap(),
+            );
+
+            assert!(res.is_ok());
+        }
+    }
+
+    #[test]
+    fn disable_signing_after_session_creation() {
+        let (mut deps, ecdsa_subkey, ed25519_subkey) = setup();
+        do_authorize_callers(deps.as_mut(), vec![Addr::unchecked(PROVER)]).unwrap();
+
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+
+        for (_, verifier_set_id, signers, session_id) in
+            signature_test_data(&ecdsa_subkey, &ed25519_subkey)
+        {
+            do_start_signing_session(deps.as_mut(), PROVER, verifier_set_id, chain_name.clone())
+                .unwrap();
+
+            do_disable_signing(deps.as_mut(), ADMIN).unwrap();
+
+            let signer = signers.first().unwrap().to_owned();
+
+            let res = do_sign(deps.as_mut(), mock_env(), session_id, &signer);
+
+            assert_eq!(
+                res.unwrap_err().to_string(),
+                ContractError::SigningDisabled.to_string()
+            );
+
+            do_enable_signing(deps.as_mut(), ADMIN).unwrap();
+            assert!(do_sign(deps.as_mut(), mock_env(), session_id, &signer).is_ok());
+        }
+    }
+
+    #[test]
+    fn disable_enable_signing_has_correct_permissions() {
+        let mut deps = setup().0;
+
+        assert!(do_disable_signing(deps.as_mut(), "user1").is_err());
+        assert!(do_disable_signing(deps.as_mut(), ADMIN).is_ok());
+        assert!(do_enable_signing(deps.as_mut(), "user").is_err());
+        assert!(do_enable_signing(deps.as_mut(), ADMIN).is_ok());
+        assert!(do_disable_signing(deps.as_mut(), GOVERNANCE).is_ok());
+        assert!(do_enable_signing(deps.as_mut(), GOVERNANCE).is_ok());
     }
 }

@@ -37,8 +37,7 @@ pub fn chains(
 
 #[cfg(test)]
 mod test {
-    use crate::state;
-    use crate::state::{chain_endpoints, State, STATE};
+    use crate::state::chain_endpoints;
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::{testing::mock_dependencies, Addr};
     use router_api::error::Error;
@@ -130,17 +129,5 @@ mod test {
         let result =
             super::chains(deps.as_ref(), Some("e-chain".parse().unwrap()), Some(2)).unwrap();
         assert_eq!(result.len(), 0);
-    }
-
-    #[test]
-    fn is_enabled() {
-        let mut deps = mock_dependencies();
-        assert!(!state::is_enabled(deps.as_ref().storage));
-
-        STATE.save(deps.as_mut().storage, &State::Disabled).unwrap();
-        assert!(!state::is_enabled(deps.as_ref().storage));
-
-        STATE.save(deps.as_mut().storage, &State::Enabled).unwrap();
-        assert!(state::is_enabled(deps.as_ref().storage));
     }
 }

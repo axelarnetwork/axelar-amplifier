@@ -1,5 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
+use msgs_derive::EnsurePermissions;
 use router_api::ChainName;
 
 use crate::{
@@ -12,13 +13,17 @@ use crate::{
 pub struct InstantiateMsg {
     // the governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
+    // The admin address (or governance) is allowed to disable signing. Only governance can re-enable
+    pub admin_address: String,
     pub rewards_address: String,
     pub block_expiry: u64,
 }
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
     // Can only be called by an authorized contract.
+    #[permission(Any)]
     StartSigningSession {
         verifier_set_id: String,
         msg: HexBinary,
@@ -31,27 +36,34 @@ pub enum ExecuteMsg {
         /// [signature_verifier_api::msg]
         sig_verifier: Option<String>,
     },
+    #[permission(Any)]
     SubmitSignature {
         session_id: Uint64,
         signature: HexBinary,
     },
-    RegisterVerifierSet {
-        verifier_set: VerifierSet,
-    },
+    #[permission(Any)]
+    RegisterVerifierSet { verifier_set: VerifierSet },
+    #[permission(Any)]
     RegisterPublicKey {
         public_key: PublicKey,
         /* To prevent anyone from registering a public key that belongs to someone else, we require the sender
         to sign their own address using the private key */
         signed_sender_address: HexBinary,
     },
-    // Authorizes a contract to call StartSigningSession. Callable only by governance
-    AuthorizeCallers {
-        contracts: Vec<String>,
-    },
-    // Unauthorizes a contract, so it can no longer call StartSigningSession. Callable only by governance
-    UnauthorizeCallers {
-        contracts: Vec<String>,
-    },
+    // Authorizes a contract to call StartSigningSession.
+    #[permission(Governance)]
+    AuthorizeCallers { contracts: Vec<String> },
+    // Unauthorizes a contract, so it can no longer call StartSigningSession.
+    #[permission(Elevated)]
+    UnauthorizeCallers { contracts: Vec<String> },
+
+    /// Emergency command to stop all amplifier signing
+    #[permission(Elevated)]
+    DisableSigning,
+
+    /// Resumes routing after an emergency shutdown
+    #[permission(Elevated)]
+    EnableSigning,
 }
 
 #[cw_serde]

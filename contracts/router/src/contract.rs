@@ -1,3 +1,4 @@
+use axelar_wasm_std::killswitch;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -8,7 +9,7 @@ use crate::contract::migrations::{set_version_after_migration, v0_3_3};
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
 use crate::state;
-use crate::state::{load_chain_by_gateway, Config, State, CONTRACT_NAME, CONTRACT_VERSION, STATE};
+use crate::state::{load_chain_by_gateway, Config, CONTRACT_NAME, CONTRACT_VERSION};
 use axelar_wasm_std::{permission_control, FnExt};
 use router_api::error::Error;
 use router_api::msg::{ExecuteMsg, QueryMsg};
@@ -47,7 +48,7 @@ pub fn instantiate(
     };
 
     state::save_config(deps.storage, &config)?;
-    STATE.save(deps.storage, &State::Enabled)?;
+    killswitch::init(deps.storage, killswitch::State::Disengaged)?;
 
     Ok(Response::new().add_event(
         RouterInstantiated {
@@ -121,7 +122,7 @@ pub fn query(
         QueryMsg::Chains { start_after, limit } => {
             to_json_binary(&query::chains(deps, start_after, limit)?)
         }
-        QueryMsg::IsEnabled => to_json_binary(&state::is_enabled(deps.storage)),
+        QueryMsg::IsEnabled => to_json_binary(&killswitch::is_contract_active(deps.storage)),
     }
     .map_err(axelar_wasm_std::ContractError::from)
 }
@@ -1705,5 +1706,21 @@ mod test {
         .unwrap();
 
         assert!(res.events.is_empty());
+    }
+
+    #[test]
+    fn is_enabled() {
+        let mut deps = mock_dependencies();
+        let is_enabled = |deps: Deps| {
+            from_json::<bool>(query(deps, mock_env(), QueryMsg::IsEnabled).unwrap()).unwrap()
+        };
+        assert!(!is_enabled(deps.as_ref()));
+
+        killswitch::init(deps.as_mut().storage, killswitch::State::Engaged).unwrap();
+        assert!(!is_enabled(deps.as_ref()));
+        killswitch::engage(deps.as_mut().storage, events::RoutingDisabled).unwrap();
+        assert!(!is_enabled(deps.as_ref()));
+        killswitch::disengage(deps.as_mut().storage, events::RoutingEnabled).unwrap();
+        assert!(is_enabled(deps.as_ref()));
     }
 }
