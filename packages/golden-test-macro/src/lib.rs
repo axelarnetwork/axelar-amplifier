@@ -44,6 +44,7 @@ impl Parse for MacroArgs {
     }
 }
 
+#[allow(clippy::test_attr_in_doctest)]
 /// Allows a test to work with golden files. A `golden_file` variable will be defined that can be written to during the test.
 /// This golden file will be checked or updated based on the test mode.
 ///
