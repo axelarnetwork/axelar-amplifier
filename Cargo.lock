@@ -3120,6 +3120,7 @@ dependencies = [
 name = "golden-test-macro"
 version = "0.1.0"
 dependencies = [
+ "goldenfile",
  "quote 1.0.36",
  "syn 2.0.68",
 ]

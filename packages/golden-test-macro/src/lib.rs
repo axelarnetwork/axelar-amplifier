@@ -58,10 +58,13 @@ impl Parse for MacroArgs {
 /// # Examples
 ///
 /// ```
+/// use golden_test_macro::golden_test;
+/// use std::io::Write;
+///
 /// #[golden_test(dir = "tests/files", path = "method.json")]
 /// #[test]
 /// fn test_method() {
-///    // test code
+///    writeln!(golden_file, "Hello, world!").unwrap();
 /// }
 /// ```
 #[proc_macro_attribute]
