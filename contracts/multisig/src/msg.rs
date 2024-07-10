@@ -1,3 +1,4 @@
+use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
 use msgs_derive::EnsurePermissions;
@@ -10,13 +11,18 @@ use crate::{
 };
 
 #[cw_serde]
+pub struct MigrationMsg {
+    pub admin_address: String,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     // the governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
     // The admin address (or governance) is allowed to disable signing. Only governance can re-enable
     pub admin_address: String,
     pub rewards_address: String,
-    pub block_expiry: u64,
+    pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
 }
 
 #[cw_serde]

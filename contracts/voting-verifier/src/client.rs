@@ -104,9 +104,7 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 mod test {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{
-        msg_id::tx_hash_event_index::HexTxHashAndEventIndex, Threshold, VerificationStatus,
-    };
+    use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, Threshold, VerificationStatus};
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},

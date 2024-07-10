@@ -45,7 +45,7 @@ pub fn start_signing_session(
     let expires_at = env
         .block
         .height
-        .checked_add(config.block_expiry)
+        .checked_add(config.block_expiry.into())
         .ok_or_else(|| {
             OverflowError::new(
                 OverflowOperation::Add,

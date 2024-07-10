@@ -12,7 +12,7 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::Error::EventTypeMismatch;
 use events_derive::try_from;
