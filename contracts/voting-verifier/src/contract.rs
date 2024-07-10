@@ -105,9 +105,8 @@ mod test {
 
     use axelar_wasm_std::{
         msg_id::{
-            base_58_event_index::Base58TxDigestAndEventIndex,
-            base_58_solana_event_index::Base58SolanaTxDigestAndEventIndex,
-            tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
+            Base58SolanaTxDigestAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
+            MessageIdFormat,
         },
         nonempty,
         voting::Vote,

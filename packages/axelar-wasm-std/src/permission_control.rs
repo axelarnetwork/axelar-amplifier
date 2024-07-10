@@ -61,8 +61,7 @@ pub fn set_governance(storage: &mut dyn cosmwasm_std::Storage, addr: &Addr) -> S
     GOVERNANCE.save(storage, addr)
 }
 
-// this is an implementation detail of the `EnsurePermission` derived ensure_permission macro and shouldn't be called on its own
-#[doc(hidden)]
+/// Generally it shouldn't be necessary to call this function directly, use derived permission controlled functions instead
 #[allow(clippy::arithmetic_side_effects)] // flagset is safe
 pub fn sender_role(
     storage: &dyn cosmwasm_std::Storage,

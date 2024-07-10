@@ -247,7 +247,7 @@ mod test {
     use crate::msg::InstantiateMsg;
     use crate::state::chain_endpoints;
     use axelar_wasm_std::flagset::FlagSet;
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, Storage};
     use rand::{random, RngCore};

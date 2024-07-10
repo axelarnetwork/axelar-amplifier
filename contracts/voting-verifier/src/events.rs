@@ -1,9 +1,9 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
-use axelar_wasm_std::msg_id::base_58_solana_event_index::Base58SolanaTxDigestAndEventIndex;
-use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+use axelar_wasm_std::msg_id::Base58SolanaTxDigestAndEventIndex;
+use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
+use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, Event};
@@ -255,10 +255,7 @@ mod test {
     use std::collections::BTreeMap;
 
     use axelar_wasm_std::{
-        msg_id::{
-            base_58_event_index::Base58TxDigestAndEventIndex,
-            tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
-        },
+        msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat},
         nonempty,
     };
     use cosmwasm_std::Uint128;
