@@ -161,6 +161,13 @@ impl EpochTally {
             })
             .collect()
     }
+
+    pub fn verifier_participation(&self) -> HashMap<Addr, u64> {
+        self.participation
+            .iter()
+            .map(|(verifier, participation)| (Addr::unchecked(verifier), *participation)) // Ok to convert unchecked here, since we only store valid addresses
+            .collect()
+    }
 }
 
 #[cw_serde]

@@ -1,7 +1,9 @@
 use async_trait::async_trait;
-use ethers::providers::{JsonRpcClient, ProviderError};
-use ethers::types::{Block, BlockNumber, TransactionReceipt, H256, U64};
-use ethers::utils::serialize;
+use ethers_core::{
+    types::{Block, BlockNumber, TransactionReceipt, H256, U64},
+    utils::serialize,
+};
+use ethers_providers::{JsonRpcClient, ProviderError};
 use mockall::automock;
 
 use crate::json_rpc::Client;
@@ -17,10 +19,6 @@ pub trait EthereumClient {
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>>;
 }
 
-#[async_trait]
-pub trait MoonbeamClient: EthereumClient {
-    async fn finalized_block_hash(&self) -> Result<H256>;
-}
 #[async_trait]
 impl<P> EthereumClient for Client<P>
 where
@@ -40,15 +38,5 @@ where
 
     async fn transaction_receipt(&self, hash: H256) -> Result<Option<TransactionReceipt>> {
         self.request("eth_getTransactionReceipt", [hash]).await
-    }
-}
-
-#[async_trait]
-impl<P> MoonbeamClient for Client<P>
-where
-    P: JsonRpcClient + Send + Sync + 'static,
-{
-    async fn finalized_block_hash(&self) -> Result<H256> {
-        self.request("chain_getFinalizedHead", ()).await
     }
 }

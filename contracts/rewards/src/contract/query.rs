@@ -35,9 +35,38 @@ pub fn rewards_pool(
     })
 }
 
+pub fn participation(
+    storage: &dyn Storage,
+    pool_id: PoolId,
+    epoch_num: Option<u64>,
+    block_height: u64,
+) -> Result<Option<msg::Participation>, ContractError> {
+    let epoch_num = match epoch_num {
+        Some(num) => num,
+        None => {
+            let current_params = state::load_params(storage);
+            Epoch::current(&current_params, block_height)?.epoch_num
+        }
+    };
+
+    let tally = state::load_epoch_tally(storage, pool_id, epoch_num)?;
+
+    match tally {
+        None => Ok(None),
+        Some(tally) => Ok(Some(msg::Participation {
+            event_count: tally.event_count,
+            participation: tally.verifier_participation(),
+            rewards_by_verifier: tally.rewards_by_verifier(),
+            epoch: tally.epoch,
+            params: tally.params,
+        })),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use msg::Participation;
 
     use crate::{
         msg::Params,
@@ -233,5 +262,61 @@ mod tests {
             res.unwrap_err().current_context(),
             &ContractError::RewardsPoolNotFound
         );
+    }
+
+    #[test]
+    fn should_get_participation() {
+        let mut deps = mock_dependencies();
+        let balance = Uint128::from(1000u128);
+        let (current_params, pool_id) = setup(deps.as_mut().storage, balance);
+
+        let block_height = 1000;
+        let epoch = Epoch::current(&current_params, block_height).unwrap();
+
+        let mut tally = EpochTally::new(
+            pool_id.clone(),
+            epoch.clone(),
+            current_params.params.clone(),
+        );
+        tally = tally.record_participation(Addr::unchecked("verifier_1"));
+        tally = tally.record_participation(Addr::unchecked("verifier_2"));
+        tally.event_count = tally.event_count.saturating_add(1);
+        state::save_epoch_tally(deps.as_mut().storage, &tally).unwrap();
+
+        let expected = Participation {
+            event_count: tally.event_count,
+            participation: tally.verifier_participation(),
+            rewards_by_verifier: tally.rewards_by_verifier(),
+            epoch: Epoch::current(&current_params.clone(), block_height).unwrap(),
+            params: current_params.params.clone(),
+        };
+
+        // get participation for current epoch
+        let res =
+            participation(deps.as_mut().storage, pool_id.clone(), None, block_height).unwrap();
+        assert_eq!(res.unwrap(), expected);
+
+        // get participation for past epoch
+        let res = participation(
+            deps.as_mut().storage,
+            pool_id.clone(),
+            Some(epoch.epoch_num),
+            block_height + u64::from(current_params.params.epoch_duration),
+        )
+        .unwrap();
+        assert_eq!(res.unwrap(), expected);
+    }
+
+    #[test]
+    fn participation_should_return_none_when_no_participation() {
+        let mut deps = mock_dependencies();
+        let balance = Uint128::from(1000u128);
+        let (_, pool_id) = setup(deps.as_mut().storage, balance);
+
+        let block_height = 1000;
+
+        let res =
+            participation(deps.as_mut().storage, pool_id.clone(), None, block_height).unwrap();
+        assert!(res.is_none());
     }
 }

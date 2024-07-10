@@ -124,7 +124,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use cosmwasm_std::Uint128;
-    use ethers::abi::AbiEncode;
+    use ethers_core::abi::AbiEncode;
     use move_core_types::language_storage::StructTag;
     use random_string::generate;
     use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockEvents, SuiTransactionBlockResponse};

@@ -1,6 +1,6 @@
 [package]
 name = "service-registry"
-version = "0.2.2"
+version = "0.4.0"
 rust-version = { workspace = true }
 edition = "2021"
 description = "Contract handling the service registrations"
@@ -29,12 +29,13 @@ library = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.12.6
+  cosmwasm/optimizer:0.16.0
 """
 
 [dependencies]
 axelar-wasm-std = { workspace = true }
 axelar-wasm-std-derive = { workspace = true }
+coordinator = { workspace = true, features = ["library"] }
 cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true }
 cw-storage-plus = { workspace = true }

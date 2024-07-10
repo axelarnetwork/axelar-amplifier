@@ -67,6 +67,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
     use cosmwasm_std::{from_json, CosmosMsg};
     use hex::decode;
 
@@ -122,6 +123,16 @@ mod test {
             .returning(move || Ok(config.clone()));
         let contract = Contract::new(store);
 
+        let msg_ids = [
+            HexTxHashAndEventIndex {
+                tx_hash: vec![0x2f; 32].try_into().unwrap(),
+                event_index: 100,
+            },
+            HexTxHashAndEventIndex {
+                tx_hash: vec![0x23; 32].try_into().unwrap(),
+                event_index: 1000,
+            },
+        ];
         let msgs = vec![
             nexus::Message {
                 source_chain: "sourceChain".parse().unwrap(),
@@ -134,8 +145,9 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-                source_tx_id: vec![0x2f; 32].try_into().unwrap(),
-                source_tx_index: 100,
+                source_tx_id: msg_ids[0].tx_hash.to_vec().try_into().unwrap(),
+                source_tx_index: msg_ids[0].event_index as u64,
+                id: msg_ids[0].to_string(),
             },
             nexus::Message {
                 source_chain: "sourceChain".parse().unwrap(),
@@ -148,8 +160,9 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-                source_tx_id: vec![0x23; 32].try_into().unwrap(),
-                source_tx_index: 1000,
+                source_tx_id: msg_ids[1].tx_hash.to_vec().try_into().unwrap(),
+                source_tx_index: msg_ids[1].event_index as u64,
+                id: msg_ids[1].to_string(),
             },
         ];
         let res = contract.route_to_router(Addr::unchecked("nexus"), msgs);

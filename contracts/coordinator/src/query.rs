@@ -1,23 +1,26 @@
 use crate::error::ContractError;
-use crate::state::{ACTIVE_VERIFIER_SET_FOR_PROVER, PROVER_PER_CHAIN};
-use cosmwasm_std::{Addr, Deps, StdResult};
-use multisig::verifier_set::VerifierSet;
+use crate::state::{VerifierAddress, PROVER_PER_CHAIN, VERIFIER_PROVER_INDEXED_MAP};
+use cosmwasm_std::{Addr, Deps, Order, StdResult};
 use router_api::ChainName;
 
-pub fn provers(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
+pub fn prover(deps: Deps, chain_name: ChainName) -> Result<Addr, ContractError> {
     PROVER_PER_CHAIN
         .may_load(deps.storage, chain_name.clone())?
         .ok_or(ContractError::NoProversRegisteredForChain(chain_name))
 }
 
-// For now, we consider only one prover per chain
-pub fn get_active_verifier_set(
-    deps: Deps,
-    chain_name: ChainName,
-) -> StdResult<Option<VerifierSet>> {
-    let prover_address = provers(deps, chain_name).unwrap();
-    let active_verifier_set =
-        ACTIVE_VERIFIER_SET_FOR_PROVER.may_load(deps.storage, prover_address.clone())?;
+fn is_verifier_in_any_verifier_set(deps: Deps, verifier_address: &VerifierAddress) -> bool {
+    VERIFIER_PROVER_INDEXED_MAP
+        .idx
+        .by_verifier
+        .prefix(verifier_address.clone())
+        .range(deps.storage, None, None, Order::Ascending)
+        .any(|_| true)
+}
 
-    Ok(active_verifier_set)
+pub fn check_verifier_ready_to_unbond(
+    deps: Deps,
+    verifier_address: VerifierAddress,
+) -> StdResult<bool> {
+    Ok(!is_verifier_in_any_verifier_set(deps, &verifier_address))
 }

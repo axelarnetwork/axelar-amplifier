@@ -1,74 +1,47 @@
-pub fn try_map<T, B, F, E>(vec: Vec<T>, f: F) -> Result<Vec<B>, E>
-where
-    F: FnMut(T) -> Result<B, E>,
-{
-    vec.into_iter().map(f).collect::<Result<Vec<B>, E>>()
+pub trait TryMapExt<T> {
+    type Monad<B>;
+    fn try_map<B, E>(self, func: impl FnMut(T) -> Result<B, E>) -> Result<Self::Monad<B>, E>;
 }
 
-pub trait InspectorResult<T, E> {
-    /// This function should be called `inspect`, but would have a name collision with the unstable [core::result::Result::inspect](https://doc.rust-lang.org/core/result/enum.Result.html#method.inspect) function.
-    fn tap<F>(self, f: F) -> Self
-    where
-        F: FnOnce(&T);
+impl<T> TryMapExt<T> for Option<T> {
+    type Monad<B> = Option<B>;
 
-    /// This function should be called `inspect_err`, but would have a name collision with the unstable [core::result::Result::inspect_err](https://doc.rust-lang.org/core/result/enum.Result.html#method.inspect_err) function.
-    fn tap_err<F>(self, f: F) -> Self
-    where
-        F: FnOnce(&E);
-}
-
-impl<T, E> InspectorResult<T, E> for Result<T, E> {
-    /// Use this to create a side effect without consuming the result.
-    ///
-    /// Example:
-    /// ```
-    /// use axelar_wasm_std::utils::InspectorResult;
-    ///
-    /// let result: Result<i32, String> = Ok(1);
-    /// assert_eq!(result.tap(|x| println!("result is {}", x)).map(|x| x + 1), Ok(2));
-    ///
-    /// let err:Result<i32, String> = Err("wrong value".to_string());
-    /// assert!(err.tap(|x| println!("error is {}", x)).is_err()); // println will not be called
-    /// ```
-    fn tap<F>(self, f: F) -> Self
-    where
-        F: FnOnce(&T),
-    {
-        self.map(|t| {
-            f(&t);
-            t
-        })
-    }
-
-    /// Use this to create a side effect without consuming the error.
-    ///
-    /// Example:
-    /// ```
-    /// use axelar_wasm_std::utils::InspectorResult;
-    ///
-    /// let result: Result<i32, String> = Ok(1);
-    /// assert_eq!(result.tap_err(|x| println!("error is {}", x)).map(|x| x + 1), Ok(2)); // println will not be called
-    ///
-    /// let err:Result<i32, String> = Err("wrong value".to_string());
-    /// assert!(err.tap_err(|x| println!("result is {}", x)).is_err());
-    /// ```
-    fn tap_err<F>(self, f: F) -> Self
-    where
-        F: FnOnce(&E),
-    {
-        self.map_err(|e| {
-            f(&e);
-            e
-        })
-    }
-}
-
-pub trait TryMapExt<T, B, E> {
-    fn try_map(self, func: impl FnOnce(T) -> Result<B, E>) -> Result<Option<B>, E>;
-}
-
-impl<T, B, E> TryMapExt<T, B, E> for Option<T> {
-    fn try_map(self, func: impl FnOnce(T) -> Result<B, E>) -> Result<Option<B>, E> {
+    fn try_map<B, E>(self, func: impl FnMut(T) -> Result<B, E>) -> Result<Option<B>, E> {
         self.map(func).transpose()
+    }
+}
+
+impl<T> TryMapExt<T> for Vec<T> {
+    type Monad<B> = Vec<B>;
+
+    fn try_map<B, E>(self, func: impl FnMut(T) -> Result<B, E>) -> Result<Vec<B>, E> {
+        self.into_iter().map(func).collect::<Result<Vec<B>, E>>()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_try_map_vec() {
+        let vec = vec![1, 2, 3];
+        let result: Result<_, &str> = vec.try_map(|x| Ok(x + 1));
+        assert_eq!(result, Ok(vec![2, 3, 4]));
+
+        let vec = vec![1, 2, 3];
+        let result: Result<Vec<i32>, _> = vec.try_map(|_| Err("error"));
+        assert_eq!(result, Err("error"));
+    }
+
+    #[test]
+    fn test_try_map_option() {
+        let option = Some(1);
+        let result: Result<_, &str> = option.try_map(|x| Ok(x + 1));
+        assert_eq!(result, Ok(Some(2)));
+
+        let option = Some(1);
+        let result: Result<Option<i32>, _> = option.try_map(|_| Err("error"));
+        assert_eq!(result, Err("error"));
     }
 }

@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{key::PublicKey, msg::Signer};
+use axelar_wasm_std::hash::Hash;
 use axelar_wasm_std::Participant;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{HexBinary, Uint128};
+use cosmwasm_std::{Addr, HexBinary, Uint128};
 use sha3::{Digest, Keccak256};
 
 #[cw_serde]
@@ -43,14 +44,23 @@ impl VerifierSet {
         }
     }
 
-    pub fn hash(&self) -> HexBinary {
-        Keccak256::digest(serde_json::to_vec(&self).expect("couldn't serialize verifier set"))
-            .as_slice()
-            .into()
+    pub fn hash(&self) -> Hash {
+        let mut hasher = Keccak256::new();
+
+        self.signers.values().for_each(|signer| {
+            hasher.update(signer.address.as_bytes());
+            hasher.update(signer.pub_key.as_ref());
+            hasher.update(signer.weight.to_be_bytes());
+        });
+
+        hasher.update(self.threshold.to_be_bytes());
+        hasher.update(self.created_at.to_be_bytes());
+
+        hasher.finalize().into()
     }
 
     pub fn id(&self) -> String {
-        self.hash().to_hex()
+        HexBinary::from(self.hash()).to_hex()
     }
 
     pub fn get_pub_keys(&self) -> HashMap<String, PublicKey> {
@@ -58,5 +68,9 @@ impl VerifierSet {
             .iter()
             .map(|(address, signer)| (address.clone(), signer.pub_key.clone()))
             .collect()
+    }
+
+    pub fn includes(&self, signer: &Addr) -> bool {
+        self.signers.contains_key(signer.as_str())
     }
 }

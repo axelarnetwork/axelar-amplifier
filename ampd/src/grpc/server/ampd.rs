@@ -5,11 +5,8 @@ use events::Event;
 use futures::{Stream, StreamExt, TryStreamExt};
 use tonic::{Request, Response, Status};
 
+use super::proto;
 use crate::{event_sub::EventSub, queue::queued_broadcaster::BroadcasterClient};
-
-pub mod proto {
-    tonic::include_proto!("ampd");
-}
 
 impl From<Event> for proto::subscribe_response::Event {
     fn from(event: Event) -> Self {
@@ -115,7 +112,6 @@ where
         let req = req.into_inner();
         let msg = req.msg.ok_or(Status::invalid_argument("missing msg"))?;
 
-        // TODO: validate msg by estimating its gas cost before broadcasting?
         self.broadcaster
             .broadcast(msg)
             .await
@@ -130,7 +126,7 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
 
-    use cosmos_sdk_proto::Any;
+    use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
     use events::Event;

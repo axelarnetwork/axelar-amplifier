@@ -11,12 +11,12 @@ use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 use tracing::warn;
 use valuable::Valuable;
 
 use crate::asyncutil::future::{self, RetryPolicy};
 use crate::asyncutil::task::TaskError;
-use crate::handlers::chain;
 use crate::queue::queued_broadcaster::BroadcasterClient;
 
 #[async_trait]
@@ -24,14 +24,6 @@ pub trait EventHandler {
     type Err: Context;
 
     async fn handle(&self, event: &Event) -> Result<Vec<Any>, Self::Err>;
-
-    fn chain<H>(self, handler: H) -> chain::Handler<Self, H>
-    where
-        Self: Sized,
-        H: EventHandler,
-    {
-        chain::Handler::new(self, handler)
-    }
 }
 
 #[derive(Error, Debug)]
@@ -48,6 +40,7 @@ pub enum Error {
 /// at the end of each consumed block or when the `event_stream` times out. If the token is cancelled or the
 /// `event_stream` is closed, the function returns
 pub async fn consume_events<H, B, S, E>(
+    handler_label: String,
     handler: H,
     broadcaster: B,
     event_stream: S,
@@ -68,6 +61,14 @@ where
 
         if let StreamStatus::Active(event) = &stream_status {
             handle_event(&handler, &broadcaster, event).await?;
+        }
+
+        if let StreamStatus::Active(Event::BlockEnd(height)) = &stream_status {
+            info!(
+                handler = handler_label,
+                height = height.value(),
+                "handler finished processing block"
+            );
         }
 
         if should_task_stop(stream_status, &token) {
@@ -184,6 +185,7 @@ mod tests {
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
+                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
@@ -212,6 +214,7 @@ mod tests {
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
+                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
@@ -241,6 +244,7 @@ mod tests {
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
+                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
@@ -274,6 +278,7 @@ mod tests {
         let result_with_timeout = timeout(
             Duration::from_secs(3),
             consume_events(
+                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
@@ -308,6 +313,7 @@ mod tests {
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
+                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::iter(events),
@@ -333,6 +339,7 @@ mod tests {
         let result_with_timeout = timeout(
             Duration::from_secs(1),
             consume_events(
+                "handler".to_string(),
                 handler,
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out

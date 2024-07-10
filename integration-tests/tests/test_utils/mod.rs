@@ -8,7 +8,9 @@ use cosmwasm_std::{
     coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
 };
 use cw_multi_test::{App, AppResponse, Executor};
+use multisig_prover::msg::VerifierSetResponse;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
+use std::collections::HashSet;
 
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
@@ -265,7 +267,7 @@ pub fn register_service(
         protocol.governance_address.clone(),
         &ExecuteMsg::RegisterService {
             service_name: protocol.service_name.to_string(),
-            service_contract: Addr::unchecked("nowhere"),
+            coordinator_contract: protocol.coordinator.contract_addr.clone(),
             min_num_verifiers: 0,
             max_num_verifiers: Some(100),
             min_verifier_bond,
@@ -314,25 +316,11 @@ pub fn get_verifier_set_from_prover(
     app: &mut App,
     multisig_prover_contract: &MultisigProverContract,
 ) -> VerifierSet {
-    let query_response: Result<VerifierSet, StdError> =
-        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::GetVerifierSet);
+    let query_response: Result<Option<VerifierSetResponse>, StdError> =
+        multisig_prover_contract.query(app, &multisig_prover::msg::QueryMsg::CurrentVerifierSet);
     assert!(query_response.is_ok());
 
-    query_response.unwrap()
-}
-
-pub fn get_verifier_set_from_coordinator(
-    app: &mut App,
-    coordinator_contract: &CoordinatorContract,
-    chain_name: ChainName,
-) -> VerifierSet {
-    let query_response: Result<VerifierSet, StdError> = coordinator_contract.query(
-        app,
-        &coordinator::msg::QueryMsg::GetActiveVerifiers { chain_name },
-    );
-    assert!(query_response.is_ok());
-
-    query_response.unwrap()
+    query_response.unwrap().unwrap().verifier_set
 }
 
 #[allow(clippy::arithmetic_side_effects)]
@@ -448,68 +436,8 @@ pub fn register_verifiers(
     verifiers: &Vec<Verifier>,
     min_verifier_bond: Uint128,
 ) {
-    let response = protocol.service_registry.execute(
-        &mut protocol.app,
-        protocol.governance_address.clone(),
-        &ExecuteMsg::AuthorizeVerifiers {
-            verifiers: verifiers
-                .iter()
-                .map(|verifier| verifier.addr.to_string())
-                .collect(),
-            service_name: protocol.service_name.to_string(),
-        },
-    );
-    assert!(response.is_ok());
-
-    for verifier in verifiers {
-        let response = protocol.app.send_tokens(
-            protocol.genesis_address.clone(),
-            verifier.addr.clone(),
-            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
-        );
-        assert!(response.is_ok());
-
-        let response = protocol.service_registry.execute_with_funds(
-            &mut protocol.app,
-            verifier.addr.clone(),
-            &ExecuteMsg::BondVerifier {
-                service_name: protocol.service_name.to_string(),
-            },
-            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
-        );
-        assert!(response.is_ok());
-
-        let response = protocol.service_registry.execute(
-            &mut protocol.app,
-            verifier.addr.clone(),
-            &ExecuteMsg::RegisterChainSupport {
-                service_name: protocol.service_name.to_string(),
-                chains: verifier.supported_chains.clone(),
-            },
-        );
-        assert!(response.is_ok());
-
-        let address_hash = Keccak256::digest(verifier.addr.as_bytes());
-
-        let sig = tofn::ecdsa::sign(
-            verifier.key_pair.signing_key(),
-            &address_hash.as_slice().try_into().unwrap(),
-        )
-        .unwrap();
-        let sig = ecdsa::Signature::from_der(&sig).unwrap();
-
-        let response = protocol.multisig.execute(
-            &mut protocol.app,
-            verifier.addr.clone(),
-            &multisig::msg::ExecuteMsg::RegisterPublicKey {
-                public_key: PublicKey::Ecdsa(HexBinary::from(
-                    verifier.key_pair.encoded_verifying_key(),
-                )),
-                signed_sender_address: HexBinary::from(sig.to_vec()),
-            },
-        );
-        assert!(response.is_ok());
-    }
+    register_in_service_registry(protocol, verifiers, min_verifier_bond);
+    submit_pubkeys(protocol, verifiers);
 }
 
 pub fn deregister_verifiers(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
@@ -538,7 +466,12 @@ pub fn deregister_verifiers(protocol: &mut Protocol, verifiers: &Vec<Verifier>) 
     }
 }
 
-pub fn claim_stakes(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
+pub fn claim_stakes(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+) -> Vec<Result<AppResponse, String>> {
+    let mut responses = Vec::new();
+
     for verifier in verifiers {
         let response = protocol.service_registry.execute(
             &mut protocol.app,
@@ -547,8 +480,11 @@ pub fn claim_stakes(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
                 service_name: protocol.service_name.to_string(),
             },
         );
-        assert!(response.is_ok());
+
+        responses.push(response.map_err(|e| e.to_string()));
     }
+
+    responses
 }
 
 pub fn confirm_verifier_set(
@@ -712,11 +648,15 @@ pub struct Chain {
     pub chain_name: ChainName,
 }
 
-pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
+pub fn setup_chain(
+    protocol: &mut Protocol,
+    chain_name: ChainName,
+    verifiers: &[Verifier],
+) -> Chain {
     let voting_verifier = VotingVerifierContract::instantiate_contract(
         protocol,
         "doesn't matter".to_string().try_into().unwrap(),
-        Threshold::try_from((9, 10)).unwrap().try_into().unwrap(),
+        Threshold::try_from((3, 4)).unwrap().try_into().unwrap(),
         chain_name.clone(),
     );
 
@@ -798,6 +738,17 @@ pub fn setup_chain(protocol: &mut Protocol, chain_name: ChainName) -> Chain {
     );
     assert!(response.is_ok());
 
+    let mut verifier_union_set = HashSet::new();
+    verifier_union_set.extend(verifiers.iter().map(|verifier| verifier.addr.clone()));
+    let response = protocol.coordinator.execute(
+        &mut protocol.app,
+        multisig_prover.contract_addr.clone(),
+        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+            verifiers: verifier_union_set,
+        },
+    );
+    assert!(response.is_ok());
+
     Chain {
         gateway,
         voting_verifier,
@@ -822,6 +773,53 @@ pub fn query_balances(app: &App, verifiers: &Vec<Verifier>) -> Vec<Uint128> {
     balances
 }
 
+pub fn rotate_active_verifier_set(
+    protocol: &mut Protocol,
+    chain: Chain,
+    previous_verifiers: &Vec<Verifier>,
+    new_verifiers: &Vec<Verifier>,
+) {
+    let response = chain.multisig_prover.execute(
+        &mut protocol.app,
+        chain.multisig_prover.admin_addr.clone(),
+        &multisig_prover::msg::ExecuteMsg::UpdateVerifierSet,
+    );
+    assert!(response.is_ok());
+
+    let session_id = sign_proof(protocol, previous_verifiers, response.unwrap());
+
+    let proof = get_proof(&mut protocol.app, &chain.multisig_prover, &session_id);
+    assert!(matches!(
+        proof.status,
+        multisig_prover::msg::ProofStatus::Completed { .. }
+    ));
+    assert_eq!(proof.message_ids.len(), 0);
+
+    let new_verifier_set = verifiers_to_verifier_set(protocol, new_verifiers);
+    let (poll_id, expiry) = create_verifier_set_poll(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        &chain.voting_verifier,
+        new_verifier_set.clone(),
+    );
+
+    vote_true_for_verifier_set(
+        &mut protocol.app,
+        &chain.voting_verifier,
+        new_verifiers,
+        poll_id,
+    );
+
+    advance_at_least_to_height(&mut protocol.app, expiry);
+    end_poll(&mut protocol.app, &chain.voting_verifier, poll_id);
+
+    confirm_verifier_set(
+        &mut protocol.app,
+        Addr::unchecked("relayer"),
+        &chain.multisig_prover,
+    );
+}
+
 pub struct TestCase {
     pub protocol: Protocol,
     pub chain1: Chain,
@@ -838,25 +836,18 @@ pub fn setup_test_case() -> TestCase {
         "Ethereum".to_string().try_into().unwrap(),
         "Polygon".to_string().try_into().unwrap(),
     ];
-    let verifiers = vec![
-        Verifier {
-            addr: Addr::unchecked("verifier1"),
-            supported_chains: chains.clone(),
-            key_pair: generate_key(0),
-        },
-        Verifier {
-            addr: Addr::unchecked("verifier2"),
-            supported_chains: chains.clone(),
-            key_pair: generate_key(1),
-        },
-    ];
+    let verifiers = create_new_verifiers_vec(
+        chains.clone(),
+        vec![("verifier1".to_string(), 0), ("verifier2".to_string(), 1)],
+    );
+
     let min_verifier_bond = Uint128::new(100);
     let unbonding_period_days = 10;
     register_service(&mut protocol, min_verifier_bond, unbonding_period_days);
 
     register_verifiers(&mut protocol, &verifiers, min_verifier_bond);
-    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone());
-    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone());
+    let chain1 = setup_chain(&mut protocol, chains.first().unwrap().clone(), &verifiers);
+    let chain2 = setup_chain(&mut protocol, chains.get(1).unwrap().clone(), &verifiers);
     TestCase {
         protocol,
         chain1,
@@ -872,4 +863,77 @@ pub fn assert_contract_err_strings_equal(
     expected: impl Into<axelar_wasm_std::ContractError>,
 ) {
     assert_eq!(actual.into().to_string(), expected.into().to_string());
+}
+
+pub fn register_in_service_registry(
+    protocol: &mut Protocol,
+    verifiers: &Vec<Verifier>,
+    min_verifier_bond: Uint128,
+) {
+    let response = protocol.service_registry.execute(
+        &mut protocol.app,
+        protocol.governance_address.clone(),
+        &ExecuteMsg::AuthorizeVerifiers {
+            verifiers: verifiers
+                .iter()
+                .map(|verifier| verifier.addr.to_string())
+                .collect(),
+            service_name: protocol.service_name.to_string(),
+        },
+    );
+    assert!(response.is_ok());
+
+    for verifier in verifiers {
+        let response = protocol.app.send_tokens(
+            protocol.genesis_address.clone(),
+            verifier.addr.clone(),
+            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+        );
+        assert!(response.is_ok());
+
+        let response = protocol.service_registry.execute_with_funds(
+            &mut protocol.app,
+            verifier.addr.clone(),
+            &ExecuteMsg::BondVerifier {
+                service_name: protocol.service_name.to_string(),
+            },
+            &coins(min_verifier_bond.u128(), AXL_DENOMINATION),
+        );
+        assert!(response.is_ok());
+
+        let response = protocol.service_registry.execute(
+            &mut protocol.app,
+            verifier.addr.clone(),
+            &ExecuteMsg::RegisterChainSupport {
+                service_name: protocol.service_name.to_string(),
+                chains: verifier.supported_chains.clone(),
+            },
+        );
+        assert!(response.is_ok());
+    }
+}
+
+pub fn submit_pubkeys(protocol: &mut Protocol, verifiers: &Vec<Verifier>) {
+    for verifier in verifiers {
+        let address_hash = Keccak256::digest(verifier.addr.as_bytes());
+
+        let sig = tofn::ecdsa::sign(
+            verifier.key_pair.signing_key(),
+            &address_hash.as_slice().try_into().unwrap(),
+        )
+        .unwrap();
+        let sig = ecdsa::Signature::from_der(&sig).unwrap();
+
+        let response = protocol.multisig.execute(
+            &mut protocol.app,
+            verifier.addr.clone(),
+            &multisig::msg::ExecuteMsg::RegisterPublicKey {
+                public_key: PublicKey::Ecdsa(HexBinary::from(
+                    verifier.key_pair.encoded_verifying_key(),
+                )),
+                signed_sender_address: HexBinary::from(sig.to_vec()),
+            },
+        );
+        assert!(response.is_ok());
+    }
 }

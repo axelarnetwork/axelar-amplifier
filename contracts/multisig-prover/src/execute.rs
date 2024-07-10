@@ -1,23 +1,24 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use cosmwasm_std::{
     to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest,
     Response, Storage, SubMsg, WasmQuery,
 };
-
 use itertools::Itertools;
-use multisig::{key::PublicKey, msg::Signer, verifier_set::VerifierSet};
 
-use axelar_wasm_std::{snapshot, MajorityThreshold, VerificationStatus};
+use axelar_wasm_std::{
+    snapshot::{Participant, Snapshot},
+    FnExt, MajorityThreshold, VerificationStatus,
+};
+use multisig::{msg::Signer, verifier_set::VerifierSet};
 use router_api::{ChainName, CrossChainId, Message};
-use service_registry::state::WeightedVerifier;
+use service_registry::state::{Service, WeightedVerifier};
 
 use crate::{
     contract::START_MULTISIG_REPLY_ID,
     error::ContractError,
     payload::Payload,
     state::{Config, CONFIG, CURRENT_VERIFIER_SET, NEXT_VERIFIER_SET, PAYLOAD, REPLY_TRACKER},
-    types::VerifiersInfo,
 };
 
 pub fn require_admin(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
@@ -37,9 +38,9 @@ pub fn require_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), Contr
 pub fn construct_proof(
     deps: DepsMut,
     message_ids: Vec<CrossChainId>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let payload_id = (&message_ids).into();
+) -> error_stack::Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
+    let payload_id = message_ids.as_slice().into();
 
     let messages = get_messages(
         deps.querier,
@@ -48,21 +49,29 @@ pub fn construct_proof(
         config.chain_name.clone(),
     )?;
 
-    let payload = match PAYLOAD.may_load(deps.storage, &payload_id)? {
+    let payload = match PAYLOAD
+        .may_load(deps.storage, &payload_id)
+        .map_err(ContractError::from)?
+    {
         Some(payload) => payload,
         None => {
             let payload = Payload::Messages(messages);
-            PAYLOAD.save(deps.storage, &payload_id, &payload)?;
+            PAYLOAD
+                .save(deps.storage, &payload_id, &payload)
+                .map_err(ContractError::from)?;
 
             payload
         }
     };
 
     // keep track of the payload id to use during submessage reply
-    REPLY_TRACKER.save(deps.storage, &payload_id)?;
+    REPLY_TRACKER
+        .save(deps.storage, &payload_id)
+        .map_err(ContractError::from)?;
 
     let verifier_set = CURRENT_VERIFIER_SET
-        .may_load(deps.storage)?
+        .may_load(deps.storage)
+        .map_err(ContractError::from)?
         .ok_or(ContractError::NoVerifierSet)?;
 
     let digest = payload.digest(config.encoder, &config.domain_separator, &verifier_set)?;
@@ -74,7 +83,8 @@ pub fn construct_proof(
         sig_verifier: None,
     };
 
-    let wasm_msg = wasm_execute(config.multisig, &start_sig_msg, vec![])?;
+    let wasm_msg =
+        wasm_execute(config.multisig, &start_sig_msg, vec![]).map_err(ContractError::from)?;
 
     Ok(Response::new().add_submessage(SubMsg::reply_on_success(wasm_msg, START_MULTISIG_REPLY_ID)))
 }
@@ -109,7 +119,11 @@ fn get_messages(
     Ok(messages)
 }
 
-fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, ContractError> {
+fn make_verifier_set(
+    deps: &DepsMut,
+    env: &Env,
+    config: &Config,
+) -> Result<VerifierSet, ContractError> {
     let active_verifiers_query = service_registry::msg::QueryMsg::GetActiveVerifiers {
         service_name: config.service_name.clone(),
         chain_name: config.chain_name.clone(),
@@ -121,43 +135,50 @@ fn get_verifiers_info(deps: &DepsMut, config: &Config) -> Result<VerifiersInfo, 
             msg: to_json_binary(&active_verifiers_query)?,
         }))?;
 
-    let participants = verifiers
-        .clone()
+    let min_num_verifiers = deps
+        .querier
+        .query::<Service>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.service_registry.to_string(),
+            msg: to_json_binary(&service_registry::msg::QueryMsg::GetService {
+                service_name: config.service_name.clone(),
+            })?,
+        }))?
+        .min_num_verifiers;
+
+    let participants_with_pubkeys = verifiers
         .into_iter()
-        .map(WeightedVerifier::into)
-        .collect::<Vec<snapshot::Participant>>();
+        .filter_map(|verifier| {
+            let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
+                verifier_address: verifier.verifier_info.address.to_string(),
+                key_type: config.key_type,
+            };
 
-    let snapshot =
-        snapshot::Snapshot::new(config.signing_threshold, participants.clone().try_into()?);
+            match deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: config.multisig.to_string(),
+                msg: to_json_binary(&pub_key_query).ok()?,
+            })) {
+                Ok(pub_key) => Some((Participant::from(verifier), pub_key)),
+                Err(_) => None,
+            }
+        })
+        .collect::<Vec<_>>();
 
-    let mut pub_keys = vec![];
-    for participant in &participants {
-        let pub_key_query = multisig::msg::QueryMsg::GetPublicKey {
-            verifier_address: participant.address.to_string(),
-            key_type: config.key_type,
-        };
-        let pub_key: PublicKey = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: config.multisig.to_string(),
-            msg: to_json_binary(&pub_key_query)?,
-        }))?;
-        pub_keys.push(pub_key);
+    if participants_with_pubkeys.len() < min_num_verifiers as usize {
+        return Err(ContractError::NotEnoughVerifiers);
     }
 
-    Ok(VerifiersInfo {
-        snapshot,
-        pubkeys_by_participant: participants.into_iter().zip(pub_keys).collect(),
-    })
-}
+    let snapshot = Snapshot::new(
+        config.signing_threshold,
+        participants_with_pubkeys
+            .iter()
+            .map(|(participant, _)| participant.clone())
+            .collect::<Vec<_>>()
+            .try_into()?,
+    );
 
-fn make_verifier_set(
-    deps: &DepsMut,
-    env: &Env,
-    config: &Config,
-) -> Result<VerifierSet, ContractError> {
-    let verifiers_info = get_verifiers_info(deps, config)?;
     Ok(VerifierSet::new(
-        verifiers_info.pubkeys_by_participant,
-        verifiers_info.snapshot.quorum.into(),
+        participants_with_pubkeys,
+        snapshot.quorum.into(),
         env.block.height,
     ))
 }
@@ -202,23 +223,33 @@ fn save_next_verifier_set(
     Ok(())
 }
 
-pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let cur_verifier_set = CURRENT_VERIFIER_SET.may_load(deps.storage)?;
+pub fn update_verifier_set(
+    deps: DepsMut,
+    env: Env,
+) -> error_stack::Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage).map_err(ContractError::from)?;
+    let cur_verifier_set = CURRENT_VERIFIER_SET
+        .may_load(deps.storage)
+        .map_err(ContractError::from)?;
 
     match cur_verifier_set {
         None => {
             // if no verifier set, just store it and return
             let new_verifier_set = make_verifier_set(&deps, &env, &config)?;
-            CURRENT_VERIFIER_SET.save(deps.storage, &new_verifier_set)?;
+            CURRENT_VERIFIER_SET
+                .save(deps.storage, &new_verifier_set)
+                .map_err(ContractError::from)?;
 
-            Ok(Response::new().add_message(wasm_execute(
-                config.multisig,
-                &multisig::msg::ExecuteMsg::RegisterVerifierSet {
-                    verifier_set: new_verifier_set,
-                },
-                vec![],
-            )?))
+            Ok(Response::new().add_message(
+                wasm_execute(
+                    config.multisig,
+                    &multisig::msg::ExecuteMsg::RegisterVerifierSet {
+                        verifier_set: new_verifier_set,
+                    },
+                    vec![],
+                )
+                .map_err(ContractError::from)?,
+            ))
         }
         Some(cur_verifier_set) => {
             let new_verifier_set = get_next_verifier_set(&deps, &env, &config)?
@@ -226,10 +257,14 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
 
             save_next_verifier_set(deps.storage, &new_verifier_set)?;
 
-            let payload = Payload::VerifierSet(new_verifier_set);
+            let payload = Payload::VerifierSet(new_verifier_set.clone());
             let payload_id = payload.id();
-            PAYLOAD.save(deps.storage, &payload_id, &payload)?;
-            REPLY_TRACKER.save(deps.storage, &payload_id)?;
+            PAYLOAD
+                .save(deps.storage, &payload_id, &payload)
+                .map_err(ContractError::from)?;
+            REPLY_TRACKER
+                .save(deps.storage, &payload_id)
+                .map_err(ContractError::from)?;
 
             let digest =
                 payload.digest(config.encoder, &config.domain_separator, &cur_verifier_set)?;
@@ -241,10 +276,24 @@ pub fn update_verifier_set(deps: DepsMut, env: Env) -> Result<Response, Contract
                 chain_name: config.chain_name,
             };
 
-            Ok(Response::new().add_submessage(SubMsg::reply_on_success(
-                wasm_execute(config.multisig, &start_sig_msg, vec![])?,
-                START_MULTISIG_REPLY_ID,
-            )))
+            let verifier_union_set = all_active_verifiers(&deps)?;
+
+            Ok(Response::new()
+                .add_submessage(SubMsg::reply_on_success(
+                    wasm_execute(config.multisig, &start_sig_msg, vec![])
+                        .map_err(ContractError::from)?,
+                    START_MULTISIG_REPLY_ID,
+                ))
+                .add_message(
+                    wasm_execute(
+                        config.coordinator,
+                        &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
+                            verifiers: verifier_union_set,
+                        },
+                        vec![],
+                    )
+                    .map_err(ContractError::from)?,
+                ))
         }
     }
 }
@@ -282,6 +331,8 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
     CURRENT_VERIFIER_SET.save(deps.storage, &verifier_set)?;
     NEXT_VERIFIER_SET.remove(deps.storage);
 
+    let verifier_union_set = all_active_verifiers(&deps)?;
+
     Ok(Response::new()
         .add_message(wasm_execute(
             config.multisig,
@@ -293,10 +344,29 @@ pub fn confirm_verifier_set(deps: DepsMut, sender: Addr) -> Result<Response, Con
         .add_message(wasm_execute(
             config.coordinator,
             &coordinator::msg::ExecuteMsg::SetActiveVerifiers {
-                next_verifier_set: verifier_set,
+                verifiers: verifier_union_set,
             },
             vec![],
         )?))
+}
+
+fn all_active_verifiers(deps: &DepsMut) -> Result<HashSet<Addr>, ContractError> {
+    let current_signers = CURRENT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .map(|verifier_set| verifier_set.signers)
+        .unwrap_or_default();
+
+    let next_signers = NEXT_VERIFIER_SET
+        .may_load(deps.storage)?
+        .map(|verifier_set| verifier_set.signers)
+        .unwrap_or_default();
+
+    current_signers
+        .values()
+        .chain(next_signers.values())
+        .map(|signer| signer.address.clone())
+        .collect::<HashSet<Addr>>()
+        .then(Ok)
 }
 
 pub fn should_update_verifier_set(

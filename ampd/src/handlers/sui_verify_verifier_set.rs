@@ -25,6 +25,7 @@ use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Operators {
     pub weights_by_addresses: Vec<(HexBinary, Uint128)>,
@@ -163,7 +164,7 @@ mod tests {
     use std::convert::TryInto;
 
     use error_stack::{Report, Result};
-    use ethers::providers::ProviderError;
+    use ethers_providers::ProviderError;
     use sui_types::base_types::{SuiAddress, TransactionDigest};
     use tokio::sync::watch;
     use tokio::test as async_test;

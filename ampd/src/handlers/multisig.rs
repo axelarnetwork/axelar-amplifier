@@ -20,8 +20,8 @@ use multisig::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::tofnd::grpc::SharableEcdsaClient;
-use crate::tofnd::MessageDigest;
+use crate::tofnd::grpc::Multisig;
+use crate::tofnd::{self, MessageDigest};
 use crate::types::PublicKey;
 use crate::types::TMAddress;
 
@@ -66,18 +66,21 @@ where
         .collect()
 }
 
-pub struct Handler {
+pub struct Handler<S> {
     verifier: TMAddress,
     multisig: TMAddress,
-    signer: SharableEcdsaClient,
+    signer: S,
     latest_block_height: Receiver<u64>,
 }
 
-impl Handler {
+impl<S> Handler<S>
+where
+    S: Multisig,
+{
     pub fn new(
         verifier: TMAddress,
         multisig: TMAddress,
-        signer: SharableEcdsaClient,
+        signer: S,
         latest_block_height: Receiver<u64>,
     ) -> Self {
         Self {
@@ -107,7 +110,10 @@ impl Handler {
 }
 
 #[async_trait]
-impl EventHandler for Handler {
+impl<S> EventHandler for Handler<S>
+where
+    S: Multisig + Sync,
+{
     type Err = Error;
 
     async fn handle(&self, event: &events::Event) -> error_stack::Result<Vec<Any>, Error> {
@@ -146,7 +152,12 @@ impl EventHandler for Handler {
             Some(pub_key) => {
                 let signature = self
                     .signer
-                    .sign(self.multisig.to_string().as_str(), msg.clone(), pub_key)
+                    .sign(
+                        self.multisig.to_string().as_str(),
+                        msg.clone(),
+                        pub_key,
+                        tofnd::Algorithm::Ecdsa,
+                    )
                     .await
                     .change_context(Error::Sign)?;
 
@@ -173,7 +184,7 @@ mod test {
 
     use base64::engine::general_purpose::STANDARD;
     use base64::Engine;
-    use cosmos_sdk_proto::cosmos::base::abci::v1beta1::TxResponse;
+    use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
     use cosmrs::AccountId;
     use cosmwasm_std::{HexBinary, Uint64};
     use ecdsa::SigningKey;
@@ -191,7 +202,7 @@ mod test {
 
     use crate::broadcaster::MockBroadcaster;
     use crate::tofnd;
-    use crate::tofnd::grpc::{MockEcdsaClient, SharableEcdsaClient};
+    use crate::tofnd::grpc::MockMultisig;
     use crate::types;
 
     use super::*;
@@ -291,9 +302,9 @@ mod test {
     fn get_handler(
         verifier: TMAddress,
         multisig: TMAddress,
-        signer: SharableEcdsaClient,
+        signer: MockMultisig,
         latest_block_height: u64,
-    ) -> Handler {
+    ) -> Handler<MockMultisig> {
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
             .expect_broadcast()
@@ -361,12 +372,12 @@ mod test {
 
     #[tokio::test]
     async fn should_not_handle_event_with_missing_fields_if_multisig_address_does_not_match() {
-        let client = MockEcdsaClient::new();
+        let client = MockMultisig::default();
 
         let handler = get_handler(
             rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            SharableEcdsaClient::new(client),
+            client,
             100u64,
         );
 
@@ -383,12 +394,12 @@ mod test {
 
     #[tokio::test]
     async fn should_error_on_event_with_missing_fields_if_multisig_address_does_match() {
-        let client = MockEcdsaClient::new();
+        let client = MockMultisig::default();
 
         let handler = get_handler(
             rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            SharableEcdsaClient::new(client),
+            client,
             100u64,
         );
 
@@ -400,14 +411,9 @@ mod test {
 
     #[tokio::test]
     async fn should_not_handle_event_if_multisig_address_does_not_match() {
-        let client = MockEcdsaClient::new();
+        let client = MockMultisig::default();
 
-        let handler = get_handler(
-            rand_account(),
-            rand_account(),
-            SharableEcdsaClient::new(client),
-            100u64,
-        );
+        let handler = get_handler(rand_account(), rand_account(), client, 100u64);
 
         assert_eq!(
             handler.handle(&signing_started_event()).await.unwrap(),
@@ -417,15 +423,15 @@ mod test {
 
     #[tokio::test]
     async fn should_not_handle_event_if_verifier_is_not_a_participant() {
-        let mut client = MockEcdsaClient::new();
+        let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let handler = get_handler(
             rand_account(),
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            SharableEcdsaClient::new(client),
+            client,
             100u64,
         );
 
@@ -437,10 +443,10 @@ mod test {
 
     #[tokio::test]
     async fn should_not_handle_event_if_sign_failed() {
-        let mut client = MockEcdsaClient::new();
+        let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -448,7 +454,7 @@ mod test {
         let handler = get_handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            SharableEcdsaClient::new(client),
+            client,
             99u64,
         );
 
@@ -460,10 +466,10 @@ mod test {
 
     #[tokio::test]
     async fn should_not_handle_event_if_session_expired() {
-        let mut client = MockEcdsaClient::new();
+        let mut client = MockMultisig::default();
         client
             .expect_sign()
-            .returning(move |_, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
+            .returning(move |_, _, _, _| Err(Report::from(tofnd::error::Error::SignFailed)));
 
         let event = signing_started_event();
         let signing_started: SigningStartedEvent = ((&event).try_into() as Result<_, _>).unwrap();
@@ -471,7 +477,7 @@ mod test {
         let handler = get_handler(
             verifier,
             TMAddress::from(MULTISIG_ADDRESS.parse::<AccountId>().unwrap()),
-            SharableEcdsaClient::new(client),
+            client,
             101u64,
         );
 

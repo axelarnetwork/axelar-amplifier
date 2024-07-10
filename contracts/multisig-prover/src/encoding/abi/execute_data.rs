@@ -1,109 +1,53 @@
-use alloy_primitives::Bytes;
-use alloy_sol_types::{sol, SolCall};
 use cosmwasm_std::HexBinary;
+use error_stack::ResultExt;
+use ethers_contract::contract::EthCall;
+use ethers_core::abi::{encode as abi_encode, Tokenize};
 
 use axelar_wasm_std::hash::Hash;
+use evm_gateway::{ApproveMessagesCall, Message, Proof, RotateSignersCall, WeightedSigners};
 use multisig::{key::Signature, msg::SignerWithSig, verifier_set::VerifierSet};
 
-use crate::{
-    encoding::abi::{evm_address, Message, Proof, WeightedSigners},
-    error::ContractError,
-    payload::Payload,
-};
-
-sol!(
-    IAxelarAmplifierGateway,
-    "src/encoding/abi/solidity/IAxelarAmplifierGateway.json"
-);
-
-impl From<WeightedSigners> for IAxelarAmplifierGateway::WeightedSigners {
-    fn from(signers: WeightedSigners) -> Self {
-        IAxelarAmplifierGateway::WeightedSigners {
-            signers: signers
-                .signers
-                .iter()
-                .map(|signer| IAxelarAmplifierGateway::WeightedSigner {
-                    signer: signer.signer,
-                    weight: signer.weight,
-                })
-                .collect(),
-            threshold: signers.threshold,
-            nonce: signers.nonce,
-        }
-    }
-}
-
-impl From<Proof> for IAxelarAmplifierGateway::Proof {
-    fn from(proof: Proof) -> Self {
-        IAxelarAmplifierGateway::Proof {
-            signers: proof.signers.into(),
-            signatures: proof.signatures,
-        }
-    }
-}
-
-impl From<Message> for IAxelarAmplifierGateway::Message {
-    fn from(message: Message) -> Self {
-        IAxelarAmplifierGateway::Message {
-            messageId: message.messageId,
-            sourceChain: message.sourceChain,
-            sourceAddress: message.sourceAddress,
-            contractAddress: message.contractAddress,
-            payloadHash: message.payloadHash,
-        }
-    }
-}
-
-impl Proof {
-    /// Proof contains the entire verifier set and optimized signatures. Signatures are sorted in ascending order based on the signer's address.
-    pub fn new(verifier_set: &VerifierSet, mut signers_with_sigs: Vec<SignerWithSig>) -> Self {
-        signers_with_sigs.sort_by_key(|signer| {
-            evm_address(&signer.signer.pub_key).expect("failed to convert pub key to evm address")
-        });
-
-        let signatures = signers_with_sigs
-            .into_iter()
-            .map(|signer| Bytes::copy_from_slice(signer.signature.as_ref()))
-            .collect();
-
-        Proof {
-            signers: WeightedSigners::from(verifier_set),
-            signatures,
-        }
-    }
-}
+use crate::{error::ContractError, payload::Payload};
 
 pub fn encode(
     verifier_set: &VerifierSet,
     signers: Vec<SignerWithSig>,
     payload_digest: &Hash,
     payload: &Payload,
-) -> Result<HexBinary, ContractError> {
+) -> error_stack::Result<HexBinary, ContractError> {
     let signers = to_recoverable(payload_digest.as_slice(), signers);
 
-    let proof = Proof::new(verifier_set, signers);
+    let proof = Proof::new(verifier_set, signers).change_context(ContractError::Proof)?;
 
-    let data = match payload {
+    let (selector, encoded) = match payload {
         Payload::Messages(messages) => {
             let messages: Vec<_> = messages
                 .iter()
-                .map(|msg| Message::try_from(msg).map(IAxelarAmplifierGateway::Message::from))
-                .collect::<Result<Vec<_>, _>>()?;
+                .map(Message::try_from)
+                .collect::<Result<_, _>>()
+                .change_context(ContractError::InvalidMessage)?;
 
-            IAxelarAmplifierGateway::approveMessagesCall::new((messages, proof.into()))
-                .abi_encode()
-                .into()
+            (
+                ApproveMessagesCall::selector(),
+                abi_encode(&ApproveMessagesCall { messages, proof }.into_tokens()),
+            )
         }
         Payload::VerifierSet(new_verifier_set) => {
-            let new_verifier_set = WeightedSigners::from(new_verifier_set);
+            let new_signers = WeightedSigners::try_from(new_verifier_set)
+                .change_context(ContractError::InvalidVerifierSet)?;
 
-            IAxelarAmplifierGateway::rotateSignersCall::new((new_verifier_set.into(), proof.into()))
-                .abi_encode()
-                .into()
+            (
+                RotateSignersCall::selector(),
+                abi_encode(&RotateSignersCall { new_signers, proof }.into_tokens()),
+            )
         }
     };
 
-    Ok(data)
+    Ok(selector
+        .into_iter()
+        .chain(encoded)
+        .collect::<Vec<_>>()
+        .into())
 }
 
 // Convert non-recoverable ECDSA signatures to recoverable ones.
@@ -134,9 +78,9 @@ pub fn add27(recovery_byte: k256::ecdsa::RecoveryId) -> u8 {
 mod tests {
     use std::str::FromStr;
 
-    use alloy_primitives::Signature as EcdsaSignature;
     use cosmwasm_std::HexBinary;
     use elliptic_curve::consts::U32;
+    use ethers_core::types::Signature as EthersSignature;
     use generic_array::GenericArray;
     use hex::FromHex;
     use itertools::Itertools;
@@ -144,12 +88,14 @@ mod tests {
     use sha3::{Digest, Keccak256};
 
     use axelar_wasm_std::hash::Hash;
-    use multisig::key::{KeyType, KeyTyped, Signature};
-    use multisig::msg::{Signer, SignerWithSig};
+    use evm_gateway::evm_address;
+    use multisig::{
+        key::{KeyType, KeyTyped, Signature},
+        msg::{Signer, SignerWithSig},
+    };
 
     use crate::{
         encoding::abi::{
-            evm_address,
             execute_data::{add27, encode},
             payload_hash_to_sign,
         },
@@ -204,7 +150,7 @@ mod tests {
 
     #[test]
     fn should_convert_signature_to_recoverable() {
-        let ecdsa_signature = EcdsaSignature::from_str("74ab5ec395cdafd861dec309c30f6cf8884fc9905eb861171e636d9797478adb60b2bfceb7db0a08769ed7a60006096d3e0f6d3783d125600ac6306180ecbc6f1b").unwrap();
+        let ecdsa_signature = EthersSignature::from_str("74ab5ec395cdafd861dec309c30f6cf8884fc9905eb861171e636d9797478adb60b2bfceb7db0a08769ed7a60006096d3e0f6d3783d125600ac6306180ecbc6f1b").unwrap();
         let pub_key =
             Vec::from_hex("03571a2dcec96eecc7950c9f36367fd459b8d334bac01ac153b7ed3dcf4025fc22")
                 .unwrap();
@@ -212,8 +158,10 @@ mod tests {
         let digest = "6ac52b00f4256d98d53c256949288135c14242a39001d5fdfa564ea003ccaf92";
 
         let signature = {
-            let r_bytes: [u8; 32] = ecdsa_signature.r().to_be_bytes();
-            let s_bytes: [u8; 32] = ecdsa_signature.s().to_be_bytes();
+            let mut r_bytes = [0u8; 32];
+            let mut s_bytes = [0u8; 32];
+            ecdsa_signature.r.to_big_endian(&mut r_bytes);
+            ecdsa_signature.s.to_big_endian(&mut s_bytes);
             let gar: &GenericArray<u8, U32> = GenericArray::from_slice(&r_bytes);
             let gas: &GenericArray<u8, U32> = GenericArray::from_slice(&s_bytes);
 
@@ -233,7 +181,7 @@ mod tests {
                 )
                 .unwrap();
 
-            assert_eq!(recoverable.as_ref(), ecdsa_signature.as_bytes().as_slice());
+            assert_eq!(recoverable.as_ref(), ecdsa_signature.to_vec().as_slice());
         } else {
             panic!("Invalid signature type")
         }

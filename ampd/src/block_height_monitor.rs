@@ -89,6 +89,7 @@ mod tests {
     use async_trait::async_trait;
 
     #[test]
+    #[allow(clippy::cast_possible_truncation)]
     async fn latest_block_height_should_work() {
         let block: tendermint::Block =
             serde_json::from_str(include_str!("tests/axelar_block.json")).unwrap();
