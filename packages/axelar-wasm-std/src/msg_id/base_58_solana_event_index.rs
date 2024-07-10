@@ -12,13 +12,13 @@ type RawSignature = [u8; 64];
 
 pub struct Base58SolanaTxSignatureAndEventIndex {
     // Base58 decoded bytes of the Solana signature.
-    pub signature: RawSignature,
+    pub raw_signature: RawSignature,
     pub event_index: u32,
 }
 
 impl Base58SolanaTxSignatureAndEventIndex {
     pub fn signature_as_base58(&self) -> nonempty::String {
-        bs58::encode(self.signature)
+        bs58::encode(self.raw_signature)
             .into_string()
             .try_into()
             .expect("failed to convert tx hash to non-empty string")
@@ -26,7 +26,7 @@ impl Base58SolanaTxSignatureAndEventIndex {
 
     pub fn new(tx_id: impl Into<RawSignature>, event_index: impl Into<u32>) -> Self {
         Self {
-            signature: tx_id.into(),
+            raw_signature: tx_id.into(),
             event_index: event_index.into(),
         }
     }
@@ -63,7 +63,7 @@ impl FromStr for Base58SolanaTxSignatureAndEventIndex {
             .extract();
 
         Ok(Base58SolanaTxSignatureAndEventIndex {
-            signature: decode_b58_signature(signature)?,
+            raw_signature: decode_b58_signature(signature)?,
             event_index: event_index
                 .parse()
                 .map_err(|_| Error::EventIndexOverflow(message_id.to_string()))?,
@@ -76,7 +76,7 @@ impl Display for Base58SolanaTxSignatureAndEventIndex {
         write!(
             f,
             "{}-{}",
-            bs58::encode(self.signature).into_string(),
+            bs58::encode(self.raw_signature).into_string(),
             self.event_index
         )
     }
