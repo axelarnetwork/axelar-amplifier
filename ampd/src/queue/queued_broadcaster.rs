@@ -177,8 +177,7 @@ mod test {
     use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
-    use std::sync::{Arc, Mutex};
-    use tokio::sync::oneshot;
+    use tokio::sync::mpsc;
     use tokio::test;
     use tokio::time::{interval, timeout, Duration, Instant};
 
@@ -218,8 +217,7 @@ mod test {
         let gas_limit = 10;
         let interval_duration = Duration::from_secs(5);
 
-        let (tx, rx) = oneshot::channel();
-        let tx = Arc::new(Mutex::new(Some(tx)));
+        let (tx, mut rx) = mpsc::channel(5);
 
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
@@ -234,16 +232,13 @@ mod test {
                 })
             });
 
-        let tx_clone = Arc::clone(&tx);
         broadcaster
             .expect_broadcast()
             .times(1)
             .returning(move |msgs| {
                 assert_eq!(msgs.len(), tx_count);
-                if let Some(tx) = tx_clone.lock().unwrap().take() {
-                    tx.send(())
-                        .expect("Failed to send broadcast completion signal");
-                }
+                tx.try_send(())
+                    .expect("Failed to send broadcast completion signal");
                 Ok(TxResponse::default())
             });
 
@@ -264,7 +259,7 @@ mod test {
         // Advance time to just after one interval
         tokio::time::advance(interval_duration + Duration::from_millis(10)).await;
 
-        match timeout(interval_duration, rx).await {
+        match timeout(interval_duration, rx.recv()).await {
             Ok(_) => {
                 let elapsed = start_time.elapsed();
                 assert!(elapsed > interval_duration);
