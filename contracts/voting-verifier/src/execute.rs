@@ -200,6 +200,7 @@ fn make_quorum_event(
                 QuorumReached {
                     content: msg,
                     status,
+                    poll_id: *poll_id,
                 }
                 .into()
             }))
@@ -214,6 +215,7 @@ fn make_quorum_event(
                 QuorumReached {
                     content: verifier_set,
                     status,
+                    poll_id: *poll_id,
                 }
                 .into()
             }))

@@ -224,6 +224,7 @@ impl From<PollEnded> for Event {
 pub struct QuorumReached<T> {
     pub content: T,
     pub status: VerificationStatus,
+    pub poll_id: PollId,
 }
 
 impl<T> From<QuorumReached<T>> for Event
@@ -239,6 +240,10 @@ where
             .add_attribute(
                 "status",
                 serde_json::to_string(&value.status).expect("failed to serialize status"),
+            )
+            .add_attribute(
+                "poll_id",
+                serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
             )
     }
 }
