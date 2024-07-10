@@ -65,18 +65,18 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetPoll { poll_id: _ } => {
             todo!()
         }
 
         QueryMsg::GetMessagesStatus { messages } => {
-            to_json_binary(&query::messages_status(deps, &messages)?)
+            to_json_binary(&query::messages_status(deps, &messages, env.block.height)?)
         }
-        QueryMsg::GetVerifierSetStatus { new_verifier_set } => {
-            to_json_binary(&query::verifier_set_status(deps, &new_verifier_set)?)
-        }
+        QueryMsg::GetVerifierSetStatus { new_verifier_set } => to_json_binary(
+            &query::verifier_set_status(deps, &new_verifier_set, env.block.height)?,
+        ),
         QueryMsg::GetCurrentThreshold => to_json_binary(&query::voting_threshold(deps)?),
     }
 }
@@ -434,21 +434,11 @@ mod test {
         )
         .unwrap();
 
-        execute(
-            deps.as_mut(),
-            mock_env_expired(),
-            mock_info(SENDER, &[]),
-            ExecuteMsg::EndPoll {
-                poll_id: Uint64::one().into(),
-            },
-        )
-        .unwrap();
-
         // confirm it was not verified
         let status: Vec<MessageStatus> = from_json(
             query(
                 deps.as_ref(),
-                mock_env(),
+                mock_env_expired(),
                 QueryMsg::GetMessagesStatus {
                     messages: messages.clone(),
                 },
@@ -462,7 +452,13 @@ mod test {
         );
 
         // retries same message
-        let res = execute(deps.as_mut(), mock_env(), mock_info(SENDER, &[]), msg).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env_expired(),
+            mock_info(SENDER, &[]),
+            msg,
+        )
+        .unwrap();
 
         let actual: Vec<TxEventConfirmation> = serde_json::from_str(
             &res.events
@@ -563,7 +559,7 @@ mod test {
         let res: Vec<MessageStatus> = from_json(
             query(
                 deps.as_ref(),
-                mock_env(),
+                mock_env_expired(),
                 QueryMsg::GetMessagesStatus {
                     messages: messages.clone(),
                 },
@@ -592,7 +588,7 @@ mod test {
 
         let res = execute(
             deps.as_mut(),
-            mock_env(),
+            mock_env_expired(),
             mock_info(SENDER, &[]),
             msg_verify,
         );
@@ -601,7 +597,7 @@ mod test {
         let res: Vec<MessageStatus> = from_json(
             query(
                 deps.as_ref(),
-                mock_env(),
+                mock_env_expired(),
                 QueryMsg::GetMessagesStatus {
                     messages: messages.clone(),
                 },
@@ -685,7 +681,7 @@ mod test {
     }
 
     #[test]
-    fn should_query_status_failed_to_verify_when_no_consensus_and_poll_ended() {
+    fn should_query_status_failed_to_verify_when_no_consensus_and_poll_expired() {
         let msg_id_format = MessageIdFormat::HexTxHashAndEventIndex;
         let verifiers = verifiers(2);
         let mut deps = setup(verifiers.clone(), &msg_id_format);
@@ -703,21 +699,10 @@ mod test {
         )
         .unwrap();
 
-        // end poll
-        execute(
-            deps.as_mut(),
-            mock_env_expired(),
-            mock_info(SENDER, &[]),
-            ExecuteMsg::EndPoll {
-                poll_id: Uint64::one().into(),
-            },
-        )
-        .unwrap();
-
         let statuses: Vec<MessageStatus> = from_json(
             query(
                 deps.as_ref(),
-                mock_env(),
+                mock_env_expired(),
                 QueryMsg::GetMessagesStatus {
                     messages: messages.clone(),
                 },
@@ -1293,7 +1278,7 @@ mod test {
         let res: Vec<MessageStatus> = from_json(
             query(
                 deps.as_ref(),
-                mock_env(),
+                mock_env_expired(),
                 QueryMsg::GetMessagesStatus {
                     messages: messages.clone(),
                 },
