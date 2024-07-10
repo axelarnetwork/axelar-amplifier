@@ -1,18 +1,19 @@
-use axelar_wasm_std::killswitch;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
 
+use axelar_wasm_std::killswitch;
+use axelar_wasm_std::{permission_control, FnExt};
+use router_api::error::Error;
+use router_api::msg::{ExecuteMsg, QueryMsg};
+
 use crate::contract::migrations::v0_3_3;
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
 use crate::state;
 use crate::state::{load_chain_by_gateway, load_config, Config};
-use axelar_wasm_std::{permission_control, FnExt};
-use router_api::error::Error;
-use router_api::msg::{ExecuteMsg, QueryMsg};
 
 mod execute;
 mod migrations;
@@ -144,20 +145,23 @@ pub fn query(
 mod test {
     use std::{collections::HashMap, str::FromStr};
 
-    use super::*;
-    use crate::events;
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
-    use axelar_wasm_std::ContractError;
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, CosmosMsg, Empty, OwnedDeps, WasmMsg,
     };
+
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
+    use axelar_wasm_std::ContractError;
     use permission_control::Permission;
     use router_api::{
         error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
         CHAIN_NAME_DELIMITER,
     };
+
+    use crate::events;
+
+    use super::*;
 
     const ADMIN_ADDRESS: &str = "admin";
     const GOVERNANCE_ADDRESS: &str = "governance";
@@ -224,10 +228,7 @@ mod test {
             }
             .to_string();
             msgs.push(Message {
-                cc_id: CrossChainId {
-                    id: id.parse().unwrap(),
-                    chain: src_chain.chain_name.clone(),
-                },
+                cc_id: CrossChainId::new_amplifier(src_chain.chain_name.clone(), id).unwrap(),
                 destination_address: "idc".parse().unwrap(),
                 destination_chain: dest_chain.chain_name.clone(),
                 source_address: "idc".parse().unwrap(),
@@ -379,7 +380,7 @@ mod test {
                         .unwrap()
                         .clone()
                         .into_iter()
-                        .filter(|m| m.cc_id.chain == s.chain_name)
+                        .filter(|m| m.cc_id.amplifier().unwrap().chain == s.chain_name)
                         .collect::<Vec<_>>(),
                     res.messages[i].msg.clone(),
                 );

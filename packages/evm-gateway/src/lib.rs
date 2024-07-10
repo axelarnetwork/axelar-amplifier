@@ -1,5 +1,3 @@
-pub mod error;
-
 use std::str::FromStr;
 
 use cosmwasm_std::Uint256;
@@ -26,6 +24,8 @@ use multisig::{
 use router_api::Message as RouterMessage;
 
 use crate::error::Error;
+
+pub mod error;
 
 // Generates the bindings for the Axelar Amplifier Gateway contract.
 // This includes the defined structs: Messages, WeightedSigners, WeightedSigner, and Proofs.
@@ -89,8 +89,8 @@ impl TryFrom<&RouterMessage> for Message {
             .change_context(Error::InvalidAddress)?;
 
         Ok(Message {
-            source_chain: msg.cc_id.chain.to_string(),
-            message_id: msg.cc_id.id.to_string(),
+            source_chain: msg.cc_id.chain_as_str().to_string(),
+            message_id: msg.cc_id.id().to_string(),
             source_address: msg.source_address.to_string(),
             contract_address,
             payload_hash: msg.payload_hash,
@@ -188,10 +188,7 @@ mod test {
 
         for destination_address in destination_addresses {
             let router_messages = RouterMessage {
-                cc_id: CrossChainId {
-                    chain: source_chain.parse().unwrap(),
-                    id: message_id.parse().unwrap(),
-                },
+                cc_id: CrossChainId::new_amplifier(source_chain, message_id).unwrap(),
                 source_address: source_address.parse().unwrap(),
                 destination_address: destination_address.parse().unwrap(),
                 destination_chain: destination_chain.parse().unwrap(),

@@ -104,12 +104,13 @@ fn ignore_empty(msgs: Vec<Message>) -> Option<Vec<Message>> {
 mod test {
     use std::collections::BTreeMap;
 
-    use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, Threshold, VerificationStatus};
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info, MockQuerier},
         Addr, DepsMut, QuerierWrapper, Uint128, Uint64, WasmQuery,
     };
+
+    use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, Threshold, VerificationStatus};
     use multisig::verifier_set::VerifierSet;
     use router_api::{CrossChainId, Message};
 
@@ -125,32 +126,32 @@ mod test {
         let client: Client = client::Client::new(QuerierWrapper::new(&querier), addr).into();
 
         let msg_1 = Message {
-            cc_id: CrossChainId {
-                chain: "eth".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new_amplifier(
+                "eth",
+                HexTxHashAndEventIndex {
                     tx_hash: [0; 32],
                     event_index: 0,
                 }
                 .to_string()
-                .parse()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: "0x1234".parse().unwrap(),
             destination_address: "0x5678".parse().unwrap(),
             destination_chain: "eth".parse().unwrap(),
             payload_hash: [0; 32],
         };
         let msg_2 = Message {
-            cc_id: CrossChainId {
-                chain: "eth".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new_amplifier(
+                "eth",
+                HexTxHashAndEventIndex {
                     tx_hash: [1; 32],
                     event_index: 0,
                 }
                 .to_string()
-                .parse()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: "0x4321".parse().unwrap(),
             destination_address: "0x8765".parse().unwrap(),
             destination_chain: "eth".parse().unwrap(),

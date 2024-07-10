@@ -427,11 +427,14 @@ pub fn update_admin(deps: DepsMut, new_admin_address: String) -> Result<Response
 
 #[cfg(test)]
 mod tests {
-    use axelar_wasm_std::Threshold;
+    use std::collections::BTreeMap;
+
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env},
         Addr,
     };
+
+    use axelar_wasm_std::Threshold;
     use router_api::ChainName;
 
     use crate::{
@@ -439,7 +442,6 @@ mod tests {
         state::{Config, NEXT_VERIFIER_SET},
         test::test_data,
     };
-    use std::collections::BTreeMap;
 
     use super::{different_set_in_progress, get_next_verifier_set};
 

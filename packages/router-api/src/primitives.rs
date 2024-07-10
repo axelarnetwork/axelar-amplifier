@@ -1,5 +1,3 @@
-use std::{any::type_name, fmt, ops::Deref, str::FromStr};
-
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{hash::Hash, nonempty, FnExt};
@@ -7,14 +5,16 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Attribute, HexBinary};
 use cosmwasm_std::{StdError, StdResult};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
-use error_stack::Report;
 use error_stack::ResultExt;
+use error_stack::{Context, Report};
 use flagset::flags;
 use schemars::gen::SchemaGenerator;
 use schemars::schema::Schema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
+use std::fmt::{Debug, Display};
+use std::{any::type_name, fmt, ops::Deref, str::FromStr};
 use valuable::Valuable;
 
 use crate::error::*;
@@ -50,8 +50,8 @@ impl Message {
 impl From<Message> for Vec<Attribute> {
     fn from(other: Message) -> Self {
         vec![
-            ("id", other.cc_id.id).into(),
-            ("source_chain", other.cc_id.chain).into(),
+            ("id", other.cc_id.id()).into(),
+            ("source_chain", other.cc_id.chain_as_str()).into(),
             ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
             ("destination_address", other.destination_address.deref()).into(),
@@ -98,40 +98,128 @@ impl TryFrom<String> for Address {
 
 #[cw_serde]
 #[derive(Eq, Hash)]
-pub struct CrossChainId {
-    pub chain: ChainName,
-    pub id: nonempty::String,
+#[serde(untagged)]
+pub enum CrossChainId {
+    Amplifier(AmplifierCrossChainId),
+    Legacy(LegacyCrossChainId),
 }
 
-/// todo: remove this when state::NewMessage is used
-impl FromStr for CrossChainId {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split_once(CHAIN_NAME_DELIMITER);
-        let (chain, id) = parts
-            .map(|(chain, id)| {
-                (
-                    chain.parse::<ChainName>(),
-                    id.parse::<nonempty::String>()
-                        .map_err(|_| Error::InvalidMessageId),
-                )
-            })
-            .ok_or(Error::InvalidMessageId)?;
-        Ok(CrossChainId {
-            chain: chain?,
-            id: id?,
-        })
+impl CrossChainId {
+    pub fn new_amplifier<S, T>(
+        chain: impl TryInto<ChainName, Error = S>,
+        id: impl TryInto<nonempty::String, Error = T>,
+    ) -> error_stack::Result<Self, Error>
+    where
+        S: Context,
+        T: Context,
+    {
+        Ok(CrossChainId::Amplifier(AmplifierCrossChainId {
+            chain: chain.try_into().change_context(Error::InvalidChainName)?,
+            id: id.try_into().change_context(Error::InvalidMessageId)?,
+        }))
     }
-}
 
-impl fmt::Display for CrossChainId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
+    pub fn new_legacy<S, T>(
+        chain: impl TryInto<LegacyChainName, Error = S>,
+        id: impl TryInto<nonempty::String, Error = T>,
+    ) -> error_stack::Result<Self, Error>
+    where
+        S: Context,
+        T: Context,
+    {
+        Ok(CrossChainId::Legacy(LegacyCrossChainId {
+            chain: chain.try_into().change_context(Error::InvalidChainName)?,
+            id: id.try_into().change_context(Error::InvalidMessageId)?,
+        }))
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            CrossChainId::Amplifier(AmplifierCrossChainId { id, .. })
+            | CrossChainId::Legacy(LegacyCrossChainId { id, .. }) => id,
+        }
+    }
+
+    pub fn chain_as_str(&self) -> &str {
+        match self {
+            CrossChainId::Amplifier(AmplifierCrossChainId {
+                chain: ChainName(name),
+                ..
+            })
+            | CrossChainId::Legacy(LegacyCrossChainId {
+                chain: LegacyChainName(name),
+                ..
+            }) => name.as_ref(),
+        }
+    }
+
+    pub fn amplifier(&self) -> Result<&AmplifierCrossChainId, Error> {
+        match self {
+            CrossChainId::Amplifier(id) => Ok(id),
+            _ => Err(Error::InvalidChainName),
+        }
+    }
+
+    pub fn legacy(&self) -> Result<&LegacyCrossChainId, Error> {
+        match self {
+            CrossChainId::Legacy(id) => Ok(id),
+            _ => Err(Error::InvalidChainName),
+        }
     }
 }
 
 impl PrimaryKey<'_> for CrossChainId {
+    type Prefix = LegacyChainName;
+    type SubPrefix = ();
+    type Suffix = String;
+    type SuperSuffix = (LegacyChainName, String);
+
+    fn key(&self) -> Vec<Key> {
+        match self {
+            CrossChainId::Amplifier(id) => id.key(),
+            CrossChainId::Legacy(id) => id.key(),
+        }
+    }
+}
+
+impl KeyDeserialize for CrossChainId {
+    type Output = Self;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        // lower case chain name is more restrictive, so try that first
+        AmplifierCrossChainId::from_vec(value.clone())
+            .map(CrossChainId::Amplifier)
+            .or_else(|_| Ok(CrossChainId::Legacy(LegacyCrossChainId::from_vec(value)?)))
+    }
+}
+
+impl Display for CrossChainId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CrossChainId::Amplifier(id) => Display::fmt(id, f),
+            CrossChainId::Legacy(id) => Display::fmt(id, f),
+        }
+    }
+}
+
+#[cw_serde]
+#[derive(Eq, Hash)]
+pub struct AmplifierCrossChainId {
+    pub chain: ChainName,
+    pub id: nonempty::String,
+}
+
+impl Display for AmplifierCrossChainId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        display_chain_name(self.chain.as_ref(), &self.id, f)
+    }
+}
+
+fn display_chain_name(chain_name: &str, id: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}{}{}", chain_name, CHAIN_NAME_DELIMITER, id)
+}
+
+impl PrimaryKey<'_> for AmplifierCrossChainId {
     type Prefix = ChainName;
     type SubPrefix = ();
     type Suffix = String;
@@ -144,12 +232,61 @@ impl PrimaryKey<'_> for CrossChainId {
     }
 }
 
-impl KeyDeserialize for CrossChainId {
+impl KeyDeserialize for AmplifierCrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
         let (chain, id) = <(ChainName, String)>::from_vec(value)?;
-        Ok(CrossChainId {
+        Ok(AmplifierCrossChainId {
+            chain,
+            id: id
+                .try_into()
+                .map_err(|err| StdError::parse_err(type_name::<nonempty::String>(), err))?,
+        })
+    }
+}
+
+#[cw_serde]
+#[derive(Eq, Hash)]
+pub struct LegacyCrossChainId {
+    pub chain: LegacyChainName,
+    pub id: nonempty::String,
+}
+
+impl From<AmplifierCrossChainId> for LegacyCrossChainId {
+    fn from(other: AmplifierCrossChainId) -> Self {
+        LegacyCrossChainId {
+            chain: other.chain.into(),
+            id: other.id,
+        }
+    }
+}
+
+impl Display for LegacyCrossChainId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        display_chain_name(self.chain.as_ref(), &self.id, f)
+    }
+}
+
+impl PrimaryKey<'_> for LegacyCrossChainId {
+    type Prefix = LegacyChainName;
+    type SubPrefix = ();
+    type Suffix = String;
+    type SuperSuffix = (LegacyChainName, String);
+
+    fn key(&self) -> Vec<Key> {
+        let mut keys = self.chain.key();
+        keys.extend(self.id.key());
+        keys
+    }
+}
+
+impl KeyDeserialize for LegacyCrossChainId {
+    type Output = Self;
+
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        let (chain, id) = <(LegacyChainName, String)>::from_vec(value)?;
+        Ok(LegacyCrossChainId {
             chain,
             id: id
                 .try_into()
@@ -167,11 +304,9 @@ impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
-            return Err(Error::InvalidChainName);
-        }
+        let chain_name: LegacyChainName = s.parse()?;
 
-        Ok(ChainName(s.to_lowercase()))
+        Ok(ChainName(chain_name.0.to_lowercase()))
     }
 }
 
@@ -189,7 +324,15 @@ impl TryFrom<String> for ChainName {
     }
 }
 
-impl fmt::Display for ChainName {
+impl TryFrom<&str> for ChainName {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -197,7 +340,7 @@ impl fmt::Display for ChainName {
 
 impl PartialEq<String> for ChainName {
     fn eq(&self, other: &String) -> bool {
-        self.0 == other.to_lowercase()
+        self.0 == *other
     }
 }
 
@@ -242,6 +385,101 @@ impl KeyDeserialize for &ChainName {
 impl AsRef<str> for ChainName {
     fn as_ref(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+#[cw_serde]
+#[serde(try_from = "String")]
+#[derive(Eq, Hash)]
+pub struct LegacyChainName(String);
+
+impl From<ChainName> for LegacyChainName {
+    fn from(other: ChainName) -> Self {
+        LegacyChainName(other.0)
+    }
+}
+
+impl FromStr for LegacyChainName {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
+            return Err(Error::InvalidChainName);
+        }
+
+        Ok(LegacyChainName(s.to_owned()))
+    }
+}
+
+impl From<LegacyChainName> for String {
+    fn from(d: LegacyChainName) -> Self {
+        d.0
+    }
+}
+
+impl TryFrom<String> for LegacyChainName {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl TryFrom<&str> for LegacyChainName {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl Display for LegacyChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl AsRef<str> for LegacyChainName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl<'a> PrimaryKey<'a> for LegacyChainName {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for LegacyChainName {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for LegacyChainName {
+    type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(LegacyChainName::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
+impl KeyDeserialize for &LegacyChainName {
+    type Output = LegacyChainName;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        LegacyChainName::from_vec(value)
     }
 }
 
@@ -379,15 +617,15 @@ mod tests {
     }
 
     #[test]
-    fn chain_name_case_insensitive_comparison() {
+    fn chain_name_should_not_match_case_insensitively() {
         let chain_name = ChainName::from_str("ethereum").unwrap();
 
-        assert!(chain_name.eq(&"Ethereum".to_string()));
-        assert!(chain_name.eq(&"ETHEREUM".to_string()));
         assert!(chain_name.eq(&"ethereum".to_string()));
-        assert!(chain_name.eq(&"ethEReum".to_string()));
+        assert!(chain_name.ne(&"Ethereum".to_string()));
+        assert!(chain_name.ne(&"ETHEREUM".to_string()));
+        assert!(chain_name.ne(&"ethEReum".to_string()));
 
-        assert!(!chain_name.eq(&"Ethereum-1".to_string()));
+        assert!(chain_name.ne(&"Ethereum-1".to_string()));
     }
 
     #[test]
@@ -402,10 +640,7 @@ mod tests {
 
     fn dummy_message() -> Message {
         Message {
-            cc_id: CrossChainId {
-                id: "hash-index".parse().unwrap(),
-                chain: "chain".parse().unwrap(),
-            },
+            cc_id: CrossChainId::new_amplifier("chain", "hash-index").unwrap(),
             source_address: "source_address".parse().unwrap(),
             destination_chain: "destination-chain".parse().unwrap(),
             destination_address: "destination_address".parse().unwrap(),

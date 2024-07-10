@@ -1,4 +1,5 @@
 use cosmwasm_std::Uint64;
+
 use router_api::{ChainName, CrossChainId};
 
 use crate::payload::PayloadId;
@@ -47,20 +48,15 @@ impl From<Event> for cosmwasm_std::Event {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::to_string;
+
+    use super::*;
 
     #[test]
     fn proof_under_construction_is_serializable() {
         let msg_ids = vec![
-            CrossChainId {
-                chain: "ethereum".parse().unwrap(),
-                id: "some_id".try_into().unwrap(),
-            },
-            CrossChainId {
-                chain: "fantom".parse().unwrap(),
-                id: "some_other_id".try_into().unwrap(),
-            },
+            CrossChainId::new_amplifier("ethereum", "some_id").unwrap(),
+            CrossChainId::new_amplifier("fantom", "some_other_id").unwrap(),
         ];
 
         let event = Event::ProofUnderConstruction {

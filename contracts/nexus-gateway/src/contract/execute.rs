@@ -1,5 +1,5 @@
 use cosmwasm_std::{to_json_binary, Addr, Response, WasmMsg};
-use error_stack::report;
+use error_stack::{report, ResultExt};
 
 use crate::error::ContractError;
 use crate::nexus;
@@ -49,15 +49,21 @@ where
 
         let msgs = msgs
             .into_iter()
-            .filter_map(|msg| match self.store.is_message_routed(&msg.cc_id) {
-                Ok(true) => None,
-                Ok(false) => Some(Ok(msg)),
-                Err(err) => Some(Err(err)),
-            })
+            .filter_map(
+                |msg| match self.store.is_message_routed(msg.cc_id.amplifier().ok()?) {
+                    Ok(true) => None,
+                    Ok(false) => Some(Ok(msg)),
+                    Err(err) => Some(Err(err)),
+                },
+            )
             .collect::<Result<Vec<_>>>()?;
 
-        msgs.iter()
-            .try_for_each(|msg| self.store.set_message_routed(&msg.cc_id))?;
+        msgs.iter().try_for_each(|msg| {
+            self.store
+                .set_message_routed(msg.cc_id.amplifier().change_context_lazy(|| {
+                    ContractError::InvalidSourceChain(msg.cc_id.chain_as_str().to_string())
+                })?)
+        })?;
 
         let msgs: Vec<nexus::Message> = msgs.into_iter().map(Into::into).collect();
 
@@ -67,10 +73,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::{from_json, CosmosMsg};
     use hex::decode;
 
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use router_api::CrossChainId;
 
     use crate::state::{Config, MockStore};
@@ -247,10 +253,7 @@ mod test {
 
         let msgs = vec![
             router_api::Message {
-                cc_id: CrossChainId {
-                    chain: "sourceChain".parse().unwrap(),
-                    id: "0x2fe4:0".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new_amplifier("sourceChain", "0x2fe4:0").unwrap(),
                 source_address: "0xb860".parse().unwrap(),
                 destination_address: "0xD419".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
@@ -262,10 +265,7 @@ mod test {
                 .unwrap(),
             },
             router_api::Message {
-                cc_id: CrossChainId {
-                    chain: "sourceChain".parse().unwrap(),
-                    id: "0x6b33:10".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new_amplifier("sourceChain", "0x6b33:10").unwrap(),
                 source_address: "0x0725".parse().unwrap(),
                 destination_address: "0x7FAD".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
@@ -308,10 +308,7 @@ mod test {
 
         let msgs = vec![
             router_api::Message {
-                cc_id: CrossChainId {
-                    chain: "sourceChain".parse().unwrap(),
-                    id: "0x2fe4:0".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new_amplifier("sourceChain", "0x2fe4:0").unwrap(),
                 source_address: "0xb860".parse().unwrap(),
                 destination_address: "0xD419".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),
@@ -323,10 +320,7 @@ mod test {
                 .unwrap(),
             },
             router_api::Message {
-                cc_id: CrossChainId {
-                    chain: "sourceChain".parse().unwrap(),
-                    id: "0x6b33:10".parse().unwrap(),
-                },
+                cc_id: CrossChainId::new_amplifier("sourceChain", "0x6b33:10").unwrap(),
                 source_address: "0x70725".parse().unwrap(),
                 destination_address: "0x7FAD".parse().unwrap(),
                 destination_chain: "destinationChain".parse().unwrap(),

@@ -28,4 +28,7 @@ pub enum ContractError {
 
     #[error("failed routing messages to the router")]
     RouteToRouter,
+
+    #[error("invalid source chain {0}")]
+    InvalidSourceChain(String),
 }

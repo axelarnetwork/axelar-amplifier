@@ -17,13 +17,11 @@ fn chain_can_be_freezed_unfreezed() {
     } = test_utils::setup_test_case();
 
     let msgs = vec![Message {
-        cc_id: CrossChainId {
-            chain: chain1.chain_name.clone(),
-            id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
-                .to_string()
-                .try_into()
-                .unwrap(),
-        },
+        cc_id: CrossChainId::new_amplifier(
+            chain1.chain_name.clone(),
+            "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3",
+        )
+        .unwrap(),
         source_address: "0xBf12773B49()0e1Deb57039061AAcFA2A87DEaC9b9"
             .to_string()
             .try_into()

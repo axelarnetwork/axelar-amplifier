@@ -2,6 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{Result, ResultExt};
+
 use router_api::{CrossChainId, Message};
 
 #[cw_serde]
@@ -23,7 +24,7 @@ pub(crate) fn load_config(storage: &dyn Storage) -> Result<Config, Error> {
 
 pub(crate) fn save_outgoing_msg(
     storage: &mut dyn Storage,
-    key: CrossChainId,
+    key: &CrossChainId,
     value: &Message,
 ) -> Result<(), Error> {
     OUTGOING_MESSAGES
@@ -32,10 +33,10 @@ pub(crate) fn save_outgoing_msg(
 }
 pub(crate) fn may_load_outgoing_msg(
     storage: &dyn Storage,
-    id: CrossChainId,
+    id: &CrossChainId,
 ) -> Result<Option<Message>, Error> {
     OUTGOING_MESSAGES
-        .may_load(storage, id.clone())
+        .may_load(storage, id)
         .change_context(Error::Parse(OUTGOING_MESSAGES_NAME))
         .attach_printable(id.to_string())
 }
@@ -53,12 +54,13 @@ pub(crate) enum Error {
 const CONFIG_NAME: &str = "config";
 const CONFIG: Item<Config> = Item::new(CONFIG_NAME);
 const OUTGOING_MESSAGES_NAME: &str = "outgoing_messages";
-const OUTGOING_MESSAGES: Map<CrossChainId, Message> = Map::new(OUTGOING_MESSAGES_NAME);
+const OUTGOING_MESSAGES: Map<&CrossChainId, Message> = Map::new(OUTGOING_MESSAGES_NAME);
 
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::Addr;
+
     use router_api::{CrossChainId, Message};
 
     use crate::state::{
@@ -83,39 +85,30 @@ mod test {
         let mut deps = mock_dependencies();
 
         let message = Message {
-            cc_id: CrossChainId {
-                chain: "chain".parse().unwrap(),
-                id: "id".parse().unwrap(),
-            },
+            cc_id: CrossChainId::new_amplifier("chain", "id").unwrap(),
             source_address: "source_address".parse().unwrap(),
             destination_chain: "destination".parse().unwrap(),
             destination_address: "destination_address".parse().unwrap(),
             payload_hash: [1; 32],
         };
 
-        assert!(save_outgoing_msg(deps.as_mut().storage, message.cc_id.clone(), &message).is_ok());
+        assert!(save_outgoing_msg(deps.as_mut().storage, &message.cc_id, &message).is_ok());
 
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, message.cc_id.clone()).unwrap(),
+            may_load_outgoing_msg(&deps.storage, &message.cc_id).unwrap(),
             Some(message)
         );
 
-        let unknown_chain_id = CrossChainId {
-            chain: "unknown".parse().unwrap(),
-            id: "id".parse().unwrap(),
-        };
+        let unknown_chain_id = CrossChainId::new_amplifier("unknown", "id").unwrap();
 
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, unknown_chain_id).unwrap(),
+            may_load_outgoing_msg(&deps.storage, &unknown_chain_id).unwrap(),
             None
         );
 
-        let unknown_id = CrossChainId {
-            chain: "chain".parse().unwrap(),
-            id: "unknown".parse().unwrap(),
-        };
+        let unknown_id = CrossChainId::new_amplifier("chain", "unkown").unwrap();
         assert_eq!(
-            may_load_outgoing_msg(&deps.storage, unknown_id).unwrap(),
+            may_load_outgoing_msg(&deps.storage, &unknown_id).unwrap(),
             None
         );
     }

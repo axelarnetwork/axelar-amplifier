@@ -4,13 +4,13 @@ use cosmwasm_std::{
     to_json_binary, Addr, Deps, DepsMut, Env, Event, MessageInfo, OverflowError, OverflowOperation,
     QueryRequest, Response, Storage, WasmMsg, WasmQuery,
 };
+use itertools::Itertools;
 
 use axelar_wasm_std::{
-    nonempty, snapshot,
+    snapshot,
     voting::{PollId, PollResults, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,
 };
-
 use multisig::verifier_set::VerifierSet;
 use router_api::{ChainName, Message};
 use service_registry::{msg::QueryMsg, state::WeightedVerifier};
@@ -25,8 +25,6 @@ use crate::{
     },
     state::poll_messages,
 };
-
-use itertools::Itertools;
 
 // TODO: this type of function exists in many contracts. Would be better to implement this
 // in one place, and then just include it
@@ -52,7 +50,7 @@ pub fn update_voting_threshold(
 pub fn verify_verifier_set(
     deps: DepsMut,
     env: Env,
-    message_id: nonempty::String,
+    message_id: &str,
     new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
     let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;
@@ -104,11 +102,13 @@ pub fn verify_messages(
 
     let source_chain = CONFIG.load(deps.storage)?.source_chain;
 
-    if messages
-        .iter()
-        .any(|message| message.cc_id.chain.ne(&source_chain))
-    {
-        Err(ContractError::SourceChainMismatch(source_chain))?;
+    if messages.iter().any(|message| {
+        message
+            .cc_id
+            .amplifier()
+            .map_or(true, |cc_id| &cc_id.chain != &source_chain)
+    }) {
+        Err(ContractError::SourceChainMismatch(source_chain.clone()))?;
     }
 
     let config = CONFIG.load(deps.storage)?;
@@ -137,7 +137,7 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
+    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.amplifier()?.chain)?;
     let participants = snapshot.get_participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 
@@ -385,8 +385,9 @@ fn calculate_expiration(block_height: u64, block_expiry: u64) -> Result<u64, Con
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::{MajorityThreshold, Threshold};
     use cosmwasm_std::{testing::mock_dependencies, Addr};
+
+    use axelar_wasm_std::{MajorityThreshold, Threshold};
 
     use crate::state::{Config, CONFIG};
 

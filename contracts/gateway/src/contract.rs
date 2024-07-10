@@ -1,9 +1,11 @@
+use std::fmt::Debug;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+
 use gateway_api::msg::{ExecuteMsg, QueryMsg};
 use router_api::CrossChainId;
-use std::fmt::Debug;
 
 use crate::msg::InstantiateMsg;
 
@@ -77,9 +79,10 @@ pub enum Error {
 }
 
 mod internal {
-    use client::Client;
     use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response};
     use error_stack::{Result, ResultExt};
+
+    use client::Client;
     use gateway_api::msg::{ExecuteMsg, QueryMsg};
     use router_api::client::Router;
 

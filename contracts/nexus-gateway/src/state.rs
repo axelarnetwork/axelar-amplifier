@@ -3,12 +3,12 @@ use cosmwasm_std::{Addr, Storage};
 use cw_storage_plus::{Item, Map};
 use error_stack::{self, ResultExt};
 use mockall::automock;
-use router_api::CrossChainId;
+use router_api::AmplifierCrossChainId;
 
 use crate::error::ContractError;
 
 const CONFIG: Item<Config> = Item::new("config");
-const ROUTED_MESSAGE_IDS: Map<CrossChainId, ()> = Map::new("routed_message_ids");
+const ROUTED_MESSAGE_IDS: Map<AmplifierCrossChainId, ()> = Map::new("routed_message_ids");
 
 type Result<T> = error_stack::Result<T, ContractError>;
 
@@ -16,8 +16,8 @@ type Result<T> = error_stack::Result<T, ContractError>;
 pub trait Store {
     fn save_config(&mut self, config: Config) -> Result<()>;
     fn load_config(&self) -> Result<Config>;
-    fn set_message_routed(&mut self, id: &CrossChainId) -> Result<()>;
-    fn is_message_routed(&self, id: &CrossChainId) -> Result<bool>;
+    fn set_message_routed(&mut self, id: &AmplifierCrossChainId) -> Result<()>;
+    fn is_message_routed(&self, id: &AmplifierCrossChainId) -> Result<bool>;
 }
 
 pub struct GatewayStore<'a> {
@@ -43,13 +43,13 @@ impl Store for GatewayStore<'_> {
             .change_context(ContractError::StoreFailure)
     }
 
-    fn set_message_routed(&mut self, id: &CrossChainId) -> Result<()> {
+    fn set_message_routed(&mut self, id: &AmplifierCrossChainId) -> Result<()> {
         ROUTED_MESSAGE_IDS
             .save(self.storage, id.clone(), &())
             .change_context(ContractError::StoreFailure)
     }
 
-    fn is_message_routed(&self, id: &CrossChainId) -> Result<bool> {
+    fn is_message_routed(&self, id: &AmplifierCrossChainId) -> Result<bool> {
         ROUTED_MESSAGE_IDS
             .may_load(self.storage, id.clone())
             .map(|result| result.is_some())

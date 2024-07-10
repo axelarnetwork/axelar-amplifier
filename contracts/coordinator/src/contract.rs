@@ -127,7 +127,7 @@ mod tests {
         assert!(res.is_ok());
 
         let eth_prover = Addr::unchecked("eth_prover");
-        let eth: ChainName = "Ethereum".to_string().try_into().unwrap();
+        let eth: ChainName = "Ethereum".parse().unwrap();
 
         TestSetup {
             deps,

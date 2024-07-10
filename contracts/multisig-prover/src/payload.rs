@@ -27,10 +27,7 @@ impl Payload {
     pub fn id(&self) -> PayloadId {
         match self {
             Payload::Messages(msgs) => {
-                let message_ids = msgs
-                    .iter()
-                    .map(|msg| msg.cc_id.clone())
-                    .collect::<Vec<CrossChainId>>();
+                let message_ids: Vec<_> = msgs.iter().map(|msg| msg.cc_id.clone()).collect();
 
                 message_ids.as_slice().into()
             }

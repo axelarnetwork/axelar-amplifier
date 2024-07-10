@@ -1,8 +1,9 @@
+use cosmwasm_std::Deps;
+
 use axelar_wasm_std::{
     voting::{PollId, PollStatus, Vote},
     MajorityThreshold, VerificationStatus,
 };
-use cosmwasm_std::Deps;
 use multisig::verifier_set::VerifierSet;
 use router_api::Message;
 
@@ -152,15 +153,16 @@ fn voting_completed(poll: &state::Poll, cur_block_height: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::mock_env;
+    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use itertools::Itertools;
+
     use axelar_wasm_std::{
         msg_id::HexTxHashAndEventIndex,
         nonempty,
         voting::{PollId, Tallies, Vote, WeightedPoll},
         Participant, Snapshot, Threshold,
     };
-    use cosmwasm_std::testing::mock_env;
-    use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
-    use itertools::Itertools;
     use router_api::CrossChainId;
 
     use crate::state::PollContent;
@@ -320,16 +322,16 @@ mod tests {
 
     fn message(id: u32) -> Message {
         Message {
-            cc_id: CrossChainId {
-                chain: "source-chain".parse().unwrap(),
-                id: HexTxHashAndEventIndex {
+            cc_id: CrossChainId::new_amplifier(
+                "source-chain",
+                HexTxHashAndEventIndex {
                     tx_hash: [0; 32],
                     event_index: id,
                 }
                 .to_string()
-                .try_into()
-                .unwrap(),
-            },
+                .as_str(),
+            )
+            .unwrap(),
             source_address: format!("source_address{id}").parse().unwrap(),
             destination_chain: format!("destination-chain{id}").parse().unwrap(),
             destination_address: format!("destination_address{id}").parse().unwrap(),

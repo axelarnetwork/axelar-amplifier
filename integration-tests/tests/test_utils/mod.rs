@@ -1,17 +1,20 @@
+use std::collections::{HashMap, HashSet};
+
+use cosmwasm_std::{
+    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
+};
+use cw_multi_test::{App, AppResponse, Executor};
+use k256::ecdsa;
+use sha3::{Digest, Keccak256};
+use tofn::ecdsa::KeyPair;
+
 use axelar_wasm_std::{
     msg_id::HexTxHashAndEventIndex,
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
 };
-use cosmwasm_std::{
-    coins, Addr, Attribute, BlockInfo, Event, HexBinary, StdError, Uint128, Uint64,
-};
-use cw_multi_test::{App, AppResponse, Executor};
-use multisig_prover::msg::VerifierSetResponse;
-use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
-use std::collections::{HashMap, HashSet};
-
+use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
 use integration_tests::gateway_contract::GatewayContract;
@@ -21,18 +24,14 @@ use integration_tests::rewards_contract::RewardsContract;
 use integration_tests::service_registry_contract::ServiceRegistryContract;
 use integration_tests::voting_verifier_contract::VotingVerifierContract;
 use integration_tests::{protocol::Protocol, router_contract::RouterContract};
-
-use k256::ecdsa;
-use sha3::{Digest, Keccak256};
-
-use coordinator::msg::ExecuteMsg as CoordinatorExecuteMsg;
 use multisig::{
     key::{KeyType, PublicKey},
     verifier_set::VerifierSet,
 };
+use multisig_prover::msg::VerifierSetResponse;
 use rewards::state::PoolId;
+use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
 use service_registry::msg::ExecuteMsg;
-use tofn::ecdsa::KeyPair;
 
 pub const AXL_DENOMINATION: &str = "uaxl";
 
