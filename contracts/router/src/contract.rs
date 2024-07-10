@@ -150,8 +150,8 @@ mod test {
     };
     use permission_control::Permission;
     use router_api::{
-        error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection, Message,
-        CHAIN_NAME_DELIMITER,
+        error::Error, ChainEndpoint, ChainName, CrossChainId, GatewayDirection,
+        GeneralizedChainName, Message, CHAIN_NAME_DELIMITER,
     };
 
     const ADMIN_ADDRESS: &str = "admin";
@@ -221,10 +221,10 @@ mod test {
             msgs.push(Message {
                 cc_id: CrossChainId {
                     id: id.parse().unwrap(),
-                    chain: src_chain.chain_name.clone(),
+                    chain: GeneralizedChainName::Amplifier(src_chain.chain_name.clone()),
                 },
                 destination_address: "idc".parse().unwrap(),
-                destination_chain: dest_chain.chain_name.clone(),
+                destination_chain: GeneralizedChainName::Amplifier(dest_chain.chain_name.clone()),
                 source_address: "idc".parse().unwrap(),
                 payload_hash: [x as u8; 32],
             })

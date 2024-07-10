@@ -208,19 +208,20 @@ pub fn route_messages(
         .group_by(|msg| msg.destination_chain.to_owned())
         .into_iter()
         .map(|(destination_chain, msgs)| {
-            let gateway = match state::load_chain_by_chain_name(storage, &destination_chain)? {
-                Some(destination_chain) if destination_chain.outgoing_frozen() => {
-                    return Err(report!(Error::ChainFrozen {
-                        chain: destination_chain.name,
-                    }));
-                }
-                Some(destination_chain) => destination_chain.gateway.address,
-                // messages with unknown destination chains are routed to
-                // the nexus gateway if the sender is not the nexus gateway
-                // itself
-                None if sender != config.nexus_gateway => config.nexus_gateway.clone(),
-                _ => return Err(report!(Error::ChainNotFound)),
-            };
+            let gateway =
+                match state::load_chain_by_chain_name(storage, &destination_chain.amplifier()?)? {
+                    Some(destination_chain) if destination_chain.outgoing_frozen() => {
+                        return Err(report!(Error::ChainFrozen {
+                            chain: destination_chain.name,
+                        }));
+                    }
+                    Some(destination_chain) => destination_chain.gateway.address,
+                    // messages with unknown destination chains are routed to
+                    // the nexus gateway if the sender is not the nexus gateway
+                    // itself
+                    None if sender != config.nexus_gateway => config.nexus_gateway.clone(),
+                    _ => return Err(report!(Error::ChainNotFound)),
+                };
 
             Ok(WasmMsg::Execute {
                 contract_addr: gateway.to_string(),
@@ -252,7 +253,10 @@ mod test {
     use cosmwasm_std::{Addr, Storage};
     use rand::{random, RngCore};
     use router_api::error::Error;
-    use router_api::{ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, Message};
+    use router_api::{
+        ChainEndpoint, ChainName, CrossChainId, Gateway, GatewayDirection, GeneralizedChainName,
+        Message,
+    };
     use std::collections::HashMap;
 
     fn rand_message(source_chain: ChainName, destination_chain: ChainName) -> Message {
@@ -278,11 +282,11 @@ mod test {
 
         Message {
             cc_id: CrossChainId {
-                chain: source_chain,
+                chain: GeneralizedChainName::Amplifier(source_chain),
                 id: id.parse().unwrap(),
             },
             source_address,
-            destination_chain,
+            destination_chain: GeneralizedChainName::Amplifier(destination_chain),
             destination_address,
             payload_hash,
         }

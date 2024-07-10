@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, HexBinary};
 
 use integration_tests::contract::Contract;
-use router_api::{CrossChainId, Message};
+use router_api::{CrossChainId, GeneralizedChainName, Message};
 
 pub mod test_utils;
 
@@ -18,7 +18,7 @@ fn chain_can_be_freezed_unfreezed() {
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
-            chain: chain1.chain_name.clone(),
+            chain: GeneralizedChainName::Amplifier(chain1.chain_name.clone()),
             id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
                 .to_string()
                 .try_into()
@@ -32,7 +32,7 @@ fn chain_can_be_freezed_unfreezed() {
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain2.chain_name.clone(),
+        destination_chain: GeneralizedChainName::Amplifier(chain2.chain_name.clone()),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )

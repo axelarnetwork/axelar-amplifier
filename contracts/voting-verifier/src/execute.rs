@@ -134,7 +134,10 @@ pub fn verify_messages(
         return Ok(Response::new());
     }
 
-    let snapshot = take_snapshot(deps.as_ref(), &msgs_to_verify[0].cc_id.chain)?;
+    let snapshot = take_snapshot(
+        deps.as_ref(),
+        &msgs_to_verify[0].cc_id.chain.clone().amplifier()?,
+    )?;
     let participants = snapshot.get_participants();
     let expires_at = calculate_expiration(env.block.height, config.block_expiry)?;
 

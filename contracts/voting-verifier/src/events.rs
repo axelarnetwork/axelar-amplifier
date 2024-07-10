@@ -10,7 +10,7 @@ use cosmwasm_std::{Addr, Attribute, Event};
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
 use multisig::verifier_set::VerifierSet;
-use router_api::{Address, ChainName, Message};
+use router_api::{Address, ChainName, GeneralizedChainName, Message};
 
 use crate::error::ContractError;
 use crate::state::Config;
@@ -161,7 +161,7 @@ pub struct TxEventConfirmation {
     pub tx_id: nonempty::String,
     pub event_index: u32,
     pub destination_address: Address,
-    pub destination_chain: ChainName,
+    pub destination_chain: GeneralizedChainName,
     pub source_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.

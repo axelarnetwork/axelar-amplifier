@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use axelar_wasm_std::{msg_id::HexTxHashAndEventIndex, nonempty};
 use cosmwasm_std::{CosmosMsg, CustomMsg};
-use error_stack::{Report, Result, ResultExt};
-use router_api::{Address, ChainName, CrossChainId};
+use error_stack::{ensure, Report, Result, ResultExt};
+use router_api::{Address, CrossChainId, GeneralizedChainName};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +13,9 @@ use crate::error::ContractError;
 // this matches the message type defined in the nexus module
 // https://github.com/axelarnetwork/axelar-core/blob/6c887df3797ba660093061662aff04e325b9c429/x/nexus/exported/types.pb.go#L405
 pub struct Message {
-    pub source_chain: ChainName,
+    pub source_chain: GeneralizedChainName,
     pub source_address: Address,
-    pub destination_chain: ChainName,
+    pub destination_chain: GeneralizedChainName,
     pub destination_address: Address,
     pub payload_hash: [u8; 32],
     pub source_tx_id: nonempty::Vec<u8>,
@@ -59,6 +59,11 @@ impl TryFrom<Message> for router_api::Message {
     type Error = Report<ContractError>;
 
     fn try_from(msg: Message) -> Result<Self, ContractError> {
+        ensure!(
+            matches!(msg.destination_chain, GeneralizedChainName::Amplifier(_)),
+            ContractError::InvalidDestinationChain(msg.destination_chain.to_string())
+        );
+
         Ok(Self {
             cc_id: CrossChainId {
                 chain: msg.source_chain,

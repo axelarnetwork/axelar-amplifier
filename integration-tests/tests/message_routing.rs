@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, HexBinary, Uint128};
 
 use integration_tests::contract::Contract;
-use router_api::{CrossChainId, Message};
+use router_api::{CrossChainId, GeneralizedChainName, Message};
 
 use crate::test_utils::AXL_DENOMINATION;
 
@@ -21,7 +21,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
 
     let msgs = vec![Message {
         cc_id: CrossChainId {
-            chain: chain1.chain_name.clone(),
+            chain: GeneralizedChainName::Amplifier(chain1.chain_name.clone()),
             id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
                 .to_string()
                 .try_into()
@@ -35,7 +35,7 @@ fn single_message_can_be_verified_and_routed_and_proven_and_rewards_are_distribu
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain2.chain_name.clone(),
+        destination_chain: GeneralizedChainName::Amplifier(chain2.chain_name.clone()),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )
@@ -128,7 +128,7 @@ fn routing_to_incorrect_gateway_interface() {
 
     let msgs = [Message {
         cc_id: CrossChainId {
-            chain: chain1.chain_name.clone(),
+            chain: GeneralizedChainName::Amplifier(chain1.chain_name.clone()),
             id: "0x88d7956fd7b6fcec846548d83bd25727f2585b4be3add21438ae9fbb34625924-3"
                 .to_string()
                 .try_into()
@@ -142,7 +142,7 @@ fn routing_to_incorrect_gateway_interface() {
             .to_string()
             .try_into()
             .unwrap(),
-        destination_chain: chain2.chain_name.clone(),
+        destination_chain: GeneralizedChainName::Amplifier(chain2.chain_name.clone()),
         payload_hash: HexBinary::from_hex(
             "3e50a012285f8e7ec59b558179cd546c55c477ebe16202aac7d7747e25be03be",
         )

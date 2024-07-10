@@ -113,7 +113,7 @@ mod test {
         key::KeyType,
         test::common::{build_verifier_set, ecdsa_test_data},
     };
-    use router_api::{ChainName, CrossChainId, Message};
+    use router_api::{ChainName, CrossChainId, GeneralizedChainName, Message};
     use service_registry::state::{
         AuthorizationState, BondingState, Verifier, WeightedVerifier, VERIFIER_WEIGHT,
     };
@@ -228,7 +228,7 @@ mod test {
         (0..len)
             .map(|i| Message {
                 cc_id: CrossChainId {
-                    chain: source_chain(),
+                    chain: GeneralizedChainName::Amplifier(source_chain()),
                     id: message_id("id", i, msg_id_format),
                 },
                 source_address: format!("source_address{i}").parse().unwrap(),
@@ -276,7 +276,7 @@ mod test {
             messages: vec![
                 Message {
                     cc_id: CrossChainId {
-                        chain: source_chain(),
+                        chain: GeneralizedChainName::Amplifier(source_chain()),
                         id: message_id("id", 1, &msg_id_format),
                     },
                     source_address: "source_address1".parse().unwrap(),

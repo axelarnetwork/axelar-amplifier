@@ -1,5 +1,3 @@
-use std::{any::type_name, fmt, ops::Deref, str::FromStr};
-
 use axelar_wasm_std::flagset::FlagSet;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use axelar_wasm_std::{hash::Hash, nonempty, FnExt};
@@ -15,6 +13,8 @@ use schemars::schema::Schema;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
+use std::fmt::{Debug, Display};
+use std::{any::type_name, fmt, ops::Deref, str::FromStr};
 use valuable::Valuable;
 
 use crate::error::*;
@@ -26,7 +26,7 @@ pub const CHAIN_NAME_DELIMITER: char = '_';
 pub struct Message {
     pub cc_id: CrossChainId,
     pub source_address: Address,
-    pub destination_chain: ChainName,
+    pub destination_chain: GeneralizedChainName,
     pub destination_address: Address,
     /// for better user experience, the payload hash gets encoded into hex at the edges (input/output),
     /// but internally, we treat it as raw bytes to enforce its format.
@@ -99,43 +99,21 @@ impl TryFrom<String> for Address {
 #[cw_serde]
 #[derive(Eq, Hash)]
 pub struct CrossChainId {
-    pub chain: ChainName,
+    pub chain: GeneralizedChainName,
     pub id: nonempty::String,
 }
 
-/// todo: remove this when state::NewMessage is used
-impl FromStr for CrossChainId {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split_once(CHAIN_NAME_DELIMITER);
-        let (chain, id) = parts
-            .map(|(chain, id)| {
-                (
-                    chain.parse::<ChainName>(),
-                    id.parse::<nonempty::String>()
-                        .map_err(|_| Error::InvalidMessageId),
-                )
-            })
-            .ok_or(Error::InvalidMessageId)?;
-        Ok(CrossChainId {
-            chain: chain?,
-            id: id?,
-        })
-    }
-}
-
-impl fmt::Display for CrossChainId {
+impl Display for CrossChainId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}{}", self.chain, CHAIN_NAME_DELIMITER, *self.id)
     }
 }
 
 impl PrimaryKey<'_> for CrossChainId {
-    type Prefix = ChainName;
+    type Prefix = GeneralizedChainName;
     type SubPrefix = ();
     type Suffix = String;
-    type SuperSuffix = (ChainName, String);
+    type SuperSuffix = (GeneralizedChainName, String);
 
     fn key(&self) -> Vec<Key> {
         let mut keys = self.chain.key();
@@ -148,7 +126,7 @@ impl KeyDeserialize for CrossChainId {
     type Output = Self;
 
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        let (chain, id) = <(ChainName, String)>::from_vec(value)?;
+        let (chain, id) = <(GeneralizedChainName, String)>::from_vec(value)?;
         Ok(CrossChainId {
             chain,
             id: id
@@ -167,11 +145,11 @@ impl FromStr for ChainName {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
+        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() || s.chars().any(char::is_uppercase) {
             return Err(Error::InvalidChainName);
         }
 
-        Ok(ChainName(s.to_lowercase()))
+        Ok(ChainName(s.to_owned()))
     }
 }
 
@@ -189,7 +167,7 @@ impl TryFrom<String> for ChainName {
     }
 }
 
-impl fmt::Display for ChainName {
+impl Display for ChainName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -197,7 +175,7 @@ impl fmt::Display for ChainName {
 
 impl PartialEq<String> for ChainName {
     fn eq(&self, other: &String) -> bool {
-        self.0 == other.to_lowercase()
+        self.0 == *other
     }
 }
 
@@ -242,6 +220,219 @@ impl KeyDeserialize for &ChainName {
 impl AsRef<str> for ChainName {
     fn as_ref(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+#[cw_serde]
+#[serde(try_from = "String")]
+#[derive(Eq, Hash)]
+pub struct LegacyChainName(String);
+
+impl FromStr for LegacyChainName {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.contains(CHAIN_NAME_DELIMITER) || s.is_empty() {
+            return Err(Error::InvalidChainName);
+        }
+
+        Ok(LegacyChainName(s.to_owned()))
+    }
+}
+
+impl From<LegacyChainName> for String {
+    fn from(d: LegacyChainName) -> Self {
+        d.0
+    }
+}
+
+impl TryFrom<String> for LegacyChainName {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl Display for LegacyChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl AsRef<str> for LegacyChainName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl<'a> PrimaryKey<'a> for LegacyChainName {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl<'a> Prefixer<'a> for LegacyChainName {
+    fn prefix(&self) -> Vec<Key> {
+        vec![Key::Ref(self.0.as_bytes())]
+    }
+}
+
+impl KeyDeserialize for LegacyChainName {
+    type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(LegacyChainName::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
+impl KeyDeserialize for &LegacyChainName {
+    type Output = ChainName;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        ChainName::from_vec(value)
+    }
+}
+
+#[cw_serde]
+#[serde(try_from = "String", into = "String")]
+#[derive(Eq, Hash)]
+pub enum GeneralizedChainName {
+    Amplifier(ChainName),
+    Legacy(LegacyChainName),
+}
+
+impl GeneralizedChainName {
+    pub fn amplifier(self) -> Result<ChainName, Error> {
+        match self {
+            GeneralizedChainName::Amplifier(chain) => Ok(chain),
+            GeneralizedChainName::Legacy(_) => Err(Error::InvalidChainName),
+        }
+    }
+
+    pub fn legacy(self) -> Result<LegacyChainName, Error> {
+        match self {
+            GeneralizedChainName::Amplifier(_) => Err(Error::InvalidChainName),
+            GeneralizedChainName::Legacy(chain) => Ok(chain),
+        }
+    }
+}
+
+impl AsRef<str> for GeneralizedChainName {
+    fn as_ref(&self) -> &str {
+        match self {
+            GeneralizedChainName::Amplifier(chain) => chain.as_ref(),
+            GeneralizedChainName::Legacy(chain) => chain.as_ref(),
+        }
+    }
+}
+
+impl FromStr for GeneralizedChainName {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        ChainName::from_str(s).map_or_else(
+            |_| Ok(GeneralizedChainName::Legacy(LegacyChainName::from_str(s)?)),
+            |chain| Ok(GeneralizedChainName::Amplifier(chain)),
+        )
+    }
+}
+
+impl TryFrom<String> for GeneralizedChainName {
+    type Error = Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl From<GeneralizedChainName> for String {
+    fn from(d: GeneralizedChainName) -> Self {
+        match d {
+            GeneralizedChainName::Amplifier(chain) => chain.into(),
+            GeneralizedChainName::Legacy(chain) => chain.into(),
+        }
+    }
+}
+
+impl Display for GeneralizedChainName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GeneralizedChainName::Amplifier(chain) => Display::fmt(chain, f),
+            GeneralizedChainName::Legacy(chain) => Display::fmt(chain, f),
+        }
+    }
+}
+
+impl PartialEq<ChainName> for GeneralizedChainName {
+    fn eq(&self, other: &ChainName) -> bool {
+        match self {
+            GeneralizedChainName::Amplifier(chain) => chain.eq(other),
+            GeneralizedChainName::Legacy(_) => false,
+        }
+    }
+}
+
+impl PartialEq<LegacyChainName> for GeneralizedChainName {
+    fn eq(&self, other: &LegacyChainName) -> bool {
+        match self {
+            GeneralizedChainName::Amplifier(_) => false,
+            GeneralizedChainName::Legacy(chain) => chain.eq(other),
+        }
+    }
+}
+
+impl<'a> PrimaryKey<'a> for GeneralizedChainName {
+    type Prefix = ();
+    type SubPrefix = ();
+    type Suffix = Self;
+    type SuperSuffix = Self;
+
+    fn key(&self) -> Vec<Key> {
+        match self {
+            GeneralizedChainName::Amplifier(chain) => chain.key(),
+            GeneralizedChainName::Legacy(chain) => chain.key(),
+        }
+    }
+}
+
+impl<'a> Prefixer<'a> for GeneralizedChainName {
+    fn prefix(&self) -> Vec<Key> {
+        match self {
+            GeneralizedChainName::Amplifier(chain) => chain.prefix(),
+            GeneralizedChainName::Legacy(chain) => chain.prefix(),
+        }
+    }
+}
+
+impl KeyDeserialize for GeneralizedChainName {
+    type Output = Self;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        String::from_utf8(value)
+            .map_err(StdError::invalid_utf8)?
+            .then(GeneralizedChainName::try_from)
+            .map_err(StdError::invalid_utf8)
+    }
+}
+
+impl KeyDeserialize for &GeneralizedChainName {
+    type Output = ChainName;
+
+    #[inline(always)]
+    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
+        ChainName::from_vec(value)
     }
 }
 
@@ -378,17 +569,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn chain_name_case_insensitive_comparison() {
-        let chain_name = ChainName::from_str("ethereum").unwrap();
-
-        assert!(chain_name.eq(&"Ethereum".to_string()));
-        assert!(chain_name.eq(&"ETHEREUM".to_string()));
-        assert!(chain_name.eq(&"ethereum".to_string()));
-        assert!(chain_name.eq(&"ethEReum".to_string()));
-
-        assert!(!chain_name.eq(&"Ethereum-1".to_string()));
-    }
+    // #[test]
+    // fn chain_name_case_insensitive_comparison() {
+    //     let chain_name = ChainName::from_str("ethereum").unwrap();
+    //
+    //     assert!(chain_name.eq(&"Ethereum".to_string()));
+    //     assert!(chain_name.eq(&"ETHEREUM".to_string()));
+    //     assert!(chain_name.eq(&"ethereum".to_string()));
+    //     assert!(chain_name.eq(&"ethEReum".to_string()));
+    //
+    //     assert!(!chain_name.eq(&"Ethereum-1".to_string()));
+    // }
 
     #[test]
     fn json_schema_for_gateway_direction_flag_set_does_not_panic() {
