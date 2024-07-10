@@ -101,10 +101,13 @@ mod test {
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
-    use sha3::{Digest, Keccak256};
+    use sha3::{Digest, Keccak256, Keccak512};
 
     use axelar_wasm_std::{
-        msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat},
+        msg_id::{
+            Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
+            HexTxHashAndEventIndex, MessageIdFormat,
+        },
         nonempty,
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
@@ -205,22 +208,30 @@ mod test {
     }
 
     fn message_id(id: &str, index: u32, msg_id_format: &MessageIdFormat) -> nonempty::String {
-        let tx_hash = Keccak256::digest(id.as_bytes()).into();
         match msg_id_format {
             MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
-                tx_hash,
+                tx_hash: Keccak256::digest(id.as_bytes()).into(),
                 event_index: index,
             }
             .to_string()
             .parse()
             .unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex => Base58TxDigestAndEventIndex {
-                tx_digest: tx_hash,
+                tx_digest: Keccak256::digest(id.as_bytes()).into(),
                 event_index: index,
             }
             .to_string()
             .parse()
             .unwrap(),
+            MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
+                Base58SolanaTxSignatureAndEventIndex {
+                    raw_signature: Keccak512::digest(id.as_bytes()).into(),
+                    event_index: index,
+                }
+                .to_string()
+                .parse()
+                .unwrap()
+            }
         }
     }
 
