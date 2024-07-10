@@ -1,33 +1,71 @@
 use crate::error::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
+use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
 use router_api::ChainName;
 use std::collections::HashSet;
 
 type ProverAddress = Addr;
+type VerifierAddress = Addr;
 
-pub const PROVER_PER_CHAIN: Map<ChainName, ProverAddress> = Map::new("prover_per_chain");
-
-pub struct VerifierSetIndex<'a> {
-    pub by_verifier: MultiIndex<'a, Addr, VerifierProverRecord, (Addr, Addr)>,
+#[index_list(ProverAddress)]
+struct ChainProverIndexes<'a> {
+    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
 }
 
-impl<'a> IndexList<VerifierProverRecord> for VerifierSetIndex<'a> {
-    fn get_indexes(&self) -> Box<dyn Iterator<Item = &dyn Index<VerifierProverRecord>> + '_> {
-        let v: Vec<&dyn Index<VerifierProverRecord>> = vec![&self.by_verifier];
-        Box::new(v.into_iter())
-    }
+const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
+    IndexedMap::new(
+        "chain_prover_map",
+        ChainProverIndexes {
+            by_prover: UniqueIndex::new(|prover| prover.clone(), "chain_prover_map_by_prover"),
+        },
+    );
+
+pub fn load_chain_by_prover(
+    storage: &dyn Storage,
+    prover_address: ProverAddress,
+) -> Result<ProverAddress, ContractError> {
+    CHAIN_PROVER_INDEXED_MAP
+        .idx
+        .by_prover
+        .item(storage, prover_address)?
+        .map(|(_, r)| r)
+        .ok_or(ContractError::ProverNotRegistered)
+}
+
+#[allow(dead_code)] // Used in tests, might be useful in future query
+pub fn load_prover_by_chain(
+    storage: &dyn Storage,
+    chain_name: ChainName,
+) -> Result<ProverAddress, ContractError> {
+    CHAIN_PROVER_INDEXED_MAP
+        .may_load(storage, chain_name)?
+        .ok_or(ContractError::ProverNotRegistered)
+}
+
+pub fn save_prover_for_chain(
+    storage: &mut dyn Storage,
+    chain: ChainName,
+    prover: ProverAddress,
+) -> Result<(), ContractError> {
+    CHAIN_PROVER_INDEXED_MAP.save(storage, chain.clone(), &prover)?;
+    Ok(())
+}
+
+#[index_list(VerifierProverRecord)]
+pub struct VerifierSetIndex<'a> {
+    pub by_verifier:
+        MultiIndex<'a, VerifierAddress, VerifierProverRecord, (ProverAddress, VerifierAddress)>,
 }
 
 #[cw_serde]
 pub struct VerifierProverRecord {
     pub prover: ProverAddress,
-    pub verifier: Addr,
+    pub verifier: VerifierAddress,
 }
 
 pub const VERIFIER_PROVER_INDEXED_MAP: IndexedMap<
-    (Addr, Addr),
+    (ProverAddress, VerifierAddress),
     VerifierProverRecord,
     VerifierSetIndex,
 > = IndexedMap::new(
@@ -44,13 +82,13 @@ pub const VERIFIER_PROVER_INDEXED_MAP: IndexedMap<
 pub fn update_verifier_set_for_prover(
     storage: &mut dyn Storage,
     prover_address: ProverAddress,
-    new_verifiers: HashSet<Addr>,
+    new_verifiers: HashSet<VerifierAddress>,
 ) -> Result<(), ContractError> {
     let existing_verifiers = VERIFIER_PROVER_INDEXED_MAP
         .prefix(prover_address.clone())
         .keys(storage, None, None, Order::Ascending)
         .filter_map(Result::ok)
-        .collect::<HashSet<Addr>>();
+        .collect::<HashSet<VerifierAddress>>();
 
     for verifier in existing_verifiers.difference(&new_verifiers) {
         VERIFIER_PROVER_INDEXED_MAP
