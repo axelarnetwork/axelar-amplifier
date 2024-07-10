@@ -11,7 +11,7 @@ use crate::nonempty;
 type RawSignature = [u8; 64];
 
 pub struct Base58SolanaTxDigestAndEventIndex {
-    // Base64 decoded bytes of the Solana signature.
+    // Base58 decoded bytes of the Solana signature.
     pub signature: RawSignature,
     pub event_index: u32,
 }
