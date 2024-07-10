@@ -208,17 +208,16 @@ mod test {
     }
 
     fn message_id(id: &str, index: u32, msg_id_format: &MessageIdFormat) -> nonempty::String {
-        let tx_hash = Keccak256::digest(id.as_bytes()).into();
         match msg_id_format {
             MessageIdFormat::HexTxHashAndEventIndex => HexTxHashAndEventIndex {
-                tx_hash,
+                tx_hash: Keccak256::digest(id.as_bytes()).into(),
                 event_index: index,
             }
             .to_string()
             .parse()
             .unwrap(),
             MessageIdFormat::Base58TxDigestAndEventIndex => Base58TxDigestAndEventIndex {
-                tx_digest: tx_hash,
+                tx_digest: Keccak256::digest(id.as_bytes()).into(),
                 event_index: index,
             }
             .to_string()
