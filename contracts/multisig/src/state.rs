@@ -1,21 +1,20 @@
 use std::collections::HashMap;
 
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
-
 use crate::{
     key::{KeyType, KeyTyped, PublicKey, Signature},
     signing::SigningSession,
     verifier_set::VerifierSet,
     ContractError,
 };
+use axelar_wasm_std::nonempty;
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
 
 #[cw_serde]
 pub struct Config {
-    pub governance: Addr,
     pub rewards_contract: Addr,
-    pub block_expiry: u64, // number of blocks after which a signing session expires
+    pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

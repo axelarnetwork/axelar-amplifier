@@ -104,10 +104,7 @@ mod test {
     use sha3::{Digest, Keccak256};
 
     use axelar_wasm_std::{
-        msg_id::{
-            base_58_event_index::Base58TxDigestAndEventIndex,
-            tx_hash_event_index::HexTxHashAndEventIndex, MessageIdFormat,
-        },
+        msg_id::{Base58TxDigestAndEventIndex, HexTxHashAndEventIndex, MessageIdFormat},
         nonempty,
         voting::Vote,
         MajorityThreshold, Threshold, VerificationStatus,
@@ -1324,9 +1321,8 @@ mod test {
             threshold,
             Threshold::try_from((2, 3)).unwrap().try_into().unwrap()
         );
-        let votes_to_reach_quorum = 2;
 
-        let messages = messages(2, &msg_id_format);
+        let messages = messages(3, &msg_id_format);
 
         // 1. First verification
 
@@ -1342,11 +1338,28 @@ mod test {
         );
         assert!(res.is_ok());
 
-        // 2. Verifiers cast votes, but only reach consensus on the first three messages
+        // 2. Verifiers cast votes
+        // The first message reaches quorum after 2 votes,
+        // The second message reaches quorum after 3 votes,
+        // The third message never reaches quorum
         verifiers.iter().enumerate().for_each(|(i, verifier)| {
             let msg = ExecuteMsg::Vote {
                 poll_id: 1u64.into(),
-                votes: vec![Vote::SucceededOnChain, Vote::NotFound],
+                votes: vec![
+                    Vote::SucceededOnChain,
+                    if i % 2 == 0 {
+                        Vote::NotFound
+                    } else {
+                        Vote::SucceededOnChain
+                    },
+                    if i % 3 == 0 {
+                        Vote::NotFound
+                    } else if i % 3 == 1 {
+                        Vote::SucceededOnChain
+                    } else {
+                        Vote::FailedOnChain
+                    },
+                ],
             };
 
             let res = execute(
@@ -1357,62 +1370,57 @@ mod test {
             )
             .unwrap();
 
-            // should emit event when vote causes quorum to be reached
-            assert_eq!(
-                res.events.iter().any(|event| event.ty == "quorum_reached"),
-                i == votes_to_reach_quorum - 1
-            );
+            let verify_event =
+                |res: &Response, expected_message: Message, expected_status: VerificationStatus| {
+                    let mut iter = res.events.iter();
 
-            if i == votes_to_reach_quorum - 1 {
-                let mut iter = res.events.iter();
+                    let event = iter.find(|event| event.ty == "quorum_reached").unwrap();
 
-                let first_event = iter.find(|event| event.ty == "quorum_reached").unwrap();
+                    let msg: Message = serde_json::from_str(
+                        &event
+                            .attributes
+                            .iter()
+                            .find(|attr| attr.key == "content")
+                            .unwrap()
+                            .value,
+                    )
+                    .unwrap();
+                    assert_eq!(msg, expected_message);
 
-                let msg: Message = serde_json::from_str(
-                    &first_event
-                        .attributes
-                        .iter()
-                        .find(|attr| attr.key == "content")
-                        .unwrap()
-                        .value,
-                )
-                .unwrap();
-                assert_eq!(msg, messages[0]);
+                    let status: VerificationStatus = serde_json::from_str(
+                        &event
+                            .attributes
+                            .iter()
+                            .find(|attr| attr.key == "status")
+                            .unwrap()
+                            .value,
+                    )
+                    .unwrap();
+                    assert_eq!(status, expected_status);
 
-                let status: VerificationStatus = serde_json::from_str(
-                    &first_event
-                        .attributes
-                        .iter()
-                        .find(|attr| attr.key == "status")
-                        .unwrap()
-                        .value,
-                )
-                .unwrap();
-                assert_eq!(status, VerificationStatus::SucceededOnSourceChain);
+                    let additional_event = iter.find(|event| event.ty == "quorum_reached");
+                    assert_eq!(additional_event, None);
+                };
 
-                let second_event = iter.find(|event| event.ty == "quorum_reached").unwrap();
+            if i == 0 {
+                let event = res.events.iter().find(|event| event.ty == "quorum_reached");
+                assert_eq!(event, None);
+            }
 
-                let msg: Message = serde_json::from_str(
-                    &second_event
-                        .attributes
-                        .iter()
-                        .find(|attr| attr.key == "content")
-                        .unwrap()
-                        .value,
-                )
-                .unwrap();
-                assert_eq!(msg, messages[1]);
+            if i == 1 {
+                verify_event(
+                    &res,
+                    messages[0].clone(),
+                    VerificationStatus::SucceededOnSourceChain,
+                );
+            }
 
-                let status: VerificationStatus = serde_json::from_str(
-                    &second_event
-                        .attributes
-                        .iter()
-                        .find(|attr| attr.key == "status")
-                        .unwrap()
-                        .value,
-                )
-                .unwrap();
-                assert_eq!(status, VerificationStatus::NotFoundOnSourceChain);
+            if i == 2 {
+                verify_event(
+                    &res,
+                    messages[1].clone(),
+                    VerificationStatus::NotFoundOnSourceChain,
+                );
             }
         });
     }

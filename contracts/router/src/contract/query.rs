@@ -1,4 +1,4 @@
-use cosmwasm_std::{Deps, Order};
+use cosmwasm_std::{Deps, Order, Storage};
 use cw_storage_plus::Bound;
 
 use error_stack::{Result, ResultExt};
@@ -10,9 +10,9 @@ use crate::state::chain_endpoints;
 // Pagination limits
 const DEFAULT_LIMIT: u32 = u32::MAX;
 
-pub fn get_chain_info(deps: Deps, chain: ChainName) -> Result<ChainEndpoint, Error> {
+pub fn get_chain_info(storage: &dyn Storage, chain: ChainName) -> Result<ChainEndpoint, Error> {
     chain_endpoints()
-        .may_load(deps.storage, chain)
+        .may_load(storage, chain)
         .change_context(Error::StoreFailure)?
         .ok_or(Error::ChainNotFound.into())
 }
@@ -37,12 +37,11 @@ pub fn chains(
 
 #[cfg(test)]
 mod test {
+    use crate::state::chain_endpoints;
     use axelar_wasm_std::flagset::FlagSet;
     use cosmwasm_std::{testing::mock_dependencies, Addr};
     use router_api::error::Error;
     use router_api::{ChainEndpoint, ChainName, Gateway, GatewayDirection};
-
-    use crate::state::chain_endpoints;
 
     use super::get_chain_info;
 
@@ -62,7 +61,7 @@ mod test {
         assert!(chain_endpoints()
             .save(deps.as_mut().storage, chain_name.clone(), &chain_info)
             .is_ok());
-        let result = get_chain_info(deps.as_ref(), chain_name);
+        let result = get_chain_info(deps.as_ref().storage, chain_name);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), chain_info);
     }
@@ -71,7 +70,7 @@ mod test {
     fn get_non_existent_chain_info() {
         let deps = mock_dependencies();
         let chain_name: ChainName = "Ethereum".to_string().try_into().unwrap();
-        let result = get_chain_info(deps.as_ref(), chain_name);
+        let result = get_chain_info(deps.as_ref().storage, chain_name);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().current_context(), &Error::ChainNotFound);
     }

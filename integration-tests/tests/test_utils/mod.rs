@@ -1,5 +1,5 @@
 use axelar_wasm_std::{
-    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
+    msg_id::HexTxHashAndEventIndex,
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
@@ -10,7 +10,7 @@ use cosmwasm_std::{
 use cw_multi_test::{App, AppResponse, Executor};
 use multisig_prover::msg::VerifierSetResponse;
 use router_api::{Address, ChainName, CrossChainId, GatewayDirection, Message};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use integration_tests::contract::Contract;
 use integration_tests::coordinator_contract::CoordinatorContract;
@@ -88,16 +88,15 @@ pub fn route_messages(app: &mut App, gateway: &GatewayContract, msgs: &[Message]
 pub fn freeze_chain(
     app: &mut App,
     router: &RouterContract,
-    chain_name: &ChainName,
+    chain_name: ChainName,
     direction: GatewayDirection,
     admin: &Addr,
 ) {
     let response = router.execute(
         app,
         admin.clone(),
-        &router_api::msg::ExecuteMsg::FreezeChain {
-            chain: chain_name.clone(),
-            direction,
+        &router_api::msg::ExecuteMsg::FreezeChains {
+            chains: HashMap::from([(chain_name, direction)]),
         },
     );
     assert!(response.is_ok(), "{:?}", response);
@@ -113,9 +112,8 @@ pub fn unfreeze_chain(
     let response = router.execute(
         app,
         admin.clone(),
-        &router_api::msg::ExecuteMsg::UnfreezeChain {
-            chain: chain_name.clone(),
-            direction,
+        &router_api::msg::ExecuteMsg::UnfreezeChains {
+            chains: HashMap::from([(chain_name.clone(), direction)]),
         },
     );
     assert!(response.is_ok(), "{:?}", response);
@@ -365,13 +363,13 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
             .unwrap()
     });
-    let router_admin_address = Addr::unchecked("admin");
+    let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
-        router_admin_address.clone(),
+        admin_address.clone(),
         governance_address.clone(),
         nexus_gateway.clone(),
     );
@@ -391,8 +389,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let multisig = MultisigContract::instantiate_contract(
         &mut app,
         governance_address.clone(),
+        admin_address.clone(),
         rewards.contract_addr.clone(),
-        SIGNATURE_BLOCK_EXPIRY,
+        SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
     );
 
     let coordinator =
@@ -405,7 +404,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         genesis_address: genesis,
         governance_address,
         router,
-        router_admin_address,
+        router_admin_address: admin_address,
         multisig,
         coordinator,
         service_registry,

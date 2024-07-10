@@ -1,24 +1,13 @@
 use crate::error::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Map, MultiIndex};
 use router_api::ChainName;
 use std::collections::HashSet;
 
-#[cw_serde]
-pub struct Config {
-    pub governance: Addr,
-}
-
-pub const CONFIG: Item<Config> = Item::new("config");
-
-pub type ProverAddress = Addr;
+type ProverAddress = Addr;
 
 pub const PROVER_PER_CHAIN: Map<ChainName, ProverAddress> = Map::new("prover_per_chain");
-
-pub type ChainNames = HashSet<ChainName>;
-pub type VerifierAddress = Addr;
-pub const CHAINS_OF_VERIFIER: Map<VerifierAddress, ChainNames> = Map::new("chains_of_verifier");
 
 pub struct VerifierSetIndex<'a> {
     pub by_verifier: MultiIndex<'a, Addr, VerifierProverRecord, (Addr, Addr)>,
@@ -34,7 +23,7 @@ impl<'a> IndexList<VerifierProverRecord> for VerifierSetIndex<'a> {
 #[cw_serde]
 pub struct VerifierProverRecord {
     pub prover: ProverAddress,
-    pub verifier: VerifierAddress,
+    pub verifier: Addr,
 }
 
 pub const VERIFIER_PROVER_INDEXED_MAP: IndexedMap<
@@ -55,13 +44,13 @@ pub const VERIFIER_PROVER_INDEXED_MAP: IndexedMap<
 pub fn update_verifier_set_for_prover(
     storage: &mut dyn Storage,
     prover_address: ProverAddress,
-    new_verifiers: HashSet<VerifierAddress>,
+    new_verifiers: HashSet<Addr>,
 ) -> Result<(), ContractError> {
     let existing_verifiers = VERIFIER_PROVER_INDEXED_MAP
         .prefix(prover_address.clone())
         .keys(storage, None, None, Order::Ascending)
         .filter_map(Result::ok)
-        .collect::<HashSet<VerifierAddress>>();
+        .collect::<HashSet<Addr>>();
 
     for verifier in existing_verifiers.difference(&new_verifiers) {
         VERIFIER_PROVER_INDEXED_MAP

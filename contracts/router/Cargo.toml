@@ -43,10 +43,12 @@ error-stack = { workspace = true }
 flagset = { version = "0.4.3", features = ["serde"] }
 gateway-api = { workspace = true }
 itertools = { workspace = true }
-mockall = "0.11.4"
+mockall = { workspace = true }
+msgs-derive = { workspace = true }
 report = { workspace = true }
 router-api = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 cw-multi-test = "0.15.1"

@@ -1,13 +1,13 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
     QueryRequest, Response, Uint128, WasmQuery,
 };
 
 use crate::error::ContractError;
 use crate::migrations;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{AuthorizationState, BondingState, Config, Service, Verifier, CONFIG, SERVICES};
 
 mod execute;
@@ -161,10 +161,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 pub fn migrate(
     deps: DepsMut,
     _env: Env,
-    _msg: Empty,
+    msg: MigrateMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    migrations::v_0_4::migrate_services(deps.storage).map_err(axelar_wasm_std::ContractError::from)
+    migrations::v_0_4::migrate_services_coordinator_contract(deps.storage, msg.coordinator_contract)
+        .map_err(axelar_wasm_std::ContractError::from)
 }
 
 #[cfg(test)]

@@ -4,15 +4,7 @@ use std::collections::HashSet;
 use router_api::ChainName;
 
 use crate::error::ContractError;
-use crate::state::{update_verifier_set_for_prover, CONFIG, PROVER_PER_CHAIN};
-
-pub fn check_governance(deps: &DepsMut, info: MessageInfo) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != info.sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
-}
+use crate::state::{update_verifier_set_for_prover, PROVER_PER_CHAIN};
 
 pub fn register_prover(
     deps: DepsMut,

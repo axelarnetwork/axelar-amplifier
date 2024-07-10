@@ -1,4 +1,4 @@
-use cosmwasm_std::{OverflowError, OverflowOperation, WasmMsg};
+use cosmwasm_std::{ensure, OverflowError, OverflowOperation, WasmMsg};
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
@@ -23,7 +23,13 @@ pub fn start_signing_session(
     chain_name: ChainName,
     sig_verifier: Option<Addr>,
 ) -> Result<Response, ContractError> {
+    ensure!(
+        killswitch::is_contract_active(deps.storage),
+        ContractError::SigningDisabled
+    );
+
     let config = CONFIG.load(deps.storage)?;
+
     let verifier_set = get_verifier_set(deps.storage, &verifier_set_id)?;
 
     let session_id = SIGNING_SESSION_COUNTER.update(
@@ -39,7 +45,7 @@ pub fn start_signing_session(
     let expires_at = env
         .block
         .height
-        .checked_add(config.block_expiry)
+        .checked_add(config.block_expiry.into())
         .ok_or_else(|| {
             OverflowError::new(
                 OverflowOperation::Add,
@@ -80,6 +86,11 @@ pub fn submit_signature(
     session_id: Uint64,
     signature: HexBinary,
 ) -> Result<Response, ContractError> {
+    ensure!(
+        killswitch::is_contract_active(deps.storage),
+        ContractError::SigningDisabled
+    );
+
     let config = CONFIG.load(deps.storage)?;
     let mut session = SIGNING_SESSIONS
         .load(deps.storage, session_id.into())
@@ -194,12 +205,12 @@ pub fn unauthorize_caller(
     Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
 }
 
-pub fn require_governance(deps: &DepsMut, sender: Addr) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    if config.governance != sender {
-        return Err(ContractError::Unauthorized);
-    }
-    Ok(())
+pub fn enable_signing(deps: DepsMut) -> Result<Response, ContractError> {
+    killswitch::disengage(deps.storage, Event::SigningEnabled).map_err(|err| err.into())
+}
+
+pub fn disable_signing(deps: DepsMut) -> Result<Response, ContractError> {
+    killswitch::engage(deps.storage, Event::SigningDisabled).map_err(|err| err.into())
 }
 
 fn signing_response(
