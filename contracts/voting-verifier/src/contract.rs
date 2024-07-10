@@ -105,8 +105,8 @@ mod test {
 
     use axelar_wasm_std::{
         msg_id::{
-            Base58SolanaTxDigestAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
-            MessageIdFormat,
+            Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex,
+            HexTxHashAndEventIndex, MessageIdFormat,
         },
         nonempty,
         voting::Vote,
@@ -223,10 +223,12 @@ mod test {
             .to_string()
             .parse()
             .unwrap(),
-            MessageIdFormat::Base58SolanaTxDigestAndEventIndex => Base58SolanaTxDigestAndEventIndex {
-                signature: Keccak512::digest(id.as_bytes()).into(),
-                event_index: index,
-            } .to_string()
+            MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
+                Base58SolanaTxSignatureAndEventIndex {
+                    signature: Keccak512::digest(id.as_bytes()).into(),
+                    event_index: index,
+                }
+                .to_string()
                 .parse()
                 .unwrap()
             }

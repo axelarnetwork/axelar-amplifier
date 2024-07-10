@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
-use axelar_wasm_std::msg_id::Base58SolanaTxDigestAndEventIndex;
+use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::msg_id::MessageIdFormat;
@@ -138,11 +138,11 @@ fn parse_message_id(
 
             Ok((id.tx_hash_as_hex(), id.event_index))
         }
-        MessageIdFormat::Base58SolanaTxDigestAndEventIndex => {
-            let id = Base58SolanaTxDigestAndEventIndex::from_str(&message_id)
+        MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
+            let id = Base58SolanaTxSignatureAndEventIndex::from_str(&message_id)
                 .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
 
-            Ok((id.tx_digest_as_base58(), id.event_index))
+            Ok((id.signature_as_base58(), id.event_index))
         }
     }
 }
