@@ -179,8 +179,8 @@ mod tests {
         let res = Base58SolanaTxDigestAndEventIndex::from_str(&msg_id);
         assert!(res.is_err());
 
-        // this is 44 chars and valid base 58, but will encode to 33 bytes
-        // (z is the largest base58 digit, and so this will overflow 2^256)
+        // this is 88 chars and valid base 58, but will encode to 65 bytes
+        // (z is the largest base58 digit, and so this will overflow 2^512)
         let tx_digest = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz";
         assert_eq!(tx_digest.len(), 88);
         let msg_id = format!("{}-{}", tx_digest, event_index);
