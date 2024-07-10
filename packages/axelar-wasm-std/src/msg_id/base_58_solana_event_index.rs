@@ -30,16 +30,6 @@ impl Base58SolanaTxDigestAndEventIndex {
             event_index: event_index.into(),
         }
     }
-
-    pub fn new_from_b58_encoded_signature_and_index(
-        signature: &str,
-        event_index: impl Into<u32>,
-    ) -> Result<Self, Report<Error>> {
-        Ok(Self {
-            signature: decode_b58_signature(signature)?,
-            event_index: event_index.into(),
-        })
-    }
 }
 
 fn decode_b58_signature(signature: &str) -> Result<RawSignature, Report<Error>> {

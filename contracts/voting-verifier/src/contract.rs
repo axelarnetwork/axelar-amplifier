@@ -101,7 +101,7 @@ mod test {
         testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
         Addr, Empty, Fraction, OwnedDeps, Uint128, Uint64, WasmQuery,
     };
-    use sha3::{Digest, Keccak256};
+    use sha3::{Digest, Keccak256, Keccak512};
 
     use axelar_wasm_std::{
         msg_id::{
@@ -223,12 +223,10 @@ mod test {
             .to_string()
             .parse()
             .unwrap(),
-            MessageIdFormat::Base58SolanaTxDigestAndEventIndex => {
-                Base58SolanaTxDigestAndEventIndex::new_from_b58_encoded_signature_and_index(
-                    id, index,
-                )
-                .unwrap()
-                .to_string()
+            MessageIdFormat::Base58SolanaTxDigestAndEventIndex => Base58SolanaTxDigestAndEventIndex {
+                signature: Keccak512::digest(id.as_bytes()).into(),
+                event_index: index,
+            } .to_string()
                 .parse()
                 .unwrap()
             }
