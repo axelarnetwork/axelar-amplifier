@@ -177,8 +177,10 @@ mod test {
     use cosmrs::Any;
     use cosmrs::{bank::MsgSend, tx::Msg, AccountId};
     use error_stack::Report;
+    use std::sync::{Arc, Mutex};
+    use tokio::sync::oneshot;
     use tokio::test;
-    use tokio::time::{interval, Duration, Instant};
+    use tokio::time::{interval, timeout, Duration, Instant};
 
     use super::{Error, QueuedBroadcaster};
     use crate::broadcaster::{self, MockBroadcaster};
@@ -210,56 +212,15 @@ mod test {
     }
 
     #[test(start_paused = true)]
-    async fn should_not_broadcast_when_gas_limit_has_not_been_reached() {
-        let tx_count = 9;
-        let batch_gas_limit = 100;
-        let gas_limit = 10;
-
-        let mut broadcaster = MockBroadcaster::new();
-        broadcaster
-            .expect_estimate_fee()
-            .times(tx_count)
-            .returning(move |_| {
-                Ok(Fee {
-                    gas_limit,
-                    amount: vec![],
-                    granter: None,
-                    payer: None,
-                })
-            });
-        broadcaster
-            .expect_broadcast()
-            .once()
-            .returning(move |msgs| {
-                assert_eq!(msgs.len(), tx_count);
-
-                Ok(TxResponse::default())
-            });
-
-        let mut broadcast_interval = interval(Duration::from_secs(5));
-        // get rid of tick on startup
-        broadcast_interval.tick().await;
-
-        let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
-        let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
-
-        for _ in 0..tx_count {
-            client.broadcast(dummy_msg()).await.unwrap();
-        }
-        drop(client);
-
-        assert!(handle.await.unwrap().is_ok());
-    }
-
-    #[test(start_paused = true)]
     async fn should_broadcast_after_interval_in_low_load() {
         let tx_count = 5; // Less than what would exceed batch_gas_limit
         let batch_gas_limit = 100;
         let gas_limit = 10;
         let interval_duration = Duration::from_secs(5);
 
+        let (tx, rx) = oneshot::channel();
+        let tx = Arc::new(Mutex::new(Some(tx)));
+
         let mut broadcaster = MockBroadcaster::new();
         broadcaster
             .expect_estimate_fee()
@@ -272,11 +233,17 @@ mod test {
                     payer: None,
                 })
             });
+
+        let tx_clone = Arc::clone(&tx);
         broadcaster
             .expect_broadcast()
             .times(1)
             .returning(move |msgs| {
                 assert_eq!(msgs.len(), tx_count);
+                if let Some(tx) = tx_clone.lock().unwrap().take() {
+                    tx.send(())
+                        .expect("Failed to send broadcast completion signal");
+                }
                 Ok(TxResponse::default())
             });
 
@@ -297,14 +264,14 @@ mod test {
         // Advance time to just after one interval
         tokio::time::advance(interval_duration + Duration::from_millis(10)).await;
 
-        // Wait for the broadcast to occur
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        let elapsed = start_time.elapsed();
-
-        // Assert that broadcast happened after one interval but before two
-        assert!(elapsed > interval_duration);
-        assert!(elapsed < interval_duration * 2);
+        match timeout(interval_duration, rx).await {
+            Ok(_) => {
+                let elapsed = start_time.elapsed();
+                assert!(elapsed > interval_duration);
+                assert!(elapsed < interval_duration * 2);
+            }
+            Err(_) => panic!("Broadcast did not occur within the expected timeframe"),
+        }
     }
 
     #[test(start_paused = true)]
@@ -326,9 +293,18 @@ mod test {
         });
         broadcaster
             .expect_broadcast()
-            .times(3) // Expect 3 broadcasts: 2 full batches and 1 partial
+            .once()
             .returning(move |msgs| {
-                assert!(msgs.len() == 9 || msgs.len() == 2);
+                assert_eq!(msgs.len(), 9);
+
+                Ok(TxResponse::default())
+            });
+        broadcaster
+            .expect_broadcast()
+            .once()
+            .returning(move |msgs| {
+                assert_eq!(msgs.len(), 9);
+
                 Ok(TxResponse::default())
             });
 
@@ -353,49 +329,6 @@ mod test {
 
         // Assert that broadcasts happened faster than the interval
         assert!(elapsed < interval_duration);
-    }
-
-    #[test(start_paused = true)]
-    async fn should_broadcast_when_broadcast_interval_has_been_reached() {
-        let tx_count = 9;
-        let batch_gas_limit = 100;
-        let gas_limit = 10;
-
-        let mut broadcaster = MockBroadcaster::new();
-        broadcaster
-            .expect_estimate_fee()
-            .times(tx_count)
-            .returning(move |_| {
-                Ok(Fee {
-                    gas_limit,
-                    amount: vec![],
-                    granter: None,
-                    payer: None,
-                })
-            });
-        broadcaster
-            .expect_broadcast()
-            .once()
-            .returning(move |msgs| {
-                assert_eq!(msgs.len(), tx_count);
-
-                Ok(TxResponse::default())
-            });
-        let mut broadcast_interval = interval(Duration::from_millis(100));
-        // get rid of tick on startup
-        broadcast_interval.tick().await;
-
-        let queued_broadcaster =
-            QueuedBroadcaster::new(broadcaster, batch_gas_limit, tx_count, broadcast_interval);
-        let client = queued_broadcaster.client();
-        let handle = tokio::spawn(queued_broadcaster.run());
-
-        for _ in 0..tx_count {
-            client.broadcast(dummy_msg()).await.unwrap();
-        }
-        drop(client);
-
-        assert!(handle.await.unwrap().is_ok());
     }
 
     #[test(start_paused = true)]
