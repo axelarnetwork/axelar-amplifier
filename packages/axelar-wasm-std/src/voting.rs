@@ -254,6 +254,7 @@ pub struct PollState {
 #[cw_serde]
 pub enum PollStatus {
     InProgress,
+    Expired,
     Finished,
 }
 
@@ -267,10 +268,10 @@ pub struct Participation {
 pub struct WeightedPoll {
     pub poll_id: PollId,
     pub quorum: nonempty::Uint128,
-    pub expires_at: u64,
+    expires_at: u64,
     pub poll_size: u64,
     pub tallies: Vec<Tallies>, // running tally of weighted votes
-    pub status: PollStatus,
+    finished: bool,
     pub participation: BTreeMap<String, Participation>,
 }
 
@@ -298,13 +299,13 @@ impl WeightedPoll {
             expires_at: expiry,
             poll_size: poll_size as u64,
             tallies: vec![Tallies::default(); poll_size],
-            status: PollStatus::InProgress,
+            finished: false,
             participation,
         }
     }
 
     pub fn finish(mut self, block_height: u64) -> Result<Self, Error> {
-        if matches!(self.status, PollStatus::Finished { .. }) {
+        if self.finished {
             return Err(Error::PollNotInProgress);
         }
 
@@ -312,7 +313,7 @@ impl WeightedPoll {
             return Err(Error::PollNotEnded);
         }
 
-        self.status = PollStatus::Finished;
+        self.finished = true;
 
         Ok(self)
     }
@@ -402,6 +403,14 @@ impl WeightedPoll {
         participation.voted = true;
 
         Ok(self)
+    }
+
+    pub fn status(&self, current_height: u64) -> PollStatus {
+        match self.finished {
+            true => PollStatus::Finished,
+            false if current_height >= self.expires_at => PollStatus::Expired,
+            _ => PollStatus::InProgress,
+        }
     }
 }
 
@@ -510,8 +519,8 @@ mod tests {
     #[test]
     fn finish_after_poll_conclude() {
         let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
-        poll.status = PollStatus::Finished;
-        assert_eq!(poll.finish(2), Err(Error::PollNotInProgress));
+        poll = poll.finish(2).unwrap();
+        assert_eq!(poll.finish(3), Err(Error::PollNotInProgress));
     }
 
     #[test]
@@ -527,7 +536,7 @@ mod tests {
             .unwrap();
 
         let poll = poll.finish(2).unwrap();
-        assert_eq!(poll.status, PollStatus::Finished);
+        assert_eq!(poll.status(2), PollStatus::Finished);
 
         let result = poll.state(
             voters
@@ -596,6 +605,15 @@ mod tests {
                 consensus_participants: vec!["addr1".to_string(), "addr3".to_string(),],
             }
         );
+    }
+
+    #[test]
+    fn status_should_return_current_status() {
+        let mut poll = new_poll(2, 2, vec!["addr1", "addr2"]);
+        assert_eq!(poll.status(1), PollStatus::InProgress);
+        assert_eq!(poll.status(2), PollStatus::Expired);
+        poll = poll.finish(3).unwrap();
+        assert_eq!(poll.status(3), PollStatus::Finished);
     }
 
     fn new_poll(expires_at: u64, poll_size: usize, participants: Vec<&str>) -> WeightedPoll {

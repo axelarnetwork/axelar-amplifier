@@ -2,14 +2,16 @@ mod execute;
 mod query;
 
 mod migrations;
-use crate::contract::migrations::{set_version_after_migration, v0_2_0};
+use crate::contract::migrations::v0_2_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{CONTRACT_NAME, CONTRACT_VERSION};
-use axelar_wasm_std::{permission_control, FnExt};
+use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response};
+
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
@@ -17,10 +19,13 @@ pub fn migrate(
     _env: Env,
     _msg: Empty,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
-    set_version_after_migration(deps.storage, |storage| {
-        v0_2_0::migrate(storage).map(|_| Response::default())
-    })?
-    .then(Ok)
+    v0_2_0::migrate(deps.storage)?;
+
+    // this needs to be the last thing to do during migration,
+    // because previous migration steps should check the old version
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

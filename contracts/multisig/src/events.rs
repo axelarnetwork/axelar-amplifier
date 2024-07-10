@@ -40,6 +40,8 @@ pub enum Event {
     CallerUnauthorized {
         contract_address: Addr,
     },
+    SigningEnabled,
+    SigningDisabled,
 }
 
 impl From<Event> for cosmwasm_std::Event {
@@ -97,6 +99,8 @@ impl From<Event> for cosmwasm_std::Event {
                 cosmwasm_std::Event::new("caller_unauthorized")
                     .add_attribute("contract_address", contract_address)
             }
+            Event::SigningEnabled => cosmwasm_std::Event::new("signing_enabled"),
+            Event::SigningDisabled => cosmwasm_std::Event::new("signing_disabled"),
         }
     }
 }

@@ -1,5 +1,5 @@
 use axelar_wasm_std::{
-    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
+    msg_id::HexTxHashAndEventIndex,
     nonempty,
     voting::{PollId, Vote},
     Participant, Threshold,
@@ -363,13 +363,13 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
             .init_balance(storage, &genesis, coins(u128::MAX, AXL_DENOMINATION))
             .unwrap()
     });
-    let router_admin_address = Addr::unchecked("admin");
+    let admin_address = Addr::unchecked("admin");
     let governance_address = Addr::unchecked("governance");
     let nexus_gateway = Addr::unchecked("nexus_gateway");
 
     let router = RouterContract::instantiate_contract(
         &mut app,
-        router_admin_address.clone(),
+        admin_address.clone(),
         governance_address.clone(),
         nexus_gateway.clone(),
     );
@@ -389,8 +389,9 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
     let multisig = MultisigContract::instantiate_contract(
         &mut app,
         governance_address.clone(),
+        admin_address.clone(),
         rewards.contract_addr.clone(),
-        SIGNATURE_BLOCK_EXPIRY,
+        SIGNATURE_BLOCK_EXPIRY.try_into().unwrap(),
     );
 
     let coordinator =
@@ -403,7 +404,7 @@ pub fn setup_protocol(service_name: nonempty::String) -> Protocol {
         genesis_address: genesis,
         governance_address,
         router,
-        router_admin_address,
+        router_admin_address: admin_address,
         multisig,
         coordinator,
         service_registry,
