@@ -17,7 +17,7 @@ pub enum ExecuteMsg {
         chain_name: ChainName,
         new_prover_addr: Addr,
     },
-    #[permission(Any)]
+    #[permission(Specific(prover))]
     SetActiveVerifiers { verifiers: HashSet<Addr> },
 }
 
