@@ -72,11 +72,7 @@ pub fn execute(
 fn find_prover_address(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, ContractError> + '_ {
-    |storage, _| {
-        load_chain_by_prover(storage, sender.clone())?
-            .prover
-            .then(Ok)
-    }
+    |storage, _| load_chain_by_prover(storage, sender.clone())?.then(Ok)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -184,7 +180,7 @@ mod tests {
             test_setup.chain_name.clone(),
         );
         assert!(chain_prover.is_ok(), "{:?}", chain_prover);
-        assert_eq!(chain_prover.unwrap().prover, test_setup.prover);
+        assert_eq!(chain_prover.unwrap(), test_setup.prover);
     }
 
     #[test]

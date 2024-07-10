@@ -9,34 +9,28 @@ type ProverAddress = Addr;
 type VerifierAddress = Addr;
 
 struct ChainProverIndexes<'a> {
-    pub by_prover: UniqueIndex<'a, ProverAddress, ChainProverRecord, ChainName>,
+    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
 }
 
-impl<'a> IndexList<ChainProverRecord> for ChainProverIndexes<'a> {
-    fn get_indexes(&self) -> Box<dyn Iterator<Item = &dyn Index<ChainProverRecord>> + '_> {
-        let v: Vec<&dyn Index<ChainProverRecord>> = vec![&self.by_prover];
+impl<'a> IndexList<ProverAddress> for ChainProverIndexes<'a> {
+    fn get_indexes(&self) -> Box<dyn Iterator<Item = &dyn Index<ProverAddress>> + '_> {
+        let v: Vec<&dyn Index<ProverAddress>> = vec![&self.by_prover];
         Box::new(v.into_iter())
     }
 }
 
-#[cw_serde]
-pub struct ChainProverRecord {
-    pub prover: ProverAddress,
-    pub chain: ChainName,
-}
-
-const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ChainProverRecord, ChainProverIndexes> =
+const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
     IndexedMap::new(
         "chain_prover_map",
         ChainProverIndexes {
-            by_prover: UniqueIndex::new(|d| d.prover.clone(), "chain_prover_map_by_prover"),
+            by_prover: UniqueIndex::new(|prover| prover.clone(), "chain_prover_map_by_prover"),
         },
     );
 
 pub fn load_chain_by_prover(
     storage: &dyn Storage,
     prover_address: ProverAddress,
-) -> Result<ChainProverRecord, ContractError> {
+) -> Result<ProverAddress, ContractError> {
     CHAIN_PROVER_INDEXED_MAP
         .idx
         .by_prover
@@ -49,7 +43,7 @@ pub fn load_chain_by_prover(
 pub fn load_prover_by_chain(
     storage: &dyn Storage,
     chain_name: ChainName,
-) -> Result<ChainProverRecord, ContractError> {
+) -> Result<ProverAddress, ContractError> {
     CHAIN_PROVER_INDEXED_MAP
         .may_load(storage, chain_name)?
         .ok_or(ContractError::ProverNotRegistered)
@@ -60,7 +54,7 @@ pub fn save_prover_for_chain(
     chain: ChainName,
     prover: ProverAddress,
 ) -> Result<(), ContractError> {
-    CHAIN_PROVER_INDEXED_MAP.save(storage, chain.clone(), &ChainProverRecord { prover, chain })?;
+    CHAIN_PROVER_INDEXED_MAP.save(storage, chain.clone(), &prover)?;
     Ok(())
 }
 
