@@ -1,22 +1,16 @@
 use crate::error::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, MultiIndex, UniqueIndex};
+use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
 use router_api::ChainName;
 use std::collections::HashSet;
 
 type ProverAddress = Addr;
 type VerifierAddress = Addr;
 
+#[index_list(ProverAddress)]
 struct ChainProverIndexes<'a> {
     pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
-}
-
-impl<'a> IndexList<ProverAddress> for ChainProverIndexes<'a> {
-    fn get_indexes(&self) -> Box<dyn Iterator<Item = &dyn Index<ProverAddress>> + '_> {
-        let v: Vec<&dyn Index<ProverAddress>> = vec![&self.by_prover];
-        Box::new(v.into_iter())
-    }
 }
 
 const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
@@ -58,16 +52,10 @@ pub fn save_prover_for_chain(
     Ok(())
 }
 
+#[index_list(VerifierProverRecord)]
 pub struct VerifierSetIndex<'a> {
     pub by_verifier:
         MultiIndex<'a, VerifierAddress, VerifierProverRecord, (ProverAddress, VerifierAddress)>,
-}
-
-impl<'a> IndexList<VerifierProverRecord> for VerifierSetIndex<'a> {
-    fn get_indexes(&self) -> Box<dyn Iterator<Item = &dyn Index<VerifierProverRecord>> + '_> {
-        let v: Vec<&dyn Index<VerifierProverRecord>> = vec![&self.by_verifier];
-        Box::new(v.into_iter())
-    }
 }
 
 #[cw_serde]
