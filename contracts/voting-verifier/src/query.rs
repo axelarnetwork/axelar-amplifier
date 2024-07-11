@@ -1,5 +1,5 @@
 use axelar_wasm_std::{
-    voting::{PollStatus, Vote},
+    voting::{PollId, PollStatus, Vote},
     MajorityThreshold, VerificationStatus,
 };
 use cosmwasm_std::Deps;
@@ -46,6 +46,10 @@ pub fn message_status(
         message,
         cur_block_height,
     ))
+}
+
+pub fn poll(deps: Deps, poll_id: PollId) -> Result<Poll, ContractError> {
+    Ok(POLLS.load(deps.storage, poll_id)?)
 }
 
 pub fn verifier_set_status(
