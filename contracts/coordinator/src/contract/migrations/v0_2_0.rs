@@ -1,9 +1,10 @@
-use crate::contract::CONTRACT_NAME;
 use crate::error::ContractError;
+use crate::{contract::CONTRACT_NAME, state::save_prover_for_chain};
 use axelar_wasm_std::permission_control;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Storage};
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
+use router_api::ChainName;
 
 const BASE_VERSION: &str = "0.2.0";
 
@@ -11,6 +12,7 @@ pub(crate) fn migrate(storage: &mut dyn Storage) -> Result<(), ContractError> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
     migrate_config_to_permission_control(storage)?;
+    migrate_registered_provers(storage)?;
     Ok(())
 }
 
@@ -21,12 +23,25 @@ fn migrate_config_to_permission_control(storage: &mut dyn Storage) -> Result<(),
     Ok(())
 }
 
+fn migrate_registered_provers(storage: &mut dyn Storage) -> Result<(), ContractError> {
+    PROVER_PER_CHAIN
+        .range(storage, None, None, cosmwasm_std::Order::Ascending)
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .try_for_each(|(chain, prover)| save_prover_for_chain(storage, chain, prover))?;
+
+    PROVER_PER_CHAIN.clear(storage);
+    Ok(())
+}
+
 #[cw_serde]
 pub struct Config {
     pub governance: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
+
+pub const PROVER_PER_CHAIN: Map<ChainName, Addr> = Map::new("prover_per_chain");
 
 #[cfg(test)]
 #[allow(deprecated)]
@@ -36,8 +51,12 @@ mod tests {
     use crate::contract::{execute, CONTRACT_NAME};
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, InstantiateMsg};
+    use crate::state::{is_prover_registered, load_prover_by_chain};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response};
+    use router_api::ChainName;
+
+    use super::PROVER_PER_CHAIN;
 
     #[test]
     fn migrate_checks_contract_version() {
@@ -87,6 +106,35 @@ mod tests {
         assert!(v0_2_0::CONFIG.may_load(&deps.storage).unwrap().is_none())
     }
 
+    #[test]
+    fn ensure_registered_provers_are_migrated() {
+        let mut deps = mock_dependencies();
+        instantiate_0_2_0_contract(deps.as_mut()).unwrap();
+
+        let provers: Vec<(ChainName, Addr)> = vec![
+            ("chain1".parse().unwrap(), Addr::unchecked("addr1")),
+            ("chain2".parse().unwrap(), Addr::unchecked("addr2")),
+        ];
+
+        for (chain, prover) in &provers {
+            register_prover_0_2_0(deps.as_mut(), chain.clone(), prover.clone()).unwrap();
+        }
+
+        assert!(v0_2_0::migrate(deps.as_mut().storage).is_ok());
+
+        for (chain, prover) in &provers {
+            assert_eq!(
+                load_prover_by_chain(deps.as_ref().storage, chain.clone()).unwrap(),
+                prover.clone()
+            );
+
+            // check index is working as well
+            assert!(is_prover_registered(deps.as_ref().storage, prover.clone()).unwrap());
+        }
+
+        assert!(PROVER_PER_CHAIN.is_empty(deps.as_ref().storage));
+    }
+
     fn instantiate_0_2_0_contract(
         deps: DepsMut,
     ) -> Result<InstantiateMsg, axelar_wasm_std::ContractError> {
@@ -115,5 +163,15 @@ mod tests {
             },
         )?;
         Ok(Response::default())
+    }
+
+    #[deprecated(since = "0.2.0", note = "only used to test the migration")]
+    fn register_prover_0_2_0(
+        deps: DepsMut,
+        chain_name: ChainName,
+        new_prover_addr: Addr,
+    ) -> Result<Response, ContractError> {
+        PROVER_PER_CHAIN.save(deps.storage, chain_name.clone(), &(new_prover_addr))?;
+        Ok(Response::new())
     }
 }
