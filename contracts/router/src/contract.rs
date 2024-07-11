@@ -1746,15 +1746,12 @@ mod test {
         register_chain(deps.as_mut(), &eth);
         register_chain(deps.as_mut(), &polygon);
 
-        let result = execute(
+        assert!(execute(
             deps.as_mut(),
             mock_env(),
             mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
             ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)),
-        );
-
-        println!("{:?}", result);
-
-        assert!(result.is_ok());
+        )
+        .is_ok());
     }
 }
