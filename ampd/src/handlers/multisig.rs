@@ -2,14 +2,15 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use async_trait::async_trait;
-use cosmrs::cosmwasm::MsgExecuteContract;
-use cosmrs::{tx::Msg, Any};
+use cosmrs::{
+    cosmwasm::MsgExecuteContract,
+    {tx::Msg, Any},
+};
 use cosmwasm_std::{HexBinary, Uint64};
 use ecdsa::VerifyingKey;
-use error_stack::ResultExt;
+use error_stack::{Report, ResultExt};
 use hex::encode;
-use serde::de::Error as DeserializeError;
-use serde::{Deserialize, Deserializer};
+use serde::{de::Error as DeserializeError, Deserialize, Deserializer};
 use tokio::sync::watch::Receiver;
 use tracing::info;
 
@@ -20,10 +21,8 @@ use multisig::msg::ExecuteMsg;
 
 use crate::event_processor::EventHandler;
 use crate::handlers::errors::Error::{self, DeserializeEvent};
-use crate::tofnd::grpc::Multisig;
-use crate::tofnd::{self, MessageDigest};
-use crate::types::PublicKey;
-use crate::types::TMAddress;
+use crate::tofnd::{self, grpc::Multisig, MessageDigest};
+use crate::types::{PublicKey, TMAddress};
 
 #[derive(Debug, Deserialize)]
 #[try_from("wasm-signing_started")]
@@ -150,13 +149,19 @@ where
 
         match pub_keys.get(&self.verifier) {
             Some(pub_key) => {
+                let key_type = match pub_key.type_url() {
+                    PublicKey::ED25519_TYPE_URL => tofnd::Algorithm::Ed25519,
+                    PublicKey::SECP256K1_TYPE_URL => tofnd::Algorithm::Ecdsa,
+                    unspported => return Err(Report::from(Error::KeyType(unspported.to_string()))),
+                };
+
                 let signature = self
                     .signer
                     .sign(
                         self.multisig.to_string().as_str(),
                         msg.clone(),
                         pub_key,
-                        tofnd::Algorithm::Ecdsa,
+                        key_type,
                     )
                     .await
                     .change_context(Error::Sign)?;
