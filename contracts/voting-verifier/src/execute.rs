@@ -312,7 +312,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
             funds: vec![],
         });
 
-    poll.Ok(Response::new().add_messages(rewards_msgs).add_event(
+    Ok(Response::new().add_messages(rewards_msgs).add_event(
         PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
