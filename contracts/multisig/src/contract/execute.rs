@@ -1,4 +1,6 @@
-use cosmwasm_std::{ensure, OverflowError, OverflowOperation, WasmMsg};
+use std::collections::HashMap;
+
+use cosmwasm_std::{ensure, OverflowError, OverflowOperation, Storage, WasmMsg};
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
 use signature_verifier_api::client::SignatureVerifier;
@@ -11,7 +13,6 @@ use crate::{
     signing::SigningSession,
     state::AUTHORIZED_CALLERS,
 };
-use error_stack::ResultExt;
 
 use super::*;
 
@@ -182,27 +183,58 @@ pub fn register_pub_key(
 }
 
 pub fn require_authorized_caller(
-    deps: &DepsMut,
-    contract_address: Addr,
-) -> error_stack::Result<(), ContractError> {
-    AUTHORIZED_CALLERS
-        .load(deps.storage, &contract_address)
-        .change_context(ContractError::Unauthorized)
+    storage: &dyn Storage,
+    contract_address: &Addr,
+    chain_name: &ChainName,
+) -> Result<Addr, ContractError> {
+    let expected_chain_name = AUTHORIZED_CALLERS.load(storage, contract_address)?;
+    if expected_chain_name != *chain_name {
+        return Err(ContractError::WrongChainName {
+            expected: expected_chain_name,
+        });
+    }
+    Ok(contract_address.clone())
 }
 
-pub fn authorize_caller(deps: DepsMut, contract_address: Addr) -> Result<Response, ContractError> {
-    AUTHORIZED_CALLERS.save(deps.storage, &contract_address, &())?;
-
-    Ok(Response::new().add_event(Event::CallerAuthorized { contract_address }.into()))
-}
-
-pub fn unauthorize_caller(
+pub fn authorize_callers(
     deps: DepsMut,
-    contract_address: Addr,
+    contracts: HashMap<Addr, ChainName>,
 ) -> Result<Response, ContractError> {
-    AUTHORIZED_CALLERS.remove(deps.storage, &contract_address);
+    contracts
+        .iter()
+        .map(|(contract_address, chain_name)| {
+            AUTHORIZED_CALLERS.save(deps.storage, contract_address, chain_name)
+        })
+        .try_collect()?;
 
-    Ok(Response::new().add_event(Event::CallerUnauthorized { contract_address }.into()))
+    Ok(
+        Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {
+            Event::CallerAuthorized {
+                contract_address,
+                chain_name,
+            }
+            .into()
+        })),
+    )
+}
+
+pub fn unauthorize_callers(
+    deps: DepsMut,
+    contracts: Vec<(Addr, ChainName)>,
+) -> Result<Response, ContractError> {
+    contracts.iter().for_each(|(contract_address, _)| {
+        AUTHORIZED_CALLERS.remove(deps.storage, contract_address)
+    });
+
+    Ok(
+        Response::new().add_events(contracts.into_iter().map(|(contract_address, chain_name)| {
+            Event::CallerUnauthorized {
+                contract_address,
+                chain_name,
+            }
+            .into()
+        })),
+    )
 }
 
 pub fn enable_signing(deps: DepsMut) -> Result<Response, ContractError> {
