@@ -124,7 +124,7 @@ mod internal {
             address: config.router,
         };
 
-        match msg {
+        match msg.ensure_permissions(deps.storage, &info.sender) {
             ExecuteMsg::VerifyMessages(msgs) => contract::execute::verify_messages(&verifier, msgs),
             ExecuteMsg::RouteMessages(msgs) => {
                 if info.sender == router.address {
