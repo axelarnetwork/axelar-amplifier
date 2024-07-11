@@ -97,7 +97,11 @@ fn find_event<'a>(
     identifier: &str,
     needed_event_name: &[u8],
 ) -> Option<&'a Events> {
-    // We only support log index being 0, so one supported event per transaction because of MultiversX limitations
+    // We only support log index being 0, so only one supported event per transaction because of MultiversX limitations.
+    // The MultiversX Event Notifier service does not support log index, hence when an event comes there,
+    // we don't know it's log index in reference to the transaction it cam from. This might be changed,
+    // so we are keeping the message id the same (txHash-logIndex) to allow upgrading this
+    // in the future. using an activation epoch flag.
     if log_index != 0 {
         return None;
     }
