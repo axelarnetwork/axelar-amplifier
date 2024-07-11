@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cosmwasm_std::{ensure, OverflowError, OverflowOperation, Storage, WasmMsg};
 use router_api::ChainName;
 use sha3::{Digest, Keccak256};
@@ -196,7 +198,7 @@ pub fn require_authorized_caller(
 
 pub fn authorize_callers(
     deps: DepsMut,
-    contracts: Vec<(Addr, ChainName)>,
+    contracts: HashMap<Addr, ChainName>,
 ) -> Result<Response, ContractError> {
     contracts
         .iter()

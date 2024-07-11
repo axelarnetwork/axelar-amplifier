@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axelar_wasm_std::nonempty;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, HexBinary, Uint128, Uint64};
@@ -13,23 +15,24 @@ use crate::{
 #[cw_serde]
 pub struct MigrationMsg {
     pub admin_address: String,
-    pub authorized_callers: Vec<(String, ChainName)>,
+    pub authorized_callers: HashMap<String, ChainName>,
 }
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    // the governance address is allowed to modify the authorized caller list for this contract
+    /// the governance address is allowed to modify the authorized caller list for this contract
     pub governance_address: String,
-    // The admin address (or governance) is allowed to disable signing. Only governance can re-enable
+    /// The admin address (or governance) is allowed to disable signing and enable signing
     pub admin_address: String,
     pub rewards_address: String,
-    pub block_expiry: nonempty::Uint64, // number of blocks after which a signing session expires
+    /// number of blocks after which a signing session expires
+    pub block_expiry: nonempty::Uint64,
 }
 
 #[cw_serde]
 #[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    // Can only be called by an authorized contract.
+    /// Can only be called by an authorized contract.
     #[permission(Specific(authorized))]
     StartSigningSession {
         verifier_set_id: String,
@@ -53,16 +56,20 @@ pub enum ExecuteMsg {
     #[permission(Any)]
     RegisterPublicKey {
         public_key: PublicKey,
-        /* To prevent anyone from registering a public key that belongs to someone else, we require the sender
-        to sign their own address using the private key */
+        /// To prevent anyone from registering a public key that belongs to someone else, we require the sender
+        /// to sign their own address using the private key
         signed_sender_address: HexBinary,
     },
-    // Authorizes a set of contracts to call StartSigningSession.
+    /// Authorizes a set of contracts to call StartSigningSession.
     #[permission(Governance)]
-    AuthorizeCallers { contracts: Vec<(String, ChainName)> },
-    // Unauthorizes a set of contracts, so they can no longer call StartSigningSession.
+    AuthorizeCallers {
+        contracts: HashMap<String, ChainName>,
+    },
+    /// Unauthorizes a set of contracts, so they can no longer call StartSigningSession.
     #[permission(Elevated)]
-    UnauthorizeCallers { contracts: Vec<(String, ChainName)> },
+    UnauthorizeCallers {
+        contracts: HashMap<String, ChainName>,
+    },
 
     /// Emergency command to stop all amplifier signing
     #[permission(Elevated)]

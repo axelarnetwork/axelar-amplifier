@@ -155,13 +155,10 @@ fn can_start_signing_session(
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, permission_control::Error> + '_
 {
     |storage, msg| match msg {
-        ExecuteMsg::StartSigningSession {
-            verifier_set_id: _,
-            msg: _,
-            chain_name,
-            sig_verifier: _,
-        } => execute::require_authorized_caller(storage, sender, chain_name)
-            .change_context(permission_control::Error::Unauthorized),
+        ExecuteMsg::StartSigningSession { chain_name, .. } => {
+            execute::require_authorized_caller(storage, sender, chain_name)
+                .change_context(permission_control::Error::Unauthorized)
+        }
         _ => Err(report!(permission_control::Error::WrongVariant)),
     }
 }
@@ -197,7 +194,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 #[cfg(feature = "test")]
 #[cfg(test)]
 mod tests {
-    use std::vec;
+    use std::{collections::HashMap, vec};
 
     use cosmwasm_std::{
         from_json,
@@ -1201,7 +1198,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::AuthorizeCallers {
-            contracts: vec![(PROVER.to_string(), "mock-chain".parse().unwrap())],
+            contracts: HashMap::from([(PROVER.to_string(), "mock-chain".parse().unwrap())]),
         };
         let res = execute(deps.as_mut(), env, info, msg);
 
@@ -1223,7 +1220,7 @@ mod tests {
         let env = mock_env();
 
         let msg = ExecuteMsg::UnauthorizeCallers {
-            contracts: vec![(PROVER.to_string(), "mock-chain".parse().unwrap())],
+            contracts: HashMap::from([(PROVER.to_string(), "mock-chain".parse().unwrap())]),
         };
         let res = execute(deps.as_mut(), env, info, msg);
 
