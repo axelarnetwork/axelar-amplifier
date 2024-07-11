@@ -19,8 +19,7 @@ der = { version = "0.7.9", features = ["derive"] }
 deref-derive = "0.1.0"
 dirs = "5.0.1"
 ecdsa = { version = "0.16.6" }
-ed25519 ={ version = "2.2.3", features = ["pem"], default-features = false }
-ed25519-dalek = { workspace = true }
+ed25519 = { version = "2.2.3", default-features = false }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
