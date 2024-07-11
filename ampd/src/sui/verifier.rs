@@ -1,12 +1,66 @@
-use axelar_wasm_std::voting::Vote;
+use std::collections::HashMap;
+
+use axelar_wasm_std::{self, voting::Vote};
+use cosmwasm_std::HexBinary;
 use move_core_types::language_storage::StructTag;
-use serde::Deserialize;
+use serde::{de::Error, Deserialize, Deserializer};
 use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
 use sui_types::base_types::SuiAddress;
 
 use crate::handlers::sui_verify_msg::Message;
 use crate::handlers::sui_verify_verifier_set::VerifierSetConfirmation;
 use crate::types::Hash;
+
+fn deserialize_from_str<'de, D, R>(deserializer: D) -> Result<R, D::Error>
+where
+    D: Deserializer<'de>,
+    R: std::str::FromStr,
+    R::Err: std::fmt::Display,
+{
+    let string: String = Deserialize::deserialize(deserializer)?;
+
+    R::from_str(&string).map_err(D::Error::custom)
+}
+
+fn deserialize_sui_bytes<'de, D, const LENGTH: usize>(
+    deserializer: D,
+) -> Result<[u8; LENGTH], D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let bytes: HashMap<String, String> = Deserialize::deserialize(deserializer)?;
+    let hex = bytes
+        .get("bytes")
+        .ok_or_else(|| D::Error::custom("missing bytes"))?
+        .trim_start_matches("0x");
+
+    hex::decode(hex)
+        .map_err(D::Error::custom)?
+        .try_into()
+        .map_err(|_| D::Error::custom(format!("failed deserialize into [u8; {}]", LENGTH)))
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct WeightedSigner {
+    #[serde(rename = "pubkey")]
+    pub_key: Vec<u8>,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    weight: u128,
+}
+
+#[derive(Deserialize, Debug)]
+struct WeightedSigners {
+    signers: Vec<WeightedSigner>,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    threshold: u128,
+    #[serde(deserialize_with = "deserialize_sui_bytes")]
+    nonce: [u8; 32],
+}
+
+#[derive(Deserialize, Debug)]
+struct SignersRotated {
+    signers: WeightedSigners,
+}
 
 #[derive(Deserialize)]
 struct ContractCall {
@@ -16,15 +70,9 @@ struct ContractCall {
     pub payload_hash: Hash,
 }
 
-#[derive(Deserialize)]
-struct OperatorshipTransferred {
-    #[allow(dead_code)]
-    pub payload: Vec<u8>,
-}
-
 enum EventType {
     ContractCall,
-    OperatorshipTransferred,
+    SignersRotated,
 }
 
 impl EventType {
@@ -32,12 +80,12 @@ impl EventType {
     fn struct_tag(&self, gateway_address: &SuiAddress) -> StructTag {
         let event = match self {
             EventType::ContractCall => "ContractCall",
-            EventType::OperatorshipTransferred => "OperatorshipTransferred",
+            EventType::SignersRotated => "SignersRotated",
         };
 
         let module = match self {
             EventType::ContractCall => "gateway",
-            EventType::OperatorshipTransferred => "validators",
+            EventType::SignersRotated => "auth",
         };
 
         format!("{}::{}::{}", gateway_address, module, event)
@@ -49,11 +97,16 @@ impl EventType {
 impl PartialEq<&Message> for &SuiEvent {
     fn eq(&self, msg: &&Message) -> bool {
         match serde_json::from_value::<ContractCall>(self.parsed_json.clone()) {
-            Ok(contract_call) => {
-                contract_call.source_id == msg.source_address
-                    && msg.destination_chain == contract_call.destination_chain
-                    && contract_call.destination_address == msg.destination_address
-                    && contract_call.payload_hash == msg.payload_hash
+            Ok(ContractCall {
+                source_id,
+                destination_chain,
+                destination_address,
+                payload_hash,
+            }) => {
+                msg.source_address == source_id
+                    && msg.destination_chain == destination_chain
+                    && msg.destination_address == destination_address
+                    && msg.payload_hash == payload_hash
             }
             _ => false,
         }
@@ -61,11 +114,32 @@ impl PartialEq<&Message> for &SuiEvent {
 }
 
 impl PartialEq<&VerifierSetConfirmation> for &SuiEvent {
-    fn eq(&self, _verifier_set: &&VerifierSetConfirmation) -> bool {
-        match serde_json::from_value::<OperatorshipTransferred>(self.parsed_json.clone()) {
-            Ok(_event) => {
-                // TODO: convert verifier set to Sui gateway V2 WeightedSigners struct
-                todo!()
+    fn eq(&self, verifier_set: &&VerifierSetConfirmation) -> bool {
+        let expected = &verifier_set.verifier_set;
+        let mut expected_signers = expected
+            .signers
+            .values()
+            .map(|signer| WeightedSigner {
+                pub_key: HexBinary::from(signer.pub_key.clone()).to_vec(),
+                weight: signer.weight.u128(),
+            })
+            .collect::<Vec<_>>();
+        expected_signers.sort();
+
+        match serde_json::from_value::<SignersRotated>(self.parsed_json.clone()) {
+            Ok(SignersRotated {
+                signers:
+                    WeightedSigners {
+                        mut signers,
+                        threshold,
+                        nonce,
+                    },
+            }) => {
+                signers.sort();
+
+                signers == expected_signers
+                    && threshold == expected.threshold.u128()
+                    && nonce.as_slice() == expected.created_at.to_be_bytes().as_slice()
             }
             _ => false,
         }
@@ -109,8 +183,7 @@ pub fn verify_verifier_set(
     match find_event(transaction_block, confirmation.event_index as u64) {
         Some(event)
             if transaction_block.digest == confirmation.tx_id
-                && event.type_
-                    == EventType::OperatorshipTransferred.struct_tag(gateway_address)
+                && event.type_ == EventType::SignersRotated.struct_tag(gateway_address)
                 && event == confirmation =>
         {
             Vote::SucceededOnChain
