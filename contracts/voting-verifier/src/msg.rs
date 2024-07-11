@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use axelar_wasm_std::{
     msg_id::MessageIdFormat,
     nonempty,
-    voting::{PollId, Vote},
+    voting::{PollId, Vote, WeightedPoll},
     MajorityThreshold, VerificationStatus,
 };
 use multisig::verifier_set::VerifierSet;
@@ -68,15 +68,20 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
-pub struct Poll {
-    poll_id: PollId,
-    messages: Vec<Message>,
+pub enum PollData {
+    Messages(Vec<Message>),
+    VerifierSet(VerifierSet),
+}
+#[cw_serde]
+pub struct PollResponse {
+    pub poll: WeightedPoll,
+    pub data: PollData,
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    #[returns(Poll)]
+    #[returns(PollResponse)]
     GetPoll { poll_id: PollId },
 
     #[returns(Vec<MessageStatus>)]

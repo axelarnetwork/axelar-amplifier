@@ -11,7 +11,7 @@ use crate::{
     state::{poll_messages, poll_verifier_sets, CONFIG},
 };
 use crate::{
-    msg::MessageStatus,
+    msg::{MessageStatus, PollData, PollResponse},
     state::{self, Poll, PollContent, POLLS},
 };
 
@@ -48,8 +48,24 @@ pub fn message_status(
     ))
 }
 
-pub fn poll(deps: Deps, poll_id: PollId) -> Result<Poll, ContractError> {
-    Ok(POLLS.load(deps.storage, poll_id)?)
+pub fn poll_response(deps: Deps, poll_id: PollId) -> Result<PollResponse, ContractError> {
+    let poll = POLLS.load(deps.storage, poll_id)?;
+    let data = match poll {
+        Poll::Messages(_) => {
+            PollData::Messages(poll_messages().idx.load_messages(deps.storage, poll_id)?)
+        }
+        Poll::ConfirmVerifierSet(_) => PollData::VerifierSet(
+            poll_verifier_sets()
+                .idx
+                .load_verifier_set(deps.storage, poll_id)?
+                .expect("verifier set not found in poll"),
+        ),
+    };
+
+    Ok(PollResponse {
+        poll: poll.weighted_poll(),
+        data,
+    })
 }
 
 pub fn verifier_set_status(
@@ -127,6 +143,7 @@ mod tests {
         Participant, Snapshot, Threshold,
     };
     use cosmwasm_std::{testing::mock_dependencies, Addr, Uint128, Uint64};
+    use itertools::Itertools;
     use router_api::CrossChainId;
 
     use crate::state::PollContent;
@@ -246,6 +263,39 @@ mod tests {
         assert_eq!(
             vec![MessageStatus::new(msg.clone(), VerificationStatus::Unknown)],
             messages_status(deps.as_ref(), &[msg], 0).unwrap()
+        );
+    }
+
+    #[test]
+    fn poll_response() {
+        let mut deps = mock_dependencies();
+
+        let poll = poll(1);
+        POLLS
+            .save(
+                deps.as_mut().storage,
+                poll.poll_id,
+                &state::Poll::Messages(poll.clone()),
+            )
+            .unwrap();
+
+        let messages = (0..10).map(message);
+        messages.clone().enumerate().for_each(|(idx, msg)| {
+            poll_messages()
+                .save(
+                    deps.as_mut().storage,
+                    &msg.hash(),
+                    &PollContent::<Message>::new(msg, poll.poll_id, idx),
+                )
+                .unwrap()
+        });
+
+        assert_eq!(
+            PollResponse {
+                poll: poll.clone(),
+                data: PollData::Messages(messages.collect_vec())
+            },
+            super::poll_response(deps.as_ref(), poll.poll_id).unwrap()
         );
     }
 

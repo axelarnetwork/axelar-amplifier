@@ -46,6 +46,13 @@ impl Poll {
             Poll::ConfirmVerifierSet(poll) => Ok(Poll::ConfirmVerifierSet(func(poll)?)),
         }
     }
+
+    pub fn weighted_poll(self) -> WeightedPoll {
+        match self {
+            Poll::Messages(poll) => poll,
+            Poll::ConfirmVerifierSet(poll) => poll,
+        }
+    }
 }
 
 #[cw_serde]
@@ -115,6 +122,16 @@ impl<'a> PollMessagesIndex<'a> {
             [(_, content)] => Ok(Some(content.content.to_owned())),
             _ => panic!("More than one message for poll_id and index_in_poll"),
         }
+    }
+
+    pub fn load_messages(&self, storage: &dyn Storage, poll_id: PollId) -> StdResult<Vec<Message>> {
+        poll_messages()
+            .idx
+            .0
+            .sub_prefix(poll_id.to_string())
+            .range(storage, None, None, Order::Ascending)
+            .map(|item| item.map(|(_, poll_content)| poll_content.content))
+            .collect::<StdResult<Vec<_>>>()
     }
 }
 
