@@ -9,7 +9,7 @@ rust-version = "1.78.0" # be sure there is an optimizer release supporting this 
 router = { version = "^0.3.3", path = "contracts/router" }
 cosmwasm-std = "1.5.5"
 cosmwasm-schema = "1.5.5"
-cw-storage-plus = "1.2.0"
+cw-storage-plus = { version = "1.2.0", features = ["iterator", "macro"] }
 cw2 = "1.1.0"
 ed25519-dalek = { version = "2.1.1", default-features = false }
 error-stack = { version = "0.4.0", features = ["eyre"] }
