@@ -1,8 +1,7 @@
-use crate::error::Error;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{HexBinary, Uint256};
-use error_stack::Report;
-use router_api::Address;
+use router_api::ChainName;
+use strum::FromRepr;
 
 #[cw_serde]
 #[derive(Eq)]
@@ -13,7 +12,7 @@ pub struct TokenId(
 );
 
 #[cw_serde]
-#[derive(Eq, Copy)]
+#[derive(Eq, Copy, FromRepr)]
 #[repr(u8)]
 pub enum TokenManagerType {
     NativeInterchainToken = 0,
@@ -26,7 +25,7 @@ pub enum TokenManagerType {
 
 #[cw_serde]
 #[derive(Eq)]
-pub enum ITSMessage {
+pub enum ItsMessage {
     InterchainTransfer {
         token_id: TokenId,
         source_address: HexBinary,
@@ -50,38 +49,28 @@ pub enum ITSMessage {
 
 #[cw_serde]
 #[derive(Eq)]
-pub struct ITSRoutedMessage {
+pub struct ItsRoutedMessage {
     /// Remote chain name.
     /// ITS edge source contract -> ITS Hub GMP call: Set to the true destination chain name.
     /// ITS Hub -> ITS edge destination contract: Set to the true source chain name.
-    pub remote_chain: Address,
-    pub message: ITSMessage,
+    pub remote_chain: ChainName,
+    pub message: ItsMessage,
 }
 
 impl TokenId {
-    #[inline]
-    pub const fn new(id: [u8; 32]) -> Self {
-        Self(id)
-    }
-
-    #[inline]
-    pub const fn to_bytes(&self) -> [u8; 32] {
-        self.0
+    pub fn new(id: [u8; 32]) -> Self {
+        id.into()
     }
 }
 
-impl TryFrom<u8> for TokenManagerType {
-    type Error = Report<Error>;
+impl From<[u8; 32]> for TokenId {
+    fn from(id: [u8; 32]) -> Self {
+        Self(id)
+    }
+}
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Ok(match value {
-            0 => TokenManagerType::NativeInterchainToken,
-            1 => TokenManagerType::MintBurnFrom,
-            2 => TokenManagerType::LockUnlock,
-            3 => TokenManagerType::LockUnlockFee,
-            4 => TokenManagerType::MintBurn,
-            5 => TokenManagerType::Gateway,
-            _ => return Err(Report::new(Error::InvalidEnum)),
-        })
+impl From<TokenId> for [u8; 32] {
+    fn from(id: TokenId) -> Self {
+        id.0
     }
 }

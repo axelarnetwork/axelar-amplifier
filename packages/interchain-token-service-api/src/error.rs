@@ -5,6 +5,6 @@ use thiserror::Error;
 pub enum Error {
     #[error("failed to decode ITS message: {0}")]
     InvalidMessage(String),
-    #[error("failed to convert enum")]
-    InvalidEnum,
+    #[error("failed to convert token manager type")]
+    InvalidTokenManagerType,
 }

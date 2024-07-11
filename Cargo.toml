@@ -49,6 +49,7 @@ tokio-stream = "0.1.11"
 tokio-util = "0.7.11"
 alloy-primitives = { version = "0.7.6", default-features = false }
 alloy-sol-types = { version = "0.7.6", default-features = false }
+strum = { version = "0.25", default-features = false, features = ["derive"] }
 interchain-token-service-api = { version = "^0.1.0", path = "packages/interchain-token-service-api" }
 
 [workspace.lints.clippy]
