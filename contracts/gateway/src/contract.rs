@@ -45,6 +45,7 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, axelar_wasm_std::ContractError> {
+    let msg = msg.ensure_permissions(deps.storage, &info.sender)?;
     Ok(internal::execute(deps, env, info, msg)?)
 }
 
@@ -124,7 +125,7 @@ mod internal {
             address: config.router,
         };
 
-        match msg.ensure_permissions(deps.storage, &info.sender) {
+        match msg {
             ExecuteMsg::VerifyMessages(msgs) => contract::execute::verify_messages(&verifier, msgs),
             ExecuteMsg::RouteMessages(msgs) => {
                 if info.sender == router.address {
