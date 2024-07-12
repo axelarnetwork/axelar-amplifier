@@ -2,8 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Not ed25519 key error")]
+    #[error("provided key is not ed25519")]
     NotEd25519Key,
-    #[error("Required property is empty error")]
+    #[error("required property is empty")]
     PropertyEmpty,
 }
