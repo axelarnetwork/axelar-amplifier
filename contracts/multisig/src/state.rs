@@ -10,6 +10,7 @@ use axelar_wasm_std::nonempty;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, HexBinary, Order, StdResult, Storage, Uint64};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, UniqueIndex};
+use router_api::ChainName;
 
 #[cw_serde]
 pub struct Config {
@@ -110,7 +111,7 @@ pub fn save_pub_key(
 }
 
 // The keys represent the addresses that can start a signing session.
-pub const AUTHORIZED_CALLERS: Map<&Addr, ()> = Map::new("authorized_callers");
+pub const AUTHORIZED_CALLERS: Map<&Addr, ChainName> = Map::new("authorized_callers");
 
 #[cfg(test)]
 mod tests {
