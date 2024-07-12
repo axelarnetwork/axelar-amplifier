@@ -5,13 +5,14 @@ mod migrations;
 use crate::contract::migrations::v0_2_0;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::load_chain_by_prover;
-use axelar_wasm_std::{permission_control, FnExt};
+use crate::state::is_prover_registered;
+use axelar_wasm_std::permission_control;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, Storage,
 };
+use error_stack::report;
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -72,7 +73,13 @@ pub fn execute(
 fn find_prover_address(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, ContractError> + '_ {
-    |storage, _| load_chain_by_prover(storage, sender.clone())?.then(Ok)
+    |storage, _| {
+        if is_prover_registered(storage, sender.clone())? {
+            Ok(sender.clone())
+        } else {
+            Err(report!(ContractError::ProverNotRegistered))
+        }
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
