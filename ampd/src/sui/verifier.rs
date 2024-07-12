@@ -42,7 +42,6 @@ where
 
 #[derive(Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct WeightedSigner {
-    #[serde(rename = "pubkey")]
     pub_key: Vec<u8>,
     #[serde(deserialize_with = "deserialize_from_str")]
     weight: u128,
@@ -508,7 +507,7 @@ mod tests {
 
                 "signers": signers.into_iter().map(|signer| {
                     json!({
-                        "pubkey": HexBinary::from(signer.pub_key).to_vec(),
+                        "pub_key": HexBinary::from(signer.pub_key).to_vec(),
                         "weight": signer.weight.u128().to_string()
                     })
                 }).collect::<Vec<_>>(),
