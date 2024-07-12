@@ -45,8 +45,6 @@ pub async fn consume_events<H, B, S, E>(
     broadcaster: B,
     event_stream: S,
     stream_timeout: Duration,
-    handle_sleep_duration: Duration,
-    handle_max_attempts: u64,
     token: CancellationToken,
 ) -> Result<(), Error>
 where
@@ -56,6 +54,8 @@ where
     E: Context,
 {
     let mut event_stream = Box::pin(event_stream);
+    let handle_sleep_duration = Duration::from_secs(1);
+    let handle_max_attempts = 3;
     loop {
         let stream_status = retrieve_next_event(&mut event_stream, stream_timeout)
             .await
@@ -204,8 +204,6 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
                 CancellationToken::new(),
             ),
         )
@@ -235,8 +233,6 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
                 CancellationToken::new(),
             ),
         )
@@ -267,8 +263,6 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
                 CancellationToken::new(),
             ),
         )
@@ -303,8 +297,6 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
                 CancellationToken::new(),
             ),
         )
@@ -340,8 +332,6 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
-                Duration::from_secs(1),
-                3,
                 token,
             ),
         )
@@ -368,8 +358,6 @@ mod tests {
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 Duration::from_secs(0),
-                Duration::from_secs(1),
-                3,
                 token,
             ),
         )
