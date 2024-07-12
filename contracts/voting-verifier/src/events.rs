@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::vec::Vec;
 
+use axelar_wasm_std::msg_id::Base58SolanaTxSignatureAndEventIndex;
 use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
 use axelar_wasm_std::msg_id::MessageIdFormat;
@@ -137,6 +138,12 @@ fn parse_message_id(
 
             Ok((id.tx_hash_as_hex(), id.event_index))
         }
+        MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
+            let id = Base58SolanaTxSignatureAndEventIndex::from_str(&message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+
+            Ok((id.signature_as_base58(), id.event_index))
+        }
     }
 }
 
@@ -204,6 +211,7 @@ impl From<Voted> for Event {
 
 pub struct PollEnded {
     pub poll_id: PollId,
+    pub source_chain: ChainName,
     pub results: Vec<Option<Vote>>,
 }
 
@@ -215,6 +223,11 @@ impl From<PollEnded> for Event {
                 serde_json::to_string(&other.poll_id).expect("failed to serialize poll_id"),
             )
             .add_attribute(
+                "source_chain",
+                serde_json::to_string(&other.source_chain)
+                    .expect("failed to serialize source_chain"),
+            )
+            .add_attribute(
                 "results",
                 serde_json::to_string(&other.results).expect("failed to serialize results"),
             )
@@ -224,6 +237,7 @@ impl From<PollEnded> for Event {
 pub struct QuorumReached<T> {
     pub content: T,
     pub status: VerificationStatus,
+    pub poll_id: PollId,
 }
 
 impl<T> From<QuorumReached<T>> for Event
@@ -239,6 +253,10 @@ where
             .add_attribute(
                 "status",
                 serde_json::to_string(&value.status).expect("failed to serialize status"),
+            )
+            .add_attribute(
+                "poll_id",
+                serde_json::to_string(&value.poll_id).expect("failed to serialize poll_id"),
             )
     }
 }

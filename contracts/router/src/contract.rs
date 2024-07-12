@@ -9,7 +9,7 @@ use crate::contract::migrations::v0_3_3;
 use crate::events::RouterInstantiated;
 use crate::msg::InstantiateMsg;
 use crate::state;
-use crate::state::{load_chain_by_gateway, Config};
+use crate::state::{load_chain_by_gateway, load_config, Config};
 use axelar_wasm_std::{permission_control, FnExt};
 use router_api::error::Error;
 use router_api::msg::{ExecuteMsg, QueryMsg};
@@ -109,11 +109,16 @@ pub fn execute(
 fn find_gateway_address(
     sender: &Addr,
 ) -> impl FnOnce(&dyn Storage, &ExecuteMsg) -> error_stack::Result<Addr, Error> + '_ {
-    |storage, _| {
-        load_chain_by_gateway(storage, sender)?
-            .gateway
-            .address
-            .then(Ok)
+    move |storage, _| {
+        let nexus_gateway = load_config(storage)?.nexus_gateway;
+        if nexus_gateway == sender {
+            Ok(nexus_gateway)
+        } else {
+            load_chain_by_gateway(storage, sender)?
+                .gateway
+                .address
+                .then(Ok)
+        }
     }
 }
 
@@ -1730,5 +1735,23 @@ mod test {
         assert!(!is_enabled(deps.as_ref()));
         killswitch::disengage(deps.as_mut().storage, events::RoutingEnabled).unwrap();
         assert!(is_enabled(deps.as_ref()));
+    }
+
+    #[test]
+    fn nexus_can_route_messages() {
+        let mut deps = setup();
+        let eth = make_chain("ethereum");
+        let polygon = make_chain("polygon");
+
+        register_chain(deps.as_mut(), &eth);
+        register_chain(deps.as_mut(), &polygon);
+
+        assert!(execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info(NEXUS_GATEWAY_ADDRESS, &[]),
+            ExecuteMsg::RouteMessages(generate_messages(&eth, &polygon, &mut 0, 10)),
+        )
+        .is_ok());
     }
 }

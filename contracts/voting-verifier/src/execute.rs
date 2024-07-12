@@ -55,7 +55,7 @@ pub fn verify_verifier_set(
     message_id: nonempty::String,
     new_verifier_set: VerifierSet,
 ) -> Result<Response, ContractError> {
-    let status = verifier_set_status(deps.as_ref(), &new_verifier_set)?;
+    let status = verifier_set_status(deps.as_ref(), &new_verifier_set, env.block.height)?;
     if status.is_confirmed() {
         return Ok(Response::new());
     }
@@ -115,7 +115,10 @@ pub fn verify_messages(
 
     let messages = messages
         .into_iter()
-        .map(|message| message_status(deps.as_ref(), &message).map(|status| (status, message)))
+        .map(|message| {
+            message_status(deps.as_ref(), &message, env.block.height)
+                .map(|status| (status, message))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let msgs_to_verify: Vec<Message> = messages
@@ -200,6 +203,7 @@ fn make_quorum_event(
                 QuorumReached {
                     content: msg,
                     status,
+                    poll_id: *poll_id,
                 }
                 .into()
             }))
@@ -214,6 +218,7 @@ fn make_quorum_event(
                 QuorumReached {
                     content: verifier_set,
                     status,
+                    poll_id: *poll_id,
                 }
                 .into()
             }))
@@ -311,6 +316,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: PollId) -> Result<Response, Co
         PollEnded {
             poll_id: poll_result.poll_id,
             results: poll_result.results.0.clone(),
+            source_chain: config.source_chain,
         }
         .into(),
     ))

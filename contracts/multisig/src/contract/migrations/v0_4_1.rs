@@ -4,8 +4,11 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage};
 use cw2::VersionError;
 use cw_storage_plus::Item;
+use itertools::Itertools;
+use router_api::ChainName;
 
 use crate::contract::CONTRACT_NAME;
+use crate::state::AUTHORIZED_CALLERS;
 use axelar_wasm_std::killswitch::State;
 use axelar_wasm_std::{killswitch, nonempty, permission_control};
 
@@ -21,7 +24,11 @@ pub enum Error {
     NonEmpty(#[from] nonempty::Error),
 }
 
-pub fn migrate(storage: &mut dyn Storage, admin: Addr) -> Result<(), Error> {
+pub fn migrate(
+    storage: &mut dyn Storage,
+    admin: Addr,
+    authorized_callers: Vec<(Addr, ChainName)>,
+) -> Result<(), Error> {
     cw2::assert_contract_version(storage, CONTRACT_NAME, BASE_VERSION)?;
 
     killswitch::init(storage, State::Disengaged)?;
@@ -30,6 +37,21 @@ pub fn migrate(storage: &mut dyn Storage, admin: Addr) -> Result<(), Error> {
     permission_control::set_governance(storage, &config.governance)?;
     permission_control::set_admin(storage, &admin)?;
     migrate_config(storage, config)?;
+    migrate_authorized_callers(storage, authorized_callers)?;
+    Ok(())
+}
+
+fn migrate_authorized_callers(
+    storage: &mut dyn Storage,
+    authorized_callers: Vec<(Addr, ChainName)>,
+) -> Result<(), Error> {
+    AUTHORIZED_CALLERS.clear(storage);
+    authorized_callers
+        .iter()
+        .map(|(contract_address, chain_name)| {
+            AUTHORIZED_CALLERS.save(storage, contract_address, chain_name)
+        })
+        .try_collect()?;
     Ok(())
 }
 
@@ -71,10 +93,11 @@ mod tests {
     use cosmwasm_std::{Addr, DepsMut, Env, HexBinary, MessageInfo, Response, Uint64};
 
     use axelar_wasm_std::nonempty;
+    use router_api::ChainName;
 
     use crate::contract::migrations::v0_4_1;
     use crate::contract::migrations::v0_4_1::BASE_VERSION;
-    use crate::contract::{execute, CONTRACT_NAME};
+    use crate::contract::{execute, query, CONTRACT_NAME};
     use crate::msg::ExecuteMsg::{DisableSigning, SubmitSignature};
     use crate::state::SIGNING_SESSION_COUNTER;
     use crate::ContractError;
@@ -96,11 +119,11 @@ mod tests {
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, "something wrong").unwrap();
 
-        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin")).is_err());
+        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin"), vec![]).is_err());
 
         cw2::set_contract_version(deps.as_mut().storage, CONTRACT_NAME, BASE_VERSION).unwrap();
 
-        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin")).is_ok());
+        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin"), vec![]).is_ok());
     }
 
     #[test]
@@ -118,7 +141,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin")).is_ok());
+        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin"), vec![]).is_ok());
 
         assert!(v0_4_1::CONFIG.load(deps.as_mut().storage).is_err());
 
@@ -146,7 +169,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin")).is_ok());
+        assert!(v0_4_1::migrate(deps.as_mut().storage, Addr::unchecked("admin"), vec![]).is_ok());
 
         // contract is enabled
         assert!(!execute(
@@ -197,6 +220,32 @@ mod tests {
         .unwrap_err()
         .to_string()
         .contains(&ContractError::SigningDisabled.to_string()));
+    }
+
+    #[test]
+    fn callers_are_authorized() {
+        let mut deps = mock_dependencies();
+        instantiate(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("admin", &[]),
+            InstantiateMsg {
+                governance_address: "governance".to_string(),
+                rewards_address: "rewards".to_string(),
+                block_expiry: 100,
+            },
+        )
+        .unwrap();
+
+        let prover = Addr::unchecked("prover1");
+        let chain_name: ChainName = "mock-chain".parse().unwrap();
+        assert!(v0_4_1::migrate(
+            deps.as_mut().storage,
+            Addr::unchecked("admin"),
+            vec![(prover.clone(), chain_name.clone())]
+        )
+        .is_ok());
+        assert!(query::caller_authorized(deps.as_ref(), prover, chain_name).unwrap());
     }
 
     #[deprecated(since = "0.4.1", note = "only used to test migration")]

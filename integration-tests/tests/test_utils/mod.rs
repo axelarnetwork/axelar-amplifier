@@ -684,8 +684,11 @@ pub fn setup_chain(
     let response = protocol.multisig.execute(
         &mut protocol.app,
         protocol.governance_address.clone(),
-        &multisig::msg::ExecuteMsg::AuthorizeCaller {
-            contract_address: multisig_prover.contract_addr.clone(),
+        &multisig::msg::ExecuteMsg::AuthorizeCallers {
+            contracts: HashMap::from([(
+                multisig_prover.contract_addr.to_string(),
+                chain_name.clone(),
+            )]),
         },
     );
     assert!(response.is_ok());
