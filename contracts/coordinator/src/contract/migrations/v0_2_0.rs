@@ -35,16 +35,18 @@ fn migrate_registered_provers(storage: &mut dyn Storage) -> Result<(), ContractE
 }
 
 #[cw_serde]
+#[deprecated(since = "0.2.0", note = "only used to test the migration")]
 pub struct Config {
     pub governance: Addr,
 }
 
+#[deprecated(since = "0.2.0", note = "only used to test the migration")]
 pub const CONFIG: Item<Config> = Item::new("config");
 
+#[deprecated(since = "0.2.0", note = "only used to test the migration")]
 pub const PROVER_PER_CHAIN: Map<ChainName, Addr> = Map::new("prover_per_chain");
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
     use crate::contract::migrations::v0_2_0;
     use crate::contract::migrations::v0_2_0::BASE_VERSION;
@@ -122,14 +124,14 @@ mod tests {
 
         assert!(v0_2_0::migrate(deps.as_mut().storage).is_ok());
 
-        for (chain, prover) in &provers {
+        for (chain, prover) in provers {
             assert_eq!(
-                load_prover_by_chain(deps.as_ref().storage, chain.clone()).unwrap(),
+                load_prover_by_chain(deps.as_ref().storage, chain).unwrap(),
                 prover.clone()
             );
 
             // check index is working as well
-            assert!(is_prover_registered(deps.as_ref().storage, prover.clone()).unwrap());
+            assert!(is_prover_registered(deps.as_ref().storage, prover).unwrap());
         }
 
         assert!(PROVER_PER_CHAIN.is_empty(deps.as_ref().storage));
