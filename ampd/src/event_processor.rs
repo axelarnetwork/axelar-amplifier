@@ -45,6 +45,8 @@ pub async fn consume_events<H, B, S, E>(
     broadcaster: B,
     event_stream: S,
     stream_timeout: Duration,
+    handle_sleep_duration: Duration,
+    handle_max_attempts: u64,
     token: CancellationToken,
 ) -> Result<(), Error>
 where
@@ -60,7 +62,14 @@ where
             .change_context(Error::EventStream)?;
 
         if let StreamStatus::Active(event) = &stream_status {
-            handle_event(&handler, &broadcaster, event).await?;
+            handle_event(
+                &handler,
+                &broadcaster,
+                event,
+                handle_sleep_duration,
+                handle_max_attempts,
+            )
+            .await?;
         }
 
         if let StreamStatus::Active(Event::BlockEnd(height)) = &stream_status {
@@ -77,7 +86,13 @@ where
     }
 }
 
-async fn handle_event<H, B>(handler: &H, broadcaster: &B, event: &Event) -> Result<(), Error>
+async fn handle_event<H, B>(
+    handler: &H,
+    broadcaster: &B,
+    event: &Event,
+    handle_sleep_duration: Duration,
+    handle_max_attempts: u64,
+) -> Result<(), Error>
 where
     H: EventHandler,
     B: BroadcasterClient,
@@ -85,10 +100,9 @@ where
     // if handlers run into errors we log them and then move on to the next event
     match future::with_retry(
         || handler.handle(event),
-        // TODO: make timeout and max_attempts configurable
         RetryPolicy::RepeatConstant {
-            sleep: Duration::from_secs(1),
-            max_attempts: 3,
+            sleep: handle_sleep_duration,
+            max_attempts: handle_max_attempts,
         },
     )
     .await
@@ -190,6 +204,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -219,6 +235,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -249,6 +267,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -283,6 +303,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 CancellationToken::new(),
             ),
         )
@@ -318,6 +340,8 @@ mod tests {
                 broadcaster,
                 stream::iter(events),
                 Duration::from_secs(1000),
+                Duration::from_secs(1),
+                3,
                 token,
             ),
         )
@@ -344,6 +368,8 @@ mod tests {
                 broadcaster,
                 stream::pending::<Result<Event, Error>>(), // never returns any items so it can time out
                 Duration::from_secs(0),
+                Duration::from_secs(1),
+                3,
                 token,
             ),
         )

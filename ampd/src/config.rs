@@ -18,6 +18,8 @@ pub struct Config {
     pub event_buffer_cap: usize,
     #[serde(with = "humantime_serde")]
     pub event_stream_timeout: Duration,
+    pub event_handle_sleep_duration: Duration,
+    pub event_handle_max_attempts: u64,
     pub broadcast: broadcaster::Config,
     #[serde(deserialize_with = "deserialize_handler_configs")]
     pub handlers: Vec<handlers::config::Config>,
@@ -35,6 +37,8 @@ impl Default for Config {
             tofnd_config: TofndConfig::default(),
             event_buffer_cap: 100000,
             event_stream_timeout: Duration::from_secs(15),
+            event_handle_sleep_duration: Duration::from_secs(1),
+            event_handle_max_attempts: 3,
             service_registry: ServiceRegistryConfig::default(),
             health_check_bind_addr: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 3000),
         }
