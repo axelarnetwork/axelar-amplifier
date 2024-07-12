@@ -38,7 +38,7 @@ The basic rules are as follows:
 
 ### Compatibility
 
-For the amplifier preview with version numbers < 1.0.0, please refer to the following compatibility table to select versions of 
+For the amplifier preview with version numbers < 1.0.0, please refer to the following compatibility table to select versions of
 contracts and `ampd` that work well together.
 
 | Binary      | Version |
@@ -53,5 +53,5 @@ contracts and `ampd` that work well together.
 | router            | 0.3.3 |
 | service-registry  | 0.4.1 |
 | voting-verifier   | 0.5.0 |
-| [tofnd](https://github.com/axelarnetwork/tofnd) | TBD |
+| [tofnd](https://github.com/axelarnetwork/tofnd) | v1.0.0 |
 | [solidity-contracts](https://github.com/axelarnetwork/axelar-gmp-sdk-solidity) | 5.9.0 |
