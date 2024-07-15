@@ -57,6 +57,7 @@ jobs:
           override: true
 
       - name: Cache build artifacts
+        id: cache-build
         uses: useblacksmith/rust-cache@v3
         with:
           shared-key: "cache"
@@ -71,6 +72,7 @@ jobs:
 
       - name: Install cosmwasm-check
         uses: actions-rs/cargo@v1
+        if: steps.cache-build.outputs.cache-hit != 'true'
         with:
           command: install
           args: --version 1.5.5 --locked cosmwasm-check
