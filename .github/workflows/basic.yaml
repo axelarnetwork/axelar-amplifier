@@ -31,7 +31,7 @@ jobs:
       - name: Cache build artifacts
         uses: useblacksmith/rust-cache@v3
         with:
-          shared-key: "cache"
+          shared-key: "cachex"
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -59,7 +59,7 @@ jobs:
       - name: Cache build artifacts
         uses: useblacksmith/rust-cache@v3
         with:
-          shared-key: "cache"
+          shared-key: "cachex2"
 
       - name: Build wasm release
         run: |
