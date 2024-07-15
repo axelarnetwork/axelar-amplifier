@@ -49,7 +49,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 cw-multi-test = "0.15.1"
 integration-tests = { workspace = true }
-tofn = { git = "https://github.com/axelarnetwork/tofn.git", branch = "update-deps" }
+tofn = { workspace = true }
 
 [lints]
 workspace = true
