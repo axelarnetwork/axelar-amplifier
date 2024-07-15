@@ -67,7 +67,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::{from_json, CosmosMsg};
     use hex::decode;
 
@@ -123,7 +123,7 @@ mod test {
             .returning(move || Ok(config.clone()));
         let contract = Contract::new(store);
 
-        let msg_ids = vec![
+        let msg_ids = [
             HexTxHashAndEventIndex {
                 tx_hash: vec![0x2f; 32].try_into().unwrap(),
                 event_index: 100,

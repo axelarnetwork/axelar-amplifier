@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use axelar_wasm_std::nonempty;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::tx::Msg;
@@ -20,10 +18,10 @@ pub struct Args {
     pub denom: String,
 }
 
-pub async fn run(config: Config, state_path: &Path, args: Args) -> Result<Option<String>, Error> {
+pub async fn run(config: Config, args: Args) -> Result<Option<String>, Error> {
     let coin = Coin::new(args.amount, args.denom.as_str()).change_context(Error::InvalidInput)?;
 
-    let pub_key = verifier_pub_key(state_path, config.tofnd_config.clone()).await?;
+    let pub_key = verifier_pub_key(config.tofnd_config.clone()).await?;
 
     let msg = serde_json::to_vec(&ExecuteMsg::BondVerifier {
         service_name: args.service_name.into(),

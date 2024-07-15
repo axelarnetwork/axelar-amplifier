@@ -1,47 +1,47 @@
+use crate::primitives::*;
 use axelar_wasm_std::msg_id::MessageIdFormat;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-
-use crate::primitives::*;
+use msgs_derive::EnsurePermissions;
+use std::collections::HashMap;
 
 #[cw_serde]
+#[derive(EnsurePermissions)]
 pub enum ExecuteMsg {
-    /*
-     * Governance Methods
-     * All the below messages should only be called by governance
-     */
-    // Registers a new chain with the router
+    /// Registers a new chain with the router
+    #[permission(Governance)]
     RegisterChain {
         chain: ChainName,
         gateway_address: Address,
         msg_id_format: MessageIdFormat,
     },
-    // Changes the gateway address associated with a particular chain
+    /// Changes the gateway address associated with a particular chain
+    #[permission(Governance)]
     UpgradeGateway {
         chain: ChainName,
         contract_address: Address,
     },
-
-    /*
-     * Router Admin Methods
-     * All the below messages should only be called by the router admin
-     */
-    // Freezes a chain, in the specified direction.
-    FreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+    /// Freezes the specified chains in the specified directions.
+    #[permission(Elevated)]
+    FreezeChains {
+        chains: HashMap<ChainName, GatewayDirection>,
     },
-    // Unfreezes a chain, in the specified direction.
-    UnfreezeChain {
-        chain: ChainName,
-        direction: GatewayDirection,
+    /// Unfreezes the specified chains in the specified directions.
+    #[permission(Elevated)]
+    UnfreezeChains {
+        chains: HashMap<ChainName, GatewayDirection>,
     },
 
-    /*
-     * Gateway Messages
-     * The below messages can only be called by registered gateways
-     */
-    // Routes a message to all outgoing gateways registered to the destination domain.
-    // Called by an incoming gateway
+    /// Emergency command to stop all amplifier routing.
+    #[permission(Elevated)]
+    DisableRouting,
+
+    /// Resumes routing after an emergency shutdown.
+    #[permission(Elevated)]
+    EnableRouting,
+
+    /// Routes a message to all outgoing gateways registered to the destination domain.
+    /// Called by an incoming gateway
+    #[permission(Specific(gateway))]
     RouteMessages(Vec<Message>),
 }
 
@@ -60,4 +60,6 @@ pub enum QueryMsg {
         start_after: Option<ChainName>,
         limit: Option<u32>,
     },
+    #[returns(bool)]
+    IsEnabled,
 }

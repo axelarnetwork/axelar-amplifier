@@ -52,9 +52,9 @@ impl From<Message> for Vec<Attribute> {
         vec![
             ("id", other.cc_id.id).into(),
             ("source_chain", other.cc_id.chain).into(),
-            ("source_addresses", other.source_address.deref()).into(),
+            ("source_address", other.source_address.deref()).into(),
             ("destination_chain", other.destination_chain).into(),
-            ("destination_addresses", other.destination_address.deref()).into(),
+            ("destination_address", other.destination_address.deref()).into(),
             (
                 "payload_hash",
                 HexBinary::from(other.payload_hash).to_string(),

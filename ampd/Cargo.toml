@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "ampd"
-version = "0.4.0"
+version = "0.5.0"
 rust-version = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,9 +16,11 @@ clap = { version = "4.2.7", features = ["derive", "cargo"] }
 config = "0.13.2"
 cosmrs = { version = "0.14.0", features = ["cosmwasm", "grpc"] }
 cosmwasm-std = { workspace = true, features = ["stargate"] }
+der = { version = "0.7.9", features = ["derive"] }
 deref-derive = "0.1.0"
 dirs = "5.0.1"
 ecdsa = { version = "0.16.6" }
+ed25519 = { version = "2.2.3", default-features = false }
 enum-display-derive = "0.1.1"
 error-stack = { workspace = true }
 ethers-contract = { workspace = true }
@@ -92,14 +94,5 @@ tokio = { workspace = true, features = ["test-util"] }
 [build-dependencies]
 tonic-build = "0.8.3"
 
-[patch.crates-io]
-# curve25519-dalek 3.x pin zeroize to <1.4
-# which conflicts with other dependencies requiring zeroize ^1.5.
-# We’re patching both crates to unpin zeroize.
-#
-# For curve25519-dalek we’re using commit from a PR, see
-# https://github.com/dalek-cryptography/curve25519-dalek/pull/606
-curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
-ahash = "=0.8.6"
 [lints]
 workspace = true

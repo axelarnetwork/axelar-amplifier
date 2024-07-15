@@ -1,34 +1,60 @@
 use crate::error::ContractError;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Order, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_storage_plus::{index_list, IndexedMap, MultiIndex, UniqueIndex};
 use router_api::ChainName;
 use std::collections::HashSet;
 
-#[cw_serde]
-pub struct Config {
-    pub governance: Addr,
+type ProverAddress = Addr;
+type VerifierAddress = Addr;
+
+#[index_list(ProverAddress)]
+struct ChainProverIndexes<'a> {
+    pub by_prover: UniqueIndex<'a, ProverAddress, ProverAddress, ChainName>,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+const CHAIN_PROVER_INDEXED_MAP: IndexedMap<ChainName, ProverAddress, ChainProverIndexes> =
+    IndexedMap::new(
+        "chain_prover_map",
+        ChainProverIndexes {
+            by_prover: UniqueIndex::new(|prover| prover.clone(), "chain_prover_map_by_prover"),
+        },
+    );
 
-pub type ProverAddress = Addr;
+pub fn is_prover_registered(
+    storage: &dyn Storage,
+    prover_address: ProverAddress,
+) -> Result<bool, ContractError> {
+    Ok(CHAIN_PROVER_INDEXED_MAP
+        .idx
+        .by_prover
+        .item(storage, prover_address)?
+        .is_some())
+}
 
-pub const PROVER_PER_CHAIN: Map<ChainName, ProverAddress> = Map::new("prover_per_chain");
+#[allow(dead_code)] // Used in tests, might be useful in future query
+pub fn load_prover_by_chain(
+    storage: &dyn Storage,
+    chain_name: ChainName,
+) -> Result<ProverAddress, ContractError> {
+    CHAIN_PROVER_INDEXED_MAP
+        .may_load(storage, chain_name)?
+        .ok_or(ContractError::ProverNotRegistered)
+}
 
-pub type ChainNames = HashSet<ChainName>;
-pub type VerifierAddress = Addr;
-pub const CHAINS_OF_VERIFIER: Map<VerifierAddress, ChainNames> = Map::new("chains_of_verifier");
+pub fn save_prover_for_chain(
+    storage: &mut dyn Storage,
+    chain: ChainName,
+    prover: ProverAddress,
+) -> Result<(), ContractError> {
+    CHAIN_PROVER_INDEXED_MAP.save(storage, chain.clone(), &prover)?;
+    Ok(())
+}
 
+#[index_list(VerifierProverRecord)]
 pub struct VerifierSetIndex<'a> {
-    pub by_verifier: MultiIndex<'a, Addr, VerifierProverRecord, (Addr, Addr)>,
-}
-
-impl<'a> IndexList<VerifierProverRecord> for VerifierSetIndex<'a> {
-    fn get_indexes(&self) -> Box<dyn Iterator<Item = &dyn Index<VerifierProverRecord>> + '_> {
-        let v: Vec<&dyn Index<VerifierProverRecord>> = vec![&self.by_verifier];
-        Box::new(v.into_iter())
-    }
+    pub by_verifier:
+        MultiIndex<'a, VerifierAddress, VerifierProverRecord, (ProverAddress, VerifierAddress)>,
 }
 
 #[cw_serde]
@@ -38,7 +64,7 @@ pub struct VerifierProverRecord {
 }
 
 pub const VERIFIER_PROVER_INDEXED_MAP: IndexedMap<
-    (Addr, Addr),
+    (ProverAddress, VerifierAddress),
     VerifierProverRecord,
     VerifierSetIndex,
 > = IndexedMap::new(

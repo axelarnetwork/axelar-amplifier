@@ -2,7 +2,6 @@ pub mod contract;
 pub mod error;
 pub mod events;
 pub mod key;
-mod migrations;
 pub mod msg;
 pub mod multisig;
 pub mod signing;

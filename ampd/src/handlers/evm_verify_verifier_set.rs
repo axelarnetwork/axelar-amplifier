@@ -12,7 +12,7 @@ use tracing::{info, info_span};
 use valuable::Valuable;
 
 use axelar_wasm_std::{
-    msg_id::tx_hash_event_index::HexTxHashAndEventIndex,
+    msg_id::HexTxHashAndEventIndex,
     voting::{PollId, Vote},
 };
 use events::Error::EventTypeMismatch;

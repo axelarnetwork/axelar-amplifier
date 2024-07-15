@@ -13,7 +13,7 @@ use tokio::sync::watch::Receiver;
 use tracing::{info, info_span};
 use valuable::Valuable;
 
-use axelar_wasm_std::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
+use axelar_wasm_std::msg_id::Base58TxDigestAndEventIndex;
 use axelar_wasm_std::voting::{PollId, Vote};
 use events::{Error::EventTypeMismatch, Event};
 use events_derive::try_from;
@@ -25,6 +25,7 @@ use crate::sui::json_rpc::SuiClient;
 use crate::sui::verifier::verify_verifier_set;
 use crate::types::TMAddress;
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Operators {
     pub weights_by_addresses: Vec<(HexBinary, Uint128)>,

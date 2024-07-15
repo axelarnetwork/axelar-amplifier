@@ -35,8 +35,8 @@ jobs:
     needs: extract-semver
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-12]
-        arch: [amd64, arm64]
+        os: [ ubuntu-22.04, macos-12 ]
+        arch: [ amd64, arm64 ]
 
     permissions:
       contents: write
@@ -60,7 +60,7 @@ jobs:
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.75
+          toolchain: 1.78
           override: true
 
       - name: Import GPG key

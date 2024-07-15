@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use clap::Subcommand;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
 use cosmrs::proto::cosmos::{
@@ -16,7 +14,6 @@ use valuable::Valuable;
 
 use crate::broadcaster::Broadcaster;
 use crate::config::Config as AmpdConfig;
-use crate::state;
 use crate::tofnd::grpc::{Multisig, MultisigClient};
 use crate::types::{PublicKey, TMAddress};
 use crate::{broadcaster, Error};
@@ -40,7 +37,7 @@ pub enum SubCommand {
     /// Deregister chain support to the service registry contract
     DeregisterChainSupport(deregister_chain_support::Args),
     /// Register public key to the multisig contract
-    RegisterPublicKey,
+    RegisterPublicKey(register_public_key::Args),
     /// Query the verifier address
     VerifierAddress,
 }
@@ -58,18 +55,13 @@ impl Default for ServiceRegistryConfig {
     }
 }
 
-async fn verifier_pub_key(state_path: &Path, config: tofnd::Config) -> Result<PublicKey, Error> {
-    let state = state::load(state_path).change_context(Error::LoadConfig)?;
-
-    match state.pub_key {
-        Some(pub_key) => Ok(pub_key),
-        None => MultisigClient::new(config.party_uid, config.url)
-            .await
-            .change_context(Error::Connection)?
-            .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
-            .await
-            .change_context(Error::Tofnd),
-    }
+async fn verifier_pub_key(config: tofnd::Config) -> Result<PublicKey, Error> {
+    MultisigClient::new(config.party_uid, config.url)
+        .await
+        .change_context(Error::Connection)?
+        .keygen(&config.key_uid, tofnd::Algorithm::Ecdsa)
+        .await
+        .change_context(Error::Tofnd)
 }
 
 async fn broadcast_tx(
