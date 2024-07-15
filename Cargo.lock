@@ -741,7 +741,7 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "axelar-message-primitives"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#89e1b00d9be8d2fe9a1982bfc2eb33f5a380f836"
 dependencies = [
  "anyhow",
  "bcs",
@@ -752,7 +752,7 @@ dependencies = [
  "ethers-core",
  "hex",
  "itertools 0.12.1",
- "libsecp256k1 0.7.1",
+ "libsecp256k1",
  "sha3 0.10.8",
  "solana-program",
  "thiserror",
@@ -761,13 +761,13 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
+source = "git+https://git@github.com/eigerco/solana-axelar.git?branch=main#89e1b00d9be8d2fe9a1982bfc2eb33f5a380f836"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
  "ed25519-dalek 2.1.1",
  "hex",
- "k256",
+ "libsecp256k1",
  "rkyv",
  "sha3 0.10.8",
  "thiserror",
@@ -776,13 +776,13 @@ dependencies = [
 [[package]]
 name = "axelar-rkyv-encoding"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#89e1b00d9be8d2fe9a1982bfc2eb33f5a380f836"
 dependencies = [
  "bnum",
  "bs58 0.5.1",
  "ed25519-dalek 2.1.1",
  "hex",
- "k256",
+ "libsecp256k1",
  "rkyv",
  "sha3 0.10.8",
  "thiserror",
@@ -3680,7 +3680,7 @@ dependencies = [
 [[package]]
 name = "gmp-gateway"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#89e1b00d9be8d2fe9a1982bfc2eb33f5a380f836"
 dependencies = [
  "axelar-message-primitives",
  "axelar-rkyv-encoding 0.1.0 (git+https://github.com/eigerco/solana-axelar.git?branch=main)",
@@ -3689,6 +3689,7 @@ dependencies = [
  "bincode",
  "borsh 1.5.1",
  "itertools 0.12.1",
+ "libsecp256k1",
  "num-derive 0.4.2",
  "num-traits",
  "program-utils",
@@ -4680,29 +4681,10 @@ dependencies = [
  "base64 0.12.3",
  "digest 0.9.0",
  "hmac-drbg",
- "libsecp256k1-core 0.2.2",
- "libsecp256k1-gen-ecmult 0.2.1",
- "libsecp256k1-gen-genmult 0.2.1",
+ "libsecp256k1-core",
+ "libsecp256k1-gen-ecmult",
+ "libsecp256k1-gen-genmult",
  "rand 0.7.3",
- "serde",
- "sha2 0.9.9",
- "typenum",
-]
-
-[[package]]
-name = "libsecp256k1"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b09eff1b35ed3b33b877ced3a691fc7a481919c7e29c53c906226fcf55e2a1"
-dependencies = [
- "arrayref",
- "base64 0.13.1",
- "digest 0.9.0",
- "hmac-drbg",
- "libsecp256k1-core 0.3.0",
- "libsecp256k1-gen-ecmult 0.3.0",
- "libsecp256k1-gen-genmult 0.3.0",
- "rand 0.8.5",
  "serde",
  "sha2 0.9.9",
  "typenum",
@@ -4720,32 +4702,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "libsecp256k1-core"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5be9b9bb642d8522a44d533eab56c16c738301965504753b03ad1de3425d5451"
-dependencies = [
- "crunchy",
- "digest 0.9.0",
- "subtle",
-]
-
-[[package]]
 name = "libsecp256k1-gen-ecmult"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccab96b584d38fac86a83f07e659f0deafd0253dc096dab5a36d53efe653c5c3"
 dependencies = [
- "libsecp256k1-core 0.2.2",
-]
-
-[[package]]
-name = "libsecp256k1-gen-ecmult"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3038c808c55c87e8a172643a7d87187fc6c4174468159cb3090659d55bcb4809"
-dependencies = [
- "libsecp256k1-core 0.3.0",
+ "libsecp256k1-core",
 ]
 
 [[package]]
@@ -4754,16 +4716,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67abfe149395e3aa1c48a2beb32b068e2334402df8181f818d3aee2b304c4f5d"
 dependencies = [
- "libsecp256k1-core 0.2.2",
-]
-
-[[package]]
-name = "libsecp256k1-gen-genmult"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3db8d6ba2cec9eacc40e6e8ccc98931840301f1006e95647ceb2dd5c3aa06f7c"
-dependencies = [
- "libsecp256k1-core 0.3.0",
+ "libsecp256k1-core",
 ]
 
 [[package]]
@@ -6588,7 +6541,7 @@ dependencies = [
 [[package]]
 name = "program-utils"
 version = "0.1.0"
-source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#681ce307bfaa7b8649e05b1dabd1d4437b5ea4b2"
+source = "git+https://github.com/eigerco/solana-axelar.git?branch=main#89e1b00d9be8d2fe9a1982bfc2eb33f5a380f836"
 dependencies = [
  "borsh 1.5.1",
  "solana-program",
@@ -8471,7 +8424,7 @@ dependencies = [
  "getrandom 0.2.15",
  "js-sys",
  "lazy_static",
- "libsecp256k1 0.6.0",
+ "libsecp256k1",
  "log",
  "memoffset",
  "num-bigint 0.4.6",
@@ -8688,7 +8641,7 @@ dependencies = [
  "itertools 0.12.1",
  "js-sys",
  "lazy_static",
- "libsecp256k1 0.6.0",
+ "libsecp256k1",
  "log",
  "memmap2",
  "num_enum 0.7.2",

@@ -2,10 +2,18 @@ use std::{collections::HashMap, sync::Arc};
 
 use serde_json::{json, Value};
 use solana_client::{
-     nonblocking::rpc_client::RpcClient, rpc_client::RpcClientConfig, rpc_request::RpcRequest, rpc_response::{Response, RpcResponseContext, RpcVersionInfo}, rpc_sender::{RpcSender, RpcTransportStats}
+    nonblocking::rpc_client::RpcClient,
+    rpc_client::RpcClientConfig,
+    rpc_request::RpcRequest,
+    rpc_response::{Response, RpcResponseContext, RpcVersionInfo},
+    rpc_sender::{RpcSender, RpcTransportStats},
 };
 use solana_sdk::{message::MessageHeader, transaction::TransactionVersion};
-use solana_transaction_status::{option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta, EncodedTransaction, EncodedTransactionWithStatusMeta, UiCompiledInstruction, UiMessage, UiRawMessage, UiTransaction, UiTransactionStatusMeta};
+use solana_transaction_status::{
+    option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
+    EncodedTransaction, EncodedTransactionWithStatusMeta, UiCompiledInstruction, UiMessage,
+    UiRawMessage, UiTransaction, UiTransactionStatusMeta,
+};
 use solana_version::Version;
 
 use solana_rpc_client_api::client_error::Result;
@@ -21,11 +29,11 @@ pub struct RpcRecorder {
 impl RpcRecorder {
     pub fn new() -> (Self, Registry) {
         let registry = Arc::new(RwLock::new(HashMap::new()));
-        let self_v  = Self {
+        let self_v = Self {
             record: registry.clone(),
         };
         (self_v, registry)
-    }   
+    }
 }
 
 /// Reference: https://docs.rs/solana-rpc-client/1.18.3/src/solana_rpc_client/mock_sender.rs.html#97-488
@@ -40,15 +48,14 @@ impl RpcSender for RpcRecorder {
         request: RpcRequest,
         params: serde_json::Value,
     ) -> Result<serde_json::Value> {
-
-        let mut acquired_record = self.record.write().await;       
+        let mut acquired_record = self.record.write().await;
 
         acquired_record
-        .entry(request)
-        .and_modify(|count| *count = count.checked_add(1).unwrap())
-        .or_insert(1);
+            .entry(request)
+            .and_modify(|count| *count = count.checked_add(1).unwrap())
+            .or_insert(1);
 
-        let method = &request.build_request_json(42, params.clone())["method"];      
+        let method = &request.build_request_json(42, params.clone())["method"];
 
         let val = match method.as_str().unwrap() {
             "getAccountInfo" => serde_json::to_value(Response {
