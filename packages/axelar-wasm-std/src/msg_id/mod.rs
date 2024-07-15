@@ -7,10 +7,12 @@ use error_stack::Report;
 pub use self::base_58_event_index::Base58TxDigestAndEventIndex;
 pub use self::base_58_solana_event_index::Base58SolanaTxSignatureAndEventIndex;
 pub use self::tx_hash_event_index::HexTxHashAndEventIndex;
+pub use self::tx_hash::HexTxHash;
 
 mod base_58_event_index;
 mod base_58_solana_event_index;
 mod tx_hash_event_index;
+mod tx_hash;
 
 #[derive(thiserror::Error)]
 #[cw_serde]
@@ -40,6 +42,7 @@ pub trait MessageId: FromStr + Display {}
 #[cw_serde]
 pub enum MessageIdFormat {
     HexTxHashAndEventIndex,
+    HexTxHash,
     Base58TxDigestAndEventIndex,
     Base58SolanaTxSignatureAndEventIndex,
 }
@@ -49,6 +52,9 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
     match format {
         MessageIdFormat::HexTxHashAndEventIndex => {
             HexTxHashAndEventIndex::from_str(message_id).map(|_| ())
+        }
+        MessageIdFormat::HexTxHash => {
+            HexTxHash::from_str(message_id).map(|_| ())
         }
         MessageIdFormat::Base58TxDigestAndEventIndex => {
             Base58TxDigestAndEventIndex::from_str(message_id).map(|_| ())
@@ -62,6 +68,7 @@ pub fn verify_msg_id(message_id: &str, format: &MessageIdFormat) -> Result<(), R
 #[cfg(test)]
 mod test {
     use super::tx_hash_event_index::HexTxHashAndEventIndex;
+    use super::tx_hash::HexTxHash;
     use crate::msg_id::base_58_event_index::Base58TxDigestAndEventIndex;
     use crate::msg_id::{verify_msg_id, MessageIdFormat};
 
@@ -73,6 +80,15 @@ mod test {
         }
         .to_string();
         assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_ok());
+    }
+
+    #[test]
+    fn should_verify_hex_tx_hash_msg_id() {
+        let msg_id = HexTxHash {
+            tx_hash: [1; 32],
+        }
+        .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHash).is_ok());
     }
 
     #[test]
@@ -89,6 +105,7 @@ mod test {
     fn should_not_verify_invalid_msg_id() {
         let msg_id = "foobar";
         assert!(verify_msg_id(msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+        assert!(verify_msg_id(msg_id, &MessageIdFormat::HexTxHash).is_err());
     }
 
     #[test]
@@ -99,12 +116,21 @@ mod test {
         }
         .to_string();
         assert!(verify_msg_id(&msg_id, &MessageIdFormat::Base58TxDigestAndEventIndex).is_err());
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHash).is_err());
 
         let msg_id = Base58TxDigestAndEventIndex {
             tx_digest: [1; 32],
             event_index: 0,
         }
         .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHash).is_err());
         assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+
+        let msg_id = HexTxHash {
+            tx_hash: [1; 32],
+        }
+        .to_string();
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::HexTxHashAndEventIndex).is_err());
+        assert!(verify_msg_id(&msg_id, &MessageIdFormat::Base58TxDigestAndEventIndex).is_err());
     }
 }

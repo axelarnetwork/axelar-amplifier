@@ -3,7 +3,7 @@ use std::vec::Vec;
 
 use axelar_wasm_std::msg_id::{
     Base58SolanaTxSignatureAndEventIndex, Base58TxDigestAndEventIndex, HexTxHashAndEventIndex,
-    MessageIdFormat,
+    HexTxHash, MessageIdFormat,
 };
 use axelar_wasm_std::voting::{PollId, Vote};
 use axelar_wasm_std::{nonempty, VerificationStatus};
@@ -136,6 +136,12 @@ fn parse_message_id(
                 .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
 
             Ok((id.tx_hash_as_hex(), id.event_index))
+        }
+        MessageIdFormat::HexTxHash => {
+            let id = HexTxHash::from_str(&message_id)
+                .map_err(|_| ContractError::InvalidMessageID(message_id.into()))?;
+
+            Ok((id.tx_hash_as_hex(), 0))
         }
         MessageIdFormat::Base58SolanaTxSignatureAndEventIndex => {
             let id = Base58SolanaTxSignatureAndEventIndex::from_str(&message_id)
