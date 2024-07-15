@@ -14,8 +14,8 @@ pub enum Error {
     #[error(transparent)]
     Std(#[from] StdError),
 
-    #[error("caller is not authorized")]
-    Unauthorized,
+    #[error("amplifier routing is disabled")]
+    RoutingDisabled,
 
     #[error("chain already exists")]
     ChainAlreadyExists,

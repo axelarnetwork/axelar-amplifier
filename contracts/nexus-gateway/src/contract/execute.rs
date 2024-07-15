@@ -67,7 +67,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use axelar_wasm_std::msg_id::tx_hash_event_index::HexTxHashAndEventIndex;
+    use axelar_wasm_std::msg_id::HexTxHashAndEventIndex;
     use cosmwasm_std::{from_json, CosmosMsg};
     use hex::decode;
 
