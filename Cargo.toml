@@ -16,6 +16,7 @@ error-stack = { version = "0.4.0", features = ["eyre"] }
 events = { version = "^0.1.0", path = "packages/events" }
 events-derive = { version = "^0.1.0", path = "packages/events-derive" }
 evm-gateway = { version = "^0.1.0", path = "packages/evm-gateway" }
+sui-gateway = { version = "^0.1.0", path = "packages/sui-gateway" }
 axelar-wasm-std = { version = "^0.1.0", path = "packages/axelar-wasm-std" }
 axelar-wasm-std-derive = { version = "^0.1.0", path = "packages/axelar-wasm-std-derive" }
 integration-tests = { version = "^0.1.0", path = "integration-tests" }
