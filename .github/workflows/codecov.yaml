@@ -33,7 +33,7 @@ jobs:
       - name: Cache build artifacts
         uses: useblacksmith/rust-cache@v3
         with:
-          shared-key: "cache"
+          shared-key: "cache-codecov"
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
