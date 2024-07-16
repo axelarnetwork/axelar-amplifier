@@ -6161,6 +6161,7 @@ dependencies = [
  "cw2 1.1.2",
  "error-stack",
  "itertools 0.11.0",
+ "msgs-derive",
  "report",
  "router-api",
  "thiserror",

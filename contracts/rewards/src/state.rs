@@ -12,7 +12,6 @@ use crate::{error::ContractError, msg::Params};
 
 #[cw_serde]
 pub struct Config {
-    pub governance: Addr,
     pub rewards_denom: String,
 }
 
