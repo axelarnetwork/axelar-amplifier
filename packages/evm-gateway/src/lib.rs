@@ -1,5 +1,7 @@
 pub mod error;
 
+use std::str::FromStr;
+
 use cosmwasm_std::Uint256;
 use error_stack::{Report, ResultExt};
 use ethers_contract::abigen;
@@ -10,12 +12,12 @@ use ethers_core::{
         Tokenize,
     },
     types::{Address, Bytes, U256},
-    utils::{parse_checksummed, public_key_to_address},
+    utils::public_key_to_address,
 };
 use k256::ecdsa::VerifyingKey;
 use sha3::{Digest, Keccak256};
 
-use axelar_wasm_std::hash::Hash;
+use axelar_wasm_std::{hash::Hash, FnExt};
 use multisig::{
     key::PublicKey,
     msg::{Signer, SignerWithSig},
@@ -79,7 +81,11 @@ impl TryFrom<&RouterMessage> for Message {
     type Error = Report<Error>;
 
     fn try_from(msg: &RouterMessage) -> Result<Self, Self::Error> {
-        let contract_address = parse_checksummed(msg.destination_address.as_str(), None)
+        let contract_address = msg
+            .destination_address
+            .as_str()
+            .then(|addr| addr.strip_prefix("0x").unwrap_or(addr))
+            .then(Address::from_str)
             .change_context(Error::InvalidAddress)?;
 
         Ok(Message {
@@ -144,8 +150,9 @@ pub fn evm_address(pub_key: &PublicKey) -> Result<Address, Report<Error>> {
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use cosmwasm_std::{Addr, HexBinary, Uint128};
-    use ethers_core::utils::to_checksum;
 
     use axelar_wasm_std::{nonempty, snapshot::Participant};
     use multisig::{key::PublicKey, verifier_set::VerifierSet};
@@ -172,32 +179,43 @@ mod test {
         let message_id = "0xff822c88807859ff226b58e24f24974a70f04b9442501ae38fd665b3c68f3834-0";
         let source_address = "0x52444f1835Adc02086c37Cb226561605e2E1699b";
         let destination_chain = "chain1";
-        let destination_address = "0xA4f10f76B86E01B98daF66A3d02a65e14adb0767";
         let payload_hash = "8c3685dc41c2eca11426f8035742fb97ea9f14931152670a5703f18fe8b392f0";
+        let destination_addresses = vec![
+            "0xa4f10f76b86e01b98daf66a3d02a65e14adb0767", // all lowercase
+            "0xA4f10f76B86E01B98daF66A3d02a65e14adb0767", // checksummed
+            "a4f10f76b86e01b98daf66a3d02a65e14adb0767",   // no 0x prefix
+        ];
 
-        let router_messages = RouterMessage {
-            cc_id: CrossChainId {
-                chain: source_chain.parse().unwrap(),
-                id: message_id.parse().unwrap(),
-            },
-            source_address: source_address.parse().unwrap(),
-            destination_address: destination_address.parse().unwrap(),
-            destination_chain: destination_chain.parse().unwrap(),
-            payload_hash: HexBinary::from_hex(payload_hash)
+        for destination_address in destination_addresses {
+            let router_messages = RouterMessage {
+                cc_id: CrossChainId {
+                    chain: source_chain.parse().unwrap(),
+                    id: message_id.parse().unwrap(),
+                },
+                source_address: source_address.parse().unwrap(),
+                destination_address: destination_address.parse().unwrap(),
+                destination_chain: destination_chain.parse().unwrap(),
+                payload_hash: HexBinary::from_hex(payload_hash)
+                    .unwrap()
+                    .to_array::<32>()
+                    .unwrap(),
+            };
+
+            let gateway_message = Message::try_from(&router_messages).unwrap();
+            assert_eq!(gateway_message.source_chain, source_chain);
+            assert_eq!(gateway_message.message_id, message_id);
+            assert_eq!(gateway_message.source_address, source_address);
+            assert_eq!(
+                gateway_message.contract_address,
+                ethers_core::types::Address::from_str(
+                    destination_address
+                        .strip_prefix("0x")
+                        .unwrap_or(destination_address)
+                )
                 .unwrap()
-                .to_array::<32>()
-                .unwrap(),
-        };
-
-        let gateway_message = Message::try_from(&router_messages).unwrap();
-        assert_eq!(gateway_message.source_chain, source_chain);
-        assert_eq!(gateway_message.message_id, message_id);
-        assert_eq!(gateway_message.source_address, source_address);
-        assert_eq!(
-            to_checksum(&gateway_message.contract_address, None),
-            destination_address
-        );
-        assert_eq!(gateway_message.payload_hash, router_messages.payload_hash);
+            );
+            assert_eq!(gateway_message.payload_hash, router_messages.payload_hash);
+        }
     }
 
     // Generate a worker set matches axelar-gmp-sdk-solidity repo test data
