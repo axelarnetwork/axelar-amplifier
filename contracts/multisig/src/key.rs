@@ -312,8 +312,8 @@ impl AsRef<[u8]> for Signature {
 impl From<PublicKey> for HexBinary {
     fn from(original: PublicKey) -> Self {
         match original {
-            PublicKey::Ecdsa(sig) => sig,
-            PublicKey::Ed25519(sig) => sig,
+            PublicKey::Ecdsa(key) => key,
+            PublicKey::Ed25519(key) => key,
         }
     }
 }
